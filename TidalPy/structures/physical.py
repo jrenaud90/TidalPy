@@ -1,8 +1,8 @@
 import numpy as np
 
-from . import debug_mode
-from .types import float_like, float_eps
-from .exceptions import BadAttributeValueError, IncorrectAttributeType, ImproperAttributeHandling, UnusualRealValueError
+from TidalPy import debug_mode
+from TidalPy.types import float_like, float_eps
+from TidalPy.exceptions import BadAttributeValueError, IncorrectAttributeType, ImproperAttributeHandling, UnusualRealValueError
 
 
 class PhysicalObjSpherical:

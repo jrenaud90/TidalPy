@@ -33,6 +33,9 @@ class ModelSearcher:
                 if 'other_params:' in line:
                     args = line.split('other_params:')[-1].split(',')
                     cleaned_args = [arg.strip() for arg in args]
+                    if len(args) == 1:
+                        if args[0].lower() in ['None']:
+                            cleaned_args = None
                     self.args_needed[model] = cleaned_args
                     break
 
@@ -57,13 +60,13 @@ class ModelSearcher:
         return func_check
 
     def find_model(self, model_name: str, parameters: dict = None, default_key: str = None):
-        """ Searched known models for model_name and returns the function and required inputs """
+        """ Searches known models for model_name and returns the function and required inputs """
 
         if model_name not in self.known_models:
             raise UnknownModelError
         model_func = self.known_models[model_name]
         needed_args = self.args_needed[model_name]
-        inputs = None
+        inputs = list()
 
         self.user_parameters = parameters
         if default_key is None:
@@ -72,20 +75,7 @@ class ModelSearcher:
             defaults = self.default_parameters[default_key]
 
         # Build tuple of function inputs
-        if needed_args is not None:
-            inputs = list()
-            for arg_name in needed_args:
-                # Arguments will default to the default parameter list (if present)
-                # They will then be overridden by user input (if provided)
-                # If neither of these sources have the required parameter, then an exception will be raised.
-                arg = defaults.get(arg_name, None)
-                if parameters is not None:
-                    arg = parameters.get(arg_name, arg)
-                if arg is None:
-                    raise ParameterMissingError(f'required argument:"{arg_name}" not found in model defaults or in '
-                                                f'user provided parameters.')
-                inputs.append(arg)
-            inputs = tuple(inputs)
+        inputs = self.build_inputs(needed_args, defaults, user_provided=parameters)
 
         return model_func, inputs
 
@@ -94,5 +84,25 @@ class ModelSearcher:
         # Wrapper for self.find_model
         return self.find_model(model_name, parameters, default_key)
 
+    @staticmethod
+    def build_inputs(needed_args, defaults: dict, user_provided: dict = None) -> tuple:
+        """ Builds an input tuple based on a function's needed arguments along with default
+            and user-provided parameters"""
+
+        inputs = list()
+        if needed_args is not None:
+            for arg_name in needed_args:
+                # Arguments will default to the default parameter list (if present)
+                # They will then be overridden by user input (if provided)
+                # If neither of these sources have the required parameter, then an exception will be raised.
+                arg = defaults.get(arg_name, None)
+                if user_provided is not None:
+                    arg = user_provided.get(arg_name, arg)
+                if arg is None:
+                    raise ParameterMissingError(f'required argument:"{arg_name}" not found in model defaults or in '
+                                                f'user provided parameters.')
+                inputs.append(arg)
+
+        return tuple(inputs)
 
 

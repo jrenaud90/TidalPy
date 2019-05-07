@@ -1,9 +1,9 @@
-from .physical import PhysicalObjSpherical
-from .types import floatarray_like
-from .exceptions import AttributeNotSet, IncorrectAttributeType, UnusualRealValueError, ImproperAttributeHandling,\
+from TidalPy.structures.physical import PhysicalObjSpherical
+from TidalPy.types import floatarray_like
+from TidalPy.exceptions import AttributeNotSet, IncorrectAttributeType, UnusualRealValueError, ImproperAttributeHandling,\
     BadAttributeValueError
-from . import debug_mode
-from .thermal import melt_fraction, Strength
+from TidalPy import debug_mode
+from TidalPy.thermal import melt_fraction, Strength
 import numpy as np
 
 

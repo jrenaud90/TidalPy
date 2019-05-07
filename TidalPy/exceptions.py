@@ -27,9 +27,15 @@ class ParameterMissingError(TidalPyException):
     default_message = 'One or more parameters are missing and have no fallbacks.' \
                       'Check that keys have correct spelling and capitalization.'
 
+
 class ParameterError(TidalPyException):
 
     default_message = 'One or more parameters are not supported as specified.'
+
+
+class IncompatibleModelError(ParameterError):
+
+    default_message = 'One or more model parameters are not compatible with each other'
 
 
 class ImproperAttributeHandling(TidalPyException):
