@@ -95,5 +95,10 @@ class RheologyModelSearcher(ModelSearcher):
 
         return model_func, inputs
 
+    def __call__(self, model_name: str, parameters: dict = None, default_key: str = None):
+
+        # Wrapper for self.find_model
+        return self.find_model(model_name, parameters, default_key)
+
 
 find_compliance_func = RheologyModelSearcher(compliances, andrade_frequency, compliance_param_defaults)

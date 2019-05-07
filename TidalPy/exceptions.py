@@ -24,7 +24,7 @@ class UnknownModelError(TidalPyException):
 
 class ParameterMissingError(TidalPyException):
 
-    default_message = 'One or more parameters are missing and have no fallbacks.' \
+    default_message = 'One or more parameter(s) or configuration(s) are missing and have no defaults.' \
                       'Check that keys have correct spelling and capitalization.'
 
 

@@ -5,7 +5,7 @@ from TidalPy.exceptions import AttributeNotSet, IncorrectAttributeType, UnusualR
 from TidalPy import debug_mode
 from TidalPy.thermal import melt_fraction, Strength
 import numpy as np
-
+from typing import Tuple
 
 class Layer(PhysicalObjSpherical):
 
@@ -28,7 +28,8 @@ class Layer(PhysicalObjSpherical):
         # State Variables
         self._temperature = None
         self._melt_fraction = None
-        self._strength = None
+        self._viscosity = None
+        self._shear_modulus = None
 
         # Material Properties
 
@@ -66,16 +67,46 @@ class Layer(PhysicalObjSpherical):
         :return: <FloatOrArray> Volumetric Melt Fraction
         """
 
-        if self.solidus is None or self.liquidus is None:
-            raise AttributeNotSet
+        if self.use_partial_melt:
+            if self.solidus is None or self.liquidus is None:
+                raise AttributeNotSet
 
-        self._melt_fraction = melt_fraction(self.temperature, self.solidus, self.liquidus)
+            self._melt_fraction = melt_fraction(self.temperature, self.solidus, self.liquidus)
 
-        if debug_mode:
-            if np.any(self._melt_fraction > 1.) or np.any(self._melt_fraction < 1.):
-                raise BadAttributeValueError
+            if debug_mode:
+                if np.any(self._melt_fraction > 1.) or np.any(self._melt_fraction < 1.):
+                    raise BadAttributeValueError
 
-        return self.melt_fraction
+            return self.melt_fraction
+        else:
+            return False
+
+    def set_strength(self) -> Tuple[np.ndarray, np.ndarray]:
+        """ Sets and returns the strength (viscosity and shear) of the layer
+
+        Requires self.viscosity_func and self.shear_modulus
+        Optionally it will call self.partial_melt_func if provided
+
+        :return: <FloatOrArray> (Viscosity, Shear Modulus)
+        """
+
+        if self.viscosity_func is not None and self.shear_modulus is not None:
+
+            if self.pressure is None:
+                pressure = np.zeros_like(self.temperature)
+            else:
+                pressure = self.pressure
+            pre_partial_melt_visc = self.viscosity_func(self.temperature, pressure, *self.premelt_visco_params)
+            liquid_viscosity = self.viscosity_liquid_func(self.temperature, pressure, *self.liquid_visco_params)
+
+            viscosity, shear_modulus = self.partial_melt_func(self.temperature, self.melt_fraction,
+                                                              pre_partial_melt_visc, self.premelt_shear_modulus,
+                                                              liquid_viscosity, *self.partial_melt_params)
+            # Set state variables
+            self._viscosity = viscosity
+            self._shear_modulus = shear_modulus
+        else:
+            return False
 
     # Class Properties
     @property
@@ -100,8 +131,8 @@ class Layer(PhysicalObjSpherical):
         if type(value) != np.ndarray:
             value = np.asarray(value)
         self._temperature = value
-        if self.use_partial_melt:
-            self.set_meltfraction()
+        self.set_meltfraction()
+        self.set_strength()
 
     @property
     def melt_fraction(self) -> np.ndarray:
@@ -116,4 +147,37 @@ class Layer(PhysicalObjSpherical):
         raise ImproperAttributeHandling('Melt fraction should be set by changing self.temperature or using by using'
                                         'the self.set_meltfraction method.')
 
+    @property
+    def viscosity(self) -> np.ndarray:
 
+        if self._viscosity is None:
+            raise AttributeNotSet
+        else:
+            return self._viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+        raise ImproperAttributeHandling('Viscosity should be set by changing self.temperature or using by using'
+                                        'the self.set_strength method.')
+
+    @property
+    def shear_modulus(self) -> np.ndarray:
+
+        if self._shear_modulus is None:
+            raise AttributeNotSet
+        else:
+            return self._shear_modulus
+
+    @shear_modulus.setter
+    def shear_modulus(self, value):
+        raise ImproperAttributeHandling('Shear Modulus should be set by changing self.temperature or using by using'
+                                        'the self.set_strength method.')
+
+    # Aliased Attributes
+    @property
+    def shear(self) -> np.ndarray:
+        return self.shear_modulus
+
+    @shear.setter
+    def shear(self, value):
+        self.shear_modulus = value
