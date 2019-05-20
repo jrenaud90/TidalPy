@@ -1,16 +1,17 @@
-from TidalPy.exceptions import UnknownModelError, ParameterMissingError, IncompatibleModelError
-from ..utilities.search import ModelSearcher
-from . import compliances
-from . import andrade_frequency
-from inspect import getmembers
+from numba import njit
+
+from TidalPy.rheology.compliance import ComplianceModelSearcher
+from TidalPy.utilities.classes import ModelHolder
+from TidalPy.utilities.search import ModelSearcher
+from ..types import FloatArray
+from . import compliance_models, andrade_frequency_models
 
 # Rheology (compliance) Model Finder
-compliance_param_defaults = {
+rheology_param_defaults = {
     'ice': {
-
-        },
-
-    'rocky': {
+            'model': '2order',
+            'order_l': 2,
+            'compliances': ['Maxwell', 'Andrade'],
             'voigt_compliance_offset': .2,
             'voigt_viscosity_offset': .02,
             'alpha': .3,
@@ -18,87 +19,90 @@ compliance_param_defaults = {
             'andrade_frequency_model': 'exponential',
             'andrade_critical_freq': 2.0e-7
         },
-
+    'rocky': {
+            'model': '2order',
+            'order_l': 2,
+            'compliances': ['Maxwell', 'Andrade'],
+            'voigt_compliance_offset': .2,
+            'voigt_viscosity_offset': .02,
+            'alpha': .3,
+            'zeta': 1.,
+            'andrade_frequency_model': 'exponential',
+            'andrade_critical_freq': 2.0e-7
+        },
     'iron': {
-
+            'model': 'off'
         }
     }
 
+@njit
+def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray):
+    """ Calculates the 2nd order complex Love number
 
-class RheologyModelSearcher(ModelSearcher):
+    :param complex_compliance: <FloatArray> Complex compliance (rheology based) [Pa-1]
+    :param shear_modulus:      <FloatArray> Temperature modulated rigidity [Pa]
+    :param eff_rigidity:       <FloatArray> 2nd order effective rigidity
+    :return:                   <FloatArray> Complex Love Number
+    """
 
-    def __init__(self, module, frequency_module, default_parameters: dict = None):
-
-        self.frequency_module = frequency_module
-        # Generate a dictionary of functions
-        func_list = getmembers(module, self.is_function)
-        self.known_frequency_models = {name: func for name, func in func_list}
-
-        self.frequency_args_needed = dict()
-        for model, func in self.known_models:
-            self.frequency_args_needed[model] = None
-            for line in func.__doc__.split('\n'):
-                # The doc string format for all functions should contain a line that is "other_args: arg1, arg2, ..."
-                if 'other_params:' in line:
-                    args = line.split('other_params:')[-1].split(',')
-                    cleaned_args = [arg.strip() for arg in args]
-                    if len(args) == 1:
-                        if args[0].lower() in ['None']:
-                            cleaned_args = None
-                    self.frequency_args_needed[model] = cleaned_args
-                    break
-
-        super().__init__(module, default_parameters=default_parameters)
-
-    def find_model(self, model_name: str, parameters: dict = None, default_key: str = None):
-        """ Searches known models for model_name and returns the function and required inputs """
-
-        if model_name not in self.known_models:
-            raise UnknownModelError
-        model_func = self.known_models[model_name]
-        needed_args = self.args_needed[model_name]
-        inputs = list()
-
-        self.user_parameters = parameters
-        if default_key is None:
-            defaults = self.default_parameters
-        else:
-            defaults = self.default_parameters[default_key]
-
-        # Add in frequency check to the parameters
-        frequency_model = defaults.get('andrade_frequency_model', None)
-        frequency_model = parameters.get('andrade_frequency_model', frequency_model)
-        use_frequency = False
-        if frequency_model is not None:
-            if frequency_model.lower() not in ['off']:
-                # If these two checks fail then the frequency model is turned off
-                use_frequency = True
-
-        if use_frequency and model_name[-5:] != '_freq':
-            raise IncompatibleModelError
-        if not use_frequency and model_name[-5:] == '_freq':
-            raise IncompatibleModelError
-        if model_name[-5:] == '_freq':
-            if 'andrade' not in model_name or 'sundberg' not in model_name:
-                raise IncompatibleModelError('Only the Andrade and Sundberg-Cooper rheologies are allowed to have'
-                                             'additional frequency dependency.')
-        if use_frequency:
-            frequency_func = self.known_frequency_models[model_name]
-            needed_frequency_args = self.frequency_args_needed[model_name]
-            frequency_inputs = self.build_inputs(needed_frequency_args, defaults, user_provided=parameters)
-            # Add the frequency model information to the parameters dict. It will be used in the next setup step.
-            parameters['andrade_freq_params'] = frequency_inputs
-            parameters['andrade_freq_func'] = frequency_func
-
-        # Build tuple of function inputs
-        inputs = self.build_inputs(needed_args, defaults, user_provided=parameters)
-
-        return model_func, inputs
-
-    def __call__(self, model_name: str, parameters: dict = None, default_key: str = None):
-
-        # Wrapper for self.find_model
-        return self.find_model(model_name, parameters, default_key)
+    return (3. / 2.) * (1. + eff_rigidity / (shear_modulus * complex_compliance))**(-1)
 
 
-find_compliance_func = RheologyModelSearcher(compliances, andrade_frequency, compliance_param_defaults)
+@njit
+def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
+                         order_l: int = 2):
+    """ Calculates the l-th order complex Love number
+
+    :param complex_compliance:      <FloatArray> Complex compliance (rheology based) [Pa-1]
+    :param shear_modulus:           <FloatArray> Temperature modulated rigidity [Pa]
+    :param eff_rigidity_general:    <FloatArray> l-th order effective rigidity
+    :param order_l:                 <int> (optional) Outer-most fourier summation index
+    :return:                        <FloatArray> Complex Love Number
+    """
+
+    return (3. / (2. * (order_l - 1.))) * (1. + eff_rigidity_general / (shear_modulus * complex_compliance))**(-1)
+
+@njit
+def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float):
+    """ Calculates the 2nd order effective rigidity
+
+    :param shear_modulus: <FloatArray> Temperature modulated rigidity
+    :param gravity:       <float> Surface gravity [m s-2]
+    :param radius:        <float> Surface radius [m]
+    :param density:       <float> Bulk density [kg m-3]
+    :return:              <FloatArray> 2nd order Effective Rigidity
+    """
+
+    return (19. / 2.) * shear_modulus / (gravity * radius * density)
+
+@njit
+def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius: float, density: float,
+                               order_l: int = 2):
+    """ Calculates the l-th order effective rigidity
+
+    :param shear_modulus: <FloatArray> Temperature modulated rigidity
+    :param gravity:       <float> Surface gravity [m s-2]
+    :param radius:        <float> Surface radius [m]
+    :param density:       <float> Bulk density [kg m-3]
+    :param order_l:       <int> (optional) Outer-most fourier summation index
+    :return:              <FloatArray> 2nd order Effective Rigidity
+    """
+
+    return (2. * order_l**2 + 4. * order_l + 3. / order_l) * shear_modulus / (gravity * radius * density)
+
+
+class Rheology(ModelHolder):
+
+    name = 'Rheology'
+
+    def __init__(self, layer_type: str, rheology_config: dict = None):
+
+        model_searcher = ComplianceModelSearcher(compliance_models, andrade_frequency_models,
+                                                 rheology_param_defaults[layer_type])
+        model_searcher.user_parameters = rheology_config
+
+        super().__init__(user_config=rheology_config, default_config=rheology_param_defaults[layer_type],
+                         function_searcher=model_searcher, automate=True)
+
+        if self.model == 'off':
+            # No tidal heating

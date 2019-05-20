@@ -1,4 +1,4 @@
-from ..exceptions import ParameterMissingError, UnknownModelError
+from ..exceptions import ParameterMissingError, UnknownModelError, MissingArgumentError
 
 from inspect import getmembers, isfunction, isclass
 from numba.targets.registry import CPUDispatcher
@@ -12,9 +12,10 @@ class ModelSearcher:
 
     reject_list = tuple()
 
-    def __init__(self, module, default_parameters: dict = None):
+    def __init__(self, module, default_parameters: dict = None, defaults_require_key: bool = False):
 
         self.model_name = module
+        self.defaults_require_key = defaults_require_key
 
         # Generate a dictionary of functions
         func_list = getmembers(module, self.is_function)
@@ -68,14 +69,18 @@ class ModelSearcher:
         needed_args = self.args_needed[model_name]
         inputs = list()
 
-        self.user_parameters = parameters
+        if parameters is not None:
+            self.user_parameters = parameters
+
         if default_key is None:
+            if self.defaults_require_key:
+                raise MissingArgumentError
             defaults = self.default_parameters
         else:
             defaults = self.default_parameters[default_key]
 
         # Build tuple of function inputs
-        inputs = self.build_inputs(needed_args, defaults, user_provided=parameters)
+        inputs = self.build_inputs(needed_args, defaults, user_provided=self.user_parameters)
 
         return model_func, inputs
 

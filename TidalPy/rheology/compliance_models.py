@@ -15,6 +15,14 @@ How To Implement a New Rheology:
 from scipy.special import factorial
 from numba import njit
 
+@njit
+def off(compliance, viscosity, frequency):
+    """ No Rheology
+
+    other args: None
+    """
+
+    return compliance
 
 @njit
 def maxwell(compliance, viscosity, frequency):

@@ -17,6 +17,15 @@ class TidalPyException(RuntimeError):
             super().__init__(self.default_message)
 
 
+class NoImplementationError(TidalPyException):
+
+    default_message = 'Tried to use functionality that is not yet implemented.'
+
+
+class ImplementedBySubclassError(NoImplementationError):
+
+    default_message = 'Trying to access sub-class functionality from a base class.'
+
 class UnknownModelError(TidalPyException):
 
     default_message = 'A selected model, parameter, or switch is not currently supported.'
@@ -27,6 +36,9 @@ class ParameterMissingError(TidalPyException):
     default_message = 'One or more parameter(s) or configuration(s) are missing and have no defaults.' \
                       'Check that keys have correct spelling and capitalization.'
 
+class MissingArgumentError(TidalPyException):
+
+    default_message = 'One or more required argument(s) and/or key-word argument(s) were not provided.'
 
 class ParameterError(TidalPyException):
 

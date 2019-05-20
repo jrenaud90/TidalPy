@@ -1,6 +1,7 @@
-from TidalPy.exceptions import ImproperAttributeHandling, ParameterMissingError
+from TidalPy.exceptions import ImproperAttributeHandling, ParameterMissingError, ImplementedBySubclassError
 from .. import debug_mode, auto_write, __version__
 from ..io import run_dir
+from .search import ModelSearcher
 import copy
 import warnings
 import os
@@ -17,10 +18,9 @@ class ConfigHolder(TidalPyClass):
     """
 
     name = 'ConfigHolder'
-    config_outer_key = None
-    config_inner_key = None
+    required_params = tuple()
 
-    def __init__(self, user_config: dict = None):
+    def __init__(self, user_config: dict = None, default_config: dict = None, automate: bool = False):
 
         super().__init__()
 
@@ -28,12 +28,16 @@ class ConfigHolder(TidalPyClass):
             assert type(user_config) == dict
 
         # State Variables
-        self._config_default = None
+        self._config_default = default_config
         self._config_user = user_config
         self._config = None
 
         # Flags
         self.config_constructed = False
+
+        # Install user provided config
+        if automate:
+            self.update_config()
 
     def get_param(self, param_name: str, raise_missing: bool = True, fallback = None):
         """ Uses the outer and inner keys (if set) to parse into the configuration dictionary
@@ -45,28 +49,10 @@ class ConfigHolder(TidalPyClass):
         """
 
         try:
-            if self.config_outer_key is None:
-                if self.config_inner_key is None:
-                    try:
-                        output = self.config[param_name]
-                    except KeyError:
-                        raise ParameterMissingError
-                else:
-                    try:
-                        output = self.config[self.config_inner_key][param_name]
-                    except KeyError:
-                        raise ParameterMissingError
-            else:
-                if self.config_inner_key is None:
-                    try:
-                        output = self.config[self.config_outer_key][param_name]
-                    except KeyError:
-                        raise ParameterMissingError
-                else:
-                    try:
-                        output = self.config[self.config_outer_key][self.config_inner_key][param_name]
-                    except KeyError:
-                        raise ParameterMissingError
+            try:
+                output = self.config[param_name]
+            except KeyError:
+                raise ParameterMissingError
         except ParameterMissingError as e:
             if raise_missing:
                 raise e
@@ -75,7 +61,7 @@ class ConfigHolder(TidalPyClass):
 
         return output
 
-    def update_config(self) -> dict:
+    def update_config(self, throwaway_nonrequred: bool = True) -> dict:
         """ Combines the default and user provided configurations into one dictionary.
 
         User parameters override defaults"""
@@ -88,6 +74,17 @@ class ConfigHolder(TidalPyClass):
             self._config = copy.deepcopy(self.config_default)
         else:
             self._config = {**self.config_default, **self.config_user}
+
+        # Check if all required parameters are present
+        for param_name in self.required_params:
+            if param_name not in self.config:
+                raise ParameterMissingError
+
+        # Remove any other parameters that are not in the required_params tuple
+        if throwaway_nonrequred:
+            for param_name in self._config:
+                if param_name not in self.required_params:
+                    del self._config[param_name]
 
         self.config_constructed = True
         return self.config
@@ -149,6 +146,47 @@ class ConfigHolder(TidalPyClass):
     def config(self, value):
         raise ImproperAttributeHandling('To change configurations set the "config_user" attribute '
                                         'or run "update_config"')
+
+
+class ModelHolder(ConfigHolder):
+
+    name = 'ModelHolder'
+    required_params = ('model',)
+
+    def __init__(self, model_name: str = None, user_config: dict = None, default_config: dict = None, function_searcher = None,
+                 automate: bool = False):
+
+        super().__init__(user_config, default_config, automate)
+        if model_name is None:
+            model_name = self.config['model']
+
+        self.model = model_name
+        self.name += f'_{model_name}'
+        self.searcher = None
+        self.func = None
+        self.inputs = None
+
+        if function_searcher is not None and automate:
+            if debug_mode:
+                assert isinstance(function_searcher, ModelSearcher)
+            self.searcher = function_searcher
+            self.func, self.inputs = self.searcher.find_model(self.model, parameters=self.config)
+
+        # Switch between calculate and calculate debug. Generally, _calculate_debug is a much slower function that
+        #    includes additional checks
+        if debug_mode:
+            if '_calculate_debug' in self.__dict__:
+                self.calculate = getattr(self, '_calculate_debug')
+                if self.calculate.__doc__ is None and self._calculate.__doc__ is not None:
+                    self.calculate.__doc__ = """DEBUG VERSION OF: """ + self._calculate.__doc__
+            else:
+                # Subclass did not implement a debug mode calculator
+                self.calculate = self._calculate
+        else:
+            self.calculate = self._calculate
+
+    def _calculate(self, *args, **kwargs):
+        raise ImplementedBySubclassError
 
 
 

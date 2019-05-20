@@ -13,7 +13,7 @@ from setuptools import setup
 #     rec   = Release Candidate: Bugs are possible but should not impact functionality.
 #           Suitable for distribution with warning to user
 
-version = '0.1.0alpha'
+version = '0.1.0alpha_1'
 
 setup(name='TidalPy',
       version=version,
@@ -23,4 +23,11 @@ setup(name='TidalPy',
       author_email='joe.p.renaud@gmail.com',
       license='MIT',
       packages=['TidalPy'],
+      install_requires=[
+            'numpy',
+            'scipy',
+            'matplotlib',
+            'json5',
+            'numba'
+      ],
       zip_safe=False)
