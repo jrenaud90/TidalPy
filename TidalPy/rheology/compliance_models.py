@@ -22,7 +22,7 @@ def off(compliance, viscosity, frequency):
     other args: None
     """
 
-    return compliance
+    return compliance + 0.0j
 
 @njit
 def maxwell(compliance, viscosity, frequency):

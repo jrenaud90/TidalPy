@@ -17,12 +17,12 @@ class TidalPyException(RuntimeError):
             super().__init__(self.default_message)
 
 
-class NoImplementationError(TidalPyException):
+class ImplementationError(TidalPyException):
 
     default_message = 'Tried to use functionality that is not yet implemented.'
 
 
-class ImplementedBySubclassError(NoImplementationError):
+class ImplementedBySubclassError(ImplementationError):
 
     default_message = 'Trying to access sub-class functionality from a base class.'
 

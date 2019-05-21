@@ -2,14 +2,35 @@ from numba import njit
 
 from TidalPy.rheology.compliance import ComplianceModelSearcher
 from TidalPy.utilities.classes import ModelHolder
-from TidalPy.utilities.search import ModelSearcher
 from ..types import FloatArray
 from . import compliance_models, andrade_frequency_models
+from .love_1d import effective_rigidity, complex_love, complex_love_general, effective_rigidity_general
+from ..exceptions import ImplementationError, UnknownModelError
+from functools import partial
 
 # Rheology (compliance) Model Finder
 rheology_param_defaults = {
     'ice': {
             'model': '2order',
+            'solid_viscosity': {
+                'model': 'arrhenius',
+                # Matching Moore2006 for Volume Diffusion
+                'arrhenius_coeff': 9.06e-8**(-1),
+                'additional_temp_dependence': True,
+                'stress': 1.0,
+                'stress_expo': 1.0,
+                'grain_size': 5.0e-4,
+                'grain_size_expo': 2.0,
+                'molar_activation_energy': 59.4e3,
+                'molar_activation_volume': -1.3e-5
+            },
+            'liquid_viscosity': {
+                'model': 'reference',
+                'reference_viscosity': 0.89e-3,
+                'reference_temperature': 25.0 + 273.15,
+                'molar_activation_energy': 1.62e4,
+                'molar_activation_volume': 0.0
+            },
             'order_l': 2,
             'compliances': ['Maxwell', 'Andrade'],
             'voigt_compliance_offset': .2,
@@ -21,6 +42,20 @@ rheology_param_defaults = {
         },
     'rocky': {
             'model': '2order',
+            'solid_viscosity': {
+                'model': 'reference',
+                'reference_viscosity': 1.0e22,
+                'reference_temperature': 1000.0,
+                'molar_activation_energy': 300000.0,
+                'molar_activation_volume': 0.0
+            },
+            'liquid_viscosity': {
+                'model': 'reference',
+                'reference_viscosity': 0.2,
+                'reference_temperature': 2000.0,
+                'molar_activation_energy': 6.64e-20,
+                'molar_activation_volume': 0.0
+            },
             'order_l': 2,
             'compliances': ['Maxwell', 'Andrade'],
             'voigt_compliance_offset': .2,
@@ -31,64 +66,21 @@ rheology_param_defaults = {
             'andrade_critical_freq': 2.0e-7
         },
     'iron': {
-            'model': 'off'
+            'model': 'off',
+            # These are just placeholders. Right now we do not calculate the tides in iron layer, so no need to have
+            #    correct values at the moment.
+            'solid_viscosity': {
+                'model': 'constant',
+                'reference_viscosity': 1.0e20,
+            },
+            'liquid_viscosity': {
+                # These values match Wijs et al 1998 (their work actually does not show much change in the liquid visc
+                #    at Earth's core pressure, so a constant model may not be too incorrect).
+                'model': 'constant',
+                'reference_viscosity': 1.3e-2,
+            },
         }
     }
-
-@njit
-def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray):
-    """ Calculates the 2nd order complex Love number
-
-    :param complex_compliance: <FloatArray> Complex compliance (rheology based) [Pa-1]
-    :param shear_modulus:      <FloatArray> Temperature modulated rigidity [Pa]
-    :param eff_rigidity:       <FloatArray> 2nd order effective rigidity
-    :return:                   <FloatArray> Complex Love Number
-    """
-
-    return (3. / 2.) * (1. + eff_rigidity / (shear_modulus * complex_compliance))**(-1)
-
-
-@njit
-def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
-                         order_l: int = 2):
-    """ Calculates the l-th order complex Love number
-
-    :param complex_compliance:      <FloatArray> Complex compliance (rheology based) [Pa-1]
-    :param shear_modulus:           <FloatArray> Temperature modulated rigidity [Pa]
-    :param eff_rigidity_general:    <FloatArray> l-th order effective rigidity
-    :param order_l:                 <int> (optional) Outer-most fourier summation index
-    :return:                        <FloatArray> Complex Love Number
-    """
-
-    return (3. / (2. * (order_l - 1.))) * (1. + eff_rigidity_general / (shear_modulus * complex_compliance))**(-1)
-
-@njit
-def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float):
-    """ Calculates the 2nd order effective rigidity
-
-    :param shear_modulus: <FloatArray> Temperature modulated rigidity
-    :param gravity:       <float> Surface gravity [m s-2]
-    :param radius:        <float> Surface radius [m]
-    :param density:       <float> Bulk density [kg m-3]
-    :return:              <FloatArray> 2nd order Effective Rigidity
-    """
-
-    return (19. / 2.) * shear_modulus / (gravity * radius * density)
-
-@njit
-def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius: float, density: float,
-                               order_l: int = 2):
-    """ Calculates the l-th order effective rigidity
-
-    :param shear_modulus: <FloatArray> Temperature modulated rigidity
-    :param gravity:       <float> Surface gravity [m s-2]
-    :param radius:        <float> Surface radius [m]
-    :param density:       <float> Bulk density [kg m-3]
-    :param order_l:       <int> (optional) Outer-most fourier summation index
-    :return:              <FloatArray> 2nd order Effective Rigidity
-    """
-
-    return (2. * order_l**2 + 4. * order_l + 3. / order_l) * shear_modulus / (gravity * radius * density)
 
 
 class Rheology(ModelHolder):
@@ -97,12 +89,68 @@ class Rheology(ModelHolder):
 
     def __init__(self, layer_type: str, rheology_config: dict = None):
 
+        super().__init__(user_config=rheology_config, default_config=rheology_param_defaults[layer_type],
+                         function_searcher=None, automate=True)
+
+        # Setup Love number calculator
+        self.calc_love = None
+        self.calc_effective_rigidity = None
+        self.order_l = None
+        if self.model == '2order':
+            self.order_l = 2
+            self.calc_love = complex_love
+            self.calc_effective_rigidity = effective_rigidity
+        elif self.model == 'general':
+            self.order_l = self.config['order_l']
+            self.calc_love = partial(complex_love_general, order_l=self.order_l)
+            self.calc_effective_rigidity = partial(effective_rigidity_general, order_l=self.order_l)
+        elif self.model == 'multilayer':
+            # TODO: Multilayer code
+            raise ImplementationError
+        else:
+            raise UnknownModelError
+
+        # Setup complex compliance calculator
         model_searcher = ComplianceModelSearcher(compliance_models, andrade_frequency_models,
                                                  rheology_param_defaults[layer_type])
         model_searcher.user_parameters = rheology_config
 
-        super().__init__(user_config=rheology_config, default_config=rheology_param_defaults[layer_type],
-                         function_searcher=model_searcher, automate=True)
+        self.compliances = list()
+        self.compliance_inputs = list()
+        for rheology_name in self.config['compliances']:
+            comp_func, comp_input = model_searcher.find_model(rheology_name)
+            self.compliances.append(comp_func)
+            self.compliance_inputs.append(comp_input)
+        self.compliances = tuple(self.compliances)
+        self.compliance_inputs = tuple(self.compliance_inputs)
+        self.compliances_byname = {rheology_name: (comp_func, comp_input) for rheology_name, comp_func, comp_input in
+                                   zip(self.config['compliances'], self.compliances, self.compliance_inputs)}
 
-        if self.model == 'off':
-            # No tidal heating
+
+    def _calculate(self, frequency: FloatArray, temperature: FloatArray,
+                   viscosity: FloatArray, shear_modulus: FloatArray,
+                   gravity: float, radius: float, density: float):
+            """ Calculates the Complex Compliance, Effective Rigidity, and Love Number
+
+            :param frequency:     <FloatArray> Tidal Frequency [Rad s-1]
+            :param temperature:   <FloatArray> Temperature     [K]
+            :param viscosity:     <FloatArray> Viscosity       [Pa s]
+            :param shear_modulus: <FloatArray> Shear Modulus   [Pa]
+            :param gravity:       <FloatArray> Surface Gravity [m s-2]
+            :param radius:        <FloatArray> Surface Radius  [m]
+            :param density:       <FloatArray> Bulk Density    [kg m-3]
+            :return:              <Tuple[FloatArray, dict]> effective_rigidity, {Rheology Name: Complex Compliance,
+                                                                                                Complex Love Number
+            """
+
+
+            eff_rigidity = self.calc_effective_rigidity(shear_modulus, gravity, radius, density)
+            compliance = shear_modulus**(-1)
+
+            rheology_results = dict()
+            for rheology_name, (compliance_func, compliance_input) in self.compliances_byname.items():
+                comp_compliance = compliance_func(compliance, viscosity, frequency, *compliance_input)
+                comp_love = self.calc_love(comp_compliance, shear_modulus, eff_rigidity)
+                rheology_results[rheology_name] = comp_compliance, comp_love
+
+            return effective_rigidity, rheology_results

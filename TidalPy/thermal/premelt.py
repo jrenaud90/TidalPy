@@ -1,20 +1,7 @@
 from ..utilities.search import ModelSearcher
 from . import viscosity
 
-viscosity_param_defaults = {
-    'ice': {
-        'boundary_diffusion':
-            {'arrhenius_coeff': }
-arrhenius_coeff, stress, stress_expo, grain_size, grain_size_expo, molar_activation_energy, molar_activation_volume
-        },
+# Pre-melt Strength using the same parameters as rheology
+from ..rheology.rheology import rheology_param_defaults
 
-    'rocky': {
-
-        },
-
-    'iron': {
-
-        }
-    }
-
-find_viscosity = ModelSearcher(viscosity, viscosity_param_defaults)
+find_viscosity = ModelSearcher(viscosity, rheology_param_defaults)

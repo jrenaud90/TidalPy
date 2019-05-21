@@ -1,29 +1,46 @@
 from TidalPy.structures.physical import PhysicalObjSpherical
+from TidalPy.thermal.partial_melt import PartialMelt
 from TidalPy.types import floatarray_like
 from TidalPy.exceptions import AttributeNotSet, IncorrectAttributeType, UnusualRealValueError, ImproperAttributeHandling,\
     BadAttributeValueError
 from TidalPy import debug_mode
-from TidalPy.thermal import melt_fraction, Strength
+from TidalPy.thermal import find_viscosity, calc_melt_fraction
 import numpy as np
 from typing import Tuple
 
-class Layer(PhysicalObjSpherical):
+from TidalPy.utilities.dict_tools import nested_get
+
+
+class ThermalLayer(PhysicalObjSpherical):
 
     """ Layer Class: Tidal Planets are made up of various Layers of different compositions.
 
         Any functionality that requires information about material properties should be called from the layer class.
     """
 
-    def __init__(self, bm_layer: burnman.Layer, layer_below: Layer, material_properties: dict):
+    def __init__(self, bm_layer: burnman.Layer, layer_below, layer_config: dict):
 
+        super().__init__(layer_config, automate=True)
 
-
+        if not isinstance(layer_below, (ThermalLayer, TidalLayer)):
+            raise TypeError
 
         self.layer_below = layer_below
         self.mass_below = layer_below.mass
 
         # Pull out information from the already initialized burnman Layer
         self.bm_layer = bm_layer
+        self.pressure = None
+        bm_radius =
+        bm_thickness =
+        bm_mass =
+        # TODO: For now we do not assume any pre-melt function for shear_modulus. Use BM material to set it. If we want to implement it in the future: use the same method used for viscosity
+        self.shear_modulus_static =
+
+
+        # Setup Physical Layer Geometry
+        self.type = self.config['type']
+        self.set_geometry(radius=bm_radius, thickness=bm_thickness, mass=bm_mass)
 
         # State Variables
         self._temperature = None
@@ -33,53 +50,33 @@ class Layer(PhysicalObjSpherical):
 
         # Material Properties
 
-        # Setup Viscosity and Shear Functions
-        # TODO
-        self.viscosity_func =
-        self.shear_func =
+        # Setup viscosity functions
+        solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
+        liquid_visco_model = nested_get(self.config, ['rheology', 'liquid_viscosity', 'model'], default=None)
 
-        # Setup Partial Melting functions
-        self.use_partial_melt = None
-        self.solidus = None
-        self.liquidus = None
-        # TODO
-        self.partial_melt_func =
+        self.viscosity_func, self.viscosity_inputs = \
+            find_viscosity(solid_visco_model, default_key=[self.type, 'solid_viscosity'])
+        self.viscosity_liq_func, self.viscosity_liq_inputs = \
+            find_viscosity(liquid_visco_model, default_key=[self.type, 'liquid_viscosity'])
 
-    def calc_strength(self) -> Strength:
-        """ Sets and returns the material strength (viscosity and shear modulus)
+        # Setup partial melting
+        self.partial_melt = PartialMelt(self.type, self.config['partial_melt'])
 
-        requires the temperature of the layer to be set
-
-        """
-
-        pre_melt_visco = self.viscosity_func(self.temperature)
-        pre_melt_shear = self.shear_func(self.temperature)
-
-        if not self.use_partial_melt:
-            return Strength(pre_melt_visco, pre_melt_shear)
-        else:
-            return Strength(*self.partial_melt_func(melt_fraction, pre_melt_visco, pre_melt_shear))
 
     def set_meltfraction(self) -> np.ndarray:
         """ Sets and returns the melt fraction of the layer
 
         requires self.solidus and self.liquidus to be set
-        :return: <FloatOrArray> Volumetric Melt Fraction
+        :return: <FloatArray> Volumetric Melt Fraction
         """
 
-        if self.use_partial_melt:
-            if self.solidus is None or self.liquidus is None:
-                raise AttributeNotSet
+        melt_fraction = self.partial_melt.calc_melt_fraction(self.temperature)
+        if debug_mode:
+            if np.any(melt_fraction > 1.) or np.any(melt_fraction < 0.):
+                raise BadAttributeValueError
 
-            self._melt_fraction = melt_fraction(self.temperature, self.solidus, self.liquidus)
-
-            if debug_mode:
-                if np.any(self._melt_fraction > 1.) or np.any(self._melt_fraction < 1.):
-                    raise BadAttributeValueError
-
-            return self.melt_fraction
-        else:
-            return False
+        self._melt_fraction = melt_fraction
+        return melt_fraction
 
     def set_strength(self) -> Tuple[np.ndarray, np.ndarray]:
         """ Sets and returns the strength (viscosity and shear) of the layer
@@ -87,26 +84,30 @@ class Layer(PhysicalObjSpherical):
         Requires self.viscosity_func and self.shear_modulus
         Optionally it will call self.partial_melt_func if provided
 
-        :return: <FloatOrArray> (Viscosity, Shear Modulus)
+        :return: <Tuple[FloatOrArray]> (Viscosity, Shear Modulus)
         """
-
-        if self.viscosity_func is not None and self.shear_modulus is not None:
-
-            if self.pressure is None:
-                pressure = np.zeros_like(self.temperature)
-            else:
-                pressure = self.pressure
-            pre_partial_melt_visc = self.viscosity_func(self.temperature, pressure, *self.premelt_visco_params)
-            liquid_viscosity = self.viscosity_liquid_func(self.temperature, pressure, *self.liquid_visco_params)
-
-            viscosity, shear_modulus = self.partial_melt_func(self.temperature, self.melt_fraction,
-                                                              pre_partial_melt_visc, self.premelt_shear_modulus,
-                                                              liquid_viscosity, *self.partial_melt_params)
-            # Set state variables
-            self._viscosity = viscosity
-            self._shear_modulus = shear_modulus
+        if self.pressure is None:
+            pressure = np.zeros_like(self.temperature)
         else:
-            return False
+            pressure = self.pressure
+
+        # Before Partial Melting is considered
+        premelt_shear = self.shear_modulus_static
+        premelt_visco = self.viscosity_func(self.temperature, pressure, *self.viscosity_inputs)
+        liquid_viscosity = self.viscosity_liq_func(self.temperature, pressure, *self.viscosity_liq_inputs)
+
+        # Partial Melt
+        viscosity, shear_modulus = self.partial_melt.calculate(self.temperature, self.melt_fraction,
+                                                               premelt_visco, premelt_shear, liquid_viscosity)
+
+        # Set state variables
+        self._viscosity = viscosity
+        self._shear_modulus = shear_modulus
+
+        return viscosity, shear_modulus
+
+    def calc_rayleigh(self):
+        """ Calculate Rayleigh Number """
 
     # Class Properties
     @property
@@ -181,3 +182,7 @@ class Layer(PhysicalObjSpherical):
     @shear.setter
     def shear(self, value):
         self.shear_modulus = value
+
+
+class TidalLayer(ThermalLayer):
+    pass

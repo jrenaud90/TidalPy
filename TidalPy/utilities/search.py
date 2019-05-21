@@ -1,7 +1,10 @@
+from TidalPy.utilities.dict_tools import nested_get
 from ..exceptions import ParameterMissingError, UnknownModelError, MissingArgumentError
 
 from inspect import getmembers, isfunction, isclass
 from numba.targets.registry import CPUDispatcher
+
+from typing import Union, List
 
 general_func_reject_list = [
     'njit',
@@ -60,24 +63,30 @@ class ModelSearcher:
 
         return func_check
 
-    def find_model(self, model_name: str, parameters: dict = None, default_key: str = None):
+    def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str,List[str]] = None):
         """ Searches known models for model_name and returns the function and required inputs """
 
-        if model_name not in self.known_models:
-            raise UnknownModelError
-        model_func = self.known_models[model_name]
-        needed_args = self.args_needed[model_name]
-        inputs = list()
-
+        # Get a dictionary of parameters
         if parameters is not None:
             self.user_parameters = parameters
-
         if default_key is None:
             if self.defaults_require_key:
                 raise MissingArgumentError
             defaults = self.default_parameters
         else:
-            defaults = self.default_parameters[default_key]
+            defaults = nested_get(self.default_parameters, default_key, raiseon_nolocate=True)
+
+        # Find Model
+        try:
+            if model_name is None:
+                model_name = defaults['model']
+        except KeyError:
+            raise MissingArgumentError('No user provided Model and no fallback found in defaults')
+
+        if model_name not in self.known_models:
+            raise UnknownModelError
+        model_func = self.known_models[model_name]
+        needed_args = self.args_needed[model_name]
 
         # Build tuple of function inputs
         inputs = self.build_inputs(needed_args, defaults, user_provided=self.user_parameters)

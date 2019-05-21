@@ -3,9 +3,10 @@ import numpy as np
 from TidalPy import debug_mode
 from TidalPy.types import float_like, float_eps
 from TidalPy.exceptions import BadAttributeValueError, IncorrectAttributeType, ImproperAttributeHandling, UnusualRealValueError
+from TidalPy.utilities.classes import ConfigHolder
 
 
-class PhysicalObjSpherical:
+class PhysicalObjSpherical(ConfigHolder):
 
     """ PhysicalObj Class: contains attributes and functionality used for a few physical objects such as
     planets or layers
@@ -13,7 +14,9 @@ class PhysicalObjSpherical:
     Assumes spherical geometry
     """
 
-    def __init__(self):
+    def __init__(self, config: dict, automate: bool = True):
+
+        super().__init__(user_config=config, automate=automate)
 
         self.geometry_init = False
 
