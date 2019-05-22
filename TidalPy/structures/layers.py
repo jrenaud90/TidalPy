@@ -1,4 +1,5 @@
 from TidalPy.structures.physical import PhysicalObjSpherical
+from TidalPy.thermal.cooling import Cooling
 from TidalPy.thermal.partial_melt import PartialMelt
 from TidalPy.types import floatarray_like
 from TidalPy.exceptions import AttributeNotSet, IncorrectAttributeType, UnusualRealValueError, ImproperAttributeHandling,\
@@ -18,15 +19,16 @@ class ThermalLayer(PhysicalObjSpherical):
         Any functionality that requires information about material properties should be called from the layer class.
     """
 
-    def __init__(self, bm_layer: burnman.Layer, layer_below, layer_config: dict):
+    def __init__(self, bm_layer: burnman.Layer, mass_below, layer_config: dict):
 
         super().__init__(layer_config, automate=True)
 
         if not isinstance(layer_below, (ThermalLayer, TidalLayer)):
             raise TypeError
 
-        self.layer_below = layer_below
-        self.mass_below = layer_below.mass
+        self.layer_below = None
+        self.layer_above = None
+        self.mass_below = mass_below
 
         # Pull out information from the already initialized burnman Layer
         self.bm_layer = bm_layer
@@ -49,6 +51,12 @@ class ThermalLayer(PhysicalObjSpherical):
         self._shear_modulus = None
 
         # Material Properties
+        #TODO
+        self.use_bm_mat_props = self.config.get('use_burnman_material_properties', True)
+        if self.use_bm_mat_props:
+            self.config['convection']['thermal_conductivity'] =
+
+        self.cooling = Cooling(self.type, self.thickness, cooling_config, self.gravity, self.density_bulk)
 
         # Setup viscosity functions
         solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
@@ -61,7 +69,6 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # Setup partial melting
         self.partial_melt = PartialMelt(self.type, self.config['partial_melt'])
-
 
     def set_meltfraction(self) -> np.ndarray:
         """ Sets and returns the melt fraction of the layer
@@ -105,6 +112,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self._shear_modulus = shear_modulus
 
         return viscosity, shear_modulus
+
+    def find_cooling(self):
 
     def calc_rayleigh(self):
         """ Calculate Rayleigh Number """
