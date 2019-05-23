@@ -51,8 +51,6 @@ find_radiogenics = ModelSearcher(heating_models, radiogenics_param_defaults)
 
 class Radiogenics(ModelHolder):
 
-    name = 'Radiogenics'
-
     def __init__(self, layer_type: str, radiogenic_config: dict = None):
 
         model_searcher = ModelSearcher(heating_models, radiogenics_param_defaults[layer_type])

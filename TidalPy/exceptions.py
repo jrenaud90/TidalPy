@@ -1,5 +1,6 @@
 import sys
-
+from .configurations import raise_on_changed_config
+import warnings
 
 class TidalPyException(RuntimeError):
     """ Default exception for all TidalPy-specific errors
@@ -30,6 +31,9 @@ class UnknownModelError(TidalPyException):
 
     default_message = 'A selected model, parameter, or switch is not currently supported.'
 
+class UnknownTidalPyConfigValue(UnknownModelError):
+
+    default_message = 'A configuration set in TidalPy.configurations is not know or has not yet been implemented.'
 
 class ParameterMissingError(TidalPyException):
 
@@ -65,7 +69,7 @@ class IncorrectAttributeType(TidalPyException):
     default_message = 'An attribute was set with incorrect type.'
 
 
-class AttributeNotSet(IncorrectAttributeType):
+class AttributeNotSetError(IncorrectAttributeType):
 
     default_message = 'An attribute has not been changed from its default value.'
 
@@ -74,8 +78,11 @@ class BadAttributeValueError(TidalPyException):
 
     default_message = 'Bad value found in attribute setter.'
 
+class BadValueError(TidalPyException):
 
-class UnusualRealValueError(BadAttributeValueError):
+    default_message = 'An unrealistic value was encountered.'
+
+class UnusualRealValueError(BadValueError):
 
     default_message = 'An usually large or small value was encountered for a parameter.' \
                       'Confirm proper dimensional units.'

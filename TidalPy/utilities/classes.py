@@ -1,6 +1,6 @@
 from TidalPy.exceptions import ImproperAttributeHandling, ParameterMissingError, ImplementedBySubclassError
 from .. import debug_mode, auto_write, __version__
-from ..io import run_dir
+from ..io import inner_save_dir
 from .search import ModelSearcher
 import copy
 import warnings
@@ -10,26 +10,27 @@ import json5
 class TidalPyClass:
     """ All functional classes used in TidalPy inherit from this class
     """
-    pass
+
+    def __init__(self):
+
+        self.pyname = f'{self.__class__}'
 
 
 class ConfigHolder(TidalPyClass):
     """ A helper class to take in and hold onto configurations that are both user provided and a default (hardcoded)
     """
 
-    name = 'ConfigHolder'
-    required_params = tuple()
-
-    def __init__(self, user_config: dict = None, default_config: dict = None, automate: bool = False):
+    def __init__(self, replacement_config: dict = None, default_config: dict = None, automate: bool = False):
 
         super().__init__()
 
         if debug_mode:
-            assert type(user_config) == dict
+            assert type(replacement_config) == dict
+            assert type(default_config) == dict
 
         # State Variables
         self._config_default = default_config
-        self._config_user = user_config
+        self._config_replacement = replacement_config
         self._config = None
 
         # Flags
@@ -61,30 +62,31 @@ class ConfigHolder(TidalPyClass):
 
         return output
 
-    def update_config(self, throwaway_nonrequred: bool = True) -> dict:
+    def init(self):
+        """ Tasks that are could usually be done in __init__, but might need to be redone by self.reinit"""
+        pass
+
+    def reinit(self):
+        """ Performs any tasks that need to be done in order to reinitialize a class that might have been loaded from
+            a dill/pickle file
+        """
+
+        self.update_config()
+        self.init()
+
+    def update_config(self) -> dict:
         """ Combines the default and user provided configurations into one dictionary.
 
         User parameters override defaults"""
 
-        # Even though it will be copied all over the place, I think it is best to include as many refs to the version
-        #   a config was made under. So we add it here to the defaults.
-        self._config_default['TidalPy_version'] = __version__
-
-        if self._config_user is None:
+        if self._config_replacement is None:
             self._config = copy.deepcopy(self.config_default)
         else:
             self._config = {**self.config_default, **self.config_user}
 
-        # Check if all required parameters are present
-        for param_name in self.required_params:
-            if param_name not in self.config:
-                raise ParameterMissingError
-
-        # Remove any other parameters that are not in the required_params tuple
-        if throwaway_nonrequred:
-            for param_name in self._config:
-                if param_name not in self.required_params:
-                    del self._config[param_name]
+        # Even though it will be copied all over the place, I think it is best to include as many refs to the version
+        #   a config was made under. So we add it here to the defaults.
+        self._config['TidalPy_version'] = __version__
 
         self.config_constructed = True
         return self.config
@@ -96,13 +98,13 @@ class ConfigHolder(TidalPyClass):
             warnings.warn('Tried to write config to JSON file but auto_write set to False.')
 
         if save_default:
-            config_filepath = os.path.join(run_dir, f'{self.name}_default.cfg')
+            config_filepath = os.path.join(inner_save_dir, f'{self.pyname}_default.cfg')
             config_to_save = self.config_default
-        else:
-            config_filepath = os.path.join(run_dir, f'{self.name}.cfg')
-            config_to_save = self.config
+            with open(config_filepath, 'w') as config_file:
+                json5.dump(config_to_save, config_file)
 
-
+        config_filepath = os.path.join(inner_save_dir, f'{self.pyname}.cfg')
+        config_to_save = self.config
         with open(config_filepath, 'w') as config_file:
             json5.dump(config_to_save, config_file)
 
@@ -126,16 +128,16 @@ class ConfigHolder(TidalPyClass):
             raise ImproperAttributeHandling('Default config can only be set once!')
 
     @property
-    def config_user(self) -> dict:
-        return self._config_user
+    def config_replacement(self) -> dict:
+        return self._config_replacement
 
-    @config_user.setter
-    def config_user(self, value: dict):
+    @config_replacement.setter
+    def config_replacement(self, value: dict):
 
         if debug_mode:
             assert type(value) == dict
 
-        self._config_user = copy.deepcopy(value)
+        self._config_replacement = copy.deepcopy(value)
         self.update_config()
 
     @property
@@ -150,9 +152,6 @@ class ConfigHolder(TidalPyClass):
 
 class ModelHolder(ConfigHolder):
 
-    name = 'ModelHolder'
-    required_params = ('model',)
-
     def __init__(self, model_name: str = None, user_config: dict = None, default_config: dict = None, function_searcher = None,
                  automate: bool = False):
 
@@ -161,7 +160,7 @@ class ModelHolder(ConfigHolder):
             model_name = self.config['model']
 
         self.model = model_name
-        self.name += f'_{model_name}'
+        self.pyname = f'{self.__class__}_{self.model}'
         self.searcher = None
         self.func = None
         self.inputs = None

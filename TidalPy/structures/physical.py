@@ -2,8 +2,30 @@ import numpy as np
 
 from TidalPy import debug_mode
 from TidalPy.types import float_like, float_eps
-from TidalPy.exceptions import BadAttributeValueError, IncorrectAttributeType, ImproperAttributeHandling, UnusualRealValueError
+from TidalPy.exceptions import (BadAttributeValueError, IncorrectAttributeType, ImproperAttributeHandling,
+                                UnusualRealValueError, ParameterMissingError, TidalPyException)
 from TidalPy.utilities.classes import ConfigHolder
+
+from ..configurations import raise_on_changed_config
+from .. import log
+
+
+class ImproperAttributeChanged(TidalPyException):
+
+    default_message = 'A pre-computed planet had a critical configuration change that requires a new instance to be created'
+
+    def __init__(self, *args, force_raise: bool = False, **kwargs):
+
+        # If no input is provided then the base exception will look at the class attribute 'default_message'
+        #   and send that to sys.stderr
+
+        if not force_raise and not raise_on_changed_config:
+            log.warn(self.default_message)
+        else:
+            if args or kwargs:
+                super().__init__(*args, **kwargs)
+            else:
+                super().__init__(self.default_message)
 
 
 class PhysicalObjSpherical(ConfigHolder):
@@ -14,9 +36,9 @@ class PhysicalObjSpherical(ConfigHolder):
     Assumes spherical geometry
     """
 
-    def __init__(self, config: dict, automate: bool = True):
+    def __init__(self, config: dict, automate: bool = False):
 
-        super().__init__(user_config=config, automate=automate)
+        super().__init__(default_config=config, automate=automate)
 
         self.geometry_init = False
 
@@ -35,13 +57,16 @@ class PhysicalObjSpherical(ConfigHolder):
         self._moi_ideal = None
         self._moi_factor = None
 
-    def set_geometry(self, radius, thickness, mass):
+    def set_geometry(self, radius: float, mass: float, thickness: float = None):
         """ Sets and calculates object's physical parameters based on user provided input.
 
         :param radius:      <float> outer radius of object
-        :param thickness:   <float> thickness of object
         :param mass:        <float> mass of object
+        :param thickness:   <float> thickness of object
         """
+
+        if thickness is None:
+            raise ParameterMissingError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
 
         if debug_mode:
             for arg in [radius, thickness, mass]:

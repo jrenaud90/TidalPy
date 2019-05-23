@@ -13,7 +13,7 @@ from setuptools import setup
 # 1.2.0       # Final Release
 # 1.2.0.post1 # Post Release
 
-version = '0.1.0dev3'
+version = '0.1.0dev4'
 
 setup(name='TidalPy',
       version=version,
@@ -26,6 +26,8 @@ setup(name='TidalPy',
       python_requires='>=3.6',
       install_requires=[
             'numpy>=1.16.3',
+            'dill',
+            'Send2Trash',
             'scipy>=1.2.1',
             'matplotlib>=2.0.0',
             'json5>=0.7.0',
