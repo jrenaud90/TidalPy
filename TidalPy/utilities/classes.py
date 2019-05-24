@@ -1,4 +1,5 @@
 from TidalPy.exceptions import ImproperAttributeHandling, ParameterMissingError, ImplementedBySubclassError
+from TidalPy.structures.layers import LayerType
 from .. import debug_mode, auto_write, __version__
 from ..io import inner_save_dir
 from .search import ModelSearcher
@@ -189,3 +190,20 @@ class ModelHolder(ConfigHolder):
 
 
 
+class LayerModel(ModelHolder):
+
+
+    def __init__(self, layer: LayerType, default_config: dict = None,
+                 function_searcher = None, model_name = None, automate: bool = False, config_key: str = None, ):
+
+        self.layer = layer
+        self.layer_type = layer.type
+        if config_key is not None:
+            config = layer.config[config_key]
+        else:
+            config = None
+        if default_config is not None:
+            default_config = default_config[self.layer_type]
+
+        super().__init__(model_name=model_name, user_config=config, default_config=default_config,
+                         function_searcher=function_searcher, automate=automate)

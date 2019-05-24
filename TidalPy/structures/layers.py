@@ -13,8 +13,27 @@ from typing import Tuple
 import burnman
 from ..utilities.numpy_help import find_nearest
 from ..bm.conversion import burnman_property_name_conversion, burnman_property_value_conversion
-from ..configurations import burnman_interpolation_method
+from ..configurations import burnman_interpolation_method, burnman_interpolation_N
 from TidalPy.utilities.dict_tools import nested_get
+from typing import Union
+
+default_layer_parameters = {
+    'ice': {
+        'slices': 50,
+        'material': ,
+        'material_source':
+    },
+    'rocky': {
+        'slices': 50,
+        'material': ,
+        'material_source':
+    },
+    'iron': {
+        'slices': 50,
+        'material': ,
+        'material_source':
+    }
+}
 
 class ThermalLayer(PhysicalObjSpherical):
 
@@ -24,6 +43,9 @@ class ThermalLayer(PhysicalObjSpherical):
     """
 
     def __init__(self, layer_name: str, burnman_layer: burnman.Layer, mass_below, layer_config: dict):
+
+        # Setup Physical Layer Geometry
+        self.type = self.config['type']
 
         super().__init__(layer_config, automate=True)
 
@@ -70,14 +92,17 @@ class ThermalLayer(PhysicalObjSpherical):
         self.bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - self.thickness/2)
 
         # Setup Physical Layer Geometry
-        self.type = self.config['type']
         self.slices = self.config['slices']
-        self.material = self.config['material']
+        self.material_name = self.config['material']
 
-        # Material Properties
-        self.bulk_modulus =
-        self.thermal_expansion =
-        self.specific_heat =
+        # Material Properties set by BurnMan
+        self.bulk_modulus = None
+        self.thermal_expansion = None
+        self.specific_heat = None
+        self.interp_temperature_range = np.linspace(*tuple(self.config['interp_temperature_range']),
+                                                    burnman_interpolation_N)
+        self._interp_prop_data_lookup = dict()
+        self._build_material_property_interpolation()
 
         # Material properties that might have been affected by new configuration file (BurnMan does not calculate these)
         self.static_shear_modulus = None
@@ -102,7 +127,7 @@ class ThermalLayer(PhysicalObjSpherical):
         # Call to init
         self.init()
 
-    def _build_material_property_interpolation(self, property_name: str, temperature_range):
+    def _build_material_property_interpolation(self):
         """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
 
             This can take some time to precompute
@@ -114,48 +139,27 @@ class ThermalLayer(PhysicalObjSpherical):
         interp_properties = ['bulk_modulus', 'thermal_expansion', 'specific_heat']
         bm_properties = [burnman_property_name_conversion[interp_prop] for interp_prop in interp_properties]
 
+        # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
+        #     These results will then be used in an interpolation for whenever self.temperature changes
+        pressures = self.pressure * np.ones_like(self.interp_temperature_range)
+        try:
+            property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
+        except TypeError as e:
+            # FIXME: There is some bug in bug in Burnman when it trys to send a warning. If that is what got caught, ignore it for now.
+            if '<lambda>() got an unexpected keyword argument' in e.args[0]:
+                pass
+            else:
+                raise e
 
-
-        for interp_prop in ['bulk_modulus', 'thermal_expansion', 'specific_heat']:
-            bm_name = burnman_property_name_conversion[interp_prop]
-
-            conversion = 1.
-            if interp_prop in burnman_property_value_conversion:
-                if burnman_property_value_conversion[interp_prop] == 'molar':
-                    conversion = 1. / self.bm_material.molar_mass
-                else:
-                    raise KeyError
-
-
-
+        for interp_prop, prop_result in zip(interp_properties, property_results):
+            self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
 
     def init(self):
-
-        # Interpolation Method
-        self.interp_meth = self.config['interp_method']
-
-        # Pull out information from the already initialized burnman Layer
-        self.pressure = None
-        bm_radius =
-        bm_thickness =
-        bm_mass =
-        # TODO: For now we do not assume any pre-melt function for shear_modulus. Use BM material to set it. If we want to implement it in the future: use the same method used for viscosity
-        self.shear_modulus_static =
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
         self.heat_fusion = self.config['heat_fusion']
         self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
-
-        # Setup Physical Layer Geometry
-        self.type = self.config['type']
-
-
-        # Material Properties
-        #TODO
-        self.use_bm_mat_props = self.config.get('use_burnman_material_properties', True)
-        if self.use_bm_mat_props:
-            self.config['convection']['thermal_conductivity'] =
 
         # Setup viscosity functions
         solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
@@ -266,7 +270,12 @@ class ThermalLayer(PhysicalObjSpherical):
         if type(value) != np.ndarray:
             value = np.asarray(value)
         self._temperature = value
+        # Set new melt fraction
         self.set_meltfraction()
+        # Set new material properties based on BurnMan Interpolation
+        for prop_name, prop_data in self._interp_prop_data_lookup.items():
+            setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
+        # Set new viscosity and shear modulus
         self.set_strength()
 
     @property
@@ -320,3 +329,6 @@ class ThermalLayer(PhysicalObjSpherical):
 
 class TidalLayer(ThermalLayer):
     pass
+
+
+LayerType = Union[ThermalLayer, TidalLayer]

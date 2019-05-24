@@ -14,3 +14,4 @@ raise_on_changed_config = True
 
 # Configurations related to how BurnMan results are used in TidalPy
 burnman_interpolation_method = 'mid'  # Options: mid, avg, median
+burnman_interpolation_N = 50

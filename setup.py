@@ -13,7 +13,7 @@ from setuptools import setup
 # 1.2.0       # Final Release
 # 1.2.0.post1 # Post Release
 
-version = '0.1.0dev4'
+version = '0.1.0dev5'
 
 setup(name='TidalPy',
       version=version,

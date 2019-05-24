@@ -4,6 +4,7 @@ from TidalPy.exceptions import ParameterMissingError
 from TidalPy.utilities.classes import ModelHolder
 from ..types import FloatArray
 import numpy as np
+from ..structures.layers import LayerType
 from typing import Tuple
 
 # Following are using for over and undershoots
@@ -64,21 +65,19 @@ def calc_convection(viscosity: np.ndarray, delta_temp: np.ndarray,
 
 class Cooling(ModelHolder):
 
-    def __init__(self, layer_type: str, layer_thickness: float, cooling_config: dict = None,
-                 gravity: float = None, density: float = None):
+    def __init__(self, layer: LayerType, cooling_config: dict):
 
         super().__init__(user_config=cooling_config, default_config=cooling_param_defaults[layer_type], automate=False)
 
-        self.layer_thickness = layer_thickness
-        self.thermal_conductivity = self.config['thermal_conductivity']
+        self.layer = layer
+
         if self.config['use_convection']:
             self.calculate = self._convection
             if gravity is None:
                 raise ParameterMissingError
             if density is None:
                 raise ParameterMissingError
-            self.inputs = (gravity, density, self.config['thermal_diffusivity'], self.config['thermal_expansion'],
-                           self.config['convection_alpha'], self.config['convection_beta'],
+            self.inputs = (self.config['convection_alpha'], self.config['convection_beta'],
                            self.config['critical_rayleigh'])
         else:
             self.inputs = None
@@ -95,11 +94,11 @@ class Cooling(ModelHolder):
 
         delta_temp = temperature - surface_temperature
         if layer_thickness is None:
-            cooling_thickness = self.layer_thickness
+            cooling_thickness = self.layer.thickness
         else:
             cooling_thickness = layer_thickness
 
-        cooling_flux = self.thermal_conductivity * delta_temp / cooling_thickness
+        cooling_flux = self.layer.thermal_conductivity * delta_temp / cooling_thickness
 
         # Numbers that indicate that convection is off
         rayleigh = np.zeros_like(temperature)
@@ -120,7 +119,7 @@ class Cooling(ModelHolder):
         """
 
         if layer_thickness is None:
-            layer_thickness = self.layer_thickness
+            layer_thickness = self.layer.thickness
 
         delta_temp = temperature - surface_temperature
 
@@ -129,11 +128,17 @@ class Cooling(ModelHolder):
         delta_temp_for_calc = np.copy(delta_temp)
         delta_temp_for_calc[delta_temp_for_calc < 0.] = 0.
 
-        cooling_thickness, rayleigh, nusselt = calc_convection(viscosity, delta_temp_for_calc,
-                                                               layer_thickness, *self.inputs)
+        cooling_thickness, rayleigh, nusselt = \
+            calc_convection(self.layer.viscosity, delta_temp_for_calc,                                                               layer_thickness, *self.inputs)
+
+        viscosity: np.ndarray, delta_temp: np.ndarray,
+        layer_thickness: float, gravity: float, density: float,
+        thermal_diffusivity: float, thermal_expansion: float,
+        convection_alpha: float, convection_beta: float, critical_rayleigh: float
+
 
         # The cooling flux should use the real delta_temp as it could be negative (conducting only)
-        cooling_flux = self.thermal_conductivity * delta_temp / cooling_thickness
+        cooling_flux = self.layer.thermal_conductivity * delta_temp / cooling_thickness
 
         # Numbers that indicate that convection is off
         rayleigh = np.zeros_like(temperature)
