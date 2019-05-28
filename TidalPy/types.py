@@ -13,3 +13,5 @@ float_log10_max = np.log10(float_max)
 float_lognat_max = np.log(float_max)
 
 FloatArray = Union[float, np.float, np.float64, np.ndarray]
+
+list_like = [list, tuple, set]

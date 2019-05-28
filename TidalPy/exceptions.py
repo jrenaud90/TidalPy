@@ -27,6 +27,14 @@ class ImplementedBySubclassError(ImplementationError):
 
     default_message = 'Trying to access sub-class functionality from a base class.'
 
+class ReinitError(TidalPyException):
+
+    default_message = 'One or more critical parameters have changed since planet was made. Construct new planet instead.'
+
+class ReinitNotAllowedError(ReinitError):
+
+    default_message = 'This class should be fully re-initialized upon load. Partial reinit (via self.reinit()) is not supported.'
+
 class UnknownModelError(TidalPyException):
 
     default_message = 'A selected model, parameter, or switch is not currently supported.'

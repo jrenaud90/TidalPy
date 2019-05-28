@@ -1,4 +1,4 @@
-from TidalPy.exceptions import ImproperAttributeHandling, ParameterMissingError, ImplementedBySubclassError
+from TidalPy.exceptions import ImproperAttributeHandling, ParameterMissingError, ImplementedBySubclassError, ReinitNotAllowedError
 from TidalPy.structures.layers import LayerType
 from .. import debug_mode, auto_write, __version__
 from ..io import inner_save_dir
@@ -21,18 +21,20 @@ class ConfigHolder(TidalPyClass):
     """ A helper class to take in and hold onto configurations that are both user provided and a default (hardcoded)
     """
 
-    def __init__(self, replacement_config: dict = None, default_config: dict = None, automate: bool = False):
+    default_config = None
+
+    def __init__(self, replacement_config: dict = None, automate: bool = False):
 
         super().__init__()
 
         if debug_mode:
-            assert type(replacement_config) == dict
-            assert type(default_config) == dict
+            assert type(replacement_config) in [dict, None]
+            assert type(self.default_config) in [dict, None]
 
         # State Variables
-        self._config_default = default_config
-        self._config_replacement = replacement_config
+        self._user_config = replacement_config
         self._config = None
+        self._old_config = None
 
         # Flags
         self.config_constructed = False
@@ -65,7 +67,7 @@ class ConfigHolder(TidalPyClass):
 
     def init(self):
         """ Tasks that are could usually be done in __init__, but might need to be redone by self.reinit"""
-        pass
+        self._old_config = copy.deepcopy(self.config)
 
     def reinit(self):
         """ Performs any tasks that need to be done in order to reinitialize a class that might have been loaded from
@@ -80,10 +82,10 @@ class ConfigHolder(TidalPyClass):
 
         User parameters override defaults"""
 
-        if self._config_replacement is None:
-            self._config = copy.deepcopy(self.config_default)
+        if self.user_config is None:
+            self._config = copy.deepcopy(self.default_config)
         else:
-            self._config = {**self.config_default, **self.config_user}
+            self._config = {**self.default_config, **self.user_config}
 
         # Even though it will be copied all over the place, I think it is best to include as many refs to the version
         #   a config was made under. So we add it here to the defaults.
@@ -100,7 +102,7 @@ class ConfigHolder(TidalPyClass):
 
         if save_default:
             config_filepath = os.path.join(inner_save_dir, f'{self.pyname}_default.cfg')
-            config_to_save = self.config_default
+            config_to_save = self.default_config
             with open(config_filepath, 'w') as config_file:
                 json5.dump(config_to_save, config_file)
 
@@ -112,33 +114,16 @@ class ConfigHolder(TidalPyClass):
         return config_filepath
 
     @property
-    def config_default(self) -> dict:
-        return self._config_default
+    def user_config(self) -> dict:
+        return self._user_config
 
-    @config_default.setter
-    def config_default(self, value: dict):
-
-        if debug_mode:
-            assert type(value) == dict
-
-        if self._config_default is None:
-            # We make a deep copy of the dictionary to ensure that no changes after class initialization propagate
-            self._config_default = copy.deepcopy(value)
-            self.update_config()
-        else:
-            raise ImproperAttributeHandling('Default config can only be set once!')
-
-    @property
-    def config_replacement(self) -> dict:
-        return self._config_replacement
-
-    @config_replacement.setter
-    def config_replacement(self, value: dict):
+    @user_config.setter
+    def user_config(self, new_user_config: dict):
 
         if debug_mode:
-            assert type(value) == dict
+            assert type(new_user_config) == dict
 
-        self._config_replacement = copy.deepcopy(value)
+        self._user_config = copy.deepcopy(new_user_config)
         self.update_config()
 
     @property
@@ -153,10 +138,9 @@ class ConfigHolder(TidalPyClass):
 
 class ModelHolder(ConfigHolder):
 
-    def __init__(self, model_name: str = None, user_config: dict = None, default_config: dict = None, function_searcher = None,
-                 automate: bool = False):
+    def __init__(self, model_name: str = None, user_config: dict = None, function_searcher = None, automate: bool = False):
 
-        super().__init__(user_config, default_config, automate)
+        super().__init__(replacement_config=user_config, automate=automate)
         if model_name is None:
             model_name = self.config['model']
 
@@ -170,7 +154,9 @@ class ModelHolder(ConfigHolder):
             if debug_mode:
                 assert isinstance(function_searcher, ModelSearcher)
             self.searcher = function_searcher
-            self.func, self.inputs = self.searcher.find_model(self.model, parameters=self.config)
+            self.searcher.defaults_require_key = False
+            self.searcher.default_config = self.config
+            self.func, self.inputs = self.searcher.find_model(self.model)
 
         # Switch between calculate and calculate debug. Generally, _calculate_debug is a much slower function that
         #    includes additional checks
@@ -185,6 +171,9 @@ class ModelHolder(ConfigHolder):
         else:
             self.calculate = self._calculate
 
+    def reinit(self):
+        raise ReinitNotAllowedError
+
     def _calculate(self, *args, **kwargs):
         raise ImplementedBySubclassError
 
@@ -192,18 +181,24 @@ class ModelHolder(ConfigHolder):
 
 class LayerModel(ModelHolder):
 
+    config_key = None
 
-    def __init__(self, layer: LayerType, default_config: dict = None,
-                 function_searcher = None, model_name = None, automate: bool = False, config_key: str = None, ):
+    def __init__(self, layer: LayerType, function_searcher = None, model_name = None, automate: bool = False):
 
         self.layer = layer
         self.layer_type = layer.type
-        if config_key is not None:
-            config = layer.config[config_key]
+        if self.config_key is not None:
+            config = layer.config[self.config_key]
         else:
             config = None
-        if default_config is not None:
-            default_config = default_config[self.layer_type]
 
-        super().__init__(model_name=model_name, user_config=config, default_config=default_config,
+        # Select the sub-dictionary of the default config (based on layer type)
+        if self.default_config is not None:
+            if self.layer_type in self.default_config:
+                self.default_config = copy.deepcopy(self.default_config[self.layer_type])
+
+
+        super().__init__(model_name=model_name, user_config=config,
                          function_searcher=function_searcher, automate=automate)
+
+        self.pyname = f'{self.__class__}_{self.layer_type}_{self.model}'

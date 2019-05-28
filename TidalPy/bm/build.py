@@ -54,7 +54,7 @@ def build_layer(layer_name: str, layer_config: dict):
 
 
 
-def build_planet(planet_config: dict, auto_save: bool = True):
+def build_planet(planet_config: dict):
     """ Builds a BurnMan planet from a provided configuration dictionary.
 
     NOTE: This is a slow process and should not be repeated unless physical parameters of the planet are changing.
@@ -101,14 +101,4 @@ def build_planet(planet_config: dict, auto_save: bool = True):
     # Note: This section is slow!!
     burnman_planet.make()
 
-    if auto_save:
-        # Saves a copy to the TidalPy directory as well as the specific run's directory (configurable)
-
-        if save_burnman_planets_to_run_folder:
-
-        if save_burnman_planets_to_tidalpy_dir:
-
-
-
-
-    return burnman_planet
+    return burnman_layers, burnman_planet

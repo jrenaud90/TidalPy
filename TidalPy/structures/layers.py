@@ -1,10 +1,11 @@
+from TidalPy.radiogenics.radiogenics import Radiogenics
 from TidalPy.structures.physical import PhysicalObjSpherical, ImproperAttributeChanged
 from TidalPy.thermal.cooling import Cooling
 from TidalPy.thermal.partial_melt import PartialMelt
 from TidalPy.types import floatarray_like
 from TidalPy.exceptions import (AttributeNotSetError, IncorrectAttributeType, UnusualRealValueError,
                                 ImproperAttributeHandling,
-                                BadAttributeValueError, UnknownTidalPyConfigValue)
+                                BadAttributeValueError, UnknownTidalPyConfigValue, ReinitError)
 from TidalPy import debug_mode
 from TidalPy.thermal import find_viscosity, calc_melt_fraction
 import numpy as np
@@ -16,24 +17,7 @@ from ..bm.conversion import burnman_property_name_conversion, burnman_property_v
 from ..configurations import burnman_interpolation_method, burnman_interpolation_N
 from TidalPy.utilities.dict_tools import nested_get
 from typing import Union
-
-default_layer_parameters = {
-    'ice': {
-        'slices': 50,
-        'material': ,
-        'material_source':
-    },
-    'rocky': {
-        'slices': 50,
-        'material': ,
-        'material_source':
-    },
-    'iron': {
-        'slices': 50,
-        'material': ,
-        'material_source':
-    }
-}
+from .layer_defaults import layer_defaults
 
 class ThermalLayer(PhysicalObjSpherical):
 
@@ -42,10 +26,14 @@ class ThermalLayer(PhysicalObjSpherical):
         Any functionality that requires information about material properties should be called from the layer class.
     """
 
-    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, mass_below, layer_config: dict):
+    default_config = layer_defaults
+
+
+    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, mass_below: float, layer_config: dict):
 
         # Setup Physical Layer Geometry
-        self.type = self.config['type']
+        self.type = layer_config['type']
+        self.default_config = self.default_config[self.type]
 
         super().__init__(layer_config, automate=True)
 
@@ -99,6 +87,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self.bulk_modulus = None
         self.thermal_expansion = None
         self.specific_heat = None
+        self.energy_per_therm = None
         self.interp_temperature_range = np.linspace(*tuple(self.config['interp_temperature_range']),
                                                     burnman_interpolation_N)
         self._interp_prop_data_lookup = dict()
@@ -109,16 +98,25 @@ class ThermalLayer(PhysicalObjSpherical):
         self.thermal_diffusivity = None
         self.thermal_conductivity = None
         self.heat_fusion = None
+        self.temp_ratio = None
+        self.stefan = None
 
         # State Variables
         self._temperature = None
         self._melt_fraction = None
         self._viscosity = None
         self._shear_modulus = None
+        self._heat_flux = None
+        self._rayleigh = None
+        self._nusselt = None
+        self._blt = None
+        self._temperature_lower = None
 
         # Model Holders
         self.cooling = None       # type: Cooling
         self.partial_melt = None  # type: PartialMelt
+        self.radiogenics = None   # type: Radiogenics
+        self.heat_sources = list()
 
         # Function Holders
         self.viscosity_func, self.viscosity_inputs = None, None
@@ -159,7 +157,10 @@ class ThermalLayer(PhysicalObjSpherical):
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
         self.heat_fusion = self.config['heat_fusion']
+        self.temp_ratio = self.config['boundary_temperature_ratio']
+        self.stefan = self.config['stefan']
         self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
+        self.energy_per_therm = self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio
 
         # Setup viscosity functions
         solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
@@ -170,20 +171,26 @@ class ThermalLayer(PhysicalObjSpherical):
         self.viscosity_liq_func, self.viscosity_liq_inputs = \
             find_viscosity(liquid_visco_model, default_key=[self.type, 'liquid_viscosity'])
 
-        # Setup partial melting
-        self.partial_melt = PartialMelt(self.type, self.config['partial_melt'])
+        # Setup Partial Melting
+        self.partial_melt = PartialMelt(self)
 
         # Setup Cooling
-        cooling_config = self.config['cooling']
-        self.cooling = Cooling(self.type, self.thickness, cooling_config, self.gravity, self.density_bulk)
-        self.calc_cooling = self.cooling.calculate
+        self.cooling = Cooling(self)
+
+        # Setup Radiogenics
+        self.radiogenics = Radiogenics(self)
+        self.heat_sources.append(self.radiogenics)
+
+        super().init()
 
     def reinit(self):
 
         # Check for changes to config that may break the planet
-        for critical_attribute in ['type', 'slices', 'material', 'thickness', 'radius']:
-            if getattr(self, critical_attribute) != self.config[critical_attribute]:
-                raise ImproperAttributeChanged
+        for layer_name, layer_dict in self.config['layers'].items():
+            old_layer_dict = self._old_config[layer_name]
+            for critical_attribute in ['material', 'material_source', 'type', 'thickness', 'radius', 'slices']:
+                if layer_dict[critical_attribute] != old_layer_dict[critical_attribute]:
+                    raise ReinitError
 
         super().reinit()
         self.set_geometry(self.radius, self.mass, self.thickness)
@@ -192,22 +199,6 @@ class ThermalLayer(PhysicalObjSpherical):
 
         super().set_geometry(radius, mass, thickness)
         self.gravity = G * (self.mass + self.mass_below) / self.radius**2
-
-
-    def set_meltfraction(self) -> np.ndarray:
-        """ Sets and returns the melt fraction of the layer
-
-        requires self.solidus and self.liquidus to be set
-        :return: <FloatArray> Volumetric Melt Fraction
-        """
-
-        melt_fraction = self.partial_melt.calc_melt_fraction(self.temperature)
-        if debug_mode:
-            if np.any(melt_fraction > 1.) or np.any(melt_fraction < 0.):
-                raise BadAttributeValueError
-
-        self._melt_fraction = melt_fraction
-        return melt_fraction
 
     def set_strength(self) -> Tuple[np.ndarray, np.ndarray]:
         """ Sets and returns the strength (viscosity and shear) of the layer
@@ -223,13 +214,12 @@ class ThermalLayer(PhysicalObjSpherical):
             pressure = self.pressure
 
         # Before Partial Melting is considered
-        premelt_shear = self.shear_modulus_static
+        premelt_shear = self.static_shear_modulus
         premelt_visco = self.viscosity_func(self.temperature, pressure, *self.viscosity_inputs)
         liquid_viscosity = self.viscosity_liq_func(self.temperature, pressure, *self.viscosity_liq_inputs)
 
         # Partial Melt
-        viscosity, shear_modulus = self.partial_melt.calculate(self.temperature, self.melt_fraction,
-                                                               premelt_visco, premelt_shear, liquid_viscosity)
+        viscosity, shear_modulus = self.partial_melt.calculate(premelt_visco, premelt_shear, liquid_viscosity)
 
         # Set state variables
         self._viscosity = viscosity
@@ -237,15 +227,22 @@ class ThermalLayer(PhysicalObjSpherical):
 
         return viscosity, shear_modulus
 
-    def find_cooling(self):
-        """ Calculates cooling based on the states of this layer and the layer above it. """
+    def find_diff_temperature(self):
 
-        if debug_mode:
-            if self.layer_above is None:
-                raise AttributeNotSetError('In order to use a layer.find_cooling, the layer.layer_above must be set.')
-        top_temp = self.layer_above.temperature
+        # Initialize total heating based on if there is a layer warming this one from below
+        if self.layer_below is None:
+            total_heating = np.zeros_like(self.temperature)
+        else:
+            total_heating = self.layer_below.heat_flux * self.surface_area_inner
 
-        return self.cooling.calculate(self.temperature, top_temp, self.viscosity, self.thickness)
+        for heat_source in self.heat_sources:
+            total_heating += heat_source.calculate()
+
+        cooling_flux, cooling_thickness, rayleigh, nusselt = self.cooling.calculate()
+        total_cooling = cooling_flux * self.surface_area_outer
+
+        return (total_heating - total_cooling) / self.energy_per_therm
+
 
     # Class Properties
     @property
@@ -271,12 +268,63 @@ class ThermalLayer(PhysicalObjSpherical):
             value = np.asarray(value)
         self._temperature = value
         # Set new melt fraction
-        self.set_meltfraction()
+        self._melt_fraction = self.partial_melt.calc_melt_fraction()
         # Set new material properties based on BurnMan Interpolation
         for prop_name, prop_data in self._interp_prop_data_lookup.items():
             setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
         # Set new viscosity and shear modulus
         self.set_strength()
+        # Calculate cooling
+        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
+
+    # Attributes that will be updated whenever temperature is updated:
+    @property
+    def heat_flux(self):
+        return self._heat_flux
+
+    @heat_flux.setter
+    def heat_flux(self, value):
+        raise ImproperAttributeHandling('Heat flux is calculated whenever self.temperature is changed')
+
+    @property
+    def rayleigh(self):
+        return self._rayleigh
+
+    @rayleigh.setter
+    def rayleigh(self, value):
+        raise ImproperAttributeHandling('Rayleigh number is calculated whenever self.temperature is changed')
+
+    @property
+    def nusselt(self):
+        return self._nusselt
+
+    @nusselt.setter
+    def nusselt(self, value):
+        raise ImproperAttributeHandling('Nusselt number is calculated whenever self.temperature is changed')
+
+    @property
+    def blt(self):
+        return self._blt
+
+    @blt.setter
+    def blt(self, value):
+        raise ImproperAttributeHandling('The thermal boundary layer thickness is calculated whenever self.temperature is changed')
+
+    # TODO: For now lower temperature just returns self.temperature. This is used in cooling calculations
+    @property
+    def temperature_lower(self):
+        return self.temperature
+
+    @temperature_lower.setter
+    def temperature_lower(self, value):
+        raise ImproperAttributeHandling('temperature_lower is calculated by setting self.temperature.')
+
+    @property
+    def temperature_surf(self):
+        if self.layer_above is not None:
+            return self.layer_above.temperature_lower
+        else:
+            return self.config['surface_temperature']
 
     @property
     def melt_fraction(self) -> np.ndarray:
@@ -328,7 +376,21 @@ class ThermalLayer(PhysicalObjSpherical):
 
 
 class TidalLayer(ThermalLayer):
+
     pass
 
 
+# Helpers
 LayerType = Union[ThermalLayer, TidalLayer]
+def construct_layer(layer_name: str, burnman_layer: burnman.Layer, mass_below: float, layer_config: dict) -> LayerType:
+
+    # Try to determine if the layer is tidal or not
+    is_tidal = layer_config.get('is_tidal', False)
+
+    if 'rheology' in layer_config:
+        is_tidal = True
+
+    if is_tidal:
+        return TidalLayer(layer_name, burnman_layer, mass_below, layer_config)
+    else:
+        return ThermalLayer(layer_name, burnman_layer, mass_below, layer_config)

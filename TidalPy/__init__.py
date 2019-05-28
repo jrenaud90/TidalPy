@@ -1,5 +1,5 @@
 from ..setup import version
-
+import os
 import time
 __version__ = version
 _vers_major, _vers_minor, _vers_hotfix = version.split('.')
@@ -46,3 +46,7 @@ from .utilities.logging import TidalLogger
 log = TidalLogger()
 
 # Some data files are stored in the TidalPy directory chain. Need to know where TidalPy is located to find those files.
+tidalpy_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Data could be saved in other locations the user can tell TidalPy where to search for things like dilled planets, etc.
+other_data_locs = [os.getcwd()]

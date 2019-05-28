@@ -1,7 +1,8 @@
 from numba import njit
 
 from TidalPy.rheology.compliance import ComplianceModelSearcher
-from TidalPy.utilities.classes import ModelHolder
+from TidalPy.structures.layers import LayerType
+from TidalPy.utilities.classes import ModelHolder, LayerModel
 from ..types import FloatArray
 from . import compliance_models, andrade_frequency_models
 from .love_1d import effective_rigidity, complex_love, complex_love_general, effective_rigidity_general
@@ -40,7 +41,7 @@ rheology_param_defaults = {
             'andrade_frequency_model': 'exponential',
             'andrade_critical_freq': 2.0e-7
         },
-    'rocky': {
+    'rock': {
             'model': '2order',
             'solid_viscosity': {
                 'model': 'reference',
@@ -83,14 +84,14 @@ rheology_param_defaults = {
     }
 
 
-class Rheology(ModelHolder):
+class Rheology(LayerModel):
 
-    name = 'Rheology'
+    default_config = rheology_param_defaults
+    config_key = 'rheology'
 
-    def __init__(self, layer_type: str, rheology_config: dict = None):
+    def __init__(self, layer: LayerType):
 
-        super().__init__(user_config=rheology_config, default_config=rheology_param_defaults[layer_type],
-                         function_searcher=None, automate=True)
+        super().__init__(layer=layer, function_searcher=None, automate=True)
 
         # Setup Love number calculator
         self.calc_love = None
@@ -111,9 +112,7 @@ class Rheology(ModelHolder):
             raise UnknownModelError
 
         # Setup complex compliance calculator
-        model_searcher = ComplianceModelSearcher(compliance_models, andrade_frequency_models,
-                                                 rheology_param_defaults[layer_type])
-        model_searcher.user_parameters = rheology_config
+        model_searcher = ComplianceModelSearcher(compliance_models, andrade_frequency_models, self.config)
 
         self.compliances = list()
         self.compliance_inputs = list()
@@ -127,30 +126,25 @@ class Rheology(ModelHolder):
                                    zip(self.config['compliances'], self.compliances, self.compliance_inputs)}
 
 
-    def _calculate(self, frequency: FloatArray, temperature: FloatArray,
-                   viscosity: FloatArray, shear_modulus: FloatArray,
-                   gravity: float, radius: float, density: float):
+    def _calculate(self, frequency: FloatArray):
             """ Calculates the Complex Compliance, Effective Rigidity, and Love Number
 
             :param frequency:     <FloatArray> Tidal Frequency [Rad s-1]
-            :param temperature:   <FloatArray> Temperature     [K]
-            :param viscosity:     <FloatArray> Viscosity       [Pa s]
-            :param shear_modulus: <FloatArray> Shear Modulus   [Pa]
-            :param gravity:       <FloatArray> Surface Gravity [m s-2]
-            :param radius:        <FloatArray> Surface Radius  [m]
-            :param density:       <FloatArray> Bulk Density    [kg m-3]
             :return:              <Tuple[FloatArray, dict]> effective_rigidity, {Rheology Name: Complex Compliance,
                                                                                                 Complex Love Number
             """
 
 
-            eff_rigidity = self.calc_effective_rigidity(shear_modulus, gravity, radius, density)
-            compliance = shear_modulus**(-1)
+            shear = self.layer.shear_modulus
+            visco = self.layer.viscosity
+            eff_rigidity = self.calc_effective_rigidity(shear, self.layer.gravity,
+                                                        self.layer.radius, self.layer.density)
+            compliance = shear**(-1)
 
             rheology_results = dict()
             for rheology_name, (compliance_func, compliance_input) in self.compliances_byname.items():
-                comp_compliance = compliance_func(compliance, viscosity, frequency, *compliance_input)
-                comp_love = self.calc_love(comp_compliance, shear_modulus, eff_rigidity)
+                comp_compliance = compliance_func(compliance, visco, frequency, *compliance_input)
+                comp_love = self.calc_love(comp_compliance, shear, eff_rigidity)
                 rheology_results[rheology_name] = comp_compliance, comp_love
 
             return effective_rigidity, rheology_results

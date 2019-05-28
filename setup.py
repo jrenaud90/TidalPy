@@ -13,7 +13,7 @@ from setuptools import setup
 # 1.2.0       # Final Release
 # 1.2.0.post1 # Post Release
 
-version = '0.1.0dev5'
+version = '0.1.0dev6'
 
 setup(name='TidalPy',
       version=version,
@@ -32,5 +32,6 @@ setup(name='TidalPy',
             'matplotlib>=2.0.0',
             'json5>=0.7.0',
             'numba>=0.43.0' # TODO: Once 0.44 is released then it should be switched to that as we will want to use the dict() support
+            'burnman>=0.10.0-pre'
       ],
       zip_safe=False)

@@ -1,5 +1,8 @@
 from send2trash import send2trash
-from ..
+
+from TidalPy.utilities.pathing import get_all_files_of_type
+from . import dilled_planets_loc
+
 def delete_planets(ask_prompt: bool = True):
     """ Will delete all planets in the dilled_planets folder """
 
@@ -13,5 +16,7 @@ def delete_planets(ask_prompt: bool = True):
         else:
             return False
 
-    for file in
+    for filename, filepath in get_all_files_of_type(dilled_planets_loc, ['dill', 'pickle']).items():
+        send2trash(filepath)
+    return True
 

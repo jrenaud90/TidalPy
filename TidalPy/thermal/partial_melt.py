@@ -1,7 +1,10 @@
 from numba import njit
 import numpy as np
 
-from TidalPy.utilities.classes import ModelHolder
+from TidalPy import debug_mode
+from TidalPy.exceptions import BadAttributeValueError
+from TidalPy.structures.layers import LayerType
+from TidalPy.utilities.classes import ModelHolder, LayerModel
 from ..utilities.search import ModelSearcher
 from . import viscosity
 
@@ -16,7 +19,7 @@ partial_melter_param_defaults = {
         # Liquid Shear is just something very small.
         'liquid_shear': 1.0e-5,
     },
-    'rocky': {
+    'rock': {
         'model': 'henning',
         'solidus': 1600.,
         'liquidus': 2000.,
@@ -81,14 +84,16 @@ def temp_from_melt(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np
     return melt_frac * (liquidus - solidus) + solidus
 
 
-class PartialMelt(ModelHolder):
 
-    name = 'PartialMelt'
+class PartialMelt(LayerModel):
 
-    def __init__(self, layer_type: str, partial_melt_config: dict = None):
+    default_config = partial_melter_param_defaults
+    config_key = 'partial_melt'
 
-        super().__init__(user_config=partial_melt_config, default_config=partial_melter_param_defaults[layer_type],
-                         function_searcher=find_partial_melter, automate=True)
+
+    def __init__(self, layer: LayerType):
+
+        super().__init__(layer=layer, function_searcher=find_partial_melter, automate=True)
 
         self.calc_melt_fraction = calc_melt_fraction
         self.temp_from_melt = temp_from_melt
@@ -104,21 +109,26 @@ class PartialMelt(ModelHolder):
             self.solidus = self.config['solidus']
             self.liquidus = self.config['liquidus']
 
-    def calc_melt_fraction(self, temperature: np.ndarray):
+    def calc_melt_fraction(self):
         """ Wrapper for calc_melt_fraction """
 
         if self.use_partial_melt:
-            return calc_melt_fraction(temperature, self.solidus, self.liquidus)
+            melt_fraction = calc_melt_fraction(self.layer.temperature, self.solidus, self.liquidus)
         else:
-            return np.zeros_like(temperature)
+            melt_fraction = np.zeros_like(self.layer.temperature)
 
-    def _calculate(self, temperature: np.ndarray, melt_fraction: np.ndarray,
-                   premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
+        if debug_mode:
+            if np.any(melt_fraction > 1.) or np.any(melt_fraction < 0.):
+                raise BadAttributeValueError
+
+        return melt_fraction
+
+    def _calculate(self, premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
         """ Wrapper for the partial melting function """
 
-        return self.func(temperature, melt_fraction, premelt_viscosity, premelt_shear, liquid_viscosity, *self.inputs)
+        return self.func(self.layer.temperature, self.layer.melt_fraction, premelt_viscosity, premelt_shear, liquid_viscosity, *self.inputs)
 
-    def _calculate_off(self, temperature: np.ndarray, melt_fraction: np.ndarray,
-                       premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
+    @staticmethod
+    def _calculate_off(premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
 
         return premelt_viscosity, premelt_shear

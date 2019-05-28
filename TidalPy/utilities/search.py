@@ -1,3 +1,5 @@
+from TidalPy.types import list_like
+from TidalPy.utilities.classes import ConfigHolder
 from TidalPy.utilities.dict_tools import nested_get
 from ..exceptions import ParameterMissingError, UnknownModelError, MissingArgumentError
 
@@ -11,40 +13,24 @@ general_func_reject_list = [
     ]
 
 
-class ModelSearcher:
+class ModelSearcher(ConfigHolder):
 
-    reject_list = tuple()
+    additional_reject_list = None
 
-    def __init__(self, module, default_parameters: dict = None, defaults_require_key: bool = False):
+    def __init__(self, module, default_parameters: dict = None, defaults_require_key: bool = True):
 
-        self.model_name = module
+        self.default_config = default_parameters
         self.defaults_require_key = defaults_require_key
+        self.default_key = None
+        if self.defaults_require_key:
+            automate = False
+        else:
+            automate = True
+
+        super().__init__(replacement_config=None, automate=automate)
 
         # Generate a dictionary of functions
-        func_list = getmembers(module, self.is_function)
-        self.known_models = {name: func for name, func in func_list}
-
-        # Parse the functions' doc string for calling information
-        self.default_parameters = dict()
-        if default_parameters is not None:
-            self.default_parameters = default_parameters
-
-        self.args_needed = dict()
-        for model, func in self.known_models:
-            self.args_needed[model] = None
-            for line in func.__doc__.split('\n'):
-                # The doc string format for all functions should contain a line that is "other_args: arg1, arg2, ..."
-                if 'other_params:' in line:
-                    args = line.split('other_params:')[-1].split(',')
-                    cleaned_args = [arg.strip() for arg in args]
-                    if len(args) == 1:
-                        if args[0].lower() in ['None']:
-                            cleaned_args = None
-                    self.args_needed[model] = cleaned_args
-                    break
-
-        # Last user provided parameters
-        self.user_parameters = None
+        self.known_models, self.args_needed = self.find_known_models(module)
 
     def is_function(self, potential_func) -> bool:
         """ Checks if a function is a python or numba function """
@@ -58,28 +44,55 @@ class ModelSearcher:
         if func_check:
             if potential_func.__name__ in general_func_reject_list:
                 func_check = False
-            elif potential_func.__name__ in self.reject_list:
-                func_check = False
+            elif self.additional_reject_list is not None:
+                if type(self.additional_reject_list) in list_like:
+                    if potential_func.__name__ in self.additional_reject_list:
+                        func_check = False
+                else:
+                    raise TypeError
 
         return func_check
 
-    def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str,List[str]] = None):
-        """ Searches known models for model_name and returns the function and required inputs """
+    def find_known_models(self, module):
+        # Generate a dictionary of functions
+        func_list = getmembers(module, self.is_function)
+        known_models = {name: func for name, func in func_list}
 
-        # Get a dictionary of parameters
-        if parameters is not None:
-            self.user_parameters = parameters
+        # Parse the functions' doc string for function-call information
+        args_needed = dict()
+        for model, func in self.known_models:
+            args_needed[model] = None
+            for line in func.__doc__.split('\n'):
+                # The doc string format for all functions should contain a line that is "other_args: arg1, arg2, ..."
+                if 'other args:' in line:
+                    args = line.split('other args:')[-1].split(',')
+                    cleaned_args = [arg.strip() for arg in args]
+                    if len(args) == 1:
+                        if args[0].lower() in ['None']:
+                            cleaned_args = None
+                    args_needed[model] = cleaned_args
+                    break
+
+        return known_models, args_needed
+
+    def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str,List[str]] = None):
+
+        # Update self.config based on function input
+        if default_key is None:
+            default_key = self.default_key
         if default_key is None:
             if self.defaults_require_key:
                 raise MissingArgumentError
-            defaults = self.default_parameters
         else:
-            defaults = nested_get(self.default_parameters, default_key, raiseon_nolocate=True)
+            self.default_config = nested_get(self.default_config, default_key, raiseon_nolocate=True)
+        if parameters is not None:
+            self._user_config = parameters
+        self.update_config()
 
         # Find Model
         try:
             if model_name is None:
-                model_name = defaults['model']
+                model_name = self.config['model']
         except KeyError:
             raise MissingArgumentError('No user provided Model and no fallback found in defaults')
 
@@ -89,17 +102,11 @@ class ModelSearcher:
         needed_args = self.args_needed[model_name]
 
         # Build tuple of function inputs
-        inputs = self.build_inputs(needed_args, defaults, user_provided=self.user_parameters)
+        inputs = self.build_inputs(needed_args)
 
         return model_func, inputs
 
-    def __call__(self, model_name: str, parameters: dict = None, default_key: str = None):
-
-        # Wrapper for self.find_model
-        return self.find_model(model_name, parameters, default_key)
-
-    @staticmethod
-    def build_inputs(needed_args, defaults: dict, user_provided: dict = None) -> tuple:
+    def build_inputs(self, needed_args) -> tuple:
         """ Builds an input tuple based on a function's needed arguments along with default
             and user-provided parameters"""
 
@@ -109,9 +116,7 @@ class ModelSearcher:
                 # Arguments will default to the default parameter list (if present)
                 # They will then be overridden by user input (if provided)
                 # If neither of these sources have the required parameter, then an exception will be raised.
-                arg = defaults.get(arg_name, None)
-                if user_provided is not None:
-                    arg = user_provided.get(arg_name, arg)
+                arg = self.get_param(arg_name)
                 if arg is None:
                     raise ParameterMissingError(f'required argument:"{arg_name}" not found in model defaults or in '
                                                 f'user provided parameters.')
@@ -119,4 +124,7 @@ class ModelSearcher:
 
         return tuple(inputs)
 
+    def __call__(self, model_name: str, parameters: dict = None, default_key: Union[str, List[str]] = None):
 
+        # Wrapper for self.find_model
+        return self.find_model(model_name, parameters, default_key)

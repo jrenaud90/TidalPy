@@ -1,7 +1,7 @@
 from numba import njit
 
 from TidalPy.exceptions import ParameterMissingError
-from TidalPy.utilities.classes import ModelHolder
+from TidalPy.utilities.classes import ModelHolder, LayerModel
 from ..types import FloatArray
 import numpy as np
 from ..structures.layers import LayerType
@@ -15,18 +15,12 @@ cooling_param_defaults = {
         'use_convection': True,
         'convection_alpha': 1.,
         'convection_beta': 1./3.,
-        'thermal_conductivity': 2.3,
-        'thermal_diffusivity': 2.3 / (1000. * 2000.),
-        'thermal_expansion': 5.0e-5,
         'critical_rayleigh': 1600.
     },
     'rock': {
         'use_convection': True,
         'convection_alpha': 1.,
         'convection_beta': 1./3.,
-        'thermal_conductivity': 3.75,
-        'thermal_diffusivity': 3.75 / (3250. * 1260.),
-        'thermal_expansion': 5.2e-5,
         'critical_rayleigh': 1100.
     },
     'iron': {
@@ -63,40 +57,32 @@ def calc_convection(viscosity: np.ndarray, delta_temp: np.ndarray,
 
 
 
-class Cooling(ModelHolder):
+class Cooling(LayerModel):
 
-    def __init__(self, layer: LayerType, cooling_config: dict):
+    default_config = cooling_param_defaults
+    config_key = 'cooling'
 
-        super().__init__(user_config=cooling_config, default_config=cooling_param_defaults[layer_type], automate=False)
+    def __init__(self, layer: LayerType):
 
-        self.layer = layer
+        super().__init__(layer=layer, function_searcher=None, automate=True)
 
         if self.config['use_convection']:
             self.calculate = self._convection
-            if gravity is None:
-                raise ParameterMissingError
-            if density is None:
-                raise ParameterMissingError
             self.inputs = (self.config['convection_alpha'], self.config['convection_beta'],
                            self.config['critical_rayleigh'])
         else:
+            self.calculate = self._conduction
             self.inputs = None
 
-    def _conduction(self, temperature: np.ndarray, surface_temperature: FloatArray, layer_thickness: float = None):
+    def _conduction(self):
         """ Calculates the cooling flux in a layer via conduction
 
-        :param temperature:         <ndarray> Temperature within the layer
-        :param surface_temperature: <FloatArray> Temperature at the top of the layer
-        :param layer_thickness:     <float> (Optional) Total thickness of the layer in question. Provided in __init__ so it
-                                        should only be provided here if the layer is actively growing/shrinking
-        :return:                    <Tuple[ndarray's]> Heat Flux, Boundary Thickness, Rayleigh, Nusselt
+        :return: <Tuple[ndarray's]> Heat Flux, Boundary Thickness, Rayleigh, Nusselt
         """
 
-        delta_temp = temperature - surface_temperature
-        if layer_thickness is None:
-            cooling_thickness = self.layer.thickness
-        else:
-            cooling_thickness = layer_thickness
+        temperature = self.layer.temperature
+        delta_temp = temperature - self.layer.temperature_surf
+        cooling_thickness = self.layer.thickness
 
         cooling_flux = self.layer.thermal_conductivity * delta_temp / cooling_thickness
 
@@ -106,22 +92,15 @@ class Cooling(ModelHolder):
 
         return cooling_flux, cooling_thickness, rayleigh, nusselt
 
-    def _convection(self, temperature: np.ndarray, surface_temperature: FloatArray, viscosity: np.ndarray,
-                    layer_thickness: float = None):
+    def _convection(self):
         """ Calculates the cooling flux in a layer via convection
 
-        :param temperature:         <ndarray> Temperature within the layer
-        :param surface_temperature: <FloatArray> Temperature at the top of the layer
-        :param viscosity:           <ndarray> Viscosity of the layer
-        :param layer_thickness:     <float> (Optional) Total thickness of the layer in question. Provided in __init__ so it
-                                        should only be provided here if the layer is actively growing/shrinking
-        :return:                    <Tuple[ndarray's]> Heat Flux, Boundary Thickness, Rayleigh, Nusselt
+        :return: <Tuple[ndarray's]> Heat Flux, Boundary Thickness, Rayleigh, Nusselt
         """
 
-        if layer_thickness is None:
-            layer_thickness = self.layer.thickness
-
-        delta_temp = temperature - surface_temperature
+        temperature = self.layer.temperature
+        delta_temp = temperature - self.layer.temperature_surf
+        cooling_thickness = self.layer.thickness
 
         # Calculate Convection
         # Wherever delta_temp is negative convection is not happening. To avoid numerical errors we will zero out those
@@ -129,13 +108,9 @@ class Cooling(ModelHolder):
         delta_temp_for_calc[delta_temp_for_calc < 0.] = 0.
 
         cooling_thickness, rayleigh, nusselt = \
-            calc_convection(self.layer.viscosity, delta_temp_for_calc,                                                               layer_thickness, *self.inputs)
-
-        viscosity: np.ndarray, delta_temp: np.ndarray,
-        layer_thickness: float, gravity: float, density: float,
-        thermal_diffusivity: float, thermal_expansion: float,
-        convection_alpha: float, convection_beta: float, critical_rayleigh: float
-
+            calc_convection(self.layer.viscosity, delta_temp_for_calc, cooling_thickness, self.layer.gravity,
+                            self.layer.density, self.layer.thermal_diffusivity, self.layer.thermal_expansion,
+                            *self.inputs)
 
         # The cooling flux should use the real delta_temp as it could be negative (conducting only)
         cooling_flux = self.layer.thermal_conductivity * delta_temp / cooling_thickness

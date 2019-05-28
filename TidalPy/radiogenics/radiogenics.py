@@ -1,5 +1,6 @@
+from TidalPy.structures.layers import LayerType
 from ..exceptions import ParameterMissingError
-from ..utilities.classes import ModelHolder
+from ..utilities.classes import ModelHolder, LayerModel
 from . import heating_models
 from .. import log
 from ..utilities.search import ModelSearcher
@@ -11,7 +12,7 @@ radiogenics_param_defaults = {
     'ice': {
         'model': 'off'
         },
-    'rocky': {
+    'rock': {
             'model': 'isotope',
             'ref_time': 4600.0,
             'isotopes': {
@@ -41,23 +42,29 @@ radiogenics_param_defaults = {
                     'element_concentration': 840.0
                 }
             }
-        },
+    },
     'iron': {
         'model': 'off'
-        }
     }
+}
 
 find_radiogenics = ModelSearcher(heating_models, radiogenics_param_defaults)
 
-class Radiogenics(ModelHolder):
+class Radiogenics(LayerModel):
 
-    def __init__(self, layer_type: str, radiogenic_config: dict = None):
+    default_config = radiogenics_param_defaults
+    config_key = 'radiogenics'
 
-        model_searcher = ModelSearcher(heating_models, radiogenics_param_defaults[layer_type])
-        model_searcher.user_parameters = radiogenic_config
+    def __init__(self, layer: LayerType):
 
-        super().__init__(user_config=radiogenic_config, default_config=radiogenics_param_defaults[layer_type],
-                         function_searcher=model_searcher, automate=True)
+
+        model_searcher = ModelSearcher(heating_models, radiogenics_param_defaults[layer.type])
+        model_searcher.user_parameters = layer.config[self.config_key]
+
+        super().__init__(layer=layer, function_searcher=model_searcher, automate=True)
+
+        # State variables
+        self.time = None
 
         # Convert isotope information into list[tuple] format
         self.isos_name = list()
@@ -90,19 +97,20 @@ class Radiogenics(ModelHolder):
 
         self.func, self.inputs = find_radiogenics.find_model(self.model, self.config)
 
-    def _calculate(self, time: np.ndarray, mass: float):
+    def _calculate(self):
         """ Calculates the radiogenic heating of layer in which the radiogenic class is installed.
 
-        :param time: <ndarray> calculation time (same units as provided half-life)
         :return: <ndarray> radiogenic heating [Watts]
         """
 
-        return self.func(time, mass, *self.inputs)
+        return self.func(self.layer.time, self.layer.mass, *self.inputs)
 
-    def _calculate_debug(self, time: np.ndarray, mass: float):
+    def _calculate_debug(self):
 
+        time = self.layer.time
+        assert time is not None
         assert type(time) == np.ndarray
-        assert type(mass) in float_like
+        assert type(self.layer.mass) == float
         if self.model == 'isotope':
             if abs(time[-1]/max(self.isos_halflife)) > 1.0e4:
                 log.warn('Time is much larger than radiogenic half-life - Check units of both time and half lives.')
@@ -110,7 +118,7 @@ class Radiogenics(ModelHolder):
             if abs(time[-1]/max(self.config['average_half_life'])) > 1.0e4:
                 log.warn('Time is much larger than the fixed-average radiogenic half-life - Check units of both time and half life.')
 
-        radio_heating = self.func(time, mass, *self.inputs)
+        radio_heating = self.func(time, self.layer.mass, *self.inputs)
         if np.any(radio_heating < 0.):
             log.warn(f'Negative radiogenic heating encountered at time:\n{time[radio_heating < 0.]}')
         if np.any(radio_heating > 1.e23):
