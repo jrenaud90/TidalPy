@@ -45,7 +45,7 @@ class UnknownTidalPyConfigValue(UnknownModelError):
 
 class ParameterMissingError(TidalPyException):
 
-    default_message = 'One or more parameter(s) or configuration(s) are missing and have no defaults.' \
+    default_message = 'One or more parameter(s) or configuration(s) are missing and have no defaults. ' \
                       'Check that keys have correct spelling and capitalization.'
 
 class MissingArgumentError(TidalPyException):

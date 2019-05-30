@@ -13,7 +13,7 @@ How To Implement a New Rheology:
 """
 
 from scipy.special import factorial
-from numba import njit
+from ..performance import njit
 
 @njit
 def off(compliance, viscosity, frequency):

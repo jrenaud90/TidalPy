@@ -1,6 +1,7 @@
-from ..setup import version
+from .version import version
 import os
 import time
+
 __version__ = version
 _vers_major, _vers_minor, _vers_hotfix = version.split('.')
 compatibility_signature = _vers_major + _vers_minor
@@ -39,7 +40,13 @@ auto_write = True
 # Set to 5 for all printing
 # verbose_level = 1 only permits warnings
 # Does not affect print()
-verbose_level = 3
+if debug_mode:
+    verbose_level = 5
+    logging_level = 5
+else:
+    logging_level = 4
+    verbose_level = 3
+
 
 # Make logger that will be used by other
 from .utilities.logging import TidalLogger
@@ -50,3 +57,6 @@ tidalpy_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Data could be saved in other locations the user can tell TidalPy where to search for things like dilled planets, etc.
 other_data_locs = [os.getcwd()]
+
+# Load a bunch of functionality to top-level
+from .planets import build_planet

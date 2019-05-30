@@ -57,8 +57,7 @@ class Star(BasicWorld):
 
 class BurnManWorld(WorldBase):
 
-    def __init__(self, planet_config: dict, burnman_world: burnman.Planet, bm_layers: dict,
-                 automate: bool = False):
+    def __init__(self, planet_config: dict, burnman_world: burnman.Planet, bm_layers: list, automate: bool = True):
 
         super().__init__(planet_config, automate=automate)
 
@@ -72,11 +71,13 @@ class BurnManWorld(WorldBase):
         self.layers_byname = dict()
         self.layers = list()
         mass_below = 0.
-        for layer_name, bm_layer in self.bm_layers:
+        for bm_layer in self.bm_layers:
+            layer_name = bm_layer.name
             layer_config = self.config['layers'][layer_name]
             layer = construct_layer(layer_name, bm_layer, mass_below, layer_config)
             self.layers_byname[layer_name] = layer
             self.layers.append(layer)
+            setattr(self, layer.name.lower(), layer)
             mass_below += layer.mass
 
         # Provide references to other layers
@@ -119,8 +120,8 @@ class BurnManWorld(WorldBase):
 
     @spin_freq.setter
     def spin_freq(self, value: np.ndarray):
-        if debug_mode:
-            assert type(value) == np.ndarray
+        if type(value) != np.ndarray:
+            value = np.asarray([value])
         self._spin_freq = value
         for layer in self:
             layer._spin_freq = value
@@ -131,8 +132,8 @@ class BurnManWorld(WorldBase):
 
     @orbital_freq.setter
     def orbital_freq(self, value: np.ndarray):
-        if debug_mode:
-            assert type(value) == np.ndarray
+        if type(value) != np.ndarray:
+            value = np.asarray([value])
         self._orbital_freq = value
         for layer in self:
             layer._orbital_freq = value

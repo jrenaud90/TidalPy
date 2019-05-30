@@ -1,8 +1,21 @@
 """ Partial Melting Models for Viscosity and Shear Modulus """
 
-from numba import njit
+from ..performance import njit
 from typing import Tuple
 import numpy as np
+
+
+@njit
+def off(temperature: np.ndarray, melt_fraction: np.ndarray,
+        premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
+    """ No Partial Melt
+
+    --- Parameters ---
+    other args: None
+
+    """
+
+    return premelt_viscosity, premelt_shear
 
 
 @njit
@@ -56,7 +69,7 @@ def henning(temperature: np.ndarray, melt_fraction: np.ndarray,
     viscosity[pre_breakdown_index] *= np.exp(-hn_visc_slope_1 * melt_fraction[pre_breakdown_index])
     viscosity[breakdown_index] *= np.exp(-hn_visc_slope_2 * (melt_fraction[breakdown_index] - crit_melt_frac))
     viscosity[molten_index] = liquid_viscosity[molten_index]
-    shear = premelt_shear
+    shear = premelt_shear * np.ones_like(temperature)
     shear[pre_breakdown_index] *= np.exp((hn_shear_param_1 / temperature[pre_breakdown_index]) - hn_shear_param_2)
     shear[breakdown_index] *= np.exp(-hn_shear_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac))
     shear[molten_index] = liquid_shear

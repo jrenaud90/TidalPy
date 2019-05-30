@@ -1,51 +1,17 @@
-from numba import njit
+from ..performance import njit
 import numpy as np
 
 from TidalPy import debug_mode
 from TidalPy.exceptions import BadAttributeValueError
-from TidalPy.structures.layers import LayerType
 from TidalPy.utilities.classes import ModelHolder, LayerModel
-from ..utilities.search import ModelSearcher
-from . import viscosity
+from ..utilities.classes import ModelSearcher
+from . import melting_models
+from .defaults import partial_melter_param_defaults
 
 # TODO: Move liquid shear into a material config?
 
 # Partial Melt Model Finder
-partial_melter_param_defaults = {
-    'ice': {
-        'model': 'off',
-        'solidus': 270.,
-        'liquidus': 273.15,
-        # Liquid Shear is just something very small.
-        'liquid_shear': 1.0e-5,
-    },
-    'rock': {
-        'model': 'henning',
-        'solidus': 1600.,
-        'liquidus': 2000.,
-        'liquid_shear': 1.0e-5,
-        'fs_visc_power_slope': 27000.0,
-        'fs_visc_power_phase': 1.0,
-        'fs_shear_power_slope': 82000.0,
-        'fs_shear_power_phase': 40.6,
-        'crit_melt_frac': 0.5,
-        'crit_melt_frac_width': 0.05,
-        'hn_visc_slope_1': 13.5,
-        'hn_visc_slope_2': 370.0,
-        'hn_shear_param_1': 40000.0,
-        'hn_shear_param_2': 25.0,
-        'hn_shear_falloff_slope': 700.0
-    },
-    'iron': {
-        'model': 'off',
-        'solidus': 2200.0,
-        'liquidus': 3000.0,
-        'liquid_shear': 1.0e-5,
-    }
-}
-
-
-find_partial_melter = ModelSearcher(viscosity, partial_melter_param_defaults)
+find_partial_melter = ModelSearcher(melting_models, partial_melter_param_defaults)
 
 # Helper Functions
 @njit
@@ -91,11 +57,10 @@ class PartialMelt(LayerModel):
     config_key = 'partial_melt'
 
 
-    def __init__(self, layer: LayerType):
+    def __init__(self, layer):
 
         super().__init__(layer=layer, function_searcher=find_partial_melter, automate=True)
 
-        self.calc_melt_fraction = calc_melt_fraction
         self.temp_from_melt = temp_from_melt
         self.use_partial_melt = True
         self.solidus = None

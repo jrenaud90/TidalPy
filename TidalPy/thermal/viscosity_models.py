@@ -1,4 +1,4 @@
-from numba import njit
+from ..performance import njit
 import numpy as np
 from ..types import float_lognat_max
 from scipy.constants import R
@@ -62,5 +62,7 @@ def constant(temperature: np.ndarray, pressure: float,
         other args: reference_viscosity
 
     """
+
+    return reference_viscosity * np.ones_like(temperature)
 
 # Put New Models Here!

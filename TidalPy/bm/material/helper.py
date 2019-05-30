@@ -62,12 +62,20 @@ def setup_material_lists():
 def find_material(material_name: str, material_source: str = None):
     """ Finds a BurnMan material from a specified source file (if provided)
 
+    TidalPy will automatically build a lookup table of BurnMan materials. This should be able to capture new BurnMan
+        materials as they are created as long as the overall structure of BurnMan does not change significantly.
+
     :return: returns an un-initialized burnman.material class
     """
 
     if known_materials is None or known_materials_sourceless is None:
         setup_material_lists()
-    
+
+    # Material information is stored in lowercase. Convert in case user provided mixed case
+    material_name = material_name.lower()
+    if material_source is not None:
+        material_source = material_source.lower()
+
     material_class = None
     if material_source is None:
         try:

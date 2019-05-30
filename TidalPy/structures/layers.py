@@ -6,10 +6,10 @@ from TidalPy.types import floatarray_like
 from TidalPy.exceptions import (AttributeNotSetError, IncorrectAttributeType, UnusualRealValueError,
                                 ImproperAttributeHandling,
                                 BadAttributeValueError, UnknownTidalPyConfigValue, ReinitError)
-from TidalPy import debug_mode
-from TidalPy.thermal import find_viscosity, calc_melt_fraction
+from ..thermal import find_viscosity, calc_melt_fraction
 import numpy as np
 from scipy.constants import G
+from .. import log, debug_mode
 from typing import Tuple
 import burnman
 from ..utilities.numpy_help import find_nearest
@@ -17,7 +17,7 @@ from ..bm.conversion import burnman_property_name_conversion, burnman_property_v
 from ..configurations import burnman_interpolation_method, burnman_interpolation_N
 from TidalPy.utilities.dict_tools import nested_get
 from typing import Union
-from .layer_defaults import layer_defaults
+from .defaults import layer_defaults
 
 class ThermalLayer(PhysicalObjSpherical):
 
@@ -53,7 +53,14 @@ class ThermalLayer(PhysicalObjSpherical):
         self.pressure_lower = self.bm_layer.pressures[0]
         self.density_upper = self.bm_layer.density[-1]
         self.density_lower = self.bm_layer.density[0]
-        self.bm_mid_index = find_nearest()
+
+        # Setup geometry based on the BurnMan results
+        self.gravity = None
+        bm_radius = np.max(self.bm_layer.radii)
+        bm_thickness = bm_radius - np.min(self.bm_layer.radii)
+        bm_mass = self.bm_layer.mass
+        self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
+        self.bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - self.thickness / 2.)
 
         # Attributes calculated by BurnMan but set at a specific spot
         if burnman_interpolation_method == 'mid':
@@ -70,14 +77,6 @@ class ThermalLayer(PhysicalObjSpherical):
             self.interp_func = np.median
         else:
             raise UnknownTidalPyConfigValue
-
-        # Setup geometry based on the BurnMan results
-        self.gravity = None
-        bm_radius = np.max(self.bm_layer.radii)
-        bm_thickness = bm_radius - np.min(self.bm_layer.radii)
-        bm_mass = self.bm_layer.mass
-        self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
-        self.bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - self.thickness/2)
 
         # Setup Physical Layer Geometry
         self.slices = self.config['slices']
@@ -119,8 +118,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.heat_sources = list()
 
         # Function Holders
-        self.viscosity_func, self.viscosity_inputs = None, None
-        self.viscosity_liq_func, self.viscosity_liq_inputs = None, None
+        self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = None, None, None
+        self.viscosity_liq_func, self.viscosity_liq_inputs,self.viscosity_liq_live_inputs = None, None, None
 
         # Call to init
         self.init()
@@ -140,6 +139,7 @@ class ThermalLayer(PhysicalObjSpherical):
         # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
         #     These results will then be used in an interpolation for whenever self.temperature changes
         pressures = self.pressure * np.ones_like(self.interp_temperature_range)
+        property_results = None
         try:
             property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
         except TypeError as e:
@@ -150,6 +150,16 @@ class ThermalLayer(PhysicalObjSpherical):
                 raise e
 
         for interp_prop, prop_result in zip(interp_properties, property_results):
+
+            # Perform any unit or other conversions needed to interface BurnMan to TidalPy
+            conversion_type = burnman_property_value_conversion.get(interp_prop, None)
+            if conversion_type is not None:
+                if conversion_type == 'molar':
+                    # Convert the parameter from a molar value to a specific value
+                    prop_result = prop_result / self.bm_material.molar_mass
+                else:
+                    raise KeyError
+
             self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
 
     def init(self):
@@ -157,18 +167,17 @@ class ThermalLayer(PhysicalObjSpherical):
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
         self.heat_fusion = self.config['heat_fusion']
+        self.thermal_conductivity = self.config['thermal_conductivity']
         self.temp_ratio = self.config['boundary_temperature_ratio']
         self.stefan = self.config['stefan']
-        self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
-        self.energy_per_therm = self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio
 
         # Setup viscosity functions
         solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
         liquid_visco_model = nested_get(self.config, ['rheology', 'liquid_viscosity', 'model'], default=None)
 
-        self.viscosity_func, self.viscosity_inputs = \
+        self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = \
             find_viscosity(solid_visco_model, default_key=[self.type, 'solid_viscosity'])
-        self.viscosity_liq_func, self.viscosity_liq_inputs = \
+        self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = \
             find_viscosity(liquid_visco_model, default_key=[self.type, 'liquid_viscosity'])
 
         # Setup Partial Melting
@@ -265,13 +274,18 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e5 or value < 5.0:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray(value)
+            value = np.asarray([value])
         self._temperature = value
         # Set new melt fraction
         self._melt_fraction = self.partial_melt.calc_melt_fraction()
         # Set new material properties based on BurnMan Interpolation
         for prop_name, prop_data in self._interp_prop_data_lookup.items():
             setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
+
+        # Set new dependent material properties
+        self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
+        self.energy_per_therm = self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio
+
         # Set new viscosity and shear modulus
         self.set_strength()
         # Calculate cooling
@@ -381,8 +395,7 @@ class TidalLayer(ThermalLayer):
 
 
 # Helpers
-LayerType = Union[ThermalLayer, TidalLayer]
-def construct_layer(layer_name: str, burnman_layer: burnman.Layer, mass_below: float, layer_config: dict) -> LayerType:
+def construct_layer(layer_name: str, burnman_layer: burnman.Layer, mass_below: float, layer_config: dict):
 
     # Try to determine if the layer is tidal or not
     is_tidal = layer_config.get('is_tidal', False)

@@ -19,6 +19,9 @@ def nested_get(input_dict: dict, nested_keys: Union[PossibleKeyType, List[Possib
         raise TypeError
 
     internal_dict_value = input_dict
+    if type(nested_keys) not in [tuple, list]:
+        nested_keys = [nested_keys]
+
     for key in nested_keys:
         if type(key) not in [str, int, float]:
             # Items in nested_key can not be lists or Tuples

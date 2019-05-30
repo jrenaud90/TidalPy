@@ -1,11 +1,11 @@
 from TidalPy.exceptions import UnknownModelError, ParameterMissingError, IncompatibleModelError, MissingArgumentError
 from TidalPy.utilities.dict_tools import nested_get
-from ..utilities.search import ModelSearcher
+from ..utilities.classes import ModelSearcher
 from . import compliance_models
 from . import andrade_frequency_models
 from inspect import getmembers
 from typing import Union, List
-from .rheology import rheology_param_defaults
+from .defaults import rheology_param_defaults
 
 class ComplianceModelSearcher(ModelSearcher):
 
@@ -16,7 +16,7 @@ class ComplianceModelSearcher(ModelSearcher):
                          defaults_require_key=defaults_require_key)
 
         # Also find the frequency models and their arguments
-        self.known_frequency_models, self.frequency_args_needed = self.find_known_models(frequency_module)
+        self.known_frequency_models, self.frequency_args_needed, _ = self.find_known_models(frequency_module)
 
     def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str, List[str]] = None):
         """ Searches known models for model_name and returns the function and required inputs """

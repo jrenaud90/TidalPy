@@ -15,7 +15,7 @@ def check_for_duplicates(dict_to_check: dict):
 
     potential_dups = list()
     for planet_name, planet_filepath in dict_to_check.items():
-        possible_dup_index = planet_name.split('_')
+        possible_dup_index = planet_name.split('_')[-1]
         try:
             int(possible_dup_index)
         except ValueError:
@@ -43,7 +43,8 @@ def _cfgpath_to_json():
     global known_planets_cfg
     global _configs_are_dict
     for planet_name, config_path in known_planets_cfg.items():
-        known_planets_cfg[planet_name] = json5.load(config_path)
+        with open(config_path, 'r') as config_file:
+            known_planets_cfg[planet_name] = json5.load(config_file)
 
     _configs_are_dict = True
 

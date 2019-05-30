@@ -2,7 +2,7 @@
 """
 
 import numpy as np
-from numba import njit
+from ..performance import njit
 from ..types import float_lognat_max
 
 
