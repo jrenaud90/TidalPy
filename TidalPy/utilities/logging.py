@@ -2,20 +2,25 @@ import warnings
 import time
 import sys
 import atexit
-
+from datetime import datetime
 from ..io import unique_path
 from .. import verbose_level as global_verbose_level
 from .. import logging_level as global_logging_level
 from .. import __version__
 from typing import Union
 
+now = datetime.now()
+now_str = now.strftime('%x at %X')
+
 HEADER_TEXT = (
-    f'----------------------------------------------------------------------------------'
-    f'TidalPy - Tidal Heating Calculator and Orbital Evolver'
-    f'Version: {__version__}'
-    f'Made by Joe Renaud, ca 2015--2020'
-    f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy'
-    f'----------------------------------------------------------------------------------'
+    f'----------------------------------------------------------------------------------',
+    f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
+    f'Version: {__version__}',
+    f'Primary Development by Joe Renaud, ca. 2016--2020',
+    f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
+    f'----------------------------------------------------------------------------------',
+    f'Run made on {now_str}.',
+    f'Using Python {sys.version} on {sys.platform}.'
 )
 HEADER_TEXT = '\n'.join(HEADER_TEXT)
 

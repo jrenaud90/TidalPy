@@ -40,8 +40,7 @@
             "material_source": "SLB_2011",
             "temperature_mode": "adiabatic",
             "temperature_top": 1200.0,
-            "surface_temperature": 300.0,
-            ""
+            "surface_temperature": 300.0
 
         }
     }

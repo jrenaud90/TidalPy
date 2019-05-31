@@ -11,4 +11,4 @@
 # 1.2.0       # Final Release
 # 1.2.0.post1 # Post Release
 
-version = '0.1.0dev6b'
+version = '0.1.0dev6c'

@@ -363,8 +363,22 @@ class ThermalLayer(PhysicalObjSpherical):
 
     @viscosity.setter
     def viscosity(self, value):
-        raise ImproperAttributeHandling('Viscosity should be set by changing self.temperature or using by using'
-                                        'the self.set_strength method.')
+
+        if debug_mode:
+            if type(value) not in floatarray_like:
+                raise IncorrectAttributeType
+            if type(value) == np.ndarray:
+                if np.any(value > 1.0e30) or np.any(value < 1.0e-10):
+                    raise UnusualRealValueError
+            else:
+                if value > 1.0e30 or value < 1.0e-10:
+                    raise UnusualRealValueError
+        if type(value) != np.ndarray:
+            value = np.asarray([value])
+        self._viscosity = value
+
+        # Calculate cooling
+        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
 
     @property
     def shear_modulus(self) -> np.ndarray:
@@ -376,8 +390,22 @@ class ThermalLayer(PhysicalObjSpherical):
 
     @shear_modulus.setter
     def shear_modulus(self, value):
-        raise ImproperAttributeHandling('Shear Modulus should be set by changing self.temperature or using by using'
-                                        'the self.set_strength method.')
+
+        if debug_mode:
+            if type(value) not in floatarray_like:
+                raise IncorrectAttributeType
+            if type(value) == np.ndarray:
+                if np.any(value > 1.0e20) or np.any(value < 1.0e-10):
+                    raise UnusualRealValueError
+            else:
+                if value > 1.0e20 or value < 1.0e-10:
+                    raise UnusualRealValueError
+        if type(value) != np.ndarray:
+            value = np.asarray([value])
+        self._shear_modulus = value
+
+        # Calculate cooling
+        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
 
     # Aliased Attributes
     @property

@@ -250,7 +250,6 @@ class ModelSearcher(ConfigHolder):
         self.default_config = default_parameters
         self.defaults_require_key = defaults_require_key
         self.default_key = None
-        self.default_subdict_found = False
         if self.defaults_require_key:
             automate = False
         else:
@@ -343,24 +342,26 @@ class ModelSearcher(ConfigHolder):
     def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str,List[str]] = None):
 
         # Update self.config based on function input
-        if not self.default_subdict_found:
-            if default_key is None:
-                default_key = self.default_key
-            if default_key is None:
-                if self.defaults_require_key:
-                   raise MissingArgumentError
+        if default_key is None:
+            default_key = self.default_key
+        if default_key is None:
+            if self.defaults_require_key:
+               raise MissingArgumentError
             else:
-                self.default_config = nested_get(self.default_config, default_key, raiseon_nolocate=True)
-                self.default_subdict_found = True
+                defaults = self.default_config
+        else:
+            defaults = nested_get(self.default_config, default_key, raiseon_nolocate=True)
 
         if parameters is not None:
-            self._user_config = parameters
-        self.update_config()
+            user = parameters
+        else:
+            user = dict()
+        config = {**defaults, **user}
 
         # Find Model
         try:
             if model_name is None:
-                model_name = self.config['model']
+                model_name = config['model']
         except KeyError:
             raise MissingArgumentError('No user provided Model and no fallback found in defaults')
 
@@ -371,7 +372,10 @@ class ModelSearcher(ConfigHolder):
         live_args = self.live_args[model_name]
 
         # Build tuple of function inputs
+        old_config = self.config
+        self._config = config
         inputs = self.build_inputs(needed_args)
+        self._config = old_config
 
         return model_func, inputs, live_args
 
