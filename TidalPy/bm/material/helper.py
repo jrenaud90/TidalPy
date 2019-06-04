@@ -2,9 +2,12 @@ import burnman
 
 from TidalPy.exceptions import UnknownModelError
 from ... import debug_mode
+from . import custom as tidalpy_materials
+from .custom.constant import ConstantMaterial
 
 known_materials = None
 known_materials_sourceless = None
+
 
 def setup_material_lists():
     """ Builds a dictionary of known materials
@@ -56,7 +59,17 @@ def setup_material_lists():
                 known_materials_sourceless[material] = (source, known_materials_tmp[source][material])
 
     # Load in TidalPy custom materials
-    # TODO
+    known_materials['tidalpy'] = dict()
+    for item in tidalpy_materials.__dict__:
+        if item in ignore_list:
+            continue
+        potential_obj = tidalpy_materials.__dict__[item]
+        try:
+            # Ignore anything that is not a BurnMan mineral
+            if issubclass(potential_obj, burnman.Mineral) or issubclass(potential_obj, ConstantMaterial):
+                known_materials['tidalpy'][item.lower()] = potential_obj
+        except TypeError:
+            pass
 
 
 def find_material(material_name: str, material_source: str = None):
