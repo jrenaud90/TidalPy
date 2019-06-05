@@ -57,11 +57,6 @@ class PhysicalObjSpherical(ConfigHolder):
         self._moi_ideal = None
         self._moi_factor = None
 
-        # State Variables
-        self._time = None
-        self._spin_freq = None
-        self._orbital_freq = None
-
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
         """ Sets and calculates object's physical parameters based on user provided input.
 
@@ -117,37 +112,6 @@ class PhysicalObjSpherical(ConfigHolder):
                 raise UnusualRealValueError
 
         self.geometry_init = True
-
-    # State Variables
-    @property
-    def time(self):
-        return self._time
-
-    @time.setter
-    def time(self, value: np.ndarray):
-        if debug_mode:
-            assert type(value) == np.ndarray
-        self._time = value
-
-    @property
-    def spin_freq(self):
-        return self._spin_freq
-
-    @spin_freq.setter
-    def spin_freq(self, value: np.ndarray):
-        if debug_mode:
-            assert type(value) == np.ndarray
-        self._spin_freq = value
-
-    @property
-    def orbital_freq(self):
-        return self._orbital_freq
-
-    @orbital_freq.setter
-    def orbital_freq(self, value: np.ndarray):
-        if debug_mode:
-            assert type(value) == np.ndarray
-        self._orbital_freq = value
 
     # Primary Parameters
     @property

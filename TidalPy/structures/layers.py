@@ -7,7 +7,9 @@ from TidalPy.exceptions import (AttributeNotSetError, IncorrectAttributeType, Un
                                 ImproperAttributeHandling,
                                 BadAttributeValueError, UnknownTidalPyConfigValue, ReinitError)
 from ..thermal import find_viscosity, calc_melt_fraction
+from ..rheology.rheology import Rheology
 import numpy as np
+from typing import Dict, List
 from scipy.constants import G
 from .. import log, debug_mode
 from typing import Tuple
@@ -264,7 +266,6 @@ class ThermalLayer(PhysicalObjSpherical):
 
         return (total_heating - total_cooling) / self.energy_per_therm
 
-
     # Class Properties
     @property
     def temperature(self) -> np.ndarray:
@@ -288,6 +289,10 @@ class ThermalLayer(PhysicalObjSpherical):
         if type(value) != np.ndarray:
             value = np.asarray([value])
         self._temperature = value
+
+        # Update shear and viscosity
+        self.set_strength()
+
         # Set new melt fraction
         self._melt_fraction = self.partial_melt.calc_melt_fraction()
         # Set new material properties based on BurnMan Interpolation
@@ -298,8 +303,6 @@ class ThermalLayer(PhysicalObjSpherical):
         self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
         self.energy_per_therm = self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio
 
-        # Set new viscosity and shear modulus
-        self.set_strength()
         # Calculate cooling
         self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
 
@@ -431,8 +434,99 @@ class ThermalLayer(PhysicalObjSpherical):
 
 class TidalLayer(ThermalLayer):
 
-    pass
+    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):
 
+        super().__init__(layer_name, burnman_layer, layer_config)
+
+        # Models
+        self.rheology = None
+
+        # State variables
+        self._complex_compliance = None
+        self._complex_love = None
+        self._effective_rigidity = None
+        self._tidal_modes = None
+
+    def init(self):
+
+        super().init()
+
+        self.rheology = Rheology(self)
+
+    @property
+    def tidal_modes(self) -> Tuple[np.ndarray]:
+        return self._tidal_modes
+
+    @tidal_modes.setter
+    def tidal_modes(self, value: Tuple[np.ndarray]):
+
+        if debug_mode:
+            assert type(value) == tuple
+            assert type(value[0]) == np.ndarray
+
+        self._tidal_modes = value
+
+        self._effective_rigidity, self._complex_compliance, self._complex_love = \
+            self.rheology.calculate()
+
+    @property
+    def complex_compliance(self) -> Dict[str, Tuple[np.ndarray]]:
+        return self._complex_compliance
+
+    @complex_compliance.setter
+    def complex_compliance(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def complex_love(self):
+        return self._complex_love
+
+    @complex_love.setter
+    def complex_love(self, value) -> Dict[str, Tuple[np.ndarray]]:
+        raise ImproperAttributeHandling
+
+    @property
+    def effective_rigidity(self):
+        return self._effective_rigidity
+
+    @effective_rigidity.setter
+    def effective_rigidity(self, value):
+        raise ImproperAttributeHandling
+
+    # Update previous class state variables to include new setter functionality
+    @property
+    def temperature(self) -> np.ndarray:
+        return super().temperature
+
+    @temperature.setter
+    def temperature(self, value):
+        super(TidalLayer, self.__class__).temperature.fset(self, value)
+
+        self._effective_rigidity, self._complex_compliance, self._complex_love = \
+            self.rheology.calculate()
+
+    @property
+    def viscosity(self) -> np.ndarray:
+        return super().viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+
+        super(TidalLayer, self.__class__).viscosity.fset(self, value)
+
+        self._effective_rigidity, self._complex_compliance, self._complex_love = \
+            self.rheology.calculate()
+
+    @property
+    def shear_modulus(self) -> np.ndarray:
+        return super().shear_modulus
+
+    @shear_modulus.setter
+    def shear_modulus(self, value):
+        super(TidalLayer, self.__class__).shear_modulus.fset(self, value)
+
+        self._effective_rigidity, self._complex_compliance, self._complex_love = \
+            self.rheology.calculate()
 
 # Helpers
 def construct_layer(layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):

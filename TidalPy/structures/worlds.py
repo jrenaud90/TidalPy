@@ -1,5 +1,5 @@
 from TidalPy import debug_mode
-from TidalPy.exceptions import ParameterMissingError, ReinitError
+from TidalPy.exceptions import ParameterMissingError, ReinitError, ImproperAttributeHandling
 from TidalPy.structures.layers import construct_layer
 from .physical import PhysicalObjSpherical
 from ..physics.stellar import luminosity_from_mass, efftemp_from_luminosity, luminosity_from_efftemp
@@ -93,6 +93,18 @@ class BurnManWorld(WorldBase):
         self.density_slices = np.concatenate(density_list)
         self.radii = np.concatenate(radius_list)
 
+        # Independent State variables
+        self._spin_freq = None
+        self._orbital_freq = None
+        self._time = None
+        self._eccentricity = None
+        self._inclination = None
+
+        # Dependent variables
+        self._tidal_modes = None
+        self._tidal_coeff_heating = None
+        self._tidal_coeff_torque = None
+
 
     def reinit(self):
 
@@ -130,6 +142,15 @@ class BurnManWorld(WorldBase):
                 return layer
         raise LookupError()
 
+    def update_modes(self):
+
+        self._tidal_modes = tuple(self.orbital_freq)
+        self._tidal_coeff_heating = tuple(7. * self.eccentricity )
+        self._tidal_coeff_torque = tuple()
+
+        for layer in self:
+            layer.tidal_modes = self._tidal_modes
+
     def paint(self, depth_plot: bool = False, auto_show: bool = False):
         """ Create a geotherm or depth plot of the planet's gravity, pressure, and density
 
@@ -152,7 +173,7 @@ class BurnManWorld(WorldBase):
             assert type(value) == np.ndarray
         self._time = value
         for layer in self:
-            layer._time = value
+            layer.time = value
 
     @property
     def spin_freq(self):
@@ -163,8 +184,6 @@ class BurnManWorld(WorldBase):
         if type(value) != np.ndarray:
             value = np.asarray([value])
         self._spin_freq = value
-        for layer in self:
-            layer._spin_freq = value
 
     @property
     def orbital_freq(self):
@@ -175,12 +194,66 @@ class BurnManWorld(WorldBase):
         if type(value) != np.ndarray:
             value = np.asarray([value])
         self._orbital_freq = value
-        for layer in self:
-            layer._orbital_freq = value
+
+    @property
+    def eccentricity(self):
+        return self._eccentricity
+
+    @eccentricity.setter
+    def eccentricity(self, value: np.ndarray):
+        if type(value) != np.ndarray:
+            value = np.asarray([value])
+        self._eccentricity = value
+
+    @property
+    def inclination(self):
+        return self._orbital_freq
+
+    @inclination.setter
+    def inclination(self, value: np.ndarray):
+        if type(value) != np.ndarray:
+            value = np.asarray([value])
+        self._inclination = value
+
+    @property
+    def tidal_modes(self):
+        return self._tidal_modes
+
+    @tidal_modes.setter
+    def tidal_modes(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def tidal_coeff_heating(self):
+        return self._tidal_coeff_heating
+
+    @tidal_coeff_heating.setter
+    def tidal_coeff_heating(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def tidal_coeff_torque(self):
+        return self._tidal_coeff_torque
+
+    @tidal_coeff_torque.setter
+    def tidal_coeff_torque(self, value):
+        raise ImproperAttributeHandling
 
     def __iter__(self):
 
         return iter(self.layers)
+
+
+class MultiModeWorld(BurnManWorld):
+
+    def update_modes(self):
+
+        self._tidal_modes = tuple(self.orbital_freq)
+        self._tidal_coeff_heating = tuple()
+        self._tidal_coeff_torque = tuple()
+
+        for layer in self:
+            layer.tidal_modes = self._tidal_modes
 
 
 world_types = {
