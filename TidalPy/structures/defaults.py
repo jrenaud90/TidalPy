@@ -4,6 +4,9 @@ layer_defaults = {
         'type': 'ice',
         'slices': 50,
 
+        # Switches
+        'use_surf_gravity': True,
+
         # Burnman Information
         'interp_temperature_range': [60., 273.15],
 
@@ -26,6 +29,9 @@ layer_defaults = {
         'type': 'rock',
         'slices': 50,
 
+        # Switches
+        'use_surf_gravity': True,
+
         # Burnman Information
         'interp_temperature_range': [500., 2200.],
 
@@ -44,6 +50,9 @@ layer_defaults = {
         # General Layer Information
         'type': 'iron',
         'slices': 1,
+
+        # Switches
+        'use_surf_gravity': True,
 
         # Burnman Information
         'interp_temperature_range': [800., 2500.],

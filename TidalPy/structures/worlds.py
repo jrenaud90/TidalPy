@@ -3,7 +3,7 @@ from TidalPy.exceptions import ParameterMissingError, ReinitError
 from TidalPy.structures.layers import construct_layer
 from .physical import PhysicalObjSpherical
 from ..physics.stellar import luminosity_from_mass, efftemp_from_luminosity, luminosity_from_efftemp
-
+from ..graphics.planet_plot import geotherm_plot
 import burnman
 import numpy as np
 
@@ -70,20 +70,28 @@ class BurnManWorld(WorldBase):
         # Setup layers
         self.layers_byname = dict()
         self.layers = list()
-        mass_below = 0.
         for bm_layer in self.bm_layers:
             layer_name = bm_layer.name
             layer_config = self.config['layers'][layer_name]
-            layer = construct_layer(layer_name, bm_layer, mass_below, layer_config)
+            layer = construct_layer(layer_name, bm_layer, layer_config)
             self.layers_byname[layer_name] = layer
             self.layers.append(layer)
             setattr(self, layer.name.lower(), layer)
-            mass_below += layer.mass
 
         # Provide references to other layers
         for layer_below, layer, layer_above in zip([None] + self.layers[:-1], self.layers, self.layers[1:] + [None]):
             layer.layer_below = layer_below
             layer.layer_above = layer_above
+
+        # Concatenate the slice information from the layers
+        gravity_list = [layer.gravity_slices for layer in self]
+        pressure_list = [layer.pressure_slices for layer in self]
+        density_list = [layer.density_slices for layer in self]
+        radius_list = [layer.radii for layer in self]
+        self.gravity_slices = np.concatenate(gravity_list)
+        self.pressure_slices = np.concatenate(pressure_list)
+        self.density_slices = np.concatenate(density_list)
+        self.radii = np.concatenate(radius_list)
 
 
     def reinit(self):
@@ -101,6 +109,38 @@ class BurnManWorld(WorldBase):
             layer.reinit()
 
         super().reinit()
+
+    def get_layer(self, layer_name: str):
+        """ Returns a layer with a given name
+
+        :param layer_name: <str> layer's name"""
+
+        return self.layers_byname[layer_name]
+
+    def get_layer_by_radius(self, radius: float):
+        """ Returns a layer in which this radius lies
+
+        :param radius: <float> radius inside the world
+        """
+
+        assert radius <= self.radius
+
+        for layer in self.layers:
+            if layer.radius >= radius:
+                return layer
+        raise LookupError()
+
+    def paint(self, depth_plot: bool = False, auto_show: bool = False):
+        """ Create a geotherm or depth plot of the planet's gravity, pressure, and density
+
+        :param depth_plot: <bool> (=False) If true then plot will be vs. depth instead of vs. radius
+        :param auto_show:  <bool> (=False) If true then plt.show will be called
+        :return: matplotlib figure
+        """
+
+        return geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
+                             bulk_density=self.density_bulk,
+                             planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
 
     @property
     def time(self):

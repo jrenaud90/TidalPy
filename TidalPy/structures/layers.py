@@ -29,7 +29,7 @@ class ThermalLayer(PhysicalObjSpherical):
     default_config = layer_defaults
 
 
-    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, mass_below: float, layer_config: dict):
+    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):
 
         # Setup Physical Layer Geometry
         self.type = layer_config['type']
@@ -40,9 +40,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.name = layer_name
 
         # Information about the other layers (mostly for gravity and cooling calculations)
-        self.layer_below = None             # type: ThermalLayer
-        self.layer_above = None             # type: ThermalLayer
-        self.mass_below = mass_below
+        self.layer_below = None             # type: ThermalLayer or None
+        self.layer_above = None             # type: ThermalLayer or None
 
         # Pull out information from the already initialized burnman Layer
         self.bm_layer = burnman_layer
@@ -55,25 +54,34 @@ class ThermalLayer(PhysicalObjSpherical):
         self.density_lower = self.bm_layer.density[0]
 
         # Setup geometry based on the BurnMan results
-        self.gravity = None
         bm_radius = np.max(self.bm_layer.radii)
         bm_thickness = bm_radius - np.min(self.bm_layer.radii)
         bm_mass = self.bm_layer.mass
         self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
         self.bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - self.thickness / 2.)
+        self.gravity_surf = self.bm_layer.gravity[-1]
+
+        # Pull out slice information
+        self.radii = self.bm_layer.radii
+        self.pressure_slices = self.bm_layer.pressures
+        self.density_slices = self.bm_layer.density
+        self.gravity_slices = self.bm_layer.gravity
 
         # Attributes calculated by BurnMan but set at a specific spot
         if burnman_interpolation_method == 'mid':
             self.pressure = self.bm_layer.pressures[self.bm_mid_index]
             self.density = self.bm_layer.density[self.bm_mid_index]
+            self.gravity = self.bm_layer.gravity[self.bm_mid_index]
             self.interp_func = lambda array: array[self.bm_mid_index]
         elif burnman_interpolation_method == 'avg':
             self.pressure = np.average(self.bm_layer.pressures)
             self.density = np.average(self.bm_layer.density)
+            self.gravity = np.average(self.bm_layer.gravity)
             self.interp_func = np.average
         elif burnman_interpolation_method == 'median':
             self.pressure = np.median(self.bm_layer.pressures)
             self.density = np.median(self.bm_layer.density)
+            self.gravity = np.median(self.bm_layer.gravity)
             self.interp_func = np.median
         else:
             raise UnknownTidalPyConfigValue
@@ -81,6 +89,11 @@ class ThermalLayer(PhysicalObjSpherical):
         # Setup Physical Layer Geometry
         self.slices = self.config['slices']
         self.material_name = self.config['material']
+
+        # Load in switches
+        if self.config['use_surf_gravity']:
+            # This primarily affects convection calculation
+            self.gravity = self.gravity_surf
 
         # Material Properties set by BurnMan
         self.bulk_modulus = None
@@ -112,9 +125,9 @@ class ThermalLayer(PhysicalObjSpherical):
         self._temperature_lower = None
 
         # Model Holders
-        self.cooling = None       # type: Cooling
-        self.partial_melt = None  # type: PartialMelt
-        self.radiogenics = None   # type: Radiogenics
+        self.cooling = None       # type: Cooling or None
+        self.partial_melt = None  # type: PartialMelt or None
+        self.radiogenics = None   # type: Radiogenics or None
         self.heat_sources = list()
 
         # Function Holders
@@ -207,7 +220,6 @@ class ThermalLayer(PhysicalObjSpherical):
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
 
         super().set_geometry(radius, mass, thickness)
-        self.gravity = G * (self.mass + self.mass_below) / self.radius**2
 
     def set_strength(self) -> Tuple[np.ndarray, np.ndarray]:
         """ Sets and returns the strength (viscosity and shear) of the layer
@@ -423,7 +435,7 @@ class TidalLayer(ThermalLayer):
 
 
 # Helpers
-def construct_layer(layer_name: str, burnman_layer: burnman.Layer, mass_below: float, layer_config: dict):
+def construct_layer(layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):
 
     # Try to determine if the layer is tidal or not
     is_tidal = layer_config.get('is_tidal', False)
@@ -432,6 +444,6 @@ def construct_layer(layer_name: str, burnman_layer: burnman.Layer, mass_below: f
         is_tidal = True
 
     if is_tidal:
-        return TidalLayer(layer_name, burnman_layer, mass_below, layer_config)
+        return TidalLayer(layer_name, burnman_layer, layer_config)
     else:
-        return ThermalLayer(layer_name, burnman_layer, mass_below, layer_config)
+        return ThermalLayer(layer_name, burnman_layer, layer_config)

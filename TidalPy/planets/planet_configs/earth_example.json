@@ -32,15 +32,27 @@
             "temperature_mode": "adiabatic"
 
         },
+//        "Upper_Mantle": {
+//            "type": "ice",
+//            "is_tidal": false,
+//            "radius": 6371.0e3,
+//            "material": "LowPressureIceConst",
+//            "material_source": "TidalPy",
+//            "temperature_mode": "user-defined",
+//            "surface_temperature": 200.0,
+//            "temperature_fixed": 200.0
+//
+//        }
+
         "Upper_Mantle": {
-            "type": "ice",
+            "type": "rock",
             "is_tidal": false,
             "radius": 6371.0e3,
-            "material": "LowPressureIceConst",
-            "material_source": "TidalPy",
-            "temperature_mode": "user-defined",
-            "surface_temperature": 200.0,
-            "temperature_fixed": 200.0
+            "material": "forsterite",
+            "material_source": "SLB_2011",
+            "temperature_mode": "adiabatic",
+            "temperature_top": 1200.0,
+            "surface_temperature": 300.0
 
         }
     }
