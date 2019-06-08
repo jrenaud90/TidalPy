@@ -26,6 +26,18 @@ class BasicWorld(WorldBase):
 
         self.set_geometry(planet_config['radius'], planet_config['mass'])
 
+        # Orbit reference
+        self._orbit = None
+
+    @property
+    def orbit(self):
+        return self._orbit
+
+    @orbit.setter
+    def orbit(self, value):
+        raise ImproperAttributeHandling('Orbit is automatically passed to a planet when a new orbit class is created.')
+
+
 
 class Star(BasicWorld):
 
@@ -61,6 +73,10 @@ class BurnManWorld(WorldBase):
 
         super().__init__(planet_config, automate=automate)
 
+        # Additional orbit information is needed for potential target worlds
+        self.orbit_num = None
+
+        # Store burnman information
         self.bm_world = burnman_world
         self.bm_layers = bm_layers
 

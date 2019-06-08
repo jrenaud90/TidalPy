@@ -3,6 +3,21 @@ from .constants import luminosity_solar, mass_solar
 import numpy as np
 from ..types import FloatArray
 from numba import njit
+from scipy.special import ellipe
+
+@njit
+def equilibrium_temp():
+    """ Calculates the equilbrium temperature on the surface of a planet.
+
+    Based on Mendez & Rivera-Valentin 2017
+    :return:
+    """
+
+    stellar_flux = luminosity / (4. * np.pi * seperation**2)
+    elliptic_integral_2 = ellipe(np.sqrt(2. * eccentricity/ (1. + eccentricity)))
+
+
+    return
 
 @njit
 def insolation_heating(separation: FloatArray, luminosity: float, albedo: float, planet_radius: float,
