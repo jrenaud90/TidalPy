@@ -6,6 +6,8 @@ layer_defaults = {
 
         # Switches
         'use_surf_gravity': True,
+        'use_tvf': True,
+        'is_tidal': True,
 
         # Burnman Information
         'interp_temperature_range': [60., 273.15],
@@ -31,6 +33,8 @@ layer_defaults = {
 
         # Switches
         'use_surf_gravity': True,
+        'use_tvf': True,
+        'is_tidal': True,
 
         # Burnman Information
         'interp_temperature_range': [500., 2200.],
@@ -53,6 +57,8 @@ layer_defaults = {
 
         # Switches
         'use_surf_gravity': True,
+        'use_tvf': True,
+        'is_tidal': False,
 
         # Burnman Information
         'interp_temperature_range': [800., 2500.],
@@ -67,5 +73,20 @@ layer_defaults = {
         'thermal_conductivity': 7.95,
         'thermal_diffusivity': 7.95 / (9000. * 444.),
         'thermal_expansion': 1.2e-5,
+    }
+}
+
+world_defaults = {
+    'base': {
+        'force_spin_sync': True
+    },
+    'basic': {
+        'force_spin_sync': True
+    },
+    'star': {
+        'force_spin_sync': True
+    },
+    'burnman': {
+        'force_spin_sync': True
     }
 }

@@ -106,7 +106,7 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
             log('Burnman planet build complete!')
             planet = planet_class(planet_config, burnman_planet, burnman_layers)
         else:
-            log(f'{planet_class.pyname} planet type detected.')
+            log(f'{planet_class.type} planet type detected.')
             planet = planet_class(planet_config)
 
     if planet is None:

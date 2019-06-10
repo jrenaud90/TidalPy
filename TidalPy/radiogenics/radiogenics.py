@@ -60,11 +60,11 @@ class Radiogenics(LayerModel):
         :return: <ndarray> radiogenic heating [Watts]
         """
 
-        return self.func(self.layer.time, self.layer.mass, *self.inputs)
+        return self.func(self.layer.world.time, self.layer.mass, *self.inputs)
 
     def _calculate_debug(self):
 
-        time = self.layer.time
+        time = self.layer.world.time
         assert time is not None
         assert type(time) == np.ndarray
         assert type(self.layer.mass) == float

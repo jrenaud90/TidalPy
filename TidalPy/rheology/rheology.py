@@ -37,12 +37,14 @@ class Rheology(LayerModel):
             raise UnknownModelError
 
         # Setup complex compliance calculator
-        model_searcher = ComplianceModelSearcher(compliance_models, andrade_frequency_models, self.config)
+        model_searcher = ComplianceModelSearcher(compliance_models, andrade_frequency_models, self.config,
+                                                 defaults_require_key=False)
 
         self.compliances = list()
         self.compliance_inputs = list()
         for rheology_name in self.config['compliances']:
-            comp_func, comp_input = model_searcher.find_model(rheology_name)
+            comp_func, comp_input, comp_live_args = model_searcher.find_model(rheology_name)
+            # TODO: As of 0.1.0a no compliance functions have live args, so comp_live_args is never used.
             self.compliances.append(comp_func)
             self.compliance_inputs.append(comp_input)
         self.compliances = tuple(self.compliances)

@@ -60,3 +60,5 @@ other_data_locs = [os.getcwd()]
 
 # Load a bunch of functionality to top-level
 from .planets import build_planet
+from .orbit.orbit import OrbitBase as Orbit
+from .utilities import conversions

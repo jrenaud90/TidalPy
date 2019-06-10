@@ -21,44 +21,47 @@ class ComplianceModelSearcher(ModelSearcher):
     def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str, List[str]] = None):
         """ Searches known models for model_name and returns the function and required inputs """
 
-        # Update self.config based on function input
         if default_key is None:
             default_key = self.default_key
         if default_key is None:
             if self.defaults_require_key:
-                raise MissingArgumentError
+               raise MissingArgumentError
+            else:
+                defaults = self.default_config
         else:
-            self.default_config = nested_get(self.default_config, default_key, raiseon_nolocate=True)
+            defaults = nested_get(self.default_config, default_key, raiseon_nolocate=True)
+
         if parameters is not None:
-            self._user_config = parameters
-        self.update_config()
+            user = parameters
+        else:
+            user = dict()
+        config = {**defaults, **user}
 
         # Find Compliance Model
         try:
             if model_name is None:
-                model_name = self.config['model']
+                model_name = config['model']
         except KeyError:
             raise MissingArgumentError('No user provided Model and no fallback found in defaults')
 
         # Add in frequency check to the parameters
-        frequency_model = self.get_param('andrade_frequency_model', raise_missing=False, fallback=None)
+        frequency_model = config['andrade_frequency_model']
         use_frequency = False
-        if frequency_model is not None:
-            if frequency_model.lower() not in ['off']:
-                # If these two checks fail then the frequency model is turned off
-                use_frequency = True
+        if model_name[-5:] == '_freq':
+            use_frequency = True
 
-        if use_frequency and model_name[-5:] != '_freq':
-            model_name += '_freq'
-        if not use_frequency and model_name[-5:] == '_freq':
-            raise IncompatibleModelError
         if use_frequency:
             if 'andrade' not in model_name or 'sundberg' not in model_name:
-                raise IncompatibleModelError('Only the Andrade and Sundberg-Cooper rheologies are allowed to have'
+                raise IncompatibleModelError('Only the Andrade and Sundberg-Cooper rheologies can have '
                                              'additional frequency dependency.')
-            frequency_func = self.known_frequency_models[model_name]
-            needed_frequency_args = self.frequency_args_needed[model_name]
+            frequency_func = self.known_frequency_models[frequency_model]
+            needed_frequency_args = self.frequency_args_needed[frequency_model]
+
+            old_config = self.config
+            self._config = config
             frequency_inputs = self.build_inputs(needed_frequency_args)
+            self._config = old_config
+
             # Add the frequency model information to the parameters dict. It will be used in the next setup step.
             self.config['andrade_freq_params'] = frequency_inputs
             self.config['andrade_freq_func'] = frequency_func

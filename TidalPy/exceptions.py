@@ -94,3 +94,7 @@ class UnusualRealValueError(BadValueError):
 
     default_message = 'An usually large or small value was encountered for a parameter.' \
                       'Confirm proper dimensional units.'
+
+class BadArrayShape(TidalPyException):
+
+    default_message = 'TidalPy requires certain arrays maintain the same shape for all layers and planets. It has found an array with an unexpected shape.'

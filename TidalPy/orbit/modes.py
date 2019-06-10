@@ -2,11 +2,10 @@ from numba import njit
 import numpy as np
 
 @njit
-def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def spin_sync_modes(orbital_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
     """
 
     :param orbital_freq:
-    :param spin_freq:
     :param eccentricity:
     :param inclination:
     :return:
@@ -14,9 +13,9 @@ def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricit
 
     modes = tuple(orbital_freq)
     heating_coeffs = tuple(7. * eccentricity**2 + inclination**2)
-    z_torque_coeffs = tuple(12. * eccentricity**2)
+    ztorque_coeffs = tuple(12. * eccentricity**2)
 
-    return modes, heating_coeffs, z_torque_coeffs
+    return modes, heating_coeffs, ztorque_coeffs
 
 @njit
 def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
@@ -52,7 +51,7 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
          6.125 * e2 * modes[4],
          (0.5 - 0.5 * i2 - 2.5 * e2) * modes[5]
     )
-    z_torque_coeffs = (
+    ztorque_coeffs = (
         np.zeros_like(orbital_freq),
         -0.5 * i2,
         0.5 * i2,
@@ -61,4 +60,4 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
         (1.0 - i2 - 5.0 * e2)
     )
 
-    return modes, heating_coeffs, z_torque_coeffs
+    return modes, heating_coeffs, ztorque_coeffs

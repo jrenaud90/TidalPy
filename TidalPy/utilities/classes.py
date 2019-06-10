@@ -366,7 +366,10 @@ class ModelSearcher(ConfigHolder):
             raise MissingArgumentError('No user provided Model and no fallback found in defaults')
 
         if model_name not in self.known_models:
-            raise UnknownModelError(f'Unknown model provided to {self.pyname}.')
+            if model_name.lower() in self.known_models:
+                model_name = model_name.lower()
+            else:
+                raise UnknownModelError(f'Unknown model provided to {self.pyname}.')
         model_func = self.known_models[model_name]
         needed_args = self.args_needed[model_name]
         live_args = self.live_args[model_name]

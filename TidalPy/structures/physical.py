@@ -40,6 +40,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
         super().__init__(replacement_config=config, automate=automate)
 
+        self.pyname = f'{self.__class__}'
         self.geometry_init = False
 
         # Required parameters that are set in the 'set_geometry' method

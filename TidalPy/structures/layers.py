@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from TidalPy.radiogenics.radiogenics import Radiogenics
 from TidalPy.structures.physical import PhysicalObjSpherical, ImproperAttributeChanged
 from TidalPy.thermal.cooling import Cooling
@@ -20,6 +22,10 @@ from ..configurations import burnman_interpolation_method, burnman_interpolation
 from TidalPy.utilities.dict_tools import nested_get
 from typing import Union
 from .defaults import layer_defaults
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .worlds import BurnManWorld
 
 class ThermalLayer(PhysicalObjSpherical):
 
@@ -31,15 +37,17 @@ class ThermalLayer(PhysicalObjSpherical):
     default_config = layer_defaults
 
 
-    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):
+    def __init__(self, layer_name: str, world: BurnManWorld, burnman_layer: burnman.Layer, layer_config: dict):
 
-        # Setup Physical Layer Geometry
+        # Load layer defaults
         self.type = layer_config['type']
         self.default_config = self.default_config[self.type]
 
+        # Setup Physical Layer Geometry
         super().__init__(layer_config, automate=True)
 
         self.name = layer_name
+        self.world = world
 
         # Information about the other layers (mostly for gravity and cooling calculations)
         self.layer_below = None             # type: ThermalLayer or None
@@ -108,28 +116,28 @@ class ThermalLayer(PhysicalObjSpherical):
         self._build_material_property_interpolation()
 
         # Material properties that might have been affected by new configuration file (BurnMan does not calculate these)
-        self.static_shear_modulus = None
-        self.thermal_diffusivity = None
-        self.thermal_conductivity = None
-        self.heat_fusion = None
-        self.temp_ratio = None
-        self.stefan = None
+        self.static_shear_modulus = None  # type: float or None
+        self.thermal_diffusivity = None   # type: float or None
+        self.thermal_conductivity = None  # type: float or None
+        self.heat_fusion = None           # type: float or None
+        self.temp_ratio = None            # type: float or None
+        self.stefan = None                # type: float or None
 
         # State Variables
-        self._temperature = None
-        self._melt_fraction = None
-        self._viscosity = None
-        self._shear_modulus = None
-        self._heat_flux = None
-        self._rayleigh = None
-        self._nusselt = None
-        self._blt = None
-        self._temperature_lower = None
+        self._temperature = None          # type: np.ndarray or None
+        self._melt_fraction = None        # type: np.ndarray or None
+        self._viscosity = None            # type: np.ndarray or None
+        self._shear_modulus = None        # type: np.ndarray or None
+        self._heat_flux = None            # type: np.ndarray or None
+        self._rayleigh = None             # type: np.ndarray or None
+        self._nusselt = None              # type: np.ndarray or None
+        self._blt = None                  # type: np.ndarray or None
+        self._temperature_lower = None    # type: np.ndarray or None
 
         # Model Holders
-        self.cooling = None       # type: Cooling or None
-        self.partial_melt = None  # type: PartialMelt or None
-        self.radiogenics = None   # type: Radiogenics or None
+        self.cooling = None               # type: Cooling or None
+        self.partial_melt = None          # type: PartialMelt or None
+        self.radiogenics = None           # type: Radiogenics or None
         self.heat_sources = list()
 
         # Function Holders
@@ -223,7 +231,40 @@ class ThermalLayer(PhysicalObjSpherical):
 
         super().set_geometry(radius, mass, thickness)
 
-    def set_strength(self) -> Tuple[np.ndarray, np.ndarray]:
+    def set_strength(self, viscosity: np.ndarray = None, shear_modulus: np.ndarray = None):
+        """ Sets the strength via viscosity and shear modulus of the layer.
+
+        Use this instead of the viscosity.setter or shear_modulus.setter when you are changing both at the same time.
+        It will use less calls.
+        """
+
+        if debug_mode:
+            for value in [viscosity, shear_modulus]:
+                if value is None:
+                    continue
+                if type(value) not in floatarray_like:
+                    raise IncorrectAttributeType
+                if type(value) == np.ndarray:
+                    if np.any(value > 1.0e30) or np.any(value < 1.0e-10):
+                        raise UnusualRealValueError
+                else:
+                    if value > 1.0e30 or value < 1.0e-10:
+                        raise UnusualRealValueError
+
+        if viscosity is not None:
+            if type(viscosity) != np.ndarray:
+                viscosity = np.asarray(viscosity)
+            self._viscosity = viscosity
+        if shear_modulus is not None:
+            if type(shear_modulus) != np.ndarray:
+                shear_modulus = np.asarray(shear_modulus)
+            self._shear_modulus = shear_modulus
+
+        # Calculate cooling
+        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
+
+
+    def update_strength(self) -> Tuple[np.ndarray, np.ndarray]:
         """ Sets and returns the strength (viscosity and shear) of the layer
 
         Requires self.viscosity_func and self.shear_modulus
@@ -259,7 +300,10 @@ class ThermalLayer(PhysicalObjSpherical):
             total_heating = self.layer_below.heat_flux * self.surface_area_inner
 
         for heat_source in self.heat_sources:
-            total_heating += heat_source.calculate()
+            if 'calculate' in heat_source.__dict__:
+                total_heating += heat_source.calculate()
+            else:
+                total_heating += heat_source()
 
         cooling_flux, cooling_thickness, rayleigh, nusselt = self.cooling.calculate()
         total_cooling = cooling_flux * self.surface_area_outer
@@ -287,11 +331,11 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e5 or value < 5.0:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray([value])
+            value = np.asarray(value)
         self._temperature = value
 
         # Update shear and viscosity
-        self.set_strength()
+        self.update_strength()
 
         # Set new melt fraction
         self._melt_fraction = self.partial_melt.calc_melt_fraction()
@@ -389,7 +433,7 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e30 or value < 1.0e-10:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray([value])
+            value = np.asarray(value)
         self._viscosity = value
 
         # Calculate cooling
@@ -416,7 +460,7 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e20 or value < 1.0e-10:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray([value])
+            value = np.asarray(value)
         self._shear_modulus = value
 
         # Calculate cooling
@@ -434,40 +478,52 @@ class ThermalLayer(PhysicalObjSpherical):
 
 class TidalLayer(ThermalLayer):
 
-    def __init__(self, layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):
+    def __init__(self, layer_name: str, world, burnman_layer: burnman.Layer, layer_config: dict):
 
-        super().__init__(layer_name, burnman_layer, layer_config)
+        super().__init__(layer_name, world, burnman_layer, layer_config)
+
+
+        # Constants
+        self.tidal_scale = 1.
+        if self.config['use_tvf']:
+            self.tidal_scale = self.volume / self.world.volume
 
         # Models
-        self.rheology = None
+        self.rheology = None             # type: Rheology or None
 
         # State variables
-        self._complex_compliance = None
-        self._complex_love = None
-        self._effective_rigidity = None
-        self._tidal_modes = None
+        self._complex_compliance = None  # type: np.ndarray or None
+        self._complex_love = None        # type: np.ndarray or None
+        self._effective_rigidity = None  # type: np.ndarray or None
+        self._tidal_heating = None       # type: np.ndarray or None
 
     def init(self):
 
         super().init()
-
         self.rheology = Rheology(self)
+
+    def set_strength(self, viscosity: np.ndarray = None, shear_modulus: np.ndarray = None):
+
+        super().set_strength(viscosity, shear_modulus)
+        self.world.update_tides()
+
+    def find_diff_temperature(self):
+
+        diff_temp_notides = super().find_diff_temperature()
+
+        # Now include tides
+        diff_temp_dt = {rheo_name: diff_temp_notides + tidal_heating / self.energy_per_therm for
+                        rheo_name, tidal_heating in self.tidal_heating.items()}
+
+        return diff_temp_dt
 
     @property
     def tidal_modes(self) -> Tuple[np.ndarray]:
-        return self._tidal_modes
+        return self.world.tidal_modes
 
     @tidal_modes.setter
     def tidal_modes(self, value: Tuple[np.ndarray]):
-
-        if debug_mode:
-            assert type(value) == tuple
-            assert type(value[0]) == np.ndarray
-
-        self._tidal_modes = value
-
-        self._effective_rigidity, self._complex_compliance, self._complex_love = \
-            self.rheology.calculate()
+        raise ImproperAttributeHandling('Tidal modes should be set at the world, not layer, level.')
 
     @property
     def complex_compliance(self) -> Dict[str, Tuple[np.ndarray]]:
@@ -493,6 +549,14 @@ class TidalLayer(ThermalLayer):
     def effective_rigidity(self, value):
         raise ImproperAttributeHandling
 
+    @property
+    def tidal_heating(self):
+        return self._tidal_heating
+
+    @tidal_heating.setter
+    def tidal_heating(self, value):
+        raise ImproperAttributeHandling
+
     # Update previous class state variables to include new setter functionality
     @property
     def temperature(self) -> np.ndarray:
@@ -504,6 +568,8 @@ class TidalLayer(ThermalLayer):
 
         self._effective_rigidity, self._complex_compliance, self._complex_love = \
             self.rheology.calculate()
+
+        self.world.update_tides()
 
     @property
     def viscosity(self) -> np.ndarray:
@@ -517,6 +583,8 @@ class TidalLayer(ThermalLayer):
         self._effective_rigidity, self._complex_compliance, self._complex_love = \
             self.rheology.calculate()
 
+        self.world.update_tides()
+
     @property
     def shear_modulus(self) -> np.ndarray:
         return super().shear_modulus
@@ -528,16 +596,18 @@ class TidalLayer(ThermalLayer):
         self._effective_rigidity, self._complex_compliance, self._complex_love = \
             self.rheology.calculate()
 
+        self.world.update_tides()
+
 # Helpers
-def construct_layer(layer_name: str, burnman_layer: burnman.Layer, layer_config: dict):
+def construct_layer(layer_name: str, world: BurnManWorld, burnman_layer: burnman.Layer, layer_config: dict):
 
     # Try to determine if the layer is tidal or not
-    is_tidal = layer_config.get('is_tidal', False)
+    is_tidal = layer_config['is_tidal']
 
     if 'rheology' in layer_config:
         is_tidal = True
 
     if is_tidal:
-        return TidalLayer(layer_name, burnman_layer, layer_config)
+        return TidalLayer(layer_name, world, burnman_layer, layer_config)
     else:
-        return ThermalLayer(layer_name, burnman_layer, layer_config)
+        return ThermalLayer(layer_name, world, burnman_layer, layer_config)
