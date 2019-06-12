@@ -1,4 +1,6 @@
-from ..exceptions import ParameterMissingError
+import copy
+
+from ..exceptions import ParameterMissingError, ImproperAttributeHandling
 from ..utilities.classes import ModelHolder, LayerModel
 from . import radiogenic_models
 from .. import log
@@ -12,15 +14,12 @@ find_radiogenics = ModelSearcher(radiogenic_models, radiogenics_param_defaults)
 
 class Radiogenics(LayerModel):
 
-    default_config = radiogenics_param_defaults
+    default_config = copy.deepcopy(radiogenics_param_defaults)
     config_key = 'radiogenics'
 
     def __init__(self, layer):
 
-        super().__init__(layer=layer, function_searcher=None, automate=True)
-
-        # State variables
-        self.time = None
+        super().__init__(layer=layer, function_searcher=None, call_reinit=True)
 
         # Convert isotope information into list[tuple] format
         if 'isotopes' in self.config:
@@ -82,3 +81,11 @@ class Radiogenics(LayerModel):
             log.warn(f'Very large radiogenic heating encountered at time:\n{time[radio_heating > 1.e23]}')
 
         return radio_heating
+
+    @property
+    def time(self):
+        return self.layer.time
+
+    @time.setter
+    def time(self, value):
+        raise ImproperAttributeHandling

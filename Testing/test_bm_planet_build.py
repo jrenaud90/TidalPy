@@ -1,9 +1,9 @@
 import TidalPy
 import numpy as np
 
-planet = TidalPy.build_planet('pluto_example', force_build=True, auto_save=False)
-host = TidalPy.build_planet('pluto_example', force_build=True, auto_save=False)
-star = TidalPy.build_planet('sol', force_build=True, auto_save=False)
+planet = TidalPy.build_planet('pluto_example', force_build=True)
+host = TidalPy.build_planet('pluto_example', force_build=True)
+star = TidalPy.build_planet('sol', force_build=True)
 
 planet.paint(auto_show=True)
 

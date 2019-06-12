@@ -1,3 +1,5 @@
+import copy
+
 from ..performance import njit
 import numpy as np
 
@@ -53,13 +55,12 @@ def temp_from_melt(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np
 
 class PartialMelt(LayerModel):
 
-    default_config = partial_melter_param_defaults
+    default_config = copy.deepcopy(partial_melter_param_defaults)
     config_key = 'partial_melt'
-
 
     def __init__(self, layer):
 
-        super().__init__(layer=layer, function_searcher=find_partial_melter, automate=True)
+        super().__init__(layer=layer, function_searcher=find_partial_melter, call_reinit=True)
 
         self.temp_from_melt = temp_from_melt
         self.use_partial_melt = True

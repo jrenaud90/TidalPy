@@ -17,6 +17,9 @@ from numba.targets.registry import CPUDispatcher
 
 from typing import Union, List
 
+general_func_reject_list = [
+    'njit',
+    ]
 
 class TidalPyClass:
     """ All functional classes used in TidalPy inherit from this class
@@ -33,7 +36,7 @@ class ConfigHolder(TidalPyClass):
 
     default_config = None
 
-    def __init__(self, replacement_config: dict = None, automate: bool = False):
+    def __init__(self, replacement_config: dict = None, call_reinit: bool = True):
 
         super().__init__()
 
@@ -49,9 +52,13 @@ class ConfigHolder(TidalPyClass):
         # Flags
         self.config_constructed = False
 
+        # Merge the configurations
+        self._old_config = copy.deepcopy(self.config)
+        self.update_config()
+
         # Install user provided config
-        if automate:
-            self.update_config()
+        if call_reinit:
+            self.reinit()
 
     def get_param(self, param_name: str, raise_missing: bool = True, fallback = None):
         """ Uses the outer and inner keys (if set) to parse into the configuration dictionary
@@ -75,17 +82,12 @@ class ConfigHolder(TidalPyClass):
 
         return output
 
-    def init(self):
-        """ Tasks that are could usually be done in __init__, but might need to be redone by self.reinit"""
-        self._old_config = copy.deepcopy(self.config)
-
     def reinit(self):
         """ Performs any tasks that need to be done in order to reinitialize a class that might have been loaded from
             a dill/pickle file
         """
 
-        self.update_config()
-        self.init()
+        pass
 
     def update_config(self) -> dict:
         """ Combines the default and user provided configurations into one dictionary.
@@ -107,24 +109,41 @@ class ConfigHolder(TidalPyClass):
         self.config_constructed = True
         return self.config
 
-    def save_config(self, save_default: bool = False) -> str:
+    def save_config(self, save_default: bool = False, save_to_run_dir: bool = True,
+                    additional_save_dirs: list = None, overwrite: bool = False) -> List[str]:
         """ Saves final configuration to a JSON file """
 
         if not auto_write:
             warnings.warn('Tried to write config to JSON file but auto_write set to False.')
 
-        if save_default:
-            config_filepath = os.path.join(inner_save_dir, f'{self.pyname}_default.cfg')
-            config_to_save = self.default_config
-            with open(config_filepath, 'w') as config_file:
-                json5.dump(config_to_save, config_file)
+        save_dirs = list()
+        if save_to_run_dir:
+            save_dirs.append(inner_save_dir)
 
-        config_filepath = os.path.join(inner_save_dir, f'{self.pyname}.cfg')
-        config_to_save = self.config
-        with open(config_filepath, 'w') as config_file:
-            json5.dump(config_to_save, config_file)
+        if additional_save_dirs is not None:
+            save_dirs += additional_save_dirs
 
-        return config_filepath
+        config_filepaths = list()
+        for save_dir in save_dirs:
+            if save_default:
+                config_filepath = os.path.join(save_dir, f'{self.pyname}_default.cfg')
+                config_to_save = self.default_config
+                if os.path.isfile(config_filepath) and not overwrite:
+                    config_filepath = None
+                else:
+                    with open(config_filepath, 'w') as config_file:
+                        json5.dump(config_to_save, config_file)
+
+            config_filepath = os.path.join(save_dir, f'{self.pyname}.cfg')
+            config_to_save = self.config
+            if os.path.isfile(config_filepath) and not overwrite:
+                config_filepath = None
+            else:
+                with open(config_filepath, 'w') as config_file:
+                    json5.dump(config_to_save, config_file)
+            config_filepaths.append(config_filepath)
+
+        return config_filepaths
 
     @property
     def user_config(self) -> dict:
@@ -151,9 +170,10 @@ class ConfigHolder(TidalPyClass):
 
 class ModelHolder(ConfigHolder):
 
-    def __init__(self, model_name: str = None, user_config: dict = None, function_searcher = None, automate: bool = False):
+    def __init__(self, model_name: str = None, user_config: dict = None, function_searcher = None,
+                 call_reinit: bool = True):
 
-        super().__init__(replacement_config=user_config, automate=automate)
+        super().__init__(replacement_config=user_config, call_reinit=call_reinit)
         if model_name is None:
             model_name = self.config['model']
 
@@ -165,7 +185,7 @@ class ModelHolder(ConfigHolder):
         self.live_inputs = tuple()
         self.live_input_func = None
 
-        if function_searcher is not None and automate:
+        if function_searcher is not None and call_reinit:
             if debug_mode:
                 assert isinstance(function_searcher, ModelSearcher)
             self.searcher = function_searcher
@@ -201,19 +221,15 @@ class ModelHolder(ConfigHolder):
 
         return self._calc(*args, **kwargs)
 
-    def reinit(self):
-        raise ReinitNotAllowedError
-
     def _calculate(self, *args, **kwargs):
         raise ImplementedBySubclassError
-
 
 
 class LayerModel(ModelHolder):
 
     config_key = None
 
-    def __init__(self, layer, function_searcher = None, model_name = None, automate: bool = False):
+    def __init__(self, layer, function_searcher = None, model_name = None, call_reinit: bool = True):
 
         self.layer = layer
         self.layer_type = layer.type
@@ -236,20 +252,17 @@ class LayerModel(ModelHolder):
             raise ParameterMissingError(f'Config was not provided for {self.__class__} and no defaults are set.')
 
         super().__init__(model_name=model_name, user_config=config,
-                         function_searcher=function_searcher, automate=automate)
+                         function_searcher=function_searcher, call_reinit=call_reinit)
 
         self.pyname = f'{self.__class__}_{self.layer_type}_{self.model}'
-
-general_func_reject_list = [
-    'njit',
-    ]
 
 
 class ModelSearcher(ConfigHolder):
 
     additional_reject_list = None
 
-    def __init__(self, module, default_parameters: dict = None, defaults_require_key: bool = True):
+    def __init__(self, module, default_parameters: dict = None, defaults_require_key: bool = True,
+                 call_reinit: bool = True):
 
         self.default_config = default_parameters
         self.defaults_require_key = defaults_require_key
@@ -259,7 +272,7 @@ class ModelSearcher(ConfigHolder):
         else:
             automate = True
 
-        super().__init__(replacement_config=None, automate=automate)
+        super().__init__(replacement_config=None, call_reinit=call_reinit)
 
         # Generate a dictionary of functions
         self.known_models, self.args_needed, self.live_args = self.find_known_models(module)

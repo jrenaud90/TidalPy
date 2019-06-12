@@ -2,6 +2,9 @@ from send2trash import send2trash
 
 from TidalPy.utilities.pathing import get_all_files_of_type
 from . import dilled_planets_loc
+from ... import __version__
+import os
+from typing import Tuple
 
 def delete_planets(ask_prompt: bool = True):
     """ Will delete all planets in the dilled_planets folder """
@@ -20,3 +23,7 @@ def delete_planets(ask_prompt: bool = True):
         send2trash(filepath)
     return True
 
+def dill_file_path(object_name: str) -> Tuple[str, str]:
+
+    name = f'{object_name}.TYPv{__version__}.dill'
+    return name, os.path.join(dilled_planets_loc, name)

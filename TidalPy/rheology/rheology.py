@@ -1,10 +1,12 @@
+import copy
 from functools import partial
 import numpy as np
 from TidalPy.rheology.compliance import ComplianceModelSearcher
 from TidalPy.utilities.classes import LayerModel
 from . import andrade_frequency_models, compliance_models
 from .love_1d import complex_love, complex_love_general, effective_rigidity, effective_rigidity_general
-from ..exceptions import ImplementationError, UnknownModelError, IncompatibleModelError, ParameterMissingError
+from ..exceptions import (ImplementationError, UnknownModelError, IncompatibleModelError, ParameterMissingError,
+                          AttributeNotSetError)
 from ..types import FloatArray
 from .defaults import rheology_param_defaults
 from typing import List, Tuple
@@ -13,12 +15,12 @@ FAKE_MODES = (np.asarray(0.), )
 
 class Rheology(LayerModel):
 
-    default_config = rheology_param_defaults
+    default_config = copy.deepcopy(rheology_param_defaults)
     config_key = 'rheology'
 
     def __init__(self, layer):
 
-        super().__init__(layer=layer, function_searcher=None, automate=True)
+        super().__init__(layer=layer, function_searcher=None, call_reinit=True)
 
         # Override model if layer has tidal off
         if not self.layer.config['is_tidal']:
@@ -65,8 +67,11 @@ class Rheology(LayerModel):
         """
 
         # Physical and Frequency Data
-        shear = self.layer.shear_modulus
-        visco = self.layer.viscosity
+        try:
+            shear = self.layer.shear_modulus
+            visco = self.layer.viscosity
+        except AttributeNotSetError:
+            raise ParameterMissingError
         if shear is None:
             raise ParameterMissingError
         if visco is None:

@@ -76,6 +76,9 @@ class IncorrectAttributeType(TidalPyException):
 
     default_message = 'An attribute was set with incorrect type.'
 
+class IncorrectArgumentType(TidalPyException):
+
+    default_message = 'A method or function argument was provided the incorrect type.'
 
 class AttributeNotSetError(IncorrectAttributeType):
 

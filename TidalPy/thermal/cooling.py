@@ -14,7 +14,7 @@ find_partial_melter = ModelSearcher(cooling_models, cooling_param_defaults)
 
 class Cooling(LayerModel):
 
-    default_config = cooling_param_defaults
+    default_config = copy.deepcopy(cooling_param_defaults)
     config_key = 'cooling'
 
     def __init__(self, layer):
@@ -25,7 +25,7 @@ class Cooling(LayerModel):
         config[layer.type]['density'] = layer.density
         self.default_config = config
 
-        super().__init__(layer=layer, function_searcher=find_partial_melter, automate=True)
+        super().__init__(layer=layer, function_searcher=find_partial_melter, call_reinit=True)
 
     def _calculate(self):
         """ Calculates the cooling flux in a layer

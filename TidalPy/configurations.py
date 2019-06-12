@@ -18,3 +18,14 @@ burnman_interpolation_N = 50
 
 # numba.njit can speed up many functions, but it also makes debugging and error tracing more difficult. If you are having problems try setting this to False.
 use_numba = True
+
+# atexit invocations
+exit_planets = True
+
+# Saving preferences
+auto_save_planet_config_to_rundir = True
+auto_save_planet_dill_to_rundir = True
+auto_save_planet_config_to_tidalpydir = True
+auto_save_planet_dill_to_tidalpydir = True
+overwrite_dills = True
+overwrite_configs = False

@@ -36,9 +36,9 @@ class PhysicalObjSpherical(ConfigHolder):
     Assumes spherical geometry
     """
 
-    def __init__(self, config: dict, automate: bool = False):
+    def __init__(self, config: dict, call_reinit: bool = False):
 
-        super().__init__(replacement_config=config, automate=automate)
+        super().__init__(replacement_config=config, call_reinit=call_reinit)
 
         self.pyname = f'{self.__class__}'
         self.geometry_init = False

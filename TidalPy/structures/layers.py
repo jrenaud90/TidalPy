@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 from TidalPy.radiogenics.radiogenics import Radiogenics
 from TidalPy.structures.physical import PhysicalObjSpherical, ImproperAttributeChanged
 from TidalPy.thermal.cooling import Cooling
@@ -25,7 +27,7 @@ from .defaults import layer_defaults
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .worlds import BurnManWorld
+    from .worlds import TidalWorld
 
 class ThermalLayer(PhysicalObjSpherical):
 
@@ -34,18 +36,18 @@ class ThermalLayer(PhysicalObjSpherical):
         Any functionality that requires information about material properties should be called from the layer class.
     """
 
-    default_config = layer_defaults
+    default_config = copy.deepcopy(layer_defaults)
     class_type = 'thermal'
 
 
-    def __init__(self, layer_name: str, world: BurnManWorld, burnman_layer: burnman.Layer, layer_config: dict):
+    def __init__(self, layer_name: str, world: TidalWorld, burnman_layer: burnman.Layer, layer_config: dict):
 
         # Load layer defaults
         self.type = layer_config['type']
         self.default_config = self.default_config[self.type]
 
         # Setup Physical Layer Geometry
-        super().__init__(layer_config, automate=True)
+        super().__init__(layer_config, call_reinit=False)
 
         self.name = layer_name
         self.world = world
@@ -155,8 +157,11 @@ class ThermalLayer(PhysicalObjSpherical):
         if self.config['use_tvf']:
             self.tidal_scale = self.volume / self.world.volume
 
-        # Call to init
-        self.init()
+        # Flags
+        self.is_top_layer = False
+
+        # Call to reinit
+        self.reinit()
 
     def _build_material_property_interpolation(self):
         """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
@@ -209,7 +214,17 @@ class ThermalLayer(PhysicalObjSpherical):
 
             self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
 
-    def init(self):
+    def reinit(self):
+
+        super().reinit()
+
+        # Check for changes to config that may break the planet
+        if self._old_config is not None:
+            for layer_name, layer_dict in self.config['layers'].items():
+                old_layer_dict = self._old_config[layer_name]
+                for critical_attribute in ['material', 'material_source', 'type', 'thickness', 'radius', 'slices']:
+                    if layer_dict[critical_attribute] != old_layer_dict[critical_attribute]:
+                        raise ReinitError
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
@@ -240,18 +255,6 @@ class ThermalLayer(PhysicalObjSpherical):
         # Setup Rheology
         self.rheology = Rheology(self)
 
-        super().init()
-
-    def reinit(self):
-
-        # Check for changes to config that may break the planet
-        for layer_name, layer_dict in self.config['layers'].items():
-            old_layer_dict = self._old_config[layer_name]
-            for critical_attribute in ['material', 'material_source', 'type', 'thickness', 'radius', 'slices']:
-                if layer_dict[critical_attribute] != old_layer_dict[critical_attribute]:
-                    raise ReinitError
-
-        super().reinit()
         self.set_geometry(self.radius, self.mass, self.thickness)
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
@@ -346,6 +349,10 @@ class ThermalLayer(PhysicalObjSpherical):
 
         self._heat_flux, self._blt, self._rayleigh, self._nusselt = cooling_flux, blt, rayleigh, nusselt
 
+        if self.is_top_layer:
+            # Tell the planet that there is a new surface flux and thus a new surface temperature
+            self.world.update_surface_temperature()
+
         return cooling_flux, blt, rayleigh, nusselt
 
     def update_tides(self, force_calculation: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -383,7 +390,8 @@ class ThermalLayer(PhysicalObjSpherical):
                 raise error
             else:
                 update_world_tides = False
-                effective_rigid, complex_comp, complex_love = None, None, None
+                effective_rigid, complex_comp, complex_love = \
+                    np.asarray(0., dtype=np.float), np.asarray(0., dtype=np.complex), np.asarray(0., dtype=np.complex)
 
         self._effective_rigidity, self._complex_compliance, self._complex_love = \
             effective_rigid, complex_comp, complex_love
@@ -459,6 +467,14 @@ class ThermalLayer(PhysicalObjSpherical):
 
     # Class Properties
     @property
+    def time(self):
+        return self.world.time
+
+    @time.setter
+    def time(self, value):
+        raise ImproperAttributeHandling
+
+    @property
     def tidal_modes(self) -> Tuple[np.ndarray]:
         return self.world.tidal_modes
 
@@ -513,10 +529,15 @@ class ThermalLayer(PhysicalObjSpherical):
 
     @property
     def temperature_surf(self):
+
+        if self.is_top_layer:
+            return self.world.surface_temperature
+
         if self.layer_above is not None:
             if self.layer_above.temperature_lower is not None:
                 return self.layer_above.temperature_lower
-        return self.config['surface_temperature']
+
+        raise ParameterMissingError
 
     @property
     def melt_fraction(self) -> np.ndarray:
@@ -650,7 +671,12 @@ class ThermalLayer(PhysicalObjSpherical):
 
     @tidal_heating.setter
     def tidal_heating(self, value):
-        raise ImproperAttributeHandling
+
+        # TODO: Make a setter for this in the future?
+        if type(value) != np.ndarray:
+            value = np.asarray(value)
+
+        self._tidal_heating = value
 
     # Aliased Attributes
     @property

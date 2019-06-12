@@ -1,6 +1,6 @@
 from TidalPy.exceptions import MissingArgumentError, UnknownModelError
 from TidalPy.io import unique_path
-from TidalPy.structures.worlds import world_types, BurnManWorld
+from TidalPy.structures.worlds import world_types, TidalWorld
 from TidalPy.utilities.pathing import get_all_files_of_type
 from .dilled_planets import dilled_planets_loc
 from .planet_configs import planet_config_loc
@@ -10,6 +10,8 @@ from .. import log, other_data_locs
 import json5
 from ..bm.build import build_planet as build_bm_planet
 import os
+import atexit
+from ..configurations import exit_planets
 
 def check_for_duplicates(dict_to_check: dict):
 
@@ -50,7 +52,7 @@ def _cfgpath_to_json():
 
 # Check for conflict nam
 
-def build_planet(planet_name: str, planet_config: dict = None, force_build: bool = False, auto_save: bool = True,
+def build_planet(planet_name: str, planet_config: dict = None, force_build: bool = False,
                  planet_dill_path: str = None):
 
     log(f'Preparing to find and/or build world: {planet_name}')
@@ -99,7 +101,7 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
             raise UnknownModelError('Unknown world type encountered.')
         planet_class = world_types[planet_type]
 
-        if planet_class == BurnManWorld:
+        if planet_class == TidalWorld:
             log('Burnman planet type detected. Attempting to build BurnMan planet. This may take a while.')
             # Build BurnMan Planet first
             burnman_layers, burnman_planet = build_bm_planet(planet_config)
@@ -113,14 +115,11 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
         raise Exception
 
     log('World Load Successful!')
-    if auto_save:
-        log('Attempting to save world to speed up future runs.')
-        save_path = unique_path(attempt_path=os.path.join(dilled_planets_loc, f'{planet_name}.dill'), is_dir=False)
-        try:
-            with open(save_path, 'w') as new_dill_file:
-                dill.dump(planet, new_dill_file)
-        except Exception as e:
-            log(f'Failed to save world due to following exception:\n\t{e}')
+    log('Note that the first calculations with a new world will be slow as numba compiles functions. '
+        'Subsequent calls should speed up.', level='info')
+
+    if exit_planets:
+        atexit.register(planet.kill_world)
 
     return planet
 
