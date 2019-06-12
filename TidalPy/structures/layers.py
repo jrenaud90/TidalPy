@@ -7,7 +7,7 @@ from TidalPy.thermal.partial_melt import PartialMelt
 from TidalPy.types import floatarray_like
 from TidalPy.exceptions import (AttributeNotSetError, IncorrectAttributeType, UnusualRealValueError,
                                 ImproperAttributeHandling,
-                                BadAttributeValueError, UnknownTidalPyConfigValue, ReinitError)
+                                BadAttributeValueError, UnknownTidalPyConfigValue, ReinitError, ParameterMissingError)
 from ..thermal import find_viscosity, calc_melt_fraction
 from ..rheology.rheology import Rheology
 import numpy as np
@@ -35,6 +35,7 @@ class ThermalLayer(PhysicalObjSpherical):
     """
 
     default_config = layer_defaults
+    class_type = 'thermal'
 
 
     def __init__(self, layer_name: str, world: BurnManWorld, burnman_layer: burnman.Layer, layer_config: dict):
@@ -50,8 +51,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.world = world
 
         # Information about the other layers (mostly for gravity and cooling calculations)
-        self.layer_below = None             # type: ThermalLayer or None
-        self.layer_above = None             # type: ThermalLayer or None
+        self.layer_below = None   # type: ThermalLayer or None
+        self.layer_above = None   # type: ThermalLayer or None
 
         # Pull out information from the already initialized burnman Layer
         self.bm_layer = burnman_layer
@@ -125,6 +126,7 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # State Variables
         self._temperature = None          # type: np.ndarray or None
+        self._temperature_lower = None    # type: np.ndarray or None
         self._melt_fraction = None        # type: np.ndarray or None
         self._viscosity = None            # type: np.ndarray or None
         self._shear_modulus = None        # type: np.ndarray or None
@@ -132,17 +134,26 @@ class ThermalLayer(PhysicalObjSpherical):
         self._rayleigh = None             # type: np.ndarray or None
         self._nusselt = None              # type: np.ndarray or None
         self._blt = None                  # type: np.ndarray or None
-        self._temperature_lower = None    # type: np.ndarray or None
+        self._effective_rigidity = None   # type: np.ndarray or None
+        self._complex_compliance = None   # type: Dict[str, np.ndarray] or None
+        self._complex_love = None         # type: Dict[str, np.ndarray] or None
+        self._tidal_heating = None        # type: Dict[str, np.ndarray] or None
 
         # Model Holders
         self.cooling = None               # type: Cooling or None
         self.partial_melt = None          # type: PartialMelt or None
         self.radiogenics = None           # type: Radiogenics or None
+        self.rheology = None              # type: Rheology or None
         self.heat_sources = list()
 
         # Function Holders
         self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = None, None, None
         self.viscosity_liq_func, self.viscosity_liq_inputs,self.viscosity_liq_live_inputs = None, None, None
+
+        # Constants
+        self.tidal_scale = 1.
+        if self.config['use_tvf']:
+            self.tidal_scale = self.volume / self.world.volume
 
         # Call to init
         self.init()
@@ -150,7 +161,20 @@ class ThermalLayer(PhysicalObjSpherical):
     def _build_material_property_interpolation(self):
         """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
 
-            This can take some time to precompute
+        Using the Burnman package's equation of states, this function will build interpolated lookup tables for several
+        material properties. These lookup tables are functions of only temperature; pressure is assumed to not change
+        significantly in a TidalPy simulation. However, the machinery to change properties based on temperature is
+        built into Burnman and can be accessed via the layer's reference to the Burnman layer:
+        self.bm_material.evaluate
+
+        The specific constant pressure used in building the lookup table is set by the layer configuration. See the
+        variable 'burnman_interpolation_method' in the layers __init__ method.
+
+        Conversions between Burnman TidalPy property names are also performed here. Some conversions require a
+        transition from molar to specific.
+
+        The final interpolated lookup table is stored in the self._interp_prop_data_lookup which is used in the
+        temperature.setter
         """
 
         if self.pressure is None:
@@ -165,12 +189,12 @@ class ThermalLayer(PhysicalObjSpherical):
         property_results = None
         try:
             property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
-        except TypeError as e:
+        except TypeError as exception:
             # FIXME: There is some bug in bug in Burnman when it trys to send a warning. If that is what got caught, ignore it for now.
-            if '<lambda>() got an unexpected keyword argument' in e.args[0]:
+            if '<lambda>() got an unexpected keyword argument' in exception.args[0]:
                 pass
             else:
-                raise e
+                raise exception
 
         for interp_prop, prop_result in zip(interp_properties, property_results):
 
@@ -213,6 +237,9 @@ class ThermalLayer(PhysicalObjSpherical):
         self.radiogenics = Radiogenics(self)
         self.heat_sources.append(self.radiogenics)
 
+        # Setup Rheology
+        self.rheology = Rheology(self)
+
         super().init()
 
     def reinit(self):
@@ -232,10 +259,26 @@ class ThermalLayer(PhysicalObjSpherical):
         super().set_geometry(radius, mass, thickness)
 
     def set_strength(self, viscosity: np.ndarray = None, shear_modulus: np.ndarray = None):
-        """ Sets the strength via viscosity and shear modulus of the layer.
+        """ Manual set the viscosity and shear modulus of the layer, independent of temperature.
 
-        Use this instead of the viscosity.setter or shear_modulus.setter when you are changing both at the same time.
-        It will use less calls.
+        This method by-passes the self.viscosity_func and allows the user to manually set the viscosity and shear
+        of the layer.
+
+        This method reproduces the functionality of the viscosity.setter and shear_modulus.setter, but allows them
+        to be changed simultaneously leading to slightly better performance. Use the default setters if you are only
+        changing one of the parameters at a time.
+
+        Future
+        ------
+            Currently it does not change the layer's temperature. In the future an effective temperature can be
+            (optionally) calculated.
+
+        Parameters
+        ----------
+        viscosity : np.ndarray
+            The new viscosity of the layer in [Pa s]
+        shear_modulus : np.ndarray
+            The new shear modulus of the layer in [Pa]
         """
 
         if debug_mode:
@@ -260,18 +303,113 @@ class ThermalLayer(PhysicalObjSpherical):
                 shear_modulus = np.asarray(shear_modulus)
             self._shear_modulus = shear_modulus
 
-        # Calculate cooling
-        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
+        # TODO: Have an option to calculate an effective temperature given the viscosity and shear modulus.
+        #   If this is implemented then make sure it makes its way to the viscosity and shear .setters
 
+        self.update_cooling()
+        self.update_tides()
+
+    def update_cooling(self, force_calculation: bool = False):
+        """ Calculate parameters related to cooling of the layer, be it convection or conduction
+
+        Using the self.cooling class and the current temperature and viscosity, this method will calculate convection
+        parameters. Some of these may be zeros if convection is forced off in the planet's configuration.
+
+        By default this method will ignore parameter missing errors to avoid initialization errors. This behaviour
+        can be altered by the force_calculation flag.
+
+        Parameters
+        ----------
+        force_calculation : bool = False
+            Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
+
+        Returns
+        -------
+        cooling_flux : np.ndarray
+            The flux leaving this layer and entering the layer above it in [Watts m-2]
+        blt : np.ndarray
+            Boundary layer thickness of the layer in [m]. The max thickness is 50% of layer thickness
+        rayleigh : np.ndarray
+            Rayleigh number of the layer. It is equal to zero if convection is forced off or is simply very weak
+        nusselt : np.ndarray
+            Nusselt number of the layer. It is equal to one if convection is forced off or is very weak
+
+        """
+
+        try:
+            cooling_flux, blt, rayleigh, nusselt = self.cooling.calculate()
+        except ParameterMissingError as error:
+            if force_calculation:
+                raise error
+            else:
+                cooling_flux, blt, rayleigh, nusselt = None, None, None, None
+
+        self._heat_flux, self._blt, self._rayleigh, self._nusselt = cooling_flux, blt, rayleigh, nusselt
+
+        return cooling_flux, blt, rayleigh, nusselt
+
+    def update_tides(self, force_calculation: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """ Calculate, and update the layer's state with, tidal and rheological parameters based on current state
+
+        Using the self.rheology class and the layer's current temperature, viscosity, shear modulus, and tidal modes,' \
+        the layer will attempt to calculate a new effective rigidity, complex compliance, complex love number, and
+        tell the planet that it should update its own global calculations.
+
+        Viscosity, Shear Modulus, and Tidal Modes are required inputs to most rheological models. If a missing parameter
+        is raised then the method will exit unless force_calculation is set to True.
+
+        Parameters
+        ----------
+        force_calculation : bool
+            Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
+
+        Returns
+        -------
+        effective_rigid : np.ndarray or None
+            Effective rigidity of the layer (dependent upon shear modulus) [unitless]
+            The order can be changed via configuration files, default is 2nd order.
+        complex_comp : np.ndarray or None
+            Complex compliance of the layer in [Pa-1]
+        complex_love : np.ndarray or None
+            Complex Love number, k, of the layer in [Pa-1]
+            The order can be changed via configuration files, default is 2nd order.
+        """
+
+        update_world_tides = True
+        try:
+            effective_rigid, complex_comp, complex_love = self.rheology.calculate()
+        except ParameterMissingError as error:
+            if force_calculation:
+                raise error
+            else:
+                update_world_tides = False
+                effective_rigid, complex_comp, complex_love = None, None, None
+
+        self._effective_rigidity, self._complex_compliance, self._complex_love = \
+            effective_rigid, complex_comp, complex_love
+
+        if update_world_tides:
+            self.world.update_global_tides()
+
+        return effective_rigid, complex_comp, complex_love
 
     def update_strength(self) -> Tuple[np.ndarray, np.ndarray]:
-        """ Sets and returns the strength (viscosity and shear) of the layer
+        """ Calculate viscosity and shear modulus and update the layer's state with new values.
 
-        Requires self.viscosity_func and self.shear_modulus
-        Optionally it will call self.partial_melt_func if provided
+        Calls self.viscosity_func and self.static_shear_modulus for pre-partial melting values.
+        If self.partial_melt is present it will call upon it to calculate partial melted values.
 
-        :return: <Tuple[FloatOrArray]> (Viscosity, Shear Modulus)
+        If pressure is set in the layer it will use it in the calculations (assuming that the viscosity and shear
+        functions actually depend upon pressure). Otherwise, a pressure of zero will be assumed.
+
+        Returns
+        -------
+        viscosity : np.ndarray
+            Viscosity of the layer in [Pa s]
+        shear_modulus : np.ndarray
+            Shear Modulus of the layer in [Pa]
         """
+
         if self.pressure is None:
             pressure = np.zeros_like(self.temperature)
         else:
@@ -283,7 +421,10 @@ class ThermalLayer(PhysicalObjSpherical):
         liquid_viscosity = self.viscosity_liq_func(self.temperature, pressure, *self.viscosity_liq_inputs)
 
         # Partial Melt
-        viscosity, shear_modulus = self.partial_melt.calculate(premelt_visco, premelt_shear, liquid_viscosity)
+        if self.partial_melt is not None:
+            viscosity, shear_modulus = self.partial_melt.calculate(premelt_visco, premelt_shear, liquid_viscosity)
+        else:
+            viscosity, shear_modulus = premelt_visco, premelt_shear
 
         # Set state variables
         self._viscosity = viscosity
@@ -291,36 +432,48 @@ class ThermalLayer(PhysicalObjSpherical):
 
         return viscosity, shear_modulus
 
-    def find_diff_temperature(self):
+    def calc_temperature_derivative(self) -> np.ndarray:
+        """ Calculate the change in temperature within this layer over time.
+
+        dT/dt = (heating_in - cooling_out) / (M * c_p * (St + 1) * Tr)
+
+        Returns
+        -------
+        dT/dt : np.ndarray
+            The derivative of temperature with respect to time.
+        """
 
         # Initialize total heating based on if there is a layer warming this one from below
         if self.layer_below is None:
-            total_heating = np.zeros_like(self.temperature)
+            notide_heating = np.zeros_like(self.temperature)
         else:
-            total_heating = self.layer_below.heat_flux * self.surface_area_inner
+            notide_heating = self.layer_below.heat_flux * self.surface_area_inner
 
         for heat_source in self.heat_sources:
-            if 'calculate' in heat_source.__dict__:
-                total_heating += heat_source.calculate()
-            else:
-                total_heating += heat_source()
+            notide_heating += heat_source.calculate()
 
-        cooling_flux, cooling_thickness, rayleigh, nusselt = self.cooling.calculate()
-        total_cooling = cooling_flux * self.surface_area_outer
+        total_cooling = self.heat_flux * self.surface_area_outer
 
-        return (total_heating - total_cooling) / self.energy_per_therm
+        return (notide_heating + self.tidal_heating - total_cooling) / \
+               (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
 
     # Class Properties
     @property
+    def tidal_modes(self) -> Tuple[np.ndarray]:
+        return self.world.tidal_modes
+
+    @tidal_modes.setter
+    def tidal_modes(self, value: Tuple[np.ndarray]):
+        raise ImproperAttributeHandling('Tidal modes should be set at the world, not layer, level.')
+
+    @property
     def temperature(self) -> np.ndarray:
 
-        if self._temperature is None:
-            raise AttributeNotSetError
-        else:
-            return self._temperature
+        return self._temperature
 
     @temperature.setter
     def temperature(self, value):
+
         if debug_mode:
             if type(value) not in floatarray_like:
                 raise IncorrectAttributeType
@@ -332,56 +485,22 @@ class ThermalLayer(PhysicalObjSpherical):
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
             value = np.asarray(value)
+
+
         self._temperature = value
 
-        # Update shear and viscosity
-        self.update_strength()
-
-        # Set new melt fraction
+        # Update material properties and phase changes
         self._melt_fraction = self.partial_melt.calc_melt_fraction()
         # Set new material properties based on BurnMan Interpolation
         for prop_name, prop_data in self._interp_prop_data_lookup.items():
             setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
-
-        # Set new dependent material properties
         self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
-        self.energy_per_therm = self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio
+        # Update shear and viscosity
+        self.update_strength()
 
-        # Calculate cooling
-        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
-
-    # Attributes that will be updated whenever temperature is updated:
-    @property
-    def heat_flux(self):
-        return self._heat_flux
-
-    @heat_flux.setter
-    def heat_flux(self, value):
-        raise ImproperAttributeHandling('Heat flux is calculated whenever self.temperature is changed')
-
-    @property
-    def rayleigh(self):
-        return self._rayleigh
-
-    @rayleigh.setter
-    def rayleigh(self, value):
-        raise ImproperAttributeHandling('Rayleigh number is calculated whenever self.temperature is changed')
-
-    @property
-    def nusselt(self):
-        return self._nusselt
-
-    @nusselt.setter
-    def nusselt(self, value):
-        raise ImproperAttributeHandling('Nusselt number is calculated whenever self.temperature is changed')
-
-    @property
-    def blt(self):
-        return self._blt
-
-    @blt.setter
-    def blt(self, value):
-        raise ImproperAttributeHandling('The thermal boundary layer thickness is calculated whenever self.temperature is changed')
+        # Update other models
+        self.update_cooling()
+        self.update_tides()
 
     # TODO: For now lower temperature just returns self.temperature. This is used in cooling calculations
     @property
@@ -395,9 +514,9 @@ class ThermalLayer(PhysicalObjSpherical):
     @property
     def temperature_surf(self):
         if self.layer_above is not None:
-            return self.layer_above.temperature_lower
-        else:
-            return self.config['surface_temperature']
+            if self.layer_above.temperature_lower is not None:
+                return self.layer_above.temperature_lower
+        return self.config['surface_temperature']
 
     @property
     def melt_fraction(self) -> np.ndarray:
@@ -436,8 +555,9 @@ class ThermalLayer(PhysicalObjSpherical):
             value = np.asarray(value)
         self._viscosity = value
 
-        # Calculate cooling
-        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
+        # Update other models
+        self.update_cooling()
+        self.update_tides()
 
     @property
     def shear_modulus(self) -> np.ndarray:
@@ -463,67 +583,42 @@ class ThermalLayer(PhysicalObjSpherical):
             value = np.asarray(value)
         self._shear_modulus = value
 
-        # Calculate cooling
-        self._heat_flux, self._blt, self._rayleigh, self._nusselt = self.cooling.calculate()
+        # Update other models
+        self.update_cooling()
+        self.update_tides()
 
-    # Aliased Attributes
+    # Attributes that will be updated whenever temperature is updated:
     @property
-    def shear(self) -> np.ndarray:
-        return self.shear_modulus
+    def heat_flux(self):
+        return self._heat_flux
 
-    @shear.setter
-    def shear(self, value):
-        self.shear_modulus = value
-
-
-class TidalLayer(ThermalLayer):
-
-    def __init__(self, layer_name: str, world, burnman_layer: burnman.Layer, layer_config: dict):
-
-        super().__init__(layer_name, world, burnman_layer, layer_config)
-
-
-        # Constants
-        self.tidal_scale = 1.
-        if self.config['use_tvf']:
-            self.tidal_scale = self.volume / self.world.volume
-
-        # Models
-        self.rheology = None             # type: Rheology or None
-
-        # State variables
-        self._complex_compliance = None  # type: np.ndarray or None
-        self._complex_love = None        # type: np.ndarray or None
-        self._effective_rigidity = None  # type: np.ndarray or None
-        self._tidal_heating = None       # type: np.ndarray or None
-
-    def init(self):
-
-        super().init()
-        self.rheology = Rheology(self)
-
-    def set_strength(self, viscosity: np.ndarray = None, shear_modulus: np.ndarray = None):
-
-        super().set_strength(viscosity, shear_modulus)
-        self.world.update_tides()
-
-    def find_diff_temperature(self):
-
-        diff_temp_notides = super().find_diff_temperature()
-
-        # Now include tides
-        diff_temp_dt = {rheo_name: diff_temp_notides + tidal_heating / self.energy_per_therm for
-                        rheo_name, tidal_heating in self.tidal_heating.items()}
-
-        return diff_temp_dt
+    @heat_flux.setter
+    def heat_flux(self, value):
+        raise ImproperAttributeHandling('Heat flux is calculated whenever self.temperature is changed')
 
     @property
-    def tidal_modes(self) -> Tuple[np.ndarray]:
-        return self.world.tidal_modes
+    def rayleigh(self):
+        return self._rayleigh
 
-    @tidal_modes.setter
-    def tidal_modes(self, value: Tuple[np.ndarray]):
-        raise ImproperAttributeHandling('Tidal modes should be set at the world, not layer, level.')
+    @rayleigh.setter
+    def rayleigh(self, value):
+        raise ImproperAttributeHandling('Rayleigh number is calculated whenever self.temperature is changed')
+
+    @property
+    def nusselt(self):
+        return self._nusselt
+
+    @nusselt.setter
+    def nusselt(self, value):
+        raise ImproperAttributeHandling('Nusselt number is calculated whenever self.temperature is changed')
+
+    @property
+    def blt(self):
+        return self._blt
+
+    @blt.setter
+    def blt(self, value):
+        raise ImproperAttributeHandling('The thermal boundary layer thickness is calculated whenever self.temperature is changed')
 
     @property
     def complex_compliance(self) -> Dict[str, Tuple[np.ndarray]]:
@@ -557,57 +652,20 @@ class TidalLayer(ThermalLayer):
     def tidal_heating(self, value):
         raise ImproperAttributeHandling
 
-    # Update previous class state variables to include new setter functionality
+    # Aliased Attributes
     @property
-    def temperature(self) -> np.ndarray:
-        return super().temperature
+    def shear(self) -> np.ndarray:
+        return self.shear_modulus
 
-    @temperature.setter
-    def temperature(self, value):
-        super(TidalLayer, self.__class__).temperature.fset(self, value)
-
-        self._effective_rigidity, self._complex_compliance, self._complex_love = \
-            self.rheology.calculate()
-
-        self.world.update_tides()
+    @shear.setter
+    def shear(self, value):
+        self.shear_modulus = value
 
     @property
-    def viscosity(self) -> np.ndarray:
-        return super().viscosity
+    def boundary_layer_thickness(self):
+        return self.blt
 
-    @viscosity.setter
-    def viscosity(self, value):
+    @boundary_layer_thickness.setter
+    def boundary_layer_thickness(self, value):
+        self.blt = value
 
-        super(TidalLayer, self.__class__).viscosity.fset(self, value)
-
-        self._effective_rigidity, self._complex_compliance, self._complex_love = \
-            self.rheology.calculate()
-
-        self.world.update_tides()
-
-    @property
-    def shear_modulus(self) -> np.ndarray:
-        return super().shear_modulus
-
-    @shear_modulus.setter
-    def shear_modulus(self, value):
-        super(TidalLayer, self.__class__).shear_modulus.fset(self, value)
-
-        self._effective_rigidity, self._complex_compliance, self._complex_love = \
-            self.rheology.calculate()
-
-        self.world.update_tides()
-
-# Helpers
-def construct_layer(layer_name: str, world: BurnManWorld, burnman_layer: burnman.Layer, layer_config: dict):
-
-    # Try to determine if the layer is tidal or not
-    is_tidal = layer_config['is_tidal']
-
-    if 'rheology' in layer_config:
-        is_tidal = True
-
-    if is_tidal:
-        return TidalLayer(layer_name, world, burnman_layer, layer_config)
-    else:
-        return ThermalLayer(layer_name, world, burnman_layer, layer_config)

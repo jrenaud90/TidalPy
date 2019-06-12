@@ -11,9 +11,9 @@ def spin_sync_modes(orbital_freq: np.ndarray, eccentricity: np.ndarray, inclinat
     :return:
     """
 
-    modes = tuple(orbital_freq)
-    heating_coeffs = tuple(7. * eccentricity**2 + inclination**2)
-    ztorque_coeffs = tuple(12. * eccentricity**2)
+    modes = (orbital_freq,)
+    heating_coeffs = (7. * eccentricity**2 + inclination**2,)
+    ztorque_coeffs = (12. * eccentricity**2,)
 
     return modes, heating_coeffs, ztorque_coeffs
 

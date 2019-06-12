@@ -4,7 +4,7 @@ from typing import Tuple
 from TidalPy import debug_mode
 from TidalPy.exceptions import ParameterMissingError, ReinitError, ImproperAttributeHandling, BadArrayShape
 from TidalPy.orbit.modes import spin_sync_modes, nsr_modes
-from TidalPy.structures.layers import construct_layer, TidalLayer
+from TidalPy.structures.layers import ThermalLayer
 from .physical import PhysicalObjSpherical
 from ..physics.stellar import luminosity_from_mass, efftemp_from_luminosity, luminosity_from_efftemp
 from ..graphics.planet_plot import geotherm_plot
@@ -19,16 +19,16 @@ if TYPE_CHECKING:
 
 class WorldBase(PhysicalObjSpherical):
 
-    type = 'base'
+    class_type = 'base'
 
     def __init__(self, world_config: dict, automate: bool = True):
 
         # Load in defaults
-        self.default_config = world_defaults[self.type]
+        self.default_config = world_defaults[self.class_type]
 
         super().__init__(config=world_config, automate=automate)
 
-        self.pyname = f'{self.__class__}_{self.type}'
+        self.pyname = f'{self.__class__}_{self.class_type}'
 
         # Pull out switch information
         self.is_spin_sync = self.config['force_spin_sync']
@@ -46,9 +46,8 @@ class WorldBase(PhysicalObjSpherical):
 
         super().set_geometry(radius, mass, thickness=radius)
 
-    def orbit_change(self):
+    def update_orbit(self):
         """ Performs state updates whenever the planet's orbital parameters are changed
-
         """
         # Base class has nothing to update.
         pass
@@ -58,11 +57,29 @@ class WorldBase(PhysicalObjSpherical):
                   spin_freq: np.ndarray = None):
         """ Set multiple orbital parameters at once, this reduces the number of calls to self.orbit_change
 
-        :param orbital_freq:    <ndarray> (Optional, exclusive w/ semi_a)
-        :param semi_major_axis: <ndarray> (Optional, exclusive w/ orb_freq)
-        :param eccentricity:    <ndarray> (Optional)
-        :param inclination:     <ndarray> (Optional)
-        :param spin_freq:       <ndarray> (Optional)
+        This contains a wrapper to the orbit class method set_state. It extends that function by including the spin
+        frequency.
+
+        This function has better performance than the individual setters for these parameters if (and only if) you are
+        changing two or more of them at the same time.
+
+        Parameters
+        ----------
+        orbital_freq : np.ndarray
+            Mean orbital frequency of an object in [rads s-1]
+            Optional, exclusive w/ semi_major_axis
+        semi_major_axis : np.ndarray
+            Semi-major axis of an object in [m]
+            Optional, exclusive w/ semi_major_axis
+        eccentricity : np.ndarray
+            Orbital eccentricity
+            Optional
+        inclination : np.ndarray
+            Orbital inclination in [rads]
+            Optional
+        spin_freq : np.ndarray
+            Object's rotation frequency in [rads s-1]
+            Optional
         """
 
         self.orbit.set_state(self.orbit_location, orbital_freq, semi_major_axis, eccentricity, inclination,
@@ -72,7 +89,7 @@ class WorldBase(PhysicalObjSpherical):
                 spin_freq = np.asarray(spin_freq)
             self._spin_freq = spin_freq
 
-        self.orbit_change()
+        self.update_orbit()
 
     @property
     def orbit(self):
@@ -106,7 +123,7 @@ class WorldBase(PhysicalObjSpherical):
         self._spin_freq = value
         if not self.is_spin_sync:
             # NSR will change tidal modes
-            self.orbit_change()
+            self.update_orbit()
 
     # Wrappers for the orbit class's state variable setters and getters
     @property
@@ -118,7 +135,7 @@ class WorldBase(PhysicalObjSpherical):
     def orbital_freq(self, value: np.ndarray):
 
         self.orbit.set_orbital_freq(self.orbit_location, value, set_by_planet=True)
-        self.orbit_change()
+        self.update_orbit()
 
     @property
     def eccentricity(self):
@@ -127,7 +144,7 @@ class WorldBase(PhysicalObjSpherical):
     @eccentricity.setter
     def eccentricity(self, value: np.ndarray):
         self.orbit.set_eccentricity(self.orbit_location, value, set_by_planet=True)
-        self.orbit_change()
+        self.update_orbit()
 
     @property
     def inclination(self):
@@ -136,7 +153,7 @@ class WorldBase(PhysicalObjSpherical):
     @inclination.setter
     def inclination(self, value: np.ndarray):
         self.orbit.set_inclination(self.orbit_location, value, set_by_planet=True)
-        self.orbit_change()
+        self.update_orbit()
 
     @property
     def semi_major_axis(self):
@@ -145,12 +162,12 @@ class WorldBase(PhysicalObjSpherical):
     @semi_major_axis.setter
     def semi_major_axis(self, value: np.ndarray):
         self.orbit.set_semi_major_axis(self.orbit_location, value, set_by_planet=True)
-        self.orbit_change()
+        self.update_orbit()
 
 
 class BasicWorld(WorldBase):
 
-    type = 'basic'
+    class_type = 'basic'
 
     def __init__(self, planet_config: dict, automate: bool = True):
         super().__init__(planet_config, automate=automate)
@@ -161,7 +178,7 @@ class BasicWorld(WorldBase):
 class Star(BasicWorld):
 
 
-    type = 'basic'
+    class_type = 'star'
 
 
     def __init__(self, star_config: dict, automate: bool = True):
@@ -191,7 +208,7 @@ class Star(BasicWorld):
 
 class BurnManWorld(WorldBase):
 
-    type = 'burnman'
+    class_type = 'burnman'
 
     def __init__(self, planet_config: dict, burnman_world: burnman.Planet, bm_layers: list, automate: bool = True):
 
@@ -213,7 +230,7 @@ class BurnManWorld(WorldBase):
         for bm_layer in self.bm_layers:
             layer_name = bm_layer.name
             layer_config = self.config['layers'][layer_name]
-            layer = construct_layer(layer_name, self, bm_layer, layer_config)
+            layer = ThermalLayer(layer_name, self, bm_layer, layer_config)
             self.layers_byname[layer_name] = layer
             self.layers.append(layer)
             setattr(self, layer.name.lower(), layer)
@@ -236,7 +253,7 @@ class BurnManWorld(WorldBase):
         self.density_slices = np.concatenate(density_list)
         self.radii = np.concatenate(radius_list)
 
-        # Dependent variables
+        # Dependent state variables
         self._tidal_modes = None
         self._tidal_heating_coeffs = None
         self._tidal_ztorque_coeffs = None
@@ -260,17 +277,40 @@ class BurnManWorld(WorldBase):
 
         super().reinit()
 
-    def get_layer(self, layer_name: str):
-        """ Returns a layer with a given name
+    def find_layer(self, layer_name: str) -> ThermalLayer:
+        """ Returns a reference to a layer with the provided name
 
-        :param layer_name: <str> layer's name"""
+        Layers are also stored in the planet's __dict__ and can be accessed via planet.<layer_name>
 
-        return self.layers_byname[layer_name]
+        Parameters
+        ----------
+        layer_name : str
+            Name assigned to layer in the planet's original configuration
 
-    def get_layer_by_radius(self, radius: float):
-        """ Returns a layer in which this radius lies
+        Returns
+        -------
+        layer : ThermalLayer
+            Reference to the layer class
+        """
 
-        :param radius: <float> radius inside the world
+        layer = self.layers_byname[layer_name]
+        return layer
+
+    def find_layer_byradius(self, radius: float) -> ThermalLayer:
+        """ Returns a reference to a layer that the provided radius resides in
+
+        If the provided radius is at the interface of two layers this method will choose the lower layer.
+
+        Parameters
+        ----------
+        radius : float
+            Radius in [m] at which to search for a layer
+
+        Returns
+        -------
+        layer : ThermalLayer
+            Reference to the layer class at that radius
+
         """
 
         assert radius <= self.radius
@@ -280,27 +320,60 @@ class BurnManWorld(WorldBase):
                 return layer
         raise LookupError()
 
-    def orbit_change(self):
+    def update_orbit(self):
+        """ Updates the planet's state when there has been a change to its orbit
+
+        Whenever the planet's orbital frequency, eccentricity, inclination, and/or spin frequency change this method
+        should be called to update other models and properties.
+
+        Currently it updates the tidal modes and their corresponding coefficients used in the calculation of
+        tidal heating and tidal torques.
+
+        See Also
+        --------
+        BurnManWorld.update_global_tides
+        """
+
+        if self.eccentricity is None:
+            eccentricity = self.eccentricity
+        else:
+            eccentricity = np.asarray(0.)
+        if self.inclination is None:
+            inclination = self.inclination
+        else:
+            inclination = np.asarray(0.)
+
+        if self.orbital_freq is None:
+            raise ParameterMissingError
 
         if self.is_spin_sync:
             self._tidal_modes, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
-                spin_sync_modes(self.orbital_freq, self.eccentricity, self.inclination)
+                spin_sync_modes(self.orbital_freq, eccentricity, inclination)
         else:
+            if self.spin_freq is None:
+                raise ParameterMissingError
+
             self._tidal_modes, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
-                nsr_modes(self.orbital_freq, self.spin_freq, self.eccentricity, self.inclination)
+                nsr_modes(self.orbital_freq, self.spin_freq, eccentricity, inclination)
 
-        for layer in self:
-            if isinstance(layer, TidalLayer):
-                layer.tidal_modes = self._tidal_modes
+        self.update_global_tides()
 
-        self.update_tides()
+    def update_global_tides(self, set_layer_heating: bool = True):
+        """ Updates the planet's tidal state whenever there is a change to the orbit or to a layer's thermal state
 
-    def update_tides(self, set_layer_heating: bool = True):
-        """ Calculates tidal heating and tidal zTorque based on current state.
+        Changes to a planet's orbit or to its constituent layers' thermal state will change the global love number and
+        tidal heating & torque. It is easier for a planet to make these calculations and pass on the relevant info to
+        its layers.
 
-        :return: <Tuple[ndarray, ndarray]> Tidal Heating, Tidal zTorque
+
+
+        See Also
+        --------
+        BurnManWorld.update_orbit
         """
 
+        for layer in self:
+            layer.
         layer_loves = [layer.complex_love for layer in self]
         tidal_susceptibility = self.tidal_susceptibility_inflated / self.semi_major_axis**6
 
@@ -328,10 +401,7 @@ class BurnManWorld(WorldBase):
             layer_heating = {}
             layer_ztorque = {}
 
-            if isinstance(layer, TidalLayer):
-                scale = layer.tidal_scale
-            else:
-                scale = 1.
+            scale = layer.tidal_scale
 
             for rheo_name, love_list in layer_love.items():
 
@@ -359,14 +429,24 @@ class BurnManWorld(WorldBase):
     def paint(self, depth_plot: bool = False, auto_show: bool = False):
         """ Create a geotherm or depth plot of the planet's gravity, pressure, and density
 
-        :param depth_plot: <bool> (=False) If true then plot will be vs. depth instead of vs. radius
-        :param auto_show:  <bool> (=False) If true then plt.show will be called
-        :return: matplotlib figure
+        Parameters
+        ----------
+        depth_plot : bool = False
+            If true the plot will be versus depth rather than radius.
+        auto_show : bool = False
+            Calls plt.show() if true.
+
+        Returns
+        -------
+        figure: matplotlib.pyplot.figure
+
         """
 
-        return geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
-                             bulk_density=self.density_bulk,
-                             planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
+        figure = geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
+                               bulk_density=self.density_bulk,
+                               planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
+
+        return figure
 
     @property
     def tidal_modes(self):
@@ -418,6 +498,13 @@ class BurnManWorld(WorldBase):
 
 
     def __iter__(self):
+        """ Planet will iterate over its layers
+
+        Returns
+        -------
+        iter(self.layers)
+            The iterator of the layer list.
+        """
 
         return iter(self.layers)
 

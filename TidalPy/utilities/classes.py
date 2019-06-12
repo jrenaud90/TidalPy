@@ -195,6 +195,10 @@ class ModelHolder(ConfigHolder):
         if self.live_input_func is not None:
             self.live_inputs = self.live_input_func(self)
 
+        for input_ in self.live_inputs:
+            if input_ is None:
+                raise ParameterMissingError
+
         return self._calc(*args, **kwargs)
 
     def reinit(self):

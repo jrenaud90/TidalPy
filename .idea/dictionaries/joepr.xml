@@ -2,9 +2,16 @@
   <dictionary name="joepr">
     <words>
       <w>andrade</w>
+      <w>coeffs</w>
+      <w>compliances</w>
+      <w>crit</w>
+      <w>henning</w>
       <w>liquidus</w>
+      <w>njit</w>
       <w>sundberg</w>
+      <w>unitless</w>
       <w>voigt</w>
+      <w>ztorque</w>
     </words>
   </dictionary>
 </component>

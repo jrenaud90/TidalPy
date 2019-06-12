@@ -34,6 +34,9 @@ class Cooling(LayerModel):
         """
 
         temperature = self.layer.temperature
+        if temperature is None:
+            raise ParameterMissingError
+
         delta_temp = temperature - self.layer.temperature_surf
 
 
@@ -43,6 +46,9 @@ class Cooling(LayerModel):
     def _calculate_debug(self):
 
         temperature = self.layer.temperature
+        if temperature is None:
+            raise ParameterMissingError
+
         delta_temp = temperature - self.layer.temperature_surf
 
         assert np.all(delta_temp >= 0.)

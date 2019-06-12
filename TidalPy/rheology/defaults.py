@@ -21,7 +21,7 @@ rheology_param_defaults = {
                 'molar_activation_volume': 0.0
             },
             'order_l': 2,
-            'compliances': ['Maxwell', 'Andrade'],
+            'compliance_model': 'Maxwell',
             'voigt_compliance_offset': .2,
             'voigt_viscosity_offset': .02,
             'alpha': .3,
@@ -46,7 +46,7 @@ rheology_param_defaults = {
                 'molar_activation_volume': 0.0
             },
             'order_l': 2,
-            'compliances': ['Maxwell', 'Andrade'],
+            'compliance_model': 'Maxwell',
             'voigt_compliance_offset': .2,
             'voigt_viscosity_offset': .02,
             'alpha': .3,

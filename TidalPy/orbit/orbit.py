@@ -28,8 +28,8 @@ class OrbitBase:
         self.all_objects = [self.star, self.host] + self.target_bodies
 
         # State orbital variables (must be at least 2: for the star and the host)
-        self._eccentricities = [None, None]  # type: List[Union[None, np.ndarray]]
-        self._inclinations = [None, None]    # type: List[Union[None, np.ndarray]]
+        self._eccentricities = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
+        self._inclinations = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
         self._orbital_freqs = [None, None]   # type: List[Union[None, np.ndarray]]
         self._semi_major_axis = [None, None] # type: List[Union[None, np.ndarray]]
 
@@ -53,8 +53,8 @@ class OrbitBase:
             target_body.tidal_susceptibility_inflated = (3. / 2.) * G * self.host.mass**2 * target_body.radius**5
 
             # Store dummy values for the state variables
-            self._eccentricities.append(None)
-            self._inclinations.append(None)
+            self._eccentricities.append(np.asarray(0.))
+            self._inclinations.append(np.asarray(0.))
             self._orbital_freqs.append(None)
             self._semi_major_axis.append(None)
 
@@ -175,4 +175,4 @@ class OrbitBase:
 
         if not set_by_planet:
             # Need to tell the planet to update any orbital-dependent state
-            self.all_objects[planet_loc].orbit_change()
+            self.all_objects[planet_loc].update_orbit()
