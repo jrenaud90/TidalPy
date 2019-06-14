@@ -2,7 +2,7 @@ from numba import njit
 from ..types import FloatArray
 
 @njit
-def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray):
+def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number
 
     :param complex_compliance: <FloatArray> Complex compliance (rheology based) [Pa-1]
@@ -16,7 +16,7 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
 
 @njit
 def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
-                         order_l: int = 2):
+                         order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order complex Love number
 
     :param complex_compliance:      <FloatArray> Complex compliance (rheology based) [Pa-1]
@@ -33,7 +33,7 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
 #    work. Testing showed that a modified lru_cache is slower than just using njit (or the combination of the two).
 #    Also, the modified cache would cause nasty bugs if an array were changed.
 @njit
-def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float):
+def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float) -> FloatArray:
     """ Calculates the 2nd order effective rigidity
 
     :param shear_modulus: <FloatArray> Temperature modulated rigidity
@@ -47,7 +47,7 @@ def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float,
 
 @njit
 def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius: float, density: float,
-                               order_l: int = 2):
+                               order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order effective rigidity
 
     :param shear_modulus: <FloatArray> Temperature modulated rigidity

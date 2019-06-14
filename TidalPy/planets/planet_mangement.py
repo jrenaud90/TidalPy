@@ -27,7 +27,7 @@ def check_for_duplicates(dict_to_check: dict):
                 potential_dups.append(planet_name)
 
     for planet_name in potential_dups:
-        warnings.warn(f'Possible duplicate saved planet found: {planet_name}. Ensure you use the correct subscript.')
+        log.warn(f'Possible duplicate saved planet found: {planet_name}. Ensure you use the correct subscript.')
 
 
 # Locate all dilled planets
@@ -65,32 +65,33 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
             planet_dill_path = known_planets_dill[planet_name]
 
         if planet_dill_path is not None:
-            log(f'Dilled planet was found! This will save a lot of time...')
+            log(f'Dilled planet was found! This will save a lot of time...', level='debug')
             # Planet was found! This will save a lot of time.
             with open(planet_dill_path, 'r') as planet_file:
                 planet = dill.load(planet_file)
 
             # If no new planet_config is provided then we are done
             if planet_config is None:
-                log(f'No new configurations were provided. Returning dilled planet')
+                log(f'No new configurations were provided. Returning dilled planet', level='debug')
                 return planet
             else:
-                log(f'New configurations were provided. Attempting to load them into dilled planet.')
+                log(f'New configurations were provided. Attempting to load them into dilled planet.', level='debug')
                 planet.user_config = planet_config
                 planet.reinit()
-                log(f'New configurations were successful loaded with no obvious issues.')
+                log(f'New configurations were successful loaded with no obvious issues.', level='debug')
         else:
-            log(f'Dilled version of {planet_name} was not found. Attempting to build.')
+            log(f'Dilled version of {planet_name} was not found. Attempting to build.', level='debug')
             need_to_build = True
 
     planet = None
     if need_to_build:
         if planet_config is None:
-            log(f'No configuration file for {planet_name} was provided, attempting to locate saved version')
+            log(f'No manual configuration dictionary was provided for {planet_name}, '
+                f'attempting to locate saved configuration file.', level='debug')
             if not _configs_are_dict:
                 _cfgpath_to_json()
             if planet_name in known_planets_cfg:
-                log(f'Configuration found')
+                log(f'Configuration file found', level='debug')
                 planet_config = known_planets_cfg[planet_name]
             else:
                 raise MissingArgumentError('No Planet configuration found or provided. Not enough information to build planet.')
@@ -102,13 +103,13 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
         planet_class = world_types[planet_type]
 
         if planet_class == TidalWorld:
-            log('Burnman planet type detected. Attempting to build BurnMan planet. This may take a while.')
+            log('Burnman planet type detected. Attempting to build BurnMan planet. This may take a while.', level='debug')
             # Build BurnMan Planet first
             burnman_layers, burnman_planet = build_bm_planet(planet_config)
             log('Burnman planet build complete!')
             planet = planet_class(planet_config, burnman_planet, burnman_layers)
         else:
-            log(f'{planet_class.class_type} planet type detected.')
+            log(f'{planet_class.class_type} planet type detected.', level='debug')
             planet = planet_class(planet_config)
 
     if planet is None:

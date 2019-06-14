@@ -40,7 +40,7 @@ def isotope(time: np.ndarray, mass: float,
 @njit
 def fixed(time: np.ndarray, mass: float,
           fixed_heat_production: float, average_half_life: float,
-          ref_time: float = 4600.):
+          ref_time: float = 4600.) -> np.ndarray:
     """ Calculates radiogenics based on a fixed rate and fixed exponential decay
 
     other args: fixed_heat_production, average_half_life, ref_time
@@ -59,7 +59,7 @@ def fixed(time: np.ndarray, mass: float,
 
 
 @njit
-def off(time: np.ndarray, mass: float):
+def off(time: np.ndarray, mass: float) -> np.ndarray:
     """ Forces radiogenics to be off
 
     :param time:                    <ndarray> Time to calculate radiogenics at

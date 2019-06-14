@@ -1,4 +1,4 @@
-from ..utilities.classes import ModelSearcher
+from ..utilities.model import ModelSearcher
 from . import viscosity_models
 
 # Pre-melt Strength using the same parameters as rheology

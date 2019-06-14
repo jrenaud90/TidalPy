@@ -1,7 +1,7 @@
 from numba import njit
 
 from TidalPy.exceptions import ParameterMissingError
-from TidalPy.utilities.classes import ModelHolder, LayerModel, ModelSearcher
+from TidalPy.utilities.model import ModelHolder, LayerModel, ModelSearcher
 from ..types import FloatArray
 import numpy as np
 from typing import Tuple

@@ -1,10 +1,9 @@
 import copy
 
 from ..exceptions import ParameterMissingError, ImproperAttributeHandling
-from ..utilities.classes import ModelHolder, LayerModel
 from . import radiogenic_models
 from .. import log
-from ..utilities.classes import ModelSearcher
+from ..utilities.model import ModelSearcher, ModelHolder, LayerModel
 from .. import debug_mode
 from ..types import float_like
 import numpy as np

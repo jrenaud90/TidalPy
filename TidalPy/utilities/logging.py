@@ -3,6 +3,8 @@ import time
 import sys
 import atexit
 from datetime import datetime
+
+from TidalPy.utilities.classes import TidalPyClass
 from ..io import unique_path
 from .. import verbose_level as global_verbose_level
 from .. import logging_level as global_logging_level
@@ -37,6 +39,8 @@ class TidalLogger:
 
     def __init__(self, verbose_level=global_verbose_level, logging_level=global_logging_level,
                  use_timestamps: bool = True):
+
+        super().__init__()
 
         self.init_time = time.time()
         self.verbose_level = verbose_level

@@ -2,9 +2,11 @@ import copy
 from functools import partial
 import numpy as np
 from TidalPy.rheology.compliance import ComplianceModelSearcher
-from TidalPy.utilities.classes import LayerModel
+from TidalPy.utilities.model import LayerModel
 from . import andrade_frequency_models, compliance_models
-from .love_1d import complex_love, complex_love_general, effective_rigidity, effective_rigidity_general
+from .love_1d import complex_love_general, effective_rigidity_general
+from .love_1d import complex_love as complex_love_func
+from .love_1d import effective_rigidity as effective_rigidity_func
 from ..exceptions import (ImplementationError, UnknownModelError, IncompatibleModelError, ParameterMissingError,
                           AttributeNotSetError)
 from ..types import FloatArray
@@ -32,8 +34,8 @@ class Rheology(LayerModel):
         self.order_l = self.config['order_l']
         self.full_calculation = True
         if self.model == '2order':
-            self.calc_love = complex_love
-            self.calc_effective_rigidity = effective_rigidity
+            self.calc_love = complex_love_func
+            self.calc_effective_rigidity = effective_rigidity_func
         elif self.model == 'general':
             self.calc_love = partial(complex_love_general, order_l=self.order_l)
             self.calc_effective_rigidity = partial(effective_rigidity_general, order_l=self.order_l)
@@ -61,7 +63,7 @@ class Rheology(LayerModel):
         self.compliance = comp_func
         self.compliance_inputs = comp_input
 
-    def _calculate(self) -> Tuple[np.ndarray, Tuple[np.ndarray], Tuple[np.ndarray]]:
+    def _calculate(self) -> Tuple[FloatArray, Tuple[FloatArray], Tuple[FloatArray]]:
         """ Calculates the Complex Compliance, Effective Rigidity, and Love Number
 
         """
@@ -78,7 +80,7 @@ class Rheology(LayerModel):
             raise ParameterMissingError
 
         eff_rigidity = self.calc_effective_rigidity(shear, self.layer.gravity,
-                                                    self.layer.radius, self.layer.density)
+                                                    self.layer.radius, self.layer.density) # type: FloatArray
         compliance = shear**(-1)
         if self.full_calculation:
             tidal_modes = self.layer.tidal_modes
@@ -91,8 +93,9 @@ class Rheology(LayerModel):
         complex_compliance_tupl = list()
         complex_love_tupl = list()
         for mode in tidal_modes:
-            complex_compliance = self.compliance(compliance, visco, mode, *self.compliance_inputs)
-            complex_love_tupl.append(self.calc_love(complex_compliance, shear, eff_rigidity))
+            complex_compliance = self.compliance(compliance, visco, mode, *self.compliance_inputs) # type: FloatArray
+            complex_love = self.calc_love(complex_compliance, shear, eff_rigidity)                 # type: FloatArray
+            complex_love_tupl.append(complex_love)
             complex_compliance_tupl.append(complex_compliance)
 
-        return effective_rigidity, tuple(complex_compliance_tupl), tuple(complex_love_tupl)
+        return eff_rigidity, tuple(complex_compliance_tupl), tuple(complex_love_tupl)

@@ -6,6 +6,8 @@ from typing import List, Union
 from scipy.constants import G
 
 from TidalPy.exceptions import ImproperAttributeHandling, ParameterError, ParameterMissingError, IncorrectArgumentType
+from TidalPy.utilities.classes import TidalPyClass
+from TidalPy.utilities.conversions import Au2m
 from ..types import FloatArray
 from .. import log
 
@@ -13,7 +15,7 @@ from typing import TYPE_CHECKING, Union
 from ..structures.worlds import WorldBase, TidalWorld
 PlanetRefType = Union[str, int, WorldBase]
 
-class OrbitBase:
+class OrbitBase(TidalPyClass):
 
 
     def __init__(self, star, host = None, target_bodies: list = None):
@@ -23,6 +25,8 @@ class OrbitBase:
         :param host:
         :param target_bodies:
         """
+
+        super().__init__()
 
         self.star = star
         if host is None:
@@ -82,31 +86,45 @@ class OrbitBase:
             self._orbital_freqs.append(None)
             self._semi_major_axis.append(None)
 
-        # The host body may be tidally dissipating due to one of the other target planets.
+        for t_i, world in enumerate(self.all_objects):
+            # Add a reference to the orbit to the planet(s)
+            world._orbit = self
+            world.orbit_location = t_i
 
-        # Add a reference to the orbit to the planet(s)
-        self.host._orbit = self
-        self.star._orbit = self
-        self.host.orbit_location = 0
-        self.host.orbit_location = 1
-        for t_i, target_body in enumerate(self.target_bodies):
-            target_body._orbit = self
-            target_body.orbit_location = t_i + 2 # The +2 is due to the star==0 and host==1
+            # Star does not need (or have) any of the following parameters - so skip it
+            if world is self.star:
+                continue
+
+            # Update those dummy variables if information was provided in the configurations
+            orbital_freq = world.config.get('orbital_freq', None)
+            orbital_period = world.config.get('orbital_period', None)
+            if orbital_freq is not None and orbital_period is not None:
+                log(f'Both orbital frequency and period were provided for {world.name}. '
+                    f'Using frequency instead.', level='info')
+            if orbital_freq is None and orbital_period is not None:
+                # Assume orbital period is in days
+                orbital_freq = 2. * np.pi / (orbital_period * 24. * 60. * 60.)
+            semi_major_axis = world.config.get('semi_major_axis', None)
+            semi_major_axis_inau = world.config.get('semi_major_axis_in_au', False)
+            if semi_major_axis is not None:
+                if semi_major_axis_inau:
+                    semi_major_axis = Au2m(semi_major_axis)
+                if orbital_freq is not None:
+                    log(f'Both orbital frequency (or period) and semi-major axis were provided for {world.name}. '
+                        f'Using frequency instead.', level='info')
+                    semi_major_axis = None
+            eccentricity = world.config.get('eccentricity', None)
+            inclination = world.config.get('inclination', None)
+            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=True)
 
         # Update parameters on the planets
         self.host.is_host = True
 
         # Attempt to initialize insolation heating
         for target_body in self.target_bodies:
-            try:
-                self.calculate_insolation(target_body.orbit_location)
-            except ParameterMissingError:
-                continue
-        try:
-            if isinstance(self.host, TidalWorld):
-                self.calculate_insolation(1)
-        except ParameterMissingError:
-            pass
+            self.calculate_insolation(target_body)
+        if isinstance(self.host, TidalWorld):
+            self.calculate_insolation(self.host)
 
         # The host body may be tidally dissipating due to one of the other target planets.
         self._host_tide_raiser_loc = None
@@ -243,7 +261,7 @@ class OrbitBase:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
-                log("Attempting to change the host planet's orbit")
+                log("Attempting to change the host planet's orbit", level='debug')
 
         if type(new_orbital_freq) != np.ndarray:
             new_orbital_freq = np.asarray(new_orbital_freq)
@@ -251,9 +269,14 @@ class OrbitBase:
         self._orbital_freqs[planet_loc] = new_orbital_freq
 
         # Changing the orbital frequency also changes the semi-major axis. Update via Kepler Laws
-        if planet_pointer is not self.host and planet_pointer is not self.star:
+        if planet_pointer is self.host:
+            self._semi_major_axis[planet_loc] = \
+                np.cbrt(G * (planet_pointer.mass + self.star.mass) / new_orbital_freq**2)
+        else:
+            # Star and Target bodies all orbit the host (albeit the star doesn't do much...).
             self._semi_major_axis[planet_loc] = \
                 np.cbrt(G * (planet_pointer.mass + self.host.mass) / new_orbital_freq**2)
+
         if not set_by_planet:
             # Need to tell the planet to update any orbital-dependent state
             planet_pointer.update_orbit()
@@ -289,14 +312,18 @@ class OrbitBase:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
-                log("Attempting to change the host planet's orbit")
+                log("Attempting to change the host planet's orbit", level='debug')
 
         if type(new_semi_major_axis) != np.ndarray:
             new_semi_major_axis = np.asarray(new_semi_major_axis)
 
         self._semi_major_axis[planet_loc] = new_semi_major_axis
         # Changing the orbital semi-major axis also changes the orbital frequency. Update via Kepler Laws
-        if planet_pointer is not self.host and planet_pointer is not self.star:
+        if planet_pointer is self.host:
+            self._orbital_freqs[planet_loc] = \
+                np.sqrt(G * (planet_pointer.mass + self.star.mass) / new_semi_major_axis**3)
+        else:
+            # Star and Target bodies all orbit the host (albeit the star doesn't do much...).
             self._orbital_freqs[planet_loc] = \
                 np.sqrt(G * (planet_pointer.mass + self.host.mass) / new_semi_major_axis**3)
 
@@ -334,7 +361,7 @@ class OrbitBase:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
-                log("Attempting to change the host planet's orbit")
+                log("Attempting to change the host planet's orbit", level='debug')
 
         if type(new_eccentricity) != np.ndarray:
             new_eccentricity = np.asarray(new_eccentricity)
@@ -375,7 +402,7 @@ class OrbitBase:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
-                log("Attempting to change the host planet's orbit")
+                log("Attempting to change the host planet's orbit", level='debug')
 
         if type(new_inclination) != np.ndarray:
             new_inclination = np.asarray(new_inclination)

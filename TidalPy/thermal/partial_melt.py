@@ -5,8 +5,7 @@ import numpy as np
 
 from TidalPy import debug_mode
 from TidalPy.exceptions import BadAttributeValueError
-from TidalPy.utilities.classes import ModelHolder, LayerModel
-from ..utilities.classes import ModelSearcher
+from ..utilities.model import ModelSearcher, ModelHolder, LayerModel
 from . import melting_models
 from .defaults import partial_melter_param_defaults
 

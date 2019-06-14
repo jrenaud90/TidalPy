@@ -137,16 +137,20 @@ class ThermalLayer(PhysicalObjSpherical):
         self._nusselt = None              # type: np.ndarray or None
         self._blt = None                  # type: np.ndarray or None
         self._effective_rigidity = None   # type: np.ndarray or None
-        self._complex_compliance = None   # type: Dict[str, np.ndarray] or None
-        self._complex_love = None         # type: Dict[str, np.ndarray] or None
-        self._tidal_heating = None        # type: Dict[str, np.ndarray] or None
+        self._complex_compliance = None   # type: np.ndarray or None
+        self._complex_love = None         # type: np.ndarray or None
+        self._tidal_heating = None        # type: np.ndarray or None
+        self._radiogenic_heating = None   # type: np.ndarray or None
+
+        # State Derivatives
+        self._diff_temperature = None     # type: np.ndarray or None
 
         # Model Holders
         self.cooling = None               # type: Cooling or None
         self.partial_melt = None          # type: PartialMelt or None
         self.radiogenics = None           # type: Radiogenics or None
         self.rheology = None              # type: Rheology or None
-        self.heat_sources = list()
+        self.heat_sources = None
 
         # Function Holders
         self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = None, None, None
@@ -242,6 +246,9 @@ class ThermalLayer(PhysicalObjSpherical):
         self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = \
             find_viscosity(liquid_visco_model, default_key=[self.type, 'liquid_viscosity'])
 
+        # Heat sources used in temperature derivative calculation
+        self.heat_sources = list()
+
         # Setup Partial Melting
         self.partial_melt = PartialMelt(self)
 
@@ -250,10 +257,11 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # Setup Radiogenics
         self.radiogenics = Radiogenics(self)
-        self.heat_sources.append(self.radiogenics)
+        self.heat_sources.append(lambda: self.radiogenic_heating)
 
         # Setup Rheology
         self.rheology = Rheology(self)
+        self.heat_sources.append(lambda: self.tidal_heating)
 
         self.set_geometry(self.radius, self.mass, self.thickness)
 
@@ -312,6 +320,30 @@ class ThermalLayer(PhysicalObjSpherical):
         self.update_cooling()
         self.update_tides()
 
+    def update_radiogenics(self, force_calculation: bool = False):
+        """ Calculate the radiogenic heating rate within this layer, requires the world.time to be set.
+
+        Parameters
+        ----------
+        force_calculation : bool = False
+            Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
+
+        Returns
+        -------
+        radiogenic_heating : np.ndarray
+            Radiogenic heating rate in [Watts]
+        """
+
+        try:
+            self._radiogenic_heating = self.radiogenics.calculate()
+        except ParameterMissingError as error:
+            if force_calculation:
+                raise error
+            else:
+                pass
+
+        return self.radiogenic_heating
+
     def update_cooling(self, force_calculation: bool = False):
         """ Calculate parameters related to cooling of the layer, be it convection or conduction
 
@@ -349,7 +381,7 @@ class ThermalLayer(PhysicalObjSpherical):
 
         self._heat_flux, self._blt, self._rayleigh, self._nusselt = cooling_flux, blt, rayleigh, nusselt
 
-        if self.is_top_layer:
+        if self.is_top_layer and self.world.orbit is not None:
             # Tell the planet that there is a new surface flux and thus a new surface temperature
             self.world.update_surface_temperature()
 
@@ -382,7 +414,12 @@ class ThermalLayer(PhysicalObjSpherical):
             The order can be changed via configuration files, default is 2nd order.
         """
 
-        update_world_tides = True
+        if self.tidal_modes is None:
+            num_modes = 1
+        else:
+            num_modes = len(self.tidal_modes)
+
+        update_world_tides = self.world.orbit is not None
         try:
             effective_rigid, complex_comp, complex_love = self.rheology.calculate()
         except ParameterMissingError as error:
@@ -390,8 +427,9 @@ class ThermalLayer(PhysicalObjSpherical):
                 raise error
             else:
                 update_world_tides = False
-                effective_rigid, complex_comp, complex_love = \
-                    np.asarray(0., dtype=np.float), np.asarray(0., dtype=np.complex), np.asarray(0., dtype=np.complex)
+                effective_rigid = tuple([np.asarray(0., dtype=np.float) for _ in range(num_modes)])
+                complex_comp = tuple([np.asarray(0., dtype=np.complex) for _ in range(num_modes)])
+                complex_love = tuple([np.asarray(0., dtype=np.complex) for _ in range(num_modes)])
 
         self._effective_rigidity, self._complex_compliance, self._complex_love = \
             effective_rigid, complex_comp, complex_love
@@ -453,17 +491,21 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # Initialize total heating based on if there is a layer warming this one from below
         if self.layer_below is None:
-            notide_heating = np.zeros_like(self.temperature)
+            total_heating = np.zeros_like(self.temperature)
         else:
-            notide_heating = self.layer_below.heat_flux * self.surface_area_inner
+            total_heating = self.layer_below.heat_flux * self.surface_area_inner
 
         for heat_source in self.heat_sources:
-            notide_heating += heat_source.calculate()
+            if heat_source is None:
+                raise ParameterMissingError
+            total_heating += heat_source()
 
         total_cooling = self.heat_flux * self.surface_area_outer
 
-        return (notide_heating + self.tidal_heating - total_cooling) / \
-               (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
+        self._diff_temperature = (total_heating - total_cooling) / \
+                 (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
+
+        return self.diff_temperature
 
     # Class Properties
     @property
@@ -500,8 +542,7 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e5 or value < 5.0:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray(value)
-
+            value = np.asarray([value])
 
         self._temperature = value
 
@@ -515,8 +556,12 @@ class ThermalLayer(PhysicalObjSpherical):
         self.update_strength()
 
         # Update other models
-        self.update_cooling()
-        self.update_tides()
+        force_cooling = True
+        force_tides = False
+        if self.tidal_modes is not None:
+            force_tides = True
+        self.update_cooling(force_calculation=force_cooling)
+        self.update_tides(force_calculation=force_tides)
 
     # TODO: For now lower temperature just returns self.temperature. This is used in cooling calculations
     @property
@@ -531,7 +576,13 @@ class ThermalLayer(PhysicalObjSpherical):
     def temperature_surf(self):
 
         if self.is_top_layer:
-            return self.world.surface_temperature
+            if self.world.orbit is None:
+                # surface temperature will not have been set yet. Use a fake value for now
+                log('Surface temperature is not set until an orbit is applied to the planet. '
+                    'Using default value of 100K.', level='debug')
+                return np.asarray([100.])
+            else:
+                return self.world.surface_temperature
 
         if self.layer_above is not None:
             if self.layer_above.temperature_lower is not None:
@@ -573,12 +624,18 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e30 or value < 1.0e-10:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray(value)
+            value = np.asarray([value])
         self._viscosity = value
 
         # Update other models
-        self.update_cooling()
-        self.update_tides()
+        force_cooling = False
+        force_tides = False
+        if self.temperature is not None:
+            force_cooling = True
+            if self.tidal_modes is not None:
+                force_tides = True
+        self.update_cooling(force_calculation=force_cooling)
+        self.update_tides(force_calculation=force_tides)
 
     @property
     def shear_modulus(self) -> np.ndarray:
@@ -601,12 +658,18 @@ class ThermalLayer(PhysicalObjSpherical):
                 if value > 1.0e20 or value < 1.0e-10:
                     raise UnusualRealValueError
         if type(value) != np.ndarray:
-            value = np.asarray(value)
+            value = np.asarray([value])
         self._shear_modulus = value
 
         # Update other models
-        self.update_cooling()
-        self.update_tides()
+        force_cooling = False
+        force_tides = False
+        if self.temperature is not None:
+            force_cooling = True
+            if self.tidal_modes is not None:
+                force_tides = True
+        self.update_cooling(force_calculation=force_cooling)
+        self.update_tides(force_calculation=force_tides)
 
     # Attributes that will be updated whenever temperature is updated:
     @property
@@ -672,11 +735,31 @@ class ThermalLayer(PhysicalObjSpherical):
     @tidal_heating.setter
     def tidal_heating(self, value):
 
-        # TODO: Make a setter for this in the future?
         if type(value) != np.ndarray:
             value = np.asarray(value)
 
         self._tidal_heating = value
+
+    @property
+    def radiogenic_heating(self):
+        return self._radiogenic_heating
+
+    @radiogenic_heating.setter
+    def radiogenic_heating(self, value):
+
+        if type(value) != np.ndarray:
+            value = np.asarray(value)
+
+        self._radiogenic_heating = value
+
+    # Derivative Properties
+    @property
+    def diff_temperature(self):
+        return self._diff_temperature
+
+    @diff_temperature.setter
+    def diff_temperature(self, value):
+        raise ImproperAttributeHandling
 
     # Aliased Attributes
     @property
@@ -694,4 +777,17 @@ class ThermalLayer(PhysicalObjSpherical):
     @boundary_layer_thickness.setter
     def boundary_layer_thickness(self, value):
         self.blt = value
+
+    def __repr__(self):
+
+        text = f'{self.__class__} object at {hex(id(self))}'
+        if 'name' in self.__dict__:
+            if self.name is not None:
+                text = f'{self.name} ' + text
+        if self.world is not None:
+            text += f'; stored in {repr(self.world)}'
+        else:
+            text += '; not associated with a world'
+
+        return text
 

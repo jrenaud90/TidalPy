@@ -9,7 +9,7 @@ SCALE = 3
 
 def geotherm_plot(radii: np.ndarray,
                   gravitys: np.ndarray, pressures: np.ndarray, densitys: np.ndarray, temperatures: np.ndarray = None,
-                  planet_radius: float = None, bulk_density: float = None,
+                  planet_radius: float = None, bulk_density: float = None, planet_name: str = None,
                   depth_plot: bool = False, auto_show: bool = False, annotate: bool = True):
     """ Plots the depth plot of a planet in a 3 or 4 panels (temperature is optional)
 
@@ -112,6 +112,8 @@ def geotherm_plot(radii: np.ndarray,
                 ax.text(*pos, f'bulk = {bulk_density:0.2f}',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
 
+    if planet_name is not None:
+        axes[0].set_title(planet_name)
 
     gs.tight_layout(fig)
     if auto_show:

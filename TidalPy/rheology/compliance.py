@@ -1,6 +1,6 @@
 from TidalPy.exceptions import UnknownModelError, ParameterMissingError, IncompatibleModelError, MissingArgumentError
 from TidalPy.utilities.dict_tools import nested_get
-from ..utilities.classes import ModelSearcher
+from ..utilities.model import ModelSearcher
 from . import compliance_models
 from . import andrade_frequency_models
 from inspect import getmembers

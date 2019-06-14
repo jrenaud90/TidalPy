@@ -2,7 +2,7 @@ import sys
 from .configurations import raise_on_changed_config
 import warnings
 
-class TidalPyException(RuntimeError):
+class TidalPyException(Exception):
     """ Default exception for all TidalPy-specific errors
     """
 
