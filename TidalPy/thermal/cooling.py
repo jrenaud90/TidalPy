@@ -1,13 +1,12 @@
-from numba import njit
+import copy
 
-from TidalPy.exceptions import ParameterMissingError
-from TidalPy.utilities.model import ModelHolder, LayerModel, ModelSearcher
-from ..types import FloatArray
 import numpy as np
-from typing import Tuple
+
 from . import cooling_models
 from .defaults import cooling_param_defaults
-import copy
+from ..exceptions import ParameterMissingError
+from ..utilities.model import LayerModel, ModelSearcher
+
 
 # Cooling Model Finder
 find_partial_melter = ModelSearcher(cooling_models, cooling_param_defaults)

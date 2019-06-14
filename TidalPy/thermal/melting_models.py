@@ -1,8 +1,10 @@
 """ Partial Melting Models for Viscosity and Shear Modulus """
 
-from ..performance import njit
 from typing import Tuple
+
 import numpy as np
+
+from ..performance import njit
 
 
 @njit

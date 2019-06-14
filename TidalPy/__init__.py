@@ -1,6 +1,8 @@
-from .version import version
 import os
 import time
+
+from .version import version
+
 
 __version__ = version
 _vers_major, _vers_minor, _vers_hotfix = version.split('.')

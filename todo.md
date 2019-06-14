@@ -4,4 +4,7 @@
 * Allow planets to load with a default eccentricity and inclination
 
 ## Layers
-* As of 0.1.0 Stefan number is not calculated using melt fraction (just a configuration constant) 
+* As of 0.1.0 Stefan number is not calculated using melt fraction (just a configuration constant)
+
+## Thermal
+* Move the viscosity calculation (pre-melt) into rheology module (currently in thermal)? 

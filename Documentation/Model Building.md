@@ -38,7 +38,7 @@ Required inputs are used by all functions in for this class. They do not have to
 
 ```
 # While not requried, it is often a good idea to use njit on your function to increase performance
-from numba import njit
+from TidalPy.performance import njit
 
 @njit
 def my_func(temperature, viscosity,                    # These are required inputs

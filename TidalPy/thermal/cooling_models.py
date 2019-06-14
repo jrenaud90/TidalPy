@@ -1,6 +1,9 @@
-import numpy as np
 from typing import Tuple
+
+import numpy as np
+
 from ..performance import njit
+
 
 MIN_THICKNESS = 0.1
 

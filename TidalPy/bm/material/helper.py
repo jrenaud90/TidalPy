@@ -1,9 +1,9 @@
 import burnman
 
-from TidalPy.exceptions import UnknownModelError
-from ... import debug_mode
 from . import custom as tidalpy_materials
 from .custom.constant import ConstantMaterial
+from ...exceptions import UnknownModelError
+
 
 known_materials = None
 known_materials_sourceless = None

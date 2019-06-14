@@ -1,4 +1,4 @@
-from numba import njit
+from ..performance import njit
 from ..types import FloatArray
 
 @njit

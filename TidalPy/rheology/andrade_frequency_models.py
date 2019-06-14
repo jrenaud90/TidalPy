@@ -2,6 +2,7 @@
 """
 
 import numpy as np
+
 from ..performance import njit
 from ..types import float_lognat_max
 

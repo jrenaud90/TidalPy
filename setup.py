@@ -1,5 +1,7 @@
 from setuptools import setup
+
 from TidalPy.version import version
+
 
 setup(name='TidalPy',
       version=version,

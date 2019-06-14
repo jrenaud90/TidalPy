@@ -1,30 +1,27 @@
 from __future__ import annotations
 
 import copy
+from typing import Dict, TYPE_CHECKING, Tuple
 
-from TidalPy.radiogenics.radiogenics import Radiogenics
-from TidalPy.structures.physical import PhysicalObjSpherical, ImproperAttributeChanged
-from TidalPy.thermal.cooling import Cooling
-from TidalPy.thermal.partial_melt import PartialMelt
-from TidalPy.types import floatarray_like
-from TidalPy.exceptions import (AttributeNotSetError, IncorrectAttributeType, UnusualRealValueError,
-                                ImproperAttributeHandling,
-                                BadAttributeValueError, UnknownTidalPyConfigValue, ReinitError, ParameterMissingError)
-from ..thermal import find_viscosity, calc_melt_fraction
-from ..rheology.rheology import Rheology
-import numpy as np
-from typing import Dict, List
-from scipy.constants import G
-from .. import log, debug_mode
-from typing import Tuple
 import burnman
-from ..utilities.numpy_help import find_nearest
-from ..bm.conversion import burnman_property_name_conversion, burnman_property_value_conversion
-from ..configurations import burnman_interpolation_method, burnman_interpolation_N
-from TidalPy.utilities.dict_tools import nested_get
-from typing import Union
+import numpy as np
+
 from .defaults import layer_defaults
-from typing import TYPE_CHECKING
+from .. import debug_mode, log
+from ..bm.conversion import burnman_property_name_conversion, burnman_property_value_conversion
+from ..configurations import burnman_interpolation_N, burnman_interpolation_method
+from ..exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
+                          ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError)
+from ..radiogenics.radiogenics import Radiogenics
+from ..rheology.rheology import Rheology
+from ..structures.physical import PhysicalObjSpherical
+from ..thermal import find_viscosity
+from ..thermal.cooling import Cooling
+from ..thermal.partial_melt import PartialMelt
+from ..types import floatarray_like
+from ..utilities.dict_tools import nested_get
+from ..utilities.numpy_help import find_nearest
+
 
 if TYPE_CHECKING:
     from .worlds import TidalWorld
@@ -72,7 +69,7 @@ class ThermalLayer(PhysicalObjSpherical):
         bm_mass = self.bm_layer.mass
         self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
         self.bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - self.thickness / 2.)
-        self.gravity_surf = self.bm_layer.gravity[-1]
+        self._gravity_surf = self.bm_layer.gravity[-1]
 
         # Pull out slice information
         self.radii = self.bm_layer.radii

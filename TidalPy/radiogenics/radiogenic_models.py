@@ -1,6 +1,9 @@
-from ..performance import njit
 from typing import Tuple
+
 import numpy as np
+
+from ..performance import njit
+
 
 # Default Radiogenic Parameters
 

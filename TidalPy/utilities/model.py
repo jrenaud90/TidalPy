@@ -1,18 +1,18 @@
-import operator
-
-from TidalPy.exceptions import (ImplementedBySubclassError,
-                                TidalPyException)
-from .. import debug_mode, log
 import copy
-from TidalPy.types import list_like
-from TidalPy.utilities.dict_tools import nested_get
-from ..exceptions import ParameterMissingError, UnknownModelError, MissingArgumentError
-
+import operator
 from inspect import getmembers, isfunction
-from .classes import ConfigHolder
+from typing import List, Union
+
 from numba.targets.registry import CPUDispatcher
 
-from typing import Union, List
+from .classes import ConfigHolder
+from .dict_tools import nested_get
+from .. import debug_mode, log
+from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
+                          UnknownModelError)
+from ..types import list_like
+
+
 general_func_reject_list = [
     'njit',
     ]

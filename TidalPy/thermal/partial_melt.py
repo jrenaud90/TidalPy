@@ -1,13 +1,14 @@
 import copy
 
-from ..performance import njit
 import numpy as np
 
-from TidalPy import debug_mode
-from TidalPy.exceptions import BadAttributeValueError
-from ..utilities.model import ModelSearcher, ModelHolder, LayerModel
 from . import melting_models
 from .defaults import partial_melter_param_defaults
+from .. import debug_mode
+from ..exceptions import BadAttributeValueError
+from ..performance import njit
+from ..utilities.model import LayerModel, ModelSearcher
+
 
 # TODO: Move liquid shear into a material config?
 

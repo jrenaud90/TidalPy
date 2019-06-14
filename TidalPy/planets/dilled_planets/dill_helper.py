@@ -1,10 +1,12 @@
-from send2trash import send2trash
-
-from TidalPy.utilities.pathing import get_all_files_of_type
-from . import dilled_planets_loc
-from ... import __version__
 import os
 from typing import Tuple
+
+from send2trash import send2trash
+
+from . import dilled_planets_loc
+from ... import __version__
+from ...utilities.pathing import get_all_files_of_type
+
 
 def delete_planets(ask_prompt: bool = True):
     """ Will delete all planets in the dilled_planets folder """

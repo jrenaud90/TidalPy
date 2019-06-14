@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from TidalPy import debug_mode
-import numpy as np
 from typing import List, Union
+
+import numpy as np
 from scipy.constants import G
 
-from TidalPy.exceptions import ImproperAttributeHandling, ParameterError, ParameterMissingError, IncorrectArgumentType
-from TidalPy.utilities.classes import TidalPyClass
-from TidalPy.utilities.conversions import Au2m
+from .. import debug_mode, log
+from ..exceptions import ImproperAttributeHandling, IncorrectArgumentType, ParameterError, ParameterMissingError
+from ..structures.worlds import TidalWorld, WorldBase
 from ..types import FloatArray
-from .. import log
+from ..utilities.classes import TidalPyClass
+from ..utilities.conversions import Au2m
 
-from typing import TYPE_CHECKING, Union
-from ..structures.worlds import WorldBase, TidalWorld
+
 PlanetRefType = Union[str, int, WorldBase]
 
 class OrbitBase(TidalPyClass):

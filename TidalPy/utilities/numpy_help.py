@@ -1,6 +1,9 @@
-import numpy as np
-from numba import njit
 from typing import Union
+
+import numpy as np
+
+from ..performance import njit
+
 
 @njit
 def find_nearest(array: np.ndarray, value: Union[int, float]):

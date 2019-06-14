@@ -1,9 +1,11 @@
-from scipy.constants import Stefan_Boltzmann as sbc
-from .constants import luminosity_solar, mass_solar
 import numpy as np
-from ..types import FloatArray
-from numba import njit
+from scipy.constants import Stefan_Boltzmann as sbc
 from scipy.special import ellipe
+
+from .constants import luminosity_solar, mass_solar
+from ..performance import njit
+from ..types import FloatArray
+
 
 # TODO: the ellipe function can't be wrapped by njit. Perhaps one day it will or we could make our own njit-friendly wrapping
 # @njit

@@ -1,5 +1,6 @@
-from typing import Union, List
 import os
+from typing import List, Union
+
 
 def get_all_files_of_type(directory_to_search: str, file_extensions: Union[List[str], str]):
     """ Returns all files with a specified extension(s) in a given directory

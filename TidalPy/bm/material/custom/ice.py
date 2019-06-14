@@ -9,7 +9,9 @@ high_pressure_ice_eos = 'mgd3'
 
 
 import burnman
+
 from .constant import ConstantMaterial
+
 
 class LowPressureIceConst(ConstantMaterial):
 

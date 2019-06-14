@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Union
+
+import numpy as np
+
 
 float_like = [float, np.float, np.float64]
 floatarray_like = [float, np.float, np.float64, np.ndarray]

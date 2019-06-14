@@ -1,13 +1,12 @@
 import numpy as np
+from scipy.constants import G
 
-from TidalPy import debug_mode
-from TidalPy.types import float_like, float_eps
-from TidalPy.exceptions import (BadAttributeValueError, IncorrectAttributeType, ImproperAttributeHandling,
-                                UnusualRealValueError, ParameterMissingError, TidalPyException)
-from TidalPy.utilities.classes import ConfigHolder
-
+from .. import debug_mode, log
 from ..configurations import raise_on_changed_config
-from .. import log
+from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, IncorrectAttributeType,
+                          ParameterMissingError, TidalPyException, UnusualRealValueError)
+from ..types import float_eps, float_like
+from ..utilities.classes import ConfigHolder
 
 
 class ImproperAttributeChanged(TidalPyException):
@@ -57,6 +56,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self._moi = None
         self._moi_ideal = None
         self._moi_factor = None
+        self._gravity_surf = None
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
         """ Sets and calculates object's physical parameters based on user provided input.
@@ -81,6 +81,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self._mass = mass
 
         # Update Physical Properties
+        self._gravity_surf = G * self.mass / self.radius**2
         self._radius_inner = self.radius - self.thickness
         self._volume = (4. / 3.) * np.pi * (self.radius**3 - self.radius_inner**3)
         self._surface_area_outer = 4. * np.pi * self.radius**2
@@ -179,6 +180,15 @@ class PhysicalObjSpherical(ConfigHolder):
     @density_bulk.setter
     def density_bulk(self, value):
         raise ImproperAttributeHandling('Bulk Density is set by the set_geometry method')
+
+    @property
+    def gravity_surf(self):
+        """ Surface Gravity of a sphere"""
+        return self._gravity_surf
+
+    @gravity_surf.setter
+    def gravity_surf(self, value):
+        raise ImproperAttributeHandling('Surface Gravity is set by the set_geometry method')
 
     @property
     def moi_ideal(self):

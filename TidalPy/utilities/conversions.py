@@ -1,5 +1,4 @@
-from numba import njit
-
+from ..performance import njit
 
 @njit
 def m2Au(meters):

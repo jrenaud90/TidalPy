@@ -1,13 +1,14 @@
 import copy
 
-from ..exceptions import ParameterMissingError, ImproperAttributeHandling
-from . import radiogenic_models
-from .. import log
-from ..utilities.model import ModelSearcher, ModelHolder, LayerModel
-from .. import debug_mode
-from ..types import float_like
 import numpy as np
+
+from . import radiogenic_models
 from .defaults import radiogenics_param_defaults
+from .. import debug_mode, log
+from ..exceptions import ImproperAttributeHandling, ParameterMissingError
+from ..types import float_like
+from ..utilities.model import LayerModel, ModelSearcher
+
 
 find_radiogenics = ModelSearcher(radiogenic_models, radiogenics_param_defaults)
 

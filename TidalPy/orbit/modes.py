@@ -1,5 +1,7 @@
-from numba import njit
 import numpy as np
+
+from ..performance import njit
+
 
 @njit
 def spin_sync_modes(orbital_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):

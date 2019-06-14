@@ -1,5 +1,7 @@
-import TidalPy
 import numpy as np
+
+import TidalPy
+
 
 planet = TidalPy.build_planet('charon_example', force_build=True)
 host = TidalPy.build_planet('pluto_example', force_build=True)

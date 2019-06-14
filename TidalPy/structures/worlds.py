@@ -1,35 +1,29 @@
 from __future__ import annotations
 
 import copy
-from typing import Tuple
-
-import dill
-
-from TidalPy.utilities.conversions import Au2m
-from .. import log
-from TidalPy import debug_mode
-from ..io import inner_save_dir
-from ..planets.planet_configs import planet_config_loc
-from ..planets.dilled_planets import dill_file_path
-from TidalPy.configurations import (auto_save_planet_config_to_rundir, auto_save_planet_dill_to_rundir,
-                                    auto_save_planet_dill_to_tidalpydir, overwrite_dills, overwrite_configs)
-from TidalPy.exceptions import (ParameterMissingError, ReinitError, ImproperAttributeHandling, BadArrayShape,
-                                UnusualRealValueError)
-from TidalPy.orbit.modes import spin_sync_modes, nsr_modes
-from TidalPy.structures.layers import ThermalLayer
-from .physical import PhysicalObjSpherical
-from ..physics.stellar import (luminosity_from_mass, efftemp_from_luminosity, luminosity_from_efftemp,
-                               equilibrium_insolation_functions, equilibrium_temperature)
-from ..graphics.planet_plot import geotherm_plot
-import burnman
 import os
+from typing import List, TYPE_CHECKING, Tuple
+
+import burnman
+import dill
 import numpy as np
+
 from .defaults import world_defaults
+from .physical import PhysicalObjSpherical
+from .. import debug_mode, log
+from ..configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
+                              auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
+                              overwrite_dills)
+from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError)
+from ..graphics.planet_plot import geotherm_plot
+from ..io import inner_save_dir
+from ..orbit.modes import nsr_modes, spin_sync_modes
+from ..physics.stellar import (efftemp_from_luminosity, equilibrium_insolation_functions, equilibrium_temperature,
+                               luminosity_from_efftemp, luminosity_from_mass)
+from ..planets.dilled_planets import dill_file_path
+from ..planets.planet_configs import planet_config_loc
+from ..structures.layers import ThermalLayer
 
-from ..configurations import auto_save_planet_config_to_rundir, auto_save_planet_dill_to_rundir, \
-    auto_save_planet_config_to_tidalpydir, auto_save_planet_dill_to_tidalpydir, overwrite_dills, overwrite_configs
-
-from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
     from ..orbit.orbit import OrbitBase

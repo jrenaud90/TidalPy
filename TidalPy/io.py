@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
+
 from . import auto_write, version
+
 
 tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
 

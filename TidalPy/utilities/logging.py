@@ -1,15 +1,13 @@
-import warnings
-import time
-import sys
 import atexit
+import sys
+import time
+import warnings
 from datetime import datetime
-
-from TidalPy.utilities.classes import TidalPyClass
-from ..io import unique_path
-from .. import verbose_level as global_verbose_level
-from .. import logging_level as global_logging_level
-from .. import __version__
 from typing import Union
+
+from .. import __version__, logging_level as global_logging_level, verbose_level as global_verbose_level
+from ..io import unique_path
+
 
 now = datetime.now()
 now_str = now.strftime('%x at %X')
@@ -91,7 +89,7 @@ class TidalLogger:
                 buffer_text = ''
                 for l_i, line in enumerate(text.split('\n')):
                     if l_i == 0:
-                        buffer_text = f'{self.timestamp()},L{level} - {line}'
+                        buffer_text = f'\n{self.timestamp()},L{level} - {line}'
                     else:
                         # Put spaces that match the [timestamp=6] + [level info=3] + [spacer=3]
                         buffer_text += '\n' + ' ' * 6 + ' ' * 3 + ' ' * 3 + line
@@ -106,6 +104,10 @@ class TidalLogger:
             else:
                 print(text)
 
+    def warn(self, text: str):
+
+        self.record(text, warning=True)
+
     def check_buffer(self):
         """ Checks if buffer should be off loaded to file """
 
@@ -113,8 +115,8 @@ class TidalLogger:
         if self._buffer == '':
             return False
 
-        if time.time() - self._last_offload > 30:
-            # Only offload every 30 seconds or so.
+        if time.time() - self._last_offload > 15:
+            # Only offload every 15 seconds or so.
             return self.offload()
 
     def offload(self, must_offload: bool = False):
@@ -146,17 +148,13 @@ class TidalLogger:
         :return: <str>
         """
 
-        return f'{(time.time() - self.init_time):06}'
+        return f'{(time.time() - self.init_time):04.4}'.ljust(4, '0').rjust(8,'0')
 
     def cleanup(self):
         """ Cleans up log when program is about to exit """
 
         self.record('TidalPy Closing...', level=3)
         self.offload(must_offload=True)
-
-    def warn(self, text: str):
-
-        self.record(text, warning=True)
 
     def __del__(self):
 

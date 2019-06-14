@@ -1,7 +1,8 @@
-from ..performance import njit
 import numpy as np
-from ..types import float_lognat_max
 from scipy.constants import R
+
+from ..performance import njit
+from ..types import float_lognat_max
 
 
 @njit

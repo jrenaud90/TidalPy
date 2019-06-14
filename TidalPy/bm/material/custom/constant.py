@@ -1,6 +1,6 @@
-import burnman
-from burnman.material import Material, material_property
 import numpy as np
+from burnman.material import Material, material_property
+
 
 class ConstantMaterial(Material):
 

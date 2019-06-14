@@ -1,7 +1,9 @@
-from numba import njit
 import numpy as np
-from TidalPy.types import FloatArray
 from scipy.constants import Stefan_Boltzmann as sbc
+
+from ..performance import njit
+from ..types import FloatArray
+
 
 INNER_EDGE_TEMP = 273.15
 OUTER_EDGE_TEMP = 373.15

@@ -1,12 +1,11 @@
-from TidalPy.exceptions import ParameterMissingError, UnusualRealValueError, BadValueError
-from TidalPy.types import float_eps
+import burnman
+import numpy as np
 
 from .material.helper import find_material
 from .. import debug_mode
-from ..configurations import save_burnman_planets_to_run_folder, save_burnman_planets_to_tidalpy_dir
+from ..exceptions import BadValueError, ParameterMissingError
+from ..types import float_eps
 
-import burnman
-import numpy as np
 
 default_layer_params = {
     'material_source': None,

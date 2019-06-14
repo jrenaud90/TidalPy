@@ -1,8 +1,9 @@
-import matplotlib.pyplot as plt
 import matplotlib.gridspec as gspec
+import matplotlib.pyplot as plt
 import numpy as np
 
 from TidalPy.exceptions import ParameterMissingError
+
 
 SCATTER_SIZE = 1
 SCALE = 3

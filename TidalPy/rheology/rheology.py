@@ -1,17 +1,18 @@
 import copy
 from functools import partial
+from typing import Tuple
+
 import numpy as np
-from TidalPy.rheology.compliance import ComplianceModelSearcher
-from TidalPy.utilities.model import LayerModel
+
 from . import andrade_frequency_models, compliance_models
-from .love_1d import complex_love_general, effective_rigidity_general
-from .love_1d import complex_love as complex_love_func
-from .love_1d import effective_rigidity as effective_rigidity_func
-from ..exceptions import (ImplementationError, UnknownModelError, IncompatibleModelError, ParameterMissingError,
-                          AttributeNotSetError)
-from ..types import FloatArray
 from .defaults import rheology_param_defaults
-from typing import List, Tuple
+from .love_1d import (complex_love as complex_love_func, complex_love_general,
+                      effective_rigidity as effective_rigidity_func, effective_rigidity_general)
+from ..exceptions import (AttributeNotSetError, ImplementationError, ParameterMissingError, UnknownModelError)
+from ..rheology.compliance import ComplianceModelSearcher
+from ..types import FloatArray
+from ..utilities.model import LayerModel
+
 
 FAKE_MODES = (np.asarray(0.), )
 
