@@ -57,6 +57,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self._moi_ideal = None
         self._moi_factor = None
         self._gravity_surf = None
+        self._beta = None
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
         """ Sets and calculates object's physical parameters based on user provided input.
@@ -89,6 +90,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self._density_bulk = self.mass / self.volume
         self._moi_ideal = (2. / 5.) * self.mass * (self.radius**5 - self.radius_inner**5) / \
                           (self.radius**3 - self.radius_inner**3)
+        self._beta = self.gravity_surf * self.radius * self.density_bulk
 
         if self.moi is not None:
             self._moi_factor = self.moi / self.moi_ideal
@@ -208,6 +210,15 @@ class PhysicalObjSpherical(ConfigHolder):
     def moi_factor(self, value):
         raise ImproperAttributeHandling('Moment of Inertia Factor is set by the set_geometry method or '
                                         'by setting self.moi (the real moment of inertia)')
+
+    @property
+    def beta(self):
+        """ Beta Parameter (R * rho * g) """
+        return self._beta
+
+    @beta.setter
+    def beta(self, value):
+        raise ImproperAttributeHandling('Beta Parameter is set by the set_geometry method')
 
     @property
     def moi(self):

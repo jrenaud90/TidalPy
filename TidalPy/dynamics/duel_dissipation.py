@@ -7,7 +7,7 @@ from ..types import float_eps
 
 @njit
 def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.ndarray:
-    """ Calculate the time
+    """ Calculate the time derivative of the spin frequency for a duel dissipating system
 
     See Ferraz-Mello et. al. (2008)
 
@@ -30,11 +30,10 @@ def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.nd
 
 
 @njit
-def semi_major_axis_derivative(semi_major_axis: np.ndarray,
-                               mass_1: float, spin_freq_1: np.ndarray, ztorque_1: np.ndarray,
-                               tidal_heating_1: np.ndarray,
-                               mass_2: float, spin_freq_2: np.ndarray, ztorque_2: np.ndarray,
-                               tidal_heating_2: np.ndarray) -> np.ndarray:
+def semi_major_axis_derivative(semi_major_axis: np.ndarray, mass_1: float, mass_2: float,
+                               spin_freq_1: np.ndarray, ztorque_1: np.ndarray, tidal_heating_1: np.ndarray,
+                               spin_freq_2: np.ndarray, ztorque_2: np.ndarray, tidal_heating_2: np.ndarray
+                               ) -> np.ndarray:
     """ Calculate the time derivative of the semi-major axis for a duel dissipating system
 
     See Joe Renaud's PhD Thesis (2019)
@@ -45,14 +44,14 @@ def semi_major_axis_derivative(semi_major_axis: np.ndarray,
         Semi-major axis in [m]
     mass_1 : float
         Mass of body 1 in [kg]
+    mass_2 : float
+        Mass of body 2 in [kg]
     spin_freq_1 : np.ndarray
         Spin frequency of body 1 in [rads s-1]
     ztorque_1 : np.ndarray
         Tidal polar torque of body 1 in [N m]
     tidal_heating_1 : np.ndarray
         Tidal heating of body 1 in [Watts]
-    mass_2 : float
-        Mass of body 2 in [kg]
     spin_freq_2 : np.ndarray
         Spin frequency of body 2 in [rads s-1]
     ztorque_2 : np.ndarray
@@ -75,30 +74,29 @@ def semi_major_axis_derivative(semi_major_axis: np.ndarray,
 
 
 @njit
-def eccentricity_derivative(eccentricity: np.ndarray, semi_major_axis: np.ndarray,
-                            mass_1: float, spin_freq_1: np.ndarray, ztorque_1: np.ndarray, tidal_heating_1: np.ndarray,
-                            mass_2: float, spin_freq_2: np.ndarray, ztorque_2: np.ndarray, tidal_heating_2: np.ndarray
-                            ) -> np.ndarray:
+def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarray, mass_1: float, mass_2: float,
+                            spin_freq_1: np.ndarray, ztorque_1: np.ndarray, tidal_heating_1: np.ndarray,
+                            spin_freq_2: np.ndarray, ztorque_2: np.ndarray, tidal_heating_2: np.ndarray) -> np.ndarray:
     """ Calculate the time derivative of the semi-major axis for a duel dissipating system
 
     See Joe Renaud's PhD Thesis (2019)
 
     Parameters
     ----------
-    eccentricity : np.ndarray
-        Orbital Eccentricity
     semi_major_axis : np.ndarray
         Semi-major axis in [m]
+    eccentricity : np.ndarray
+        Orbital Eccentricity
     mass_1 : float
         Mass of body 1 in [kg]
+    mass_2 : float
+        Mass of body 2 in [kg]
     spin_freq_1 : np.ndarray
         Spin frequency of body 1 in [rads s-1]
     ztorque_1 : np.ndarray
         Tidal polar torque of body 1 in [N m]
     tidal_heating_1 : np.ndarray
         Tidal heating of body 1 in [Watts]
-    mass_2 : float
-        Mass of body 2 in [kg]
     spin_freq_2 : np.ndarray
         Spin frequency of body 2 in [rads s-1]
     ztorque_2 : np.ndarray
@@ -124,7 +122,7 @@ def eccentricity_derivative(eccentricity: np.ndarray, semi_major_axis: np.ndarra
     change_due_to_obj2 = ztorque_2 * (1. - (spin_freq_2 / orbital_freq) * e2_sqrt) - \
                          (tidal_heating_2 / orbital_freq) * e2_sqrt
 
-    de_dt = (mass_1 + mass_2) * e2_sqrt / (mass_1 * mass_2 * semi_major_axis**2 * orbital_freq * eccentricity) * \
+    de_dt = ((mass_1 + mass_2) * e2_sqrt / (mass_1 * mass_2 * semi_major_axis**2 * orbital_freq * eccentricity)) * \
             (change_due_to_obj1 + change_due_to_obj2)
 
     # The eccentricity is not going to change (unless perturbed) when e = 0 (what the bad_indices indicate)

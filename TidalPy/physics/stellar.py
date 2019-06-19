@@ -2,7 +2,7 @@ import numpy as np
 from scipy.constants import Stefan_Boltzmann as sbc
 from scipy.special import ellipe
 
-from .constants import luminosity_solar, mass_solar
+from TidalPy.constants import luminosity_solar, mass_solar
 from ..performance import njit
 from ..types import FloatArray
 

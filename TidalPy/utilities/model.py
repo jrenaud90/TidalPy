@@ -11,10 +11,10 @@ from .. import debug_mode, log
 from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
                           UnknownModelError)
 from ..types import list_like
-
+from numba import njit
 
 general_func_reject_list = [
-    'njit',
+    njit,
     ]
 
 class ModelHolder(ConfigHolder):
@@ -120,7 +120,7 @@ class ModelSearcher(ConfigHolder):
         super().__init__(replacement_config=None, call_reinit=call_reinit)
 
         # Generate a dictionary of functions
-        self.known_models, self.args_needed, self.live_args = self.find_known_models(module)
+        self.known_models, self.known_models_docs, self.args_needed, self.live_args = self.find_known_models(module)
 
     def is_function(self, potential_func) -> bool:
         """ Checks if a function is a python or numba function """
@@ -135,11 +135,8 @@ class ModelSearcher(ConfigHolder):
             if potential_func.__name__ in general_func_reject_list:
                 func_check = False
             elif self.additional_reject_list is not None:
-                if type(self.additional_reject_list) in list_like:
-                    if potential_func.__name__ in self.additional_reject_list:
-                        func_check = False
-                else:
-                    raise TypeError
+                if potential_func.__name__ in self.additional_reject_list:
+                    func_check = False
 
         return func_check
 
@@ -147,6 +144,7 @@ class ModelSearcher(ConfigHolder):
         # Generate a dictionary of functions
         func_list = getmembers(module, self.is_function)
         known_models = {name: func for name, func in func_list}
+        known_models_docs = {name: func.__doc__ for name, func in func_list}
 
         # Parse the functions' doc string for function-call information
         args_needed = dict()
@@ -159,7 +157,12 @@ class ModelSearcher(ConfigHolder):
             live_args[model] = None
             oargs_found = False
             largs_found = False
-            for line in func.__doc__.split('\n'):
+            if func.__doc__ is None:
+                docstr = ''
+            else:
+                docstr = func.__doc__
+
+            for line in docstr.split('\n'):
                 if oargs_found and largs_found:
                     break
 
@@ -199,7 +202,7 @@ class ModelSearcher(ConfigHolder):
                     args_needed[model] = cleaned_args
                     oargs_found = True
 
-        return known_models, args_needed, live_args
+        return known_models, known_models_docs, args_needed, live_args
 
     def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str,List[str]] = None):
 

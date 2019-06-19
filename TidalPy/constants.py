@@ -1,3 +1,6 @@
+from scipy.constants import G, Stefan_Boltzmann
+from numpy import pi
+
 # Sun
 mass_solar = 1.988435e30        # [kg]
 radius_solar = 6.957e8          # [m]
@@ -24,3 +27,18 @@ radius_pluto = 1.1899e6         # [m]
 mass_io = 8.9298e22             # [kg]
 radius_io = 1.82149e6           # [m]
 
+
+# Alias Names
+sbc = Stefan_Boltzmann
+
+M_sol = mass_solar
+M_earth = mass_earth
+M_jup = mass_jupiter
+M_pluto = mass_pluto
+
+R_sol = radius_solar
+R_earth = radius_earth
+R_jup = radius_jupiter
+R_pluto = radius_pluto
+
+L_sol = luminosity_solar

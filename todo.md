@@ -7,4 +7,10 @@
 * As of 0.1.0 Stefan number is not calculated using melt fraction (just a configuration constant)
 
 ## Thermal
-* Move the viscosity calculation (pre-melt) into rheology module (currently in thermal)? 
+* Move the viscosity calculation (pre-melt) into rheology module (currently in thermal)?
+
+## Rheology
+* Put a check to make sure that alpha stays between 0 and 1 (the factorial code will not work outside that range)
+
+## Code
+* Change the model search to look for "Parameters\n----------" in doc string and then each parameter will have a flag: "**input" "**live" or similar 

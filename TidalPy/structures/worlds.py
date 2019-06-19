@@ -395,6 +395,7 @@ class TidalWorld(WorldBase):
 
         # Dependent state variables
         self._tidal_modes = None
+        self._tidal_freqs = None
         self._tidal_heating_coeffs = None
         self._tidal_ztorque_coeffs = None
         self._global_love = None
@@ -537,13 +538,13 @@ class TidalWorld(WorldBase):
             raise ParameterMissingError
 
         if self.is_spin_sync:
-            self._tidal_modes, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
+            self._tidal_modes, self._tidal_freqs, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
                 spin_sync_modes(orbital_freq, eccentricity, inclination)
         else:
             if self.spin_freq is None:
                 raise ParameterMissingError
 
-            self._tidal_modes, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
+            self._tidal_modes, self._tidal_freqs, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
                 nsr_modes(orbital_freq, spin_freq, eccentricity, inclination)
 
         # The semi-major axis should have changed. We can now update the tidal susceptibility
@@ -600,8 +601,8 @@ class TidalWorld(WorldBase):
         for layer, love_by_mode in zip(self, layer_loves):
             scale = layer.tidal_scale
 
-            layer_heating_bymodes = [-np.imag(love) * mode * heating_coeff for mode, love, heating_coeff in
-                                     zip(self.tidal_modes, love_by_mode, self.tidal_heating_coeffs)]
+            layer_heating_bymodes = [-np.imag(love) * heating_coeff for love, heating_coeff in
+                                     zip(love_by_mode, self.tidal_heating_coeffs)]
             layer_ztorque_bymodes = [-np.imag(love) * ztorque_coeff for love, ztorque_coeff in
                                      zip(love_by_mode, self.tidal_ztorque_coeffs)]
             layer_heating_sum = self.tidal_susceptibility * scale * sum(layer_heating_bymodes)
@@ -705,6 +706,14 @@ class TidalWorld(WorldBase):
     @property
     def tidal_modes(self):
         return self._tidal_modes
+
+    @tidal_modes.setter
+    def tidal_modes(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def tidal_freqs(self):
+        return self._tidal_freqs
 
     @tidal_modes.setter
     def tidal_modes(self, value):

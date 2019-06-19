@@ -9,6 +9,8 @@ from ..utilities.model import ModelSearcher
 
 class ComplianceModelSearcher(ModelSearcher):
 
+    additional_reject_list = (compliance_models.find_factorial.__name__,)
+
     def __init__(self, compliance_module, frequency_module,
                  default_parameters: dict = None, defaults_require_key: bool = True):
 
@@ -16,7 +18,7 @@ class ComplianceModelSearcher(ModelSearcher):
                          defaults_require_key=defaults_require_key)
 
         # Also find the frequency models and their arguments
-        self.known_frequency_models, self.frequency_args_needed, _ = self.find_known_models(frequency_module)
+        self.known_frequency_models, self.frequency_args_needed, _, _ = self.find_known_models(frequency_module)
 
     def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str, List[str]] = None):
         """ Searches known models for model_name and returns the function and required inputs """
@@ -74,4 +76,18 @@ class ComplianceModelSearcher(ModelSearcher):
         return self.find_model(model_name, parameters, default_key)
 
 
-find_compliance_func = ComplianceModelSearcher(compliance_models, andrade_frequency_models, rheology_param_defaults)
+find_complex_compliance = ComplianceModelSearcher(compliance_models, andrade_frequency_models, rheology_param_defaults)
+
+# Build Rheology Plotting Style
+rheology_styles = dict()
+for known_model, model_docs in find_complex_compliance.known_models_docs.items():
+    # Initialize style with defaults
+    style = {'color': 'black', 'ls': '-'}
+    for line in model_docs.split('\n'):
+        if 'color' in line.lower():
+            col = line.split('color:')[-1].strip().lower()
+            style['color'] = col
+        elif 'line style' in line.lower():
+            ls = line.split('line style:')[-1].strip().lower()
+            style['ls'] = ls
+    rheology_styles[known_model] = style

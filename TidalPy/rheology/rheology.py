@@ -14,7 +14,7 @@ from ..types import FloatArray
 from ..utilities.model import LayerModel
 
 
-FAKE_MODES = (np.asarray(0.), )
+FAKE_FREQS = (np.asarray([0.]), )
 
 class Rheology(LayerModel):
 
@@ -28,6 +28,9 @@ class Rheology(LayerModel):
         # Override model if layer has tidal off
         if not self.layer.config['is_tidal']:
             self.model = 'off'
+
+        # Pull out information about the planet/layer
+        self.config['planet_beta'] = self.layer.world.beta
 
         # Setup Love number calculator
         self.calc_love = None
@@ -84,17 +87,17 @@ class Rheology(LayerModel):
                                                     self.layer.radius, self.layer.density) # type: FloatArray
         compliance = shear**(-1)
         if self.full_calculation:
-            tidal_modes = self.layer.tidal_modes
-            if tidal_modes is None:
+            tidal_freqs = self.layer.tidal_freqs
+            if tidal_freqs is None:
                 raise ParameterMissingError
         else:
-            tidal_modes = FAKE_MODES
+            tidal_freqs = FAKE_FREQS
 
         # Rheology Functions
         complex_compliance_tupl = list()
         complex_love_tupl = list()
-        for mode in tidal_modes:
-            complex_compliance = self.compliance(compliance, visco, mode, *self.compliance_inputs) # type: FloatArray
+        for freq in tidal_freqs:
+            complex_compliance = self.compliance(compliance, visco, freq, *self.compliance_inputs) # type: FloatArray
             complex_love = self.calc_love(complex_compliance, shear, eff_rigidity)                 # type: FloatArray
             complex_love_tupl.append(complex_love)
             complex_compliance_tupl.append(complex_compliance)

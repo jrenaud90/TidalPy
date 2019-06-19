@@ -1,7 +1,9 @@
+import numpy as np
+
 from ..performance import njit
 from ..types import FloatArray
 
-@njit
+#@njit
 def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number
 
@@ -11,7 +13,16 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
     :return:                   <FloatArray> Complex Love Number
     """
 
-    return (3. / 2.) * (1. + eff_rigidity / (shear_modulus * complex_compliance))**(-1)
+    real_j = np.real(complex_compliance)
+    imag_j = np.imag(complex_compliance)
+    real_j2 = real_j**2
+    imag_j2 = imag_j**2
+    common_factor = (3. / 2.) * ((real_j + eff_rigidity/shear_modulus)**2 + imag_j2)**-1
+    real_love = (real_j2 + imag_j2 + real_j*eff_rigidity/shear_modulus) * common_factor
+    imag_love = (imag_j * eff_rigidity / shear_modulus) * common_factor
+    complex_love = real_love + 1.0j * imag_love
+
+    return complex_love
 
 
 @njit
@@ -26,7 +37,16 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
     :return:                        <FloatArray> Complex Love Number
     """
 
-    return (3. / (2. * (order_l - 1.))) * (1. + eff_rigidity_general / (shear_modulus * complex_compliance))**(-1)
+    real_j = np.real(complex_compliance)
+    imag_j = np.imag(complex_compliance)
+    real_j2 = real_j**2
+    imag_j2 = imag_j**2
+    common_factor = (3. / (order_l - 1.)) * ((real_j + eff_rigidity_general / shear_modulus)**2 + imag_j2)**-1
+    real_love = (real_j2 + imag_j2 + real_j * eff_rigidity_general / shear_modulus) * common_factor
+    imag_love = (imag_j * eff_rigidity_general / shear_modulus) * common_factor
+    complex_love = real_love + 1.0j * imag_love
+
+    return complex_love
 
 
 # The functions below could, in theory, be cached but with shear_modulus potentially being an array lru_cache does not

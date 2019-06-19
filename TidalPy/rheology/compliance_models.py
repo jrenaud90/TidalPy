@@ -12,10 +12,9 @@ How To Implement a New Rheology:
             look at the zeta-frequency dependency implementation.
 """
 
-from scipy.special import factorial
+import numpy as np
 
-from ..performance import njit
-
+from ..performance import njit, find_factorial
 
 @njit
 def off(compliance, viscosity, frequency):
@@ -25,6 +24,25 @@ def off(compliance, viscosity, frequency):
     """
 
     return compliance + 0.0j
+
+
+@njit
+def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
+    """ Fixed-Q Rheology
+
+        --- Parameters ---
+        nice name:  Fixed-Q
+        line style: -.
+        color:      k
+        other args: quality_factor, planet_beta
+
+    """
+
+    real_j = -19. / (2. * planet_beta)
+    imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2)
+    complex_compliance = real_j + 1.0j * imag_j
+
+    return complex_compliance
 
 @njit
 def maxwell(compliance, viscosity, frequency):
@@ -38,7 +56,13 @@ def maxwell(compliance, viscosity, frequency):
 
     """
 
-    return compliance - 1.0j / (viscosity * frequency)
+    real_j = compliance
+    imag_j = np.zeros_like(frequency)
+    imag_j[frequency != 0.] = -1.0 / (viscosity * frequency[frequency != 0.])
+
+    complex_compliance = real_j + 1.0j*imag_j
+
+    return complex_compliance
 
 
 @njit
@@ -56,7 +80,12 @@ def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_visco
     voigt_comp = voigt_compliance_offset * compliance
     voigt_visc = voigt_viscosity_offset * viscosity
 
-    return 1.0j*voigt_comp / (1.0j - voigt_comp * voigt_visc * frequency)
+    denominator = (voigt_comp * voigt_visc * frequency)**2 + 1.
+    real_j = voigt_comp / denominator
+    imag_j = -voigt_comp**2 * voigt_visc * frequency / denominator
+    complex_compliance = real_j + 1.0j * imag_j
+
+    return complex_compliance
 
 
 @njit
@@ -89,7 +118,13 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
 
     """
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
-    andrade_complex_comp = compliance * (1.0j * compliance * viscosity * frequency * zeta)**(-alpha) * factorial(alpha)
+
+    const_term = np.zeros_like(frequency)
+    const_term[frequency != 0.] = compliance * (compliance * viscosity * frequency[frequency != 0.] * zeta)**(-alpha) * \
+                                  find_factorial(alpha)
+    real_j = np.cos(alpha * np.pi / 2.) * const_term
+    imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+    andrade_complex_comp = real_j + 1.0j*imag_j
 
     return maxwell_complex_comp + andrade_complex_comp
 
@@ -109,7 +144,13 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
     zeta = andrade_freq_func(zeta, frequency, *andrade_freq_params)
 
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
-    andrade_complex_comp = compliance * (1.0j * compliance * viscosity * frequency * zeta)**(-alpha) * factorial(alpha)
+
+    const_term = np.zeros_like(frequency)
+    const_term[frequency != 0.] = compliance * (compliance * viscosity * frequency[frequency != 0.] * zeta)**(-alpha) * \
+                                  find_factorial(alpha)
+    real_j = np.cos(alpha * np.pi / 2.) * const_term
+    imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+    andrade_complex_comp = real_j + 1.0j * imag_j
 
     return maxwell_complex_comp + andrade_complex_comp
 
@@ -144,7 +185,7 @@ def sundberg_freq(compliance, viscosity, frequency, voigt_compliance_offset, voi
 
     """
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
-    andrade_complex_comp = andrade(compliance, viscosity, frequency, alpha, zeta,
-                                   andrade_freq_params, andrade_freq_func)
+    andrade_complex_comp = andrade_freq(compliance, viscosity, frequency, alpha, zeta,
+                                        andrade_freq_params, andrade_freq_func)
 
     return voigt_complex_comp + andrade_complex_comp

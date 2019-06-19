@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 from .version import version
@@ -49,6 +50,21 @@ else:
     logging_level = 4
     verbose_level = 3
 
+# Check to see if this is running in a jupyter notebook. If it is then it is usually not ideal to print log information
+#   to the console.
+from .configurations import print_log_in_jupyter, write_log_in_jupyter
+running_in_jupyter = False
+for path in sys.path:
+    if 'ipython' in path.lower():
+        running_in_jupyter = True
+    if 'jupyter' in path.lower():
+        running_in_jupyter = True
+    if running_in_jupyter:
+        break
+if running_in_jupyter and not print_log_in_jupyter:
+    verbose_level = 0
+if running_in_jupyter and not write_log_in_jupyter:
+    logging_level = 0
 
 # Make logger that will be used by other
 from .utilities.logging import TidalLogger
