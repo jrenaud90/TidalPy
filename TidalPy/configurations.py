@@ -29,6 +29,7 @@ auto_save_planet_config_to_tidalpydir = True
 auto_save_planet_dill_to_tidalpydir = True
 overwrite_dills = True
 overwrite_configs = False
+give_configs_subscript = False
 
 # Logger Config
 #    Determines if log will be printed to console or saved to drive when TidalPy is being used in a Jupyter Notebook

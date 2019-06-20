@@ -20,7 +20,7 @@ from ..thermal.cooling import Cooling
 from ..thermal.partial_melt import PartialMelt
 from ..types import floatarray_like
 from ..utilities.dict_tools import nested_get
-from ..utilities.numpy_help import find_nearest
+from ..utilities.numpy_help import find_nearest, match_array, value_cleanup
 
 
 if TYPE_CHECKING:
@@ -228,7 +228,7 @@ class ThermalLayer(PhysicalObjSpherical):
                         raise ReinitError
 
         # Material properties that might have been affected by new configuration files
-        self.static_shear_modulus = self.config['shear_modulus']
+        self.static_shear_modulus = np.asarray([self.config['shear_modulus']])
         self.heat_fusion = self.config['heat_fusion']
         self.thermal_conductivity = self.config['thermal_conductivity']
         self.temp_ratio = self.config['boundary_temperature_ratio']
@@ -303,13 +303,10 @@ class ThermalLayer(PhysicalObjSpherical):
                         raise UnusualRealValueError
 
         if viscosity is not None:
-            if type(viscosity) != np.ndarray:
-                viscosity = np.asarray(viscosity)
-            self._viscosity = viscosity
+            self._viscosity = value_cleanup(viscosity)
+
         if shear_modulus is not None:
-            if type(shear_modulus) != np.ndarray:
-                shear_modulus = np.asarray(shear_modulus)
-            self._shear_modulus = shear_modulus
+            self._shear_modulus = value_cleanup(shear_modulus)
 
         # TODO: Have an option to calculate an effective temperature given the viscosity and shear modulus.
         #   If this is implemented then make sure it makes its way to the viscosity and shear .setters
@@ -522,6 +519,14 @@ class ThermalLayer(PhysicalObjSpherical):
         raise ImproperAttributeHandling('Tidal modes should be set at the world, not layer, level.')
 
     @property
+    def tidal_freqs(self) -> Tuple[np.ndarray]:
+        return self.world.tidal_freqs
+
+    @tidal_freqs.setter
+    def tidal_freqs(self, value: Tuple[np.ndarray]):
+        raise ImproperAttributeHandling('Tidal frequencies should be set at the world, not layer, level.')
+
+    @property
     def temperature(self) -> np.ndarray:
 
         return self._temperature
@@ -538,10 +543,8 @@ class ThermalLayer(PhysicalObjSpherical):
             else:
                 if value > 1.0e5 or value < 5.0:
                     raise UnusualRealValueError
-        if type(value) != np.ndarray:
-            value = np.asarray([value])
 
-        self._temperature = value
+        self._temperature = value_cleanup(value)
 
         # Update material properties and phase changes
         self._melt_fraction = self.partial_melt.calc_melt_fraction()
@@ -620,9 +623,8 @@ class ThermalLayer(PhysicalObjSpherical):
             else:
                 if value > 1.0e30 or value < 1.0e-10:
                     raise UnusualRealValueError
-        if type(value) != np.ndarray:
-            value = np.asarray([value])
-        self._viscosity = value
+
+        self._viscosity = value_cleanup(value)
 
         # Update other models
         force_cooling = False
@@ -654,9 +656,8 @@ class ThermalLayer(PhysicalObjSpherical):
             else:
                 if value > 1.0e20 or value < 1.0e-10:
                     raise UnusualRealValueError
-        if type(value) != np.ndarray:
-            value = np.asarray([value])
-        self._shear_modulus = value
+
+        self._shear_modulus = value_cleanup(value)
 
         # Update other models
         force_cooling = False

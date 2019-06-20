@@ -13,4 +13,5 @@
 * Put a check to make sure that alpha stays between 0 and 1 (the factorial code will not work outside that range)
 
 ## Code
-* Change the model search to look for "Parameters\n----------" in doc string and then each parameter will have a flag: "**input" "**live" or similar 
+* Change the model search to look for "Parameters\n----------" in doc string and then each parameter will have a flag: "**input" "**live" or similar
+* Make the setters in orbit class accept a list for the planet ref so that multiple planets can be changed at once. 

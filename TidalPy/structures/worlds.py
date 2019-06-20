@@ -8,12 +8,14 @@ import burnman
 import dill
 import numpy as np
 
+from TidalPy.utilities.numpy_help import value_cleanup
 from .defaults import world_defaults
 from .physical import PhysicalObjSpherical
 from .. import debug_mode, log
 from ..configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
                               auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
                               overwrite_dills)
+from ..dynamics import spin_rate_derivative
 from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError)
 from ..graphics.planet_plot import geotherm_plot
 from ..io import inner_save_dir
@@ -105,7 +107,7 @@ class WorldBase(PhysicalObjSpherical):
 
     def set_state(self, orbital_freq: np.ndarray = None, semi_major_axis: np.ndarray = None,
                   eccentricity: np.ndarray = None, inclination: np.ndarray = None,
-                  spin_freq: np.ndarray = None):
+                  spin_freq: np.ndarray = None, time: np.ndarray = None):
         """ Set multiple orbital parameters at once, this reduces the number of calls to self.orbit_change
 
         This contains a wrapper to the orbit class method set_state. It extends that function by including the spin
@@ -131,13 +133,19 @@ class WorldBase(PhysicalObjSpherical):
         spin_freq : np.ndarray
             Object's rotation frequency in [rads s-1]
             Optional
+        time : np.ndarray
+            Object's calculation time (used in things like radiogenics) in [s]
+            Optional
         """
+
+        if time is not None:
+            self._time = value_cleanup(time)
 
         self.orbit.set_orbit(self.orbit_location, orbital_freq, semi_major_axis, eccentricity, inclination,
                              set_by_planet=True)
         if spin_freq is not None:
             if type(spin_freq) != np.ndarray:
-                spin_freq = np.asarray(spin_freq)
+                spin_freq = np.asarray([spin_freq])
             self._spin_freq = spin_freq
 
         self.update_orbit()
@@ -164,14 +172,14 @@ class WorldBase(PhysicalObjSpherical):
             if os.path.isfile(tidalpy_dill_path) and not overwrite_dills:
                 pass
             else:
-                with open(tidalpy_dill_path, 'w') as dill_file:
+                with open(tidalpy_dill_path, 'wb') as dill_file:
                     dill.dump(self, dill_file)
         if auto_save_planet_dill_to_rundir:
             rundir_dill_path = os.path.join(inner_save_dir, dill_name)
             if os.path.isfile(rundir_dill_path) and not overwrite_dills:
                 pass
             else:
-                with open(rundir_dill_path, 'w') as dill_file:
+                with open(rundir_dill_path, 'wb') as dill_file:
                     dill.dump(self, dill_file)
 
     @property
@@ -206,7 +214,7 @@ class WorldBase(PhysicalObjSpherical):
             if np.any(abs(value)) > 1.e6:
                 raise UnusualRealValueError(f'Time should be entered in units of [Myr]. |{value}| seems very large.')
 
-        self._time = value
+        self._time = value_cleanup(value)
 
     @property
     def spin_freq(self) -> np.ndarray:
@@ -216,7 +224,7 @@ class WorldBase(PhysicalObjSpherical):
     def spin_freq(self, value: np.ndarray):
         if type(value) != np.ndarray:
             value = np.asarray([value])
-        self._spin_freq = value
+        self._spin_freq = value_cleanup(value)
         if not self.is_spin_sync:
             # NSR will change tidal modes
             self.update_orbit()
@@ -402,9 +410,11 @@ class TidalWorld(WorldBase):
         self._tidal_heating = None
         self._tidal_ztorque = None
         self._tidal_susceptibility = None
+        self._derivative_spin = None
 
         # Parameters only applicable to a tidally-active host
         self.tide_raiser_ref = None
+        self.use_real_moi = None
 
         if call_reinit:
             self.reinit()
@@ -412,7 +422,6 @@ class TidalWorld(WorldBase):
     def reinit(self):
 
         super().reinit()
-
         # Load in some global parameters
         spin_freq = self.config.get('spin_freq', None)
         spin_period = self.config.get('spin_period', None)
@@ -423,6 +432,9 @@ class TidalWorld(WorldBase):
             # Assume spin period is in days
             spin_freq = 2. * np.pi / (spin_period * 24. * 60. * 60.)
         self._spin_freq = spin_freq
+
+        # Load in model flags
+        self.use_real_moi = self.config['use_real_moi']
 
         # Check configs
         if self._old_config is None:
@@ -621,6 +633,18 @@ class TidalWorld(WorldBase):
         self._tidal_heating = global_heating
         self._tidal_ztorque = global_ztorque
 
+        # Update Spin Derivative
+        if self.use_real_moi:
+            moi = self.moi
+            if moi is None:
+                log('Tried to use real MOI but it was not set: using ideal instead.', level='debug')
+                moi = self.moi_ideal
+        else:
+            moi = self.moi_ideal
+        if moi is None:
+            raise ParameterMissingError
+        self._derivative_spin = spin_rate_derivative(self.tidal_ztorque, moi)
+
     def update_surface_temperature(self):
         """
 
@@ -715,8 +739,8 @@ class TidalWorld(WorldBase):
     def tidal_freqs(self):
         return self._tidal_freqs
 
-    @tidal_modes.setter
-    def tidal_modes(self, value):
+    @tidal_freqs.setter
+    def tidal_freqs(self, value):
         raise ImproperAttributeHandling
 
     @property
@@ -765,6 +789,14 @@ class TidalWorld(WorldBase):
 
     @tidal_susceptibility.setter
     def tidal_susceptibility(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def derivative_spin(self):
+        return self._derivative_spin
+
+    @derivative_spin.setter
+    def derivative_spin(self, value):
         raise ImproperAttributeHandling
 
     def __iter__(self):

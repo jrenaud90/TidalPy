@@ -40,6 +40,9 @@ def build_layer(layer_name: str, layer_config: dict):
     layer = burnman.Layer(name=layer_name, radii=radii, verbose=debug_mode)
     layer.set_material(material)
 
+    # Don't keep radii in the config, otherwise it will save to the json file as a large list
+    del layer_config['radii']
+
     # Load in temperature model
     if layer_config['temperature_mode'] == 'adiabatic':
         if layer_config.get('temperature_top', None) is None:

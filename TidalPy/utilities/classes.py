@@ -2,13 +2,15 @@ import copy
 import os
 import warnings
 from typing import List
+from collections import OrderedDict
 
 import json5
+import numpy as np
 
 from .. import __version__, auto_write, debug_mode
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError
-from ..io import inner_save_dir
-
+from ..io import inner_save_dir, unique_path
+from ..configurations import give_configs_subscript
 
 class TidalPyClass:
     """ All functional classes used in TidalPy inherit from this class
@@ -131,6 +133,8 @@ class ConfigHolder(TidalPyClass):
                     additional_save_dirs: list = None, overwrite: bool = False) -> List[str]:
         """ Saves final configuration to a JSON file """
 
+        json5_kwargs = {'indent': 4}
+
         if not auto_write:
             warnings.warn('Tried to write config to JSON file but auto_write set to False.')
 
@@ -145,20 +149,26 @@ class ConfigHolder(TidalPyClass):
         for save_dir in save_dirs:
             if save_default:
                 config_filepath = os.path.join(save_dir, f'{self.pyname}_default.cfg')
-                config_to_save = self.default_config
+                config_to_save = self.clean_config_for_json(self.default_config)
                 if os.path.isfile(config_filepath) and not overwrite:
-                    config_filepath = None
-                else:
+                    if give_configs_subscript:
+                        config_filepath = unique_path(config_filepath, is_dir=False)
+                    else:
+                        config_filepath = None
+                if config_filepath is not None:
                     with open(config_filepath, 'w') as config_file:
-                        json5.dump(config_to_save, config_file)
+                        json5.dump(config_to_save, config_file, **json5_kwargs)
 
             config_filepath = os.path.join(save_dir, f'{self.pyname}.cfg')
-            config_to_save = self.config
+            config_to_save = self.clean_config_for_json(self.config)
             if os.path.isfile(config_filepath) and not overwrite:
-                config_filepath = None
-            else:
+                if give_configs_subscript:
+                    config_filepath = unique_path(config_filepath, is_dir=False)
+                else:
+                    config_filepath = None
+            if config_filepath is not None:
                 with open(config_filepath, 'w') as config_file:
-                    json5.dump(config_to_save, config_file)
+                    json5.dump(config_to_save, config_file, **json5_kwargs)
             config_filepaths.append(config_filepath)
 
         return config_filepaths
@@ -184,3 +194,51 @@ class ConfigHolder(TidalPyClass):
     def config(self, value):
         raise ImproperAttributeHandling('To change configurations set the "config_user" attribute '
                                         'or run "update_config"')
+
+    @staticmethod
+    def clean_config_for_json(config: dict) -> OrderedDict:
+        """ JSON does not like some data types. This is called right before a JSON dump, converting things as needed.
+
+        """
+
+        json_config = dict()
+
+        for key, item in config.items():
+
+            dont_store = False
+            if key in ['radii']:
+                dont_store = True
+
+            # Clean up the key
+            input_key = None
+            if type(key) != str:
+                print(type(key))
+                try:
+                    input_key = str(key)
+                except TypeError:
+                    # Can't do much here. It won't be stored
+                    dont_store = True
+            else:
+                input_key = key
+
+            # Clean up the value
+            if type(item) == dict or isinstance(item, OrderedDict):
+                input_item = ConfigHolder.clean_config_for_json(item)
+            elif type(item) == np.ndarray:
+                if item.shape == tuple() or item.shape == (1,):
+                    input_item = float(item)
+                else:
+                    input_item = [float(i) for i in item]
+            elif type(item) in [list, tuple, set, int, float, str, bool, complex, type(None)]:
+                # Try to go forward with value
+                input_item = item
+            else:
+                print(type(item))
+                raise TypeError
+
+            if not dont_store:
+                json_config[input_key] = input_item
+
+        return OrderedDict(sorted(json_config.items()))
+
+

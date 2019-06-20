@@ -7,7 +7,7 @@ from ..types import float_eps
 
 @njit
 def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.ndarray:
-    """ Calculate the time derivative of the spin frequency for a single-body system
+    """ Calculate the time derivative of the spin frequency for a single-body or duel dissipation system
 
     See Ferraz-Mello et. al. (2008)
 

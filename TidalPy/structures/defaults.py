@@ -83,7 +83,8 @@ world_defaults = {
         'equilibrium_insolation_model': 'williams', # Options are no_eccentricity, williams, or mendez
         'emissivity': 0.9,
         'albedo': 0.3,
-        'quality_factor': 10.
+        'quality_factor': 10.,
+        'use_real_moi': True
     },
     'basic': {
         'name': 'unknown_world_basictype',
@@ -91,7 +92,8 @@ world_defaults = {
         'equilibrium_insolation_model': 'williams',
         'emissivity': 0.9,
         'albedo': 0.3,
-        'quality_factor': 10.
+        'quality_factor': 10.,
+        'use_real_moi': True
     },
     'star': {
         'name': 'unknown_world_startype',
@@ -102,7 +104,8 @@ world_defaults = {
         'equilibrium_insolation_model': 'williams',
         'emissivity': 0.9,
         'albedo': 0.3,
-        'quality_factor': 10.
+        'quality_factor': 10.,
+        'use_real_moi': True
     },
     'tidal': {
         'name': 'unknown_world_tidaltype',
@@ -110,6 +113,7 @@ world_defaults = {
         'equilibrium_insolation_model': 'williams',
         'emissivity': 0.9,
         'albedo': 0.3,
-        'quality_factor': 10.
+        'quality_factor': 10.,
+        'use_real_moi': True
     }
 }

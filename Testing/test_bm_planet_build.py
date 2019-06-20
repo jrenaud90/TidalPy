@@ -9,11 +9,11 @@ star = TidalPy.build_planet('sol', force_build=True)
 
 planet.paint(auto_show=True)
 
-planet.mantle.temperature = 250.
+planet.mantle.temperature = np.asarray([250.])
 planet.core.temperature = np.linspace(1100., 1700., 4)
 
 orbit = TidalPy.Orbit(star, host, [planet])
-orbit.set_eccentricity(2, .2)
+orbit.set_eccentricity(2, np.asarray([.2]))
 
 print(planet.tidal_heating)
 print('E', planet.core.tidal_heating)

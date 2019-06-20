@@ -112,3 +112,6 @@ class UnusualRealValueError(BadValueError):
     default_message = 'An usually large or small value was encountered for a parameter.' \
                       'Confirm proper dimensional units.'
 
+class IncorrectModelInitialized(TidalPyException):
+
+    default_message = 'The currently set model does not support the functionality that you are attempting to use.'

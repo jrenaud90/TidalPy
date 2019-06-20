@@ -57,8 +57,7 @@ def maxwell(compliance, viscosity, frequency):
     """
 
     real_j = compliance
-    imag_j = np.zeros_like(frequency)
-    imag_j[frequency != 0.] = -1.0 / (viscosity * frequency[frequency != 0.])
+    imag_j = -1.0 / (viscosity * frequency)
 
     complex_compliance = real_j + 1.0j*imag_j
 
@@ -119,9 +118,8 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
     """
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
-    const_term = np.zeros_like(frequency)
-    const_term[frequency != 0.] = compliance * (compliance * viscosity * frequency[frequency != 0.] * zeta)**(-alpha) * \
-                                  find_factorial(alpha)
+    const_term = compliance * (compliance * viscosity * frequency * zeta)**(-alpha) * \
+                               find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
     andrade_complex_comp = real_j + 1.0j*imag_j
@@ -145,9 +143,8 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
 
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
-    const_term = np.zeros_like(frequency)
-    const_term[frequency != 0.] = compliance * (compliance * viscosity * frequency[frequency != 0.] * zeta)**(-alpha) * \
-                                  find_factorial(alpha)
+    const_term = compliance * (compliance * viscosity * frequency * zeta)**(-alpha) * \
+                               find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
     andrade_complex_comp = real_j + 1.0j * imag_j

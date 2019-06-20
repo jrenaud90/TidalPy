@@ -4,32 +4,11 @@ from scipy.constants import G
 from ..performance import njit
 from ..types import float_eps
 
+from .single_dissipation import spin_rate_derivative
 
-@njit
-def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.ndarray:
-    """ Calculate the time derivative of the spin frequency for a duel dissipating system
+# Duel Dissipation model's spin-rate derivative is the same as the single dissipation model
 
-    See Ferraz-Mello et. al. (2008)
-
-    Parameters
-    ----------
-    ztorque : np.ndarray
-        Tidal polar torque in [N m]
-    moment_of_inertia : float
-        Planet's moment of inertia in [kg m2]
-
-    Returns
-    -------
-    dspin_dt : np.ndarray
-        Change of spin frequency in [rad s-2]
-    """
-
-    dspin_dt = ztorque / moment_of_inertia
-
-    return dspin_dt
-
-
-@njit
+# @njit
 def semi_major_axis_derivative(semi_major_axis: np.ndarray, mass_1: float, mass_2: float,
                                spin_freq_1: np.ndarray, ztorque_1: np.ndarray, tidal_heating_1: np.ndarray,
                                spin_freq_2: np.ndarray, ztorque_2: np.ndarray, tidal_heating_2: np.ndarray

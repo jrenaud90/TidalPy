@@ -1,3 +1,8 @@
+# TidalPy Specific
+TidalPy_Output/
+
+# End TidalPy
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
