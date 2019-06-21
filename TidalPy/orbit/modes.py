@@ -51,7 +51,7 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
 
     modes = list()
     for mode in unchecked_modes:
-        mode[np.abs(mode) < MODE_ZERO_TOL] = 0
+        mode[np.abs(mode) < MODE_ZERO_TOL] = 0.
         modes.append(mode)
 
     freqs = [np.abs(mode) for mode in modes]
