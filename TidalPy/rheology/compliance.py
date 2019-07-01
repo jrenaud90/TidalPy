@@ -8,7 +8,6 @@ from ..utilities.model import ModelSearcher
 
 
 class ComplianceModelSearcher(ModelSearcher):
-
     additional_reject_list = (compliance_models.find_factorial.__name__,)
 
     def __init__(self, compliance_module, frequency_module,
@@ -27,7 +26,7 @@ class ComplianceModelSearcher(ModelSearcher):
             default_key = self.default_key
         if default_key is None:
             if self.defaults_require_key:
-               raise MissingArgumentError
+                raise MissingArgumentError
             else:
                 defaults = self.default_config
         else:

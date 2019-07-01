@@ -25,7 +25,7 @@ def delete_planets(ask_prompt: bool = True):
         send2trash(filepath)
     return True
 
-def dill_file_path(object_name: str) -> Tuple[str, str]:
 
+def dill_file_path(object_name: str) -> Tuple[str, str]:
     name = f'{object_name}.TYPv{__version__}.dill'
     return name, os.path.join(dilled_planets_loc, name)

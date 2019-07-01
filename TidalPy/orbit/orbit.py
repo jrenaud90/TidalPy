@@ -8,27 +8,36 @@ from scipy.constants import G
 from TidalPy.utilities.numpy_help import value_cleanup
 from .. import debug_mode, log
 from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
-from ..exceptions import (ImproperAttributeHandling, IncorrectArgumentType, ParameterError, ParameterMissingError,
-                          IncorrectModelInitialized, IncompatibleModelError)
-from ..structures.worlds import TidalWorld, WorldBase
+from ..exceptions import (ArgumentError, ImproperAttributeHandling, IncompatibleModelError, IncorrectArgumentType,
+                          IncorrectModelInitialized, ParameterError, ParameterMissingError)
+from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
 from ..types import FloatArray
 from ..utilities.classes import TidalPyClass
 from ..utilities.conversions import Au2m
 
 
+HostTypes = Union[BasicWorld, TidalWorld]
 PlanetRefType = Union[str, int, WorldBase]
+TargetBodyType = Union[TidalWorld, List[TidalWorld]]
+
 
 class OrbitBase(TidalPyClass):
+    """ OrbitBase class connects stars, hosts, and target planets---handling all mutual calculations
 
+    """
 
-    def __init__(self, star, host = None, target_bodies: list = None, duel_dissipation: bool = False,
-                 host_tide_raiser_location: int = None,
-                 time_study: bool = False):
+    def __init__(self, star: Star, host: HostTypes = None, target_bodies: TargetBodyType = None,
+                 duel_dissipation: bool = False, host_tide_raiser_location: int = None, time_study: bool = False):
         """
 
-        :param star:
-        :param host:
-        :param target_bodies:
+        Parameters
+        ----------
+        star : Star
+        host : HostTypes
+        target_bodies : TargetBodyType
+        duel_dissipation : bool
+        host_tide_raiser_location : int
+        time_study : bool
         """
 
         super().__init__()
@@ -45,7 +54,12 @@ class OrbitBase(TidalPyClass):
         if target_bodies is None:
             self.target_bodies = list()
         else:
-            self.target_bodies = target_bodies  # type: List[TidalWorld]
+            if isinstance(target_bodies, TidalWorld):
+                self.target_bodies = [target_bodies]  # type: List[TidalWorld]
+            elif type(target_bodies) == list:
+                self.target_bodies = target_bodies  # type: List[TidalWorld]
+            else:
+                raise TypeError
         self.all_objects = [self.star, self.host] + self.target_bodies
         self.all_objects_byname = {self.star.name: self.star}
         if self.host.name not in self.all_objects_byname:
@@ -62,11 +76,11 @@ class OrbitBase(TidalPyClass):
 
         # State orbital variables (must be at least 2: for the star and the host)
         self._eccentricities = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
-        self._inclinations = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
-        self._orbital_freqs = [None, None]                       # type: List[Union[None, np.ndarray]]
-        self._semi_major_axis = [None, None]                     # type: List[Union[None, np.ndarray]]
-        self._derivative_a = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
-        self._derivative_e = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
+        self._inclinations = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
+        self._orbital_freqs = [None, None]  # type: List[Union[None, np.ndarray]]
+        self._semi_major_axis = [None, None]  # type: List[Union[None, np.ndarray]]
+        self._derivative_a = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
+        self._derivative_e = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
 
         # Are target bodies orbiting the star or the host
         self.star_host = False
@@ -105,12 +119,12 @@ class OrbitBase(TidalPyClass):
             target_body.tidal_susceptibility_inflated = (3. / 2.) * G * self.host.mass**2 * target_body.radius**5
 
             # Store dummy values for the state variables
-            self._eccentricities.append(np.asarray(0.))
-            self._inclinations.append(np.asarray(0.))
+            self._eccentricities.append(np.asarray([0.]))
+            self._inclinations.append(np.asarray([0.]))
             self._orbital_freqs.append(None)
             self._semi_major_axis.append(None)
-            self._derivative_a.append(np.asarray(0.))
-            self._derivative_e.append(np.asarray(0.))
+            self._derivative_a.append(np.asarray([0.]))
+            self._derivative_e.append(np.asarray([0.]))
 
         for t_i, world in enumerate(self.all_objects):
             # Add a reference to the orbit to the planet(s)
@@ -181,8 +195,17 @@ class OrbitBase(TidalPyClass):
         """
 
         if isinstance(planet_reference, WorldBase):
-            # Already is the pointer!
+            # Already is the pointer! Make sure it is actually loaded into this orbit.
+
+            for obj in self.all_objects:
+                if planet_reference is obj:
+                    break
+            else:
+                # pointer is not actually a pointer for any object that this orbit was initialized for.
+                raise ArgumentError('Planet Reference Pointer not found in orbit instance.')
+
             return planet_reference
+
         if type(planet_reference) == int:
             return self.all_objects[planet_reference]
         if type(planet_reference) == str:
@@ -363,7 +386,8 @@ class OrbitBase(TidalPyClass):
         if not set_by_planet:
             self.update_orbit(planet_reference, set_by_planet=False)
 
-    def set_eccentricity(self, planet_reference: PlanetRefType, new_eccentricity: FloatArray, set_by_planet: bool = False):
+    def set_eccentricity(self, planet_reference: PlanetRefType, new_eccentricity: FloatArray,
+                         set_by_planet: bool = False):
         """ Set the eccentricity of a planet at planet_loc
 
         Use Orbit.set_orbit if setting more than one state parameter.
@@ -517,67 +541,86 @@ class OrbitBase(TidalPyClass):
         planet_ref = self.find_planet_pointer(planet_reference)
         return planet_ref.derivative_spin
 
-    def update_orbit(self, planet_reference: PlanetRefType, set_by_planet: bool = False):
+    def update_orbit(self, planet_reference: PlanetRefType = None, set_by_planet: bool = False):
+        """ Updates the state variables of the orbit instance
 
-        planet_pointer = self.find_planet_pointer(planet_reference)
-        planet_loc = planet_pointer.orbit_location
-        if not set_by_planet:
-            # Need to tell the planet to update any orbital-dependent state
-            planet_pointer.update_orbit()
+        Whenever changes to the orbit or to its planet's are made then the orbit's state variables may need updating.
+        This method will perform all necessary updates.
 
-            if self.has_tidal_host:
-                if planet_loc == self.host_tide_raiser_loc:
-                    # The host needs to be updated too
-                    self.host.update_orbit()
+        Parameters
+        ----------
+        planet_reference : PlanetRefType
+            Reference to the planet which has changed. If set to None then update_orbit will be applied to all
+            tidal objects
+        set_by_planet : bool
+            Was this method called by a planet instance
+        """
 
-        # Update time derivatives
-        if self.is_time_study:
-            target_tidal_heating = planet_pointer.tidal_heating
-            target_tidal_torque = planet_pointer.tidal_ztorque
-            target_spin_freq = planet_pointer.spin_freq
-            semi_major_axis = self._semi_major_axis[planet_loc]
-            eccentricity = self._eccentricities[planet_loc]
-            target_mass = planet_pointer.mass
-            host_mass = self.host.mass
+        if planet_reference is None:
+            planet_pointers = self.target_bodies
+        else:
+            planet_pointers = [self.find_planet_pointer(planet_reference)]
 
-            if target_tidal_heating is None:
-                raise ParameterMissingError
-            if target_tidal_torque is None:
-                raise ParameterMissingError
-            if target_spin_freq is None:
-                raise ParameterMissingError
+        last_p_index = len(planet_pointers) - 1
+        for p_index, planet_pointer in enumerate(planet_pointers):
+            planet_loc = planet_pointer.orbit_location
+            if not set_by_planet:
+                # Need to tell the planet to update any orbital-dependent state
+                planet_pointer.update_orbit()
 
-            if self.duel_dissipation:
-                host_tidal_heating = self.host.tidal_heating
-                host_tidal_torque = self.host.tidal_ztorque
-                host_spin_freq = self.host.spin_freq
+                if self.has_tidal_host and p_index == last_p_index:
+                    if planet_loc == self.host_tide_raiser_loc:
+                        # The host needs to be updated too (only once all the other planets have been updated).
+                        self.host.update_orbit()
 
-                if host_tidal_heating is None:
+            # Update time derivatives
+            if self.is_time_study:
+                target_tidal_heating = planet_pointer.tidal_heating
+                target_tidal_torque = planet_pointer.tidal_ztorque
+                target_spin_freq = planet_pointer.spin_freq
+                semi_major_axis = self._semi_major_axis[planet_loc]
+                eccentricity = self._eccentricities[planet_loc]
+                target_mass = planet_pointer.mass
+                host_mass = self.host.mass
+
+                if target_tidal_heating is None:
                     raise ParameterMissingError
-                if host_tidal_torque is None:
+                if target_tidal_torque is None:
                     raise ParameterMissingError
-                if host_spin_freq is None:
+                if target_spin_freq is None:
                     raise ParameterMissingError
 
-                da_dt_func = diff_eqs_duel_dissipation['semi_major_axis']
-                de_dt_func = diff_eqs_duel_dissipation['eccentricity']
-                self._derivative_a[planet_loc] = \
-                    da_dt_func(semi_major_axis, host_mass, target_mass,
-                               target_spin_freq, target_tidal_torque, target_tidal_heating,
-                               host_spin_freq, host_tidal_torque, host_tidal_heating)
-                self._derivative_e[planet_loc] = \
-                    de_dt_func(semi_major_axis, eccentricity, host_mass, target_mass,
-                               target_spin_freq, target_tidal_torque, target_tidal_heating,
-                               host_spin_freq, host_tidal_torque, host_tidal_heating)
-            else:
-                da_dt_func = diff_eqs_single_dissipation['semi_major_axis']
-                de_dt_func = diff_eqs_single_dissipation['eccentricity']
-                self._derivative_a[planet_loc] = \
-                    da_dt_func(semi_major_axis, host_mass, target_mass,
-                               target_spin_freq, target_tidal_torque, target_tidal_heating)
-                self._derivative_e[planet_loc] = \
-                    de_dt_func(semi_major_axis, eccentricity, host_mass, target_mass,
-                               target_spin_freq, target_tidal_torque, target_tidal_heating)
+                if self.duel_dissipation:
+                    host_tidal_heating = self.host.tidal_heating
+                    host_tidal_torque = self.host.tidal_ztorque
+                    host_spin_freq = self.host.spin_freq
+
+                    if host_tidal_heating is None:
+                        raise ParameterMissingError
+                    if host_tidal_torque is None:
+                        raise ParameterMissingError
+                    if host_spin_freq is None:
+                        raise ParameterMissingError
+
+                    da_dt_func = diff_eqs_duel_dissipation['semi_major_axis']
+                    de_dt_func = diff_eqs_duel_dissipation['eccentricity']
+                    self._derivative_a[planet_loc] = \
+                        da_dt_func(semi_major_axis, host_mass, target_mass,
+                                   target_spin_freq, target_tidal_torque, target_tidal_heating,
+                                   host_spin_freq, host_tidal_torque, host_tidal_heating)
+                    self._derivative_e[planet_loc] = \
+                        de_dt_func(semi_major_axis, eccentricity, host_mass, target_mass,
+                                   target_spin_freq, target_tidal_torque, target_tidal_heating,
+                                   host_spin_freq, host_tidal_torque, host_tidal_heating)
+                else:
+                    da_dt_func = diff_eqs_single_dissipation['semi_major_axis']
+                    de_dt_func = diff_eqs_single_dissipation['eccentricity']
+                    self._derivative_a[planet_loc] = \
+                        da_dt_func(semi_major_axis, host_mass, target_mass,
+                                   target_spin_freq, target_tidal_torque, target_tidal_heating)
+                    self._derivative_e[planet_loc] = \
+                        de_dt_func(semi_major_axis, eccentricity, host_mass, target_mass,
+                                   target_spin_freq, target_tidal_torque, target_tidal_heating)
 
     def calculate_insolation(self, planet_reference: PlanetRefType, set_planet_param: bool = True):
         """ Calculate the insolation heating received by a planet located at planet_loc

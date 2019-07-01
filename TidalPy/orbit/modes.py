@@ -2,8 +2,10 @@ import numpy as np
 
 from ..performance import njit
 
+
 # Minimum tidal mode in [rad s-1]
 MODE_ZERO_TOL = 1.e-10
+
 
 @njit
 def spin_sync_modes(orbital_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
@@ -21,6 +23,7 @@ def spin_sync_modes(orbital_freq: np.ndarray, eccentricity: np.ndarray, inclinat
     ztorque_coeffs = (12. * eccentricity**2 * np.ones_like(freqs[0]),)
 
     return modes, freqs, heating_coeffs, ztorque_coeffs
+
 
 @njit
 def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
@@ -63,10 +66,10 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
 
     heating_coeffs = (
         # The sign will cancel with the Im(k2) function (which is an odd function) so no need to add them here.
-        (3. / 4.)  * e2 * freqs[0],
-        (1. / 2.)  * i2 * freqs[1],
-        (1. / 2.)  * i2 * freqs[2],
-        (1. / 8.)  * e2 * freqs[3],
+        (3. / 4.) * e2 * freqs[0],
+        (1. / 2.) * i2 * freqs[1],
+        (1. / 2.) * i2 * freqs[2],
+        (1. / 8.) * e2 * freqs[3],
         (49. / 8.) * e2 * freqs[4],
         (0.5 - 0.5 * i2 - 2.5 * e2) * freqs[5]
     )

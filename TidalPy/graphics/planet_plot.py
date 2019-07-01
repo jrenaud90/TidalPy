@@ -8,6 +8,7 @@ from TidalPy.exceptions import ParameterMissingError
 SCATTER_SIZE = 1
 SCALE = 3
 
+
 def geotherm_plot(radii: np.ndarray,
                   gravitys: np.ndarray, pressures: np.ndarray, densitys: np.ndarray, temperatures: np.ndarray = None,
                   planet_radius: float = None, bulk_density: float = None, planet_name: str = None,
@@ -62,7 +63,7 @@ def geotherm_plot(radii: np.ndarray,
     axes = [fig.add_subplot(gs[i]) for i in range(n)]
     ys = [gravitys, pressures, densitys]
     colors = ['g', 'b', 'k']
-    names = ['Gravity [m s$^{2}$]', 'Pressure [GPa]', 'Density [10$^{3}$ kg m$^{-3}$]' ]
+    names = ['Gravity [m s$^{2}$]', 'Pressure [GPa]', 'Density [10$^{3}$ kg m$^{-3}$]']
     if use_temperature:
         ys.append(temperatures)
         colors.append('r')
@@ -121,5 +122,3 @@ def geotherm_plot(radii: np.ndarray,
         plt.show()
 
     return fig
-
-

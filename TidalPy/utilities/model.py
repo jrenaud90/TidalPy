@@ -3,6 +3,7 @@ import operator
 from inspect import getmembers, isfunction
 from typing import List, Union
 
+from numba import njit
 from numba.targets.registry import CPUDispatcher
 
 from .classes import ConfigHolder
@@ -10,16 +11,16 @@ from .dict_tools import nested_get
 from .. import debug_mode, log
 from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
                           UnknownModelError)
-from ..types import list_like
-from numba import njit
+
 
 general_func_reject_list = [
     njit,
-    ]
+]
+
 
 class ModelHolder(ConfigHolder):
 
-    def __init__(self, model_name: str = None, user_config: dict = None, function_searcher = None,
+    def __init__(self, model_name: str = None, user_config: dict = None, function_searcher=None,
                  call_reinit: bool = True):
 
         super().__init__(replacement_config=user_config, call_reinit=call_reinit)
@@ -75,10 +76,10 @@ class ModelHolder(ConfigHolder):
 
 
 class LayerModel(ModelHolder):
-
     config_key = None
 
-    def __init__(self, layer, function_searcher = None, model_name = None, call_reinit: bool = True):
+    def __init__(self, layer, function_searcher=None, model_name=None, call_reinit: bool = True,
+                 store_config_in_layer: bool = True):
 
         self.layer = layer
         self.layer_type = layer.type
@@ -105,9 +106,12 @@ class LayerModel(ModelHolder):
 
         self.pyname = f'{self.__class__}_{self.layer_type}_{self.model}'
 
+        # TODO: Put the config back into the layer
+        # if store_config_in_layer and self.config_key is not None:
+        #     self.layer._config[self.config_key] = copy.deepcopy(self.config)
+
 
 class ModelSearcher(ConfigHolder):
-
     additional_reject_list = None
 
     def __init__(self, module, default_parameters: dict = None, defaults_require_key: bool = True,
@@ -170,7 +174,8 @@ class ModelSearcher(ConfigHolder):
                 #     "live args: self.<name>.<name>...etc.arg1, self.<name>.<name>...etc.arg2, ..."
                 if 'live args:' in line:
                     if oargs_found:
-                        raise TidalPyException('Live args must come before other args in doc string (and in function signature)')
+                        raise TidalPyException(
+                            'Live args must come before other args in doc string (and in function signature)')
                     args = line.split('live args:')[-1].split(',')
                     cleaned_args = [arg.strip() for arg in args]
                     new_live_args = None
@@ -204,14 +209,14 @@ class ModelSearcher(ConfigHolder):
 
         return known_models, known_models_docs, args_needed, live_args
 
-    def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str,List[str]] = None):
+    def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str, List[str]] = None):
 
         # Update self.config based on function input
         if default_key is None:
             default_key = self.default_key
         if default_key is None:
             if self.defaults_require_key:
-               raise MissingArgumentError
+                raise MissingArgumentError
             else:
                 defaults = self.default_config
         else:

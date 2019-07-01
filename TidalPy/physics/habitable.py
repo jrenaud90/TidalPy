@@ -10,6 +10,7 @@ OUTER_EDGE_TEMP = 373.15
 INNER_EDGE_TEMP_4 = INNER_EDGE_TEMP**4
 OUTER_EDGE_TEMP_4 = OUTER_EDGE_TEMP**4
 
+
 @njit
 def equilibrium_temperature(insolation_heating: FloatArray, radius: float, internal_heating: FloatArray = None,
                             emissivity: float = 1., internal_frac: float = .5):
@@ -31,4 +32,4 @@ def equilibrium_temperature(insolation_heating: FloatArray, radius: float, inter
 
     coeff = 4. * np.pi * radius**2 * emissivity * sbc / 2
 
-    return (heating / coeff)**(1/4)
+    return (heating / coeff)**(1 / 4)

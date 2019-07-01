@@ -6,8 +6,6 @@
 low_pressure_ice_eos = 'bm3'
 high_pressure_ice_eos = 'mgd3'
 
-
-
 import burnman
 
 from .constant import ConstantMaterial
@@ -17,16 +15,16 @@ class LowPressureIceConst(ConstantMaterial):
 
     def __init__(self):
         self.params = {
-            'name'             : 'ice_lp',
-            'equation_of_state': low_pressure_ice_eos,
+            'name'               : 'ice_lp',
+            'equation_of_state'  : low_pressure_ice_eos,
             # Following are at room pressure/temperature
-            'density'          : 917.,
+            'density'            : 917.,
             'shear_wave_velocity': 1.89e3,
-            'p_wave_velocity': 3.98e3,
+            'p_wave_velocity'    : 3.98e3,
             'thermal_expansivity': 5.0e-5,
-            'molar_mass'       : 18.01528/1000,  # molar mass in units of [kg/mol]
-            'n'                : 3,  # number of atoms per formula uni
-            'latent_heat'          : 3.3e5,
+            'molar_mass'         : 18.01528 / 1000,  # molar mass in units of [kg/mol]
+            'n'                  : 3,  # number of atoms per formula uni
+            'latent_heat'        : 3.3e5,
         }
 
         # Calculated
@@ -36,6 +34,7 @@ class LowPressureIceConst(ConstantMaterial):
         self.params['molar_heat_capacity_p'] = 1960 * self.params['molar_mass']
 
         super().__init__()
+
 
 class HighPressureIceConst(ConstantMaterial):
 
@@ -59,7 +58,6 @@ class HighPressureIceConst(ConstantMaterial):
                                                 (4. / 3.) * self.params['shear_modulus']
         self.params['molar_heat_capacity_p'] = 1960 * self.params['molar_mass']
         super().__init__()
-
 
 
 # TODO: Actual equation of state

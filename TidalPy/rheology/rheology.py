@@ -14,10 +14,10 @@ from ..types import FloatArray
 from ..utilities.model import LayerModel
 
 
-FAKE_FREQS = (np.asarray([0.]), )
+FAKE_FREQS = (np.asarray([0.]),)
+
 
 class Rheology(LayerModel):
-
     default_config = copy.deepcopy(rheology_param_defaults)
     config_key = 'rheology'
 
@@ -31,6 +31,7 @@ class Rheology(LayerModel):
 
         # Pull out information about the planet/layer
         self.config['planet_beta'] = self.layer.world.beta
+        self.config['quality_factor'] = self.layer.world.fixed_q
 
         # Setup Love number calculator
         self.calc_love = None
@@ -84,7 +85,7 @@ class Rheology(LayerModel):
             raise ParameterMissingError
 
         eff_rigidity = self.calc_effective_rigidity(shear, self.layer.gravity,
-                                                    self.layer.radius, self.layer.density) # type: FloatArray
+                                                    self.layer.radius, self.layer.density)  # type: FloatArray
         compliance = shear**(-1)
         if self.full_calculation:
             tidal_freqs = self.layer.tidal_freqs
@@ -97,9 +98,9 @@ class Rheology(LayerModel):
         complex_compliance_tupl = list()
         complex_love_tupl = list()
         for freq in tidal_freqs:
-            complex_compliance = self.compliance(compliance, visco, freq, *self.compliance_inputs) # type: FloatArray
-            complex_love = self.calc_love(complex_compliance, shear, eff_rigidity)                 # type: FloatArray
-            complex_love_tupl.append(complex_love)
-            complex_compliance_tupl.append(complex_compliance)
+            complex_compliance = self.compliance(compliance, visco, freq, *self.compliance_inputs)  # type: FloatArray
+            complex_love = self.calc_love(complex_compliance, shear, eff_rigidity)  # type: FloatArray
+            complex_love_tupl.append(np.nan_to_num(complex_love))
+            complex_compliance_tupl.append(np.nan_to_num(complex_compliance))
 
         return eff_rigidity, tuple(complex_compliance_tupl), tuple(complex_love_tupl)

@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 
 
 class WorldBase(PhysicalObjSpherical):
-
     class_type = 'base'
     default_config = copy.deepcopy(world_defaults)
 
@@ -85,6 +84,7 @@ class WorldBase(PhysicalObjSpherical):
         super().reinit()
 
         self.name = self.config['name']
+        log(f'Re-init called for planet: {self.name}', level='debug')
 
         # Pull out constants
         self.emissivity = self.config['emissivity']
@@ -92,7 +92,6 @@ class WorldBase(PhysicalObjSpherical):
 
         # Setup functions and models
         self.equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
-
 
     def set_geometry(self, radius: float, mass: float):
 
@@ -225,7 +224,7 @@ class WorldBase(PhysicalObjSpherical):
         if type(value) != np.ndarray:
             value = np.asarray([value])
         self._spin_freq = value_cleanup(value)
-        if not self.is_spin_sync:
+        if not self.is_spin_sync and self.orbit is not None:
             # NSR will change tidal modes
             self.update_orbit()
 
@@ -292,7 +291,6 @@ class WorldBase(PhysicalObjSpherical):
 
 
 class BasicWorld(WorldBase):
-
     class_type = 'basic'
 
     def __init__(self, planet_config: dict, call_reinit: bool = True):
@@ -309,7 +307,6 @@ class BasicWorld(WorldBase):
 
 
 class Star(BasicWorld):
-
     class_type = 'star'
 
     def __init__(self, star_config: dict, call_reinit: bool = True):
@@ -334,7 +331,8 @@ class Star(BasicWorld):
             # If no luminosity provided: Try to convert effective surface temperature
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
-                log('Luminosity and effective temperature of {self.name} was not provided. Estimating from stellar mass.')
+                log(
+                    'Luminosity and effective temperature of {self.name} was not provided. Estimating from stellar mass.')
                 self.luminosity = luminosity_from_mass(self.mass)
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
             else:
@@ -352,7 +350,6 @@ class Star(BasicWorld):
 
 
 class TidalWorld(WorldBase):
-
     class_type = 'tidal'
 
     def __init__(self, planet_config: dict, burnman_world: burnman.Planet, bm_layers: list, call_reinit: bool = True):
@@ -365,6 +362,14 @@ class TidalWorld(WorldBase):
 
         # Setup geometry based on burnman
         self.set_geometry(self.bm_world.radius_planet, self.bm_world.mass)
+
+        # Pull out other burnman information
+        self._moi = self.bm_world.moment_of_inertia
+
+        # Parameters only applicable to a tidally-active host
+        self.tide_raiser_ref = None
+        self.use_real_moi = None
+        self.fixed_q = None
 
         # Setup layers
         self.layers_byname = dict()
@@ -384,7 +389,7 @@ class TidalWorld(WorldBase):
             setattr(self, layer.name.lower(), layer)
 
         # Constants used in calculations
-        self.tidal_susceptibility_inflated = None # = 1.5 * G * M_pri^2 * R_sec^5 -- Set by orbit class
+        self.tidal_susceptibility_inflated = None  # = 1.5 * G * M_pri^2 * R_sec^5 -- Set by orbit class
 
         # Provide references to other layers
         for layer_below, layer, layer_above in zip([None] + self.layers[:-1], self.layers, self.layers[1:] + [None]):
@@ -412,29 +417,30 @@ class TidalWorld(WorldBase):
         self._tidal_susceptibility = None
         self._derivative_spin = None
 
-        # Parameters only applicable to a tidally-active host
-        self.tide_raiser_ref = None
-        self.use_real_moi = None
-
         if call_reinit:
             self.reinit()
 
-    def reinit(self):
+    def reinit(self, update_spin: bool = True, update_orbit: bool = True):
 
         super().reinit()
+
         # Load in some global parameters
-        spin_freq = self.config.get('spin_freq', None)
-        spin_period = self.config.get('spin_period', None)
-        if spin_freq is not None and spin_period is not None:
-            log(f'Both spin frequency and period were provided for {self.name}. '
-                f'Using frequency instead.', level='info')
-        if spin_freq is None and spin_period is not None:
-            # Assume spin period is in days
-            spin_freq = 2. * np.pi / (spin_period * 24. * 60. * 60.)
-        self._spin_freq = spin_freq
+        if update_spin:
+            spin_freq = self.config.get('spin_freq', None)
+            spin_period = self.config.get('spin_period', None)
+            if spin_freq is not None and spin_period is not None:
+                log(f'Both spin frequency and period were provided for {self.name}. '
+                    f'Using frequency instead.', level='info')
+            if spin_freq is None and spin_period is not None:
+                # Assume spin period is in days
+                spin_freq = 2. * np.pi / (spin_period * 24. * 60. * 60.)
+            self._spin_freq = np.asarray([spin_freq])
 
         # Load in model flags
         self.use_real_moi = self.config['use_real_moi']
+
+        # Load in other parameters
+        self.fixed_q = self.config['quality_factor']
 
         # Check configs
         if self._old_config is None:
@@ -445,25 +451,27 @@ class TidalWorld(WorldBase):
         if reload:
             # Determine if planet must be made again due to config changes that impact burnman results
             for layer_name, layer_dict in self.config['layers'].items():
-                old_layer_dict = self._old_config[layer_name]
+                old_layer_dict = self._old_config['layers'][layer_name]
                 for critical_attribute in ['material', 'material_source', 'type']:
                     if layer_dict[critical_attribute] != old_layer_dict[critical_attribute]:
                         raise ReinitError
 
-            # Load in new configs into layers and call their reinits
-            for layer in self:
-                if layer.config is not None:
-                    new_config = {**layer.config, **self.config['layers'][layer.name]}
-                else:
-                    new_config = self.config['layers'][layer.name]
-                layer.user_config = new_config
-                layer.update_config()
-                layer.reinit()
+        # Load in new configs into layers and call their reinits
+        for layer in self:
+            if layer.config is not None:
+                new_config = {**layer.config, **self.config['layers'][layer.name]}
+            else:
+                new_config = self.config['layers'][layer.name]
+            layer.user_config = new_config
+            layer.update_config()
+            layer.reinit()
 
         # Try to initialize as much as we can
         for layer in self:
             layer.update_tides()
 
+        if self.orbit is not None and update_orbit:
+            self.orbit.update_orbit(self, set_by_planet=True)
 
     def find_layer(self, layer_name: str) -> ThermalLayer:
         """ Returns a reference to a layer with the provided name
@@ -564,7 +572,7 @@ class TidalWorld(WorldBase):
 
         # Now update calculations at the layer level
         for layer in self:
-            layer.update_tides()
+            layer.update_tides(call_from_world=True)
 
         # Perform an update to the global tides as well since layer love numbers have likely changed
         self.update_global_tides()
@@ -606,19 +614,24 @@ class TidalWorld(WorldBase):
         layer_loves = [layer.complex_love for layer in self]  # type: List[Tuple[np.ndarray]]
 
         shape = layer_loves[0][0].shape
+        if shape == tuple():
+            shape = (1,)
         global_love = np.zeros(shape, dtype=np.complex)
         global_heating = np.zeros(shape, dtype=np.float)
         global_ztorque = np.zeros(shape, dtype=np.float)
 
         for layer, love_by_mode in zip(self, layer_loves):
             scale = layer.tidal_scale
-
-            layer_heating_bymodes = [-np.imag(love) * heating_coeff for love, heating_coeff in
-                                     zip(love_by_mode, self.tidal_heating_coeffs)]
-            layer_ztorque_bymodes = [-np.imag(love) * ztorque_coeff for love, ztorque_coeff in
-                                     zip(love_by_mode, self.tidal_ztorque_coeffs)]
-            layer_heating_sum = self.tidal_susceptibility * scale * sum(layer_heating_bymodes)
-            layer_ztorque_sum = self.tidal_susceptibility * scale * sum(layer_ztorque_bymodes)
+            if layer.is_tidal:
+                layer_heating_bymodes = [-np.imag(love) * heating_coeff for love, heating_coeff in
+                                         zip(love_by_mode, self.tidal_heating_coeffs)]
+                layer_ztorque_bymodes = [-np.imag(love) * ztorque_coeff for love, ztorque_coeff in
+                                         zip(love_by_mode, self.tidal_ztorque_coeffs)]
+                layer_heating_sum = self.tidal_susceptibility * scale * sum(layer_heating_bymodes)
+                layer_ztorque_sum = self.tidal_susceptibility * scale * sum(layer_ztorque_bymodes)
+            else:
+                layer_ztorque_sum = 0.
+                layer_heating_sum = 0.
 
             # Global Values
             global_love += scale * sum(love_by_mode)
@@ -693,7 +706,7 @@ class TidalWorld(WorldBase):
         """
 
         figure = geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
-                               bulk_density=self.density_bulk, planet_name = self.name,
+                               bulk_density=self.density_bulk, planet_name=self.name,
                                planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
 
         return figure
@@ -818,12 +831,11 @@ class TidalWorld(WorldBase):
         return f'{self.__class__} object at {hex(id(self))}'
 
 
-
 world_types = {
-    'star': Star,
-    'basic': BasicWorld,
-    'simple': BasicWorld,
-    'gas': BasicWorld,
+    'star'   : Star,
+    'basic'  : BasicWorld,
+    'simple' : BasicWorld,
+    'gas'    : BasicWorld,
     'burnman': TidalWorld,
-    'tidal': TidalWorld
+    'tidal'  : TidalWorld
 }

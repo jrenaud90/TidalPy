@@ -1,23 +1,23 @@
 import copy
 import os
 import warnings
-from typing import List
 from collections import OrderedDict
+from typing import List
 
 import json5
 import numpy as np
 
 from .. import __version__, auto_write, debug_mode
+from ..configurations import give_configs_subscript
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError
 from ..io import inner_save_dir, unique_path
-from ..configurations import give_configs_subscript
+
 
 class TidalPyClass:
     """ All functional classes used in TidalPy inherit from this class
     """
 
     def __init__(self):
-
         self.pyname = f'{self.__class__.__name__}'
 
 
@@ -86,7 +86,7 @@ class ConfigHolder(TidalPyClass):
 
         return self.config
 
-    def get_param(self, param_name: str, raise_missing: bool = True, fallback = None):
+    def get_param(self, param_name: str, raise_missing: bool = True, fallback=None):
         """ Uses the outer and inner keys (if set) to parse into the configuration dictionary
 
         :param param_name:      <str> parameter or configuration name (capitalization and spaces matter!)
@@ -102,12 +102,12 @@ class ConfigHolder(TidalPyClass):
                 raise ParameterMissingError
         except ParameterMissingError as e:
             if raise_missing:
-                raise ParameterMissingError(f'Parameter {param_name} missing from user provided and default configurations.')
+                raise ParameterMissingError(
+                    f'Parameter {param_name} missing from user provided and default configurations.')
             else:
                 output = fallback
 
         return output
-
 
     def update_config(self) -> dict:
         """ Combines the default and user provided configurations into one dictionary.
@@ -240,5 +240,3 @@ class ConfigHolder(TidalPyClass):
                 json_config[input_key] = input_item
 
         return OrderedDict(sorted(json_config.items()))
-
-

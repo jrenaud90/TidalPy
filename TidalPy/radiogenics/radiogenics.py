@@ -12,8 +12,8 @@ from ..utilities.model import LayerModel, ModelSearcher
 
 find_radiogenics = ModelSearcher(radiogenic_models, radiogenics_param_defaults)
 
-class Radiogenics(LayerModel):
 
+class Radiogenics(LayerModel):
     default_config = copy.deepcopy(radiogenics_param_defaults)
     config_key = 'radiogenics'
 
@@ -51,7 +51,8 @@ class Radiogenics(LayerModel):
             self.config['iso_halflives'] = self.isos_halflife
             self.config['iso_heat_production'] = self.isos_hpr
 
-        self.func, self.inputs, self.live_input_func = find_radiogenics.find_model(self.model, self.config, default_key=self.layer_type)
+        self.func, self.inputs, self.live_input_func = find_radiogenics.find_model(self.model, self.config,
+                                                                                   default_key=self.layer_type)
 
     def _calculate(self):
         """ Calculates the radiogenic heating of layer in which the radiogenic class is installed.
@@ -68,11 +69,12 @@ class Radiogenics(LayerModel):
         assert type(time) == np.ndarray
         assert type(self.layer.mass) == float
         if self.model == 'isotope':
-            if abs(time[-1]/max(self.isos_halflife)) > 1.0e4:
+            if abs(time[-1] / max(self.isos_halflife)) > 1.0e4:
                 log.warn('Time is much larger than radiogenic half-life - Check units of both time and half lives.')
         elif self.model == 'fixed':
-            if abs(time[-1]/max(self.config['average_half_life'])) > 1.0e4:
-                log.warn('Time is much larger than the fixed-average radiogenic half-life - Check units of both time and half life.')
+            if abs(time[-1] / max(self.config['average_half_life'])) > 1.0e4:
+                log.warn(
+                    'Time is much larger than the fixed-average radiogenic half-life - Check units of both time and half life.')
 
         radio_heating = self.func(time, self.layer.mass, *self.inputs)
         if np.any(radio_heating < 0.):

@@ -45,6 +45,7 @@ def equilibrium_insolation_mendez(luminosity: float, semi_major_axis: FloatArray
 
     return insolation_heating
 
+
 @njit
 def equilibrium_insolation_williams(luminosity: float, semi_major_axis: FloatArray, albedo: float,
                                     radius: float, eccentricity: FloatArray) -> FloatArray:
@@ -114,6 +115,7 @@ def equilibrium_insolation_no_eccentricity(luminosity: float, semi_major_axis: F
 
     return insolation_heating
 
+
 @njit
 def equilibrium_temperature(surface_heating: FloatArray, radius: float, emissivity: float):
     """ Calculate the surface equilibrium temperature for a provided surface heating
@@ -133,8 +135,9 @@ def equilibrium_temperature(surface_heating: FloatArray, radius: float, emissivi
         Surface equilibrium temperature in [K]
     """
 
-    surf_equilibrium_temperature = (surface_heating / (4. * np.pi * radius**2 * sbc * emissivity))**(1/4)
+    surf_equilibrium_temperature = (surface_heating / (4. * np.pi * radius**2 * sbc * emissivity))**(1 / 4)
     return surf_equilibrium_temperature
+
 
 @njit
 def efftemp_from_luminosity(luminosity: float, radius: float):
@@ -145,7 +148,7 @@ def efftemp_from_luminosity(luminosity: float, radius: float):
     :return:           <float> Star's Effective Surface temperature [K]
     """
 
-    return (luminosity / (4. * np.pi * sbc * radius**2))**(1/4)
+    return (luminosity / (4. * np.pi * sbc * radius**2))**(1 / 4)
 
 
 @njit
@@ -158,6 +161,7 @@ def luminosity_from_efftemp(effective_temperature: float, radius: float):
     """
 
     return 4. * np.pi * sbc * radius**2 * effective_temperature**4
+
 
 # Relationships and Scaling
 @njit
@@ -186,6 +190,6 @@ def luminosity_from_mass(stellar_mass: float):
 
 equilibrium_insolation_functions = {
     'no_eccentricity': equilibrium_insolation_no_eccentricity,
-    'williams': equilibrium_insolation_williams,
-    'mendez': equilibrium_insolation_mendez
+    'williams'       : equilibrium_insolation_williams,
+    'mendez'         : equilibrium_insolation_mendez
 }

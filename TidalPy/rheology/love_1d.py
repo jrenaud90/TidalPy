@@ -3,7 +3,8 @@ import numpy as np
 from ..performance import njit
 from ..types import FloatArray
 
-#@njit
+
+# @njit
 def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number
 
@@ -17,8 +18,8 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
     imag_j = np.imag(complex_compliance)
     real_j2 = real_j**2
     imag_j2 = imag_j**2
-    common_factor = (3. / 2.) * ((real_j + eff_rigidity/shear_modulus)**2 + imag_j2)**-1
-    real_love = (real_j2 + imag_j2 + real_j*eff_rigidity/shear_modulus) * common_factor
+    common_factor = (3. / 2.) * ((real_j + eff_rigidity / shear_modulus)**2 + imag_j2)**-1
+    real_love = (real_j2 + imag_j2 + real_j * eff_rigidity / shear_modulus) * common_factor
     imag_love = (imag_j * eff_rigidity / shear_modulus) * common_factor
     complex_love = real_love + 1.0j * imag_love
 
@@ -64,6 +65,7 @@ def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float,
     """
 
     return (19. / 2.) * shear_modulus / (gravity * radius * density)
+
 
 @njit
 def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius: float, density: float,

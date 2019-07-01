@@ -15,6 +15,7 @@ from ..utilities.model import LayerModel, ModelSearcher
 # Partial Melt Model Finder
 find_partial_melter = ModelSearcher(melting_models, partial_melter_param_defaults)
 
+
 # Helper Functions
 @njit
 def calc_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
@@ -52,9 +53,7 @@ def temp_from_melt(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np
     return melt_frac * (liquidus - solidus) + solidus
 
 
-
 class PartialMelt(LayerModel):
-
     default_config = copy.deepcopy(partial_melter_param_defaults)
     config_key = 'partial_melt'
 
@@ -92,7 +91,8 @@ class PartialMelt(LayerModel):
     def _calculate(self, premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
         """ Wrapper for the partial melting function """
 
-        return self.func(self.layer.temperature, self.layer.melt_fraction, premelt_viscosity, premelt_shear, liquid_viscosity, *self.inputs)
+        return self.func(self.layer.temperature, self.layer.melt_fraction, premelt_viscosity, premelt_shear,
+                         liquid_viscosity, *self.inputs)
 
     @staticmethod
     def _calculate_off(premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):

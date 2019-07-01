@@ -1,18 +1,17 @@
 {
-    "name": "Pluto_Example",
+    "name": "Charon",
     "type": "burnman",
-    "radius": 1189.9e3,
-    "semi_major_axis": 39.48,
-    "semi_major_axis_in_au": true,
-    "eccentricity": 0.2488,
+    "radius": 606016.07,
+    "orbital_period": 6.3872304,
+    "eccentricity": 0.0002,
     "spin_period": 6.3872304,
-    "albedo": 0.55,
-
+    "albedo": 0.3,
+    "force_spin_sync": false,
     "layers": {
         "Core": {
             "type": "rock",
             "is_tidal": true,
-            "radius": 910.903e3,
+            "radius": 437.3748067e3,
             "material": "forsterite",
             "material_source": "SLB_2011",
             "temperature_mode": "adiabatic",
@@ -21,7 +20,7 @@
         "Mantle": {
             "type": "ice",
             "is_tidal": false,
-            "radius": 1189.9e3,
+            "radius": 606.0e3,
             "material": "LowPressureIceConst",
             "material_source": "TidalPy",
             "temperature_mode": "user-defined",

@@ -21,14 +21,13 @@ def find_nearest(array: np.ndarray, value: Union[int, float]):
 
 
 def value_cleanup(value):
-
     if type(value) != np.ndarray:
         value = np.asarray([value])
 
     return value
 
-def match_array(array_to_be_matched: FloatArray, *reference_arrays):
 
+def match_array(array_to_be_matched: FloatArray, *reference_arrays):
     reference_array = None
     # Pick the reference array that is not None and preferentially one that is not (1,).
     for ref_array in reference_arrays:
@@ -56,6 +55,7 @@ def match_array(array_to_be_matched: FloatArray, *reference_arrays):
 
     return array_to_be_matched
 
+
 def neg_array_for_log_plot(array_with_negatives: np.ndarray):
     """ Converts one numpy array into two where both new arrays only have positive values. Useful for log-plotting.
 
@@ -76,8 +76,9 @@ def neg_array_for_log_plot(array_with_negatives: np.ndarray):
 
     array_positive = array_with_negatives.copy()
     array_negative = array_with_negatives.copy()
+
     array_positive[array_positive <= 0.] = np.nan
     array_negative[array_negative >= 0.] = np.nan
-    array_negative[array_negative < 0.] = -array_negative[array_negative < 0.]
+    array_negative[array_negative < 0.] *= -1.
 
     return array_positive, array_negative

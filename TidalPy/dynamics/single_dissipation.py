@@ -104,10 +104,10 @@ def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarra
     e2_sqrt = np.sqrt(1 - eccentricity**2)
 
     change_due_to_target = ztorque * (1. - (spin_freq / orbital_freq) * e2_sqrt) - \
-                         (tidal_heating / orbital_freq) * e2_sqrt
+                           (tidal_heating / orbital_freq) * e2_sqrt
 
     de_dt = ((mass_host + mass_target) * e2_sqrt /
-            (mass_host * mass_target * semi_major_axis**2 * orbital_freq * eccentricity)) * change_due_to_target
+             (mass_host * mass_target * semi_major_axis**2 * orbital_freq * eccentricity)) * change_due_to_target
 
     # The eccentricity is not going to change (unless perturbed) when e = 0 (what the bad_indices indicate)
     de_dt[bad_indices] = 0.

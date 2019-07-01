@@ -1,8 +1,9 @@
 import numpy as np
 
+from ..constants import G
 from ..performance import njit
 from ..types import FloatArray
-from ..constants import G
+
 
 @njit
 def m2Au(meters: FloatArray) -> FloatArray:
@@ -23,6 +24,7 @@ def m2Au(meters: FloatArray) -> FloatArray:
 
     return astronomical_units
 
+
 @njit
 def Au2m(astronomical_units: FloatArray) -> FloatArray:
     """ Convert Meters to Astronomical Units
@@ -41,6 +43,7 @@ def Au2m(astronomical_units: FloatArray) -> FloatArray:
     meters = astronomical_units * 1.496e11
 
     return meters
+
 
 @njit
 def rads2days(radians_per_second: FloatArray) -> FloatArray:
@@ -81,6 +84,7 @@ def days2rads(days: FloatArray) -> FloatArray:
 
     return radians_per_second
 
+
 @njit
 def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
     """ Convert orbital mean motion to semi-major axis (Kepler's 3rd law)
@@ -100,9 +104,10 @@ def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_m
         Semi-major axis in [m]
     """
 
-    semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1/3)
+    semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1 / 3)
 
     return semi_major_axis
+
 
 @njit
 def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
@@ -123,9 +128,10 @@ def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_
         Orbital motion in [rads s-1]
     """
 
-    orbital_motion = (G * (host_mass + target_mass) / semi_major_axis**3)**(1/2)
+    orbital_motion = (G * (host_mass + target_mass) / semi_major_axis**3)**(1 / 2)
 
     return orbital_motion
+
 
 @njit
 def sec2myr(seconds: FloatArray) -> FloatArray:
@@ -143,6 +149,7 @@ def sec2myr(seconds: FloatArray) -> FloatArray:
     """
 
     return seconds / 3.154e13
+
 
 @njit
 def myr2sec(myrs: FloatArray) -> FloatArray:

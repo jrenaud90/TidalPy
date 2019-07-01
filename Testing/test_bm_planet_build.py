@@ -3,8 +3,8 @@ import numpy as np
 import TidalPy
 
 
-planet = TidalPy.build_planet('charon_example', force_build=True)
-host = TidalPy.build_planet('pluto_example', force_build=True)
+planet = TidalPy.build_planet('charon', force_build=True)
+host = TidalPy.build_planet('pluto', force_build=True)
 star = TidalPy.build_planet('sol', force_build=True)
 
 planet.paint(auto_show=True)
@@ -23,12 +23,12 @@ print('k', planet.core.thermal_conductivity)
 print('alpha', planet.core.thermal_expansion)
 print('Rayleigh', planet.core.rayleigh)
 print('nusselt', planet.core.nusselt)
-print('blt', planet.core.blt/1e3)
+print('blt', planet.core.blt / 1e3)
 print('heat_flux', planet.core.heat_flux)
 
-planet.time = 0.
+planet.time = np.asarray([0.])
 
-print(planet.layers_byname['core'].radiogenics.calculate())
-print(planet.layers_byname['core'].calc_temperature_derivative())
+print('Radiogenics', planet.layers_byname['core'].radiogenics.calculate())
+print('dT_dt', planet.layers_byname['core'].calc_temperature_derivative())
 
-print(planet.surface_temperature)
+print('Surf_Temp', planet.surface_temperature)

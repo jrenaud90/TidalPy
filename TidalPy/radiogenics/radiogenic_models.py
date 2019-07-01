@@ -31,8 +31,7 @@ def isotope(time: np.ndarray, mass: float,
 
     total_specific_heating = np.zeros_like(time)
     for mass_frac, concen, halflife, hpr in \
-        zip(iso_massfracs_of_isotope, iso_element_concentrations, iso_halflives, iso_heat_production):
-
+            zip(iso_massfracs_of_isotope, iso_element_concentrations, iso_halflives, iso_heat_production):
         gamma = LOG_HALF / halflife
         q_iso = mass_frac * concen * hpr
         total_specific_heating += q_iso * np.exp(gamma * (time - ref_time))

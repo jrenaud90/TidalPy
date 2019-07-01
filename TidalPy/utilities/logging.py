@@ -25,15 +25,15 @@ HEADER_TEXT = (
 HEADER_TEXT = '\n'.join(HEADER_TEXT)
 
 LEVEL_CONVERSION = {
-    'debug': 5,
-    'info': 4,
-    'warning': 3,
-    'error': 2,
+    'debug'   : 5,
+    'info'    : 4,
+    'warning' : 3,
+    'error'   : 2,
     'critical': 1
 }
 
-class TidalLogger:
 
+class TidalLogger:
 
     def __init__(self, verbose_level=global_verbose_level, logging_level=global_logging_level,
                  use_timestamps: bool = True):
@@ -148,7 +148,7 @@ class TidalLogger:
         :return: <str>
         """
 
-        return f'{(time.time() - self.init_time):04.4}'.ljust(4, '0').rjust(8,'0')
+        return f'{(time.time() - self.init_time):04.4}'.ljust(4, '0').rjust(8, '0')
 
     def cleanup(self):
         """ Cleans up log when program is about to exit """

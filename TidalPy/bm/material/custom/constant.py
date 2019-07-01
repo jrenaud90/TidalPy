@@ -3,13 +3,11 @@ from burnman.material import Material, material_property
 
 
 class ConstantMaterial(Material):
-
     """
     Base class for a burnman-like material that only returns constant values (set by a child class).
     """
 
     def __init__(self):
-
         super().__init__()
 
     @material_property

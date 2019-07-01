@@ -29,7 +29,7 @@ def exponential(baseline_zeta, frequency, andrade_critical_freq):
     """
 
     # Calculate the frequency ratio to avoid huge values leading to NANs or INFs.
-    _freq_ratio = andrade_critical_freq/frequency
+    _freq_ratio = andrade_critical_freq / frequency
     _freq_ratio[_freq_ratio > float_lognat_max] = float_lognat_max
 
     zeta = baseline_zeta * np.exp(_freq_ratio)

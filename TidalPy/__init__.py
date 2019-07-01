@@ -9,6 +9,7 @@ __version__ = version
 _vers_major, _vers_minor, _vers_hotfix = version.split('.')
 compatibility_signature = _vers_major + _vers_minor
 
+
 def is_compatible(test_version: str):
     """ Tests rather or not a feature made in test_version is likely to be compatible in current __version__
 
@@ -26,6 +27,7 @@ def is_compatible(test_version: str):
         pass
 
     return True
+
 
 # Initial Runtime
 init_time = time.time()
@@ -53,6 +55,8 @@ else:
 # Check to see if this is running in a jupyter notebook. If it is then it is usually not ideal to print log information
 #   to the console.
 from .configurations import print_log_in_jupyter, write_log_in_jupyter
+
+
 running_in_jupyter = False
 for path in sys.path:
     if 'ipython' in path.lower():
@@ -68,6 +72,8 @@ if running_in_jupyter and not write_log_in_jupyter:
 
 # Make logger that will be used by other
 from .utilities.logging import TidalLogger
+
+
 log = TidalLogger()
 
 # Some data files are stored in the TidalPy directory chain. Need to know where TidalPy is located to find those files.

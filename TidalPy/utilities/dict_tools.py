@@ -3,8 +3,9 @@ from typing import List, Tuple, Union
 
 PossibleKeyType = Union[str, int, float]
 
+
 def nested_get(input_dict: dict, nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType]],
-               default = None,
+               default=None,
                raiseon_nolocate: bool = False):
     """ Returns a value from a series of nested dictionaries given a list of keys
 

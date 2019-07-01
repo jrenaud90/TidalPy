@@ -19,12 +19,12 @@ def arrhenius(temperature: np.ndarray, pressure: float,
 
     """
 
-    exponent = (molar_activation_energy + pressure*molar_activation_volume) / (temperature * R)
+    exponent = (molar_activation_energy + pressure * molar_activation_volume) / (temperature * R)
 
     exponent[exponent > float_lognat_max] = float_lognat_max
     exponent[exponent < -float_lognat_max] = -float_lognat_max
 
-    viscosity = arrhenius_coeff * stress**(1-stress_expo) * grain_size**grain_size_expo * np.exp(exponent)
+    viscosity = arrhenius_coeff * stress**(1 - stress_expo) * grain_size**grain_size_expo * np.exp(exponent)
     if additional_temp_dependence:
         viscosity *= temperature
 
@@ -53,6 +53,7 @@ def reference(temperature: np.ndarray, pressure: float,
     viscosity = reference_viscosity * np.exp(exponent)
 
     return viscosity
+
 
 @njit
 def constant(temperature: np.ndarray, pressure: float,

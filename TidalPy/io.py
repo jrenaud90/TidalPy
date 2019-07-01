@@ -6,9 +6,10 @@ from . import auto_write, version
 
 tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
 
+
 def timestamped_str(date: bool = True, time: bool = True, millisecond: bool = False,
                     string_to_stamp: str = None, preappend: bool = True, separation: str = '_',
-                    provided_datetime = None) -> str:
+                    provided_datetime=None) -> str:
     """ Creates a timestamp string at the current time and date.
 
     :param date: (Optional) <bool> Whether or not the date will be included in the timestamp
@@ -100,6 +101,7 @@ def unique_path(attempt_path: str, is_dir: bool = None, preappend_run_dir: bool 
                 break
     return attempt_path
 
+
 # Create Output Directory Structure
 master_directory = os.getcwd()
 outer_save_dir = os.path.join(master_directory, 'TidalPy_Output')
@@ -111,10 +113,11 @@ if auto_write:
 
     # Save TidalPy Configurations
     from shutil import copyfile
+
+
     config_file_src = os.path.join(tidalpy_loc, 'configurations.py')
     config_file_dst = os.path.join(inner_save_dir, f'configurations.TidalPy_v{version}.py')
     copyfile(config_file_src, config_file_dst)
 
 else:
     inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=False)
-

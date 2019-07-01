@@ -11,8 +11,8 @@ from ..utilities.model import LayerModel, ModelSearcher
 # Cooling Model Finder
 find_partial_melter = ModelSearcher(cooling_models, cooling_param_defaults)
 
-class Cooling(LayerModel):
 
+class Cooling(LayerModel):
     default_config = copy.deepcopy(cooling_param_defaults)
     config_key = 'cooling'
 
@@ -37,7 +37,6 @@ class Cooling(LayerModel):
             raise ParameterMissingError
 
         delta_temp = temperature - self.layer.temperature_surf
-
 
         return self.func(delta_temp, self.layer.thickness, self.layer.thermal_conductivity,
                          *self.live_inputs, *self.inputs)

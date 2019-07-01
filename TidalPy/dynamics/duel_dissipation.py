@@ -4,7 +4,6 @@ from scipy.constants import G
 from ..performance import njit
 from ..types import float_eps
 
-from .single_dissipation import spin_rate_derivative
 
 # Duel Dissipation model's spin-rate derivative is the same as the single dissipation model
 

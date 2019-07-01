@@ -2,19 +2,20 @@ import burnman
 import numpy as np
 
 from .material.helper import find_material
-from .. import debug_mode
+from .. import debug_mode, log
 from ..exceptions import BadValueError, ParameterMissingError
 from ..types import float_eps
 
 
 default_layer_params = {
-    'material_source': None,
-    'slices': 40,
-    'temperature_mode': 'adiabatic',
-    'fixed_temperature': None,
-    'top_temperature': None,
+    'material_source'     : None,
+    'slices'              : 40,
+    'temperature_mode'    : 'adiabatic',
+    'fixed_temperature'   : None,
+    'top_temperature'     : None,
     'interp_lookup_method': 'mid'
 }
+
 
 def build_layer(layer_name: str, layer_config: dict):
     """ Builds a BurnMan layer from a provided configuration dictionary.
@@ -63,6 +64,8 @@ def build_planet(planet_config: dict):
     NOTE: This is a slow process and should not be repeated unless physical parameters of the planet are changing.
     """
 
+    log(f"Building planet: {planet_config['name']}", level='debug')
+
     # Store Layer information
     try:
         layers = planet_config['layers']
@@ -72,6 +75,9 @@ def build_planet(planet_config: dict):
     # Set defaults if none are provided
     last_layer_radius = 0.
     for layer_i, (layer_name, layer_config_user) in enumerate(layers.items()):
+
+        log(f"Initializing layer: {layer_name}", level='debug')
+
         # Check if layer has must-have parameters
         for param_name in ['type', 'material', 'radius']:
             if param_name not in layer_config_user:
@@ -88,7 +94,8 @@ def build_planet(planet_config: dict):
                 layer_config['thickness'] = layer_config['radius'] - last_layer_radius
         layer_config['radius_upper'] = layer_config['radius']
         layer_config['radius_lower'] = layer_config['radius_upper'] - layer_config['thickness']
-        layer_config['radii'] = np.linspace(layer_config['radius_lower'], layer_config['radius_upper'], layer_config['slices'])
+        layer_config['radii'] = np.linspace(layer_config['radius_lower'], layer_config['radius_upper'],
+                                            layer_config['slices'])
 
         # Check for physical consistency
         if layer_config['thickness'] <= float_eps:
@@ -102,13 +109,17 @@ def build_planet(planet_config: dict):
         layers[layer_name] = layer_config
 
     # Build BurnMan layers
+    log(f"Building BurnMan Layers", level='debug')
     burnman_layers_byname = {layer_name: build_layer(layer_name, layer_data) for layer_name, layer_data in
                              layers.items()}
     burnman_layers = [burnman_layers_byname[layer_name] for layer_name in layers]
 
     # Build BurnMan Planet
+    log(f"Initializing BurnMan Planet for {planet_config['name']}", level='debug')
     burnman_planet = burnman.Planet(planet_config['name'], burnman_layers, verbose=debug_mode)
     # Note: This section is slow!!
+    log(f"Building BurnMan Planet for {planet_config['name']}", level='debug')
     burnman_planet.make()
+    log('Planet construction completed', level='debug')
 
     return burnman_layers, burnman_planet

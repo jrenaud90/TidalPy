@@ -82,5 +82,4 @@ def henning(temperature: np.ndarray, melt_fraction: np.ndarray,
 
     return viscosity, shear
 
-
 # Put New Models Below Here!

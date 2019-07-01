@@ -88,6 +88,4 @@ def conduction(delta_temp: np.ndarray, layer_thickness: float, thermal_conductiv
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
-
 # Put New Models Below Here!
-

@@ -10,7 +10,6 @@ from ..utilities.classes import ConfigHolder
 
 
 class ImproperAttributeChanged(TidalPyException):
-
     default_message = 'A pre-computed planet had a critical configuration change that requires a new instance to be created'
 
     def __init__(self, *args, force_raise: bool = False, **kwargs):
@@ -28,7 +27,6 @@ class ImproperAttributeChanged(TidalPyException):
 
 
 class PhysicalObjSpherical(ConfigHolder):
-
     """ PhysicalObj Class: contains attributes and functionality used for a few physical objects such as
     planets or layers
 

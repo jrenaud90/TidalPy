@@ -14,7 +14,6 @@ from ..utilities.pathing import get_all_files_of_type
 
 
 def check_for_duplicates(dict_to_check: dict):
-
     potential_dups = list()
     for planet_name, planet_filepath in dict_to_check.items():
         possible_dup_index = planet_name.split('_')[-1]
@@ -41,6 +40,7 @@ known_planets_cfg = get_all_files_of_type(planet_config_loc, ['cfg', 'json', 'js
 check_for_duplicates(known_planets_cfg)
 _configs_are_dict = False
 
+
 def _cfgpath_to_json():
     global known_planets_cfg
     global _configs_are_dict
@@ -50,11 +50,11 @@ def _cfgpath_to_json():
 
     _configs_are_dict = True
 
+
 # Check for conflict nam
 
 def build_planet(planet_name: str, planet_config: dict = None, force_build: bool = False,
                  planet_dill_path: str = None):
-
     log(f'Preparing to find and/or build world: {planet_name}')
 
     # See if dilled planet exists
@@ -94,7 +94,8 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
                 log(f'Configuration file found', level='debug')
                 planet_config = known_planets_cfg[planet_name]
             else:
-                raise MissingArgumentError('No Planet configuration found or provided. Not enough information to build planet.')
+                raise MissingArgumentError(
+                    'No Planet configuration found or provided. Not enough information to build planet.')
 
         # Determine world type
         planet_type = planet_config['type']
@@ -103,7 +104,8 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
         planet_class = world_types[planet_type]
 
         if planet_class == TidalWorld:
-            log('Burnman planet type detected. Attempting to build BurnMan planet. This may take a while.', level='debug')
+            log('Burnman planet type detected. Attempting to build BurnMan planet. This may take a while.',
+                level='debug')
             # Build BurnMan Planet first
             burnman_layers, burnman_planet = build_bm_planet(planet_config)
             log('Burnman planet build complete!')
@@ -123,7 +125,3 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
         atexit.register(planet.kill_world)
 
     return planet
-
-
-
-

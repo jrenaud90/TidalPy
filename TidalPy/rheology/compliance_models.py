@@ -14,7 +14,8 @@ How To Implement a New Rheology:
 
 import numpy as np
 
-from ..performance import njit, find_factorial
+from ..performance import find_factorial, njit
+
 
 @njit
 def off(compliance, viscosity, frequency):
@@ -23,7 +24,7 @@ def off(compliance, viscosity, frequency):
     other args: None
     """
 
-    return compliance + 0.0j
+    return (compliance + 0.0j) * np.ones_like(frequency)
 
 
 @njit
@@ -42,7 +43,8 @@ def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
     imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2)
     complex_compliance = real_j + 1.0j * imag_j
 
-    return complex_compliance
+    return complex_compliance * np.ones_like(frequency)
+
 
 @njit
 def maxwell(compliance, viscosity, frequency):
@@ -59,7 +61,7 @@ def maxwell(compliance, viscosity, frequency):
     real_j = compliance
     imag_j = -1.0 / (viscosity * frequency)
 
-    complex_compliance = real_j + 1.0j*imag_j
+    complex_compliance = real_j + 1.0j * imag_j
 
     return complex_compliance
 
@@ -119,10 +121,10 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
     const_term = compliance * (compliance * viscosity * frequency * zeta)**(-alpha) * \
-                               find_factorial(alpha)
+                 find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
-    andrade_complex_comp = real_j + 1.0j*imag_j
+    andrade_complex_comp = real_j + 1.0j * imag_j
 
     return maxwell_complex_comp + andrade_complex_comp
 
@@ -144,7 +146,7 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
     const_term = compliance * (compliance * viscosity * frequency * zeta)**(-alpha) * \
-                               find_factorial(alpha)
+                 find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
     andrade_complex_comp = real_j + 1.0j * imag_j

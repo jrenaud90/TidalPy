@@ -21,8 +21,8 @@ def setup_material_lists():
 
     # Load in official BurnMan materials
     ignore_list = ['__name__', '__doc__', '__package__', '__loader__', '__spec__', '__path__',
-                    '__file__', '__cached__', '__builtins__', 'absolute_import', 'np', 'os', 'jit', 'njit',
-                    'logish', 'helpers', 'Mineral', 'SolidSolution']
+                   '__file__', '__cached__', '__builtins__', 'absolute_import', 'np', 'os', 'jit', 'njit',
+                   'logish', 'helpers', 'Mineral', 'SolidSolution']
 
     # Search burnman.minerals for new material files.
     known_materials_tmp = dict()
@@ -94,10 +94,12 @@ def find_material(material_name: str, material_source: str = None):
         try:
             material_source, material_class = known_materials_sourceless[material_name]
         except KeyError:
-            UnknownModelError(f'Unknown material: {material_name}. No source filename was provided. Providing a source filename may correct this error.')
+            UnknownModelError(
+                f'Unknown material: {material_name}. No source filename was provided. Providing a source filename may correct this error.')
     else:
         if material_source not in known_materials:
-            raise UnknownModelError(f'Material source filename {material_source} not found. If source file unknown set material_source to None.')
+            raise UnknownModelError(
+                f'Material source filename {material_source} not found. If source file unknown set material_source to None.')
         if material_name not in known_materials[material_source]:
             raise UnknownModelError(f'Material {material_name} not found in source file: {material_source}')
         material_class = known_materials[material_source][material_name]

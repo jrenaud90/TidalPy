@@ -8,7 +8,7 @@
 
 
 # Configurations related to BurnMan Planet Building, Saving, and Loading
-save_burnman_planets_to_tidalpy_dir = True
+save_burnman_planets_to_tidalpy_dir = False
 save_burnman_planets_to_run_folder = True
 raise_on_changed_config = True
 
@@ -25,8 +25,8 @@ exit_planets = True
 # Saving preferences
 auto_save_planet_config_to_rundir = True
 auto_save_planet_dill_to_rundir = True
-auto_save_planet_config_to_tidalpydir = True
-auto_save_planet_dill_to_tidalpydir = True
+auto_save_planet_config_to_tidalpydir = False
+auto_save_planet_dill_to_tidalpydir = False
 overwrite_dills = True
 overwrite_configs = False
 give_configs_subscript = False
