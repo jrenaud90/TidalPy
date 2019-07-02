@@ -86,8 +86,8 @@ class OrbitBase(TidalPyClass):
         self.star_host = False
         if self.star is self.host:
             self.star_host = True
-        self.equilib_distance_funcs = [None, lambda: self.host.semi_major_axis]
-        self.equilib_eccentricity_funcs = [None, lambda: self.host.eccentricity]
+        self.equilib_distance_funcs = [None, lambda: self.star.semi_major_axis]
+        self.equilib_eccentricity_funcs = [None, lambda: self.star.eccentricity]
 
         # Is the host a tidal body?
         self.has_tidal_host = isinstance(self.host, TidalWorld)
@@ -105,13 +105,13 @@ class OrbitBase(TidalPyClass):
             # Store reference in a more human readable manner
             self.all_objects_byname[target_body.name] = target_body
 
-            # Equilibrium temperature
+            # Equilibrium Temperature
             if self.star_host:
                 equib_dist_func = lambda: target_body.semi_major_axis
                 equib_ecc_func = lambda: target_body.eccentricity
             else:
-                equib_dist_func = lambda: self.host.semi_major_axis
-                equib_ecc_func = lambda: self.host.eccentricity
+                equib_dist_func = lambda: self.star.semi_major_axis
+                equib_ecc_func = lambda: self.star.eccentricity
             self.equilib_distance_funcs.append(equib_dist_func)
             self.equilib_eccentricity_funcs.append(equib_ecc_func)
 
@@ -155,6 +155,12 @@ class OrbitBase(TidalPyClass):
                     semi_major_axis = None
             eccentricity = world.config.get('eccentricity', None)
             inclination = world.config.get('inclination', None)
+
+            if not self.star_host and world is self.host:
+                # Initial parameters set in the config file are assumed to be
+                self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=True,
+                               force_calculation=False)
+
             self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=True,
                            force_calculation=False)
 
@@ -282,11 +288,12 @@ class OrbitBase(TidalPyClass):
         if inclination is not None:
             self.set_inclination(planet_pointer, inclination, inclination_in_deg=inclination_in_deg, set_by_planet=True)
 
-        try:
-            self.update_orbit(planet_reference, set_by_planet=set_by_planet)
-        except ParameterMissingError as error:
-            if force_calculation:
-                raise error
+        if planet_pointer is not self.star:
+            try:
+                self.update_orbit(planet_reference, set_by_planet=set_by_planet)
+            except ParameterMissingError as error:
+                if force_calculation:
+                    raise error
 
     def set_orbital_freq(self, planet_reference: PlanetRefType, new_orbital_freq: FloatArray,
                          set_by_planet: bool = False):
@@ -313,9 +320,7 @@ class OrbitBase(TidalPyClass):
         planet_pointer = self.find_planet_pointer(planet_reference)
         planet_loc = planet_pointer.orbit_location
 
-        if planet_pointer is self.star:
-            raise ParameterError("Can not change a star's orbit")
-        elif planet_pointer is self.host and not self.star_host and not set_by_planet:
+        if planet_pointer is self.host and not self.star_host and not set_by_planet:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
@@ -361,9 +366,7 @@ class OrbitBase(TidalPyClass):
         planet_pointer = self.find_planet_pointer(planet_reference)
         planet_loc = planet_pointer.orbit_location
 
-        if planet_pointer is self.star:
-            raise ParameterError("Can not change a star's orbit")
-        elif planet_pointer is self.host and not self.star_host and not set_by_planet:
+        if planet_pointer is self.host and not self.star_host and not set_by_planet:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
@@ -411,9 +414,7 @@ class OrbitBase(TidalPyClass):
         planet_pointer = self.find_planet_pointer(planet_reference)
         planet_loc = planet_pointer.orbit_location
 
-        if planet_pointer is self.star:
-            raise ParameterError("Can not change a star's orbit")
-        elif planet_pointer is self.host and not self.star_host and not set_by_planet:
+        if planet_pointer is self.host and not self.star_host and not set_by_planet:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
@@ -452,9 +453,7 @@ class OrbitBase(TidalPyClass):
         planet_pointer = self.find_planet_pointer(planet_reference)
         planet_loc = planet_pointer.orbit_location
 
-        if planet_pointer is self.star:
-            raise ParameterError("Can not change a star's orbit")
-        elif planet_pointer is self.host and not self.star_host and not set_by_planet:
+        if planet_pointer is self.host and not self.star_host and not set_by_planet:
             if debug_mode:
                 # This would change the orbit between the host and the star, not between the target body and the star.
                 # This may not be what the user wants to do.
@@ -473,9 +472,8 @@ class OrbitBase(TidalPyClass):
     def get_orbital_freq(self, planet_reference: PlanetRefType) -> np.ndarray:
 
         planet_loc = self.find_planet_pointer(planet_reference).orbit_location
-        if planet_loc == 0:
-            raise ParameterError()
-        elif planet_loc == 1:
+
+        if planet_loc == 1:
             planet_loc = self.host_tide_raiser_loc
 
         return self._orbital_freqs[planet_loc]
@@ -483,9 +481,8 @@ class OrbitBase(TidalPyClass):
     def get_semi_major_axis(self, planet_reference: PlanetRefType) -> np.ndarray:
 
         planet_loc = self.find_planet_pointer(planet_reference).orbit_location
-        if planet_loc == 0:
-            raise ParameterError()
-        elif planet_loc == 1:
+
+        if planet_loc == 1:
             planet_loc = self.host_tide_raiser_loc
 
         return self._semi_major_axis[planet_loc]
@@ -493,9 +490,8 @@ class OrbitBase(TidalPyClass):
     def get_eccentricity(self, planet_reference: PlanetRefType) -> np.ndarray:
 
         planet_loc = self.find_planet_pointer(planet_reference).orbit_location
-        if planet_loc == 0:
-            raise ParameterError()
-        elif planet_loc == 1:
+
+        if planet_loc == 1:
             planet_loc = self.host_tide_raiser_loc
 
         return self._eccentricities[planet_loc]
@@ -503,9 +499,8 @@ class OrbitBase(TidalPyClass):
     def get_inclination(self, planet_reference: PlanetRefType) -> np.ndarray:
 
         planet_loc = self.find_planet_pointer(planet_reference).orbit_location
-        if planet_loc == 0:
-            raise ParameterError()
-        elif planet_loc == 1:
+
+        if planet_loc == 1:
             planet_loc = self.host_tide_raiser_loc
 
         return self._inclinations[planet_loc]

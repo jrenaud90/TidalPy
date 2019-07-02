@@ -4,13 +4,17 @@
       <w>burnman</w>
       <w>byname</w>
       <w>coeff</w>
+      <w>elast</w>
       <w>equilib</w>
       <w>insolation</w>
       <w>ndarray</w>
+      <w>neusselt</w>
       <w>nusselt</w>
       <w>premelt</w>
       <w>radiogenic</w>
       <w>radiogenics</w>
+      <w>suscept</w>
+      <w>targ</w>
       <w>tidalpy</w>
       <w>vers</w>
       <w>visco</w>

@@ -4,7 +4,7 @@ from ..performance import njit
 from ..types import FloatArray
 
 
-# @njit
+@njit
 def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number
 

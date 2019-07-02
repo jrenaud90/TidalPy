@@ -7,7 +7,7 @@ from ..types import float_eps
 
 # Duel Dissipation model's spin-rate derivative is the same as the single dissipation model
 
-# @njit
+@njit
 def semi_major_axis_derivative(semi_major_axis: np.ndarray, mass_1: float, mass_2: float,
                                spin_freq_1: np.ndarray, ztorque_1: np.ndarray, tidal_heating_1: np.ndarray,
                                spin_freq_2: np.ndarray, ztorque_2: np.ndarray, tidal_heating_2: np.ndarray

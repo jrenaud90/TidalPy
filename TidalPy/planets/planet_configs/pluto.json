@@ -18,7 +18,7 @@
             "temperature_mode": "adiabatic",
             "temperature_top": 300.0
         },
-        "Mantle": {
+        "Crust": {
             "type": "ice",
             "is_tidal": false,
             "radius": 1189.9e3,

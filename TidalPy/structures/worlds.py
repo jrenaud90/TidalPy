@@ -670,7 +670,7 @@ class TidalWorld(WorldBase):
         # A change in the insolation heating will change the surface temperature which may impact cooling
         heat_flux_out = self.layers[-1].heat_flux
         if heat_flux_out is None:
-            heat_flux_out = np.asarray(0.)
+            heat_flux_out = np.asarray([0.])
         heating_out = heat_flux_out * self.surface_area_outer
         total_heating = heating_out + self.insolation_heating
         surface_temperature = equilibrium_temperature(total_heating, self.radius, self.emissivity)

@@ -37,3 +37,13 @@ radiogenics_param_defaults = {
         'model': 'off'
     }
 }
+
+known_iso_data = radiogenics_param_defaults['rock']['isotopes']
+
+standard_isotope_input = (
+    tuple([iso_data['iso_mass_fraction'] for _, iso_data in known_iso_data.items()]),
+    tuple([iso_data['element_concentration'] for _, iso_data in known_iso_data.items()]),
+    tuple([iso_data['half_life'] for _, iso_data in known_iso_data.items()]),
+    tuple([iso_data['hpr'] for _, iso_data in known_iso_data.items()]),
+    4600.
+)
