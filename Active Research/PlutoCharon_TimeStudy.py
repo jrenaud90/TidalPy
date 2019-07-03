@@ -27,17 +27,17 @@ star = TidalPy.build_planet('sol', force_build=True)
 orbit = Orbit(star, host, target, duel_dissipation=True, time_study=True)
 
 # Initial Conditions
-time_span = myr2sec(np.asarray((0, 1)))
+time_span = myr2sec(np.asarray((0, 5)))
 modern_semi_major_axis = 1.9599e7
 modern_orb_freq = semi_a2orbital_motion(modern_semi_major_axis, host.mass, target.mass)
 
 semi_major_axis_init = 1.0 * modern_semi_major_axis
-eccentricity_init = 0.2
-spin_freq_host_init = modern_orb_freq * 2
+eccentricity_init = 0.4
+spin_freq_host_init = modern_orb_freq * 20
 temperature_core_host_init = 1000.
 thickness_visco_host_init = 0.2 * host.crust.thickness
 thickness_elast_host_init = 0.1 * host.crust.thickness
-spin_freq_targ_init = modern_orb_freq * 2
+spin_freq_targ_init = modern_orb_freq * 20
 temperature_core_targ_init = 1000.
 thickness_visco_targ_init = 0.2 * target.crust.thickness
 thickness_elast_targ_init = 0.1 * target.crust.thickness
@@ -61,8 +61,8 @@ melting_temp_ice = 273.15
 ocean_temp = melting_temp_ice
 
 # Integration Parameters
-rtol = 1.e-6
-method = 'RK45'
+rtol = 1.e-8
+method = 'LSODA'
 
 # Rocky Material Inputs
 specific_heat_rock = 1.2255e3
@@ -224,9 +224,9 @@ def diffeq(time, variables, complex_compliance_func, complex_compliance_input, d
 
     # Update Radiogenics
     #     - Host
-    radio_heating_core_host = radiogenic_isotope(time_myr, host.core.mass, *standard_isotope_input)
+    radio_heating_core_host = 0.*radiogenic_isotope(time_myr, host.core.mass, *standard_isotope_input)
     #     - Target
-    radio_heating_core_targ = radiogenic_isotope(time_myr, target.core.mass, *standard_isotope_input)
+    radio_heating_core_targ = 0.*radiogenic_isotope(time_myr, target.core.mass, *standard_isotope_input)
 
     # Update Rheology and Tides
     #     - Host
@@ -314,13 +314,13 @@ def diffeq(time, variables, complex_compliance_func, complex_compliance_input, d
     # Find Heat Fluxes
     #     - Host
     delta_temp_elast_host = melting_temp_ice - ice_top_temp_host
-    q_visco_in_host = core_cooling_host / (4. * np.pi * radius_visco_host**2)
+    q_visco_in_host = (core_cooling_host + tidal_heating_crust_host) / (4. * np.pi * radius_visco_host**2)
     q_visco_out_host = thermal_cond_ice * delta_temp_elast_host / blt_crust_host
     q_elast_in_host = q_visco_out_host
     q_elast_out_host = thermal_cond_ice * (ice_top_temp_host - host.surface_temperature) / thickness_elast_host
     #     - Targ
     delta_temp_elast_targ = melting_temp_ice - ice_top_temp_targ
-    q_visco_in_targ = core_cooling_targ / (4. * np.pi * radius_visco_targ**2)
+    q_visco_in_targ = (core_cooling_targ + tidal_heating_crust_targ) / (4. * np.pi * radius_visco_targ**2)
     q_visco_out_targ = thermal_cond_ice * delta_temp_elast_targ / blt_crust_targ
     q_elast_in_targ = q_visco_out_targ
     q_elast_out_targ = thermal_cond_ice * (ice_top_temp_targ - target.surface_temperature) / thickness_elast_targ
@@ -464,18 +464,18 @@ def main():
     # Figure 1:
     fig_1, axes_1 = plt.subplots(2, 2, figsize=(12, 8))
     fig_1.subplots_adjust(wspace=2.8)
-    axes_1_axis_1duel = axes_1[0,0].twinx()
+    axes_1_axis_1duel = axes_1[0, 0].twinx()
     axes_1_axis_1duel.set_xlabel('Time [Myr]')
     for axis in axes_1.flatten():
         axis.set_xlabel('Time [Myr]')
 
     axes_1_axis_1duel.set_ylabel('Eccentricity (dashed)')
     axes_1_axis_1duel.set_yscale('log')
-    axes_1[0,0].set_ylabel('Semi-Major Axis [modern frac]')
-    axes_1[0,1].set_ylabel('Spin Period [Hours]')
-    axes_1[1,0].set_ylabel('Ocean Volume [perc of Ice]')
-    axes_1[1,1].set_ylabel('Tidal Heating [Watts]')
-    axes_1[1,1].set_yscale('log')
+    axes_1[0, 0].set_ylabel('Semi-Major Axis [modern frac]')
+    axes_1[0, 1].set_ylabel('Spin / n')
+    axes_1[1, 0].set_ylabel('Thickness [% of H2O]')
+    axes_1[1, 1].set_ylabel('Heating [Watts]')
+    axes_1[1, 1].set_yscale('log')
 
     for rheo_name, comp_func in rheo_funcs.items():
         comp_input = rheo_inputs[rheo_name]
@@ -490,26 +490,38 @@ def main():
         # Plot
         # Pane 1: Orbit
         x = all_data['time_domain_myr']
-        axes_1[0,0].plot(x, all_data['semi_major_axis'] / modern_semi_major_axis, c=rheo_color)
+        axes_1[0, 0].plot(x, all_data['semi_major_axis'] / modern_semi_major_axis, c=rheo_color)
         axes_1_axis_1duel.plot(x, all_data['eccentricity'] / modern_semi_major_axis, c=rheo_color, ls='--')
 
         # Pane 2: Spin
-        host_spin_period = (2. * np.pi / all_data['host']['spin_freq']) / (60 * 60)
-        target_spin_period = (2. * np.pi / all_data['target']['spin_freq']) / (60 * 60)
-        axes_1[0,1].plot(x, host_spin_period, c=rheo_color, ls='-')
-        axes_1[0,1].plot(x, target_spin_period, c=rheo_color, ls='--')
+        orb_freq = semi_a2orbital_motion(all_data['semi_major_axis'], host.mass, target.mass)
+        host_spin = all_data['host']['spin_freq']
+        target_spin = all_data['target']['spin_freq']
+        axes_1[0, 1].plot(x, host_spin / orb_freq, c=rheo_color, ls='-')
+        axes_1[0, 1].plot(x, target_spin / orb_freq, c=rheo_color, ls='--')
 
         # Pane 3: Ocean
-        host_ocean_frac = all_data['host']['ocean_volume'] / host.crust.volume
-        target_ocean_frac = all_data['target']['ocean_volume'] / target.crust.volume
-        axes_1[1,0].plot(x, host_ocean_frac, c=rheo_color, ls='-')
-        axes_1[1,0].plot(x, target_ocean_frac, c=rheo_color, ls='--')
+        host_visco_dx = all_data['host']['thickness_visco_ice']
+        target_visco_dx = all_data['target']['thickness_visco_ice']
+        host_elast_dx = all_data['host']['thickness_elast_ice']
+        target_elast_dx = all_data['target']['thickness_elast_ice']
+        host_ocean_dx = (host.crust.thickness - host_visco_dx - host_elast_dx)
+        target_ocean_dx = (target.crust.thickness - target_visco_dx - target_elast_dx)
+
+        axes_1[1, 0].plot(x, host_visco_dx / host.crust.thickness, c=rheo_color, ls='-')
+        axes_1[1, 0].plot(x, target_visco_dx / host.crust.thickness, c=rheo_color, ls='--')
+        axes_1[1, 0].plot(x, host_ocean_dx / host.crust.thickness, c=rheo_color, ls='-.')
+        axes_1[1, 0].plot(x, target_ocean_dx / host.crust.thickness, c=rheo_color, ls=':')
 
         # Pane 4: Heating
         host_tidal_heating = all_data['host']['tidal_heating']
         target_tidal_heating  = all_data['target']['tidal_heating']
-        axes_1[1,1].plot(x, host_tidal_heating, c=rheo_color, ls='-')
-        axes_1[1,1].plot(x, target_tidal_heating, c=rheo_color, ls='--')
+        host_radiogenics = all_data['host']['radiogenics']
+        target_radiogenics = all_data['target']['radiogenics']
+        axes_1[1, 1].plot(x, host_tidal_heating, c=rheo_color, ls='-')
+        axes_1[1, 1].plot(x, target_tidal_heating, c=rheo_color, ls='--')
+        axes_1[1, 1].plot(x, host_radiogenics, c=rheo_color, ls='-.')
+        axes_1[1, 1].plot(x, target_radiogenics, c=rheo_color, ls=':')
 
     plt.tight_layout()
     plt.show()
