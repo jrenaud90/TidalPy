@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Dict, TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 import burnman
 import numpy as np
@@ -13,7 +13,7 @@ from ..configurations import burnman_interpolation_N, burnman_interpolation_meth
 from ..exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
                           ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError)
 from ..radiogenics.radiogenics import Radiogenics
-from ..rheology.rheology import Rheology
+from TidalPy.tides.tides import Tides
 from ..structures.physical import PhysicalObjSpherical
 from ..thermal import find_viscosity
 from ..thermal.cooling import Cooling
@@ -145,7 +145,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self.cooling = None  # type: Cooling or None
         self.partial_melt = None  # type: PartialMelt or None
         self.radiogenics = None  # type: Radiogenics or None
-        self.rheology = None  # type: Rheology or None
+        self.rheology = None  # type: Tides or None
         self.heat_sources = None
 
         # Function Holders
@@ -256,8 +256,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.radiogenics = Radiogenics(self)
         self.heat_sources.append(lambda: self.radiogenic_heating)
 
-        # Setup Rheology
-        self.rheology = Rheology(self)
+        # Setup Tides
+        self.rheology = Tides(self)
         if self.rheology.model != 'off':
             self.is_tidal = True
         self.heat_sources.append(lambda: self.tidal_heating)

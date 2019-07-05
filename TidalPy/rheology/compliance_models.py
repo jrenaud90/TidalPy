@@ -1,6 +1,6 @@
-""" Rheology Compliance Functions
+""" Tides Compliance Functions
 
-How To Implement a New Rheology:
+How To Implement a New Tides:
     * Make a new function here with a function doc-string that follows the format of the pre-built rheologies.
         - Items under the 'Parameters' header will be used to help construct the rheology. You need to supply them.
         - All rheologies require three arguments: compliance (non-complex), viscosity, and frequency.
@@ -14,22 +14,28 @@ How To Implement a New Rheology:
 
 import numpy as np
 
+from ..types import float_eps
 from ..performance import find_factorial, njit
 
 
 @njit
 def off(compliance, viscosity, frequency):
-    """ No Rheology
+    """ No Tides
 
     other args: None
     """
 
-    return (compliance + 0.0j) * np.ones_like(frequency)
+    real_j = compliance
+    imag_j = np.zeros_like(frequency)
+
+    complex_compliance = real_j + 1.0j * imag_j
+
+    return complex_compliance
 
 
 @njit
 def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
-    """ Fixed-Q Rheology
+    """ Fixed-Q Tides
 
         --- Parameters ---
         nice name:  Fixed-Q
@@ -41,14 +47,17 @@ def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
 
     real_j = -19. / (2. * planet_beta)
     imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2)
+    imag_j *= np.ones_like(frequency)
+    imag_j[np.abs(frequency) <= float_eps] = 0.
+
     complex_compliance = real_j + 1.0j * imag_j
 
-    return complex_compliance * np.ones_like(frequency)
+    return complex_compliance
 
 
 @njit
 def maxwell(compliance, viscosity, frequency):
-    """ Maxwell Rheology
+    """ Maxwell Tides
 
         --- Parameters ---
         nice name:  Maxwell
@@ -60,6 +69,7 @@ def maxwell(compliance, viscosity, frequency):
 
     real_j = compliance
     imag_j = -1.0 / (viscosity * frequency)
+    imag_j[np.abs(frequency) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j
 
@@ -68,7 +78,7 @@ def maxwell(compliance, viscosity, frequency):
 
 @njit
 def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
-    """ Voigt-Kelvin Rheology
+    """ Voigt-Kelvin Tides
 
         --- Parameters ---
         nice name:  Voigt-Kelvin
@@ -84,6 +94,8 @@ def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_visco
     denominator = (voigt_comp * voigt_visc * frequency)**2 + 1.
     real_j = voigt_comp / denominator
     imag_j = -voigt_comp**2 * voigt_visc * frequency / denominator
+    imag_j[np.abs(frequency) <= float_eps] = 0.
+
     complex_compliance = real_j + 1.0j * imag_j
 
     return complex_compliance
@@ -91,7 +103,7 @@ def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_visco
 
 @njit
 def burgers(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
-    """ Burgers Rheology
+    """ Burgers Tides
 
         --- Parameters ---
         nice name:  Burgers
@@ -104,12 +116,14 @@ def burgers(compliance, viscosity, frequency, voigt_compliance_offset, voigt_vis
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
-    return voigt_complex_comp + maxwell_complex_comp
+    complex_compliance = voigt_complex_comp + maxwell_complex_comp
+
+    return complex_compliance
 
 
 @njit
 def andrade(compliance, viscosity, frequency, alpha, zeta):
-    """ Andrade Rheology
+    """ Andrade Tides
 
         --- Parameters ---
         nice name:  Andrade
@@ -124,14 +138,17 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
                  find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+    imag_j[np.abs(frequency) < float_eps] = 0.
     andrade_complex_comp = real_j + 1.0j * imag_j
 
-    return maxwell_complex_comp + andrade_complex_comp
+    complex_compliance = maxwell_complex_comp + andrade_complex_comp
+
+    return complex_compliance
 
 
 @njit
 def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_params, andrade_freq_func):
-    """ Andrade Rheology with frequency-dependent Zeta
+    """ Andrade Tides with frequency-dependent Zeta
 
         --- Parameters ---
         nice name:  Andrade
@@ -149,14 +166,17 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
                  find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+    imag_j[np.abs(frequency) < float_eps] = 0.
     andrade_complex_comp = real_j + 1.0j * imag_j
 
-    return maxwell_complex_comp + andrade_complex_comp
+    complex_compliance = maxwell_complex_comp + andrade_complex_comp
+
+    return complex_compliance
 
 
 @njit
 def sundberg(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta):
-    """ Sundberg-Cooper Rheology
+    """ Sundberg-Cooper Tides
 
         --- Parameters ---
         nice name:  Sundberg
@@ -168,13 +188,15 @@ def sundberg(compliance, viscosity, frequency, voigt_compliance_offset, voigt_vi
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
     andrade_complex_comp = andrade(compliance, viscosity, frequency, alpha, zeta)
 
-    return voigt_complex_comp + andrade_complex_comp
+    complex_compliance = voigt_complex_comp + andrade_complex_comp
+
+    return complex_compliance
 
 
 @njit
 def sundberg_freq(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta,
                   andrade_freq_params, andrade_freq_func):
-    """ Sundberg-Cooper Rheology
+    """ Sundberg-Cooper Tides
 
         --- Parameters ---
         nice name:  Sundberg
@@ -187,4 +209,6 @@ def sundberg_freq(compliance, viscosity, frequency, voigt_compliance_offset, voi
     andrade_complex_comp = andrade_freq(compliance, viscosity, frequency, alpha, zeta,
                                         andrade_freq_params, andrade_freq_func)
 
-    return voigt_complex_comp + andrade_complex_comp
+    complex_compliance = voigt_complex_comp + andrade_complex_comp
+
+    return complex_compliance

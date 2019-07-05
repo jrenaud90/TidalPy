@@ -4,8 +4,8 @@ from typing import Tuple
 
 import numpy as np
 
-from . import andrade_frequency_models, compliance_models
-from .defaults import rheology_param_defaults
+from ..rheology import andrade_frequency_models, compliance_models
+from ..rheology.defaults import rheology_param_defaults
 from .love_1d import (complex_love as complex_love_func, complex_love_general,
                       effective_rigidity as effective_rigidity_func, effective_rigidity_general)
 from ..exceptions import (AttributeNotSetError, ImplementationError, ParameterMissingError, UnknownModelError)
@@ -17,7 +17,7 @@ from ..utilities.model import LayerModel
 FAKE_FREQS = (np.asarray([0.]),)
 
 
-class Rheology(LayerModel):
+class Tides(LayerModel):
     default_config = copy.deepcopy(rheology_param_defaults)
     config_key = 'rheology'
 
@@ -94,7 +94,7 @@ class Rheology(LayerModel):
         else:
             tidal_freqs = FAKE_FREQS
 
-        # Rheology Functions
+        # Tides Functions
         complex_compliance_tupl = list()
         complex_love_tupl = list()
         for freq in tidal_freqs:

@@ -1,7 +1,7 @@
 import numpy as np
 
-from ..performance import njit
-from ..types import FloatArray
+from TidalPy.performance import njit
+from TidalPy.types import FloatArray
 
 
 @njit

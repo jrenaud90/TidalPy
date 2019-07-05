@@ -9,7 +9,7 @@
 ## Thermal
 * Move the viscosity calculation (pre-melt) into rheology module (currently in thermal)?
 
-## Rheology
+## Tides
 * Put a check to make sure that alpha stays between 0 and 1 (the factorial code will not work outside that range)
 
 ## Code

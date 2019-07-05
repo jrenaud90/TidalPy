@@ -77,7 +77,7 @@ class ComplianceModelSearcher(ModelSearcher):
 
 find_complex_compliance = ComplianceModelSearcher(compliance_models, andrade_frequency_models, rheology_param_defaults)
 
-# Build Rheology Plotting Style
+# Build Tides Plotting Style
 rheology_styles = dict()
 for known_model, model_docs in find_complex_compliance.known_models_docs.items():
     # Initialize style with defaults

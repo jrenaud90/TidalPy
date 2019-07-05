@@ -1,3 +1,6 @@
+ppm = 1.e-6
+
+
 radiogenics_param_defaults = {
     'ice' : {
         'model': 'off'
@@ -11,25 +14,25 @@ radiogenics_param_defaults = {
                 'iso_mass_fraction'    : 0.9928,
                 'hpr'                  : 9.48e-5,
                 'half_life'            : 4470.0,
-                'element_concentration': 0.012
+                'element_concentration': 0.012 * ppm
             },
             'U235' : {
                 'iso_mass_fraction'    : 0.0071,
                 'hpr'                  : 5.69e-4,
                 'half_life'            : 704.0,
-                'element_concentration': 0.012
+                'element_concentration': 0.012 * ppm
             },
             'Th232': {
                 'iso_mass_fraction'    : 0.9998,
                 'hpr'                  : 2.69e-5,
                 'half_life'            : 14000.0,
-                'element_concentration': 0.04
+                'element_concentration': 0.04 * ppm
             },
             'K40'  : {
                 'iso_mass_fraction'    : 1.19e-4,
                 'hpr'                  : 2.92e-5,
                 'half_life'            : 1250.0,
-                'element_concentration': 840.0
+                'element_concentration': 840.0 * ppm
             }
         }
     },
