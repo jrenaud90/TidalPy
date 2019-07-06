@@ -77,7 +77,7 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
     ztorque_coeffs = (
         # Don't need signs on these first two as the signs will always be positive
         np.zeros_like(orbital_freq),
-        -0.5 * i2,
+        -0.5 * i2 * signs[1],
         0.5 * i2 * signs[2],
         0.25 * e2 * signs[3],
         12.25 * e2 * signs[4],

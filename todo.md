@@ -11,6 +11,7 @@
 
 ## Tides
 * Put a check to make sure that alpha stays between 0 and 1 (the factorial code will not work outside that range)
+* Each body should carry their own inclinations in the mode calculator - ensure this is happening.
 
 ## Code
 * Change the model search to look for "Parameters\n----------" in doc string and then each parameter will have a flag: "**input" "**live" or similar

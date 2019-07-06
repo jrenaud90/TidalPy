@@ -55,7 +55,8 @@ def convection(delta_temp: np.ndarray, layer_thickness: float, thermal_conductiv
     nusselt[nusselt < 1.] = 1.
 
     # Thickness of boundary layer must be between MIN_THICKNESS and 50% of layer_thickness
-    boundary_layer_thickness = layer_thickness / (2. * nusselt)
+    boundary_layer_thickness = layer_thickness / nusselt
+    # boundary_layer_thickness[boundary_layer_thickness > .5 * layer_thickness] = .5 * layer_thickness
     boundary_layer_thickness[boundary_layer_thickness < MIN_THICKNESS] = MIN_THICKNESS
     # The minimum thickness sets a (not expressed) limit on the affect of the Nusselt number:
     #     Nusselt_Max = layer_thickness / (2. * MIN_THICKNESS)
