@@ -28,7 +28,7 @@ star = TidalPy.build_planet('sol', force_build=True)
 orbit = Orbit(star, host, target, duel_dissipation=True, time_study=True)
 
 # Initial Conditions
-time_span = myr2sec(np.asarray((0., 1000)))
+time_span = myr2sec(np.asarray((0., 100)))
 modern_semi_major_axis = 1.9599e7
 modern_orb_freq = semi_a2orbital_motion(modern_semi_major_axis, host.mass, target.mass)
 
