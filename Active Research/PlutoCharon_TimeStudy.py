@@ -28,7 +28,7 @@ star = TidalPy.build_planet('sol', force_build=True)
 orbit = Orbit(star, host, target, duel_dissipation=True, time_study=True)
 
 # Initial Conditions
-time_span = myr2sec(np.asarray((0., 100)))
+time_span = myr2sec(np.asarray((0., 2000)))
 modern_semi_major_axis = 1.9599e7
 modern_orb_freq = semi_a2orbital_motion(modern_semi_major_axis, host.mass, target.mass)
 
@@ -950,15 +950,16 @@ def main():
     }
 
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
 
     # Figure 1:
     fig_1, axes_1 = plt.subplots(2, 2, figsize=(12, 8))
-    fig_1.subplots_adjust(wspace=2.8)
+    fig_1.subplots_adjust(wspace=4)
     for axis in axes_1.flatten():
         axis.set_xlabel('Time [Myr]')
     axes_1_axis_1duel = axes_1[0, 0].twinx()
 
-    axes_1_axis_1duel.set_ylabel('Eccentricity (dashed)')
+    axes_1_axis_1duel.set_ylabel('Eccentricity')
     axes_1_axis_1duel.set_yscale('log')
     axes_1[0, 0].set_ylabel('Semi-Major Axis [modern frac]')
     axes_1[0, 1].set_ylabel('Spin / n')
@@ -969,38 +970,37 @@ def main():
 
     # Figure 2:
     fig_2, axes_2 = plt.subplots(2, 2, figsize=(12, 8))
-    fig_2.subplots_adjust(wspace=2.8)
+    fig_2.subplots_adjust(wspace=4)
     for axis in axes_2.flatten():
         axis.set_xlabel('Time [Myr]')
-    axes_2_axis_0duel = axes_2[0, 0].twinx()
-    axes_2_axis_1duel = axes_2[0, 1].twinx()
+    # axes_2_axis_0duel = axes_2[0, 0].twinx()
+    # axes_2_axis_1duel = axes_2[0, 1].twinx()
 
     axes_2[0, 0].set_ylabel('H2O Thickness [frac] (Host)')
     axes_2[0, 1].set_ylabel('H2O Thickness [frac] (Target)')
-    axes_2_axis_0duel.set_ylabel('Visco. Boundary Layer [perc] (dot-dash)')
-    axes_2_axis_1duel.set_ylabel('Visco. Boundary Layer [perc] (dot-dash)')
+    # axes_2_axis_0duel.set_ylabel('Visco. Boundary Layer [perc] (dot-dash)')
+    # axes_2_axis_1duel.set_ylabel('Visco. Boundary Layer [perc] (dot-dash)')
     axes_2[1, 0].set_ylabel('Surface Flux [W m-2]')
     axes_2[1, 0].set_yscale('log')
-    axes_2[1, 1].set_ylabel('Core Temperature [K]')
+    axes_2[1, 1].set_ylabel('$\Delta{}D$ [km]')
 
     # Figure 3:
     fig_3, axes_3 = plt.subplots(2, 2, figsize=(12, 8))
-    fig_3.subplots_adjust(wspace=2.8)
+    fig_3.subplots_adjust(wspace=4)
     for axis in axes_3.flatten():
         axis.set_xlabel('Time [Myr]')
-    axes_3_axis_2duel = axes_3[0, 1].twinx()
-    axes_3_axis_3duel = axes_3[1, 1].twinx()
+    axes_3_axis_2duel = axes_3[1, 0].twinx()
 
+    axes_3[0, 0].set_ylabel('Tidal Torque (Host) [N m]')
     axes_3[0, 0].set_yscale('log')
-    axes_3[0, 0].set_ylabel('Tidal Torque (abs) [N m]')
-    axes_3[0, 1].set_ylabel('Change in Semi-major Axis [km myr-1]')
+    axes_3[0, 1].set_ylabel('Tidal Torque (Target) [N m]')
     axes_3[0, 1].set_yscale('log')
-    axes_3_axis_2duel.set_ylabel('Eccen. Dampening Timescale [Myr] (Dashed)')
-    axes_3_axis_2duel.set_yscale('log')
-    axes_3[1, 0].set_ylabel('Spin-Rate Sync Timescale [Myr]')
+    axes_3[1, 0].set_ylabel('Circularization Timescale [Myr]')
+    axes_3_axis_2duel.set_ylabel('da/dt [km Myr-1]')
     axes_3[1, 0].set_yscale('log')
-    axes_3[1, 1].set_ylabel('Delta_D [km]')
-    axes_3_axis_3duel.set_ylabel('Tidal Volume Fraction (lighter)')
+    axes_3_axis_2duel.set_yscale('log')
+    axes_3[1, 1].set_ylabel('Spin Dampening Timescale [Myr]')
+    axes_3[1, 1].set_yscale('log')
 
     # Calculate No Tides
     all_data_notide = integrate('off', off, tuple(), time_span, initial_conditions)
@@ -1012,7 +1012,7 @@ def main():
     targ_notide_elast_dx = all_data_notide['target']['thickness_elast_ice']
     targ_notide_ocean_dx = target.crust.thickness - (targ_notide_visco_dx + targ_notide_elast_dx)
 
-    for rheo_name, comp_func in rheo_funcs.items():
+    for r_i, (rheo_name, comp_func) in enumerate(rheo_funcs.items()):
         comp_input = rheo_inputs[rheo_name]
         rheo_color = rheo_colors[rheo_name]
 
@@ -1026,7 +1026,7 @@ def main():
         # Pane 1: Orbit
         x = all_data['time_domain_myr']
         axes_1[0, 0].plot(x, all_data['semi_major_axis'] / modern_semi_major_axis, c=rheo_color)
-        axes_1_axis_1duel.plot(x, all_data['eccentricity'], c=rheo_color, ls='--')
+        axes_1_axis_1duel.plot(x, all_data['eccentricity'], c=rheo_color, ls=':')
 
         # Pane 2: Spin
         orb_freq = semi_a2orbital_motion(all_data['semi_major_axis'], host.mass, target.mass)
@@ -1056,7 +1056,7 @@ def main():
         axes_2[0, 0].plot(x, host_elast_dx / host.crust.thickness, c=rheo_color, ls='-')
         axes_2[0, 0].plot(x, host_visco_dx / host.crust.thickness, c=rheo_color, ls='--')
         axes_2[0, 0].plot(x, host_ocean_dx / host.crust.thickness, c=rheo_color, ls=':')
-        axes_2_axis_0duel.plot(x, host_blt_frac, c=rheo_color, ls='-.', alpha = 0.3)
+        # axes_2_axis_0duel.plot(x, host_blt_frac, c=rheo_color, ls='-.', alpha = 0.3)
 
         # Pane 2: Target Thickness
         target_visco_dx = all_data['target']['thickness_visco_ice']
@@ -1066,7 +1066,7 @@ def main():
         axes_2[0, 1].plot(x, target_elast_dx / target.crust.thickness, c=rheo_color, ls='-')
         axes_2[0, 1].plot(x, target_visco_dx / target.crust.thickness, c=rheo_color, ls='--')
         axes_2[0, 1].plot(x, target_ocean_dx / target.crust.thickness, c=rheo_color, ls=':')
-        axes_2_axis_1duel.plot(x, target_blt_frac, c=rheo_color, ls='-.', alpha = 0.3)
+        # axes_2_axis_1duel.plot(x, target_blt_frac, c=rheo_color, ls='-.', alpha = 0.3)
 
         # Pane 3: Crust Cooling
         host_cooling = all_data['host']['crust_cooling_flux']
@@ -1074,35 +1074,34 @@ def main():
         axes_2[1, 0].plot(x, host_cooling, c=rheo_color, ls='-')
         axes_2[1, 0].plot(x, target_cooling, c=rheo_color, ls='--')
 
-        # Pane 4: Core Temperature
-        if not use_nocore:
-            host_core_temp = all_data['host']['temperature_core']
-            target_core_temp = all_data['target']['temperature_core']
-            axes_2[1, 1].plot(x, host_core_temp, c=rheo_color, ls='-')
-            axes_2[1, 1].plot(x, target_core_temp, c=rheo_color, ls='--')
+        # Pane 4: Delta_D and Tidal Volume Fraction
+        delta_d_host = host_ocean_dx - np.interp(x, notide_x, host_notide_ocean_dx)
+        delta_d_targ = target_ocean_dx - np.interp(x, notide_x, targ_notide_ocean_dx)
+        axes_2[1, 1].plot(x, delta_d_host / 1000, c=rheo_color, ls='-')
+        axes_2[1, 1].plot(x, delta_d_targ / 1000, c=rheo_color, ls='--')
 
         # Plot Figure 3
-        # Pane 1: Tidal Torque
+        # Pane 1+2: Tidal Torque
         host_ztorque_pos, host_ztorque_neg = neg_array_for_log_plot(all_data['host']['tidal_torque'])
         targ_ztorque_pos, targ_ztorque_neg = neg_array_for_log_plot(all_data['target']['tidal_torque'])
         axes_3[0, 0].plot(x, host_ztorque_pos, c=rheo_color, ls='-')
-        axes_3[0, 0].plot(x, targ_ztorque_pos, c=rheo_color, ls='--')
         axes_3[0, 0].plot(x, host_ztorque_neg, c=rheo_color, ls='-', alpha=0.3)
-        axes_3[0, 0].plot(x, targ_ztorque_neg, c=rheo_color, ls='--', alpha=0.3)
+        axes_3[0, 1].plot(x, targ_ztorque_pos, c=rheo_color, ls='-')
+        axes_3[0, 1].plot(x, targ_ztorque_neg, c=rheo_color, ls='-', alpha=0.3)
 
-        # Pane 2: Semi-A and Eccen Derivatives
+        # Pane 3: Semi-A and Eccen Derivatives
         semi_a_deriv = all_data['derivatives']['semi_major_axis']
         eccen_deriv = all_data['derivatives']['eccentricity']
         semi_a_deriv *= 3.154e13 / 1000. # Convert from [m s-1] to [km myr-1]
         circ_timescale = sec2myr(-all_data['eccentricity'] / eccen_deriv)
         semi_a_deriv_pos, semi_a_deriv_neg = neg_array_for_log_plot(semi_a_deriv)
         circ_timescale_pos, circ_timescale_neg = neg_array_for_log_plot(circ_timescale)
-        axes_3[0, 1].plot(x, semi_a_deriv_pos, c=rheo_color)
-        axes_3[0, 1].plot(x, semi_a_deriv_neg, c=rheo_color, alpha=0.3)
+        axes_3[1, 0].plot(x, semi_a_deriv_pos, c=rheo_color)
+        axes_3[1, 0].plot(x, semi_a_deriv_neg, c=rheo_color, alpha=0.3)
         axes_3_axis_2duel.plot(x, circ_timescale_pos, c=rheo_color, ls=':')
         axes_3_axis_2duel.plot(x, circ_timescale_neg, c=rheo_color, ls=':', alpha=0.3)
 
-        # Pane 3: Spin-Freq Timescale
+        # Pane 4: Spin-Freq Timescale
         orbital_motion = semi_a2orbital_motion(all_data['semi_major_axis'], host.mass, target.mass)
         spin_freq_deriv_host = all_data['derivatives']['spin_freq_host']
         spin_freq_deriv_targ = all_data['derivatives']['spin_freq_targ']
@@ -1112,21 +1111,32 @@ def main():
         spin_timescale_targ = sec2myr(spin_timescale_targ)
         spin_timescale_host_pos, spin_timescale_host_neg = neg_array_for_log_plot(spin_timescale_host)
         spin_timescale_targ_pos, spin_timescale_targ_neg = neg_array_for_log_plot(spin_timescale_targ)
-        axes_3[1, 0].plot(x, spin_timescale_host_pos, c=rheo_color, ls='-')
-        axes_3[1, 0].plot(x, spin_timescale_targ_pos, c=rheo_color, ls='--')
-        axes_3[1, 0].plot(x, spin_timescale_host_neg, c=rheo_color, ls='-', alpha=0.3)
-        axes_3[1, 0].plot(x, spin_timescale_targ_neg, c=rheo_color, ls='--', alpha=0.3)
+        axes_3[1, 1].plot(x, spin_timescale_host_pos, c=rheo_color, ls='-')
+        axes_3[1, 1].plot(x, spin_timescale_targ_pos, c=rheo_color, ls='--')
+        axes_3[1, 1].plot(x, spin_timescale_host_neg, c=rheo_color, ls='-', alpha=0.3)
+        axes_3[1, 1].plot(x, spin_timescale_targ_neg, c=rheo_color, ls='--', alpha=0.3)
 
-        # Pane 4: Delta_D and Tidal Volume Fraction
-        delta_d_host = host_ocean_dx - np.interp(x, notide_x, host_notide_ocean_dx)
-        delta_d_targ = target_ocean_dx - np.interp(x, notide_x, targ_notide_ocean_dx)
-        axes_3[1, 1].plot(x, delta_d_host / 1000, c=rheo_color, ls='-')
-        axes_3[1, 1].plot(x, delta_d_targ / 1000, c=rheo_color, ls='--')
+    # Legends
+    solid  = Line2D([0], [0], c='k', ls='-', lw=2)
+    dashed = Line2D([0], [0], c='k', ls='-.', lw=2)
+    dotted = Line2D([0], [0], c='k', ls=':', lw=2)
+    axes_1[0, 0].legend([solid, dotted], ['Semi-a', 'Eccen.'], loc='best')
+    axes_1[0, 1].legend([solid, dashed], [f'{host.name}', f'{target.name}'], loc='best')
+    axes_2[0, 0].legend([solid, dashed, dotted], ['Elastic', 'Visco', 'Ocean'], loc='best')
+    axes_2[0, 1].legend([solid, dashed, dotted], ['Elastic', 'Visco', 'Ocean'], loc='best')
+    axes_2[1, 1].legend([solid, dashed], [f'{host.name}', f'{target.name}'], loc='best')
+    axes_3[1, 0].legend([solid, dotted], [f'da/dt', f'Circ.'], loc='best')
+    axes_3[1, 1].legend([solid, dashed], [f'{host.name}', f'{target.name}'], loc='best')
 
-        tvf_host = all_data['host']['tvf']
-        tvf_targ = all_data['target']['tvf']
-        axes_3_axis_3duel.plot(x, tvf_host, c=rheo_color, ls='-', alpha=0.3)
-        axes_3_axis_3duel.plot(x, tvf_targ, c=rheo_color, ls='--', alpha=0.3)
+    rheo_legend_names, rheo_legend_lines = list(), list()
+    for rheo_name, rheo_color in rheo_colors.items():
+        rheo_legend_names.append(rheo_name)
+        rheo_legend_lines.append(Line2D([0], [0], c=rheo_color, ls='-', lw=2))
+
+    for axis in [axes_1[1, 0], axes_2[1, 0], axes_3[1, 0]]:
+
+        axis.legend(rheo_legend_lines, rheo_legend_names,
+                    loc='upper center', bbox_to_anchor=(.5, -0.15), ncol=3)
 
     plt.tight_layout()
     plt.show()
