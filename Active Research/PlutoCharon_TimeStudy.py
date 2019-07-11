@@ -38,7 +38,7 @@ spin_freq_host_init = modern_orb_freq * 30
 temperature_core_host_init = 1000.
 thickness_visco_host_init = 0.1 * host.crust.thickness
 thickness_elast_host_init = 0.1 * host.crust.thickness
-spin_freq_targ_init = modern_orb_freq * 30
+spin_freq_targ_init = modern_orb_freq * -260
 temperature_core_targ_init = 1000.
 thickness_visco_targ_init = 0.1 * target.crust.thickness
 thickness_elast_targ_init = 0.1 * target.crust.thickness
@@ -53,7 +53,7 @@ lock_zero_eccen = True
 lock_ocean_freeze = True
 
 # Integration Parameters
-rtol = 1.0e-5
+rtol = 1.0e-4
 method = 'LSODA'
 use_nocore = True
 
@@ -422,8 +422,10 @@ def diffeq_test(time, variables, complex_compliance_func, complex_compliance_inp
 
     # Check for value logic
     low_eccen = eccentricity < MIN_ECCEN
+    very_low_ecc = eccentricity == 1. # If (e - de/dt * dt) < 0. then the integrator sets e=1. This should correct that.
     if lock_zero_eccen:
         eccentricity[low_eccen] = 0.
+        eccentricity[very_low_ecc] = 0.
     low_semi_a = semi_major_axis < MIN_SEMI_A
     semi_major_axis[low_semi_a] = MIN_SEMI_A
 
@@ -447,8 +449,8 @@ def diffeq_test(time, variables, complex_compliance_func, complex_compliance_inp
     orbital_freq = semi_a2orbital_motion(semi_major_axis, mass_host, mass_target)
 
     # Lock into 1:1 when either body is close to it. Ensures integrator is stable.
-    lock_in_index_host = np.abs(spin_freq_host / orbital_freq) - 1. <= 0.1
-    lock_in_index_targ = np.abs(spin_freq_targ / orbital_freq) - 1. <= 0.1
+    lock_in_index_host = np.abs(spin_freq_host / orbital_freq) - 1. <= 0.12
+    lock_in_index_targ = np.abs(spin_freq_targ / orbital_freq) - 1. <= 0.12
     if lock_to_1to1:
         spin_freq_host[lock_in_index_host] = orbital_freq[lock_in_index_host]
         spin_freq_targ[lock_in_index_targ] = orbital_freq[lock_in_index_targ]
@@ -613,6 +615,7 @@ def diffeq_test(time, variables, complex_compliance_func, complex_compliance_inp
     if lock_zero_eccen:
         # de_dt is prop to 1/e so the derivative can go crazy if e is too low.
         change_eccentricity[low_eccen] = 0.
+        change_eccentricity[very_low_ecc] = 0.
 
     change_semi_major_axis[low_semi_a] = 0.
 
@@ -623,191 +626,6 @@ def diffeq_test(time, variables, complex_compliance_func, complex_compliance_inp
 
 @progress_bar(time_span, verbose=True)
 def diffeq_nocore(time, variables, complex_compliance_func, complex_compliance_input, diff_loop):
-    # semi_major_axis = variables[0, :]
-    # eccentricity = variables[1, :]
-    # spin_freq_host = variables[2, :]
-    # thickness_visco_host = variables[3, :]
-    # thickness_elast_host = variables[4, :]
-    # spin_freq_targ = variables[5, :]
-    # thickness_visco_targ = variables[6, :]
-    # thickness_elast_targ = variables[7, :]
-    # array_shape = semi_major_axis.shape
-    #
-    # # Helper Values
-    # thickness_ice_host = thickness_visco_host + thickness_elast_host
-    # thickness_ice_targ = thickness_visco_targ + thickness_elast_targ
-    # overshoot_index_host = np.copy(thickness_ice_host > 0.99 * thickness_crust_host)
-    # overshoot_index_targ = np.copy(thickness_ice_targ > 0.99 * thickness_crust_target)
-    #
-    # if diff_loop:
-    #     # Check for value logic
-    #     eccentricity[eccentricity < 1.e-10] = 0.
-    #     semi_major_axis[semi_major_axis < MIN_SEMI_A] = MIN_SEMI_A
-    #     # For now, any time the ice becomes too thick break it up into 75% visco, 24% elastic, and 1% ocean
-    #     thickness_elast_host[overshoot_index_host] = 0.24 * thickness_crust_host
-    #     thickness_visco_host[overshoot_index_host] = 0.75 * thickness_crust_host
-    #     thickness_elast_targ[overshoot_index_targ] = 0.24 * thickness_crust_target
-    #     thickness_visco_targ[overshoot_index_targ] = 0.75 * thickness_crust_target
-    #
-    # # Conversions
-    # time_myr = sec2myr(time)
-    # orbital_freq = semi_a2orbital_motion(semi_major_axis, mass_host, mass_target)
-    #
-    # if diff_loop:
-    #     spin_freq_targ[np.abs(spin_freq_targ/orbital_freq) < .1] = orbital_freq[np.abs(spin_freq_host/orbital_freq) < .1]
-    #     spin_freq_host[np.abs(spin_freq_host/orbital_freq) < .1] = orbital_freq[np.abs(spin_freq_host/orbital_freq) < .1]
-    #
-    # variables[0, :] = semi_major_axis
-    # variables[1, :] = eccentricity
-    # variables[2, :] = spin_freq_host
-    # variables[3, :] = thickness_visco_host
-    # variables[4, :] = thickness_elast_host
-    # variables[5, :] = spin_freq_targ
-    # variables[6, :] = thickness_visco_targ
-    # variables[7, :] = thickness_elast_targ
-
-    # # Find Tidal Modes
-    # #     - Host
-    # modes_host, freqs_host, heating_coeffs_host, torque_coeffs_host = nsr_modes(orbital_freq, spin_freq_host,
-    #                                                                             eccentricity, static_inclination)
-    # #     - Target
-    # modes_targ, freqs_targ, heating_coeffs_targ, torque_coeffs_targ = nsr_modes(orbital_freq, spin_freq_targ,
-    #                                                                             eccentricity, static_inclination)
-    #
-    # # Calc Tidal Susceptibility
-    # #     - Host
-    # tidal_suscept_host = tidal_susceptibility_inflated_host / semi_major_axis**6
-    # #     - Target
-    # tidal_suscept_targ = tidal_susceptibility_inflated_target / semi_major_axis**6
-    #
-    # # Update Ice Shell Thickness
-    # #     - Host
-    # radius_elast_host = radius_host
-    # radius_visco_host = radius_elast_host - thickness_elast_host
-    # radius_ocean_host = radius_visco_host - thickness_visco_host
-    # volume_visco_host = (4. / 3.) * np.pi * (radius_visco_host**3 - radius_ocean_host**3)
-    # volume_ocean_host = (4. / 3.) * np.pi * (radius_ocean_host**3 - radius_core_host**3)
-    # #     - Target
-    # radius_elast_targ = radius_target
-    # radius_visco_targ = radius_elast_targ - thickness_elast_targ
-    # radius_ocean_targ = radius_visco_targ - thickness_visco_targ
-    # volume_visco_targ = (4. / 3.) * np.pi * (radius_visco_targ**3 - radius_ocean_targ**3)
-    # volume_ocean_targ = (4. / 3.) * np.pi * (radius_ocean_targ**3 - radius_core_target**3)
-    #
-    # # Where do tides concentrate?
-    # tidalvolfrac_crust_host = volume_visco_host / volume_host
-    # tidalvolfrac_crust_targ = volume_visco_targ / volume_target
-    #
-    # # Calculate Ice Cooling
-    # #     - Host
-    # delta_temp_crust_host = melting_temp_ice - ice_top_temp_host
-    # q_crust_conv_host, blt_crust_host, rayleigh_crust_host, neusselt_crust_host = convection(
-    #         delta_temp_crust_host, thickness_visco_host, thermal_cond_ice, viscosity_crust_host,
-    #         thermal_diff_ice, thermal_expansion_ice, gravity_surf_host, density_ice,
-    #         convection_alpha_ice, convection_beta_ice, critical_rayleigh_ice)
-    # crust_cooling_host = q_crust_conv_host * 4. * np.pi * radius_visco_host**2
-    # #     - Target
-    # delta_temp_crust_targ = melting_temp_ice - ice_top_temp_targ
-    # q_crust_conv_targ, blt_crust_targ, rayleigh_crust_targ, neusselt_crust_targ = convection(
-    #         delta_temp_crust_targ, thickness_visco_targ, thermal_cond_ice, viscosity_crust_targ,
-    #         thermal_diff_ice, thermal_expansion_ice, gravity_surf_target, density_ice,
-    #         convection_alpha_ice, convection_beta_ice, critical_rayleigh_ice)
-    # crust_cooling_targ = q_crust_conv_targ * 4. * np.pi * radius_visco_targ**2
-    #
-    # # Update Radiogenics
-    # #     - Host
-    # radio_heating_core_host = radiogenic_isotope(time_myr, mass_core_host, *standard_isotope_input)
-    # #     - Target
-    # radio_heating_core_targ = radiogenic_isotope(time_myr, mass_core_target, *standard_isotope_input)
-    #
-    # # Calculate Compliance and Tides
-    # #     - Host
-    # cmplx_comp_crust_bymode_host = [
-    #     complex_compliance_func(shear_modulus_crust_host**-1, viscosity_crust_host, tidal_freq,
-    #                             *complex_compliance_input)
-    #     for tidal_freq in freqs_host
-    # ]
-    #
-    # effective_rigid_crust_host, tidal_heating_crust_host, ztorque_crust_host, _, _ = \
-    #     calc_tides(gravity_surf_host, radius_host, density_ice, shear_modulus_crust_host,
-    #                tidal_suscept_host,
-    #                cmplx_comp_crust_bymode_host, heating_coeffs_host, torque_coeffs_host)
-    #
-    # # Scale down by the volume factor
-    # tidal_heating_crust_host *= tidalvolfrac_crust_host
-    # ztorque_crust_host *= tidalvolfrac_crust_host
-    #
-    # # TODO: In this version, tides are restricted to the ice layer only
-    # tidal_heating_core_host = 0.
-    # ztorque_core_host = 0.
-    #
-    # tidal_heating_host = tidal_heating_crust_host + tidal_heating_core_host
-    # ztorque_host = ztorque_crust_host + ztorque_core_host
-    #
-    # #     - Target
-    # cmplx_comp_crust_bymode_targ = [
-    #     complex_compliance_func(shear_modulus_crust_targ**-1, viscosity_crust_targ, tidal_freq,
-    #                             *complex_compliance_input)
-    #     for tidal_freq in freqs_targ
-    # ]
-    #
-    # effective_rigid_crust_targ, tidal_heating_crust_targ, ztorque_crust_targ, _, _ = \
-    #     calc_tides(gravity_surf_target, radius_target, density_ice, shear_modulus_crust_targ,
-    #                tidal_suscept_targ,
-    #                cmplx_comp_crust_bymode_targ, heating_coeffs_targ, torque_coeffs_targ)
-    #
-    # # Scale down by the volume factor
-    # tidal_heating_crust_targ *= tidalvolfrac_crust_targ
-    # ztorque_crust_targ *= tidalvolfrac_crust_targ
-    #
-    # # TODO: In this version, tides are restricted to the ice layer only
-    # tidal_heating_core_targ = 0.
-    # ztorque_core_targ = 0.
-    #
-    # tidal_heating_targ = tidal_heating_crust_targ + tidal_heating_core_targ
-    # ztorque_targ = ztorque_crust_targ + ztorque_core_targ
-    #
-    # # Find Heat Fluxes
-    # #     - Host
-    # delta_temp_elast_host = melting_temp_ice - ice_top_temp_host
-    # q_visco_in_host = (radio_heating_core_host + tidal_heating_crust_host) / (4. * np.pi * radius_visco_host**2)
-    # q_visco_out_host = thermal_cond_ice * delta_temp_elast_host / blt_crust_host
-    # q_elast_in_host = q_visco_out_host
-    # q_elast_out_host = thermal_cond_ice * (ice_top_temp_host - host.surface_temperature) / thickness_elast_host
-    # #     - Target
-    # delta_temp_elast_targ = melting_temp_ice - ice_top_temp_targ
-    # q_visco_in_targ = (radio_heating_core_targ + tidal_heating_crust_targ) / (4. * np.pi * radius_visco_targ**2)
-    # q_visco_out_targ = thermal_cond_ice * delta_temp_elast_targ / blt_crust_targ
-    # q_elast_in_targ = q_visco_out_targ
-    # q_elast_out_targ = thermal_cond_ice * (ice_top_temp_targ - target.surface_temperature) / thickness_elast_targ
-    #
-    # # Update Change in Thickness
-    # #     - Host
-    # delta_temp_elast_host = melting_temp_ice - ice_top_temp_host
-    # change_visco_ice_host = (q_visco_in_host - q_visco_out_host) / (density_ice * latent_heat_ice)
-    # change_elast_ice_host = (q_elast_in_host - q_elast_out_host) / \
-    #                         (density_ice * specific_heat_ice * delta_temp_elast_host)
-    # #     - Target
-    # delta_temp_elast_targ = melting_temp_ice - ice_top_temp_targ
-    # change_visco_ice_targ = (q_visco_in_targ - q_visco_out_targ) / (density_ice * latent_heat_ice)
-    # change_elast_ice_targ = (q_elast_in_targ - q_elast_out_targ) / \
-    #                         (density_ice * specific_heat_ice * delta_temp_elast_targ)
-    #
-    # # Update Change in Spin-Rate
-    # #     - Host
-    # change_spin_freq_host = spin_rate_derivative(ztorque_host, moi_host)
-    # #     - Target
-    # change_spin_freq_targ = spin_rate_derivative(ztorque_targ, moi_target)
-    #
-    # # Update Change in Orbit
-    # change_semi_major_axis = semi_major_axis_derivative(semi_major_axis, mass_host, mass_target,
-    #                                                     spin_freq_host, ztorque_host, tidal_heating_host,
-    #                                                     spin_freq_targ, ztorque_targ, tidal_heating_targ)
-    # change_eccentricity = eccentricity_derivative(semi_major_axis, eccentricity, mass_host, mass_target,
-    #                                               spin_freq_host, ztorque_host, tidal_heating_host,
-    #                                               spin_freq_targ, ztorque_targ, tidal_heating_targ)
-
-    # Return
 
     change_semi_major_axis, change_eccentricity, change_spin_freq_host, change_visco_ice_host, \
     change_elast_ice_host, change_spin_freq_targ, change_visco_ice_targ, change_elast_ice_targ, \
@@ -900,6 +718,7 @@ def integrate(rheology_name, compliance_func, compliance_input, time_span, initi
                       complex_compliance_func=compliance_func, complex_compliance_input=compliance_input,
                       diff_loop=False)
     # Put all data, including independent variables, into one dictionary.
+    solution_y[1, :][solution_y[1, :] == 1.] = 0. # Correct e=1 issue (see very_low_eccen note above).
     all_data['time_domain'] = solution_time_domain
     all_data['time_domain_myr'] = sec2myr(solution_time_domain)
     if use_nocore:
@@ -936,17 +755,17 @@ def main():
     rheo_inputs = {
         'Andrade': (andrade_alpha_ice, andrade_zeta_ice),
         'Maxwell': tuple(),
-        'off': tuple()
+        #'off': tuple()
     }
     rheo_funcs = {
         'Andrade': andrade,
         'Maxwell': maxwell,
-        'off': off
+        #'off': off
     }
     rheo_colors = {
         'Andrade': 'b',
         'Maxwell': 'g',
-        'off': 'k'
+        #'off': 'k'
     }
 
     import matplotlib.pyplot as plt
@@ -995,8 +814,8 @@ def main():
     axes_3[0, 0].set_yscale('log')
     axes_3[0, 1].set_ylabel('Tidal Torque (Target) [N m]')
     axes_3[0, 1].set_yscale('log')
-    axes_3[1, 0].set_ylabel('Circularization Timescale [Myr]')
-    axes_3_axis_2duel.set_ylabel('da/dt [km Myr-1]')
+    axes_3[1, 0].set_ylabel('da/dt [km Myr-1]')
+    axes_3_axis_2duel.set_ylabel('Circularization Timescale [Myr]')
     axes_3[1, 0].set_yscale('log')
     axes_3_axis_2duel.set_yscale('log')
     axes_3[1, 1].set_ylabel('Spin Dampening Timescale [Myr]')
