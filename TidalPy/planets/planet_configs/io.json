@@ -1,0 +1,31 @@
+{
+    "name": "Io",
+    "type": "burnman",
+    "radius": 1821.49e3,
+    "orbital_period": 1.769,
+    "eccentricity": 0.0041,
+    "spin_period": 1.769,
+    "albedo": 0.63,
+    "force_spin_sync": true,
+    "layers": {
+        "Core": {
+            "type": "iron",
+            "is_tidal": false,
+            "radius": 700.0e3,
+            "material": "Pyrite",
+            "material_source": "TidalPy",
+            "temperature_mode": "user-defined",
+            "temperature_fixed": 1000.0
+        },
+        "Crust": {
+            "type": "rock",
+            "is_tidal": true,
+            "radius": 1821.49e3,
+            "material": "forsterite",
+            "material_source": "SLB_2011",
+            "temperature_mode": "adiabatic",
+            "temperature_top": 1000.0,
+            "surface_temperature": 100.0
+        }
+    }
+}

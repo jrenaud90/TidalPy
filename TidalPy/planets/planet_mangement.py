@@ -61,8 +61,11 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
     need_to_build = force_build
     if not force_build:
 
-        if planet_dill_path is None and planet_name in known_planets_dill:
-            planet_dill_path = known_planets_dill[planet_name]
+        if planet_dill_path is None:
+            if planet_name in known_planets_dill:
+                planet_dill_path = known_planets_dill[planet_name]
+            elif planet_name.lower() in known_planets_dill:
+                planet_dill_path = known_planets_dill[planet_name.lower()]
 
         if planet_dill_path is not None:
             log(f'Dilled planet was found! This will save a lot of time...', level='debug')
@@ -91,11 +94,13 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
             if not _configs_are_dict:
                 _cfgpath_to_json()
             if planet_name in known_planets_cfg:
-                log(f'Configuration file found', level='debug')
                 planet_config = known_planets_cfg[planet_name]
+            elif planet_name.lower() in known_planets_cfg:
+                planet_config = known_planets_cfg[planet_name.lower()]
             else:
-                raise MissingArgumentError(
-                    'No Planet configuration found or provided. Not enough information to build planet.')
+                raise MissingArgumentError('No Planet configuration found or provided. '
+                                           'Not enough information to build planet.')
+            log(f'Configuration file found', level='debug')
 
         # Determine world type
         planet_type = planet_config['type']

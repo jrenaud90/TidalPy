@@ -36,13 +36,15 @@ class Tides(LayerModel):
         # Setup Love number calculator
         self.calc_love = None
         self.calc_effective_rigidity = None
-        self.order_l = self.config['order_l']
+        self.order_l = None
         self.full_calculation = True
         if self.model == '2order':
             self.calc_love = complex_love_func
+            self.order_l = 2
             self.calc_effective_rigidity = effective_rigidity_func
         elif self.model == 'general':
             self.calc_love = partial(complex_love_general, order_l=self.order_l)
+            self.order_l = self.config['order_l']
             self.calc_effective_rigidity = partial(effective_rigidity_general, order_l=self.order_l)
         elif self.model == 'off':
             self.calc_love = partial(complex_love_general, order_l=self.order_l)
