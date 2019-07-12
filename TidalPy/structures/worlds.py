@@ -613,12 +613,9 @@ class TidalWorld(WorldBase):
         # The layer love numbers should have already been updated before this point, so we can simply pull their values
         layer_loves = [layer.complex_love for layer in self]  # type: List[Tuple[np.ndarray]]
 
-        shape = layer_loves[0][0].shape
-        if shape == tuple():
-            shape = (1,)
-        global_love = np.zeros(shape, dtype=np.complex)
-        global_heating = np.zeros(shape, dtype=np.float)
-        global_ztorque = np.zeros(shape, dtype=np.float)
+        global_love_list = list()
+        global_heating_list = list()
+        global_ztorque_list = list()
 
         for layer, love_by_mode in zip(self, layer_loves):
             scale = layer.tidal_scale
@@ -634,17 +631,17 @@ class TidalWorld(WorldBase):
                 layer_heating_sum = 0.
 
             # Global Values
-            global_love += scale * sum(love_by_mode)
-            global_heating += layer_heating_sum
-            global_ztorque += layer_ztorque_sum
+            global_love_list.append(scale * sum(love_by_mode))
+            global_heating_list.append(layer_heating_sum)
+            global_ztorque_list.append(layer_ztorque_sum)
 
             # Update layer values
             if set_layer_heating:
                 layer.tidal_heating = layer_heating_sum
 
-        self._global_love = global_love
-        self._tidal_heating = global_heating
-        self._tidal_ztorque = global_ztorque
+        self._global_love = sum(global_love_list)
+        self._tidal_heating = sum(global_heating_list)
+        self._tidal_ztorque = sum(global_ztorque_list)
 
         # Update Spin Derivative
         if self.use_real_moi:
