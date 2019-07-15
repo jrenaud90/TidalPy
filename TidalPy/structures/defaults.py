@@ -95,6 +95,15 @@ world_defaults = {
         'quality_factor'              : 10.,
         'use_real_moi'                : True
     },
+    'gasgiant': {
+        'name'                        : 'unknown_world_gasgianttype',
+        'force_spin_sync'             : True,
+        'equilibrium_insolation_model': 'williams',
+        'emissivity'                  : 0.9,
+        'albedo'                      : 0.3,
+        'quality_factor'              : 10.,
+        'use_real_moi'                : True
+    },
     'star' : {
         'name'                        : 'unknown_world_startype',
         # Most of the stuff for the star class is not actually used, but having this here allows it to share the same

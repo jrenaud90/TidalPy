@@ -53,9 +53,14 @@ def _cfgpath_to_json():
 
 # Check for conflict nam
 
-def build_planet(planet_name: str, planet_config: dict = None, force_build: bool = False,
+def build_planet(planet_name: str, planet_config: dict = None, force_build: bool = True,
                  planet_dill_path: str = None):
     log(f'Preparing to find and/or build world: {planet_name}')
+
+    if not force_build:
+        # TODO: Once this is implemented and tested change force_build to default=False
+        raise NotImplementedError('TidalPy 0.1.0 has not fully implemented dill/pickle loading. '
+                                  'You must force_build planets for now.')
 
     # See if dilled planet exists
     need_to_build = force_build

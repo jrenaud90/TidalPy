@@ -15,17 +15,35 @@ def geotherm_plot(radii: np.ndarray,
                   depth_plot: bool = False, auto_show: bool = False, annotate: bool = True):
     """ Plots the depth plot of a planet in a 3 or 4 panels (temperature is optional)
 
-    :param radii:         <ndarray>
-    :param gravitys:      <ndarray> Planet's gravity as a function of depth or radius
-    :param pressures:     <ndarray> Planet's pressure as a function of depth or radius
-    :param densitys:      <ndarray> Planet's density as a function of depth or radius
-    :param temperatures:  <ndarray> (optional) Planet's internal temperature as a function of depth or radius
-    :param radii:         <ndarray> Planet's radius
-    :param planet_radius: <float> (optional) Planet's outer radius - used for depth plot
-    :param bulk_density:  <float (optional) Planet's bulk density can be shown as an annotation
-    :param depth_plot:    <bool> (=False) Should the plot be vs. depth or vs. radius?
-    :param auto_show:     <bool> (=False) If true then plt.show will be called
-    :param annotate:      <bool> (=True) Adds annotations to some of the plots
+    Parameters
+    ----------
+    radii : np.ndarray
+        Planet's radius discretized into multiple chunks in a 1-D array [m]
+    gravitys : np.ndarray
+        Planet's gravity as a function of depth or radius
+    pressures : np.ndarray
+        Planet's pressure as a function of depth or radius
+    densitys : np.ndarray
+        Planet's density as a function of depth or radius
+    temperatures : np.ndarray
+        (optional) Planet's internal temperature as a function of depth or radius
+    planet_radius : float
+        (optional) Planet's outer radius - used for depth plot
+    bulk_density : float
+        (optional) Planet's bulk density can be shown as an annotation
+    planet_name : str
+        Planet's name
+    depth_plot : bool
+        (default = False) If True then x-axis will be depth not radius
+    auto_show : bool
+        (default = False) If True then plt.show will be called
+    annotate : bool
+        (default = True) Adds annotations to some of the plots (surface gravity, base pressure, etc.)
+
+    Returns
+    -------
+    fig : matplotlib.Figure
+
     """
 
     # Determine if this is a depth or radius plot
@@ -97,21 +115,21 @@ def geotherm_plot(radii: np.ndarray,
                     pos = (0.05, 0.9)
                 else:
                     pos = (0.05, 0.9)
-                ax.text(*pos, f'surf = {gravitys[-1]:0.2f}',
+                ax.text(*pos, f'surf = {gravitys[-1]:0.2f} [m s-2]',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
             if y is pressures:
                 if depth_plot:
                     pos = (0.05, 0.15)
                 else:
                     pos = (0.05, 0.15)
-                ax.text(*pos, f'base = {pressures[0]:0.2f}',
+                ax.text(*pos, f'base = {pressures[0]:0.2f} [GPa]',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
             if y is densitys and bulk_density is not None:
                 if depth_plot:
                     pos = (0.05, 0.15)
                 else:
                     pos = (0.05, 0.15)
-                ax.text(*pos, f'bulk = {bulk_density:0.2f}',
+                ax.text(*pos, f'bulk = {bulk_density:0.2f} [10$^{3}$ kg m-3]',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
 
     if planet_name is not None:

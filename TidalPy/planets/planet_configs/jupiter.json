@@ -1,0 +1,9 @@
+{
+    "name": "Jupiter",
+    "type": "gasgiant",
+    "radius": 6.9911e7,
+    "mass": 1.898e27,
+    "semi_major_axis": 5.20336301,
+    "semi_major_axis_in_au": true,
+    "eccentricity": 0.04839266
+}

@@ -3,7 +3,7 @@ import numpy as np
 
 from .material.helper import find_material
 from .. import debug_mode, log
-from ..exceptions import BadValueError, ParameterMissingError
+from ..exceptions import BadValueError, ParameterMissingError, ParameterError
 from ..types import float_eps
 
 
@@ -17,9 +17,20 @@ default_layer_params = {
 }
 
 
-def build_layer(layer_name: str, layer_config: dict):
-    """ Builds a BurnMan layer from a provided configuration dictionary.
+def build_layer(layer_name: str, layer_config: dict) -> burnman.Layer:
+    """ Build a Burnman layer
 
+    Parameters
+    ----------
+    layer_name : str
+        Name of the layer
+    layer_config : dict
+        Dictionary of layer configurations used to initialize the layer
+
+    Returns
+    -------
+    layer : burnman.Layer
+        An initialized burnman layer
     """
 
     # Load in defaults
@@ -30,16 +41,51 @@ def build_layer(layer_name: str, layer_config: dict):
         if param_name not in layer_config:
             raise ParameterMissingError(f'BurnMan Layer requires parameter: {param_name}')
 
-    # Find BurnMan material based on material and source name
-    material_class = find_material(layer_config['material'], layer_config['material_source'])
+    material = layer_config['material']
+    material_source = layer_config['material_source']
 
-    # Initialize material
-    material = material_class()
+    # Determine if the material is a composite or not
+    composite = False
+    if type(layer_config['material']) in [list, tuple]:
+        composite = True
+    if composite:
+        try:
+            material_fractions = layer_config['material_fractions']
+        except KeyError:
+            raise ParameterMissingError(f"Multiple materials provided but no material_fraction's were given.")
+        if type(material_fractions) not in [list, tuple]:
+            raise ParameterError('Material fractions must be provided as a list or tuple.')
+        if type(material_source)  not in [list, tuple]:
+            raise ParameterError('Multiple materials provided with only one source.')
+        if len(material) != len(material_source):
+            raise ParameterError('Number of composite materials is not the same as number of material sources.')
+        if len(material) != len(material_fractions):
+            raise ParameterError('Number of composite materials is not the same as number of material fractions.')
+
+        if type(material_fractions) == tuple:
+            # Burnman supports lists for this
+            material_fractions = list(material_fractions)
+
+        material_instances = list()
+        for mat_name, mat_source in zip(material, material_source):
+            # Find BurnMan material based on material and source name
+            material_class = find_material(mat_name, mat_source)
+            material_instances.append(material_class())
+
+        # Build composite material
+        init_material = burnman.Composite(material_instances, material_fractions)
+
+    else:
+        # Find BurnMan material based on material and source name
+        material_class = find_material(layer_config['material'], layer_config['material_source'])
+
+        # Initialize material
+        init_material = material_class()
 
     # Make layer and load in material
     radii = layer_config['radii']
     layer = burnman.Layer(name=layer_name, radii=radii, verbose=debug_mode)
-    layer.set_material(material)
+    layer.set_material(init_material)
 
     # Don't keep radii in the config, otherwise it will save to the json file as a large list
     del layer_config['radii']
@@ -61,7 +107,21 @@ def build_layer(layer_name: str, layer_config: dict):
 def build_planet(planet_config: dict):
     """ Builds a BurnMan planet from a provided configuration dictionary.
 
-    NOTE: This is a slow process and should not be repeated unless physical parameters of the planet are changing.
+    NOTE: Building a planet can be a slow process as it requires iteration between the various layers' EOS and the
+     pressure. Therefore, it is recommended you make use of dilled or pickled planets to speed up initial computation
+     time.
+
+    Parameters
+    ----------
+    planet_config : dict
+        Dictionary of planet configurations used to initialize layers and the planet
+
+    Returns
+    -------
+    burnman_layers : list
+        An ordered list of initialized burnman layers
+    burnman_planet : burnman.Planet
+        An initialized and built burnman planet class
     """
 
     log(f"Building planet: {planet_config['name']}", level='debug')

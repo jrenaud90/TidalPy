@@ -282,6 +282,15 @@ class WorldBase(PhysicalObjSpherical):
         self.orbit.set_inclination(self.orbit_location, value, set_by_planet=True)
         self.update_orbit()
 
+    # Aliased Parameter Names
+    @property
+    def orbital_motion(self):
+        return self.orbital_freq
+
+    @orbital_motion.setter
+    def orbital_motion(self, value):
+        self.orbital_freq = value
+
     def __repr__(self):
 
         if 'name' in self.__dict__:
@@ -291,12 +300,25 @@ class WorldBase(PhysicalObjSpherical):
 
 
 class BasicWorld(WorldBase):
+
     class_type = 'basic'
 
     def __init__(self, planet_config: dict, call_reinit: bool = True):
         super().__init__(planet_config, call_reinit=call_reinit)
 
         self.set_geometry(planet_config['radius'], planet_config['mass'])
+
+    def __repr__(self):
+
+        if 'name' in self.__dict__:
+            if self.name is not None:
+                return f'{self.name} {self.__class__} object at {hex(id(self))}'
+        return f'{self.__class__} object at {hex(id(self))}'
+
+
+class GasGiant(BasicWorld):
+
+    class_type = 'gasgiant'
 
     def __repr__(self):
 
@@ -829,10 +851,11 @@ class TidalWorld(WorldBase):
 
 
 world_types = {
-    'star'   : Star,
-    'basic'  : BasicWorld,
-    'simple' : BasicWorld,
-    'gas'    : BasicWorld,
-    'burnman': TidalWorld,
-    'tidal'  : TidalWorld
+    'star'    : Star,
+    'basic'   : BasicWorld,
+    'simple'  : BasicWorld,
+    'gas'     : GasGiant,
+    'gasgiant': GasGiant,
+    'burnman' : TidalWorld,
+    'tidal'   : TidalWorld
 }

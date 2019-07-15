@@ -13,7 +13,7 @@ from ..exceptions import (ArgumentError, ImproperAttributeHandling, Incompatible
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
 from ..types import FloatArray
 from ..utilities.classes import TidalPyClass
-from ..utilities.conversions import Au2m
+from ..utilities.conversions import Au2m, rads2days, days2rads
 
 
 HostTypes = Union[BasicWorld, TidalWorld]
@@ -158,10 +158,10 @@ class OrbitBase(TidalPyClass):
 
             if not self.star_host and world is self.host:
                 # Initial parameters set in the config file are assumed to be
-                self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=True,
+                self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=False,
                                force_calculation=False)
 
-            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=True,
+            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=False,
                            force_calculation=False)
 
         # Update parameters on the planets
@@ -691,3 +691,21 @@ class OrbitBase(TidalPyClass):
 
     def __iter__(self):
         return iter(self.target_bodies)
+
+    @staticmethod
+    def rads2days(radians_per_second: FloatArray) -> FloatArray:
+        """ Convert radians/sec (frequency) to days (period)
+
+        Wrapper for TidalPy.utilities.conversions.rads2days
+        """
+
+        return rads2days(radians_per_second)
+
+    @staticmethod
+    def days2rads(days: FloatArray) -> FloatArray:
+        """ Convert days (period) to radians/sec (frequency)
+
+        Wrapper for TidalPy.utilities.conversions.days2rads
+        """
+
+        return days2rads(days)

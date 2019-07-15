@@ -315,6 +315,8 @@ class ThermalLayer(PhysicalObjSpherical):
 
         self.update_cooling()
         self.update_tides()
+        if self.world is not None:
+            self.world.update_global_tides()
 
     def update_radiogenics(self, force_calculation: bool = False):
         """ Calculate the radiogenic heating rate within this layer, requires the world.time to be set.
