@@ -13,10 +13,6 @@ def off(delta_temp: np.ndarray, layer_thickness: float, thermal_conductivity: fl
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Sets cooling to zero
 
-    --- Parameters ---
-    live args: None
-    other args: None
-
 
     :return: Cooling flux, Boundary thickness, Rayleigh, Nusselt
     """
@@ -39,10 +35,8 @@ def convection(delta_temp: np.ndarray, layer_thickness: float, thermal_conductiv
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Calculates cooling by a parameterized convection model via the Rayleigh number
 
-    --- Parameters ---
-    live args: self.layer.viscosity, self.layer.thermal_diffusivity, self.layer.thermal_expansion
-    other args: gravity, density, convection_alpha, convection_beta, critical_rayleigh
-
+    !TPY_args live: self.layer.viscosity, self.layer.thermal_diffusivity, self.layer.thermal_expansion
+    !TPY_args const: gravity, density, convection_alpha, convection_beta, critical_rayleigh
 
     :return: Cooling flux, Boundary thickness, Rayleigh, Nusselt
     """
@@ -70,10 +64,6 @@ def convection(delta_temp: np.ndarray, layer_thickness: float, thermal_conductiv
 def conduction(delta_temp: np.ndarray, layer_thickness: float, thermal_conductivity: float) -> \
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Calculates cooling by conduction through half of the layer thickness
-
-    --- Parameters ---
-    live args: None
-    other args: None
 
 
     :return: Cooling flux, Boundary thickness, Rayleigh, Nusselt

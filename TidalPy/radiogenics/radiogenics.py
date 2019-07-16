@@ -3,9 +3,9 @@ import copy
 import numpy as np
 
 from . import radiogenic_models
-from .defaults import radiogenics_param_defaults
+from .defaults import radiogenics_param_defaults, known_isotope_data
 from .. import debug_mode, log
-from ..exceptions import ImproperAttributeHandling, ParameterMissingError
+from ..exceptions import ImproperAttributeHandling, ParameterMissingError, UnknownModelError
 from ..types import float_like
 from ..utilities.model import LayerModel, ModelSearcher
 
@@ -22,13 +22,41 @@ class Radiogenics(LayerModel):
         super().__init__(layer=layer, function_searcher=None, call_reinit=True)
 
         # Convert isotope information into list[tuple] format
-        if 'isotopes' in self.config:
+        if 'ref_time' not in self.config:
+            self.config['ref_time'] = None
+
+        if self.model == 'isotope':
             self.isos_name = list()
             self.isos_hpr = list()
             self.isos_halflife = list()
             self.isos_massfrac = list()
             self.isos_concentration = list()
-            for isotope, iso_data in self.config['isotopes'].items():
+
+            # Isotopes may be given as a dictionary of individual isotopes or as a string pointing to one of the
+            #  pre-built isotope lists.
+            isotopes = self.config['isotopes']
+            if type(isotopes) == str:
+                if isotopes.lower() not in known_isotope_data:
+                    raise UnknownModelError
+                iso_datas = known_isotope_data[isotopes]
+            else:
+                iso_datas = isotopes
+
+            # Different Isotope data sources my have their own reference time - extract that information
+            if 'ref_time' in iso_datas:
+                self.config['ref_time'] = iso_datas['ref_time']
+            elif 'reference_time' in iso_datas:
+                self.config['ref_time'] = iso_datas['reference_time']
+            elif self.config['ref_time'] is None:
+                log('No reference time provided for radiogenics, using ref_time = 0.', level='debug')
+                self.config['ref_time'] = 0.
+
+
+            for isotope, iso_data in iso_datas.items():
+                if isotope in ['ref_time', 'reference_time']:
+                    continue
+
+                # For each isotope, extract the needed info
                 self.isos_name.append(isotope)
                 try:
                     if debug_mode:

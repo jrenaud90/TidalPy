@@ -10,4 +10,4 @@
 # 1.2.0rc1    # Release Candidate
 # 1.2.X       # Final Release (X are bug and hot fixes that do not require the regular release cycle)
 
-version = '0.1.0a1'
+version = '0.1.0a2'

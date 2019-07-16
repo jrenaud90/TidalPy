@@ -172,11 +172,11 @@ class ModelSearcher(ConfigHolder):
 
                 # The doc string format for all functions may contain a line that is
                 #     "live args: self.<name>.<name>...etc.arg1, self.<name>.<name>...etc.arg2, ..."
-                if 'live args:' in line:
+                if '!TPY_args live:' in line:
                     if oargs_found:
                         raise TidalPyException(
                             'Live args must come before other args in doc string (and in function signature)')
-                    args = line.split('live args:')[-1].split(',')
+                    args = line.split('!TPY_args live:')[-1].split(',')
                     cleaned_args = [arg.strip() for arg in args]
                     new_live_args = None
                     if len(cleaned_args) == 1:
@@ -195,8 +195,8 @@ class ModelSearcher(ConfigHolder):
                     largs_found = True
 
                 # The doc string format for all functions may contain a line that is "other_args: arg1, arg2, ..."
-                if 'other args:' in line:
-                    args = line.split('other args:')[-1].split(',')
+                if '!TPY_args const:' in line:
+                    args = line.split('!TPY_args const:')[-1].split(',')
                     cleaned_args = [arg.strip() for arg in args]
                     if len(cleaned_args) == 1:
                         if cleaned_args[0].lower() in ['none']:

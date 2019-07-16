@@ -12,8 +12,6 @@ def off(temperature: np.ndarray, melt_fraction: np.ndarray,
         premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
     """ No Partial Melt
 
-    --- Parameters ---
-    other args: None
 
     """
 
@@ -27,8 +25,7 @@ def spohn(temperature: np.ndarray, melt_fraction: np.ndarray,
           fs_shear_power_slope: float, fs_shear_power_phase: float) -> Tuple[np.ndarray, np.ndarray]:
     """ Fischer and Spohn (1990) Partial-Melt Viscosity Function
 
-    --- Parameters ---
-    other args: liquid_shear, fs_visc_power_slope, fs_visc_power_phase, fs_shear_power_slope, fs_shear_power_phase
+    !TPY_args const: liquid_shear, fs_visc_power_slope, fs_visc_power_phase, fs_shear_power_slope, fs_shear_power_phase
 
     """
 
@@ -52,8 +49,8 @@ def henning(temperature: np.ndarray, melt_fraction: np.ndarray,
 
     See also Renaud and Henning (2009)
 
-    --- Parameters ---
-    other args: liquid_shear, crit_melt_frac, crit_melt_frac_width, hn_visc_slope_1, hn_visc_slope_2, hn_shear_param_1, hn_shear_param_2, hn_shear_falloff_slope
+    !TPY_args const: liquid_shear, crit_melt_frac, crit_melt_frac_width, hn_visc_slope_1, hn_visc_slope_2, hn_shear_param_1, hn_shear_param_2, hn_shear_falloff_slope
+
 
 
     """

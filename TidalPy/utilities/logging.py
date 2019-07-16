@@ -66,7 +66,7 @@ class TidalLogger:
         # Determine if text should be printed to console
         print_text = False
         if self.verbose_level > 0:
-            level = max(level, 5)
+            level = min(level, 5)
             if warning and level > 3:
                 level = 3
             if self.verbose_level >= level:
@@ -75,7 +75,7 @@ class TidalLogger:
         # Determine if text should be included in log file
         log_text = False
         if self.log_level > 0:
-            level = max(level, 5)
+            level = min(level, 5)
             if warning and level > 3:
                 level = 3
             if self.log_level >= level:
@@ -89,7 +89,7 @@ class TidalLogger:
                 buffer_text = ''
                 for l_i, line in enumerate(text.split('\n')):
                     if l_i == 0:
-                        buffer_text = f'\n{self.timestamp()},L{level} - {line}'
+                        buffer_text = f'\n{self.timestamp()} (L-{level}): {line}'
                     else:
                         # Put spaces that match the [timestamp=6] + [level info=3] + [spacer=3]
                         buffer_text += '\n' + ' ' * 6 + ' ' * 3 + ' ' * 3 + line
@@ -148,7 +148,7 @@ class TidalLogger:
         :return: <str>
         """
 
-        return f'{(time.time() - self.init_time):04.4}'.ljust(4, '0').rjust(8, '0')
+        return f'{(time.time() - self.init_time):04.02f}'.rjust(10)
 
     def cleanup(self):
         """ Cleans up log when program is about to exit """

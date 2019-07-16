@@ -37,11 +37,9 @@ def off(compliance, viscosity, frequency):
 def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
     """ Fixed-Q Tides
 
-        --- Parameters ---
-        nice name:  Fixed-Q
-        line style: -.
-        color:      k
-        other args: quality_factor, planet_beta
+
+    !TPY_args const: quality_factor, planet_beta
+
 
     """
 
@@ -59,11 +57,7 @@ def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
 def maxwell(compliance, viscosity, frequency):
     """ Maxwell Tides
 
-        --- Parameters ---
-        nice name:  Maxwell
-        line style: -
-        color:      k
-        other args: None
+    !TPY_args const: None
 
     """
 
@@ -80,11 +74,7 @@ def maxwell(compliance, viscosity, frequency):
 def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
     """ Voigt-Kelvin Tides
 
-        --- Parameters ---
-        nice name:  Voigt-Kelvin
-        line style: -
-        color:      g
-        other args: voigt_compliance_offset, voigt_viscosity_offset
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset
 
     """
 
@@ -105,11 +95,7 @@ def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_visco
 def burgers(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
     """ Burgers Tides
 
-        --- Parameters ---
-        nice name:  Burgers
-        line style: -
-        color:      r
-        other args: voigt_compliance_offset, voigt_viscosity_offset
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset
 
     """
 
@@ -125,12 +111,8 @@ def burgers(compliance, viscosity, frequency, voigt_compliance_offset, voigt_vis
 def andrade(compliance, viscosity, frequency, alpha, zeta):
     """ Andrade Tides
 
-        --- Parameters ---
-        nice name:  Andrade
-        line style: -
-        color:      b
-        other args: alpha, zeta
 
+    !TPY_args const: alpha, zeta
     """
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
@@ -150,11 +132,7 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
 def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_params, andrade_freq_func):
     """ Andrade Tides with frequency-dependent Zeta
 
-        --- Parameters ---
-        nice name:  Andrade
-        line style: -
-        color:      b
-        other args: alpha, zeta, andrade_freq_params, andrade_freq_func
+    !TPY_args const: alpha, zeta, andrade_freq_params, andrade_freq_func
 
     """
     # The andrade_freq_func is defined by one of the models in andrade_frequency.py
@@ -178,11 +156,7 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
 def sundberg(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta):
     """ Sundberg-Cooper Tides
 
-        --- Parameters ---
-        nice name:  Sundberg
-        line style: -
-        color:      m
-        other args: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta
 
     """
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
@@ -198,11 +172,8 @@ def sundberg_freq(compliance, viscosity, frequency, voigt_compliance_offset, voi
                   andrade_freq_params, andrade_freq_func):
     """ Sundberg-Cooper Tides
 
-        --- Parameters ---
-        nice name:  Sundberg
-        line style: -
-        color:      m
-        other args: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, andrade_freq_params, andrade_freq_func
+
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, andrade_freq_params, andrade_freq_func
 
     """
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
