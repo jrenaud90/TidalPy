@@ -36,7 +36,7 @@ LEVEL_CONVERSION = {
 class TidalLogger:
 
     def __init__(self, verbose_level=global_verbose_level, logging_level=global_logging_level,
-                 use_timestamps: bool = True):
+                 use_timestamps: bool = True, auto_create: bool = True):
 
         super().__init__()
 
@@ -47,14 +47,19 @@ class TidalLogger:
 
         self._last_offload = time.time()
         self._buffer = ''
+        self.filepath = None
 
+        # Make sure log is cleaned up whenever python is closed or the process is finished
+        atexit.register(self.cleanup)
+
+        if auto_create:
+            self.create_log()
+
+    def create_log(self):
         # Create log file
         self.filepath = unique_path('TidalPy.log', is_dir=False, preappend_run_dir=True)
         with open(self.filepath, 'w') as logfile:
             logfile.write(HEADER_TEXT)
-
-        # Make sure log is cleaned up whenever python is closed or the process is finished
-        atexit.register(self.cleanup)
 
     def record(self, text: str, level: Union[int, str] = 'info', warning: bool = False):
         """ Records text to buffer and prints to display if verbose_level exceeds message level"""
