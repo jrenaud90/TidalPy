@@ -1,12 +1,9 @@
 dist: xenial
 language: python
 python:
-  - "3.5"
   - "3.6"
   - "3.7"
   - "3.8-dev"
-virtualenv:
-  system_site_packages: true
 # command to install dependencies
 install:
   - pip install -r requirements.txt
