@@ -5,10 +5,12 @@ python:
   - "3.6"
   - "3.7"
   - "3.8-dev"
+virtualenv:
+  system_site_packages: true
 # command to install dependencies
 install:
   - pip install -r requirements.txt
-  - pip install setup.py
+  - pip install -e .
 # command to run tests
 script:
   - pytest
