@@ -22,6 +22,32 @@ PlanetRefType = Union[str, int, WorldBase]
 TargetBodyType = Union[TidalWorld, List[TidalWorld]]
 
 
+def pull_out_orbit_defaults(planet_obj):
+
+    # Update those dummy variables if information was provided in the configurations
+    orbital_freq = planet_obj.config.get('orbital_freq', None)
+    orbital_period = planet_obj.config.get('orbital_period', None)
+    if orbital_freq is not None and orbital_period is not None:
+        log(f'Both orbital frequency and period were provided for {planet_obj.name}. '
+            f'Using frequency instead.', level='info')
+    if orbital_freq is None and orbital_period is not None:
+        # Assume orbital period is in days
+        orbital_freq = 2. * np.pi / (orbital_period * 24. * 60. * 60.)
+    semi_major_axis = planet_obj.config.get('semi_major_axis', None)
+    semi_major_axis_inau = planet_obj.config.get('semi_major_axis_in_au', False)
+    if semi_major_axis is not None:
+        if semi_major_axis_inau:
+            semi_major_axis = Au2m(semi_major_axis)
+        if orbital_freq is not None:
+            log(f'Both orbital frequency (or period) and semi-major axis were provided for {planet_obj.name}. '
+                f'Using frequency instead.', level='info')
+            semi_major_axis = None
+    eccentricity = planet_obj.config.get('eccentricity', None)
+    inclination = planet_obj.config.get('inclination', None)
+
+    return orbital_freq, semi_major_axis, eccentricity, inclination
+
+
 class OrbitBase(TidalPyClass):
     """ OrbitBase class connects stars, hosts, and target planets---handling all mutual calculations
 
@@ -52,19 +78,37 @@ class OrbitBase(TidalPyClass):
         if host is None:
             host = star
         self.host = host
+        self.host.is_host = True
         if target_bodies is None:
             self.target_bodies = list()
         else:
             if isinstance(target_bodies, TidalWorld):
                 self.target_bodies = [target_bodies]  # type: List[TidalWorld]
             elif type(target_bodies) == list:
-                self.target_bodies = target_bodies  # type: List[TidalWorld]
+                self.target_bodies = target_bodies    # type: List[TidalWorld]
             else:
                 raise TypeError
         self.all_objects = [self.star, self.host] + self.target_bodies
         self.all_objects_byname = {self.star.name: self.star}
         if self.host.name not in self.all_objects_byname:
             self.all_objects_byname[self.host.name] = self.host
+        for target_body in self.target_bodies:
+            self.all_objects_byname[target_body.name] = target_body
+
+        # Load in parameters into planets
+        for orbital_loc, world in enumerate(self):
+            world._orbit = self
+            world.orbit_location = orbital_loc
+
+        # Store aliases
+        need_to_add = []
+        for name, obj in self.all_objects_byname.items():
+            if name.lower() not in self.all_objects_byname:
+                need_to_add.append((name.lower(), obj))
+            if name.title() not in self.all_objects_byname:
+                need_to_add.append((name.title(), obj))
+        for new_name, obj in need_to_add:
+            self.all_objects_byname[new_name] = obj
 
         # Perform some checks
         if self.duel_dissipation and not isinstance(self.host, TidalWorld):
@@ -74,14 +118,19 @@ class OrbitBase(TidalPyClass):
         self._host_tide_raiser_loc = None
         if host_tide_raiser_location is not None:
             self.host_tide_raiser_loc = host_tide_raiser_location
+        elif len(self.target_bodies) == 1:
+            self.host_tide_raiser_loc = 2
+        elif len(self.target_bodies) > 1:
+            log.warn('More than one target body provided. Assuming that innermost is the primary tide raiser on host.')
+            self.host_tide_raiser_loc = 2
 
         # State orbital variables (must be at least 2: for the star and the host)
         self._eccentricities = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
-        self._inclinations = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
-        self._orbital_freqs = [None, None]  # type: List[Union[None, np.ndarray]]
-        self._semi_major_axis = [None, None]  # type: List[Union[None, np.ndarray]]
-        self._derivative_a = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
-        self._derivative_e = [np.asarray(0.), np.asarray(0.)]  # type: List[Union[None, np.ndarray]]
+        self._inclinations = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
+        self._orbital_freqs = [None, None]                       # type: List[Union[None, np.ndarray]]
+        self._semi_major_axis = [None, None]                     # type: List[Union[None, np.ndarray]]
+        self._derivative_a = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
+        self._derivative_e = [np.asarray(0.), np.asarray(0.)]    # type: List[Union[None, np.ndarray]]
 
         # Are target bodies orbiting the star or the host
         self.star_host = False
@@ -103,18 +152,13 @@ class OrbitBase(TidalPyClass):
                 raise ParameterError("The orbit's host can not be a target body. "
                                      "Nevertheless, tides can still be calculated in the host. See documentation.")
 
-            # Store reference in a more human readable manner
-            self.all_objects_byname[target_body.name] = target_body
-
             # Equilibrium Temperature
             if self.star_host:
-                equib_dist_func = lambda: target_body.semi_major_axis
-                equib_ecc_func = lambda: target_body.eccentricity
+                self.equilib_distance_funcs.append(lambda: target_body.semi_major_axis)
+                self.equilib_eccentricity_funcs.append(lambda: target_body.eccentricity)
             else:
-                equib_dist_func = lambda: self.star.semi_major_axis
-                equib_ecc_func = lambda: self.star.eccentricity
-            self.equilib_distance_funcs.append(equib_dist_func)
-            self.equilib_eccentricity_funcs.append(equib_ecc_func)
+                self.equilib_distance_funcs.append(lambda: self.star.semi_major_axis)
+                self.equilib_eccentricity_funcs.append(lambda: self.star.eccentricity)
 
             # Inflated Tidal Susceptibility
             target_body.tidal_susceptibility_inflated = (3. / 2.) * G * self.host.mass**2 * target_body.radius**5
@@ -128,63 +172,26 @@ class OrbitBase(TidalPyClass):
             self._derivative_e.append(np.asarray([0.]))
 
         for t_i, world in enumerate(self.all_objects):
-            # Add a reference to the orbit to the planet(s)
-            world._orbit = self
-            world.orbit_location = t_i
-
             # Star does not need (or have) any of the following parameters - so skip it
             if world is self.star:
                 continue
 
             # Update those dummy variables if information was provided in the configurations
-            orbital_freq = world.config.get('orbital_freq', None)
-            orbital_period = world.config.get('orbital_period', None)
-            if orbital_freq is not None and orbital_period is not None:
-                log(f'Both orbital frequency and period were provided for {world.name}. '
-                    f'Using frequency instead.', level='info')
-            if orbital_freq is None and orbital_period is not None:
-                # Assume orbital period is in days
-                orbital_freq = 2. * np.pi / (orbital_period * 24. * 60. * 60.)
-            semi_major_axis = world.config.get('semi_major_axis', None)
-            semi_major_axis_inau = world.config.get('semi_major_axis_in_au', False)
-            if semi_major_axis is not None:
-                if semi_major_axis_inau:
-                    semi_major_axis = Au2m(semi_major_axis)
-                if orbital_freq is not None:
-                    log(f'Both orbital frequency (or period) and semi-major axis were provided for {world.name}. '
-                        f'Using frequency instead.', level='info')
-                    semi_major_axis = None
-            eccentricity = world.config.get('eccentricity', None)
-            inclination = world.config.get('inclination', None)
+            orbital_freq, semi_major_axis, eccentricity, inclination = pull_out_orbit_defaults(world)
 
             if not self.star_host and world is self.host:
-                # Initial parameters set in the config file are assumed to be
-                self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=False,
-                               force_calculation=False)
+                # Initial parameters set in the config file are assumed to be set from star position
+                self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination,
+                               set_by_planet=False, force_calculation=False)
 
-            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination, set_by_planet=False,
-                           force_calculation=False)
-
-        # Update parameters on the planets
-        self.host.is_host = True
-        if self.host_tide_raiser_loc is None and len(self.target_bodies) == 1:
-            self.host_tide_raiser_loc = self.target_bodies[0].orbit_location
+            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination,
+                           set_by_planet=False, force_calculation=False)
 
         # Attempt to initialize insolation heating
         for target_body in self.target_bodies:
             self.calculate_insolation(target_body)
         if isinstance(self.host, TidalWorld):
             self.calculate_insolation(self.host)
-
-        # Store aliases
-        need_to_add = []
-        for name, obj in self.all_objects_byname.items():
-            if name.lower() not in self.all_objects_byname:
-                need_to_add.append((name.lower(), obj))
-            if name.title() not in self.all_objects_byname:
-                need_to_add.append((name.title(), obj))
-        for new_name, obj in need_to_add:
-            self.all_objects_byname[new_name] = obj
 
     def find_planet_pointer(self, planet_reference: PlanetRefType) -> WorldBase:
         """ Find the object pointer to a planet or object stored in this orbit
@@ -229,10 +236,7 @@ class OrbitBase(TidalPyClass):
             try:
                 return self.all_objects_byname[planet_reference]
             except KeyError:
-                try:
-                    return self.all_objects_byname[planet_reference.lower()]
-                except KeyError:
-                    return self.all_objects_byname[planet_reference.title()]
+                return self.all_objects_byname[planet_reference.lower()]
         raise IncorrectArgumentType
 
     # Functionality to set the orbit state variables
@@ -701,7 +705,7 @@ class OrbitBase(TidalPyClass):
         self.host.tide_raiser_ref = pseudo_host_reference
 
     def __iter__(self):
-        return iter(self.target_bodies)
+        return iter(self.all_objects)
 
     @staticmethod
     def rads2days(radians_per_second: FloatArray) -> FloatArray:

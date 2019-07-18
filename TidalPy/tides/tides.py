@@ -3,9 +3,7 @@ from functools import partial
 from typing import Tuple
 
 import numpy as np
-
-from .love_1d import (complex_love as complex_love_func, complex_love_general,
-                      effective_rigidity as effective_rigidity_func, effective_rigidity_general)
+from . import calc_complex_love_general, calc_complex_love, calc_effective_rigidity_general, calc_effective_rigidity
 from ..exceptions import (AttributeNotSetError, ImplementationError, ParameterMissingError, UnknownModelError)
 from ..rheology import andrade_frequency_models, compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
@@ -39,16 +37,16 @@ class Tides(LayerModel):
         self.order_l = None
         self.full_calculation = True
         if self.model == '2order':
-            self.calc_love = complex_love_func
+            self.calc_love = calc_complex_love
             self.order_l = 2
-            self.calc_effective_rigidity = effective_rigidity_func
+            self.calc_effective_rigidity = calc_effective_rigidity
         elif self.model == 'general':
-            self.calc_love = partial(complex_love_general, order_l=self.order_l)
+            self.calc_love = partial(calc_complex_love_general, order_l=self.order_l)
             self.order_l = self.config['order_l']
-            self.calc_effective_rigidity = partial(effective_rigidity_general, order_l=self.order_l)
+            self.calc_effective_rigidity = partial(calc_effective_rigidity_general, order_l=self.order_l)
         elif self.model == 'off':
-            self.calc_love = partial(complex_love_general, order_l=self.order_l)
-            self.calc_effective_rigidity = partial(effective_rigidity_general, order_l=self.order_l)
+            self.calc_love = calc_complex_love
+            self.calc_effective_rigidity = calc_effective_rigidity
             self.full_calculation = False
         elif self.model == 'multilayer':
             # TODO: Multilayer code

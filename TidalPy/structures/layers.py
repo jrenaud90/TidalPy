@@ -162,9 +162,6 @@ class ThermalLayer(PhysicalObjSpherical):
         self.is_top_layer = False
         self.is_tidal = False
 
-        # Call to reinit
-        self.reinit()
-
     def _build_material_property_interpolation(self):
         """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
 
@@ -219,6 +216,7 @@ class ThermalLayer(PhysicalObjSpherical):
     def reinit(self):
 
         super().reinit()
+        log(f'Reinit called for Layer: {self.name} in {self.world.name}.', level='debug')
 
         # Check for changes to config that may break the planet
         if self._old_config is not None:
@@ -316,7 +314,8 @@ class ThermalLayer(PhysicalObjSpherical):
 
         self.update_cooling()
         self.update_tides()
-        if self.world is not None:
+        if self.world is not None and self.world.tidal_heating_coeffs is not None and \
+                self.world.tidal_ztorque_coeffs is not None:
             self.world.update_global_tides()
 
     def update_radiogenics(self, force_calculation: bool = False):

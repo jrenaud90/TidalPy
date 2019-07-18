@@ -3,9 +3,11 @@ from typing import Tuple
 
 from send2trash import send2trash
 
-from . import dilled_planets_loc
-from ... import __version__
-from ...utilities.pathing import get_all_files_of_type
+from .. import __version__
+from .pathing import get_all_files_of_type
+from ..io import tidalpy_loc
+
+dilled_planets_loc = os.path.join(tidalpy_loc, 'planets', 'dilled_planets')
 
 
 def delete_planets(ask_prompt: bool = True):

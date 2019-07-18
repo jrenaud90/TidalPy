@@ -8,11 +8,11 @@ import burnman
 import dill
 import numpy as np
 
-from TidalPy.dynamics.modes import nsr_modes, spin_sync_modes
-from TidalPy.utilities.numpy_help import value_cleanup
+from ..dynamics.modes import nsr_modes, spin_sync_modes
+from ..utilities.numpy_help import value_cleanup
 from .defaults import world_defaults
 from .physical import PhysicalObjSpherical
-from .. import debug_mode, use_disk
+from .. import debug_mode, use_disk, tidalpy_dir
 from ..configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
                               auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
                               overwrite_dills)
@@ -23,10 +23,10 @@ from ..initialize import log
 from ..io import inner_save_dir
 from ..physics.stellar import (efftemp_from_luminosity, equilibrium_insolation_functions, equilibrium_temperature,
                                luminosity_from_efftemp, luminosity_from_mass)
-from ..planets.dilled_planets import dill_file_path
-from ..planets.planet_configs import planet_config_loc
+from ..utilities.dill_helper import dill_file_path
 from ..structures.layers import ThermalLayer
 
+planet_config_loc = os.path.join(tidalpy_dir, 'planets', 'planet_configs')
 
 if TYPE_CHECKING:
     from ..orbit.orbit import OrbitBase
@@ -85,7 +85,7 @@ class WorldBase(PhysicalObjSpherical):
         super().reinit()
 
         self.name = self.config['name']
-        log(f'Re-init called for planet: {self.name}', level='debug')
+        log(f'Reinit called for planet: {self.name}', level='debug')
 
         # Pull out constants
         self.emissivity = self.config['emissivity']

@@ -44,8 +44,9 @@ def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
     """
 
     real_j = -19. / (2. * planet_beta)
-    imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2)
-    imag_j *= np.ones_like(frequency)
+    # The (1 + 0*w) hack is there to ensure that imag_j shares shape with the larger of the two: compliance or frequency
+    imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2) \
+        * (1. + 0. * frequency)
     imag_j[np.abs(frequency) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j

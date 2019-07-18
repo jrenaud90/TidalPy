@@ -7,6 +7,8 @@ Note: Installation has only been tested on Windows 10 and Ubuntu operating syste
 
 Pre-Install Requirements:
 * Python version 3.7+ must be installed on your machine
+    * I usually recommend the [Anaconda](https://www.anaconda.com/distribution/) distribution of Python, but lately I have been having lots of issues with it and Windows 10. If you don't want to use Anaconda you can find the regular Python distribution [here](https://www.python.org/).
+    * Make sure that your Python (Anaconda or regular) is 64-bit if you are on a 64-bit machine.
 * Working internet connection (for the initial installation only)
 
 ### Install as editable

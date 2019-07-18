@@ -85,3 +85,11 @@ def test_orbit_parameter_setters():
     np.testing.assert_approx_equal(orbit.get_semi_major_axis(2), newer_semi_a)
     np.testing.assert_approx_equal(orbit.get_orbital_freq(2),
                                    semi_a2orbital_motion(newer_semi_a, jupiter.mass, io.mass))
+
+
+def test_star_host():
+
+    sh_orbit = Orbit(sol, None, io)
+    assert sh_orbit.star_host
+    sh_orbit = Orbit(sol, sol, io)
+    assert sh_orbit.star_host
