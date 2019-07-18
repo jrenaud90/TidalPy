@@ -77,7 +77,7 @@ layer_defaults = {
 }
 
 world_defaults = {
-    'base' : {
+    'base'    : {
         'name'                        : 'unknown_world_basetype',
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',  # Options are no_eccentricity, williams, or mendez
@@ -86,7 +86,7 @@ world_defaults = {
         'quality_factor'              : 10.,
         'use_real_moi'                : True
     },
-    'basic': {
+    'basic'   : {
         'name'                        : 'unknown_world_basictype',
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',
@@ -104,7 +104,7 @@ world_defaults = {
         'quality_factor'              : 10.,
         'use_real_moi'                : True
     },
-    'star' : {
+    'star'    : {
         'name'                        : 'unknown_world_startype',
         # Most of the stuff for the star class is not actually used, but having this here allows it to share the same
         # base class as the other planet types. Perhaps one day it would be a good idea to split the base classes of
@@ -116,7 +116,7 @@ world_defaults = {
         'quality_factor'              : 10.,
         'use_real_moi'                : True
     },
-    'tidal': {
+    'tidal'   : {
         'name'                        : 'unknown_world_tidaltype',
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',

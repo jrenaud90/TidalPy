@@ -8,9 +8,10 @@ from numba.targets.registry import CPUDispatcher
 
 from .classes import ConfigHolder
 from .dict_tools import nested_get
-from .. import debug_mode, log
+from .. import debug_mode
 from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
                           UnknownModelError)
+from ..initialize import log
 
 
 general_func_reject_list = [
@@ -175,7 +176,7 @@ class ModelSearcher(ConfigHolder):
                 if '!TPY_args live:' in line:
                     if oargs_found:
                         raise TidalPyException(
-                            'Live args must come before other args in doc string (and in function signature)')
+                                'Live args must come before other args in doc string (and in function signature)')
                     args = line.split('!TPY_args live:')[-1].split(',')
                     cleaned_args = [arg.strip() for arg in args]
                     new_live_args = None

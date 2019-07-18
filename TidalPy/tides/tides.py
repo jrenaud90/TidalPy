@@ -4,12 +4,12 @@ from typing import Tuple
 
 import numpy as np
 
-from ..rheology import andrade_frequency_models, compliance_models
-from ..rheology.defaults import rheology_param_defaults
 from .love_1d import (complex_love as complex_love_func, complex_love_general,
                       effective_rigidity as effective_rigidity_func, effective_rigidity_general)
 from ..exceptions import (AttributeNotSetError, ImplementationError, ParameterMissingError, UnknownModelError)
+from ..rheology import andrade_frequency_models, compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
+from ..rheology.defaults import rheology_param_defaults
 from ..types import FloatArray
 from ..utilities.model import LayerModel
 

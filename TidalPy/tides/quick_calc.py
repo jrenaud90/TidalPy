@@ -1,10 +1,11 @@
-from typing import Tuple, List, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 
+from .love_1d import complex_love, complex_love_general, effective_rigidity, effective_rigidity_general
 from ..performance import njit
 from ..types import FloatArray
-from .love_1d import complex_love_general, complex_love, effective_rigidity, effective_rigidity_general
+
 
 ModeListType = Union[Tuple[np.ndarray], List[np.ndarray]]
 
@@ -75,9 +76,9 @@ def calc_tides(gravity: float, radius: float, density: float,
 
 @njit
 def calc_tides_general(gravity: float, radius: float, density: float,
-               shear_modulus: np.ndarray, tidal_susceptibility: np.ndarray,
-               cmplx_compliance_bymode: ModeListType, heating_coeffs_bymode: ModeListType,
-               torque_coeffs_bymode: ModeListType, order_l: int = 2):
+                       shear_modulus: np.ndarray, tidal_susceptibility: np.ndarray,
+                       cmplx_compliance_bymode: ModeListType, heating_coeffs_bymode: ModeListType,
+                       torque_coeffs_bymode: ModeListType, order_l: int = 2):
     """ Calculate Tidal Heating and Torques using the general Love number of order: order_l
 
     Parameters

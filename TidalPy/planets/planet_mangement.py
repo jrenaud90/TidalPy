@@ -1,16 +1,17 @@
 import atexit
-from typing import TextIO, Union
 import copy
+from typing import TextIO, Union
 
 import dill
 import json5
 
 from .dilled_planets import dilled_planets_loc
 from .planet_configs import planet_config_loc
-from .. import log, other_data_locs
+from .. import other_data_locs
 from ..bm.build import build_planet as build_bm_planet
 from ..configurations import exit_planets
 from ..exceptions import MissingArgumentError, UnknownModelError
+from ..initialize import log
 from ..structures.worlds import TidalWorld, world_types
 from ..utilities.pathing import get_all_files_of_type
 

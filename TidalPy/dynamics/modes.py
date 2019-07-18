@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..performance import njit
+from TidalPy.performance import njit
 
 
 # Minimum tidal mode in [rad s-1]

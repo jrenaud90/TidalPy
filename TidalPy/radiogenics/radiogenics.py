@@ -3,9 +3,10 @@ import copy
 import numpy as np
 
 from . import radiogenic_models
-from .defaults import radiogenics_param_defaults, known_isotope_data
-from .. import debug_mode, log
+from .defaults import known_isotope_data, radiogenics_param_defaults
+from .. import debug_mode
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError, UnknownModelError
+from ..initialize import log
 from ..types import float_like
 from ..utilities.model import LayerModel, ModelSearcher
 
@@ -50,7 +51,6 @@ class Radiogenics(LayerModel):
             elif self.config['ref_time'] is None:
                 log('No reference time provided for radiogenics, using ref_time = 0.', level='debug')
                 self.config['ref_time'] = 0.
-
 
             for isotope, iso_data in iso_datas.items():
                 if isotope in ['ref_time', 'reference_time']:
@@ -102,7 +102,7 @@ class Radiogenics(LayerModel):
         elif self.model == 'fixed':
             if abs(time[-1] / max(self.config['average_half_life'])) > 1.0e4:
                 log.warn(
-                    'Time is much larger than the fixed-average radiogenic half-life - Check units of both time and half life.')
+                        'Time is much larger than the fixed-average radiogenic half-life - Check units of both time and half life.')
 
         radio_heating = self.func(time, self.layer.mass, *self.inputs)
         if np.any(radio_heating < 0.):

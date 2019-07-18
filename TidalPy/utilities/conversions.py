@@ -1,6 +1,6 @@
-import numpy as np
-
 from typing import Tuple
+
+import numpy as np
 
 from ..constants import G
 from ..performance import njit
@@ -169,6 +169,7 @@ def myr2sec(myrs: FloatArray) -> FloatArray:
     """
 
     return myrs * 3.154e13
+
 
 @njit
 def convert_to_hms(seconds: float) -> Tuple[int, int, int, float]:

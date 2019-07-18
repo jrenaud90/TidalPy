@@ -8,10 +8,19 @@ from TidalPy.types import FloatArray
 def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number
 
-    :param complex_compliance: <FloatArray> Complex compliance (rheology based) [Pa-1]
-    :param shear_modulus:      <FloatArray> Temperature modulated rigidity [Pa]
-    :param eff_rigidity:       <FloatArray> 2nd order effective rigidity
-    :return:                   <FloatArray> Complex Love Number
+    Parameters
+    ----------
+    complex_compliance : FloatArray
+        Complex compliance (rheology based) [Pa-1]
+    shear_modulus : FloatArray
+        Temperature modulated rigidity [Pa]
+    eff_rigidity : FloatArray
+        2nd order effective rigidity
+
+    Returns
+    -------
+    cmplx_love : FloatArray
+        2nd order complex Love number
     """
 
     real_j = np.real(complex_compliance)
@@ -21,9 +30,9 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
     common_factor = (3. / 2.) * ((real_j + eff_rigidity / shear_modulus)**2 + imag_j2)**-1
     real_love = (real_j2 + imag_j2 + real_j * eff_rigidity / shear_modulus) * common_factor
     imag_love = (imag_j * eff_rigidity / shear_modulus) * common_factor
-    complex_love = real_love + 1.0j * imag_love
+    cmplx_love = real_love + 1.0j * imag_love
 
-    return complex_love
+    return cmplx_love
 
 
 @njit
@@ -31,11 +40,21 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
                          order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order complex Love number
 
-    :param complex_compliance:      <FloatArray> Complex compliance (rheology based) [Pa-1]
-    :param shear_modulus:           <FloatArray> Temperature modulated rigidity [Pa]
-    :param eff_rigidity_general:    <FloatArray> l-th order effective rigidity
-    :param order_l:                 <int> (optional) Outer-most fourier summation index
-    :return:                        <FloatArray> Complex Love Number
+    Parameters
+    ----------
+    complex_compliance : FloatArray
+        Complex compliance (rheology based) [Pa-1]
+    shear_modulus : FloatArray
+        Temperature modulated rigidity [Pa]
+    eff_rigidity_general : FloatArray
+        l-th order effective rigidity
+    order_l : int
+        Outermost Fourier summation integer
+
+    Returns
+    -------
+    cmplx_love : FloatArray
+        l-th order complex Love number
     """
 
     real_j = np.real(complex_compliance)
@@ -45,9 +64,9 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
     common_factor = (3. / (order_l - 1.)) * ((real_j + eff_rigidity_general / shear_modulus)**2 + imag_j2)**-1
     real_love = (real_j2 + imag_j2 + real_j * eff_rigidity_general / shear_modulus) * common_factor
     imag_love = (imag_j * eff_rigidity_general / shear_modulus) * common_factor
-    complex_love = real_love + 1.0j * imag_love
+    cmplx_love = real_love + 1.0j * imag_love
 
-    return complex_love
+    return cmplx_love
 
 
 # The functions below could, in theory, be cached but with shear_modulus potentially being an array lru_cache does not
@@ -57,14 +76,26 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
 def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float) -> FloatArray:
     """ Calculates the 2nd order effective rigidity
 
-    :param shear_modulus: <FloatArray> Temperature modulated rigidity
-    :param gravity:       <float> Surface gravity [m s-2]
-    :param radius:        <float> Surface radius [m]
-    :param density:       <float> Bulk density [kg m-3]
-    :return:              <FloatArray> 2nd order Effective Rigidity
+    Parameters
+    ----------
+    shear_modulus : FloatArray
+        Temperature modulated rigidity [Pa]
+    gravity : float
+        Surface (of planet or layer) gravity [m s-2]
+    radius : float
+        Surface (of planet or layer) radius [m]
+    density : float
+        Bulk density (of planet or layer) [kg m-3]
+
+    Returns
+    -------
+    eff_rigid : FloatArray
+        2nd order Effective Rigidity
     """
 
-    return (19. / 2.) * shear_modulus / (gravity * radius * density)
+    eff_rigid = (19. / 2.) * shear_modulus / (gravity * radius * density)
+
+    return eff_rigid
 
 
 @njit
@@ -72,12 +103,25 @@ def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius
                                order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order effective rigidity
 
-    :param shear_modulus: <FloatArray> Temperature modulated rigidity
-    :param gravity:       <float> Surface gravity [m s-2]
-    :param radius:        <float> Surface radius [m]
-    :param density:       <float> Bulk density [kg m-3]
-    :param order_l:       <int> (optional) Outer-most fourier summation index
-    :return:              <FloatArray> 2nd order Effective Rigidity
+    Parameters
+    ----------
+    shear_modulus : FloatArray
+        Temperature modulated rigidity [Pa]
+    gravity : float
+        Surface (of planet or layer) gravity [m s-2]
+    radius : float
+        Surface (of planet or layer) radius [m]
+    density : float
+        Bulk density (of planet or layer) [kg m-3]
+    order_l : int
+        Outermost Fourier summation integer
+
+    Returns
+    -------
+    eff_rigid : FloatArray
+        l-th order Effective Rigidity
     """
 
-    return (2. * order_l**2 + 4. * order_l + 3. / order_l) * shear_modulus / (gravity * radius * density)
+    eff_rigid = (2. * order_l**2 + 4. * order_l + 3. / order_l) * shear_modulus / (gravity * radius * density)
+
+    return eff_rigid

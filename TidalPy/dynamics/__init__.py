@@ -1,5 +1,6 @@
 from .duel_dissipation import (eccentricity_derivative as eccentricity_derivative_duel,
                                semi_major_axis_derivative as semi_major_axis_derivative_duel)
+from .modes import nsr_modes, spin_sync_modes
 from .single_dissipation import eccentricity_derivative, semi_major_axis_derivative, spin_rate_derivative
 
 

@@ -2,8 +2,9 @@ import burnman
 import numpy as np
 
 from .material.helper import find_material
-from .. import debug_mode, log
-from ..exceptions import BadValueError, ParameterMissingError, ParameterError
+from .. import debug_mode
+from ..exceptions import BadValueError, ParameterError, ParameterMissingError
+from ..initialize import log
 from ..types import float_eps
 
 
@@ -55,7 +56,7 @@ def build_layer(layer_name: str, layer_config: dict) -> burnman.Layer:
             raise ParameterMissingError(f"Multiple materials provided but no material_fraction's were given.")
         if type(material_fractions) not in [list, tuple]:
             raise ParameterError('Material fractions must be provided as a list or tuple.')
-        if type(material_source)  not in [list, tuple]:
+        if type(material_source) not in [list, tuple]:
             raise ParameterError('Multiple materials provided with only one source.')
         if len(material) != len(material_source):
             raise ParameterError('Number of composite materials is not the same as number of material sources.')

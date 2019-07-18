@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from . import auto_write, version
+from . import auto_write, use_disk, version
 
 
 tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
@@ -102,22 +102,25 @@ def unique_path(attempt_path: str, is_dir: bool = None, preappend_run_dir: bool 
     return attempt_path
 
 
-# Create Output Directory Structure
-master_directory = os.getcwd()
-outer_save_dir = os.path.join(master_directory, 'TidalPy_Output')
-inner_save_dir = os.path.join(outer_save_dir, timestamped_str(string_to_stamp='TidalPyRun'))
-if auto_write:
-    if not os.path.isdir(outer_save_dir):
-        os.mkdir(outer_save_dir)
-    inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=True)
+if use_disk:
+    # Create Output Directory Structure
+    master_directory = os.getcwd()
+    outer_save_dir = os.path.join(master_directory, 'TidalPy_Output')
+    inner_save_dir = os.path.join(outer_save_dir, timestamped_str(string_to_stamp='TidalPyRun'))
+    if auto_write:
+        if not os.path.isdir(outer_save_dir):
+            os.mkdir(outer_save_dir)
+        inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=True)
 
-    # Save TidalPy Configurations
-    from shutil import copyfile
+        # Save TidalPy Configurations
+        from shutil import copyfile
 
 
-    config_file_src = os.path.join(tidalpy_loc, 'configurations.py')
-    config_file_dst = os.path.join(inner_save_dir, f'configurations.TidalPy_v{version}.py')
-    copyfile(config_file_src, config_file_dst)
+        config_file_src = os.path.join(tidalpy_loc, 'configurations.py')
+        config_file_dst = os.path.join(inner_save_dir, f'configurations.TidalPy_v{version}.py')
+        copyfile(config_file_src, config_file_dst)
 
+    else:
+        inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=False)
 else:
-    inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=False)
+    master_directory = outer_save_dir = inner_save_dir = None

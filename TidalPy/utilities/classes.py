@@ -103,7 +103,7 @@ class ConfigHolder(TidalPyClass):
         except ParameterMissingError as e:
             if raise_missing:
                 raise ParameterMissingError(
-                    f'Parameter {param_name} missing from user provided and default configurations.')
+                        f'Parameter {param_name} missing from user provided and default configurations.')
             else:
                 output = fallback
 
@@ -147,9 +147,21 @@ class ConfigHolder(TidalPyClass):
 
         config_filepaths = list()
         for save_dir in save_dirs:
-            if save_default:
-                config_filepath = os.path.join(save_dir, f'{self.pyname}_default.cfg')
-                config_to_save = self.clean_config_for_json(self.default_config)
+            if save_dir is not None:
+                if save_default:
+                    config_filepath = os.path.join(save_dir, f'{self.pyname}_default.cfg')
+                    config_to_save = self.clean_config_for_json(self.default_config)
+                    if os.path.isfile(config_filepath) and not overwrite:
+                        if give_configs_subscript:
+                            config_filepath = unique_path(config_filepath, is_dir=False)
+                        else:
+                            config_filepath = None
+                    if config_filepath is not None:
+                        with open(config_filepath, 'w') as config_file:
+                            json5.dump(config_to_save, config_file, **json5_kwargs)
+
+                config_filepath = os.path.join(save_dir, f'{self.pyname}.cfg')
+                config_to_save = self.clean_config_for_json(self.config)
                 if os.path.isfile(config_filepath) and not overwrite:
                     if give_configs_subscript:
                         config_filepath = unique_path(config_filepath, is_dir=False)
@@ -158,18 +170,7 @@ class ConfigHolder(TidalPyClass):
                 if config_filepath is not None:
                     with open(config_filepath, 'w') as config_file:
                         json5.dump(config_to_save, config_file, **json5_kwargs)
-
-            config_filepath = os.path.join(save_dir, f'{self.pyname}.cfg')
-            config_to_save = self.clean_config_for_json(self.config)
-            if os.path.isfile(config_filepath) and not overwrite:
-                if give_configs_subscript:
-                    config_filepath = unique_path(config_filepath, is_dir=False)
-                else:
-                    config_filepath = None
-            if config_filepath is not None:
-                with open(config_filepath, 'w') as config_file:
-                    json5.dump(config_to_save, config_file, **json5_kwargs)
-            config_filepaths.append(config_filepath)
+                config_filepaths.append(config_filepath)
 
         return config_filepaths
 

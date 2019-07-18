@@ -1,5 +1,6 @@
-from setuptools import setup
 import warnings
+
+from setuptools import setup
 
 
 def get_requirements(remove_links=True):
@@ -39,7 +40,6 @@ with open('version.txt', 'r') as version_file:
         if 'version =' in line:
             version = line.split('version =')[-1].strip()
             break
-
 
 setup(name='TidalPy',
       version=version,

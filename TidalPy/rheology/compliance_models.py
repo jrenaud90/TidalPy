@@ -14,8 +14,8 @@ How To Implement a New Tides:
 
 import numpy as np
 
-from ..types import float_eps
 from ..performance import find_factorial, njit
+from ..types import float_eps
 
 
 @njit

@@ -1,16 +1,18 @@
 import numpy as np
 from scipy.constants import G
 
-from .. import debug_mode, log
+from .. import debug_mode
 from ..configurations import raise_on_changed_config
 from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, IncorrectAttributeType,
                           ParameterMissingError, TidalPyException, UnusualRealValueError)
+from ..initialize import log
 from ..types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
 
 
 class ImproperAttributeChanged(TidalPyException):
-    default_message = 'A pre-computed planet had a critical configuration change that requires a new instance to be created'
+    default_message = 'A pre-computed planet had a critical configuration change that ' \
+                      'requires a new instance to be created'
 
     def __init__(self, *args, force_raise: bool = False, **kwargs):
 

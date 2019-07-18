@@ -8,18 +8,19 @@ import burnman
 import dill
 import numpy as np
 
+from TidalPy.dynamics.modes import nsr_modes, spin_sync_modes
 from TidalPy.utilities.numpy_help import value_cleanup
 from .defaults import world_defaults
 from .physical import PhysicalObjSpherical
-from .. import debug_mode, log
+from .. import debug_mode, use_disk
 from ..configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
                               auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
                               overwrite_dills)
 from ..dynamics import spin_rate_derivative
 from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError)
 from ..graphics.planet_plot import geotherm_plot
+from ..initialize import log
 from ..io import inner_save_dir
-from ..orbit.modes import nsr_modes, spin_sync_modes
 from ..physics.stellar import (efftemp_from_luminosity, equilibrium_insolation_functions, equilibrium_temperature,
                                luminosity_from_efftemp, luminosity_from_mass)
 from ..planets.dilled_planets import dill_file_path
@@ -158,28 +159,30 @@ class WorldBase(PhysicalObjSpherical):
 
         log(f'Killing world {self.name}...', level='debug')
         # Save configuration file
-        if auto_save_planet_config_to_tidalpydir:
-            tidalpy_planet_cfg_dir = [planet_config_loc]
-        else:
-            tidalpy_planet_cfg_dir = list()
-        self.save_config(save_to_run_dir=auto_save_planet_config_to_rundir,
-                         additional_save_dirs=tidalpy_planet_cfg_dir, overwrite=overwrite_configs)
+        if use_disk:
+            if auto_save_planet_config_to_tidalpydir:
+                tidalpy_planet_cfg_dir = [planet_config_loc]
+            else:
+                tidalpy_planet_cfg_dir = list()
+            self.save_config(save_to_run_dir=auto_save_planet_config_to_rundir,
+                             additional_save_dirs=tidalpy_planet_cfg_dir, overwrite=overwrite_configs)
 
         # Dill this object and save it
-        dill_name, tidalpy_dill_path = dill_file_path(self.name)
-        if auto_save_planet_dill_to_tidalpydir:
-            if os.path.isfile(tidalpy_dill_path) and not overwrite_dills:
-                pass
-            else:
-                with open(tidalpy_dill_path, 'wb') as dill_file:
-                    dill.dump(self, dill_file)
-        if auto_save_planet_dill_to_rundir:
-            rundir_dill_path = os.path.join(inner_save_dir, dill_name)
-            if os.path.isfile(rundir_dill_path) and not overwrite_dills:
-                pass
-            else:
-                with open(rundir_dill_path, 'wb') as dill_file:
-                    dill.dump(self, dill_file)
+        if use_disk:
+            dill_name, tidalpy_dill_path = dill_file_path(self.name)
+            if auto_save_planet_dill_to_tidalpydir:
+                if os.path.isfile(tidalpy_dill_path) and not overwrite_dills:
+                    pass
+                else:
+                    with open(tidalpy_dill_path, 'wb') as dill_file:
+                        dill.dump(self, dill_file)
+            if auto_save_planet_dill_to_rundir:
+                rundir_dill_path = os.path.join(inner_save_dir, dill_name)
+                if os.path.isfile(rundir_dill_path) and not overwrite_dills:
+                    pass
+                else:
+                    with open(rundir_dill_path, 'wb') as dill_file:
+                        dill.dump(self, dill_file)
 
     @property
     def name(self):
@@ -300,7 +303,6 @@ class WorldBase(PhysicalObjSpherical):
 
 
 class BasicWorld(WorldBase):
-
     class_type = 'basic'
 
     def __init__(self, planet_config: dict, call_reinit: bool = True):
@@ -317,7 +319,6 @@ class BasicWorld(WorldBase):
 
 
 class GasGiant(BasicWorld):
-
     class_type = 'gasgiant'
 
     def __repr__(self):
@@ -354,7 +355,7 @@ class Star(BasicWorld):
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
                 log(
-                    'Luminosity and effective temperature of {self.name} was not provided. Estimating from stellar mass.')
+                        'Luminosity and effective temperature of {self.name} was not provided. Estimating from stellar mass.')
                 self.luminosity = luminosity_from_mass(self.mass)
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
             else:

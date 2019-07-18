@@ -5,6 +5,8 @@ import time
 from .version import version
 
 
+use_disk = True
+_tidalpy_init = False
 __version__ = version
 _vers_major, _vers_minor, _vers_hotfix = version.split('.')
 compatibility_signature = _vers_major + _vers_minor
@@ -70,19 +72,8 @@ if running_in_jupyter and not print_log_in_jupyter:
 if running_in_jupyter and not write_log_in_jupyter:
     logging_level = 0
 
-# Make logger that will be used by other
-from .utilities.logging import TidalLogger
-
-
-log = TidalLogger()
-
 # Some data files are stored in the TidalPy directory chain. Need to know where TidalPy is located to find those files.
 tidalpy_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Data could be saved in other locations the user can tell TidalPy where to search for things like dilled planets, etc.
 other_data_locs = [os.getcwd()]
-
-# Load a bunch of functionality to top-level
-from .planets import build_planet
-from .orbit.orbit import OrbitBase as Orbit
-from .utilities import conversions

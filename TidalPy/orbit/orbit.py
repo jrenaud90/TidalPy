@@ -6,14 +6,15 @@ import numpy as np
 from scipy.constants import G
 
 from TidalPy.utilities.numpy_help import value_cleanup
-from .. import debug_mode, log
+from .. import debug_mode
 from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
 from ..exceptions import (ArgumentError, ImproperAttributeHandling, IncompatibleModelError, IncorrectArgumentType,
                           IncorrectModelInitialized, ParameterError, ParameterMissingError)
+from ..initialize import log
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
 from ..types import FloatArray
 from ..utilities.classes import TidalPyClass
-from ..utilities.conversions import Au2m, rads2days, days2rads
+from ..utilities.conversions import Au2m, days2rads, rads2days
 
 
 HostTypes = Union[BasicWorld, TidalWorld]

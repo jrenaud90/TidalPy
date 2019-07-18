@@ -1,7 +1,16 @@
 import numpy as np
 
-from TidalPy import Orbit, build_planet
+import TidalPy
+
+
+TidalPy.verbose_level = 0
+TidalPy.logging_level = 0
+TidalPy.use_disk = False
+
+from TidalPy.orbit import Orbit
+from TidalPy.planets import build_planet
 from TidalPy.utilities.conversions import days2rads, orbital_motion2semi_a, semi_a2orbital_motion
+
 
 io = build_planet('io')
 jupiter = build_planet('jupiter')
@@ -10,12 +19,10 @@ orbit = Orbit(sol, jupiter, io)
 
 
 def test_build_orbit():
-
     assert isinstance(orbit, Orbit)
 
 
 def test_orbit_object_getters():
-
     # Check that orbit was loaded into its objects correctly
     assert io.orbit is orbit
     assert jupiter.orbit is orbit
@@ -45,7 +52,6 @@ def test_orbit_object_getters():
 
 
 def test_orbit_parameter_getters():
-
     eccen = 0.0041
     orb_freq = days2rads(1.769)
 
@@ -60,7 +66,6 @@ def test_orbit_parameter_getters():
 
 
 def test_orbit_parameter_setters():
-
     new_eccen = 0.01
     new_semi_a = orbital_motion2semi_a(days2rads(1.), jupiter.mass, io.mass)
 
@@ -78,4 +83,5 @@ def test_orbit_parameter_setters():
     np.testing.assert_approx_equal(orbit.get_eccentricity(2), newer_eccen)
     io.semi_major_axis = newer_semi_a
     np.testing.assert_approx_equal(orbit.get_semi_major_axis(2), newer_semi_a)
-    np.testing.assert_approx_equal(orbit.get_orbital_freq(2), semi_a2orbital_motion(newer_semi_a, jupiter.mass, io.mass))
+    np.testing.assert_approx_equal(orbit.get_orbital_freq(2),
+                                   semi_a2orbital_motion(newer_semi_a, jupiter.mass, io.mass))

@@ -5,7 +5,7 @@ import warnings
 from datetime import datetime
 from typing import Union
 
-from .. import __version__, logging_level as global_logging_level, verbose_level as global_verbose_level
+from .. import __version__, logging_level as global_logging_level, use_disk, verbose_level as global_verbose_level
 from ..io import unique_path
 
 
@@ -36,7 +36,7 @@ LEVEL_CONVERSION = {
 class TidalLogger:
 
     def __init__(self, verbose_level=global_verbose_level, logging_level=global_logging_level,
-                 use_timestamps: bool = True, auto_create: bool = True):
+                 use_timestamps: bool = True, auto_create: bool = use_disk):
 
         super().__init__()
 

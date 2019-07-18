@@ -1,4 +1,4 @@
-from scipy.constants import Stefan_Boltzmann, G
+from scipy.constants import G, Stefan_Boltzmann
 
 
 # Sun

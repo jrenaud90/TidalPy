@@ -8,71 +8,71 @@ known_isotope_data = {
     'modern_day_chondritic': {
         'ref_time': 4600.0,
         # Based off Hussmann & Spohn 2004 and Turcotte & Schubert 2001
-        'U238' : {
+        'U238'    : {
             'iso_mass_fraction'    : 0.9928,
             'hpr'                  : 9.48e-5,
             'half_life'            : 4470.0,
             'element_concentration': 0.012 * ppm
         },
-        'U235' : {
+        'U235'    : {
             'iso_mass_fraction'    : 0.0071,
             'hpr'                  : 5.69e-4,
             'half_life'            : 704.0,
             'element_concentration': 0.012 * ppm
         },
-        'Th232': {
+        'Th232'   : {
             'iso_mass_fraction'    : 0.9998,
             'hpr'                  : 2.69e-5,
             'half_life'            : 14000.0,
             'element_concentration': 0.04 * ppm
         },
-        'K40'  : {
+        'K40'     : {
             'iso_mass_fraction'    : 1.19e-4,
             'hpr'                  : 2.92e-5,
             'half_life'            : 1250.0,
             'element_concentration': 840.0 * ppm
         }
     },
-    'LLRI_and_SLRI': {
+    'LLRI_and_SLRI'        : {
         'ref_time': 4600.0,
         # Based off Castillo-Rogez et al 2007
-        'U238' : {
+        'U238'    : {
             'iso_mass_fraction'    : 0.9928,
             'hpr'                  : 94.65e-6,
             'half_life'            : 4468.0,
             'element_concentration': 0.026 * ppm
         },
-        'U235' : {
+        'U235'    : {
             'iso_mass_fraction'    : 0.0071,
             'hpr'                  : 568.7e-6,
             'half_life'            : 703.81,
             'element_concentration': 0.0082 * ppm
         },
-        'Th232': {
+        'Th232'   : {
             'iso_mass_fraction'    : 1.0,
             'hpr'                  : 26.38e-6,
             'half_life'            : 14025.0,
             'element_concentration': 0.0538 * ppm
         },
-        'K40'  : {
+        'K40'     : {
             'iso_mass_fraction'    : 1.176e-4,
             'hpr'                  : 29.17e-6,
             'half_life'            : 1277.0,
             'element_concentration': 1.104 * ppm
         },
-        'Mn53'  : {
+        'Mn53'    : {
             'iso_mass_fraction'    : 2.0e-5,
             'hpr'                  : 0.027,
             'half_life'            : 3.7,
             'element_concentration': 0.0257 * ppm
         },
-        'Fe60'  : {
+        'Fe60'    : {
             'iso_mass_fraction'    : 1.0e-6,
             'hpr'                  : 0.07,
             'half_life'            : 1.5,
             'element_concentration': 0.1 * ppm
         },
-        'Al26'  : {
+        'Al26'    : {
             'iso_mass_fraction'    : 5.0e-5,
             'hpr'                  : 0.146,
             'half_life'            : 0.72,

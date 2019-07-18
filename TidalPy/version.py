@@ -1,5 +1,6 @@
 import os
 
+
 # Version number should always be updated before pushing to git
 # Version number should have the following format:
 # A.B.C<desc>
