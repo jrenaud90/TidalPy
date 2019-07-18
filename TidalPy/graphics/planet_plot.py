@@ -115,21 +115,21 @@ def geotherm_plot(radii: np.ndarray,
                     pos = (0.05, 0.9)
                 else:
                     pos = (0.05, 0.9)
-                ax.text(*pos, f'surf = {gravitys[-1]:0.2f} [m s-2]',
+                ax.text(*pos, f'surf = {gravitys[-1]:0.2f}',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
             if y is pressures:
                 if depth_plot:
                     pos = (0.05, 0.15)
                 else:
                     pos = (0.05, 0.15)
-                ax.text(*pos, f'base = {pressures[0]:0.2f} [GPa]',
+                ax.text(*pos, f'base = {pressures[0]:0.2f}',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
             if y is densitys and bulk_density is not None:
                 if depth_plot:
                     pos = (0.05, 0.15)
                 else:
                     pos = (0.05, 0.15)
-                ax.text(*pos, f'bulk = {bulk_density:0.2f} [10$^{3}$ kg m-3]',
+                ax.text(*pos, f'bulk = {bulk_density:0.2f}',
                         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
 
     if planet_name is not None:

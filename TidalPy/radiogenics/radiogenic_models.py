@@ -18,6 +18,8 @@ def isotope(time: FloatArray, mass: float,
             ref_time: float = 4600.) -> np.ndarray:
     """ Calculate radiogenic heating based on multiple isotopes
 
+    !TPY_args const: iso_massfracs_of_isotope, iso_element_concentrations, iso_halflives, iso_heat_production, ref_time
+
     Parameters
     ----------
     time : FloatArray
@@ -57,6 +59,8 @@ def fixed(time: FloatArray, mass: float,
           fixed_heat_production: float, average_half_life: float,
           ref_time: float = 4600.) -> FloatArray:
     """ Calculate radiogenic heating based on a fixed rate and exponential decay (set at a reference time)
+
+    !TPY_args const: fixed_heat_production, average_half_life, ref_time
 
     Parameters
     ----------

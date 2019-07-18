@@ -5,6 +5,7 @@ import numpy as np
 from . import melting_models
 from .defaults import partial_melter_param_defaults
 from .. import debug_mode
+from ..types import FloatArray
 from ..exceptions import BadAttributeValueError
 from ..performance import njit
 from ..utilities.model import LayerModel, ModelSearcher
@@ -18,13 +19,22 @@ find_partial_melter = ModelSearcher(melting_models, partial_melter_param_default
 
 # Helper Functions
 @njit
-def calc_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
+def calc_melt_fraction(temperature: FloatArray, solidus: float, liquidus: float) -> FloatArray:
     """ Calculates the volumetric melt fraction
 
-    :param temperature: <ndarray> Material/Layer temperature [K]
-    :param solidus: <Float> Material/Layer solidus temperature [K]
-    :param liquidus: <Float> Material/Layer liquidus temperature [K]
-    :return: <Array> Volumetric Melt Fraction [m3 m-3]
+    Parameters
+    ----------
+    temperature : FloatArray
+        Material/Layer temperature [K]
+    solidus : float
+        Material/Layer solidus temperature [K]
+    liquidus : float
+        Material/Layer liquidus temperature [K]
+
+    Returns
+    -------
+    melt_frac : FloatArray
+        Volumetric Melt Fraction [m3 m-3]
     """
 
     melt_frac = (temperature - solidus) / (liquidus - solidus)
@@ -37,20 +47,32 @@ def calc_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: float)
 
 
 @njit
-def temp_from_melt(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
+def temp_from_melt(melt_frac: FloatArray, solidus: float, liquidus: float) -> FloatArray:
     """ Calculates the temperature from the volumetric melt fraction
 
-    :param melt_frac: <ndarray> Volumetric Melt Fraction [m3 m-3]
-    :param solidus: <Float> Material/Layer solidus temperature [K]
-    :param liquidus: <Float> Material/Layer liquidus temperature [K]
-    :return: <Array> Temperature [K]
+    Parameters
+    ----------
+    melt_frac : FloatArray
+        Volumetric Melt Fraction [m3 m-3]
+    solidus : float
+        Material/Layer solidus temperature [K]
+    liquidus : float
+        Material/Layer liquidus temperature [K]
+
+    Returns
+    -------
+    temp_at_melt : FloatArray
+        Temperature at melt fraction [K]
+
     """
 
     # Check for over/under-shoots
     melt_frac[melt_frac < 0.] = 0.
     melt_frac[melt_frac > 1.] = 1.
 
-    return melt_frac * (liquidus - solidus) + solidus
+    temp_at_melt = melt_frac * (liquidus - solidus) + solidus
+
+    return temp_at_melt
 
 
 class PartialMelt(LayerModel):

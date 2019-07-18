@@ -259,7 +259,9 @@ class ThermalLayer(PhysicalObjSpherical):
         self.rheology = Tides(self)
         if self.rheology.model != 'off':
             self.is_tidal = True
-        self.heat_sources.append(lambda: self.tidal_heating)
+            self.heat_sources.append(lambda: self.tidal_heating)
+        else:
+            self.is_tidal = False
 
         self.set_geometry(self.radius, self.mass, self.thickness)
 
@@ -490,6 +492,8 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # Initialize total heating based on if there is a layer warming this one from below
         if self.layer_below is None:
+            total_heating = np.zeros_like(self.temperature)
+        elif self.layer_below.heat_flux is None:
             total_heating = np.zeros_like(self.temperature)
         else:
             total_heating = self.layer_below.heat_flux * self.surface_area_inner

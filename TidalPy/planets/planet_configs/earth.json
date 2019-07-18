@@ -2,6 +2,10 @@
     "name": "Earth_Example",
     "type": "burnman",
     "radius": 6371.0e3,
+    "semi_major_axis": 1.0,
+    "semi_major_axis_in_au": true,
+    "eccentricity": 0.01671022,
+    "spin_period": 1.0,
     "layers": {
         "Inner_Core": {
             "type": "iron",

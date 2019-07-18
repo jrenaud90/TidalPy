@@ -2,7 +2,7 @@ from typing import List, Union
 
 from . import andrade_frequency_models, compliance_models
 from .defaults import rheology_param_defaults
-from ..exceptions import IncompatibleModelError, MissingArgumentError
+from ..exceptions import IncompatibleModelConfigError, MissingArgumentError
 from ..utilities.dict_tools import nested_get
 from ..utilities.model import ModelSearcher
 
@@ -55,7 +55,7 @@ class ComplianceModelSearcher(ModelSearcher):
 
             if use_frequency:
                 if 'andrade' not in model_name or 'sundberg' not in model_name:
-                    raise IncompatibleModelError('Only the Andrade and Sundberg-Cooper rheologies can have '
+                    raise IncompatibleModelConfigError('Only the Andrade and Sundberg-Cooper rheologies can have '
                                                  'additional frequency dependency.')
                 frequency_func = self.known_frequency_models[frequency_model]
                 needed_frequency_args = self.frequency_args_needed[frequency_model]

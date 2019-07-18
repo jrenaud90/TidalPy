@@ -12,7 +12,6 @@ def off(temperature: np.ndarray, melt_fraction: np.ndarray,
         premelt_viscosity: np.ndarray, premelt_shear: np.ndarray, liquid_viscosity: np.ndarray):
     """ No Partial Melt
 
-
     """
 
     return premelt_viscosity, premelt_shear
@@ -50,8 +49,6 @@ def henning(temperature: np.ndarray, melt_fraction: np.ndarray,
     See also Renaud and Henning (2009)
 
     !TPY_args const: liquid_shear, crit_melt_frac, crit_melt_frac_width, hn_visc_slope_1, hn_visc_slope_2, hn_shear_param_1, hn_shear_param_2, hn_shear_falloff_slope
-
-
 
     """
 

@@ -83,7 +83,7 @@ known_isotope_data = {
 
 radiogenics_param_defaults = {
     'ice' : {
-        'model': 'off'
+        'model'   : 'off'
     },
     'rock': {
         'model'   : 'isotope',
@@ -92,7 +92,7 @@ radiogenics_param_defaults = {
         'isotopes': 'modern_day_chondritic'
     },
     'iron': {
-        'model': 'off'
+        'model'   : 'off'
     }
 }
 

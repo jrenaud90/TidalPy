@@ -8,8 +8,8 @@ from scipy.constants import G
 from TidalPy.utilities.numpy_help import value_cleanup
 from .. import debug_mode
 from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
-from ..exceptions import (ArgumentError, ImproperAttributeHandling, IncompatibleModelError, IncorrectArgumentType,
-                          IncorrectModelInitialized, ParameterError, ParameterMissingError)
+from ..exceptions import (ImproperAttributeHandling, ArgumentException, IncompatibleModelConfigError,
+                          IncorrectArgumentType, IncorrectModelInitialized, ParameterError, ParameterMissingError)
 from ..initialize import log
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
 from ..types import FloatArray
@@ -112,7 +112,7 @@ class OrbitBase(TidalPyClass):
 
         # Perform some checks
         if self.duel_dissipation and not isinstance(self.host, TidalWorld):
-            raise IncompatibleModelError('Duel dissipation requires a tidal (TidalWorld class) host.')
+            raise IncompatibleModelConfigError('Duel dissipation requires a tidal (TidalWorld class) host.')
 
         # The host body may be tidally dissipating due to one of the other target planets.
         self._host_tide_raiser_loc = None
@@ -226,7 +226,7 @@ class OrbitBase(TidalPyClass):
                     break
             else:
                 # pointer is not actually a pointer for any object that this orbit was initialized for.
-                raise ArgumentError('Planet Reference Pointer not found in orbit instance.')
+                raise ArgumentException('Planet Reference Pointer not found in orbit instance.')
 
             return planet_reference
 

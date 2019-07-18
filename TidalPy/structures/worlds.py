@@ -709,7 +709,7 @@ class TidalWorld(WorldBase):
 
         return surface_temperature
 
-    def paint(self, depth_plot: bool = False, auto_show: bool = False):
+    def paint(self, depth_plot: bool = False, auto_show: bool = True):
         """ Create a geotherm or depth plot of the planet's gravity, pressure, and density
 
         Parameters

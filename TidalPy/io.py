@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from shutil import copyfile
 
 from . import auto_write, use_disk, version
 
@@ -113,9 +114,6 @@ if use_disk:
         inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=True)
 
         # Save TidalPy Configurations
-        from shutil import copyfile
-
-
         config_file_src = os.path.join(tidalpy_loc, 'configurations.py')
         config_file_dst = os.path.join(inner_save_dir, f'configurations.TidalPy_v{version}.py')
         copyfile(config_file_src, config_file_dst)

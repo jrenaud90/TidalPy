@@ -4,7 +4,7 @@ from typing import Tuple
 
 import numpy as np
 from . import calc_complex_love_general, calc_complex_love, calc_effective_rigidity_general, calc_effective_rigidity
-from ..exceptions import (AttributeNotSetError, ImplementationError, ParameterMissingError, UnknownModelError)
+from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError)
 from ..rheology import andrade_frequency_models, compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
 from ..rheology.defaults import rheology_param_defaults
@@ -50,7 +50,7 @@ class Tides(LayerModel):
             self.full_calculation = False
         elif self.model == 'multilayer':
             # TODO: Multilayer code
-            raise ImplementationError
+            raise ImplementationException
         else:
             raise UnknownModelError
 
