@@ -1,0 +1,12 @@
+setuptools>=40.9.0
+pip>=19.0.3
+numpy>=1.16.3
+dill>=0.2.9
+scipy>=1.2.1
+matplotlib>=2.0.0
+json5>=0.7.0
+# TODO: Once numba v 0.44 is released then it should be switched to that as we will want to use the dict() support
+numba>=0.43.0
+send2trash>=1.5.0
+pytest
+git+git://github.com/geodynamics/burnman.git@master#egg=burnman

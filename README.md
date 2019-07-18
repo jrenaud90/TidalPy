@@ -71,3 +71,6 @@ Do not hesitate to make a pull request *before* you have a working solution to t
 
 
 
+## Current Build Info
+
+![Travis-ci](https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master)
