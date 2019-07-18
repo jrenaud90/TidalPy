@@ -1,4 +1,6 @@
 import atexit
+from typing import TextIO, Union
+import copy
 
 import dill
 import json5
@@ -53,7 +55,7 @@ def _cfgpath_to_json():
 
 # Check for conflict nam
 
-def build_planet(planet_name: str, planet_config: dict = None, force_build: bool = True,
+def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, force_build: bool = True,
                  planet_dill_path: str = None):
     log(f'Preparing to find and/or build world: {planet_name}')
 
@@ -61,6 +63,14 @@ def build_planet(planet_name: str, planet_config: dict = None, force_build: bool
         # TODO: Once this is implemented and tested change force_build to default=False
         raise NotImplementedError('TidalPy 0.1.0 has not fully implemented dill/pickle loading. '
                                   'You must force_build planets for now.')
+
+    # If planet_config is a file then load it through json and get a dict
+    if planet_config is not None:
+        if type(planet_config) != dict:
+            planet_config = json5.load(planet_config)
+
+        # Make a copy of the dict so any subsequent changes do not affect the original
+        planet_config = copy.deepcopy(planet_config)
 
     # See if dilled planet exists
     need_to_build = force_build

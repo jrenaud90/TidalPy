@@ -175,6 +175,16 @@ class OrbitBase(TidalPyClass):
         if isinstance(self.host, TidalWorld):
             self.calculate_insolation(self.host)
 
+        # Store aliases
+        need_to_add = []
+        for name, obj in self.all_objects_byname.items():
+            if name.lower() not in self.all_objects_byname:
+                need_to_add.append((name.lower(), obj))
+            if name.title() not in self.all_objects_byname:
+                need_to_add.append((name.title(), obj))
+        for new_name, obj in need_to_add:
+            self.all_objects_byname[new_name] = obj
+
     def find_planet_pointer(self, planet_reference: PlanetRefType) -> WorldBase:
         """ Find the object pointer to a planet or object stored in this orbit
 
