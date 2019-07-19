@@ -23,8 +23,7 @@ def off(baseline_zeta, frequency):
 def exponential(baseline_zeta, frequency, andrade_critical_freq):
     """ Andrade Parameter Frequency Dependence: Exponential
 
-    --- Parameters ---
-    other args: andrade_critical_freq
+    !TPY_args const: andrade_critical_freq
 
     """
 
@@ -40,8 +39,7 @@ def exponential(baseline_zeta, frequency, andrade_critical_freq):
 def jump(baseline_zeta, frequency, andrade_critical_freq):
     """ Andrade Parameter Frequency Dependence: Jump
 
-    --- Parameters ---
-    other args: andrade_critical_freq
+    !TPY_args const: andrade_critical_freq
 
     """
 
@@ -55,8 +53,7 @@ def jump(baseline_zeta, frequency, andrade_critical_freq):
 def elbow(baseline_zeta, frequency, andrade_critical_freq):
     """ Andrade Parameter Frequency Dependence: Elbow
 
-    --- Parameters ---
-    other args: andrade_critical_freq
+    !TPY_args const: andrade_critical_freq
 
     """
 
