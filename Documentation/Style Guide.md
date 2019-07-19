@@ -1,5 +1,8 @@
-# TidalPy Style Guide
+# Style Guide
 
-## DocStrings
+## Doc Strings
+### File Doc String
 
-### Functions and Methods
+### Function/Method Doc Strings
+
+### Class Doc Strings
