@@ -80,3 +80,13 @@ def test_build_planet_from_tidalpy():
     result = build_planet('Io', force_build=True)
 
     assert planet_asserts(result)
+
+
+def test_change_parameter():
+
+    Io.config['layers']['Mantle']['rheology']['solid_viscosity']['molar_activation_volume'] = 100.
+    Io.config['layers']['Mantle']['cooling']['convection_beta'] = -3.
+    Io.reinit()
+
+    assert Io.mantle.viscosity_inputs[3] == 100.
+    assert Io.mantle.cooling.inputs[3] == -3.

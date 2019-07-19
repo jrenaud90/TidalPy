@@ -42,8 +42,8 @@ def reference(temperature: np.ndarray, pressure: float,
 
     """
 
-    exponent = ((molar_activation_energy + pressure * molar_activation_volume) / R) * \
-               (1. / temperature - 1. / reference_temperature)
+    temp_diff = (1. / temperature) - (1. / reference_temperature)
+    exponent = ((molar_activation_energy + pressure * molar_activation_volume) / R) * temp_diff
 
     exponent[exponent > float_lognat_max] = float_lognat_max
     exponent[exponent < -float_lognat_max] = -float_lognat_max

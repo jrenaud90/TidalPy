@@ -133,6 +133,6 @@ class BadValueError(TidalPyValueException):
 
 
 class UnusualRealValueError(TidalPyValueException):
-    default_message = 'An usually large or small value was encountered for a parameter.' \
+    default_message = 'An usually large or small value was encountered for a parameter. ' \
                       'Confirm proper dimensional units.'
 

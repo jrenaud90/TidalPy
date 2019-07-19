@@ -7,7 +7,7 @@ from typing import List
 import json5
 import numpy as np
 
-from .. import __version__, auto_write, debug_mode
+from .. import auto_write, debug_mode
 from ..configurations import give_configs_subscript
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError
 from ..io import inner_save_dir, unique_path
@@ -44,7 +44,6 @@ class ConfigHolder(TidalPyClass):
         self.config_constructed = False
 
         # Merge the configurations
-        self._old_config = copy.deepcopy(self.config)
         self.update_config()
 
         # Install user provided config
@@ -56,7 +55,7 @@ class ConfigHolder(TidalPyClass):
             a dill/pickle file
         """
 
-        pass
+        self._old_config = copy.deepcopy(self.config)
 
     def replace_config(self, new_config: dict, delete_and_replace: bool = False):
         """ Replace the current user_config and update self.config with changes
@@ -124,7 +123,6 @@ class ConfigHolder(TidalPyClass):
 
         # Even though it will be copied all over the place, I think it is best to include as many refs to the version
         #   a config was made under. So we add it here to the defaults.
-        self._config['TidalPy_version'] = __version__
 
         self.config_constructed = True
         return self.config
@@ -230,6 +228,13 @@ class ConfigHolder(TidalPyClass):
                     input_item = float(item)
                 else:
                     input_item = [float(i) for i in item]
+            elif type(item) in [np.float, np.float32, np.float64,
+                                np.complex, np.complex64, np.complex128]:
+                input_item = float(item)
+            elif type(item) in [np.int8, np.int16, np.int32, np.int64,
+                                np.uint8, np.uint16, np.uint32, np.uint64,
+                                np.intp, np.uintp]:
+                input_item = int(item)
             elif type(item) in [list, tuple, set, int, float, str, bool, complex, type(None)]:
                 # Try to go forward with value
                 input_item = item

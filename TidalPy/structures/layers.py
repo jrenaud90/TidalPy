@@ -190,15 +190,7 @@ class ThermalLayer(PhysicalObjSpherical):
         # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
         #     These results will then be used in an interpolation for whenever self.temperature changes
         pressures = self.pressure * np.ones_like(self.interp_temperature_range)
-        property_results = None
-        try:
-            property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
-        except TypeError as exception:
-            # FIXME: There is some bug in bug in Burnman when it trys to send a warning. If that is what got caught, ignore it for now.
-            if '<lambda>() got an unexpected keyword argument' in exception.args[0]:
-                pass
-            else:
-                raise exception
+        property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
 
         for interp_prop, prop_result in zip(interp_properties, property_results):
 
@@ -220,11 +212,9 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # Check for changes to config that may break the planet
         if self._old_config is not None:
-            for layer_name, layer_dict in self.config['layers'].items():
-                old_layer_dict = self._old_config[layer_name]
-                for critical_attribute in ['material', 'material_source', 'type', 'thickness', 'radius', 'slices']:
-                    if layer_dict[critical_attribute] != old_layer_dict[critical_attribute]:
-                        raise ReinitError
+            for critical_attribute in ['material', 'material_source', 'type', 'thickness', 'radius', 'slices']:
+                if self.config[critical_attribute] != self._old_config[critical_attribute]:
+                    raise ReinitError
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = np.asarray([self.config['shear_modulus']])
@@ -236,11 +226,21 @@ class ThermalLayer(PhysicalObjSpherical):
         # Setup viscosity functions
         solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
         liquid_visco_model = nested_get(self.config, ['rheology', 'liquid_viscosity', 'model'], default=None)
+        solid_visco_params = None
+        if 'rheology' in self.config:
+            if 'solid_viscosity' in self.config['rheology']:
+                solid_visco_params = self.config['rheology']['solid_viscosity']
+        liquid_visco_params = None
+        if 'rheology' in self.config:
+            if 'liquid_viscosity' in self.config['rheology']:
+                liquid_visco_params = self.config['rheology']['liquid_viscosity']
 
         self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = \
-            find_viscosity(solid_visco_model, default_key=[self.type, 'solid_viscosity'])
+            find_viscosity(solid_visco_model, parameters=solid_visco_params,
+                           default_key=[self.type, 'solid_viscosity'])
         self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = \
-            find_viscosity(liquid_visco_model, default_key=[self.type, 'liquid_viscosity'])
+            find_viscosity(liquid_visco_model, parameters=liquid_visco_params,
+                           default_key=[self.type, 'liquid_viscosity'])
 
         # Heat sources used in temperature derivative calculation
         self.heat_sources = list()
@@ -382,6 +382,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self._heat_flux, self._blt, self._rayleigh, self._nusselt = cooling_flux, blt, rayleigh, nusselt
 
         if self.is_top_layer and self.world.orbit is not None:
+            # TODO: Add some sort of convergence here?
             # Tell the planet that there is a new surface flux and thus a new surface temperature
             self.world.update_surface_temperature()
 
@@ -565,6 +566,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self.update_strength()
 
         # Update other models
+        # TODO: Are these forces still needed or are the a relic of past code?
         force_cooling = True
         force_tides = False
         if self.tidal_modes is not None:
@@ -588,8 +590,8 @@ class ThermalLayer(PhysicalObjSpherical):
             if self.world.orbit is None:
                 # surface temperature will not have been set yet. Use a fake value for now
                 log('Surface temperature is not set until an orbit is applied to the planet. '
-                    'Using default value of 100K.', level='debug')
-                return np.asarray([100.])
+                    'Using default value of 100K.', level='info')
+                return np.asarray([150.])
             else:
                 return self.world.surface_temperature
 

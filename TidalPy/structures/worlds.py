@@ -12,7 +12,7 @@ from ..dynamics.modes import nsr_modes, spin_sync_modes
 from ..utilities.numpy_help import value_cleanup
 from .defaults import world_defaults
 from .physical import PhysicalObjSpherical
-from .. import debug_mode, use_disk, tidalpy_dir
+from .. import debug_mode, use_disk, tidalpy_dir, __version__
 from ..configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
                               auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
                               overwrite_dills)
@@ -447,6 +447,9 @@ class TidalWorld(WorldBase):
 
         super().reinit()
 
+        # Save the TidalPy version for used to make the world.
+        self._config['TidalPy_version'] = __version__
+
         # Load in some global parameters
         if update_spin:
             spin_freq = self.config.get('spin_freq', None)
@@ -488,6 +491,9 @@ class TidalWorld(WorldBase):
             layer.user_config = new_config
             layer.update_config()
             layer.reinit()
+
+            # Store the layer config in the world so that you can see the defaults that are loaded in
+            self.config['layers'][layer.name] = layer.config
 
         # Try to initialize as much as we can
         for layer in self:

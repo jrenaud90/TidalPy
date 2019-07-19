@@ -36,7 +36,7 @@ rheology_param_defaults = {
             'reference_viscosity'    : 1.0e22,
             'reference_temperature'  : 1000.0,
             'molar_activation_energy': 300000.0,
-            'molar_activation_volume': 0.0
+            'molar_activation_volume': 0.
         },
         'liquid_viscosity'       : {
             'model'                  : 'reference',

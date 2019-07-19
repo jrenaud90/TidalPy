@@ -1,5 +1,5 @@
 {
-    "name": "Earth_Example",
+    "name": "Earth",
     "type": "burnman",
     "radius": 6371.0e3,
     "semi_major_axis": 1.0,

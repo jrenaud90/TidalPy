@@ -84,12 +84,17 @@ class LayerModel(ModelHolder):
 
         self.layer = layer
         self.layer_type = layer.type
+        world = self.layer.world
+        if self.layer.world is not None:
+            world_name = world.name
+        else:
+            world_name = 'Unknown_World'
         if self.config_key is not None:
             try:
                 config = layer.config[self.config_key]
             except KeyError:
-                log(f"User provided no model information for layer {layer.name}'s {self.__class__.__name__}, "
-                    f'using defaults instead.', level='debug')
+                log(f"User provided no model information for [layer: {layer.name} in world: {world_name}]'s "
+                    f"{self.__class__.__name__}, using defaults instead.", level='debug')
                 config = None
         else:
             config = None
@@ -100,16 +105,17 @@ class LayerModel(ModelHolder):
                 self.default_config = copy.deepcopy(self.default_config[self.layer_type])
 
         if config is None and self.default_config is None:
-            raise ParameterMissingError(f'Config was not provided for {self.__class__} and no defaults are set.')
+            raise ParameterMissingError(f"Config was not provided for [layer: {layer.name} in world: {world_name}]'s "
+                                        f"{self.__class__} and no defaults are set.")
 
         super().__init__(model_name=model_name, user_config=config,
                          function_searcher=function_searcher, call_reinit=call_reinit)
 
         self.pyname = f'{self.__class__}_{self.layer_type}_{self.model}'
 
-        # TODO: Put the config back into the layer
-        # if store_config_in_layer and self.config_key is not None:
-        #     self.layer._config[self.config_key] = copy.deepcopy(self.config)
+
+        if store_config_in_layer and self.config_key is not None:
+            self.layer._config[self.config_key] = copy.deepcopy(self.config)
 
 
 class ModelSearcher(ConfigHolder):
