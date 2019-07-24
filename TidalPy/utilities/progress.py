@@ -15,10 +15,9 @@ def progress_bar(loop_limits: tuple, verbose: bool = True, poll_time: float = 1.
 
         def inner_wrapper(input_time, *args, **kwargs):
 
-            diff_loop = kwargs.get('diff_loop', True)
             now = time.time()
             # Print Progress Bar
-            if verbose and diff_loop:
+            if verbose:
                 if now - inner_wrapper.clock_old > poll_time:
                     # Occasionally certain integration techniques may probe beyond the expected integration limits.
                     #  If/When that occurs a false time value will be used for the progress bar.
