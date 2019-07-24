@@ -136,3 +136,11 @@ class UnusualRealValueError(TidalPyValueException):
     default_message = 'An usually large or small value was encountered for a parameter. ' \
                       'Confirm proper dimensional units.'
 
+
+# TidalPy Integration Error
+class TidalPyIntegrationException(TidalPyException):
+    default_message = 'An issue arose during time integration.'
+
+
+class IntegrationTimeOut(TidalPyIntegrationException):
+    default_message = 'Integration was stopped due to long integration time'
