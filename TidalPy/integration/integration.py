@@ -10,6 +10,7 @@ from .. import verbose_level
 from ..utilities.conversions import convert_to_hms
 from ..initialize import log
 from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
+from ..utilities.conversions import sec2myr
 
 
 def diffeq_wrap(loop_limits: Tuple[float, float],
@@ -76,7 +77,7 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
             if integration_run:
                 return dependent_var_results
             else:
-                return aux_results
+                return (dependent_var_results, aux_results)
 
         inner_wrap.clock_old = init_time
         inner_wrap.prev_delta = prev_delta
@@ -172,7 +173,7 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     log(f'\tDifferential Equation:  {diff_eq.__name__}', level='info')
     log(f'\tIntegration Method:     {integration_method}', level='info')
     log(f'\tIntegration Tolerance:  {integration_rtol}', level='info')
-    log(f'\tIntegration Started at: {now_str}', level='info')
+    log(f'\tIntegration Started on: {now_str}', level='info')
 
     # Setup the differential equation with wrappers
     int_diffeq = diffeq_wrap(time_span, other_input_args=other_input_args,
@@ -222,14 +223,17 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
         solution_y_list = [solution_y[i, :] for i in range(solution_y.shape[0])]
 
         output['time_domain'] = solution_time_domain
+        output['time_domain_myr'] = sec2myr(solution_time_domain)
         for dependent_data, dependent_data_name in zip(solution_y_list, dependent_variable_names):
             output[dependent_data_name] = dependent_data
 
         # Calculate auxiliary data
         if return_aux_data and aux_data_names is not None:
             # Calculate auxiliary data
-            aux_data_results = aux_diffeq(solution_time_domain, solution_y)
+            dependent_derivatives, aux_data_results = aux_diffeq(solution_time_domain, solution_y)
             for aux_data, aux_data_name in zip(aux_data_results, aux_data_names):
                 output[aux_data_name] = aux_data
+            for derivative_data, dependent_data_name in zip(dependent_derivatives, dependent_variable_names):
+                output[f'{dependent_data_name}_derivative'] = derivative_data
 
     return output

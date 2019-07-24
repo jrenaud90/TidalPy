@@ -21,6 +21,6 @@ def multi_rheo_integration(diff_eq, time_span: Tuple[float, float], initial_cond
         integration_input_kwargs['other_input_args'] = integration_input_args
         rheo_result = ivp_integration(diff_eq, time_span, initial_conditions, dependent_variable_names,
                                       **integration_input_kwargs)
-        rheo_result[comp_name] = rheo_result
+        all_results[comp_name] = rheo_result
 
     return all_results
