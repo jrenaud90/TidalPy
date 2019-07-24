@@ -90,8 +90,6 @@ def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarra
 
     # Check for bad values of eccentricity and set them to something workable for the equations
     bad_indices = eccentricity <= float_eps
-    eccentricity[bad_indices] = 1.
-
     orbital_freq = np.sqrt(G * (mass_1 + mass_2) / semi_major_axis**3)
     e2_sqrt = np.sqrt(1 - eccentricity**2)
 

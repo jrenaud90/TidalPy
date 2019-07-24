@@ -53,8 +53,7 @@ def diffeq(time, variables, diff_loop: bool = True):
 
 # Use Scipy package for integration
 from scipy.integrate import solve_ivp
-solution = solve_ivp(diffeq, time_domain_limits, initial_conditions,
-                     method='LSODA', rtol=1e-6, vectorized=True)
+solution = solve_ivp(diffeq, time_domain_limits, initial_conditions, method='LSODA', rtol=1e-6, vectorized=True)
 print() # adds a space after the progress bar
 
 solution_time = sec2myr(solution.t)
