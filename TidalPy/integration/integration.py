@@ -6,7 +6,8 @@ from scipy.integrate import solve_ivp
 from scipy.integrate._ivp.ivp import METHODS
 from datetime import datetime
 
-from TidalPy.utilities.conversions import convert_to_hms
+from .. import verbose_level
+from ..utilities.conversions import convert_to_hms
 from ..initialize import log
 from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
 
@@ -26,6 +27,10 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
     prev_delta = 1.
     prev_prev_delta = 1.
     prev_perc = 0.
+
+    # Check if the TidalPy settings override printing
+    if verbose_level == 0:
+        use_progress_bar = False
 
     def outer_wrap(diffeq):
 
