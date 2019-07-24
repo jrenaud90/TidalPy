@@ -1,6 +1,6 @@
 # TidalPy - v0.2 Beta
 ## Purpose
-TidalPy is an open-source software suite designed to assist researchers in the calculation of tidal dissipation and evolution for rocky and icy worlds.
+TidalPy is an open-source software suite designed to assist researchers in the semi-analytic calculation of tidal dissipation and evolution for rocky and icy worlds.
 
 **TidalPy is intended to be good as a...**
 * Black Box (referred to as "*OOP* scheme" for `Object-Oriented Programming` throughout the documentation)
