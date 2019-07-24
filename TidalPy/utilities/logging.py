@@ -27,6 +27,7 @@ HEADER_TEXT = '\n'.join(HEADER_TEXT)
 LEVEL_CONVERSION = {
     'debug'   : 5,
     'info'    : 4,
+    'warn'    : 3,
     'warning' : 3,
     'error'   : 2,
     'critical': 1
