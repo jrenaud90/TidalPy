@@ -25,34 +25,34 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
     time_delta = time_f - time_i
     time_max = 0.997 * time_delta
 
-    prev_delta = 1.
-    prev_prev_delta = 1.
-    prev_perc = 0.
-
     # Check if the TidalPy settings override printing
     if verbose_level == 0:
         use_progress_bar = False
 
     def outer_wrap(diffeq):
 
+        clock_old = timer()
+        prev_delta = 1.
+        prev_prev_delta = 1.
+        prev_perc = 0.
+
         def inner_wrap(time: np.ndarray, dependent_variables: Tuple[np.ndarray]):
 
-            current_int_time = timer() - init_time
+            now = timer()
             if use_timeout_kill and integration_run:
-                if current_int_time >= kill_time:
+                if (now - init_time) >= kill_time:
                     raise IntegrationTimeOut
 
             if use_progress_bar and integration_run and \
-                    current_int_time - inner_wrap.clock_old > progress_bar_poll_time:
+                    (now - inner_wrap.clock_old) > progress_bar_poll_time:
                 if time < time_i:
                     prog_time = time_i
                 elif time > time_f:
                     prog_time = time_max
                 else:
                     prog_time = time
-                percent_done = (prog_time - time_i) / time_delta
-                percent_done = np.nan_to_num(percent_done)
-                perc_delta = (percent_done - inner_wrap.prev_perc) / (current_int_time - inner_wrap.clock_old)
+                percent_done = np.nan_to_num((prog_time - time_i) / time_delta)
+                perc_delta = (percent_done - inner_wrap.prev_perc) / (now - inner_wrap.clock_old)
 
                 # Use an average of the last 3 (arbitrary) time_left's.
                 time_left = 3. * (1. - percent_done) / \
@@ -63,7 +63,7 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
                       '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(100. * percent_done, *convert_to_hms(time_left)),
                       flush=True, end='')
                 inner_wrap.prev_perc = percent_done
-                inner_wrap.clock_old = current_int_time
+                inner_wrap.clock_old = now
                 inner_wrap.prev_prev_delta = max(inner_wrap.prev_delta, 1.e-5)
                 inner_wrap.prev_delta = max(perc_delta, 1.e-5)
 
