@@ -212,7 +212,7 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
 
         # Pull out dependent variables
         if len(solution.t) > 50000:
-            log('Solution data size is very large. Reducing to avoid memory errors in auxiliary grab.', info='debug')
+            log('Solution data size is very large. Reducing to avoid memory errors in auxiliary grab.', level='debug')
             solution_time_domain = np.linspace(solution.t[0], solution.t[-1], 50000)
             solution_y = np.asarray([np.interp(solution_time_domain, solution.t, solution.y[i, :])
                                      for i in range(solution.y.shape[0])])
