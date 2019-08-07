@@ -88,6 +88,8 @@ def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarra
         Change in orbital eccentricity in [s-1]
     """
 
+    # Check for bad values of eccentricity and set them to something workable for the equations
+    bad_indices = eccentricity <= float_eps
     orbital_freq = np.sqrt(G * (mass_1 + mass_2) / semi_major_axis**3)
     e2_sqrt = np.sqrt(1 - eccentricity**2)
 
@@ -96,11 +98,10 @@ def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarra
     change_due_to_obj2 = ztorque_2 * (1. - (spin_freq_2 / orbital_freq) * e2_sqrt) - \
                          (tidal_heating_2 / orbital_freq) * e2_sqrt
 
-    denominator = (mass_1 * mass_2 * semi_major_axis**2 * orbital_freq * eccentricity)
-    de_dt = ((mass_1 + mass_2) * e2_sqrt / denominator) * \
+    de_dt = ((mass_1 + mass_2) * e2_sqrt / (mass_1 * mass_2 * semi_major_axis**2 * orbital_freq * eccentricity)) * \
             (change_due_to_obj1 + change_due_to_obj2)
 
     # The eccentricity is not going to change (unless perturbed) when e = 0 (what the bad_indices indicate)
-    de_dt[np.abs(denominator) <= float_eps] = 0.
+    de_dt[bad_indices] = 0.
 
     return de_dt

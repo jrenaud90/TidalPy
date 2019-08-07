@@ -194,7 +194,7 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
         # Main integration
         solution = solve_ivp(int_diffeq, time_span, initial_conditions,
                              method=integration_method, vectorized=True, rtol=integration_rtol,
-                             t_eval=np.linspace(time_span[0], time_span[1], 20000))
+                             t_eval=np.linspace(time_span[0], time_span[1], 2000))
     except IntegrationTimeOut:
         print()
         log('Integration finished after {:0>2} days, '
