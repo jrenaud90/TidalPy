@@ -1,3 +1,4 @@
+import gc
 from typing import Tuple, Union, Dict
 
 from time import time as timer
@@ -7,7 +8,7 @@ from scipy.integrate._ivp.ivp import METHODS
 from datetime import datetime
 
 from .. import verbose_level
-from ..utilities.conversions import convert_to_hms
+from ..utilities.conversions import convert_to_hms, myr2sec
 from ..initialize import log
 from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
 from ..utilities.conversions import sec2myr
@@ -79,7 +80,7 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
             else:
                 return (dependent_var_results, aux_results)
 
-        inner_wrap.clock_old = init_time
+        inner_wrap.clock_old = clock_old
         inner_wrap.prev_delta = prev_delta
         inner_wrap.prev_prev_delta = prev_prev_delta
         inner_wrap.prev_perc = prev_perc
@@ -188,20 +189,31 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     # Main integration
     log('Integration Starting...', level='info')
     output = None
+    pre_int_time = timer()
     try:
         # Main integration
         solution = solve_ivp(int_diffeq, time_span, initial_conditions,
-                             method=integration_method, vectorized=True, rtol=integration_rtol)
+                             method=integration_method, vectorized=True, rtol=integration_rtol,
+                             t_eval=np.linspace(time_span[0], time_span[1], 20000))
     except IntegrationTimeOut:
+        print()
+        log('Integration finished after {:0>2} days, '
+            '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(*convert_to_hms(timer() - pre_int_time)), level='info')
         log('Integration was stopped short due to a forced timeout', level='debug')
         success = False
     except Exception as e:
+        print()
+        log('Integration finished after {:0>2} days, '
+            '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(*convert_to_hms(timer() - pre_int_time)), level='info')
         success = False
         if not suppress_integration_errors:
             raise e
         else:
             log(f'Integration failed due to an exception: {e}', level='warning')
     else:
+        print()
+        log('Integration finished after {:0>2} days, '
+            '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(*convert_to_hms(timer() - pre_int_time)), level='info')
         success = solution.success
         output = dict()
         if not success:
@@ -235,5 +247,5 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
                 output[aux_data_name] = aux_data
             for derivative_data, dependent_data_name in zip(dependent_derivatives, dependent_variable_names):
                 output[f'{dependent_data_name}_derivative'] = derivative_data
-
+        gc.collect()
     return output
