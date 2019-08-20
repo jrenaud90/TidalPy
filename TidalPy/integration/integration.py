@@ -1,3 +1,4 @@
+import os
 import gc
 from typing import Tuple, Union, Dict
 
@@ -8,8 +9,9 @@ from scipy.integrate._ivp.ivp import METHODS
 from datetime import datetime
 
 from .. import verbose_level
+from ..io import inner_save_dir
 from ..utilities.conversions import convert_to_hms, myr2sec
-from ..initialize import log
+from ..initialize import log as real_log
 from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
 from ..utilities.conversions import sec2myr
 
@@ -96,7 +98,9 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
                     integration_rtol: float = 1.0e-4, return_aux_data: bool = True,
                     suppress_integration_errors: bool = False,
                     use_timeout_kill: bool = False, timeout_time: int = 1000,
-                    use_progress_bar: bool = True, progress_poll_time: float = 1.5) \
+                    use_progress_bar: bool = True, progress_poll_time: float = 1.5,
+                    suppress_logging: bool = False,
+                    save_data: bool = False, alternative_save_dir: str = None) \
         -> Union[type(None), Dict[str, np.ndarray]]:
     """ Integrates a provided differential equation and returns dependent variables and auxiliary data
 
@@ -136,6 +140,12 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
         Determines if a visual progress bar is used during the integration
     progress_poll_time : float = 1.5
         The time, in seconds, after which the progress bar updates
+    suppress_logging : bool = False
+        If true then no messages will be saved to console or log file
+    save_data : bool = False
+        If true then integration results (of a successful integration) will be saved to the run directory
+    alternative_save_dir : str
+        A os.path.join compatible string to a directory where results will be saved
 
     Returns
     -------
@@ -146,6 +156,17 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     scipy.integrate.solve_ivp
 
     """
+
+    # Logging is likely not safe for multiprocessing. So if logging is suppressed then change the log function.
+    if suppress_logging:
+        def dummy_log(*args, **kwargs):
+            pass
+        log = dummy_log
+        log.warn = dummy_log
+    else:
+        log = real_log
+    # If suppress_logging is true then it should override use_progress_bar
+    use_progress_bar = use_progress_bar and not suppress_logging
 
     # Check for issues
     if type(integration_rtol) not in [int, float]:
@@ -169,7 +190,6 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     # Record information to log
     now = datetime.now()
     now_str = now.strftime('%x at %X')
-    # TODO: Again, are these log calls MP safe?
     log('Initializing integration using...', level='info')
     log(f'\tDifferential Equation:  {diff_eq.__name__}', level='info')
     log(f'\tIntegration Method:     {integration_method}', level='info')
@@ -196,30 +216,34 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
                              method=integration_method, vectorized=True, rtol=integration_rtol,
                              t_eval=np.linspace(time_span[0], time_span[1], 2000))
     except IntegrationTimeOut:
-        print()
+        if not suppress_logging:
+            print()
         log('Integration finished after {:0>2} days, '
             '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(*convert_to_hms(timer() - pre_int_time)), level='info')
         log('Integration was stopped short due to a forced timeout', level='debug')
-        success = False
+        success = -1
     except Exception as e:
-        print()
+        if not suppress_logging:
+            print()
         log('Integration finished after {:0>2} days, '
             '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(*convert_to_hms(timer() - pre_int_time)), level='info')
-        success = False
+        success = -2
         if not suppress_integration_errors:
             raise e
         else:
             log(f'Integration failed due to an exception: {e}', level='warning')
     else:
-        print()
+        if not suppress_logging:
+            print()
         log('Integration finished after {:0>2} days, '
             '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(*convert_to_hms(timer() - pre_int_time)), level='info')
-        success = solution.success
         output = dict()
-        if not success:
+        if not solution.success:
             log('WARNING - Integration may not have been preformed correctly.', level='info')
             log(f'ODEINT MSG: {solution.message}', level='info')
+            success = 0
         else:
+            success = 1
             log('No obvious issues with integration found!', level='info')
 
         # Pull out dependent variables
@@ -247,5 +271,19 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
                 output[aux_data_name] = aux_data
             for derivative_data, dependent_data_name in zip(dependent_derivatives, dependent_variable_names):
                 output[f'{dependent_data_name}_derivative'] = derivative_data
+
+        # Save output data
+        if save_data:
+            if alternative_save_dir is not None:
+                save_dir = alternative_save_dir
+            else:
+                save_dir = inner_save_dir
+            save_dir = os.path.join(save_dir, 'Data')
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            for data_name, data in output.items():
+                save_name = os.path.join(save_dir, f'{data_name}.npy')
+                np.save(save_name, data)
+
         gc.collect()
-    return output
+    return success, output
