@@ -13,7 +13,7 @@ initial_temperature_lower = 1900.
 initial_conditions = [initial_temperature_lower, initial_temperature_upper]
 
 # Uncomment the below to see the Earth's upper mantle adjust to the lower mantle and initial conditions.
-time_domain_limits = (0., myr2sec(1000.))
+time_domain_limits = (0., myr2sec(50))
 
 # Uncomment the below to see the Earth cool to the surface temperature.
 # time_domain_limits = (0., myr2sec(5e5))
