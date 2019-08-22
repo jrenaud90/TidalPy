@@ -141,9 +141,12 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     if show_success_plot:
         if mp_ic_domain_2 is None:
             mp_ic_domain_2 = np.asarray([0])
-        success_grid_plot({success_plot_title: success_by_ic}, mp_ic_domain_1, mp_ic_domain_2,
-                          xname=mp_ic_name_1, yname=mp_ic_name_2, xlog=mp_ic_log_1, ylog=mp_ic_log_2,
-                          auto_show=True)
+        fig = success_grid_plot({success_plot_title: success_by_ic}, mp_ic_domain_1, mp_ic_domain_2,
+                                xname=mp_ic_name_1, yname=mp_ic_name_2, xlog=mp_ic_log_1, ylog=mp_ic_log_2,
+                                auto_show=True)
+        fig_path = os.path.join(mp_dir, 'success_plot.pdf')
+        log(f'Saving success figure to {fig_path}')
+        fig.savefig(fig_path)
 
     return success_by_run, result_by_run, success_by_ic
 
