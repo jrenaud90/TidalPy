@@ -107,10 +107,10 @@ def convection(delta_temp: FloatArray, layer_thickness: float, thermal_conductiv
     nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta
     # Technically convection should shut off at nusselt == 1, but the 2 here forces the max boundary layer thickness
     #  to be 50% the layer thickness.
-    nusselt[nusselt < 2.] = 2.
+    nusselt[nusselt < 1.] = 1.
 
     # Thickness of boundary layer must be between MIN_THICKNESS and 50% of layer_thickness
-    boundary_layer_thickness = layer_thickness / nusselt
+    boundary_layer_thickness = layer_thickness / (2. * nusselt)
     # TODO: look at the below commented out equation - some people use this some dont.
     # boundary_layer_thickness[boundary_layer_thickness > .5 * layer_thickness] = .5 * layer_thickness
     boundary_layer_thickness[boundary_layer_thickness < MIN_THICKNESS] = MIN_THICKNESS
@@ -166,3 +166,4 @@ def conduction(delta_temp: FloatArray, layer_thickness: float, thermal_conductiv
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
 # Put New Models Below Here!
+
