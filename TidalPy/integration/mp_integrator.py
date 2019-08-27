@@ -11,6 +11,7 @@ from ..initialize import log
 from ..io import inner_save_dir, unique_path
 from ..graphics.grid_plot import success_grid_plot
 from .integration import ivp_integration
+from .success import calc_success_index_multirheo
 
 def mp_run(mp_input):
     run_i, run_dir, solve_ivp_args, solve_ivp_kwargs = mp_input
@@ -28,6 +29,8 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
                     mp_ic_name_2: str = None, mp_ic_domain_2: np.ndarray = None, mp_ic_index_2: int = None, mp_ic_log_2: bool = False,
                     timeout: float = 300., max_procs: int = None,
                     show_success_plot: bool = False, success_plot_title: str = 'Success Plot',
+                    variables_to_check: Tuple[str] = None, expected_values: Tuple[float] = None,
+                    time_var_name: str = None, time_to_check_at: float = None,
                     **ivp_integrator_kwargs):
 
     log('Setting up Multi-Processor Integration Run')
@@ -128,8 +131,20 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     result_by_run = dict()
     for run_i, integration_success, integration_result in mp_output:
         run_info = run_icnum_storage[run_i]
-        success_by_run[run_i] = integration_success
         result_by_run[run_i] = integration_success
+        success_by_run[run_i] = integration_success
+
+    # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
+    if variables_to_check is None or expected_values is None or time_var_name is None or time_to_check_at is None:
+        pass
+    else:
+        success_by_run = calc_success_index_multirheo(result_by_run, success_by_run,
+                                                      variables_to_check, expected_values, time_var_name,
+                                                      time_to_check_at, normalize_results=True,
+                                                      new_max=4.0)
+
+    for run_i, integration_success in success_by_run.items():
+        run_info = run_icnum_storage[run_i]
         if type(run_info) == tuple:
             icnum_1, icnum_2 = run_info
             success_by_ic[icnum_1, icnum_2] = integration_success

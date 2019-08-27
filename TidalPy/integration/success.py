@@ -5,7 +5,56 @@ from typing import Tuple, Dict
 
 import numpy as np
 
-from ..utilities.numpy_help import find_nearest, normalize_dict
+from ..utilities.numpy_help import find_nearest
+
+def normalize(dict_of_values: Dict[str, float], pass_negatives: bool = False,
+              new_max: float = 1.0, new_min: float = 0.0):
+    """ Normalizes values provided in a name separated dictionary to the specified range.
+
+    Parameters
+    ----------
+    dict_of_values : Dict[str, float]
+        Dictionary of reference keys pointing to the to-be-normalized values.
+    pass_negatives : bool = False
+        If true then any values that are negative will be excluded from the normalization.
+    new_max : float = 1.0
+        The upper-most of the post-normalized values
+    new_min : float = 0.0
+        The lower-most of the post-normalized values
+
+    Returns
+    -------
+    dict_of_normalized_values : Dict[str, float]
+        Dictionary of reference keys pointing to the post-normalized values.
+
+    """
+
+    if pass_negatives:
+        max_ = 0.0
+    else:
+        max_ = -1.0e100
+    min_ = 1.0e100
+
+    for ref_name, value in dict_of_values.items():
+        if value > max_:
+            max_ = value
+        if min_ > value:
+            if pass_negatives and value < 0.:
+                # Negative values may indicate an integration problem and the user may want to exclude them from the
+                # normalization.
+                continue
+            min_ = value
+
+    new_dict = dict()
+    slope = (new_max - new_min) / (max_ - min_)
+    intercept = new_max - slope * max_
+    for ref_name, value in dict_of_values.items():
+        if pass_negatives and value < 0.:
+            new_dict[ref_name] = value
+            continue
+        new_dict[ref_name] = slope * value + intercept
+    return new_dict
+
 
 def calc_success_index(data_dict: Dict[str, np.ndarray], integration_success: int,
                        variables_to_check: Tuple[str], expected_values: Tuple[float],
@@ -54,7 +103,6 @@ def calc_success_index(data_dict: Dict[str, np.ndarray], integration_success: in
     time_array = data_dict[time_var_name]
     check_index = find_nearest(time_array, time_to_check_at)
 
-    max_perc_diff = len(variables_to_check)
     total_perc_diff = 0.
     for var_name, expected_value in zip(variables_to_check, expected_values):
 
@@ -67,10 +115,7 @@ def calc_success_index(data_dict: Dict[str, np.ndarray], integration_success: in
 
         total_perc_diff += perc_diff
 
-    success = max_perc_diff - total_perc_diff
-    if success < 0.:
-        success = 0.
-    return success
+    return total_perc_diff
 
 
 def calc_success_index_multirheo(data_dict_byrheo: Dict[str, Dict[str, np.ndarray]],
@@ -118,6 +163,6 @@ def calc_success_index_multirheo(data_dict_byrheo: Dict[str, Dict[str, np.ndarra
 
 
     if normalize_results:
-        return normalize_dict(success_index_by_rheo, pass_negatives=True, **normalize_kwargs)
+        return normalize(success_index_by_rheo, pass_negatives=True, **normalize_kwargs)
     else:
         return success_index_by_rheo
