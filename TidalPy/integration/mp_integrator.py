@@ -110,7 +110,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     chunksize, extra = divmod(mp_length, max_procs)
     if extra:
         chunksize += 1
-    log(f'Processors = \t{max_procs}')
+    log(f'Processors = \t{max_procs} (of {os.cpu_count()})')
     log(f'Chunksize =  \t{chunksize}')
     log(f'Timeout =    \t{timeout:0.1f}')
     log(f'Starting Pool...')
@@ -131,7 +131,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     result_by_run = dict()
     for run_i, integration_success, integration_result in mp_output:
         run_info = run_icnum_storage[run_i]
-        result_by_run[run_i] = integration_success
+        result_by_run[run_i] = integration_result
         success_by_run[run_i] = integration_success
 
     # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
