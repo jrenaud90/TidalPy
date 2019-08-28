@@ -25,6 +25,7 @@ def mp_run(mp_input):
         variables_to_check, expected_values, time_var_name, time_to_check_at = success_check_params
         success = calc_success_index(integration_result, integration_success, variables_to_check, expected_values,
                                      time_var_name, time_to_check_at)
+        del integration_result
         return run_i, integration_success, success
     else:
         # Return all data
