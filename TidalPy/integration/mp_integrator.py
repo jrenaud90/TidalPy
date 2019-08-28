@@ -154,7 +154,10 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     runs_in_regular_set = max_procs
     runs_in_last_set = extra_set
     if extra_set:
+        runs_in_last_set = extra_set
         sets += 1
+    else:
+        runs_in_last_set = runs_in_regular_set
     log(f'Phase Space Length = {mp_length}')
     log(f'MP Sets needed = {sets}')
     log(f'Runs in regular set = {runs_in_regular_set}')
