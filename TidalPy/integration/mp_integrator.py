@@ -28,8 +28,7 @@ def mp_run(mp_input):
         variables_to_check, expected_values, time_var_name, time_to_check_at = success_check_params
         success = calc_success_index(integration_result, integration_success, variables_to_check, expected_values,
                                      time_var_name, time_to_check_at)
-        del integration_result
-        return run_i, integration_success, success
+        return run_i, success, integration_result
     else:
         # Return all data
         return run_i, integration_success, integration_result
@@ -184,14 +183,8 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     success_by_run = dict()
     result_by_run = dict()
     for run_i, integration_success, integration_result in mp_output:
-        if success_check_params is not None:
-            # If the success_check_params is provided then no results will be returned by the processors (to save RAM)
-            #  In this case the "integration_result" is actually the success index.
-            success_by_run[run_i] = integration_result
-            result_by_run[run_i] = None
-        else:
-            success_by_run[run_i] = integration_success
-            result_by_run[run_i] = integration_result
+        success_by_run[run_i] = integration_success
+        result_by_run[run_i] = integration_result
 
     # Normalize success indexs
     # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
