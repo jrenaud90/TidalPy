@@ -141,7 +141,6 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
             mp_pool.restart()
 
         gc.collect()
-        current_set  += 1
         return output
 
     if max_procs is None:
@@ -157,6 +156,8 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         sets += 1
     log(f'Phase Space Length = {mp_length}')
     log(f'MP Sets needed = {sets}')
+    log(f'Runs in regular set = {runs_in_regular_set}')
+    log(f'Runs in last set = {runs_in_last_set}')
 
     # Main MP Call
     mp_output = list()
@@ -165,7 +166,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
             runs_in_this_set = runs_in_last_set
         else:
             runs_in_this_set = runs_in_regular_set
-        set_input = mp_run_inputs[runs_in_this_set * set_i:runs_in_this_set * (set_i+1)]
+        set_input = mp_run_inputs[runs_in_regular_set * set_i:runs_in_this_set * (set_i+1)]
         mp_output += launch_mp_pool(set_input, set_i, set_i * runs_in_regular_set, mp_length, max_procs)
 
     # Store results and put in a more readable container
