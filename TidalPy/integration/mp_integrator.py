@@ -126,7 +126,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     def launch_mp_pool(set_inputs, current_set, runs_done, max_runs, procs):
         runs_in_this_call = len(set_inputs)
         procs = min(procs, runs_in_this_call)
-        log('--- New MP Set Started ---', level='info')
+        log(f'--- New MP Set ({current_set}) Started ---', level='info')
         log(f'Runs: {runs_done + 1} to {runs_done + runs_in_this_call} of {max_runs}.')
         chunksize, extra = divmod(mp_length, procs)
         if extra:
@@ -136,7 +136,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         log(f'Timeout =    \t{timeout:0.1f}')
         log(f'Starting Pool...')
         with Pool(procs) as mp_pool:
-            output = mp_pool.map(mp_run, mp_run_inputs, chunksize=chunksize)
+            output = mp_pool.map(mp_run, set_inputs, chunksize=chunksize)
             mp_pool.terminate()
             mp_pool.restart()
 
