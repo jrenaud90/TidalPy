@@ -16,6 +16,9 @@ from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrati
 from ..utilities.conversions import sec2myr
 
 
+MAX_DATA_SIZE = 2000
+
+
 def diffeq_wrap(loop_limits: Tuple[float, float],
                 other_input_args: tuple = tuple(),
                 use_timeout_kill: bool = False, kill_time: int = 1000, integration_run: bool = False,
@@ -212,9 +215,10 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     pre_int_time = timer()
     try:
         # Main integration
+        # This originally had a kwarg t_eval=np.linspace(time_span[0], time_span[1], 2000)
+        #  This was removed so that solution sizes could be smaller.
         solution = solve_ivp(int_diffeq, time_span, initial_conditions,
-                             method=integration_method, vectorized=True, rtol=integration_rtol,
-                             t_eval=np.linspace(time_span[0], time_span[1], 2000))
+                             method=integration_method, vectorized=True, rtol=integration_rtol)
     except IntegrationTimeOut:
         if not suppress_logging:
             print()
@@ -247,9 +251,9 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
             log('No obvious issues with integration found!', level='info')
 
         # Pull out dependent variables
-        if len(solution.t) > 50000:
+        if len(solution.t) > MAX_DATA_SIZE:
             log('Solution data size is very large. Reducing to avoid memory errors in auxiliary grab.', level='debug')
-            solution_time_domain = np.linspace(solution.t[0], solution.t[-1], 50000)
+            solution_time_domain = np.linspace(solution.t[0], solution.t[-1], MAX_DATA_SIZE)
             solution_y = np.asarray([np.interp(solution_time_domain, solution.t, solution.y[i, :])
                                      for i in range(solution.y.shape[0])])
         else:
@@ -285,5 +289,4 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
                 save_name = os.path.join(save_dir, f'{data_name}.npy')
                 np.save(save_name, data)
 
-        gc.collect()
     return success, output

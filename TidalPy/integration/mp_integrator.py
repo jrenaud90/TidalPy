@@ -11,17 +11,24 @@ from ..initialize import log
 from ..io import inner_save_dir, unique_path
 from ..graphics.grid_plot import success_grid_plot
 from .integration import ivp_integration
-from .success import calc_success_index_multirheo
+from .success import calc_success_index, normalize
 
 def mp_run(mp_input):
-    run_i, run_dir, solve_ivp_args, solve_ivp_kwargs = mp_input
+    run_i, run_dir, solve_ivp_args, solve_ivp_kwargs, success_check_params = mp_input
     solve_ivp_kwargs['alternative_save_dir'] = run_dir
     print(f'Working on mp run {run_i}')
     run_init_time = timer()
     integration_success, integration_result = ivp_integration(*solve_ivp_args, **solve_ivp_kwargs)
     print(f'Completed run {run_i}, taking {timer() - run_init_time:.1f} seconds.')
 
-    return run_i, integration_success, integration_result
+    if success_check_params is not None:
+        variables_to_check, expected_values, time_var_name, time_to_check_at = success_check_params
+        success = calc_success_index(integration_result, integration_success, variables_to_check, expected_values,
+                                     time_var_name, time_to_check_at)
+        return run_i, integration_success, success
+    else:
+        # Return all data
+        return run_i, integration_success, integration_result
 
 def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions: Tuple[np.ndarray],
                     dependent_variable_names: Tuple[str],
@@ -91,12 +98,20 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     ivp_integrator_kwargs['use_progress_bar'] = False
     ivp_integrator_kwargs['suppress_logging'] = True
     mp_run_inputs = list()
+
+    if variables_to_check is None or expected_values is None or time_var_name is None or time_to_check_at is None:
+        # User did not provide enough information to perform a success check
+        success_check_params = None
+    else:
+        success_check_params = (variables_to_check, expected_values, time_var_name, time_to_check_at)
+
     for run_i, init_cond in enumerate(initial_condition_storage):
         mp_run_input = (
             run_i,
             run_dir_storage[run_i],
             (diff_eq, time_span, init_cond, dependent_variable_names),
-            ivp_integrator_kwargs
+            ivp_integrator_kwargs,
+            success_check_params
         )
         mp_run_inputs.append(mp_run_input)
 
@@ -130,19 +145,20 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     success_by_run = dict()
     result_by_run = dict()
     for run_i, integration_success, integration_result in mp_output:
-        run_info = run_icnum_storage[run_i]
-        result_by_run[run_i] = integration_result
-        success_by_run[run_i] = integration_success
+        if success_check_params is not None:
+            # If the success_check_params is provided then no results will be returned by the processors (to save RAM)
+            #  In this case the "integration_result" is actually the success index.
+            success_by_run[run_i] = integration_result
+            result_by_run[run_i] = None
+        else:
+            success_by_run[run_i] = integration_success
+            result_by_run[run_i] = integration_result
 
+    # Normalize success indexs
     # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
-    if variables_to_check is None or expected_values is None or time_var_name is None or time_to_check_at is None:
-        pass
-    else:
-        success_by_run = calc_success_index_multirheo(result_by_run, success_by_run,
-                                                      variables_to_check, expected_values, time_var_name,
-                                                      time_to_check_at, normalize_results=True,
-                                                      new_max=4.0)
+    success_by_run = normalize(success_by_run, pass_negatives=True, new_max=4.0, new_min=0.0)
 
+    # Store results in an easier to read format
     for run_i, integration_success in success_by_run.items():
         run_info = run_icnum_storage[run_i]
         if type(run_info) == tuple:
