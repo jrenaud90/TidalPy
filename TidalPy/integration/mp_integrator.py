@@ -26,7 +26,6 @@ def mp_run(mp_input):
         success = calc_success_index(integration_result, integration_success, variables_to_check, expected_values,
                                      time_var_name, time_to_check_at)
         del integration_result
-        gc.collect()
         return run_i, integration_success, success
     else:
         # Return all data
@@ -134,7 +133,8 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
 
     # Launch MP pool
     with Pool(max_procs) as mp_pool:
-        mp_output = mp_pool.imap(mp_run, mp_run_inputs, chunksize=chunksize)
+        mp_output = mp_pool.map(mp_run, mp_run_inputs, chunksize=chunksize)
+        mp_pool.terminate()
 
     gc.collect()
 
