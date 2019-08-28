@@ -13,6 +13,9 @@ from ..graphics.grid_plot import success_grid_plot
 from .integration import ivp_integration
 from .success import calc_success_index, normalize
 
+
+MAX_PROCS_DUE_TO_RAM = 6
+
 def mp_run(mp_input):
     run_i, run_dir, solve_ivp_args, solve_ivp_kwargs, success_check_params = mp_input
     solve_ivp_kwargs['alternative_save_dir'] = run_dir
@@ -117,26 +120,53 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         mp_run_inputs.append(mp_run_input)
 
     # Determine Processing Cores and Chunksize
-    mp_length = len(initial_condition_storage)
-    log(f'Phase Space Length = {mp_length}')
+
+    # TODO: Right now I am having issues with way too much RAM usage when using the Pathos.pool, but I don't have
+    #  another solution at the moment. So I am calling on multiple pools in sequence
+    def launch_mp_pool(set_inputs, current_set, runs_done, max_runs, procs):
+        runs_in_this_call = len(set_inputs)
+        procs = min(procs, runs_in_this_call)
+        log('--- New MP Set Started ---', level='info')
+        log(f'Runs: {runs_done + 1} to {runs_done + runs_in_this_call} of {max_runs}.')
+        chunksize, extra = divmod(mp_length, procs)
+        if extra:
+            chunksize += 1
+        log(f'Processors = \t{procs} (of {os.cpu_count()})')
+        log(f'Chunksize =  \t{chunksize}')
+        log(f'Timeout =    \t{timeout:0.1f}')
+        log(f'Starting Pool...')
+        with Pool(procs) as mp_pool:
+            output = mp_pool.map(mp_run, mp_run_inputs, chunksize=chunksize)
+            mp_pool.terminate()
+            mp_pool.restart()
+
+        gc.collect()
+        current_set  += 1
+        return output
+
     if max_procs is None:
         max_procs = max(1, os.cpu_count() - 1)
-    max_procs = min(mp_length, max_procs)
+    max_procs = min(MAX_PROCS_DUE_TO_RAM, max_procs)
 
-    chunksize, extra = divmod(mp_length, max_procs)
-    if extra:
-        chunksize += 1
-    log(f'Processors = \t{max_procs} (of {os.cpu_count()})')
-    log(f'Chunksize =  \t{chunksize}')
-    log(f'Timeout =    \t{timeout:0.1f}')
-    log(f'Starting Pool...')
+    # Determine number of sets that need to be called.
+    mp_length = len(initial_condition_storage)
+    sets, extra_set = divmod(mp_length, max_procs)
+    runs_in_regular_set = max_procs
+    runs_in_last_set = extra_set
+    if extra_set:
+        sets += 1
+    log(f'Phase Space Length = {mp_length}')
+    log(f'MP Sets needed = {sets}')
 
-    # Launch MP pool
-    with Pool(max_procs) as mp_pool:
-        mp_output = mp_pool.map(mp_run, mp_run_inputs, chunksize=chunksize)
-        mp_pool.terminate()
-
-    gc.collect()
+    # Main MP Call
+    mp_output = list()
+    for set_i in range(sets):
+        if set_i == sets - 1:
+            runs_in_this_set = runs_in_last_set
+        else:
+            runs_in_this_set = runs_in_regular_set
+        set_input = mp_run_inputs[runs_in_this_set * set_i:runs_in_this_set * (set_i+1)]
+        mp_output += launch_mp_pool(set_input, set_i, set_i * runs_in_regular_set, mp_length, max_procs)
 
     # Store results and put in a more readable container
     if mp_ic_name_2 is None:
