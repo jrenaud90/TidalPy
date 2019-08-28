@@ -170,7 +170,9 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
             runs_in_this_set = runs_in_last_set
         else:
             runs_in_this_set = runs_in_regular_set
-        set_input = mp_run_inputs[runs_in_regular_set * set_i:runs_in_regular_set + runs_in_this_set]
+        starting_point = runs_in_regular_set * set_i
+        ending_point = starting_point + runs_in_this_set
+        set_input = mp_run_inputs[starting_point:ending_point]
         mp_output += launch_mp_pool(set_input, set_i, set_i * runs_in_regular_set, mp_length, max_procs)
 
     # Store results and put in a more readable container
