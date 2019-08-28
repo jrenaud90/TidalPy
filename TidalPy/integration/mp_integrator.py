@@ -14,7 +14,7 @@ from .integration import ivp_integration
 from .success import calc_success_index, normalize
 
 
-MAX_PROCS_DUE_TO_RAM = 6
+MAX_PROCS_DUE_TO_RAM = 7
 
 def mp_run(mp_input):
     run_i, run_dir, solve_ivp_args, solve_ivp_kwargs, success_check_params = mp_input
@@ -126,6 +126,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     def launch_mp_pool(set_inputs, current_set, runs_done, max_runs, procs):
         runs_in_this_call = len(set_inputs)
         procs = min(procs, runs_in_this_call)
+        procs = max(procs, 1)
         log(f'--- New MP Set ({current_set}) Started ---', level='info')
         log(f'Runs: {runs_done + 1} to {runs_done + runs_in_this_call} of {max_runs}.')
         chunksize, extra = divmod(mp_length, procs)
@@ -166,7 +167,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
             runs_in_this_set = runs_in_last_set
         else:
             runs_in_this_set = runs_in_regular_set
-        set_input = mp_run_inputs[runs_in_regular_set * set_i:runs_in_this_set * (set_i+1)]
+        set_input = mp_run_inputs[runs_in_regular_set * set_i:runs_in_regular_set + runs_in_this_set]
         mp_output += launch_mp_pool(set_input, set_i, set_i * runs_in_regular_set, mp_length, max_procs)
 
     # Store results and put in a more readable container
@@ -212,6 +213,6 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         log(f'Saving success figure to {fig_path}')
         fig.savefig(fig_path)
 
-    return success_by_run, result_by_run, success_by_ic
+    return success_by_run, result_by_run, success_by_ic, mp_dir
 
 
