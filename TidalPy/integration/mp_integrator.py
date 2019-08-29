@@ -11,7 +11,8 @@ from ..initialize import log
 from ..io import inner_save_dir, unique_path
 from ..graphics.grid_plot import success_grid_plot
 from .integration import ivp_integration
-from .success import calc_success_index, normalize
+from .success import calc_success_index
+from ..utilities.numpy_help import normalize_dict
 
 
 MAX_PROCS_DUE_TO_RAM = 7
@@ -182,7 +183,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
 
     # Normalize success indexs
     # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
-    success_by_run = normalize(success_by_run, pass_negatives=True, new_max=4.0, new_min=0.0)
+    success_by_run = normalize_dict(success_by_run, pass_negatives=True, new_max=4.0, new_min=0.0)
 
     # Store results and put in a more readable container
     if mp_ic_name_2 is None:
