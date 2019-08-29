@@ -7,7 +7,7 @@ from ..performance import njit
 from ..types import FloatArray
 
 
-def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool = False,
+def normalize_dict(dict_of_values: Dict[str, float], pass_negatives: bool = False,
                    new_max: float = 1.0, new_min: float = 0.0):
     """ Normalizes values provided in a name separated dictionary to the specified range.
 
@@ -30,37 +30,30 @@ def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool =
     """
 
     if pass_negatives:
-        max_ = 1.0e-10
+        max_ = 0.0
     else:
         max_ = -1.0e100
     min_ = 1.0e100
 
     for ref_name, value in dict_of_values.items():
-        if np.max(value) > max_:
-            max_ = np.max(value)
-        if min_ > np.min(value):
-            if pass_negatives and np.min(value) < 0.:
+        if value > max_:
+            max_ = value
+        if min_ > value:
+            if pass_negatives and value < 0.:
                 # Negative values may indicate an integration problem and the user may want to exclude them from the
                 # normalization.
-                if min_ > np.min(value[value >= 0]):
-                    min_ = np.min(value[value >= 0])
-            else:
-                min_ = np.min(value)
+                continue
+            min_ = value
 
-    if min_ == max_:
-        min_ = 0.9 * max_
-
-    new_dict = {ref: np.zeros_like(value) for ref, value in dict_of_values.items()}
+    new_dict = dict()
     slope = (new_max - new_min) / (max_ - min_)
     intercept = new_max - slope * max_
     for ref_name, value in dict_of_values.items():
-        if pass_negatives:
-            new_dict[ref_name][value >= 0.] = slope * value[value >= 0.] + intercept
-            new_dict[ref_name][value < 0.] = value[value < 0.]
-        else:
-            new_dict[ref_name] = slope * value + intercept
+        if pass_negatives and value < 0.:
+            new_dict[ref_name] = value
+            continue
+        new_dict[ref_name] = slope * value + intercept
     return new_dict
-
 
 @njit
 def find_nearest(array: np.ndarray, value: Union[int, float]):
