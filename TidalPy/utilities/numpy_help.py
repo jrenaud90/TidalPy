@@ -47,6 +47,9 @@ def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool =
             else:
                 min_ = np.min(value)
 
+    if min_ == max_:
+        min_ = 0.9 * max_
+
     new_dict = {ref: np.zeros_like(value) for ref, value in dict_of_values.items()}
     slope = (new_max - new_min) / (max_ - min_)
     intercept = new_max - slope * max_
