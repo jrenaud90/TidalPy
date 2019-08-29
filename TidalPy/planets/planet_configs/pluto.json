@@ -22,7 +22,7 @@
             "type": "ice",
             "is_tidal": false,
             "radius": 1189.9e3,
-            "material": "LowPressureIceConst",
+            "material": "IceIh_Fu2010",
             "material_source": "TidalPy",
             "temperature_mode": "user-defined",
             "surface_temperature": 40.0,

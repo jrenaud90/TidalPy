@@ -54,7 +54,8 @@ class OrbitBase(TidalPyClass):
     """
 
     def __init__(self, star: Star, host: HostTypes = None, target_bodies: TargetBodyType = None,
-                 duel_dissipation: bool = False, host_tide_raiser_location: int = None, time_study: bool = False):
+                 duel_dissipation: bool = False, host_tide_raiser_location: int = None, use_host_orbit: bool = False,
+                 time_study: bool = False):
         """
 
         Parameters
@@ -184,8 +185,15 @@ class OrbitBase(TidalPyClass):
                 self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination,
                                set_by_planet=False, force_calculation=False)
 
-            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination,
-                           set_by_planet=False, force_calculation=False)
+            if not self.star_host and use_host_orbit and world is not self.host:
+                # Use host's orbital parameters instead
+                orbital_freq_host, semi_major_axis_host, eccentricity_host, inclination_host = \
+                    pull_out_orbit_defaults(self.host)
+                self.set_orbit(world, orbital_freq_host, semi_major_axis_host, eccentricity_host, inclination_host,
+                               set_by_planet=False, force_calculation=False)
+            else:
+                self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination,
+                               set_by_planet=False, force_calculation=False)
 
         # Attempt to initialize insolation heating
         for target_body in self.target_bodies:

@@ -11,7 +11,9 @@ rheology_param_defaults = {
             'grain_size'                : 5.0e-4,
             'grain_size_expo'           : 2.0,
             'molar_activation_energy'   : 59.4e3,
-            'molar_activation_volume'   : -1.3e-5
+            # FIXME: I get crazy low viscosity values when I have this activation volume. For now not assuming pressure dependence.
+            # 'molar_activation_volume'   : -1.3e-5
+            'molar_activation_volume'   : 0.
         },
         'liquid_viscosity'       : {
             'model'                  : 'reference',

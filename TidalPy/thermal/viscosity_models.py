@@ -5,7 +5,7 @@ from ..performance import njit
 from ..types import float_lognat_max
 
 
-@njit
+#@njit
 def arrhenius(temperature: np.ndarray, pressure: float,
               arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
               grain_size: float, grain_size_expo: float,
@@ -23,7 +23,7 @@ def arrhenius(temperature: np.ndarray, pressure: float,
     exponent[exponent > float_lognat_max] = float_lognat_max
     exponent[exponent < -float_lognat_max] = -float_lognat_max
 
-    viscosity = arrhenius_coeff * stress**(1 - stress_expo) * grain_size**grain_size_expo * np.exp(exponent)
+    viscosity = arrhenius_coeff * stress**(1 - stress_expo) * (grain_size**grain_size_expo) * np.exp(exponent)
     if additional_temp_dependence:
         viscosity *= temperature
 

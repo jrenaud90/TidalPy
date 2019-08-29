@@ -28,6 +28,7 @@ def multi_rheo_integration(diff_eq, time_span: Tuple[float, float], initial_cond
         else:
             rheo_dir = os.path.join(inner_save_dir, comp_name.lower())
         integration_input_kwargs['alternative_save_dir'] = rheo_dir
+
         rheo_success, rheo_result = ivp_integration(diff_eq, time_span, initial_conditions, dependent_variable_names,
                                                     **integration_input_kwargs)
         all_results[comp_name] = rheo_result

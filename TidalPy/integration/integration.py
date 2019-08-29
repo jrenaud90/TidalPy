@@ -18,11 +18,40 @@ from ..utilities.conversions import sec2myr
 
 MAX_DATA_SIZE = 2000
 
+def dummy_log(*args, **kwargs):
+    pass
 
 def diffeq_wrap(loop_limits: Tuple[float, float],
                 other_input_args: tuple = tuple(),
-                use_timeout_kill: bool = False, kill_time: int = 1000, integration_run: bool = False,
+                use_timeout_kill: bool = False, kill_time: int = 500, integration_run: bool = False,
                 use_progress_bar: bool = True, progress_bar_poll_time: float = 1.5):
+    """ Wrapper for user-provided differential equation
+
+    Parameters
+    ----------
+    loop_limits : Tuple[float, float]
+        Start and stop of integration time domain (same units as diffeqs are defined for)
+    other_input_args : tuple
+        Any other inputs to the differential equation
+    use_timeout_kill : bool = False
+        If true, the integrator will raise a Timeout exception if kill_time has been exceeded.
+        This is useful in multi-processor integration runs where you do not one process to bog down the entire run.
+    kill_time : int = 500
+        Number of seconds after the start of an integration until a forced timeout is raised (if use_timeout_kill is true)
+    integration_run : bool = False
+        A number of checks and logging is performed during an integration run (rather than a auxiliary data grab) this
+        flag lets the integrator know if it should perform those checks and logs.
+    use_progress_bar : bool = True
+        Determines if a progress report is shown to the user during an integration run.
+    progress_bar_poll_time : float = 1.5
+        Number of seconds in-between progress bar updates.
+
+    Returns
+    -------
+    outer_wrap : object
+        A modified version of the differential equation function.
+
+    """
 
     init_time = timer()
 
@@ -35,62 +64,88 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
     if verbose_level == 0:
         use_progress_bar = False
 
-    def outer_wrap(diffeq):
+    if use_progress_bar and integration_run:
+        def outer_wrap(diffeq):
 
-        clock_old = timer()
-        prev_delta = 1.
-        prev_prev_delta = 1.
-        prev_perc = 0.
+            clock_old = timer()
+            prev_delta = 1.
+            prev_prev_delta = 1.
+            prev_perc = 0.
 
-        def inner_wrap(time: np.ndarray, dependent_variables: Tuple[np.ndarray]):
+            def inner_wrap(time: np.ndarray, dependent_variables: Tuple[np.ndarray]):
 
-            now = timer()
-            if use_timeout_kill and integration_run:
-                if (now - init_time) >= kill_time:
-                    raise IntegrationTimeOut
+                now = timer()
+                if use_timeout_kill and integration_run:
+                    if (now - init_time) >= kill_time:
+                        raise IntegrationTimeOut
 
-            if use_progress_bar and integration_run and \
-                    (now - inner_wrap.clock_old) > progress_bar_poll_time:
-                if time < time_i:
-                    prog_time = time_i
-                elif time > time_f:
-                    prog_time = time_max
+                if use_progress_bar and integration_run and \
+                        (now - inner_wrap.clock_old) > progress_bar_poll_time:
+                    if time < time_i:
+                        prog_time = time_i
+                    elif time > time_f:
+                        prog_time = time_max
+                    else:
+                        prog_time = time
+                    percent_done = np.nan_to_num((prog_time - time_i) / time_delta)
+                    perc_delta = (percent_done - inner_wrap.prev_perc) / (now - inner_wrap.clock_old)
+
+                    # Use an average of the last 3 (arbitrary) time_left's.
+                    time_left = 3. * (1. - percent_done) / \
+                                (perc_delta + inner_wrap.prev_delta + inner_wrap.prev_prev_delta)
+                    if time_left > 99999999.0:
+                        time_left = 99999999.0
+                    print('\rPercent Done: {:0>5.2f}%. Approx. Time Remaining: {:0>2} days, '
+                          '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(100. * percent_done, *convert_to_hms(time_left)),
+                          flush=True, end='')
+                    inner_wrap.prev_perc = percent_done
+                    inner_wrap.clock_old = now
+                    inner_wrap.prev_prev_delta = max(inner_wrap.prev_delta, 1.e-5)
+                    inner_wrap.prev_delta = max(perc_delta, 1.e-5)
+
+                # Main diffeq Call
+                result = diffeq(time, dependent_variables, *other_input_args)
+
+                # Return Results
+                num_dependent = len(dependent_variables)
+                dependent_var_results = result[:num_dependent]
+                aux_results = result[num_dependent:]
+                if integration_run:
+                    return dependent_var_results
                 else:
-                    prog_time = time
-                percent_done = np.nan_to_num((prog_time - time_i) / time_delta)
-                perc_delta = (percent_done - inner_wrap.prev_perc) / (now - inner_wrap.clock_old)
+                    return dependent_var_results, aux_results
 
-                # Use an average of the last 3 (arbitrary) time_left's.
-                time_left = 3. * (1. - percent_done) / \
-                            (perc_delta + inner_wrap.prev_delta + inner_wrap.prev_prev_delta)
-                if time_left > 99999999.0:
-                    time_left = 99999999.0
-                print('\rPercent Done: {:0>5.2f}%. Approx. Time Remaining: {:0>2} days, '
-                      '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(100. * percent_done, *convert_to_hms(time_left)),
-                      flush=True, end='')
-                inner_wrap.prev_perc = percent_done
-                inner_wrap.clock_old = now
-                inner_wrap.prev_prev_delta = max(inner_wrap.prev_delta, 1.e-5)
-                inner_wrap.prev_delta = max(perc_delta, 1.e-5)
+            inner_wrap.clock_old = clock_old
+            inner_wrap.prev_delta = prev_delta
+            inner_wrap.prev_prev_delta = prev_prev_delta
+            inner_wrap.prev_perc = prev_perc
 
-            # Main diffeq Call
-            result = diffeq(time, dependent_variables, *other_input_args)
+            return inner_wrap
 
-            # Return Results
-            num_dependent = len(dependent_variables)
-            dependent_var_results = result[:num_dependent]
-            aux_results = result[num_dependent:]
-            if integration_run:
-                return dependent_var_results
-            else:
-                return (dependent_var_results, aux_results)
+    else:
+        # Not showing the progress bar makes the diffeq slightly more efficient and about half as much code.
+        def outer_wrap(diffeq):
 
-        inner_wrap.clock_old = clock_old
-        inner_wrap.prev_delta = prev_delta
-        inner_wrap.prev_prev_delta = prev_prev_delta
-        inner_wrap.prev_perc = prev_perc
+            def inner_wrap(time: np.ndarray, dependent_variables: Tuple[np.ndarray]):
 
-        return inner_wrap
+                now = timer()
+                if use_timeout_kill and integration_run:
+                    if (now - init_time) >= kill_time:
+                        raise IntegrationTimeOut
+
+                # Main diffeq Call
+                result = diffeq(time, dependent_variables, *other_input_args)
+
+                # Return Results
+                num_dependent = len(dependent_variables)
+                dependent_var_results = result[:num_dependent]
+                aux_results = result[num_dependent:]
+                if integration_run:
+                    return dependent_var_results
+                else:
+                    return dependent_var_results, aux_results
+
+            return inner_wrap
 
     return outer_wrap
 
@@ -126,7 +181,7 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
         Names of the auxiliary data. Used for data storage
     other_input_args : tuple = tuple()
         Optional inputs to the diffeq
-    integration_method : str = LSODA
+    integration_method : str = 'LSODA'
         Name of the scipy solve_ivp solver
     integration_rtol : float = 1.0e-4
         Integration adaptive time step tolerance
@@ -162,8 +217,6 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
 
     # Logging is likely not safe for multiprocessing. So if logging is suppressed then change the log function.
     if suppress_logging:
-        def dummy_log(*args, **kwargs):
-            pass
         log = dummy_log
         log.warn = dummy_log
     else:
@@ -200,14 +253,16 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     log(f'\tIntegration Started on: {now_str}', level='info')
 
     # Setup the differential equation with wrappers
-    int_diffeq = diffeq_wrap(time_span, other_input_args=other_input_args,
-                             use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=True,
-                             use_progress_bar=use_progress_bar,
-                             progress_bar_poll_time=progress_poll_time)(diff_eq)
-    aux_diffeq = diffeq_wrap(time_span, other_input_args=other_input_args,
-                             use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=False,
-                             use_progress_bar=False,
-                             progress_bar_poll_time=progress_poll_time)(diff_eq)
+    int_diffeq_wrap = diffeq_wrap(time_span, other_input_args=other_input_args,
+                                  use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=True,
+                                  use_progress_bar=use_progress_bar,
+                                  progress_bar_poll_time=progress_poll_time)
+    aux_diffeq_wrap = diffeq_wrap(time_span, other_input_args=other_input_args,
+                                  use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=False,
+                                  use_progress_bar=False,
+                                  progress_bar_poll_time=progress_poll_time)
+    int_diffeq = int_diffeq_wrap(diff_eq)
+    aux_diffeq = aux_diffeq_wrap(diff_eq)
 
     # Main integration
     log('Integration Starting...', level='info')

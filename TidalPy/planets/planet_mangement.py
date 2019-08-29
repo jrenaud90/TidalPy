@@ -4,13 +4,14 @@ from typing import TextIO, Union
 
 import dill
 import json5
+import numpy as np
 
 from .dilled_planets import dilled_planets_loc
 from .planet_configs import planet_config_loc
 from .. import other_data_locs
 from ..bm.build import build_planet as build_bm_planet
 from ..configurations import exit_planets
-from ..exceptions import MissingArgumentError, UnknownModelError
+from ..exceptions import MissingArgumentError, UnknownModelError, ImplementationException
 from ..initialize import log
 from ..structures.worlds import TidalWorld, world_types
 from ..utilities.pathing import get_all_files_of_type
@@ -146,3 +147,149 @@ def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, fo
         atexit.register(planet.kill_world)
 
     return planet
+
+
+def clean_planet_config(planet_config: dict, make_copy: bool = True):
+    """ Provides a clean copy of a planet's configuration, deleting items initialized by TidalPy
+
+    Parameters
+    ----------
+    planet_config : dict
+        Planet's configuration dictionary
+    make_copy : bool = True
+        Determines if a copy of the dictionary is made. Otherwise changes in this function will affect any other
+        pointers to this dict object.
+    Returns
+    -------
+    cleaned_dict : dict
+        Cleaned dictionary with no TidalPy entries
+    """
+
+    if make_copy:
+        cleaned_dict = copy.deepcopy(planet_config)
+    else:
+        cleaned_dict = planet_config
+
+    if 'TidalPy_version' in planet_config:
+        del cleaned_dict['TidalPy_version']
+    for layer_name, layer_dict in planet_config['layers'].items():
+        if 'radii' in layer_dict:
+            del cleaned_dict['layers'][layer_name]['radii']
+        for thermal_param in ['thermal_conductivity', 'thermal_diffusivity', 'thermal_expansion', 'stefan',
+                              'shear_modulus']:
+            if thermal_param in layer_dict:
+                del cleaned_dict['layers'][layer_name][thermal_param]
+
+    return cleaned_dict
+
+
+def build_from_planet(old_planet, new_config: dict, new_name: str = None):
+    """ Constructs a new planet based on a previously built one.
+
+    Parameters
+    ----------
+    old_planet :
+        Already initialized planet object (this should have characteristics close to the one you desire)
+    new_config : dict
+        Planet config for the changes to the new planet. This will override configs found in old_planet.
+    new_name : str
+        Optional name provided to the new planet.
+
+    Returns
+    -------
+    new_planet :
+        The newly configured and initialized planet object.
+    """
+
+    # Make a deep copy of the original planet's config
+    old_config = old_planet.config
+
+    # Delete items that are most likely going to change
+    old_config_copy = clean_planet_config(old_config, make_copy=True)
+
+    # Combine new and old dictionaries allowing the new dict to over write the old
+    combo_dict = {**old_config_copy, **new_config}
+
+    # Make any additional changes to the configs before planet build
+    change_name = True
+    if 'name' in new_config:
+        # User provided a new name, do nothing.
+        new_name = new_config['name']
+        change_name = False
+    if new_name is None:
+        # Come up with a new name so that it is clear that this new planet was built from a different one
+        new_name = combo_dict['name']
+        new_name += '_variant'
+    if change_name:
+        combo_dict['name'] = new_name
+
+    # Build the planet
+    new_planet = build_planet(planet_name=new_name, planet_config=combo_dict, force_build=True)
+    return new_planet
+
+
+def scale_from_planet(old_planet, mass_scale: float = None, radius_scale: float = None, new_name: str = None):
+    """ Creates a new planet that is a scaled up/down version of an old planet
+
+    The old_planet should not be too different from your goal planet in terms of mass, radius, layer structure, and
+    composition. For example, if you are trying to make a slightly larger/smaller Earth, don't use Io or Europa as your
+    old_planet. Likewise, if you want to make a 2x mass Pluto, don't use the Earth as your base.
+
+    It is recommended to call the new planet's .paint() method before using it in any science to ensure its structure
+    makes sense.
+
+    Parameters
+    ----------
+    old_planet :
+        Planet to base the scale off of. This should be an already initialized TidalPy planet object
+    mass_scale : FloatNone
+        Providing this will treat mass fractions of the planet's layer's as constants. Radii will be estimated from density
+    radius_scale : FloatNone
+        Providing this will treat volume fractions of the planet's layer's as constants. Masses will be calculated from EOS
+    new_name : str
+        New name to call the planet
+
+    Returns
+    -------
+    new_planet :
+        The newly scaled planet.
+    """
+
+    if mass_scale is not None:
+        # TODO: This may require some sort of iterative method w/ Burnman
+        raise ImplementationException('Right now planets can only be scaled by their radius')
+
+    if radius_scale is None:
+        raise MissingArgumentError('radius_scale must be provided to scale_planet function (until mass_scale is implemented).')
+
+    log(f'Scaling planet from {old_planet.name}, with radius scale of {radius_scale}.', level='debug')
+    print(f'Scaling planet from {old_planet.name}, with radius scale of {radius_scale}.')
+    scaled_config = clean_planet_config(old_planet.config, make_copy=True)
+
+    # Change layer radius
+    scaled_config['radius'] = radius_scale * old_planet.config['radius']
+    prev_layer_radius = 0.
+    for layer_name, layer_dict in old_planet.config['layers'].items():
+        old_radius = layer_dict['radius_upper']
+        scaled_config['layers'][layer_name]['radius_upper'] = radius_scale * old_radius
+        scaled_config['layers'][layer_name]['radius_lower'] = prev_layer_radius
+
+        # Use this layer's upper radius as the next layer's lower radius
+        prev_layer_radius = scaled_config['layers'][layer_name]['radius_upper']
+
+        # Update other items
+        scaled_config['layers'][layer_name]['radius'] = scaled_config['layers'][layer_name]['radius_upper']
+        scaled_config['layers'][layer_name]['thickness'] = scaled_config['layers'][layer_name]['radius_upper'] - \
+            scaled_config['layers'][layer_name]['radius_lower']
+
+        # Delete incorrect information
+        if 'cooling' in layer_dict:
+            if 'density' in layer_dict['cooling']:
+                del scaled_config['layers'][layer_name]['cooling']['density']
+            if 'gravity' in layer_dict['cooling']:
+                del scaled_config['layers'][layer_name]['cooling']['gravity']
+
+    # Make new planet based on the scaled dictionary
+    new_planet = build_from_planet(old_planet, new_config=scaled_config, new_name=new_name)
+
+    return new_planet
