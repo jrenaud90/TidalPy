@@ -128,7 +128,7 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         procs = max(procs, 1)
         log(f'--- New MP Set ({current_set}) Started ---', level='info')
         log(f'Runs: {runs_done + 1} to {runs_done + runs_in_this_call} of {max_runs}.')
-        chunksize, extra = divmod(set_inputs, procs)
+        chunksize, extra = divmod(len(set_inputs), procs)
         if extra:
             chunksize += 1
         log(f'Processors = \t{procs} (of {os.cpu_count()})')
