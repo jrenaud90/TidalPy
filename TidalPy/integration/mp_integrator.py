@@ -174,12 +174,6 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         set_input = mp_run_inputs[starting_point:ending_point]
         mp_output += launch_mp_pool(set_input, set_i, set_i * runs_in_regular_set, mp_length, max_procs)
 
-    # Store results and put in a more readable container
-    if mp_ic_name_2 is None:
-        ic2_len = 1
-    else:
-        ic2_len = len(mp_ic_domain_2)
-    success_by_ic = np.zeros((len(mp_ic_domain_1), ic2_len))
     success_by_run = dict()
     result_by_run = dict()
     for run_i, integration_success, integration_result in mp_output:
@@ -190,15 +184,23 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
     # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
     success_by_run = normalize(success_by_run, pass_negatives=True, new_max=4.0, new_min=0.0)
 
-    # Store results in an easier to read format
+    # Store results and put in a more readable container
+    if mp_ic_name_2 is None:
+        ic2_len = 1
+    else:
+        ic2_len = len(mp_ic_domain_2)
+    success_by_ic = np.zeros((len(mp_ic_domain_1), ic2_len))
+    run_to_index = dict()
     for run_i, integration_success in success_by_run.items():
         run_info = run_icnum_storage[run_i]
         if type(run_info) == tuple:
             icnum_1, icnum_2 = run_info
             success_by_ic[icnum_1, icnum_2] = integration_success
+            run_to_index[run_i] = (icnum_1, icnum_2)
         else:
             icnum_1 = run_info
             success_by_ic[icnum_1, 0] = integration_success
+            run_to_index[run_i] = (icnum_1, 0)
 
     # Plot success grid
     if show_success_plot:
@@ -211,6 +213,6 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         log(f'Saving success figure to {fig_path}')
         fig.savefig(fig_path)
 
-    return success_by_run, result_by_run, success_by_ic, mp_dir
+    return success_by_run, result_by_run, success_by_ic, mp_dir, run_to_index
 
 
