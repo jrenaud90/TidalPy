@@ -1,26 +1,19 @@
 {
-    "name": "Earth",
+    // Very roughly pulled from some analysis by Dorn+ (A&A 2017)
+    "name": "55-Cancri-e",
     "type": "burnman",
-    "radius": 6371.0e3,
-    "semi_major_axis": 1.0,
+    "radius": 1.195e7,
+    "semi_major_axis": 0.01544,
     "semi_major_axis_in_au": true,
-    "eccentricity": 0.01671022,
+    "eccentricity": 0.02,
     "spin_period": 1.0,
+    "force_spin_sync": true,
     "layers": {
-        "Inner_Core": {
+        "Core": {
             "type": "iron",
             "is_tidal": false,
-            "radius": 1220.0e3,
+            "radius": 4.0e6,
             "material": "Fe_Dewaele",
-            "material_source": "other",
-            "temperature_mode": "user-defined",
-            "temperature_fixed": 300.0
-        },
-        "Outer_Core": {
-            "type": "iron",
-            "is_tidal": false,
-            "radius": 3480.0e3,
-            "material": "Liquid_Fe_Anderson",
             "material_source": "other",
             "temperature_mode": "user-defined",
             "temperature_fixed": 300.0
@@ -28,16 +21,15 @@
         "Lower_Mantle": {
             "type": "rock",
             "is_tidal": false,
-            "radius": 5711.0e3,
+            "radius": 8.959e6,
             "material": "mg_bridgmanite",
             "material_source": "SLB_2011",
             "temperature_mode": "adiabatic"
         },
-
         "Upper_Mantle": {
             "type": "rock",
             "is_tidal": true,
-            "radius": 6371.0e3,
+            "radius": 1.195e7,
             "material": "forsterite",
             "material_source": "SLB_2011",
             "temperature_mode": "adiabatic",

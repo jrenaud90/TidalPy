@@ -6,7 +6,8 @@
 low_pressure_ice_eos = 'bm3'
 high_pressure_ice_eos = 'mgd3'
 
-import burnman
+from burnman import Mineral
+from burnman.processchemistry import dictionarize_formula, formula_mass
 
 from .constant import ConstantMaterial
 
@@ -60,46 +61,112 @@ class HighPressureIceConst(ConstantMaterial):
         super().__init__()
 
 
-# TODO: Actual equation of state
-class LowPressureIce(burnman.Mineral):
-
+class UnterbornIce(Mineral):
+    """ Water used in Exoplex """
     def __init__(self):
         self.params = {
-            'name'             : 'ice_lp',
-            'equation_of_state': low_pressure_ice_eos,
-            # Following are at room pressure/temperature
-            'V_0'              : 10.844e-6,  # Molar volume [m^3/(mole molecules)]
-            'K_0'              : 135.19e9,  # Reference bulk modulus [Pa]
-            'Kprime_0'         : 6.04,  # pressure derivative of bulk modulus
-            'G_0'              : 175.0e9,  # reference shear modulus
-            'Gprime_0'         : 1.7,  # pressure derivative of shear modulus
-            'molar_mass'       : .055845,  # molar mass in units of [kg/mol]
-            'n'                : 1,  # number of atoms per formula unit
-            'Debye_0'          : 998.85,  # Debye temperature for material.
-            'grueneisen_0'     : 1.368,  # Gruneisen parameter for material.
-            'q_0'              : 0.917,  # isotropic strain derivative of gruneisen
-            'eta_s_0'          : 3.0  # full strain derivative of gruneisen parameter
-        }
-        burnman.Mineral.__init__(self)
+            'equation_of_state': 'bm4',
+            'V_0': 18.797e-6,
+            'K_0': 2.06e9,
+            'Kprime_0': 6.29,
+            'molar_mass': 0.01801528,
+            'Kprime_prime_0': (-1.89/2.06e9),
+            'n': 1}
+        super().__init__()
 
 
-class HighPressureIce(burnman.Mineral):
+class Water(Mineral):
+    """ Water data from Lide+ (2005) via Sotin+ 2007
+
+    """
+    def __init__(self):
+        formula = 'H2O'
+        formula = dictionarize_formula(formula)
+        molar_mass = formula_mass(formula)
+        self.params = {
+            'equation_of_state': 'bm3',
+            'V_0': (molar_mass / 1000.),
+            'K_0': 2.2e9,
+            'Kprime_0': 4.0,
+            'molar_mass': molar_mass,
+            'n': sum(formula.values())}
+        super().__init__()
+
+
+class HighPressureIce(Mineral):
+    """ High-Pressure Ice (Ice VII) data from Fei+ (1993) via Sotin+ 2007
+
+    """
+    def __init__(self):
+        formula = 'H2O'
+        formula = dictionarize_formula(formula)
+        molar_mass = formula_mass(formula)
+        self.params = {
+            'equation_of_state': 'mgd3',
+            'V_0': (molar_mass / 1460.),
+            'K_0': 23.9e9,
+            'Kprime_0': 4.2,
+            'molar_mass': molar_mass,
+            'n': sum(formula.values()),
+            'Debye_0': 1470,
+            'grueneisen_0': 1.2,
+            'q_0': 1.0}
+        super().__init__()
+
+
+class IceX_Fu2010(Mineral):
+    """ Very High-Pressure Ice (Ice X) data from Loubeyre+ (1999) via Fu+ (2010)
+
+    """
 
     def __init__(self):
+        formula = 'H2O'
+        formula = dictionarize_formula(formula)
+        molar_mass = formula_mass(formula)
         self.params = {
-            'name'             : 'ice_hp',
-            'equation_of_state': high_pressure_ice_eos,
-            # Following are at room pressure/temperature
-            'V_0'              : 10.844e-6,  # Molar volume [m^3/(mole molecules)]
-            ##'K_0'              : 23.9e9,  # Reference bulk modulus [Pa]
-            'Kprime_0'         : 6.04,  # pressure derivative of bulk modulus
-            'G_0'              : 175.0e9,  # reference shear modulus
-            'Gprime_0'         : 1.7,  # pressure derivative of shear modulus
-            'molar_mass'       : .055845,  # molar mass in units of [kg/mol]
-            'n'                : 1,  # number of atoms per formula unit
-            ##'Debye_0'          : 1470.0,  # Debye temperature for material.
-            'grueneisen_0'     : 1.368,  # Gruneisen parameter for material.
-            'q_0'              : 0.917,  # isotropic strain derivative of gruneisen
-            'eta_s_0'          : 3.0  # full strain derivative of gruneisen parameter
+            'equation_of_state': 'bm3',
+            'V_0': (molar_mass / 1239.),
+            'K_0': 4.26e9,
+            'Kprime_0': 7.75,
+            'molar_mass': molar_mass,
+            'n': sum(formula.values())}
+        super().__init__()
+
+
+class IceVII_Fu2010(Mineral):
+    """ High-Pressure Ice (Ice VII) data from Hemley+ (1987) via Fu+ (2010)
+
+    """
+
+    def __init__(self):
+        formula = 'H2O'
+        formula = dictionarize_formula(formula)
+        molar_mass = formula_mass(formula)
+        self.params = {
+            'equation_of_state': 'bm3',
+            'V_0'              : (molar_mass / 1463.),
+            'K_0'              : 23.7e9,
+            'Kprime_0'         : 4.15,
+            'molar_mass'       : molar_mass,
+            'n'                : sum(formula.values())
         }
-        burnman.Mineral.__init__(self)
+        super().__init__()
+
+class IceIh_Fu2010(Mineral):
+    """ Low-Pressure Ice (Ice Ih) data from Weast (1969) and Strassle+ (2005) via Fu+ (2010)
+
+    """
+
+    def __init__(self):
+        formula = 'H2O'
+        formula = dictionarize_formula(formula)
+        molar_mass = formula_mass(formula)
+        self.params = {
+            'equation_of_state': 'bm3',
+            'V_0'              : (molar_mass / 917.),
+            'K_0'              : 9.86e9,
+            'Kprime_0'         : 6.6,
+            'molar_mass'       : molar_mass,
+            'n'                : sum(formula.values())
+        }
+        super().__init__()

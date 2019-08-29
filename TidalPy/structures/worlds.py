@@ -715,7 +715,7 @@ class TidalWorld(WorldBase):
 
         return surface_temperature
 
-    def paint(self, depth_plot: bool = False, auto_show: bool = True):
+    def paint(self, depth_plot: bool = False, auto_show: bool = True, include_geoterm: bool = False):
         """ Create a geotherm or depth plot of the planet's gravity, pressure, and density
 
         Parameters
@@ -727,15 +727,24 @@ class TidalWorld(WorldBase):
 
         Returns
         -------
-        figure: matplotlib.pyplot.figure
-
+        figure : matplotlib.pyplot.figure
+            Figure object
+        temperature_profile : np.ndarray
+            Adibatic geotherm
         """
 
+        if include_geoterm:
+            temperature_profiles = [layer.geotherm(avg_temperature=2000.) for layer in self.layers]
+            temperature_profile = np.concatenate(temperature_profiles)
+        else:
+            temperature_profile = None
+
         figure = geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
+                               temperatures=temperature_profile,
                                bulk_density=self.density_bulk, planet_name=self.name,
                                planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
 
-        return figure
+        return figure, temperature_profile
 
     @property
     def time(self) -> np.ndarray:

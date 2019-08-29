@@ -1,0 +1,8 @@
+{
+    // From Delrez+2018 and Kane2018
+    "name": "TRAPPIST-1",
+    "type": "star",
+    "radius": 8.6267e7,
+    "mass": 1.77e29,
+    "luminosity": 2.12e23
+}
