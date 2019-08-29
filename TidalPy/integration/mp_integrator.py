@@ -181,10 +181,6 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         success_by_run[run_i] = integration_success
         result_by_run[run_i] = integration_result
 
-    # Normalize success indexs
-    # TODO: Should this be handled outside the mp integrator? How do we handle multiple rheologies
-    success_by_run = normalize_dict(success_by_run, pass_negatives=True, new_max=4.0, new_min=0.0)
-
     # Store results and put in a more readable container
     if mp_ic_name_2 is None:
         ic2_len = 1
