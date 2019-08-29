@@ -15,7 +15,7 @@ from .success import calc_success_index
 from ..utilities.numpy_help import normalize_dict
 
 
-MAX_PROCS_DUE_TO_RAM = 7
+MAX_PROCS_DUE_TO_RAM = 6
 
 def mp_run(mp_input):
     run_i, run_dir, solve_ivp_args, solve_ivp_kwargs, success_check_params = mp_input
