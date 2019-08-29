@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Dict
 
 import numpy as np
 
@@ -6,6 +6,54 @@ from TidalPy.exceptions import BadArrayShape
 from ..performance import njit
 from ..types import FloatArray
 
+
+def normalize_dict(dict_of_values: Dict[str, float], pass_negatives: bool = False,
+                   new_max: float = 1.0, new_min: float = 0.0):
+    """ Normalizes values provided in a name separated dictionary to the specified range.
+
+    Parameters
+    ----------
+    dict_of_values : Dict[str, float]
+        Dictionary of reference keys pointing to the to-be-normalized values.
+    pass_negatives : bool = False
+        If true then any values that are negative will be excluded from the normalization.
+    new_max : float = 1.0
+        The upper-most of the post-normalized values
+    new_min : float = 0.0
+        The lower-most of the post-normalized values
+
+    Returns
+    -------
+    dict_of_normalized_values : Dict[str, float]
+        Dictionary of reference keys pointing to the post-normalized values.
+
+    """
+
+    if pass_negatives:
+        max_ = 0.0
+    else:
+        max_ = -1.0e100
+    min_ = 1.0e100
+
+    for ref_name, value in dict_of_values.items():
+        if value > max_:
+            max_ = value
+        if min_ > value:
+            if pass_negatives and value < 0.:
+                # Negative values may indicate an integration problem and the user may want to exclude them from the
+                # normalization.
+                continue
+            min_ = value
+
+    new_dict = dict()
+    slope = (new_max - new_min) / (max_ - min_)
+    intercept = new_max - slope * max_
+    for ref_name, value in dict_of_values.items():
+        if pass_negatives and value < 0.:
+            new_dict[ref_name] = value
+            continue
+        new_dict[ref_name] = slope * value + intercept
+    return new_dict
 
 @njit
 def find_nearest(array: np.ndarray, value: Union[int, float]):
