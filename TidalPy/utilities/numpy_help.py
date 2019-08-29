@@ -30,7 +30,7 @@ def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool =
     """
 
     if pass_negatives:
-        max_ = 0.0
+        max_ = 1.0e-10
     else:
         max_ = -1.0e100
     min_ = 1.0e100
