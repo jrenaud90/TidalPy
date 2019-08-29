@@ -107,7 +107,7 @@ if use_disk:
     # Create Output Directory Structure
     master_directory = os.getcwd()
     outer_save_dir = os.path.join(master_directory, 'TidalPy_Output')
-    inner_save_dir = os.path.join(outer_save_dir, 'TidalPyRun')
+    inner_save_dir = unique_path(os.path.join(outer_save_dir, 'TidalPyRun'), is_dir=True, make_dir=True)
     if auto_write:
         if not os.path.isdir(outer_save_dir):
             os.mkdir(outer_save_dir)
