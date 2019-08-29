@@ -54,6 +54,7 @@ def calc_success_index(data_dict: Dict[str, np.ndarray], integration_success: in
     time_array = data_dict[time_var_name]
     check_index = find_nearest(time_array, time_to_check_at)
 
+    max_perc_diff = len(variables_to_check)
     total_perc_diff = 0.
     for var_name, expected_value in zip(variables_to_check, expected_values):
 
@@ -66,7 +67,10 @@ def calc_success_index(data_dict: Dict[str, np.ndarray], integration_success: in
 
         total_perc_diff += perc_diff
 
-    return total_perc_diff
+    success = max_perc_diff - total_perc_diff
+    if success < 0.:
+        success = 0.
+    return success
 
 
 def calc_success_index_multirheo(data_dict_byrheo: Dict[str, Dict[str, np.ndarray]],
