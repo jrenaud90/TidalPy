@@ -1,0 +1,2 @@
+* Make a "build_from_planet" function to take an already built planet and then provide some global changes that builds a new planet with, for example, a larger mass/radius
+    * Make it so if only mass, or only radius, is provided an approx (M-R) of the other is used?

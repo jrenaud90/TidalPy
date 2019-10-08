@@ -145,30 +145,68 @@ def solve_ivp_mp_ic(diff_eq, time_span: Tuple[float, float], initial_conditions:
         )
         mp_run_inputs.append(mp_run_input)
 
+    # Determine Processing Cores and Chunksize
+
+    # TODO: Right now I am having issues with way too much RAM usage when using the Pathos.pool, but I don't have
+    #  another solution at the moment. So I am calling on multiple pools in sequence
+    def launch_mp_pool(set_inputs, current_set, runs_done, max_runs, procs):
+        runs_in_this_call = len(set_inputs)
+        procs = min(procs, runs_in_this_call)
+        procs = max(procs, 1)
+        log(f'--- New MP Set ({current_set}) Started ---', level='info')
+        log(f'Runs: {runs_done + 1} to {runs_done + runs_in_this_call} of {max_runs}.')
+        chunksize, extra = divmod(len(set_inputs), procs)
+        if extra:
+            chunksize += 1
+        log(f'Processors = \t{procs} (of {os.cpu_count()})')
+        log(f'Chunksize =  \t{chunksize}')
+        log(f'Timeout =    \t{timeout:0.1f}')
+        log(f'Starting Pool...')
+        with Pool(procs) as mp_pool:
+            output = mp_pool.uimap(_mp_wrap, set_inputs, chunksize=chunksize)
+            output = list(output)
+            mp_pool.terminate()
+            mp_pool.restart()
+
+        gc.collect()
+        return output
+
     if max_procs is None:
         max_procs = max(1, os.cpu_count() - 1)
     max_procs = min(MAX_PROCS_DUE_TO_RAM, max_procs)
 
-    mp_length = len(mp_run_inputs)
+    # Determine number of sets that need to be called.
+    mp_length = len(initial_condition_storage)
+    sets, extra_set = divmod(mp_length, max_procs)
+    runs_in_regular_set = max_procs
+    runs_in_last_set = extra_set
+    if extra_set:
+        runs_in_last_set = extra_set
+        sets += 1
+    else:
+        runs_in_last_set = runs_in_regular_set
     log(f'Phase Space Length = {mp_length}')
-    chunksize, extra = divmod(mp_length, max_procs)
-    if extra:
-        chunksize += 1
+    log(f'MP Sets needed = {sets}')
+    log(f'Runs in regular set = {runs_in_regular_set}')
+    log(f'Runs in last set = {runs_in_last_set}')
 
     # Main MP Call
-    log(f'Processors = \t{max_procs} (of {os.cpu_count()})')
-    log(f'Chunksize =  \t{chunksize}')
-    log(f'Timeout =    \t{timeout:0.1f}')
-    log(f'Starting Pool...')
+    mp_output = list()
+    for set_i in range(sets):
+        if set_i == sets - 1:
+            runs_in_this_set = runs_in_last_set
+        else:
+            runs_in_this_set = runs_in_regular_set
+        starting_point = runs_in_regular_set * set_i
+        ending_point = starting_point + runs_in_this_set
+        set_input = mp_run_inputs[starting_point:ending_point]
+        mp_output += launch_mp_pool(set_input, set_i, set_i * runs_in_regular_set, mp_length, max_procs)
+
     success_by_run = dict()
     result_by_run = dict()
-    with Pool(max_procs) as mp_pool:
-        mp_output = mp_pool.uimap(_mp_wrap, mp_run_inputs, chunksize=chunksize)
-        for run_i, integration_success, integration_result in mp_output:
-            success_by_run[run_i] = integration_success
-            result_by_run[run_i] = integration_result
-    del mp_output, mp_pool
-    gc.collect()
+    for run_i, integration_success, integration_result in mp_output:
+        success_by_run[run_i] = integration_success
+        result_by_run[run_i] = integration_result
 
     # Store results and put in a more readable container
     if mp_ic_name_2 is None:

@@ -1,0 +1,35 @@
+{
+    // Radius: Delrez et al., (2018) corrected by Kane et al., (2018)
+    // Masses:: Grimm et al., (2018)
+    // Gravity: g*mass/(R2)
+    // Flux: Delrez et al., (2018) corrected by Kane et al., (2018)
+    // Density (Jontof-Hutter et al., 2014): radii: Delrez et al., (2018) + masses: Grimm e al (2018) corrected by Kane et al., (2018)
+    "name": "Trappist-1b",
+    "type": "burnman",
+    "radius": 7.371e6,
+    "semi_major_axis": 1.0,
+    "semi_major_axis_in_au": true,
+    "eccentricity": 0.00622,
+    "spin_period": 1.0,
+    "layers": {
+        "Inner_Core": {
+            "type": "iron",
+            "is_tidal": false,
+            "radius": 1220.0e3,
+            "material": "Fe_Dewaele",
+            "material_source": "other",
+            "temperature_mode": "user-defined",
+            "temperature_fixed": 300.0
+        },
+        "Mantle": {
+            "type": "rock",
+            "is_tidal": true,
+            "radius": 7.371e6,
+            "material": "forsterite",
+            "material_source": "SLB_2011",
+            "temperature_mode": "adiabatic",
+            "temperature_top": 1200.0,
+            "surface_temperature": 300.0
+        }
+    }
+}

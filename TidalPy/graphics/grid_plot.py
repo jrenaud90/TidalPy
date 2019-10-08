@@ -104,9 +104,10 @@ def success_grid_plot(success_by_rheo: dict, x: np.ndarray, y: np.ndarray,
             extent_x = np.linspace(x[0] - dx, x[-1] + dx, len(x) + 1)
             extent_y = np.linspace(y[0] - dy, y[-1] + dy, len(y) + 1)
 
+        # TODO: I don't think these concats are actually needed
         # This extension of pass_index (and the X, Y len(X or Y) + 1) corrects the issue of pcolormesh() not plotting the last column and row of C.
-        pass_index = np.concatenate((pass_index, np.zeros((pass_index.shape[1], 1))), axis=1)
-        pass_index = np.concatenate((pass_index, np.zeros((1, pass_index.shape[1]))))
+        # pass_index = np.concatenate((pass_index, np.zeros((pass_index.shape[1], 1))), axis=1)
+        # pass_index = np.concatenate((pass_index, np.zeros((1, pass_index.shape[1]))))
 
         # The edgecolor and linewidth control the gridlines
         cb = ax.pcolormesh(extent_x, extent_y, np.transpose(pass_index), cmap=cmap, norm=norm, edgecolor='k',
