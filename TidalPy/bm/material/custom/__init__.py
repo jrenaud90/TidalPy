@@ -1,2 +1,2 @@
-from .ice import HighPressureIceConst, LowPressureIceConst
+from .ice import HighPressureIceConst, LowPressureIceConst, water, LowPressureIce
 from .pyrite import Pyrite

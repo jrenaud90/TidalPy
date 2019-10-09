@@ -103,3 +103,16 @@ class HighPressureIce(burnman.Mineral):
             'eta_s_0'          : 3.0  # full strain derivative of gruneisen parameter
         }
         burnman.Mineral.__init__(self)
+
+# WATER FROM CAYMAN EXOPLEX
+class water(burnman.Mineral):
+    def __init__(self):
+        self.params = {
+            'equation_of_state': 'bm4',
+            'V_0': 18.797e-6,
+            'K_0': 2.06e9,
+            'Kprime_0': 6.29,
+            'molar_mass': 0.01801528,
+            'Kprime_prime_0': (-1.89/2.06e9),
+            'n': 1}
+        super().__init__()

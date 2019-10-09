@@ -511,6 +511,22 @@ class ThermalLayer(PhysicalObjSpherical):
 
         return self.diff_temperature
 
+    def geotherm(self, avg_temperature: float = None):
+        """ Calculates layer's geotherm
+
+        Returns
+        -------
+        temperature_profile : np.ndarray
+            numpy array of the adiabatic temperature profile
+        """
+
+        if avg_temperature is None:
+            avg_temperature = self.temperature
+
+        temperature_profile = burnman.geotherm.adiabatic(self.pressure_slices, avg_temperature, self.bm_material)
+
+        return temperature_profile
+
     # Class Properties
     @property
     def time(self):

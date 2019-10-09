@@ -25,7 +25,7 @@ from .planet_mangement import build_from_planet
 def planet_iterator(base_planet, goal_radius, goal_mass, ice_mass_frac: float = None,
                     initial_core_density: float = 10000., initial_mantle_density: float = 4000.,
                     ice_density: float = 920.,
-                    tolerance = 0.15):
+                    tolerance = 0.05):
     """ Takes a baseline planet that is close to ideal and iterates on the constructor until there is convergence in
     the mass and radius
 
@@ -108,6 +108,8 @@ def planet_iterator(base_planet, goal_radius, goal_mass, ice_mass_frac: float = 
         new_config['layers'][mantle_layer_name]['radius'] = mantle_radius
         new_config['layers'][mantle_layer_name]['radius_upper'] = mantle_radius
     else:
+        # No Ice Shell
+        ice_density = 0.
         mantle_radius = goal_radius
         new_config['layers'][mantle_layer_name]['radius'] = goal_radius
         new_config['layers'][mantle_layer_name]['radius_upper'] = goal_radius
@@ -127,8 +129,8 @@ def planet_iterator(base_planet, goal_radius, goal_mass, ice_mass_frac: float = 
         mantle_density = iterated_planet.layers[1].density_bulk
         core_density = iterated_planet.layers[0].density_bulk
 
-        core_radius = (goal_radius**3 * (bulk_density - ice_density) + mantle_radius**3 * (ice_density - mantle_density)
-                       / (core_density - mantle_density))**(1/3)
+        core_radius = ((goal_radius**3 * (bulk_density - ice_density) +
+                        mantle_radius**3 * (ice_density - mantle_density)) / (core_density - mantle_density))**(1/3)
 
         # Update config with new values
         new_config['layers'][core_layer_name]['radius'] = core_radius
