@@ -12,10 +12,10 @@
     "eccentricity": 0.00622,
     "spin_period": 1.0,
     "layers": {
-        "Inner_Core": {
+        "Core": {
             "type": "iron",
             "is_tidal": false,
-            "radius": 1220.0e3,
+            "radius": 1.204e6,
             "material": "Fe_Dewaele",
             "material_source": "other",
             "temperature_mode": "user-defined",

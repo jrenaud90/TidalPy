@@ -4,14 +4,13 @@
     // Gravity: g*mass/(R2)
     // Flux: Delrez et al., (2018) corrected by Kane et al., (2018)
     // Density (Jontof-Hutter et al., 2014): radii: Delrez et al., (2018) + masses: Grimm e al (2018) corrected by Kane et al., (2018)
-    "name": "TRAPPIST-1e",
+    "name": "Trappist-1e",
     "type": "burnman",
     "radius": 5.989e6,
-    "semi_major_axis": 0.02928285,
+    "semi_major_axis": 1.0,
     "semi_major_axis_in_au": true,
-    "eccentricity": 0.00510,
+    "eccentricity": 0.00622,
     "spin_period": 1.0,
-    "force_spin_sync": true,
     "layers": {
         "Core": {
             "type": "iron",
@@ -22,7 +21,7 @@
             "temperature_mode": "user-defined",
             "temperature_fixed": 300.0
         },
-        "Upper_Mantle": {
+        "Mantle": {
             "type": "rock",
             "is_tidal": true,
             "radius": 5.989e6,
