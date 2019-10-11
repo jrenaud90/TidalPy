@@ -27,25 +27,24 @@ def pull_out_orbit_defaults(planet_obj):
     # Update those dummy variables if information was provided in the configurations
     orbital_freq = planet_obj.config.get('orbital_freq', None)
     orbital_period = planet_obj.config.get('orbital_period', None)
+    if orbital_freq is not None and orbital_period is not None:
+        log(f'Both orbital frequency and period were provided for {planet_obj.name}. '
+            f'Using frequency instead.', level='info')
+    if orbital_freq is None and orbital_period is not None:
+        # Assume orbital period is in days
+        orbital_freq = 2. * np.pi / (orbital_period * 24. * 60. * 60.)
     semi_major_axis = planet_obj.config.get('semi_major_axis', None)
+    print(semi_major_axis)
     semi_major_axis_inau = planet_obj.config.get('semi_major_axis_in_au', False)
-    eccentricity = planet_obj.config.get('eccentricity', None)
-    inclination = planet_obj.config.get('inclination', None)
-
-    if orbital_period is not None:
-        if orbital_freq is not None:
-            log(f'Both orbital frequency and period were provided for {planet_obj.name}. '
-                f'Using frequency instead.', level='info')
-        else:
-            orbital_freq = np.asarray([2. * np.pi / (orbital_period * 24. * 60. * 60.)])
     if semi_major_axis is not None:
-        semi_major_axis = np.asarray([semi_major_axis])
         if semi_major_axis_inau:
             semi_major_axis = Au2m(semi_major_axis)
-    if eccentricity is not None:
-        eccentricity = np.asarray([eccentricity])
-    if inclination is not None:
-        inclination = np.asarray([inclination])
+        if orbital_freq is not None:
+            log(f'Both orbital frequency (or period) and semi-major axis were provided for {planet_obj.name}. '
+                f'Using frequency instead.', level='info')
+            semi_major_axis = None
+    eccentricity = planet_obj.config.get('eccentricity', None)
+    inclination = planet_obj.config.get('inclination', None)
 
     return orbital_freq, semi_major_axis, eccentricity, inclination
 
@@ -56,8 +55,7 @@ class OrbitBase(TidalPyClass):
     """
 
     def __init__(self, star: Star, host: HostTypes = None, target_bodies: TargetBodyType = None,
-                 duel_dissipation: bool = False, host_tide_raiser_location: int = None, use_host_orbit: bool = False,
-                 time_study: bool = False):
+                 duel_dissipation: bool = False, host_tide_raiser_location: int = None, time_study: bool = False):
         """
 
         Parameters
@@ -187,15 +185,8 @@ class OrbitBase(TidalPyClass):
                 self.set_orbit(self.star, orbital_freq, semi_major_axis, eccentricity, inclination,
                                set_by_planet=False, force_calculation=False)
 
-            if not self.star_host and use_host_orbit and world is not self.host:
-                # Use host's orbital parameters instead
-                orbital_freq_host, semi_major_axis_host, eccentricity_host, inclination_host = \
-                    pull_out_orbit_defaults(self.host)
-                self.set_orbit(world, orbital_freq_host, semi_major_axis_host, eccentricity_host, inclination_host,
-                               set_by_planet=False, force_calculation=False)
-            else:
-                self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination,
-                               set_by_planet=False, force_calculation=False)
+            self.set_orbit(world, orbital_freq, semi_major_axis, eccentricity, inclination,
+                           set_by_planet=False, force_calculation=False)
 
         # Attempt to initialize insolation heating
         for target_body in self.target_bodies:
