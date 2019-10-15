@@ -1,0 +1,40 @@
+{
+    // Very roughly pulled from some analysis by Dorn+ (A&A 2017)
+    "name": "55-Cancri-e",
+    "type": "burnman",
+    "radius": 1.195e7,
+    "semi_major_axis": 0.01544,
+    "semi_major_axis_in_au": true,
+    "eccentricity": 0.02,
+    "spin_period": 1.0,
+    "force_spin_sync": true,
+    "layers": {
+        "Core": {
+            "type": "iron",
+            "is_tidal": false,
+            "radius": 4.0e6,
+            "material": "Fe_Dewaele",
+            "material_source": "other",
+            "temperature_mode": "user-defined",
+            "temperature_fixed": 300.0
+        },
+        "Lower_Mantle": {
+            "type": "rock",
+            "is_tidal": false,
+            "radius": 8.959e6,
+            "material": "mg_bridgmanite",
+            "material_source": "SLB_2011",
+            "temperature_mode": "adiabatic"
+        },
+        "Upper_Mantle": {
+            "type": "rock",
+            "is_tidal": true,
+            "radius": 1.195e7,
+            "material": "forsterite",
+            "material_source": "SLB_2011",
+            "temperature_mode": "adiabatic",
+            "temperature_top": 1200.0,
+            "surface_temperature": 300.0
+        }
+    }
+}

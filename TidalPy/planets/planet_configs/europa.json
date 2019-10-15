@@ -29,7 +29,7 @@
         },
         "Mantle": {
             "type": "rock",
-            "is_tidal": true,
+            "is_tidal": false,
             "radius": 1421.0e3,
             "material": [
                 "forsterite",
