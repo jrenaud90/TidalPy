@@ -34,7 +34,6 @@ def pull_out_orbit_defaults(planet_obj):
         # Assume orbital period is in days
         orbital_freq = 2. * np.pi / (orbital_period * 24. * 60. * 60.)
     semi_major_axis = planet_obj.config.get('semi_major_axis', None)
-    print(semi_major_axis)
     semi_major_axis_inau = planet_obj.config.get('semi_major_axis_in_au', False)
     if semi_major_axis is not None:
         if semi_major_axis_inau:
