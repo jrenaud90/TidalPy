@@ -36,7 +36,7 @@
 
         "Upper_Mantle": {
             "type": "rock",
-            "is_tidal": false,
+            "is_tidal": true,
             "radius": 6371.0e3,
             "material": "forsterite",
             "material_source": "SLB_2011",
