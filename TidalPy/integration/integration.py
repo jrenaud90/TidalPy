@@ -65,30 +65,6 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
         use_progress_bar = False
 
     if use_progress_bar and integration_run:
-        # Not showing the progress bar makes the diffeq slightly more efficient and about half as much code.
-        def outer_wrap(diffeq):
-
-            def inner_wrap(time: np.ndarray, dependent_variables: Tuple[np.ndarray]):
-
-                now = timer()
-                if use_timeout_kill and integration_run:
-                    if (now - init_time) >= kill_time:
-                        raise IntegrationTimeOut
-
-                # Main diffeq Call
-                result = diffeq(time, dependent_variables, *other_input_args)
-
-                # Return Results
-                num_dependent = len(dependent_variables)
-                dependent_var_results = result[:num_dependent]
-                aux_results = result[num_dependent:]
-                if integration_run:
-                    return dependent_var_results
-                else:
-                    return dependent_var_results, aux_results
-
-            return inner_wrap
-    else:
         def outer_wrap(diffeq):
 
             clock_old = timer()
@@ -143,6 +119,31 @@ def diffeq_wrap(loop_limits: Tuple[float, float],
             inner_wrap.prev_delta = prev_delta
             inner_wrap.prev_prev_delta = prev_prev_delta
             inner_wrap.prev_perc = prev_perc
+
+            return inner_wrap
+
+    else:
+        # Not showing the progress bar makes the diffeq slightly more efficient and about half as much code.
+        def outer_wrap(diffeq):
+
+            def inner_wrap(time: np.ndarray, dependent_variables: Tuple[np.ndarray]):
+
+                now = timer()
+                if use_timeout_kill and integration_run:
+                    if (now - init_time) >= kill_time:
+                        raise IntegrationTimeOut
+
+                # Main diffeq Call
+                result = diffeq(time, dependent_variables, *other_input_args)
+
+                # Return Results
+                num_dependent = len(dependent_variables)
+                dependent_var_results = result[:num_dependent]
+                aux_results = result[num_dependent:]
+                if integration_run:
+                    return dependent_var_results
+                else:
+                    return dependent_var_results, aux_results
 
             return inner_wrap
 
@@ -252,16 +253,16 @@ def ivp_integration(diff_eq, time_span: Tuple[float, float], initial_conditions:
     log(f'\tIntegration Started on: {now_str}', level='info')
 
     # Setup the differential equation with wrappers
-    int_diffeq = diffeq_wrap(time_span, other_input_args=other_input_args,
-                             use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=True,
-                             use_progress_bar=use_progress_bar,
-                             progress_bar_poll_time=progress_poll_time)
-    aux_diffeq = diffeq_wrap(time_span, other_input_args=other_input_args,
-                             use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=False,
-                             use_progress_bar=False,
-                             progress_bar_poll_time=progress_poll_time)
-    int_diffeq = int_diffeq(diff_eq)
-    aux_diffeq = aux_diffeq(diff_eq)
+    int_diffeq_wrap = diffeq_wrap(time_span, other_input_args=other_input_args,
+                                  use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=True,
+                                  use_progress_bar=use_progress_bar,
+                                  progress_bar_poll_time=progress_poll_time)
+    aux_diffeq_wrap = diffeq_wrap(time_span, other_input_args=other_input_args,
+                                  use_timeout_kill=use_timeout_kill, kill_time=timeout_time, integration_run=False,
+                                  use_progress_bar=False,
+                                  progress_bar_poll_time=progress_poll_time)
+    int_diffeq = int_diffeq_wrap(diff_eq)
+    aux_diffeq = aux_diffeq_wrap(diff_eq)
 
     # Main integration
     log('Integration Starting...', level='info')

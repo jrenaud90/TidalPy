@@ -84,11 +84,15 @@ rheology_styles = dict()
 for known_model, model_docs in find_complex_compliance.known_models_docs.items():
     # Initialize style with defaults
     style = {'color': 'black', 'ls': '-'}
-    for line in model_docs.split('\n'):
-        if 'color' in line.lower():
-            col = line.split('color:')[-1].strip().lower()
-            style['color'] = col
-        elif 'line style' in line.lower():
-            ls = line.split('line style:')[-1].strip().lower()
-            style['ls'] = ls
+    if model_docs is None:
+        # If the model has no docstring then use the default
+        pass
+    else:
+        for line in model_docs.split('\n'):
+            if 'color' in line.lower():
+                col = line.split('color:')[-1].strip().lower()
+                style['color'] = col
+            elif 'line style' in line.lower():
+                ls = line.split('line style:')[-1].strip().lower()
+                style['ls'] = ls
     rheology_styles[known_model] = style

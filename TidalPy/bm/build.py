@@ -6,7 +6,9 @@ from .. import debug_mode
 from ..exceptions import BadValueError, ParameterError, ParameterMissingError
 from ..initialize import log
 from ..types import float_eps
+from ..configurations import force_burnman_quiet
 
+burnman_verbose = debug_mode and not force_burnman_quiet
 
 default_layer_params = {
     'material_source'     : None,
@@ -85,7 +87,7 @@ def build_layer(layer_name: str, layer_config: dict) -> burnman.Layer:
 
     # Make layer and load in material
     radii = layer_config['radii']
-    layer = burnman.Layer(name=layer_name, radii=radii, verbose=debug_mode)
+    layer = burnman.Layer(name=layer_name, radii=radii, verbose=burnman_verbose)
     layer.set_material(init_material)
 
     # Don't keep radii in the config, otherwise it will save to the json file as a large list
@@ -177,7 +179,7 @@ def build_planet(planet_config: dict):
 
     # Build BurnMan Planet
     log(f"Initializing BurnMan Planet for {planet_config['name']}", level='debug')
-    burnman_planet = burnman.Planet(planet_config['name'], burnman_layers, verbose=debug_mode)
+    burnman_planet = burnman.Planet(planet_config['name'], burnman_layers, verbose=burnman_verbose)
     # Note: This section is slow!!
     log(f"Building BurnMan Planet for {planet_config['name']}", level='debug')
     burnman_planet.make()
