@@ -19,10 +19,7 @@ burnman_interpolation_N = 50
 
 # numba.njit can speed up many functions, but it also makes debugging and error tracing more difficult.
 #  If you are having problems try setting this to False.
-use_numba = True
-
-# Formatting preferences
-format_numpy_floats = True
+use_numba = False
 
 # atexit invocations
 exit_planets = True
