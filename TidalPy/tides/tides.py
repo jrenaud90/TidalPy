@@ -3,12 +3,13 @@ from functools import partial
 from typing import Tuple
 
 import numpy as np
-from . import calc_complex_love_general, calc_complex_love, calc_effective_rigidity_general, calc_effective_rigidity
-from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError)
+from . import calculate_tides
+from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError,
+                          BadValueError)
 from ..rheology import andrade_frequency_models, compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
 from ..rheology.defaults import rheology_param_defaults
-from ..types import FloatArray
+from ..types import FloatArray, ArrayNone
 from ..utilities.model import LayerModel
 
 
@@ -27,26 +28,32 @@ class Tides(LayerModel):
         if not self.layer.config['is_tidal']:
             self.model = 'off'
 
+        # Pull out model information
+        self.orbital_truncation_level = self.world.config['orbital_truncation_level']
+        self.order_l = self.world.config['tidal_order_l']
+
         # Pull out information about the planet/layer
         self.config['planet_beta'] = self.layer.world.beta
         self.config['quality_factor'] = self.layer.world.fixed_q
 
+        if int(self.order_l) != self.order_l or self.order_l < 2:
+            raise BadValueError('Tidal order l must be an integer >= 2')
+        if self.order_l > 3:
+            raise ImplementationException('Tidal order l > 3 has not been fully implemented in TidalPy.')
+
+        if int(self.orbital_truncation_level) != self.orbital_truncation_level or \
+                self.orbital_truncation_level % 2 != 0 or self.orbital_truncation_level < 2:
+            raise BadValueError('Orbital truncation level must be an even integer >= 2')
+        if self.orbital_truncation_level > 6:
+            raise ImplementationException('Orbital truncation level > 6 has not been fully implemented in TidalPy.')
+
         # Setup Love number calculator
-        self.calc_love = None
-        self.calc_effective_rigidity = None
-        self.order_l = None
         self.full_calculation = True
-        if self.model == '2order':
-            self.calc_love = calc_complex_love
-            self.order_l = 2
-            self.calc_effective_rigidity = calc_effective_rigidity
-        elif self.model == 'general':
-            self.calc_love = partial(calc_complex_love_general, order_l=self.order_l)
-            self.order_l = self.config['order_l']
-            self.calc_effective_rigidity = partial(calc_effective_rigidity_general, order_l=self.order_l)
+        if self.model == 'regular':
+            # FIXME: I don't like how the model is stored for the tidal calculations.
+            #    right now this stuff is stored in the /rheology/default.py which doesn't make a lot of sense.
+            pass
         elif self.model == 'off':
-            self.calc_love = calc_complex_love
-            self.calc_effective_rigidity = calc_effective_rigidity
             self.full_calculation = False
         elif self.model == 'multilayer':
             # TODO: Multilayer code
@@ -65,42 +72,60 @@ class Tides(LayerModel):
 
         comp_func, comp_input, comp_live_args = model_searcher.find_model(self.rheology_name)
         # TODO: As of 0.1.0a no compliance functions have live args, so comp_live_args is never used.
-        self.compliance = comp_func
+        self.compliance_func = comp_func
         self.compliance_inputs = comp_input
 
-    def _calculate(self) -> Tuple[FloatArray, Tuple[FloatArray], Tuple[FloatArray]]:
-        """ Calculates the Complex Compliance, Effective Rigidity, and Love Number
+        # Switches
+        self.is_spin_sync = self.layer.is_spin_sync
+
+    def _calculate(self) -> Tuple[ArrayNone, ArrayNone]:
+        """ Calculates the Tidal Heating and Tidal Torque for this layer.
+
+        Returns
+        -------
+        total_heating : ArrayNone
+            Total Tidal Heating [W]
+        total_torque : ArrayNone
+            Total Tidal Torque [N m]
 
         """
 
         # Physical and Frequency Data
         try:
             shear = self.layer.shear_modulus
-            visco = self.layer.viscosity
+            viscosity = self.layer.viscosity
+            orbital_freq = self.world.orbital_freq
+            spin_freq = self.world.spin_freq
+            eccentricity = self.world.eccentricity
+            inclination = self.world.inclination
         except AttributeNotSetError:
             raise ParameterMissingError
         if shear is None:
             raise ParameterMissingError
-        if visco is None:
+        if viscosity is None:
             raise ParameterMissingError
-
-        eff_rigidity = self.calc_effective_rigidity(shear, self.layer.gravity,
-                                                    self.layer.radius, self.layer.density)  # type: FloatArray
-        compliance = shear**(-1)
-        if self.full_calculation:
-            tidal_freqs = self.layer.tidal_freqs
-            if tidal_freqs is None:
+        if orbital_freq is None:
+            raise ParameterMissingError
+        if spin_freq is None:
+            if self.is_spin_sync:
+                spin_freq = orbital_freq
+            else:
                 raise ParameterMissingError
+        if eccentricity is None:
+            eccentricity = np.asarray([0])
+        if inclination is None:
+            inclination = np.asarray([0])
+
+        if self.full_calculation:
+            # Make a call to the calculate tides function
+            tidal_heating, tidal_torque = \
+                calculate_tides(shear, viscosity, self.layer.gravity, self.layer.radius, self.layer.density,
+                                self.world.tidal_susceptibility, self.compliance_func, self.compliance_inputs,
+                                self.world.semi_major_axis, eccentricity, inclination,
+                                orbital_freq, spin_freq,
+                                tidal_volume_fraction=self.layer.tidal_scale, use_nsr=self.is_spin_sync,
+                                truncation=self.orbital_truncation_level, order_l=self.order_l)
         else:
-            tidal_freqs = FAKE_FREQS
+            tidal_heating, tidal_torque = None, None
 
-        # Tides Functions
-        complex_compliance_tupl = list()
-        complex_love_tupl = list()
-        for freq in tidal_freqs:
-            complex_compliance = self.compliance(compliance, visco, freq, *self.compliance_inputs)  # type: FloatArray
-            complex_love = self.calc_love(complex_compliance, shear, eff_rigidity)  # type: FloatArray
-            complex_love_tupl.append(np.nan_to_num(complex_love))
-            complex_compliance_tupl.append(np.nan_to_num(complex_compliance))
-
-        return eff_rigidity, tuple(complex_compliance_tupl), tuple(complex_love_tupl)
+        return tidal_heating, tidal_torque

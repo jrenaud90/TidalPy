@@ -8,7 +8,7 @@ import burnman
 import dill
 import numpy as np
 
-from ..dynamics.modes import nsr_modes, spin_sync_modes
+from ..dynamics.modes_l2 import nsr_modes, spin_sync_modes
 from ..utilities.numpy_help import value_cleanup
 from .defaults import world_defaults
 from .physical import PhysicalObjSpherical
@@ -17,7 +17,8 @@ from ..configurations import (auto_save_planet_config_to_rundir, auto_save_plane
                               auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
                               overwrite_dills)
 from ..dynamics import spin_rate_derivative
-from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError)
+from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError,
+                          IncompatibleModelError)
 from ..graphics.planet_plot import geotherm_plot
 from ..initialize import log
 from ..io import inner_save_dir
@@ -43,9 +44,6 @@ class WorldBase(PhysicalObjSpherical):
 
         super().__init__(config=world_config, call_reinit=False)
 
-        # Pull out switch information
-        self.is_spin_sync = self.config['force_spin_sync']
-
         # Independent State variables
         self._spin_freq = None
         self._time = None
@@ -59,6 +57,7 @@ class WorldBase(PhysicalObjSpherical):
 
         # Other flags
         self.is_host = False
+        self.is_spin_sync = False
 
         # Additional orbit information
         # orbit_location is an index for where a planet is at in the orbit's geometry. This is set by the initialization
@@ -86,6 +85,9 @@ class WorldBase(PhysicalObjSpherical):
 
         self.name = self.config['name']
         log(f'Reinit called for planet: {self.name}', level='debug')
+
+        # Pull out switch information
+        self.is_spin_sync = self.config['force_spin_sync']
 
         # Pull out constants
         self.emissivity = self.config['emissivity']
@@ -430,10 +432,6 @@ class TidalWorld(WorldBase):
         self.radii = np.concatenate(radius_list)
 
         # Dependent state variables
-        self._tidal_modes = None
-        self._tidal_freqs = None
-        self._tidal_heating_coeffs = None
-        self._tidal_ztorque_coeffs = None
         self._global_love = None
         self._tidal_heating = None
         self._tidal_ztorque = None
@@ -488,6 +486,7 @@ class TidalWorld(WorldBase):
                 new_config = {**layer.config, **self.config['layers'][layer.name]}
             else:
                 new_config = self.config['layers'][layer.name]
+            layer.is_spin_sync = self.is_spin_sync
             layer.user_config = new_config
             layer.update_config()
             layer.reinit()
@@ -571,9 +570,6 @@ class TidalWorld(WorldBase):
         orbital_freq = orbit_reference_object.orbital_freq
         semi_major_axis = orbit_reference_object.semi_major_axis
 
-        # Spin rate is stored in self regardless if the planet is a host or not
-        spin_freq = self.spin_freq
-
         # Preform checks
         # These are not required
         if eccentricity is None:
@@ -587,14 +583,7 @@ class TidalWorld(WorldBase):
             raise ParameterMissingError
 
         if self.is_spin_sync:
-            self._tidal_modes, self._tidal_freqs, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
-                spin_sync_modes(orbital_freq, eccentricity, inclination)
-        else:
-            if self.spin_freq is None:
-                raise ParameterMissingError
-
-            self._tidal_modes, self._tidal_freqs, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
-                nsr_modes(orbital_freq, spin_freq, eccentricity, inclination)
+            self._spin_freq = self.orbital_freq
 
         # The semi-major axis should have changed. We can now update the tidal susceptibility
         self._tidal_susceptibility = self.tidal_susceptibility_inflated / semi_major_axis**6
@@ -608,81 +597,69 @@ class TidalWorld(WorldBase):
 
         super().update_orbit()
 
-    def update_global_tides(self, set_layer_heating: bool = True):
-        """ Updates the planet's tidal state whenever there is a change to the orbit or to a layer's thermal state
+    def update_global_tides(self):
+        """ Updates the planet's tidal state whenever there is a change to the orbit or to a layer's thermal state.
 
-        Changes to a planet's orbit, or to its constituent layers' thermal state, will change the global love number and
-        tidal heating & torque. It is easier for a planet to make these calculations and pass on the relevant results to
-        its layers.
+        Changes to a planet's orbit, or to its constituent layers' thermal state, will change the global tidal heating
+          and torque. Layers will automatically recalculate their heating and torques, this function will combine those
+          into a global dissipation rate which is useful for orbital and spin evolutions.
 
-        The layer's complex love number is stored as a Tuple[np.ndarray] where their is an item stored in the tuple for
-        each tidal mode. For a planet that is forced to be spin-sync'd, there will only be one member. NSR worlds can
-        have many tidal modes. These tidal modes will be collapsed down to one number within this method. The collapse
-        procedure requires multiplying the Love number by a coefficient which is unique for each mode. This process is
-        done with the list comprehensions half-way through this method.
-
-        The global Love number is simply a sum of the mode-collapsed, layer Love numbers.
-
-        Anytime a layer Love number is used to find a global value it is first multiple by a scaling factor called the
-        'Tidal Volume Fraction' (denoted by the variable 'scale' below). Scale is used to mimic the affect of a
-        multilayer calculation in a 1D model. By default it is a volume scale of the layer's tidally active region
-        compared to the total planet's volume. This can be turned off in the configuration by setting
-        'use_tvf' to False.
-
-        Parameters
-        ----------
-        set_layer_heating : bool
-            If true then this method will automatically propagate tidal heating to the relevant layers.
+        This method also estimates a global love number based on the tidal heating and ideal tidal heating conditions.
 
         See Also
         --------
         TidalWorld.update_orbit
         """
 
-        # The layer love numbers should have already been updated before this point, so we can simply pull their values
-        layer_loves = [layer.complex_love for layer in self]  # type: List[Tuple[np.ndarray]]
+        layer_heatings = list()
+        layer_ztorques = list()
 
-        global_love_list = list()
-        global_heating_list = list()
-        global_ztorque_list = list()
+        for layer in self:
+            layer_tidal_heating = layer.tidal_heating
+            layer_tidal_ztorque = layer.tidal_ztorque
 
-        for layer, love_by_mode in zip(self, layer_loves):
-            scale = layer.tidal_scale
-            if layer.is_tidal:
-                layer_heating_bymodes = [-np.imag(love) * heating_coeff for love, heating_coeff in
-                                         zip(love_by_mode, self.tidal_heating_coeffs)]
-                layer_ztorque_bymodes = [-np.imag(love) * ztorque_coeff for love, ztorque_coeff in
-                                         zip(love_by_mode, self.tidal_ztorque_coeffs)]
-                layer_heating_sum = self.tidal_susceptibility * scale * sum(layer_heating_bymodes)
-                layer_ztorque_sum = self.tidal_susceptibility * scale * sum(layer_ztorque_bymodes)
-            else:
-                layer_ztorque_sum = 0.
-                layer_heating_sum = 0.
+            if layer_tidal_heating is not None:
+                layer_heatings.append(layer_tidal_heating)
+                if layer_tidal_ztorque is None:
+                    raise IncompatibleModelError("Layer's tidal heating is set, but torque is not.")
+                else:
+                    layer_ztorques.append(layer_tidal_ztorque)
 
-            # Global Values
-            global_love_list.append(scale * sum(love_by_mode))
-            global_heating_list.append(layer_heating_sum)
-            global_ztorque_list.append(layer_ztorque_sum)
-
-            # Update layer values
-            if set_layer_heating:
-                layer.tidal_heating = layer_heating_sum
-
-        self._global_love = sum(global_love_list)
-        self._tidal_heating = sum(global_heating_list)
-        self._tidal_ztorque = sum(global_ztorque_list)
-
-        # Update Spin Derivative
-        if self.use_real_moi:
-            moi = self.moi
-            if moi is None:
-                log('Tried to use real MOI but it was not set: using ideal instead.', level='debug')
-                moi = self.moi_ideal
+        if len(layer_heatings) == 0:
+            # Not layer's tidal heating was set.
+            self._tidal_heating = None
+            self._tidal_ztorque = None
         else:
-            moi = self.moi_ideal
-        if moi is None:
-            raise ParameterMissingError
-        self._derivative_spin = spin_rate_derivative(self.tidal_ztorque, moi)
+            self._tidal_heating = sum(layer_heatings)
+            self._tidal_ztorque = sum(layer_ztorques)
+
+        if self.tidal_heating is not None:
+            denom = np.ones_like(self.tidal_heating)
+            # Estimate Global Love Number
+            if self.eccentricity is not None:
+                denom += 7. * self.eccentricity**2
+            if self.inclination is not None:
+                denom += self.inclination
+            if not self.is_spin_sync:
+                denom += 0.1
+
+            self._global_love = self.tidal_heating / (self.tidal_susceptibility * denom)
+
+            # Update Spin Derivative
+            if self.use_real_moi:
+                moi = self.moi
+                if moi is None:
+                    log('Tried to use real MOI but it was not set: using ideal instead.', level='debug')
+                    moi = self.moi_ideal
+            else:
+                moi = self.moi_ideal
+            if moi is None:
+                raise ParameterMissingError
+            self._derivative_spin = spin_rate_derivative(self.tidal_ztorque, moi)
+
+        else:
+            self._global_love = None
+            self._derivative_spin = None
 
     def update_surface_temperature(self):
         """
@@ -721,9 +698,11 @@ class TidalWorld(WorldBase):
         Parameters
         ----------
         depth_plot : bool = False
-            If true the plot will be versus depth rather than radius.
+            Flag that determines if the plot will be versus depth rather than radius.
         auto_show : bool = False
-            Calls plt.show() if true.
+            Flag that determines plt.show() is called.
+        include_geoterm : bool = False
+            Flag that determines if temperature is included in the plot.
 
         Returns
         -------
@@ -774,46 +753,6 @@ class TidalWorld(WorldBase):
     def insolation_heating(self, value: np.ndarray):
         self._insolation_heating = value
         self.update_surface_temperature()
-
-    @property
-    def tidal_modes(self):
-        return self._tidal_modes
-
-    @tidal_modes.setter
-    def tidal_modes(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def tidal_freqs(self):
-        return self._tidal_freqs
-
-    @tidal_freqs.setter
-    def tidal_freqs(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def tidal_heating_coeffs(self):
-        return self._tidal_heating_coeffs
-
-    @tidal_heating_coeffs.setter
-    def tidal_heating_coeffs(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def tidal_ztorque_coeffs(self):
-        return self._tidal_ztorque_coeffs
-
-    @tidal_ztorque_coeffs.setter
-    def tidal_ztorque_coeffs(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def global_love(self):
-        return self._global_love
-
-    @global_love.setter
-    def global_love(self, value):
-        raise ImproperAttributeHandling
 
     @property
     def tidal_heating(self):

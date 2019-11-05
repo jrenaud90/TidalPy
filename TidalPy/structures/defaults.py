@@ -84,6 +84,8 @@ world_defaults = {
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
         'quality_factor'              : 10.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
         'use_real_moi'                : True
     },
     'basic'   : {
@@ -93,6 +95,8 @@ world_defaults = {
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
         'quality_factor'              : 10.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
         'use_real_moi'                : True
     },
     'gasgiant': {
@@ -102,6 +106,8 @@ world_defaults = {
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
         'quality_factor'              : 10.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
         'use_real_moi'                : True
     },
     'star'    : {
@@ -114,6 +120,8 @@ world_defaults = {
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
         'quality_factor'              : 10.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
         'use_real_moi'                : True
     },
     'tidal'   : {
@@ -123,6 +131,8 @@ world_defaults = {
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
         'quality_factor'              : 10.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
         'use_real_moi'                : True
     }
 }

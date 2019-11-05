@@ -27,23 +27,25 @@ def pull_out_orbit_defaults(planet_obj):
     # Update those dummy variables if information was provided in the configurations
     orbital_freq = planet_obj.config.get('orbital_freq', None)
     orbital_period = planet_obj.config.get('orbital_period', None)
-    if orbital_freq is not None and orbital_period is not None:
-        log(f'Both orbital frequency and period were provided for {planet_obj.name}. '
-            f'Using frequency instead.', level='info')
-    if orbital_freq is None and orbital_period is not None:
-        # Assume orbital period is in days
-        orbital_freq = 2. * np.pi / (orbital_period * 24. * 60. * 60.)
     semi_major_axis = planet_obj.config.get('semi_major_axis', None)
     semi_major_axis_inau = planet_obj.config.get('semi_major_axis_in_au', False)
-    if semi_major_axis is not None:
-        if semi_major_axis_inau:
-            semi_major_axis = Au2m(semi_major_axis)
-        if orbital_freq is not None:
-            log(f'Both orbital frequency (or period) and semi-major axis were provided for {planet_obj.name}. '
-                f'Using frequency instead.', level='info')
-            semi_major_axis = None
     eccentricity = planet_obj.config.get('eccentricity', None)
     inclination = planet_obj.config.get('inclination', None)
+
+    if orbital_period is not None:
+        if orbital_freq is not None:
+            log(f'Both orbital frequency and period were provided for {planet_obj.name}. '
+                f'Using frequency instead.', level='info')
+        else:
+            orbital_freq = np.asarray([2. * np.pi / (orbital_period * 24. * 60. * 60.)])
+    if semi_major_axis is not None:
+        semi_major_axis = np.asarray([semi_major_axis])
+        if semi_major_axis_inau:
+            semi_major_axis = Au2m(semi_major_axis)
+    if eccentricity is not None:
+        eccentricity = np.asarray([eccentricity])
+    if inclination is not None:
+        inclination = np.asarray([inclination])
 
     return orbital_freq, semi_major_axis, eccentricity, inclination
 

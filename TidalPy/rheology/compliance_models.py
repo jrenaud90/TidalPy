@@ -63,8 +63,9 @@ def maxwell(compliance, viscosity, frequency):
     """
 
     real_j = compliance
-    imag_j = -1.0 / (viscosity * frequency)
-    imag_j[np.abs(frequency) <= float_eps] = 0.
+    denominator = (viscosity * frequency)
+    imag_j = -1.0 / denominator
+    imag_j[np.abs(denominator) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j
 
@@ -85,7 +86,7 @@ def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_visco
     denominator = (voigt_comp * voigt_visc * frequency)**2 + 1.
     real_j = voigt_comp / denominator
     imag_j = -voigt_comp**2 * voigt_visc * frequency / denominator
-    imag_j[np.abs(frequency) <= float_eps] = 0.
+    imag_j[np.abs(denominator - 1.) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j
 
@@ -117,11 +118,11 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
     """
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
-    const_term = compliance * (compliance * viscosity * frequency * zeta)**(-alpha) * \
-                 find_factorial(alpha)
+    andrade_term = compliance * viscosity * frequency * zeta
+    const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
-    imag_j[np.abs(frequency) < float_eps] = 0.
+    imag_j[np.abs(andrade_term) <= float_eps] = 0.
     andrade_complex_comp = real_j + 1.0j * imag_j
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
@@ -141,11 +142,11 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
 
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
-    const_term = compliance * (compliance * viscosity * frequency * zeta)**(-alpha) * \
-                 find_factorial(alpha)
+    andrade_term = compliance * viscosity * frequency * zeta
+    const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
-    imag_j[np.abs(frequency) < float_eps] = 0.
+    imag_j[np.abs(andrade_term) <= float_eps] = 0.
     andrade_complex_comp = real_j + 1.0j * imag_j
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp

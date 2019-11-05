@@ -9,7 +9,7 @@ import numpy as np
 from .dilled_planets import dilled_planets_loc
 from .planet_configs import planet_config_loc
 from .. import other_data_locs
-from ..bm.build import build_planet as build_bm_planet
+from ..burnman_interface.build import build_planet as build_bm_planet
 from ..configurations import exit_planets
 from ..exceptions import MissingArgumentError, UnknownModelError, ImplementationException
 from ..initialize import log

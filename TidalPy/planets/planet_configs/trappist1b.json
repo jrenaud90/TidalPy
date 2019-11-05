@@ -16,7 +16,7 @@
         "Core": {
             "type": "iron",
             "is_tidal": false,
-            "radius": 1.204e6,
+            "radius": 1.0e6,
             "material": "Fe_Dewaele",
             "material_source": "other",
             "temperature_mode": "user-defined",
