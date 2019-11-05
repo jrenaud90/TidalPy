@@ -43,9 +43,6 @@ class WorldBase(PhysicalObjSpherical):
 
         super().__init__(config=world_config, call_reinit=False)
 
-        # Pull out switch information
-        self.is_spin_sync = self.config['force_spin_sync']
-
         # Independent State variables
         self._spin_freq = None
         self._time = None
@@ -59,6 +56,7 @@ class WorldBase(PhysicalObjSpherical):
 
         # Other flags
         self.is_host = False
+        self.is_spin_sync = False
 
         # Additional orbit information
         # orbit_location is an index for where a planet is at in the orbit's geometry. This is set by the initialization
@@ -86,6 +84,9 @@ class WorldBase(PhysicalObjSpherical):
 
         self.name = self.config['name']
         log(f'Reinit called for planet: {self.name}', level='debug')
+
+        # Pull out switch information
+        self.is_spin_sync = self.config['force_spin_sync']
 
         # Pull out constants
         self.emissivity = self.config['emissivity']
@@ -488,6 +489,7 @@ class TidalWorld(WorldBase):
                 new_config = {**layer.config, **self.config['layers'][layer.name]}
             else:
                 new_config = self.config['layers'][layer.name]
+            layer.is_spin_sync = self.is_spin_sync
             layer.user_config = new_config
             layer.update_config()
             layer.reinit()
@@ -587,14 +589,7 @@ class TidalWorld(WorldBase):
             raise ParameterMissingError
 
         if self.is_spin_sync:
-            self._tidal_modes, self._tidal_freqs, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
-                spin_sync_modes(orbital_freq, eccentricity, inclination)
-        else:
-            if self.spin_freq is None:
-                raise ParameterMissingError
-
-            self._tidal_modes, self._tidal_freqs, self._tidal_heating_coeffs, self._tidal_ztorque_coeffs = \
-                nsr_modes(orbital_freq, spin_freq, eccentricity, inclination)
+            self._spin_freq = self.orbital_freq
 
         # The semi-major axis should have changed. We can now update the tidal susceptibility
         self._tidal_susceptibility = self.tidal_susceptibility_inflated / semi_major_axis**6

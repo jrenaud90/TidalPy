@@ -146,7 +146,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self.cooling = None  # type: Cooling or None
         self.partial_melt = None  # type: PartialMelt or None
         self.radiogenics = None  # type: Radiogenics or None
-        self.rheology = None  # type: Tides or None
+        self.tides = None  # type: Tides or None
         self.heat_sources = None
 
         # Function Holders
@@ -161,6 +161,7 @@ class ThermalLayer(PhysicalObjSpherical):
         # Flags
         self.is_top_layer = False
         self.is_tidal = False
+        self.is_spin_sync = False
 
     def _build_material_property_interpolation(self):
         """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
@@ -256,8 +257,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.heat_sources.append(lambda: self.radiogenic_heating)
 
         # Setup Tides
-        self.rheology = Tides(self)
-        if self.rheology.model != 'off':
+        self.tides = Tides(self)
+        if self.tides.model != 'off':
             self.is_tidal = True
             self.heat_sources.append(lambda: self.tidal_heating)
         else:
@@ -416,6 +417,7 @@ class ThermalLayer(PhysicalObjSpherical):
             The order can be changed via configuration files, default is 2nd order.
         """
 
+        #FIXME
         if self.tidal_modes is None:
             num_modes = 1
         else:
@@ -423,7 +425,7 @@ class ThermalLayer(PhysicalObjSpherical):
 
         update_world_tides = self.world.orbit is not None
         try:
-            effective_rigid, complex_comp, complex_love = self.rheology.calculate()
+            effective_rigid, complex_comp, complex_love = self.tides.calculate()
         except ParameterMissingError as error:
             if force_calculation:
                 raise error
@@ -537,20 +539,20 @@ class ThermalLayer(PhysicalObjSpherical):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_modes(self) -> Tuple[np.ndarray]:
-        return self.world.tidal_modes
+    def orbital_freq(self) -> np.ndarray:
+        return self.world.orbital_freq
 
-    @tidal_modes.setter
-    def tidal_modes(self, value: Tuple[np.ndarray]):
-        raise ImproperAttributeHandling('Tidal modes should be set at the world, not layer, level.')
+    @orbital_freq.setter
+    def orbital_freq(self, value: np.ndarray):
+        raise ImproperAttributeHandling('Orbital Frequency must be set at the orbit or world, not layer, level.')
 
     @property
-    def tidal_freqs(self) -> Tuple[np.ndarray]:
-        return self.world.tidal_freqs
+    def spin_freq(self) -> np.ndarray:
+        return self.world.spin_freq
 
-    @tidal_freqs.setter
-    def tidal_freqs(self, value: Tuple[np.ndarray]):
-        raise ImproperAttributeHandling('Tidal frequencies should be set at the world, not layer, level.')
+    @spin_freq.setter
+    def spin_freq(self, value: np.ndarray):
+        raise ImproperAttributeHandling('Spin Frequency must be set at the world, not layer, level.')
 
     @property
     def temperature(self) -> np.ndarray:
