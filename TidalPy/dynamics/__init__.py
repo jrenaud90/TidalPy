@@ -1,3 +1,5 @@
+from ..performance import njit
+
 from .duel_dissipation import (eccentricity_derivative as eccentricity_derivative_duel,
                                semi_major_axis_derivative as semi_major_axis_derivative_duel)
 from .single_dissipation import eccentricity_derivative, semi_major_axis_derivative, spin_rate_derivative
@@ -22,6 +24,8 @@ from .modes_l2 import nsr_modes_6 as nsr_modes_l2_t6
 from .modes_l2 import spin_sync_modes as spin_sync_l2
 from .modes_l2 import spin_sync_modes_4 as spin_sync_l2_t4
 from .modes_l2 import spin_sync_modes_6 as spin_sync_l2_t6
+
+max_implemented_order_l = 2
 
 mode_types = {
     # Is NSR or not
