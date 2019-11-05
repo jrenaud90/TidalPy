@@ -56,7 +56,13 @@ else:
 
 # Check to see if this is running in a jupyter notebook. If it is then it is usually not ideal to print log information
 #   to the console.
-from .configurations import print_log_in_jupyter, write_log_in_jupyter
+from .configurations import print_log_in_jupyter, write_log_in_jupyter, format_numpy_floats
+
+if format_numpy_floats:
+    # Format numpy array's so their floats don't print a ton of digits
+    float_formatter = lambda x: f'{x:0.3e}'
+    import numpy as np
+    np.set_printoptions(formatter={'float_kind': float_formatter})
 
 
 running_in_jupyter = False
