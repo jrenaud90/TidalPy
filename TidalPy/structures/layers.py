@@ -9,7 +9,7 @@ import numpy as np
 from TidalPy.tides.tides import Tides
 from .defaults import layer_defaults
 from .. import debug_mode
-from ..bm.conversion import burnman_property_name_conversion, burnman_property_value_conversion
+from ..burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ..configurations import burnman_interpolation_N, burnman_interpolation_method
 from ..exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
                           ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError)

@@ -8,7 +8,7 @@ import burnman
 import dill
 import numpy as np
 
-from ..dynamics.modes import nsr_modes, spin_sync_modes
+from ..dynamics.modes_l2 import nsr_modes, spin_sync_modes
 from ..utilities.numpy_help import value_cleanup
 from .defaults import world_defaults
 from .physical import PhysicalObjSpherical
