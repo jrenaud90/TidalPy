@@ -22,6 +22,7 @@ from ..thermal.partial_melt import PartialMelt
 from ..types import floatarray_like
 from ..utilities.dict_tools import nested_get
 from ..utilities.numpy_help import find_nearest, value_cleanup
+from ..types import ArrayNone
 
 
 if TYPE_CHECKING:
@@ -116,31 +117,32 @@ class ThermalLayer(PhysicalObjSpherical):
         self._build_material_property_interpolation()
 
         # Material properties that might have been affected by new configuration file (BurnMan does not calculate these)
-        self.static_shear_modulus = None  # type: float or None
-        self.thermal_diffusivity = None  # type: float or None
-        self.thermal_conductivity = None  # type: float or None
-        self.heat_fusion = None  # type: float or None
-        self.temp_ratio = None  # type: float or None
-        self.stefan = None  # type: float or None
+        self.static_shear_modulus = None  # type: ArrayNone
+        self.thermal_diffusivity = None  # type: ArrayNone
+        self.thermal_conductivity = None  # type: ArrayNone
+        self.heat_fusion = None  # type: ArrayNone
+        self.temp_ratio = None  # type: ArrayNone
+        self.stefan = None  # type: ArrayNone
 
         # State Variables
-        self._temperature = None  # type: np.ndarray or None
-        self._temperature_lower = None  # type: np.ndarray or None
-        self._melt_fraction = None  # type: np.ndarray or None
-        self._viscosity = None  # type: np.ndarray or None
-        self._shear_modulus = None  # type: np.ndarray or None
-        self._heat_flux = None  # type: np.ndarray or None
-        self._rayleigh = None  # type: np.ndarray or None
-        self._nusselt = None  # type: np.ndarray or None
-        self._blt = None  # type: np.ndarray or None
-        self._effective_rigidity = None  # type: np.ndarray or None
-        self._complex_compliance = None  # type: np.ndarray or None
-        self._complex_love = None  # type: np.ndarray or None
-        self._tidal_heating = None  # type: np.ndarray or None
-        self._radiogenic_heating = None  # type: np.ndarray or None
+        self._temperature = None  # type: ArrayNone
+        self._temperature_lower = None  # type: ArrayNone
+        self._melt_fraction = None  # type: ArrayNone
+        self._viscosity = None  # type: ArrayNone
+        self._shear_modulus = None  # type: ArrayNone
+        self._heat_flux = None  # type: ArrayNone
+        self._rayleigh = None  # type: ArrayNone
+        self._nusselt = None  # type: ArrayNone
+        self._blt = None  # type: ArrayNone
+        self._effective_rigidity = None  # type: ArrayNone
+        self._complex_compliance = None  # type: ArrayNone
+        self._complex_love = None  # type: ArrayNone
+        self._tidal_heating = None  # type: ArrayNone
+        self._tidal_ztorque = None
+        self._radiogenic_heating = None  # type: ArrayNone
 
         # State Derivatives
-        self._diff_temperature = None  # type: np.ndarray or None
+        self._diff_temperature = None  # type: ArrayNone
 
         # Model Holders
         self.cooling = None  # type: Cooling or None
@@ -317,8 +319,7 @@ class ThermalLayer(PhysicalObjSpherical):
 
         self.update_cooling()
         self.update_tides()
-        if self.world is not None and self.world.tidal_heating_coeffs is not None and \
-                self.world.tidal_ztorque_coeffs is not None:
+        if self.world is not None and self.world.orbital_freq is not None:
             self.world.update_global_tides()
 
     def update_radiogenics(self, force_calculation: bool = False):
@@ -390,58 +391,51 @@ class ThermalLayer(PhysicalObjSpherical):
         return cooling_flux, blt, rayleigh, nusselt
 
     def update_tides(self, force_calculation: bool = False, call_from_world: bool = False) \
-            -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """ Calculate, and update the layer's state with, tidal and rheological parameters based on current state
+            -> Tuple[ArrayNone, ArrayNone]:
+        """ Calculate, and update the layer's state variables with tidal heating and torques based on its current state
 
-        Using the self.rheology class and the layer's current temperature, viscosity, shear modulus, and tidal modes,' \
-        the layer will attempt to calculate a new effective rigidity, complex compliance, complex love number, and
-        tell the planet that it should update its own global calculations.
+        Using the self.tides class and the layer's current temperature, viscosity, shear modulus, and frequencies;
+          the layer will attempt to calculate a new effective rigidity, complex compliance, and complex love number,
+          ultimately it will find tidal heating and torque then inform the planet that it should update its own
+          global calculations.
 
-        Viscosity, Shear Modulus, and Tidal Modes are required inputs to most rheological models. If a missing parameter
-        is raised then the method will exit unless force_calculation is set to True.
+        Viscosity, Shear Modulus, and Orbital Freq are required inputs to most rheological models. If the planet is not
+          forced into spin-sync, then Spin Freq is also required. If a missing parameter is raised then the method
+          will exit unless force_calculation is set to True.
 
         Parameters
         ----------
-        force_calculation : bool
+        force_calculation : bool = False
             Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
+        call_from_world : bool = False
+            Flag that tells the function not to inform the planet that tides have been updated.
 
         Returns
         -------
-        effective_rigid : np.ndarray or None
-            Effective rigidity of the layer (dependent upon shear modulus) [unitless]
-            The order can be changed via configuration files, default is 2nd order.
-        complex_comp : np.ndarray or None
-            Complex compliance of the layer in [Pa-1]
-        complex_love : np.ndarray or None
-            Complex Love number, k, of the layer in [Pa-1]
-            The order can be changed via configuration files, default is 2nd order.
+        total_heating : np.ndarray
+            Total Tidal Heating [W]
+        total_torque : np.ndarray
+            Total Tidal Torque [N m]
         """
 
-        #FIXME
-        if self.tidal_modes is None:
-            num_modes = 1
-        else:
-            num_modes = len(self.tidal_modes)
-
         update_world_tides = self.world.orbit is not None
+
         try:
-            effective_rigid, complex_comp, complex_love = self.tides.calculate()
+            tidal_heating, tidal_ztorque = self.tides.calculate()
         except ParameterMissingError as error:
             if force_calculation:
                 raise error
             else:
                 update_world_tides = False
-                effective_rigid = tuple([np.asarray(0., dtype=np.float) for _ in range(num_modes)])
-                complex_comp = tuple([np.asarray(0., dtype=np.complex) for _ in range(num_modes)])
-                complex_love = tuple([np.asarray(0., dtype=np.complex) for _ in range(num_modes)])
+                tidal_heating, tidal_ztorque = None, None
 
-        self._effective_rigidity, self._complex_compliance, self._complex_love = \
-            effective_rigid, complex_comp, complex_love
+        self._tidal_heating = tidal_heating
+        self._tidal_ztorque = tidal_ztorque
 
         if update_world_tides and not call_from_world:
             self.world.update_global_tides()
 
-        return effective_rigid, complex_comp, complex_love
+        return tidal_heating, tidal_ztorque
 
     def update_strength(self) -> Tuple[np.ndarray, np.ndarray]:
         """ Calculate viscosity and shear modulus and update the layer's state with new values.
@@ -587,8 +581,10 @@ class ThermalLayer(PhysicalObjSpherical):
         # TODO: Are these forces still needed or are the a relic of past code?
         force_cooling = True
         force_tides = False
-        if self.tidal_modes is not None:
-            force_tides = True
+        if self.orbital_freq is not None:
+            if self.spin_freq is not None or self.is_spin_sync:
+                force_tides = True
+
         self.update_tides(force_calculation=force_tides)
         self.update_cooling(force_calculation=force_cooling)
 
@@ -660,7 +656,8 @@ class ThermalLayer(PhysicalObjSpherical):
         force_tides = False
         if self.temperature is not None:
             force_cooling = True
-            if self.tidal_modes is not None:
+        if self.orbital_freq is not None and self.shear is not None:
+            if self.spin_freq is not None or self.is_spin_sync:
                 force_tides = True
         self.update_tides(force_calculation=force_tides)
         self.update_cooling(force_calculation=force_cooling)
@@ -693,7 +690,8 @@ class ThermalLayer(PhysicalObjSpherical):
         force_tides = False
         if self.temperature is not None:
             force_cooling = True
-            if self.tidal_modes is not None:
+        if self.orbital_freq is not None and self.viscosity is not None:
+            if self.spin_freq is not None or self.is_spin_sync:
                 force_tides = True
         self.update_tides(force_calculation=force_tides)
         self.update_cooling(force_calculation=force_cooling)
@@ -733,28 +731,12 @@ class ThermalLayer(PhysicalObjSpherical):
                 'The thermal boundary layer thickness is calculated whenever self.temperature is changed')
 
     @property
-    def complex_compliance(self) -> Tuple[np.ndarray]:
-        return self._complex_compliance
+    def tidal_susceptibility(self) -> np.ndarray:
+        return self.world.tidal_susceptibility
 
-    @complex_compliance.setter
-    def complex_compliance(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def complex_love(self):
-        return self._complex_love
-
-    @complex_love.setter
-    def complex_love(self, value) -> Tuple[np.ndarray]:
-        raise ImproperAttributeHandling
-
-    @property
-    def effective_rigidity(self):
-        return self._effective_rigidity
-
-    @effective_rigidity.setter
-    def effective_rigidity(self, value):
-        raise ImproperAttributeHandling
+    @tidal_susceptibility.setter
+    def tidal_susceptibility(self, value):
+        raise ImproperAttributeHandling('Tidal susceptibility must be set at the orbit or world, not layer, level.')
 
     @property
     def tidal_heating(self):
@@ -767,6 +749,18 @@ class ThermalLayer(PhysicalObjSpherical):
             value = np.asarray(value)
 
         self._tidal_heating = value
+
+    @property
+    def tidal_ztorque(self):
+        return self._tidal_ztorque
+
+    @tidal_ztorque.setter
+    def tidal_ztorque(self, value):
+
+        if type(value) != np.ndarray:
+            value = np.asarray(value)
+
+        self._tidal_ztorque = value
 
     @property
     def radiogenic_heating(self):

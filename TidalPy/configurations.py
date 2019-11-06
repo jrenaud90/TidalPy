@@ -21,6 +21,9 @@ burnman_interpolation_N = 50
 #  If you are having problems try setting this to False.
 use_numba = False
 
+# Formatting preferences
+format_numpy_floats = True
+
 # atexit invocations
 exit_planets = True
 

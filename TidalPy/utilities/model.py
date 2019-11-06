@@ -84,9 +84,9 @@ class LayerModel(ModelHolder):
 
         self.layer = layer
         self.layer_type = layer.type
-        world = self.layer.world
-        if self.layer.world is not None:
-            world_name = world.name
+        self.world = self.layer.world
+        if self.world is not None:
+            world_name = self.world.name
         else:
             world_name = 'Unknown_World'
         if self.config_key is not None:
