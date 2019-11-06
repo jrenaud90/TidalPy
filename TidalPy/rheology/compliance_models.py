@@ -34,19 +34,19 @@ def off(compliance, viscosity, frequency):
 
 
 @njit
-def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta, planet_k2):
+def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
     """ Fixed-Q Tides
 
-    # TODO: Only works for order-l = 2
 
-    !TPY_args const: quality_factor, planet_beta, planet_k2
+    !TPY_args const: quality_factor, planet_beta
+
+
     """
 
     real_j = -19. / (2. * planet_beta)
     # The (1 + 0*w) hack is there to ensure that imag_j shares shape with the larger of the two: compliance or frequency
-    imag_j = - (quality_factor / planet_k2) * (3. / 2.) * (19. / (2. * planet_beta)) + \
-             (0. * compliance * viscosity * frequency)
-
+    imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2) \
+        * (1. + 0. * frequency)
     imag_j[np.abs(frequency) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j

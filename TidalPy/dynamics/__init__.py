@@ -4,6 +4,8 @@ from .duel_dissipation import (eccentricity_derivative as eccentricity_derivativ
                                semi_major_axis_derivative as semi_major_axis_derivative_duel)
 from .single_dissipation import eccentricity_derivative, semi_major_axis_derivative, spin_rate_derivative
 
+# Minimum tidal mode in [rad s-1]
+MODE_ZERO_TOL = 1.e-12
 
 diff_eqs_duel_dissipation = {
     'eccentricity'   : eccentricity_derivative_duel,

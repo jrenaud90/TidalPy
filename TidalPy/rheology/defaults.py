@@ -1,6 +1,6 @@
 rheology_param_defaults = {
     'ice' : {
-        'model'                  : '2order',
+        'model'                  : 'regular',
         'solid_viscosity'        : {
             'model'                     : 'arrhenius',
             # Matching Moore2006 for Volume Diffusion
@@ -22,7 +22,6 @@ rheology_param_defaults = {
             'molar_activation_energy': 1.62e4,
             'molar_activation_volume': 0.0
         },
-        'order_l'                : 2,
         'compliance_model'       : 'Maxwell',
         'voigt_compliance_offset': .2,
         'voigt_viscosity_offset' : .02,
@@ -32,7 +31,7 @@ rheology_param_defaults = {
         'andrade_critical_freq'  : 2.0e-7
     },
     'rock': {
-        'model'                  : '2order',
+        'model'                  : 'regular',
         'solid_viscosity'        : {
             'model'                  : 'reference',
             'reference_viscosity'    : 1.0e22,
@@ -47,7 +46,6 @@ rheology_param_defaults = {
             'molar_activation_energy': 6.64e-20,
             'molar_activation_volume': 0.0
         },
-        'order_l'                : 2,
         'compliance_model'       : 'Maxwell',
         'voigt_compliance_offset': .2,
         'voigt_viscosity_offset' : .02,
@@ -57,7 +55,7 @@ rheology_param_defaults = {
         'andrade_critical_freq'  : 2.0e-7
     },
     'iron': {
-        'model'           : 'off',
+        'model'            : 'off',
         # These are just placeholders. Right now we do not calculate the tides in iron layer, so no need to have
         #    correct values at the moment.
         'solid_viscosity' : {
