@@ -31,7 +31,6 @@ def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricit
     modes = list()
     mode_names = list()
 
-    m_i = 0
     for mode_name, mode, coeff, torque_coeff in modes_coeffs:
         sgn = np.sign(mode)
         freq = np.abs(mode)
@@ -50,8 +49,6 @@ def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricit
         mode_names.append(mode_name)
         heating_coeffs.append(heating_coeff)
         ztorque_coeffs.append(ztorque_coeff)
-
-        m_i += 1
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
@@ -93,7 +90,6 @@ def spin_sync_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
     modes = list()
     mode_names = list()
 
-    m_i = 0
     for mode_name, mode, coeff, torque_coeff in modes_coeffs:
         sgn = np.sign(mode)
         freq = np.abs(mode)
@@ -112,8 +108,6 @@ def spin_sync_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
         mode_names.append(mode_name)
         heating_coeffs.append(heating_coeff)
         ztorque_coeffs.append(ztorque_coeff)
-
-        m_i += 1
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
@@ -175,7 +169,6 @@ def spin_sync_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
     modes = list()
     mode_names = list()
 
-    m_i = 0
     for mode_name, mode, coeff, torque_coeff in modes_coeffs:
         sgn = np.sign(mode)
         freq = np.abs(mode)
@@ -194,8 +187,6 @@ def spin_sync_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
         mode_names.append(mode_name)
         heating_coeffs.append(heating_coeff)
         ztorque_coeffs.append(ztorque_coeff)
-
-        m_i += 1
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
@@ -263,7 +254,6 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
     modes = list()
     mode_names = list()
 
-    m_i = 0
     for mode_name, mode, coeff, torque_multi in modes_coeffs:
         sgn = np.sign(mode)
         freq = np.abs(mode)
@@ -282,8 +272,6 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
         mode_names.append(mode_name)
         heating_coeffs.append(heating_coeff)
         ztorque_coeffs.append(ztorque_coeff)
-
-        m_i += 1
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
@@ -391,7 +379,6 @@ def nsr_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
     modes = list()
     mode_names = list()
 
-    m_i = 0
     for mode_name, mode, coeff, torque_multi in modes_coeffs:
         sgn = np.sign(mode)
         freq = np.abs(mode)
@@ -410,8 +397,6 @@ def nsr_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         mode_names.append(mode_name)
         heating_coeffs.append(heating_coeff)
         ztorque_coeffs.append(ztorque_coeff)
-
-        m_i += 1
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
@@ -555,7 +540,6 @@ def nsr_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
     modes = list()
     mode_names = list()
 
-    m_i = 0
     for mode_name, mode, coeff, torque_multi in modes_coeffs:
         sgn = np.sign(mode)
         freq = np.abs(mode)
@@ -574,8 +558,6 @@ def nsr_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         mode_names.append(mode_name)
         heating_coeffs.append(heating_coeff)
         ztorque_coeffs.append(ztorque_coeff)
-
-        m_i += 1
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
