@@ -4,7 +4,8 @@ from typing import Tuple
 
 import numpy as np
 from . import calculate_tides
-from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError)
+from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError,
+                          BadValueError)
 from ..rheology import andrade_frequency_models, compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
 from ..rheology.defaults import rheology_param_defaults
@@ -35,9 +36,16 @@ class Tides(LayerModel):
         self.config['planet_beta'] = self.layer.world.beta
         self.config['quality_factor'] = self.layer.world.fixed_q
 
-        # TODO:
-        if self.order_l > 2:
-            raise ImplementationException(f'Tidal order l = {self.order_l} has not been fully implemented in TidalPy.')
+        if int(self.order_l) != self.order_l or self.order_l < 2:
+            raise BadValueError('Tidal order l must be an integer >= 2')
+        if self.order_l > 3:
+            raise ImplementationException('Tidal order l > 3 has not been fully implemented in TidalPy.')
+
+        if int(self.orbital_truncation_level) != self.orbital_truncation_level or \
+                self.orbital_truncation_level % 2 != 0 or self.orbital_truncation_level < 2:
+            raise BadValueError('Orbital truncation level must be an even integer >= 2')
+        if self.orbital_truncation_level > 6:
+            raise ImplementationException('Orbital truncation level > 6 has not been fully implemented in TidalPy.')
 
         # Setup Love number calculator
         self.full_calculation = True

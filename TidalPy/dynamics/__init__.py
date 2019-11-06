@@ -27,6 +27,13 @@ from .modes_l2 import spin_sync_modes as spin_sync_l2
 from .modes_l2 import spin_sync_modes_4 as spin_sync_l2_t4
 from .modes_l2 import spin_sync_modes_6 as spin_sync_l2_t6
 
+from .modes_l3 import nsr_modes as nsr_modes_l3
+from .modes_l3 import nsr_modes_4 as nsr_modes_l3_t4
+from .modes_l3 import nsr_modes_6 as nsr_modes_l3_t6
+from .modes_l3 import spin_sync_modes as spin_sync_l3
+from .modes_l3 import spin_sync_modes_4 as spin_sync_l3_t4
+from .modes_l3 import spin_sync_modes_6 as spin_sync_l3_t6
+
 max_implemented_order_l = 2
 
 mode_types = {
@@ -38,6 +45,12 @@ mode_types = {
             2: nsr_modes_l2,
             4: nsr_modes_l2_t4,
             6: nsr_modes_l2_t6
+        },
+        3: {
+            # Truncation level
+            2: nsr_modes_l3,
+            4: nsr_modes_l3_t4,
+            6: nsr_modes_l3_t6
         }
     },
     False: {
@@ -45,6 +58,11 @@ mode_types = {
             2: spin_sync_l2,
             4: spin_sync_l2_t4,
             6: spin_sync_l2_t6
+        },
+        3: {
+            2: spin_sync_l3,
+            4: spin_sync_l3_t4,
+            6: spin_sync_l3_t6
         }
     }
 }
