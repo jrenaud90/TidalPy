@@ -16,7 +16,7 @@
         "Core": {
             "type": "iron",
             "is_tidal": false,
-            "radius": 0.6e6,
+            "radius": 3.0e6,
             "material": "Liquid_Fe_Anderson",
             "material_source": "other",
             "temperature_mode": "user-defined",
@@ -25,7 +25,7 @@
         "Upper_Mantle": {
             "type": "rock",
             "is_tidal": true,
-            "radius": 2.50e6,
+            "radius": 5.50e6,
             "material": "perovskite",
             "material_source": "DKS_2013_solids",
             "temperature_mode": "adiabatic",
