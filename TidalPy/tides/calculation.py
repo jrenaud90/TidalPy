@@ -6,6 +6,31 @@ from .love_1d import complex_love_general, effective_rigidity_general
 from ..performance import njit
 from ..types import FloatArray
 from ..dynamics import mode_types
+from ..constants import G
+
+
+@njit
+def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: np.ndarray) -> np.ndarray:
+    """ Calculate Tidal Susceptibility for a given target radius, host mass, and their separation.
+
+    Parameters
+    ----------
+    host_mass : float
+        Mass of central host [kg]
+    target_radius : float
+        Radius of target body [m]
+    semi_major_axis : np.ndarray
+
+    Returns
+    -------
+    tidal_suscept : np.ndarray
+        Tidal Susceptibility [N m]
+
+    """
+
+    tidal_suscept = (3. / 2.) * G * host_mass**2 * target_radius**5 / semi_major_axis**6
+
+    return tidal_suscept
 
 
 @njit
