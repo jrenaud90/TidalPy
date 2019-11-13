@@ -4,8 +4,8 @@ from inspect import getmembers, isfunction
 from typing import List, Union
 
 from numba import njit
-from numba.targets.registry import CPUDispatcher
-
+from numba.targets.registry import CPUTarget, CPUDispatcher
+from numba.array_analysis import MAP_TYPES
 from .classes import ConfigHolder
 from .dict_tools import nested_get
 from .. import debug_mode
@@ -140,6 +140,10 @@ class ModelSearcher(ConfigHolder):
         if isfunction(potential_func):
             func_check = True
         if isinstance(potential_func, CPUDispatcher):
+            func_check = True
+        if isinstance(potential_func, CPUTarget):
+            func_check = True
+        if type(potential_func) in MAP_TYPES:
             func_check = True
 
         if func_check:
