@@ -7,9 +7,46 @@ from .configurations import use_numba
 if use_numba:
     import numba
     njit = numba.njit
+    vectorize = numba.vectorize
+    float64 = numba.float64
+    int64 = numba.int64
 else:
+    vectorize = np.vectorize
+    float64 = np.float64
+    int64 = np.int64
     def njit(func):
         return func
+
+def tpy_vectorize(func_sig: list = None, nopython: bool = True, target='cpu', cache: bool = False):
+
+    if func_sig is None:
+        func_sig = list()
+
+    if use_numba:
+
+        def outer_wrap(func):
+
+            func_doc = func.__doc__
+            func_doc += '\nWraps\n-----\nnjit=True\nvectorize=True'
+            func_name = func.__name__
+            new_func = vectorize(func_sig, nopython=nopython, target=target, cache=cache)(func)
+            new_func.__doc__ = func_doc
+            new_func.__name__ = func_name
+            return new_func
+    else:
+
+        def outer_wrap(func):
+
+            func_doc = func.__doc__
+            func_doc += '\nWraps\n-----\nnjit=True\nvectorize=True'
+            func_name = func.__name__
+            new_func = vectorize(func, cache=cache)
+            new_func.__doc__ = func_doc
+            new_func.__name__ = func_name
+            return new_func
+
+    return outer_wrap
+
 
 # Special functions that work with njit
 # njit does not support wrapping around scipy's gamma function. Instead we use a lookup table technique. This actually
