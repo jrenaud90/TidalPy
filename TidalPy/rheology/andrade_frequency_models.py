@@ -3,11 +3,11 @@
 
 import numpy as np
 
-from ..performance import njit
+from ..performance import tpy_vectorize
 from ..types import float_lognat_max
 
 
-@njit
+@tpy_vectorize(['float64(float64, float64)'])
 def off(baseline_zeta, frequency):
     """ Andrade Parameter Frequency Dependence: Off
 
@@ -19,7 +19,7 @@ def off(baseline_zeta, frequency):
     return baseline_zeta
 
 
-@njit
+@tpy_vectorize(['float64(float64, float64, float64)'])
 def exponential(baseline_zeta, frequency, andrade_critical_freq):
     """ Andrade Parameter Frequency Dependence: Exponential
 
@@ -27,15 +27,16 @@ def exponential(baseline_zeta, frequency, andrade_critical_freq):
 
     """
 
+    freq_ratio = andrade_critical_freq / frequency
     # Calculate the frequency ratio to avoid huge values leading to NANs or INFs.
-    _freq_ratio = andrade_critical_freq / frequency
-    _freq_ratio[_freq_ratio > float_lognat_max] = float_lognat_max
+    if freq_ratio > float_lognat_max:
+        freq_ratio = float_lognat_max
 
-    zeta = baseline_zeta * np.exp(_freq_ratio)
+    zeta = baseline_zeta * np.exp(freq_ratio)
     return zeta
 
 
-@njit
+@tpy_vectorize(['float64(float64, float64, float64)'])
 def jump(baseline_zeta, frequency, andrade_critical_freq):
     """ Andrade Parameter Frequency Dependence: Jump
 
@@ -43,13 +44,16 @@ def jump(baseline_zeta, frequency, andrade_critical_freq):
 
     """
 
-    zeta = baseline_zeta
-    zeta[frequency >= andrade_critical_freq] = 1.e40
+    if frequency >= andrade_critical_freq:
+        # Just have it jump to something large - Large zeta makes Andrade --> Maxwell, Sundberg --> Burgers
+        zeta = 1.e40
+    else:
+        zeta = baseline_zeta
 
     return zeta
 
 
-@njit
+@tpy_vectorize(['float64(float64, float64, float64)'])
 def elbow(baseline_zeta, frequency, andrade_critical_freq):
     """ Andrade Parameter Frequency Dependence: Elbow
 
@@ -57,9 +61,11 @@ def elbow(baseline_zeta, frequency, andrade_critical_freq):
 
     """
 
-    _freq_ratio = andrade_critical_freq / frequency
+    freq_ratio = andrade_critical_freq / frequency
 
-    zeta = baseline_zeta * _freq_ratio
-    zeta[frequency >= andrade_critical_freq] = baseline_zeta
+    if frequency >= andrade_critical_freq:
+        zeta = baseline_zeta * freq_ratio
+    else:
+        zeta = baseline_zeta
 
     return zeta

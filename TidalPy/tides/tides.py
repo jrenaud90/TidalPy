@@ -75,6 +75,10 @@ class Tides(LayerModel):
         self.compliance_func = comp_func
         self.compliance_inputs = comp_input
 
+        # See if this compliance function has additional frequency dependence
+        self.andrade_freq_func = self.config['andrade_freq_func']
+        self.andrade_freq_func_inputs = self.config['andrade_freq_params']
+
         # Switches
         self.is_spin_sync = self.layer.is_spin_sync
 
