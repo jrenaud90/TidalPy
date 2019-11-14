@@ -222,29 +222,24 @@ class ModelSearcher(ConfigHolder):
 
     def find_model(self, model_name: str = None, parameters: dict = None, default_key: Union[str, List[str]] = None):
 
-        # Find the default location of parameters
-        defaults = None
-        if default_key is None and self.default_key is None:
-
+        # Update self.config based on function input
+        if default_key is None:
+            default_key = self.default_key
+        if default_key is None:
             if self.defaults_require_key:
                 raise MissingArgumentError
             else:
                 defaults = self.default_config
-
-        elif default_key is None and self.default_key is not None:
-            default_key = self.default_key
-
-        if defaults is None:
+        else:
             defaults = nested_get(self.default_config, default_key, raiseon_nolocate=True)
 
-        # Update self.config based on function input and defaults
         if parameters is not None:
             user = parameters
         else:
             user = dict()
         config = {**defaults, **user}
 
-        # Try to find the model
+        # Find Model
         try:
             if model_name is None:
                 model_name = config['model']
