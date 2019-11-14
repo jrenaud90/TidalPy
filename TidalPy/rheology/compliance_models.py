@@ -129,6 +129,14 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
     andrade_term = compliance * viscosity * frequency * zeta
     const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
+    imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+    imag_j[np.abs(andrade_term) <= float_eps] = 0.
+    andrade_complex_comp = real_j + 1.0j * imag_j
+
+    complex_compliance = maxwell_complex_comp + andrade_complex_comp
+
+    return complex_compliance
+
 
     if np.abs(frequency) <= float_eps:
         imag_j = 0.
