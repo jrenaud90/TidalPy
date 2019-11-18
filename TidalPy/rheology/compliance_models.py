@@ -14,7 +14,7 @@ How To Implement a New Tides:
 
 import numpy as np
 
-from ..performance import find_factorial, tpy_vectorize, njit
+from ..performance import find_factorial, njit
 from ..types import float_eps
 
 
@@ -53,7 +53,8 @@ def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
 
     return complex_compliance
 
-@tpy_vectorize(['complex128(float64, float64, float64)'])
+
+@njit
 def maxwell(compliance, viscosity, frequency):
     """ Maxwell Tides
 
@@ -62,14 +63,14 @@ def maxwell(compliance, viscosity, frequency):
     """
 
     real_j = compliance
-    if np.abs(frequency) <= float_eps:
-        imag_j = 0.
-    else:
-        imag_j = -1. / (viscosity * frequency)
+    denominator = (viscosity * frequency)
+    imag_j = -1.0 / denominator
+    imag_j[np.abs(denominator) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j
 
     return complex_compliance
+
 
 @njit
 def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
