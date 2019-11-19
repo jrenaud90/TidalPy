@@ -1,18 +1,16 @@
 import copy
 import operator
-from inspect import getmembers, isfunction
+from inspect import getmembers
 from typing import List, Union
 
 from numba import njit
-from numba.targets.registry import CPUTarget, CPUDispatcher
-from numba.array_analysis import MAP_TYPES
 from .classes import ConfigHolder
 from .dict_tools import nested_get
 from .. import debug_mode
 from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
                           UnknownModelError)
 from ..initialize import log
-
+from .functional_tools import is_function
 
 general_func_reject_list = [
     njit,
@@ -136,15 +134,7 @@ class ModelSearcher(ConfigHolder):
     def is_function(self, potential_func) -> bool:
         """ Checks if a function is a python or numba function """
 
-        func_check = False
-        if isfunction(potential_func):
-            func_check = True
-        if isinstance(potential_func, CPUDispatcher):
-            func_check = True
-        if isinstance(potential_func, CPUTarget):
-            func_check = True
-        if type(potential_func) in MAP_TYPES:
-            func_check = True
+        func_check = is_function(potential_func)
 
         if func_check:
             if potential_func.__name__ in general_func_reject_list:
@@ -199,8 +189,8 @@ class ModelSearcher(ConfigHolder):
                             live_arg_sigs = live_arg.split('.')
                             if live_arg_sigs[0] != 'self':
                                 raise TidalPyException('Live args must start with "self".')
-                            live_ara_signature = '.'.join(live_arg_sigs[1:])
-                            live_arg_list.append(operator.attrgetter(live_ara_signature))
+                            live_arg_signature = '.'.join(live_arg_sigs[1:])
+                            live_arg_list.append(operator.attrgetter(live_arg_signature))
                             new_live_args = lambda _self: tuple([_input(_self) for _input in live_arg_list])
                     live_args[model] = new_live_args
                     largs_found = True

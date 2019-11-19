@@ -46,28 +46,25 @@ class ComplianceModelSearcher(ModelSearcher):
             raise MissingArgumentError('No user provided Model and no fallback found in defaults')
 
         # Add in frequency check to the parameters
-        use_frequency = False
-        if model_name.lower() in ['andrade_freq', 'sundberg_freq', 'sundberg_cooper_freq']:
+        if model_name[-5:] == '_freq':
+            if model_name[0:-5] not in ['andrade', 'sundberg']:
+                raise IncompatibleModelConfigError('Only the Andrade and Sundberg-Cooper rheologies can have '
+                                                   'additional frequency dependency.')
+
             frequency_model = config['andrade_frequency_model']
+            frequency_func = self.known_frequency_models[frequency_model]
+            needed_frequency_args = self.frequency_args_needed[frequency_model]
 
-            if model_name[-5:] == '_freq':
-                use_frequency = True
+            print(needed_frequency_args)
 
-            if use_frequency:
-                if 'andrade' not in model_name or 'sundberg' not in model_name:
-                    raise IncompatibleModelConfigError('Only the Andrade and Sundberg-Cooper rheologies can have '
-                                                 'additional frequency dependency.')
-                frequency_func = self.known_frequency_models[frequency_model]
-                needed_frequency_args = self.frequency_args_needed[frequency_model]
+            old_config = self.config
+            self._config = config
+            frequency_inputs = self.build_inputs(needed_frequency_args)
+            self._config = old_config
 
-                old_config = self.config
-                self._config = config
-                frequency_inputs = self.build_inputs(needed_frequency_args)
-                self._config = old_config
-
-                # Add the frequency model information to the parameters dict. It will be used in the next setup step.
-                self.config['andrade_freq_params'] = frequency_inputs
-                self.config['andrade_freq_func'] = frequency_func
+            # Add the frequency model information to the parameters dict. It will be used in the next setup step.
+            self.config['andrade_freq_params'] = frequency_inputs
+            self.config['andrade_freq_func'] = frequency_func
 
         return super().find_model(model_name, parameters, default_key)
 
