@@ -4,7 +4,7 @@ from typing import Tuple
 
 import numpy as np
 
-from ..performance import njit
+from TidalPy.performance import njit
 
 
 @njit

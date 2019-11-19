@@ -1,6 +1,6 @@
 from TidalPy.planets import build_planet
 from TidalPy.orbit import Orbit
-from TidalPy.utilities.conversions import sec2myr, myr2sec
+from TidalPy.tools.conversions import sec2myr, myr2sec
 from TidalPy.utilities.progress import progress_bar
 
 sol = build_planet('sol')

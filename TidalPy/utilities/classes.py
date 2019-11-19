@@ -2,27 +2,32 @@ import copy
 import os
 import warnings
 from collections import OrderedDict
-from typing import List
+from typing import Any, Tuple
 
 import json5
 import numpy as np
 
-from .. import auto_write, debug_mode
+from .. import auto_write, debug_mode, version
 from ..configurations import give_configs_subscript
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError
 from ..io import inner_save_dir, unique_path
+from .json_utils import save_dict_to_json
 
 
 class TidalPyClass:
     """ All functional classes used in TidalPy inherit from this class
     """
 
+    tidalpy_vers = version
+
     def __init__(self):
         self.pyname = f'{self.__class__.__name__}'
 
 
 class ConfigHolder(TidalPyClass):
-    """ A helper class to take in and hold onto configurations that are both user provided and a default (hardcoded)
+    """ Classes which contain a parameter dictionary inherit from this class
+
+    Provides functionality to store a default dictionary and override those defaults with a user provided dictionary.
     """
 
     default_config = None
@@ -35,13 +40,24 @@ class ConfigHolder(TidalPyClass):
             assert type(replacement_config) in [dict, type(None)]
             assert type(self.default_config) in [dict, type(None)]
 
+        # Make a copy of the default dictionary on instantiation
+        self.default_config = copy.deepcopy(self.default_config)
+
+        # Add class information to the default dictionary
+        if self.default_config is not None:
+            self.default_config['pyclass'] = self.__class__.__name__
+            self.default_config['pyname'] = self.pyname
+            self.default_config['TidalPy_Vers'] = version
+
         # State Variables
-        self._user_config = replacement_config
         self._config = None
         self._old_config = None
+        # Make a copy of the replacement config to avoid any later mutations
+        self._replacement_config = copy.deepcopy(replacement_config)
 
         # Flags
         self.config_constructed = False
+        self.reinit_called = False
 
         # Merge the configurations
         self.update_config()
@@ -55,135 +71,201 @@ class ConfigHolder(TidalPyClass):
             a dill/pickle file
         """
 
-        self._old_config = copy.deepcopy(self.config)
+        self.reinit_called = True
 
-    def replace_config(self, new_config: dict, delete_and_replace: bool = False):
-        """ Replace the current user_config and update self.config with changes
+    def replace_config(self, replacement_config: dict, force_default_merge: bool = False):
+        """ Replaces the current configuration dictionary with a user provided one
 
         Parameters
         ----------
-        new_config : dict
-            New configuration dictionary
-        delete_and_replace : bool = False
-            If true then the old config will not be used as a baseline
+        replacement_config : dict
+            New replacement config that will be used along with the default configurations to make a new config file.
+        force_default_merge : bool = False
+            If True then the default dict will be used to merge new replacement dicts - even if there is
+                a config dict present.
+
+        """
+
+        if debug_mode:
+            assert type(replacement_config) == dict
+
+        self._replacement_config = copy.deepcopy(replacement_config)
+        self.update_config(force_default_merge=force_default_merge)
+
+    def get_param(self, param_name: str, raise_missing: bool = True, fallback: Any = None):
+        """ Retrieves a parameter from the configuration dictionary
+
+        User can set if, upon a missing parameter, an exception is raised or a fallback is used instead.
+
+        Parameters
+        ----------
+        param_name : str
+            Name of parameter.
+        raise_missing : bool = True
+            Flag to determine if an exception is raised when a parameter is not found.
+        fallback : Any
+            Fallback if a parameter is not found and an exception is not raised.
+
+        Returns
+        -------
+        param : Any
+            If found, the desired parameter, otherwise fallback is returned.
+        """
+
+        if param_name not in self.config:
+            if raise_missing:
+                raise ParameterMissingError(f'Parameter {param_name} missing from user provided and default '
+                                            f'configurations for class: {self}.')
+            else:
+                param = fallback
+        else:
+            param = self.config[param_name]
+
+        return param
+
+    def update_config(self, force_default_merge: bool = False) -> dict:
+        """ Combines the default and provided replacement configurations into one dictionary.
+
+        Replacement config's parameters override the default config's parameters.
+        Parameters
+        ----------
+        force_default_merge : bool = False
+            If True then the default dict will be used to merge new replacement dicts - even if there is
+                a config dict present.
 
         Returns
         -------
         config : dict
-            self.config that has the old config overwritten by the new one (depending on if delete_and_replace is true).
+            The post-combined configuration dictionary.
 
         """
 
-        self._old_config = copy.deepcopy(self.config)
+        no_default = False
+        default_config = self.default_config
+        if default_config is None:
+            no_default = True
+            default_config = dict()
 
-        if delete_and_replace:
-            self.default_config = None
+        if not force_default_merge:
+            # Check if there is a current config file. Use it as a merge instead of the default dict.
+            if self.config is not None:
+                default_config = self.config
+                if no_default:
+                    no_default = False
+
+        no_replacement = False
+        replacement_config = self.replacement_config
+        if replacement_config is None:
+            no_replacement = True
+            replacement_config = dict()
+
+        if self.config is not None:
+            # Store old configurations just in case the user wants to see when a change was made.
+            self._old_config = self.config
+
+        # Combine the default and replacement configs. Replacement takes precedence.
+        if no_default and no_replacement:
+            # Nothing to replace. Leave the config alone (it is probably 'None')
+            pass
         else:
-            self.default_config = self.config
-        self._user_config = new_config
-        self.update_config()
+            self._config = {**default_config, **replacement_config}
 
-        return self.config
-
-    def get_param(self, param_name: str, raise_missing: bool = True, fallback=None):
-        """ Uses the outer and inner keys (if set) to parse into the configuration dictionary
-
-        :param param_name:      <str> parameter or configuration name (capitalization and spaces matter!)
-        :param raise_missing:   <bool> If set to true, an exception will be thrown if a parameter can not be found
-        :param fallback:        Fall back if parameter can't be found and raise_missing is False
-        :return:                Parameter or fallback
-        """
-
-        try:
-            try:
-                output = self.config[param_name]
-            except KeyError:
-                raise ParameterMissingError
-        except ParameterMissingError as e:
-            if raise_missing:
-                raise ParameterMissingError(
-                        f'Parameter {param_name} missing from user provided and default configurations.')
-            else:
-                output = fallback
-
-        return output
-
-    def update_config(self) -> dict:
-        """ Combines the default and user provided configurations into one dictionary.
-
-        User parameters override defaults"""
-
-        if self.default_config is None:
-            self.default_config = dict()
-
-        if self.user_config is None:
-            self.user_config = dict()
-
-        self._config = {**self.default_config, **self.user_config}
-
-        # Even though it will be copied all over the place, I think it is best to include as many refs to the version
-        #   a config was made under. So we add it here to the defaults.
+        if self.config is not None:
+            # Add class information to the config if it was not already present
+            if 'pyclass' not in self.config:
+                self._config['pyclass'] = self.__class__.__name__
+            if 'pyname' not in self.config:
+                self._config['pyname'] = self.pyname
+            if 'TidalPy_Vers' not in self.config:
+                self._config['TidalPy_Vers'] = version
 
         self.config_constructed = True
+
         return self.config
 
-    def save_config(self, save_default: bool = False, save_to_run_dir: bool = True,
-                    additional_save_dirs: list = None, overwrite: bool = False) -> List[str]:
-        """ Saves final configuration to a JSON file """
+    def save_config(self, class_name: str = None,
+                    save_to_run_dir: bool = True, additional_save_dirs: list = None,
+                    save_default: bool = False, save_old_config: bool = False,
+                    overwrite: bool = False) -> Tuple[str, ...]:
+        """ Saves class' configurations to a local JSON file.
 
-        json5_kwargs = {'indent': 4}
+        Parameters
+        ----------
+        class_name : str (optional)
+            Name to give the configuration file. Defaults to class' pyname.
+        save_to_run_dir : bool = True
+            If true then configs will be saved into the currently active TidalPy run directory.
+        additional_save_dirs : list (optional)
+            List of any additional directories that configs will be saved to.
+            This must be a list of proper, os-compliant path strings
+        save_default : bool = False
+            If true then the classes default configurations will also be saved.
+        save_old_config : bool = False
+            If true then any overwritten config (saved to the class' .old_config) will also be saved.
+        overwrite : bool = False
+            If true then any configs at the same directory and with the same name will be overwritten.
 
-        if not auto_write:
-            warnings.warn('Tried to write config to JSON file but auto_write set to False.')
+        Returns
+        -------
+        config_filepaths : Tuple[str, ...]
+            Final full paths of the saved config (main config, not default or old) files.
+        """
 
+        # Compile a list of directories at which to save configurations to
         save_dirs = list()
         if save_to_run_dir:
             save_dirs.append(inner_save_dir)
-
         if additional_save_dirs is not None:
-            save_dirs += additional_save_dirs
+            for directory in additional_save_dirs:
+                if directory not in save_dirs:
+                    save_dirs.append(directory)
+
+        # Determine class name
+        if class_name is None:
+            if 'name' in self.__dict__:
+                class_name = self.__dict__['name']
+            else:
+                class_name = self.pyname
 
         config_filepaths = list()
-        for save_dir in save_dirs:
-            if save_dir is not None:
-                if save_default:
-                    config_filepath = os.path.join(save_dir, f'{self.pyname}_default.cfg')
-                    config_to_save = self.clean_config_for_json(self.default_config)
-                    if os.path.isfile(config_filepath) and not overwrite:
-                        if give_configs_subscript:
-                            config_filepath = unique_path(config_filepath, is_dir=False)
-                        else:
-                            config_filepath = None
-                    if config_filepath is not None:
-                        with open(config_filepath, 'w') as config_file:
-                            json5.dump(config_to_save, config_file, **json5_kwargs)
+        if self.config is not None:
+            for directory in save_dirs:
+                config_save_path = os.path.join(directory, f'{class_name}.cfg')
+                config_filepaths.append(config_save_path)
+                save_dict_to_json(self.config, full_save_path=config_save_path, overwrite=overwrite)
 
-                config_filepath = os.path.join(save_dir, f'{self.pyname}.cfg')
-                config_to_save = self.clean_config_for_json(self.config)
-                if os.path.isfile(config_filepath) and not overwrite:
-                    if give_configs_subscript:
-                        config_filepath = unique_path(config_filepath, is_dir=False)
-                    else:
-                        config_filepath = None
-                if config_filepath is not None:
-                    with open(config_filepath, 'w') as config_file:
-                        json5.dump(config_to_save, config_file, **json5_kwargs)
-                config_filepaths.append(config_filepath)
+        # Save default configs if flag is set
+        if save_default and self.default_config is not None:
+            for directory in save_dirs:
+                config_save_path = os.path.join(directory, f'{class_name}.default.cfg')
+                save_dict_to_json(self.default_config, full_save_path=config_save_path, overwrite=overwrite)
 
-        return config_filepaths
+        # Save any old configs (if present and if flag is set)
+        if save_old_config and self.old_config is not None:
+            for directory in save_dirs:
+                config_save_path = os.path.join(directory, f'{class_name}.old.cfg')
+                save_dict_to_json(self.old_config, full_save_path=config_save_path, overwrite=overwrite)
+
+        return tuple(config_filepaths)
 
     @property
-    def user_config(self) -> dict:
-        return self._user_config
+    def replacement_config(self) -> dict:
+        return self._replacement_config
 
-    @user_config.setter
-    def user_config(self, new_user_config: dict):
+    @replacement_config.setter
+    def replacement_config(self, replacement_config: dict):
+        """ Wrapper for replace_config """
 
-        if debug_mode:
-            assert type(new_user_config) == dict
+        self.replace_config(replacement_config)
 
-        self._user_config = copy.deepcopy(new_user_config)
-        self.update_config()
+    @property
+    def old_config(self) -> dict:
+        return self._old_config
+
+    @old_config.setter
+    def old_config(self, value):
+        raise ImproperAttributeHandling('To change configurations set the "config_user" attribute '
+                                        'or run "update_config"')
 
     @property
     def config(self) -> dict:
@@ -191,58 +273,5 @@ class ConfigHolder(TidalPyClass):
 
     @config.setter
     def config(self, value):
-        raise ImproperAttributeHandling('To change configurations set the "config_user" attribute '
+        raise ImproperAttributeHandling('To change configurations set the "replacement_config" attribute '
                                         'or run "update_config"')
-
-    @staticmethod
-    def clean_config_for_json(config: dict) -> OrderedDict:
-        """ JSON does not like some data types. This is called right before a JSON dump, converting things as needed.
-
-        """
-
-        json_config = dict()
-
-        for key, item in config.items():
-
-            dont_store = False
-            if key in ['radii']:
-                dont_store = True
-
-            # Clean up the key
-            input_key = None
-            if type(key) != str:
-                print(type(key))
-                try:
-                    input_key = str(key)
-                except TypeError:
-                    # Can't do much here. It won't be stored
-                    dont_store = True
-            else:
-                input_key = key
-
-            # Clean up the value
-            if type(item) == dict or isinstance(item, OrderedDict):
-                input_item = ConfigHolder.clean_config_for_json(item)
-            elif type(item) == np.ndarray:
-                if item.shape == tuple() or item.shape == (1,):
-                    input_item = float(item)
-                else:
-                    input_item = [float(i) for i in item]
-            elif type(item) in [np.float, np.float32, np.float64,
-                                np.complex, np.complex64, np.complex128]:
-                input_item = float(item)
-            elif type(item) in [np.int8, np.int16, np.int32, np.int64,
-                                np.uint8, np.uint16, np.uint32, np.uint64,
-                                np.intp, np.uintp]:
-                input_item = int(item)
-            elif type(item) in [list, tuple, set, int, float, str, bool, complex, type(None)]:
-                # Try to go forward with value
-                input_item = item
-            else:
-                print(type(item))
-                raise TypeError
-
-            if not dont_store:
-                json_config[input_key] = input_item
-
-        return OrderedDict(sorted(json_config.items()))

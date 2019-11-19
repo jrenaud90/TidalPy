@@ -9,7 +9,7 @@ TidalPy.use_disk = False
 
 from TidalPy.orbit import Orbit
 from TidalPy.planets import build_planet
-from TidalPy.utilities.conversions import days2rads, orbital_motion2semi_a, semi_a2orbital_motion
+from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a, semi_a2orbital_motion
 
 
 io = build_planet('io')

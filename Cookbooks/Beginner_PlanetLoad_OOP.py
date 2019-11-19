@@ -28,7 +28,7 @@ earth_2.upper_mantle.temperature = 1600.
 #  tidal dissipation in liquids.
 
 # Now we have all the information to calculate tidal heating
-from TidalPy.utilities.conversions import m2Au
+from TidalPy.tools.conversions import m2Au
 print(f'Earth-Sun eccentricity = {earth.eccentricity}')
 print(f'Earth-Sun semi-major axis = {m2Au(earth.semi_major_axis)} Au')
 print(f'Solar tidal heating = {(earth.tidal_heating/1e6)} MW')

@@ -487,7 +487,7 @@ class TidalWorld(WorldBase):
             else:
                 new_config = self.config['layers'][layer.name]
             layer.is_spin_sync = self.is_spin_sync
-            layer.user_config = new_config
+            layer.replacement_config = new_config
             layer.update_config()
             layer.reinit()
 

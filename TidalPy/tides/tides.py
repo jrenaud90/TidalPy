@@ -1,15 +1,15 @@
 import copy
-from functools import partial
 from typing import Tuple
 
 import numpy as np
 from . import calculate_tides
 from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError,
                           BadValueError)
-from ..rheology import andrade_frequency_models, compliance_models
+from TidalPy.rheology.andrade_frequency import andrade_frequency_models
+from TidalPy.rheology.compliance import compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
 from ..rheology.defaults import rheology_param_defaults
-from ..types import FloatArray, ArrayNone
+from ..types import ArrayNone
 from ..utilities.model import LayerModel
 
 

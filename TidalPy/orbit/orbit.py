@@ -14,7 +14,7 @@ from ..initialize import log
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
 from ..types import FloatArray
 from ..utilities.classes import TidalPyClass
-from ..utilities.conversions import Au2m, days2rads, rads2days
+from TidalPy.tools.conversions import Au2m, days2rads, rads2days
 
 
 HostTypes = Union[BasicWorld, TidalWorld]

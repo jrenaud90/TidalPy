@@ -1,16 +1,17 @@
 import copy
 import operator
 from inspect import getmembers
-from typing import List, Union
+from typing import List, Union, Tuple
+import operator
 
 from numba import njit
 from .classes import ConfigHolder
 from .dict_tools import nested_get
 from .. import debug_mode
 from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
-                          UnknownModelError)
+                          UnknownModelError, AttributeNotSetError)
 from ..initialize import log
-from .functional_tools import is_function
+from .functional_utils import is_function
 
 general_func_reject_list = [
     njit,
@@ -19,59 +20,120 @@ general_func_reject_list = [
 
 class ModelHolder(ConfigHolder):
 
-    def __init__(self, model_name: str = None, user_config: dict = None, function_searcher=None,
+    """ Classes which are used in OOP calculation scheme
+    """
+
+    config_key = None
+    known_models = None
+    known_model_const_args = None
+    known_model_live_args = None
+
+    def __init__(self, model_name: str = None, replacement_config: dict = None, outer_key: str = None,
                  call_reinit: bool = True):
 
-        super().__init__(replacement_config=user_config, call_reinit=call_reinit)
-        if model_name is None:
+        super().__init__(replacement_config=replacement_config, call_reinit=call_reinit)
+
+        if model_name is None and 'model' in self.config:
             model_name = self.config['model']
 
+        # Store model name information
         self.model = model_name
         self.pyname = f'{self.__class__.__name__}_{self.model}'
-        self.searcher = None
-        self.func = None
-        self.inputs = tuple()
-        self.live_inputs = tuple()
-        self.live_input_func = None
 
-        if function_searcher is not None and call_reinit:
-            if debug_mode:
-                assert isinstance(function_searcher, ModelSearcher)
-            self.searcher = function_searcher
-            self.searcher.defaults_require_key = False
-            self.searcher.default_config = self.config
-            self.func, self.inputs, self.live_input_func = self.searcher.find_model(self.model)
+        # Attempt to find function information
+        self.func = None
+        self._constant_arg_names = None
+        self._live_arg_names = None
+        try:
+            self.func = self.known_models[self.model]
+            self._constant_arg_names = self.known_model_const_args[self.model]
+            self._live_arg_names = self.known_model_live_args[self.model]
+        except KeyError:
+            raise UnknownModelError(f'Unknown model: {self.model} for {self.__class__.__name__}')
+
+        # Pull out constant arguments
+        if self.config_key is not None:
+            config = self.config[self.config_key]
+        else:
+            config = self.config
+        self.inputs = self.build_args(self._constant_arg_names, parameter_dict=config, is_live_args=False)
+
+        # Build live argument functions and calls
+        self.live_inputs = None
+        if len(self._live_arg_names) == 0:
+            self.get_live_args = None
+        else:
+            live_funcs = self.build_args(self._live_arg_names, is_live_args=True)
+            self.get_live_args = lambda: tuple([live_func(self) for live_func in live_funcs])
 
         # Switch between calculate and calculate debug. Generally, _calculate_debug is a much slower function that
         #    includes additional checks
-        self._calc = self._calculate
-
-        # TODO: it would be nice to carry the documentation like the below, but it is not allowed as written.
-        # self.calculate.__doc__ = self._calculate.__doc__
         if debug_mode:
-            if '_calculate_debug' in self.__dict__:
-                self._calc = getattr(self, '_calculate_debug')
-
-                # TODO: see above
-                # self.calculate.__doc__ = f'-DEBUG VERSION- {self.calculate.__doc__}'
-            else:
-                # Subclass did not implement a debug mode calculator, use regular one
-                pass
+            self._calc = self._calculate_debug
+        else:
+            self._calc = self._calculate
 
     def calculate(self, *args, **kwargs):
 
         # Some models have inputs that need to be updated at each call
-        if self.live_input_func is not None:
-            self.live_inputs = self.live_input_func(self)
-
-        for input_ in self.live_inputs:
-            if input_ is None:
-                raise ParameterMissingError
+        if self.get_live_args is not None:
+            try:
+                self.live_inputs = self.get_live_args()
+            except AttributeError:
+                raise AttributeNotSetError('One or more live arguments are not set.')
 
         return self._calc(*args, **kwargs)
 
     def _calculate(self, *args, **kwargs):
         raise ImplementedBySubclassError
+
+    def _calculate_debug(self, *args, **kwargs):
+        raise ImplementedBySubclassError
+
+    @staticmethod
+    def build_args(arg_names: Tuple[str, ...], parameter_dict: dict = None, is_live_args: bool = False):
+        """ Build an input tuple based on the required, constant, arguments and a parameter dictionary
+
+        Parameters
+        ----------
+        arg_names : Tuple[str, ...]
+            List of required constant argument names needed for this model's function.
+        parameter_dict : dict
+            Dictionary of parameters.
+        is_live_args : bool
+            Flag if this call is looking for live args, rather than constant args.
+
+        Returns
+        -------
+        args : Tuple[Any, ...]
+            List of default argument parameters
+        """
+
+        args = list()
+
+        if not is_live_args:
+            # Constant Arguments
+            if parameter_dict is None:
+                raise MissingArgumentError('Parameter configuration dictionary is required to build constant args.')
+
+            for arg_name in arg_names:
+                if arg_name not in parameter_dict:
+                    raise ParameterMissingError(f'Parameter: {arg_name} is missing from configuration dictionary.')
+                args.append(parameter_dict[arg_name])
+        else:
+            # Live Arguments
+            for live_arg_signature in arg_names:
+
+                # Create a attrgetter for the live argument.
+                if 'self.' in live_arg_signature:
+                    live_arg_signature = live_arg_signature.split('self.')[1]
+
+                getter_func = operator.attrgetter(live_arg_signature)
+                args.append(getter_func)
+
+        return tuple(args)
+
+
 
 
 class LayerModel(ModelHolder):

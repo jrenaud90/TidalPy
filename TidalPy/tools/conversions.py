@@ -2,9 +2,10 @@ from typing import Tuple
 
 import numpy as np
 
-from ..constants import G
-from ..performance import njit
-from ..types import FloatArray
+from TidalPy.constants import G
+from TidalPy.exceptions import BadValueError
+from TidalPy.performance import njit
+from TidalPy.types import FloatArray
 
 
 @njit
@@ -106,7 +107,12 @@ def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_m
         Semi-major axis in [m]
     """
 
-    semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1 / 3)
+    if host_mass <= 0.:
+        raise BadValueError('Host mass must be greater than zero.')
+    if target_mass < 0.:
+        raise BadValueError('Target mass must be greater than or equal to zero.')
+
+    semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1/3)
 
     return semi_major_axis
 
@@ -130,7 +136,12 @@ def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_
         Orbital motion in [rads s-1]
     """
 
-    orbital_motion = (G * (host_mass + target_mass) / semi_major_axis**3)**(1 / 2)
+    if host_mass <= 0.:
+        raise BadValueError('Host mass must be greater than zero.')
+    if target_mass < 0.:
+        raise BadValueError('Target mass must be greater than or equal to zero.')
+
+    orbital_motion = (G * (host_mass + target_mass) / semi_major_axis**3)**(1/2)
 
     return orbital_motion
 

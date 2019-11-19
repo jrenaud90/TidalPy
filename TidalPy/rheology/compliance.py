@@ -1,6 +1,7 @@
 from typing import List, Union
 
-from . import andrade_frequency_models, compliance_models
+from TidalPy.rheology.andrade_frequency import andrade_frequency_models
+from TidalPy.rheology.compliance import compliance_models
 from .defaults import rheology_param_defaults
 from ..exceptions import IncompatibleModelConfigError, MissingArgumentError
 from ..utilities.dict_tools import nested_get

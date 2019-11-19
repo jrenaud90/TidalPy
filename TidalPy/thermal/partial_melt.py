@@ -2,7 +2,7 @@ import copy
 
 import numpy as np
 
-from . import melting_models
+from TidalPy.rheology.partialmelt import melting_models
 from .defaults import partial_melter_param_defaults
 from .. import debug_mode
 from ..types import FloatArray

@@ -96,7 +96,7 @@ def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, fo
                 return planet
             else:
                 log(f'New configurations were provided. Attempting to load them into dilled planet.', level='debug')
-                planet.user_config = planet_config
+                planet.replacement_config = planet_config
                 planet.reinit()
                 log(f'New configurations were successful loaded with no obvious issues.', level='debug')
         else:

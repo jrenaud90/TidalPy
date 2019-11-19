@@ -1,15 +1,15 @@
 import numpy as np
 from scipy.constants import R
 
-from ..performance import njit
-from ..types import float_lognat_max
+from TidalPy.performance import njit
+from TidalPy.types import float_lognat_max
 
 
-#@njit
-def arrhenius(temperature: np.ndarray, pressure: float,
+@njit
+def arrhenius(temperature: np.ndarray, pressure: np.ndarray,
               arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
               grain_size: float, grain_size_expo: float,
-              molar_activation_energy: float, molar_activation_volume: float):
+              molar_activation_energy: float, molar_activation_volume: float) -> np.ndarray:
     """ Generic Arrhenius Viscosity Function
 
     See, for example, Moore (2006)
@@ -31,9 +31,9 @@ def arrhenius(temperature: np.ndarray, pressure: float,
 
 
 @njit
-def reference(temperature: np.ndarray, pressure: float,
+def reference(temperature: np.ndarray, pressure: np.ndarray,
               reference_viscosity: float, reference_temperature: float,
-              molar_activation_energy: float, molar_activation_volume: float):
+              molar_activation_energy: float, molar_activation_volume: float) -> np.ndarray:
     """ Arrhenius-like Viscosity Function uses a reference viscosity
 
     See, for example, Henning (2009)
@@ -54,8 +54,8 @@ def reference(temperature: np.ndarray, pressure: float,
 
 
 @njit
-def constant(temperature: np.ndarray, pressure: float,
-             reference_viscosity: float):
+def constant(temperature: np.ndarray, pressure: np.ndarray,
+             reference_viscosity: float) -> np.ndarray:
     """ Ignores other input and returns the reference viscosity value
 
     !TPY_args const: reference_viscosity

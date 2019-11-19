@@ -14,15 +14,13 @@ How To Implement a New Tides:
 
 import numpy as np
 
-from ..performance import find_factorial, njit
-from ..types import float_eps
+from TidalPy.performance import find_factorial, njit
+from TidalPy.types import float_eps
 
 
 @njit
 def off(compliance, viscosity, frequency):
     """ No Tides
-
-    other args: None
     """
 
     real_j = compliance
@@ -34,12 +32,11 @@ def off(compliance, viscosity, frequency):
 
 
 @njit
-def fixed_q(compliance, viscosity, frequency, quality_factor, planet_beta):
+def fixed_q(compliance, viscosity, frequency, planet_beta, quality_factor):
     """ Fixed-Q Tides
 
-
-    !TPY_args const: quality_factor, planet_beta
-
+    !TPY_args const: planet_beta
+    !TPY_args live: self.quality_factor
 
     """
 
@@ -114,31 +111,9 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
     """ Andrade Tides
 
 
-    !TPY_args const: alpha, zeta
+    !TPY_args const: alpha
+    !TPY_args live: self.zeta
     """
-    maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
-
-    andrade_term = compliance * viscosity * frequency * zeta
-    const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
-    real_j = np.cos(alpha * np.pi / 2.) * const_term
-    imag_j = -np.sin(alpha * np.pi / 2.) * const_term
-    imag_j[np.abs(andrade_term) <= float_eps] = 0.
-    andrade_complex_comp = real_j + 1.0j * imag_j
-
-    complex_compliance = maxwell_complex_comp + andrade_complex_comp
-
-    return complex_compliance
-
-
-@njit
-def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_params, andrade_freq_func):
-    """ Andrade Tides with frequency-dependent Zeta
-
-    !TPY_args const: alpha, zeta, andrade_freq_params, andrade_freq_func
-
-    """
-    # The andrade_freq_func is defined by one of the models in andrade_frequency.py
-    zeta = andrade_freq_func(zeta, frequency, *andrade_freq_params)
 
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
 
@@ -158,29 +133,12 @@ def andrade_freq(compliance, viscosity, frequency, alpha, zeta, andrade_freq_par
 def sundberg(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta):
     """ Sundberg-Cooper Tides
 
-    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta
-
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha
+    !TPY_args live: self.zeta
     """
+
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
     andrade_complex_comp = andrade(compliance, viscosity, frequency, alpha, zeta)
-
-    complex_compliance = voigt_complex_comp + andrade_complex_comp
-
-    return complex_compliance
-
-
-@njit
-def sundberg_freq(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta,
-                  andrade_freq_params, andrade_freq_func):
-    """ Sundberg-Cooper Tides
-
-
-    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, andrade_freq_params, andrade_freq_func
-
-    """
-    voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
-    andrade_complex_comp = andrade_freq(compliance, viscosity, frequency, alpha, zeta,
-                                        andrade_freq_params, andrade_freq_func)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 

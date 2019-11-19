@@ -2,3 +2,6 @@
     * Make it so if only mass, or only radius, is provided an approx (M-R) of the other is used?
 * Make a custom vectorize function that uses numba.vectorize if numba enables otherwise uses np.vectorize.
   This will be a decorator with arguments so that type information can be passed to the numba vectorize - it looks like this signiture is not required but could be provide a speed up.
+  
+## On Future Python or 3rd Party Package Updates
+* If python's builtin `json` package updates to support json5 then it should be used over the currently supported 3rd party `json5` package.

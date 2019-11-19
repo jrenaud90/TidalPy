@@ -2,6 +2,7 @@ setuptools>=40.9.0
 pip>=19.0.3
 numpy>=1.16.3
 dill>=0.2.9
+pytest>=5.2.2
 scipy>=1.2.1
 matplotlib>=2.0.0
 json5>=0.7.0

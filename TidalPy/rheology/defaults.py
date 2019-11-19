@@ -1,3 +1,5 @@
+import numpy as np
+
 rheology_param_defaults = {
     'ice' : {
         'model'                  : 'regular',
@@ -22,13 +24,26 @@ rheology_param_defaults = {
             'molar_activation_energy': 1.62e4,
             'molar_activation_volume': 0.0
         },
-        'compliance_model'       : 'Maxwell',
-        'voigt_compliance_offset': .2,
-        'voigt_viscosity_offset' : .02,
-        'alpha'                  : .3,
-        'zeta'                   : 1.,
-        'andrade_frequency_model': 'exponential',
-        'andrade_critical_freq'  : 2.0e-7
+        'complex_compliance': {
+            'model'                  : 'Maxwell',
+            'voigt_compliance_offset': .2,
+            'voigt_viscosity_offset' : .02,
+            'alpha'                  : .3,
+            'zeta'                   : 1.,
+            'andrade_frequency_model': 'exponential',
+            'andrade_critical_freq'  : 2.0e-7,
+            'andrade_frequency_dependence': {
+                'model': 'off'
+                'critical_frequency': 2. * np.pi / (86400 * 3.)
+            }
+        },
+        'partial_melting': {
+            'model'       : 'off',
+            'solidus'     : 270.,
+            'liquidus'    : 273.15,
+            # Liquid Shear is just something very small.
+            'liquid_shear': 1.0e-5,
+        }
     },
     'rock': {
         'model'                  : 'regular',
@@ -46,13 +61,32 @@ rheology_param_defaults = {
             'molar_activation_energy': 6.64e-20,
             'molar_activation_volume': 0.0
         },
-        'compliance_model'       : 'Maxwell',
-        'voigt_compliance_offset': .2,
-        'voigt_viscosity_offset' : .02,
-        'alpha'                  : .3,
-        'zeta'                   : 1.,
-        'andrade_frequency_model': 'exponential',
-        'andrade_critical_freq'  : 2.0e-7
+        'complex_compliance': {
+            'model'                  : 'Maxwell',
+            'voigt_compliance_offset': .2,
+            'voigt_viscosity_offset' : .02,
+            'alpha'                  : .3,
+            'zeta'                   : 1.,
+            'andrade_frequency_model': 'exponential',
+            'andrade_critical_freq'  : 2.0e-7
+        },
+        'partial_melting': {
+            'model'                 : 'henning',
+            'solidus'               : 1600.,
+            'liquidus'              : 2000.,
+            'liquid_shear'          : 1.0e-5,
+            'fs_visc_power_slope'   : 27000.0,
+            'fs_visc_power_phase'   : 1.0,
+            'fs_shear_power_slope'  : 82000.0,
+            'fs_shear_power_phase'  : 40.6,
+            'crit_melt_frac'        : 0.5,
+            'crit_melt_frac_width'  : 0.05,
+            'hn_visc_slope_1'       : 13.5,
+            'hn_visc_slope_2'       : 370.0,
+            'hn_shear_param_1'      : 40000.0,
+            'hn_shear_param_2'      : 25.0,
+            'hn_shear_falloff_slope': 700.0
+        }
     },
     'iron': {
         'model'            : 'off',
@@ -68,5 +102,20 @@ rheology_param_defaults = {
             'model'              : 'constant',
             'reference_viscosity': 1.3e-2,
         },
+        'complex_compliance': {
+            'model'                  : 'off',
+            'voigt_compliance_offset': .2,
+            'voigt_viscosity_offset' : .02,
+            'alpha'                  : .3,
+            'zeta'                   : 1.,
+            'andrade_frequency_model': 'exponential',
+            'andrade_critical_freq'  : 2.0e-7
+        },
+        'partial_melting': {
+            'model'       : 'off',
+            'solidus'     : 2200.0,
+            'liquidus'    : 3000.0,
+            'liquid_shear': 1.0e-5,
+        }
     }
 }

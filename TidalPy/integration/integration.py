@@ -1,5 +1,4 @@
 import os
-import gc
 from typing import Tuple, Union, Dict
 
 from time import time as timer
@@ -10,10 +9,10 @@ from datetime import datetime
 
 from .. import verbose_level
 from ..io import inner_save_dir
-from ..utilities.conversions import convert_to_hms, myr2sec
+from TidalPy.tools.conversions import convert_to_hms
 from ..initialize import log as real_log
 from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
-from ..utilities.conversions import sec2myr
+from TidalPy.tools.conversions import sec2myr
 
 
 MAX_DATA_SIZE = 2000
