@@ -19,12 +19,27 @@ from TidalPy.types import float_eps
 
 
 @njit
-def off(compliance, viscosity, frequency):
-    """ No Tides
+def off(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Off
+
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
+
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     real_j = compliance
-    imag_j = np.zeros_like(frequency)
+    imag_j = np.zeros_like(frequency + viscosity + compliance)
 
     complex_compliance = real_j + 1.0j * imag_j
 
@@ -32,19 +47,38 @@ def off(compliance, viscosity, frequency):
 
 
 @njit
-def fixed_q(compliance, viscosity, frequency, planet_beta, quality_factor):
-    """ Fixed-Q Tides
+def fixed_q(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray,
+            planet_beta: float = 3.443e11, quality_factor: float = 10.) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Fixed-Q
 
     !TPY_args const: planet_beta
     !TPY_args live: self.quality_factor
 
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
+    planet_beta : float
+        Planet or Layer: Radius * Density * Gravity Accl. [kg m-1 s-2]
+    quality_factor : float
+        Planet or Layer's Quality factor (k_2 / Q)
+
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     real_j = -19. / (2. * planet_beta)
     # The (1 + 0*w) hack is there to ensure that imag_j shares shape with the larger of the two: compliance or frequency
     imag_j = -quality_factor * (19. / 4.) * (2. * planet_beta * compliance + 19.) / (compliance * planet_beta**2) \
         * (1. + 0. * frequency)
-    imag_j[np.abs(frequency) <= float_eps] = 0.
+    imag_j[np.abs(frequency * np.ones_like(compliance * viscosity)) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j
 
@@ -52,11 +86,23 @@ def fixed_q(compliance, viscosity, frequency, planet_beta, quality_factor):
 
 
 @njit
-def maxwell(compliance, viscosity, frequency):
-    """ Maxwell Tides
+def maxwell(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Maxwell
 
-    !TPY_args const: None
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
 
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     real_j = compliance
@@ -70,11 +116,30 @@ def maxwell(compliance, viscosity, frequency):
 
 
 @njit
-def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
-    """ Voigt-Kelvin Tides
+def voigt(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray,
+          voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Voigt-Kelvin
 
     !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset
 
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
+    voigt_compliance_offset : float
+        Voigt component's compliance offset eta_voigt = voigt_compliance_offset * compliance
+    voigt_viscosity_offset : float
+        Voigt component's viscosity offset eta_voigt = voigt_viscosity_offset * viscosity
+
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     voigt_comp = voigt_compliance_offset * compliance
@@ -91,11 +156,30 @@ def voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_visco
 
 
 @njit
-def burgers(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset):
-    """ Burgers Tides
+def burgers(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray,
+            voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Burgers
 
     !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset
 
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
+    voigt_compliance_offset : float
+        Voigt component's compliance offset eta_voigt = voigt_compliance_offset * compliance
+    voigt_viscosity_offset : float
+        Voigt component's viscosity offset eta_voigt = voigt_viscosity_offset * viscosity
+
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
@@ -107,12 +191,31 @@ def burgers(compliance, viscosity, frequency, voigt_compliance_offset, voigt_vis
 
 
 @njit
-def andrade(compliance, viscosity, frequency, alpha, zeta):
-    """ Andrade Tides
-
+def andrade(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray,
+            alpha: float = 0.3, zeta: float = 1.) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Andrade
 
     !TPY_args const: alpha
     !TPY_args live: self.zeta
+
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
+    alpha : float
+        Andrade exponent parameter
+    zeta : float
+        Andrade timescale parameter
+
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
@@ -130,11 +233,36 @@ def andrade(compliance, viscosity, frequency, alpha, zeta):
 
 
 @njit
-def sundberg(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta):
-    """ Sundberg-Cooper Tides
+def sundberg(compliance: np.ndarray, viscosity: np.ndarray, frequency: np.ndarray,
+             voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
+             alpha: float = 0.3, zeta: float = 1.) -> np.ndarray:
+    """ Calculates the complex compliance utilizing the model: Sundberg-Cooper
 
     !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha
     !TPY_args live: self.zeta
+
+    Parameters
+    ----------
+    compliance : np.ndarray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : np.ndarray
+        Layer or Planet's effective viscosity [Pa s]
+    frequency : np.ndarray
+        Planet's tidal frequency [rads s-1]
+        Note that a planet may experience multiple tidal frequencies for NSR tides or Fourier Degree l>2
+    voigt_compliance_offset : float
+        Voigt component's compliance offset eta_voigt = voigt_compliance_offset * compliance
+    voigt_viscosity_offset : float
+        Voigt component's viscosity offset eta_voigt = voigt_viscosity_offset * viscosity
+    alpha : float
+        Andrade exponent parameter
+    zeta : float
+        Andrade timescale parameter
+
+    Returns
+    -------
+    complex_compliance : np.ndarray
+        Complex compliance (complex number) [Pa-1]
     """
 
     voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
