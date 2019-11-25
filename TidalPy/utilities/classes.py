@@ -1,17 +1,15 @@
 import copy
 import os
-import warnings
-from collections import OrderedDict
-from typing import Any, Tuple
-
-import json5
-import numpy as np
+from typing import Any, Tuple, TYPE_CHECKING
 
 from .. import auto_write, debug_mode, version
-from ..configurations import give_configs_subscript
+from ..initialize import log
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError
 from ..io import inner_save_dir, unique_path
 from .json_utils import save_dict_to_json
+
+if TYPE_CHECKING:
+    from ..structures.layers import ThermalLayer
 
 
 class TidalPyClass:
@@ -31,6 +29,7 @@ class ConfigHolder(TidalPyClass):
     """
 
     default_config = None
+    default_config_key = None
 
     def __init__(self, replacement_config: dict = None, call_reinit: bool = True):
 
@@ -41,7 +40,12 @@ class ConfigHolder(TidalPyClass):
             assert type(self.default_config) in [dict, type(None)]
 
         # Make a copy of the default dictionary on instantiation
-        self.default_config = copy.deepcopy(self.default_config)
+        if self.default_config_key is None:
+            self.default_config = copy.deepcopy(self.default_config)
+        else:
+            # If the default_config_key is not None then it will be used to pull out the default parameters before the
+            #    config is initialized.
+            self.default_config = copy.deepcopy(self.default_config[self.default_config_key])
 
         # Add class information to the default dictionary
         if self.default_config is not None:
@@ -275,3 +279,50 @@ class ConfigHolder(TidalPyClass):
     def config(self, value):
         raise ImproperAttributeHandling('To change configurations set the "replacement_config" attribute '
                                         'or run "update_config"')
+
+
+class LayerConfigHolder(ConfigHolder):
+
+    """ Classes which are stored within a layer and make calls to that layer's attributes and methods.
+    """
+
+    layer_config_key = None
+
+    def __init__(self, layer: ThermalLayer, store_config_in_layer: bool = True, call_reinit: bool = True):
+
+        # Store layer and world information
+        self.layer = layer
+        self.world = None
+        self.layer_type = layer.type
+        world_name = 'Unknown'
+        if 'world' in layer.__dict__:
+            self.world = layer.world
+            world_name = self.world.name
+
+        # Update pyname
+        self.pyname += '_' + self.layer_type
+
+        # The layer's type is used to pull out default parameter information
+        self.default_config_key = self.layer_type
+
+        config = None
+        try:
+            config = self.layer.config[self.layer_config_key]
+        except KeyError:
+            log(f"User provided no model information for [layer: {self.layer.name} in world: {world_name}]'s "
+                f"{self.__class__.__name__}, using defaults instead.", level='debug')
+
+        if config is None and self.default_config is None:
+            raise ParameterMissingError(f"Config was not provided for [layer: {self.layer.name} in world: {world_name}]'s "
+                                        f"{self.__class__.__name__} and no defaults are set.")
+
+        # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
+        super().__init__(replacement_config=config, call_reinit=call_reinit)
+
+        if store_config_in_layer:
+            # Once the configuration file is constructed (with defaults and any user-provided replacements) then
+            #    store the new config in the layer's config, overwriting any previous parameters.
+            if self.layer_config_key in self.layer.config:
+                # Store the old config under a new key
+                self.layer._config[f'OLD_{self.layer_config_key}'] = self.layer.config[self.layer_config_key]
+            self.layer._config[self.layer_config_key] = copy.deepcopy(self.config)

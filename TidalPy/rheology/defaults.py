@@ -1,5 +1,8 @@
 import numpy as np
 
+
+rheology_defaults = {}
+
 rheology_param_defaults = {
     'ice' : {
         'model'                  : 'regular',

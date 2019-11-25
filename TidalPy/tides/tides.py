@@ -10,13 +10,13 @@ from TidalPy.rheology.compliance import compliance_models
 from ..rheology.compliance import ComplianceModelSearcher
 from ..rheology.defaults import rheology_param_defaults
 from ..types import ArrayNone
-from ..utilities.model import LayerModel
+from ..utilities.model import LayerModelHolder
 
 
 FAKE_FREQS = (np.asarray([0.]),)
 
 
-class Tides(LayerModel):
+class Tides(LayerModelHolder):
     default_config = copy.deepcopy(rheology_param_defaults)
     config_key = 'rheology'
 

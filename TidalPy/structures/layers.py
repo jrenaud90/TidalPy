@@ -20,7 +20,7 @@ from ..thermal import find_viscosity
 from ..thermal.cooling import Cooling
 from ..thermal.partial_melt import PartialMelt
 from ..types import floatarray_like
-from ..utilities.dict_tools import nested_get
+from ..utilities.dict_utils import nested_get
 from ..utilities.numpy_help import find_nearest, value_cleanup
 from ..types import ArrayNone
 

@@ -2,6 +2,8 @@ from ...utilities.model_utils import find_all_models, build_model_defaults
 from ..defaults import rheology_param_defaults
 from . import compliance_models as complex_compliances
 from .compliance_models import find_factorial
+from .defaults import complex_compliance_defaults
+from .complexcompliance import ComplexCompliance
 
 parameter_info_loc = ('complex_compliance',)
 

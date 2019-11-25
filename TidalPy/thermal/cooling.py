@@ -5,14 +5,14 @@ import numpy as np
 from . import cooling_models
 from .defaults import cooling_param_defaults
 from ..exceptions import ParameterMissingError
-from ..utilities.model import LayerModel, ModelSearcher
+from ..utilities.model import LayerModelHolder, ModelSearcher
 
 
 # Cooling Model Finder
 find_partial_melter = ModelSearcher(cooling_models, cooling_param_defaults)
 
 
-class Cooling(LayerModel):
+class Cooling(LayerModelHolder):
     default_config = copy.deepcopy(cooling_param_defaults)
     config_key = 'cooling'
 

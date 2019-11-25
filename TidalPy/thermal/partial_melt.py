@@ -8,7 +8,7 @@ from .. import debug_mode
 from ..types import FloatArray
 from ..exceptions import BadAttributeValueError
 from ..performance import njit
-from ..utilities.model import LayerModel, ModelSearcher
+from ..utilities.model import LayerModelHolder, ModelSearcher
 
 
 # TODO: Move liquid shear into a material config?
@@ -75,7 +75,7 @@ def temp_from_melt(melt_frac: FloatArray, solidus: float, liquidus: float) -> Fl
     return temp_at_melt
 
 
-class PartialMelt(LayerModel):
+class PartialMelt(LayerModelHolder):
     default_config = copy.deepcopy(partial_melter_param_defaults)
     config_key = 'partial_melt'
 

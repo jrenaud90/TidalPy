@@ -8,13 +8,13 @@ from .. import debug_mode
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError, UnknownModelError
 from ..initialize import log
 from ..types import float_like
-from ..utilities.model import LayerModel, ModelSearcher
+from ..utilities.model import LayerModelHolder, ModelSearcher
 
 
 find_radiogenics = ModelSearcher(radiogenic_models, radiogenics_param_defaults)
 
 
-class Radiogenics(LayerModel):
+class Radiogenics(LayerModelHolder):
     default_config = copy.deepcopy(radiogenics_param_defaults)
     config_key = 'radiogenics'
 
