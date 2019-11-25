@@ -169,8 +169,9 @@ def calculate_tides(shear_modulus: np.ndarray, viscosity: np.ndarray,
 
             # Calculate the complex Love Number
             cmplx_love_number = complex_love_general(cmplx_comp, shear_modulus, eff_rigid, order_l=l)
-            heating_terms.append(heating_coeff * -np.imag(cmplx_love_number) * l_coeff)
-            ztorque_terms.append(ztorque_coeff * -np.imag(cmplx_love_number) * l_coeff)
+            neg_imk = -np.imag(cmplx_love_number)
+            heating_terms.append(heating_coeff * neg_imk * l_coeff)
+            ztorque_terms.append(ztorque_coeff * neg_imk * l_coeff)
 
     # Collapse all the tidal modes into a single number
     tidal_heating, tidal_ztorque = _collapse_terms(heating_terms, ztorque_terms, tidal_susceptibility)

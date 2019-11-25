@@ -25,12 +25,12 @@ class ComplexCompliance(LayerModelHolder):
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
-    model_config_key = 'complex_compliance'
+    model_config_key = ('rheology', 'complex_compliance')
 
     def __init__(self, layer: ThermalLayer, rheology_class: Rheology, model_name: str = None,
-                 store_config_in_layer: bool = True, call_reinit: bool = True):
+                 store_config_in_layer: bool = True):
 
-        super().__init__(layer, model_name, store_config_in_layer, call_reinit)
+        super().__init__(layer, model_name, store_config_in_layer)
 
         self.rheology_class = rheology_class
 

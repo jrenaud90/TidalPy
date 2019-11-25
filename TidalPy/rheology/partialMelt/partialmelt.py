@@ -57,12 +57,12 @@ class PartialMelt(LayerModelHolder):
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
-    model_config_key = 'partial_melting'
+    model_config_key = ('rheology', 'partial_melting')
 
     def __init__(self, layer: ThermalLayer, rheology_class: Rheology, model_name: str = None,
-                 store_config_in_layer: bool = True, call_reinit: bool = True):
+                 store_config_in_layer: bool = True):
 
-        super().__init__(layer, model_name, store_config_in_layer, call_reinit)
+        super().__init__(layer, model_name, store_config_in_layer)
 
         self.rheology_class = rheology_class
 
@@ -76,9 +76,8 @@ class PartialMelt(LayerModelHolder):
         # TODO: No debug calculation has been implemented
         self._calculate_debug = self._calculate
 
-
     def _calculate(self, temperature: np.ndarray, premelt_viscosity: np.ndarray, premelt_shear: np.ndarray,
-                   liquid_viscosity: np.ndarray, other_inputs: tuple = tuple()):
+                   liquid_viscosity: np.ndarray):
         """ Wrapper for the partial melting function.
 
         First the partial melt will be updated based on the provided temperature. Then changes to the shear modulus
@@ -94,8 +93,6 @@ class PartialMelt(LayerModelHolder):
             Layer/Material shear modulus before partial melting is considered [Pa]
         liquid_viscosity : np.ndarray
             Layer/Material viscosity if it were completely molten at this temperature [Pa s]
-        other_inputs : tuple
-            Constant and live arguments (needed for some functions)
 
         Returns
         -------

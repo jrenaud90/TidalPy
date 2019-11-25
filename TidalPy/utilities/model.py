@@ -2,6 +2,7 @@ import copy
 from typing import Tuple, TYPE_CHECKING
 import operator
 
+from .dictionary_utils import nested_get, nested_place
 from .classes import ConfigHolder
 from .. import debug_mode
 from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
@@ -21,7 +22,7 @@ class ModelHolder(ConfigHolder):
     known_model_const_args = None
     known_model_live_args = None
 
-    def __init__(self, model_name: str = None, replacement_config: dict = None, call_reinit: bool = True):
+    def __init__(self, model_name: str = None, replacement_config: dict = None):
 
         # Pull out model information, check if it is a valid model name, then store it
         if model_name is None and 'model' in self.config:
@@ -29,9 +30,12 @@ class ModelHolder(ConfigHolder):
 
         # Store model name information
         self.model = model_name
-        self.pyname += '_' + self.model
 
-        super().__init__(replacement_config=replacement_config, call_reinit=call_reinit)
+        # Setup parent class
+        super().__init__(replacement_config=replacement_config)
+
+        # Override any previously set variables
+        self.pyname += '_' + self.model
 
         # Attempt to find the model's function information
         self.func = None
@@ -136,7 +140,7 @@ class LayerModelHolder(ModelHolder):
     model_config_key = None
 
     def __init__(self, layer: ThermalLayer, model_name: str = None,
-                 store_config_in_layer: bool = True, call_reinit: bool = True):
+                 store_config_in_layer: bool = True):
 
         # Store layer and world information
         self.layer = layer
@@ -153,15 +157,12 @@ class LayerModelHolder(ModelHolder):
         # The layer's type is used to pull out default parameter information
         self.default_config_key = self.layer_type
 
+        # Record if model config should be stored back into layer's config
+        self.store_config_in_layer = store_config_in_layer
+
         config = None
         try:
-            if type(self.model_config_key) == str:
-                config = self.layer.config[self.model_config_key]
-            elif type(self.model_config_key) in [list, tuple]:
-                config = self.model_config_key[0]
-                for subkey in self.model_config_key[1:]:
-                    config = config[self.model_config_key]
-
+            config = nested_get(self.layer.config, self.model_config_key, raiseon_nolocate=True)
         except KeyError:
             log(f"User provided no model information for [layer: {self.layer.name} in world: {world_name}]'s "
                 f"{self.__class__.__name__}, using defaults instead.", level='debug')
@@ -171,12 +172,9 @@ class LayerModelHolder(ModelHolder):
                                         f"{self.__class__.__name__} and no defaults are set.")
 
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
-        super().__init__(model_name=model_name, replacement_config=config, call_reinit=call_reinit)
+        super().__init__(model_name=model_name, replacement_config=config)
 
-        if store_config_in_layer:
+        if self.store_config_in_layer:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then
             #    store the new config in the layer's config, overwriting any previous parameters.
-            if self.model_config_key in self.layer.config:
-                # Store the old config under a new key
-                self.layer._config[f'OLD_{self.model_config_key}'] = self.layer.config[self.model_config_key]
-            self.layer._config[self.model_config_key] = copy.deepcopy(self.config)
+            nested_place(self.config, self.layer.config, self.model_config_key, make_copy=False, retain_old_value=True)

@@ -3,7 +3,7 @@ from typing import Callable, Tuple, Dict, Union, Any
 import copy
 from warnings import warn
 
-from TidalPy.exceptions import ParameterMissingError
+from .dictionary_utils import nested_get
 from .functional_utils import is_function, parse_model_docstring
 
 
@@ -58,8 +58,8 @@ def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()
     return models, model_const_args, model_live_args
 
 
-def build_model_defaults(const_arg_dict: Dict[str, Tuple[str, ...]], dict_of_defaults: dict,
-                         inner_keys: Union[Tuple[str, ...], str] = None) -> Dict[Dict[str, Tuple[Any, ...]]]:
+def build_model_default_inputs(const_arg_dict: Dict[str, Tuple[str, ...]], dict_of_defaults: dict,
+                               inner_keys: Union[Tuple[str, ...], str] = None) -> Dict[str, Dict[str, Tuple[Any, ...]]]:
     """ Builds a dictionary of default input parameters using a constant argument dictionary and a dictionary of
     default values.
 
@@ -75,7 +75,7 @@ def build_model_defaults(const_arg_dict: Dict[str, Tuple[str, ...]], dict_of_def
 
     Returns
     -------
-    default_args_byfunc : Dict[Dict[str, Tuple[Any, ...]]]
+    default_args_byfunc : Dict[str, Dict[str, Tuple[Any, ...]]]
         Dictionary of default constant arguments, broken up by function names and then by layer types.
     """
 
@@ -93,11 +93,7 @@ def build_model_defaults(const_arg_dict: Dict[str, Tuple[str, ...]], dict_of_def
 
             if inner_keys is not None:
                 # If parameters are stored in a subdict, then we need to find locate that subdict.
-                if type(inner_keys) == str:
-                    inner_dict = inner_dict[inner_keys]
-                elif type(inner_keys) in [list, tuple]:
-                    for inner_key in inner_keys:
-                        inner_dict = inner_dict[inner_key]
+                inner_dict = nested_get(inner_dict, nested_keys=inner_keys, raiseon_nolocate=True)
 
             default_args = list()
             force_none = False

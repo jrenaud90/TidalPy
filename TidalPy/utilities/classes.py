@@ -31,7 +31,7 @@ class ConfigHolder(TidalPyClass):
     default_config = None
     default_config_key = None
 
-    def __init__(self, replacement_config: dict = None, call_reinit: bool = True):
+    def __init__(self, replacement_config: dict = None):
 
         super().__init__()
 
@@ -61,21 +61,9 @@ class ConfigHolder(TidalPyClass):
 
         # Flags
         self.config_constructed = False
-        self.reinit_called = False
 
-        # Merge the configurations
+        # Install and merge the replacement config with the default config
         self.update_config()
-
-        # Install user provided config
-        if call_reinit:
-            self.reinit()
-
-    def reinit(self):
-        """ Performs any tasks that need to be done in order to reinitialize a class that might have been loaded from
-            a dill/pickle file
-        """
-
-        self.reinit_called = True
 
     def replace_config(self, replacement_config: dict, force_default_merge: bool = False):
         """ Replaces the current configuration dictionary with a user provided one
@@ -288,7 +276,7 @@ class LayerConfigHolder(ConfigHolder):
 
     layer_config_key = None
 
-    def __init__(self, layer: ThermalLayer, store_config_in_layer: bool = True, call_reinit: bool = True):
+    def __init__(self, layer: ThermalLayer, store_config_in_layer: bool = True):
 
         # Store layer and world information
         self.layer = layer
@@ -302,8 +290,8 @@ class LayerConfigHolder(ConfigHolder):
         # Update pyname
         self.pyname += '_' + self.layer_type
 
-        # The layer's type is used to pull out default parameter information
-        self.default_config_key = self.layer_type
+        # Record if model config should be stored back into layer's config
+        self.store_config_in_layer = store_config_in_layer
 
         config = None
         try:
@@ -317,7 +305,7 @@ class LayerConfigHolder(ConfigHolder):
                                         f"{self.__class__.__name__} and no defaults are set.")
 
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
-        super().__init__(replacement_config=config, call_reinit=call_reinit)
+        super().__init__(replacement_config=config)
 
         if store_config_in_layer:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then

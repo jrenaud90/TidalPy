@@ -20,7 +20,7 @@ from ..thermal import find_viscosity
 from ..thermal.cooling import Cooling
 from ..thermal.partial_melt import PartialMelt
 from ..types import floatarray_like
-from ..utilities.dict_utils import nested_get
+from ..utilities.dictionary_utils import nested_get
 from ..utilities.numpy_help import find_nearest, value_cleanup
 from ..types import ArrayNone
 
@@ -130,6 +130,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self._melt_fraction = None  # type: ArrayNone
         self._viscosity = None  # type: ArrayNone
         self._shear_modulus = None  # type: ArrayNone
+        self._compliance = None  # type: ArrayNone
         self._heat_flux = None  # type: ArrayNone
         self._rayleigh = None  # type: ArrayNone
         self._nusselt = None  # type: ArrayNone
@@ -695,6 +696,15 @@ class ThermalLayer(PhysicalObjSpherical):
                 force_tides = True
         self.update_tides(force_calculation=force_tides)
         self.update_cooling(force_calculation=force_cooling)
+
+
+    @property
+    def compliance(self) -> np.ndarray:
+        return self._compliance
+
+    @compliance.setter
+    def compliance(self, value):
+        raise ImproperAttributeHandling("Set the layer's shear modulus instead of compliance")
 
     # Attributes that will be updated whenever temperature is updated:
     @property
