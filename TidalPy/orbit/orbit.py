@@ -9,7 +9,7 @@ from TidalPy.utilities.numpy_help import value_cleanup
 from .. import debug_mode
 from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
 from ..exceptions import (ImproperAttributeHandling, ArgumentException, IncompatibleModelConfigError,
-                          IncorrectArgumentType, IncorrectModelInitialized, ParameterError, ParameterMissingError)
+                          IncorrectArgumentType, IncorrectModelInitialized, ParameterValueError, ParameterMissingError)
 from ..initialize import log
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
 from ..types import FloatArray
@@ -150,9 +150,9 @@ class OrbitBase(TidalPyClass):
 
             # Check for potential issues
             if target_body is self.star:
-                raise ParameterError("The orbit's star can not be a target body")
+                raise ParameterValueError("The orbit's star can not be a target body")
             if target_body is self.host:
-                raise ParameterError("The orbit's host can not be a target body. "
+                raise ParameterValueError("The orbit's host can not be a target body. "
                                      "Nevertheless, tides can still be calculated in the host. See documentation.")
 
             # Equilibrium Temperature
@@ -537,7 +537,7 @@ class OrbitBase(TidalPyClass):
                                             'study.')
         planet_loc = self.find_planet_pointer(planet_reference).orbit_location
         if planet_loc == 0:
-            raise ParameterError()
+            raise ParameterValueError()
         elif planet_loc == 1:
             planet_loc = self.host_tide_raiser_loc
 
@@ -550,7 +550,7 @@ class OrbitBase(TidalPyClass):
                                             'study.')
         planet_loc = self.find_planet_pointer(planet_reference).orbit_location
         if planet_loc == 0:
-            raise ParameterError()
+            raise ParameterValueError()
         elif planet_loc == 1:
             planet_loc = self.host_tide_raiser_loc
 
@@ -670,7 +670,7 @@ class OrbitBase(TidalPyClass):
         planet_loc = planet_pointer.orbit_location
 
         if planet_pointer is self.star:
-            raise ParameterError('Can not calculation insolation heating for the star.')
+            raise ParameterValueError('Can not calculation insolation heating for the star.')
 
         # These separations and eccentricities should be relative to the star!
         star_separation = self.equilib_distance_funcs[planet_loc]()
@@ -700,11 +700,11 @@ class OrbitBase(TidalPyClass):
     def host_tide_raiser_loc(self, value: int):
 
         if value > len(self.all_objects):
-            raise ParameterError('Host tide raiser location must be the orbit location of one of the target bodies.')
+            raise ParameterValueError('Host tide raiser location must be the orbit location of one of the target bodies.')
         elif value in [0, 1]:
-            raise ParameterError('Host tide raiser location can not be the host or stars locations')
+            raise ParameterValueError('Host tide raiser location can not be the host or stars locations')
         elif value < 0:
-            raise ParameterError('Host tide raiser location must be positive')
+            raise ParameterValueError('Host tide raiser location must be positive')
 
         self._host_tide_raiser_loc = value
 

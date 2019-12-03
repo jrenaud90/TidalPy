@@ -61,15 +61,25 @@ class ModelHolder(ConfigHolder):
 
         # Switch between calculate and calculate debug. Generally, _calculate_debug is a much slower function that
         #    includes additional checks
-        if debug_mode:
-            if '_calculate_debug' in self.__dict__:
+        self._calc = self._calculate
+        if '_calculate_debug' in self.__dict__:
+            # If a debug function is available use it as the primary calculator in debug mode.
+            # Give this function the same documentation as the regular calculate but with prepended text stating
+            #     that it is a debug version
+            self._calculate_debug.__doc__ = 'DEBUG MODE ENABLED\n'
+            if self._calculate.__doc__ not in [None, '']:
+                self._calculate_debug.__doc__ += self._calculate.__doc__
+
+            if debug_mode:
                 self._calc = self._calculate_debug
-            else:
+        else:
+            if debug_mode:
                 log(f'Debug mode is on, but it appears that no debug calculation method has been implemented '
                     f'for {self.__class__.__name__}. Using regular calculate method.')
-                self._calc = self._calculate
-        else:
-            self._calc = self._calculate
+
+        # Give calculate the same doc string as whatever is store in _calc (debug or regular)
+        if self._calc.__doc__ not in [None, '']:
+            self.calculate.__doc__ = self._calc.__doc__
 
     def calculate(self, *args, **kwargs):
 

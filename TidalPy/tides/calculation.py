@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import numpy as np
 
@@ -23,14 +23,14 @@ def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major
 
     Returns
     -------
-    tidal_suscept : np.ndarray
+    tidal_susceptibility : np.ndarray
         Tidal Susceptibility [N m]
 
     """
 
-    tidal_suscept = (3. / 2.) * G * host_mass**2 * target_radius**5 / semi_major_axis**6
+    tidal_susceptibility = (3. / 2.) * G * host_mass**2 * target_radius**5 / semi_major_axis**6
 
-    return tidal_suscept
+    return tidal_susceptibility
 
 
 @njit
@@ -75,7 +75,8 @@ def calculate_tides(shear_modulus: np.ndarray, viscosity: np.ndarray,
                     semi_major_axis: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray,
                     orbital_frequency: np.ndarray, spin_frequency: np.ndarray,
                     tidal_volume_fraction: float = 1.,
-                    use_nsr: bool = False, truncation: int = 2, order_l: int = 2) -> Tuple[np.ndarray, np.ndarray]:
+                    use_nsr: bool = False, truncation: int = 2, order_l: int = 2) -> \
+        Tuple[np.ndarray, np.ndarray, List[np.ndarray], Dict[str, np.ndarray], Dict[str, np.ndarray]]:
     """ Calculate Tidal Heating and Torques using the 2nd order Love number
 
     Parameters
@@ -119,9 +120,15 @@ def calculate_tides(shear_modulus: np.ndarray, viscosity: np.ndarray,
     Returns
     -------
     tidal_heating : np.ndarray
-        Layer's Tidal Heating [Watts]
+        Layer's Tidal Heating [W]
     tidal_torque : np.ndarray
         Layer's Tidal zTorque [N m]
+    love_numbers : List[np.ndarray, ...]
+        The complex Love numbers for each tidal mode
+    tidal_frequencies : List[np.ndarray, ...]
+        Tidal frequencies [rads s-1]
+    cached_complex_comps : List[np.ndarray, ...]
+        Complex compliances for each frequency [Pa-1]
     """
 
     if order_l < 2:
@@ -130,15 +137,17 @@ def calculate_tides(shear_modulus: np.ndarray, viscosity: np.ndarray,
         # TODO
         raise NotImplementedError
 
-    # Calculate Effective Rigidity and Get Heating/Torque Equations
+    # Calculate Effective Rigidity and Get Heating/Torque Equations.
     compliance = 1. / shear_modulus
 
-    # Store heating and torque terms
+    # Store heating and torque terms as well as the love numbers.
     heating_terms = list()
     ztorque_terms = list()
+    love_numbers = list()
 
-    # cache complex compliances so repeat calculations are not made for the same mode.
-    cached_comps = dict()
+    # Cache complex compliances so repeat calculations are not made for the same mode.
+    cached_complex_comps = dict()
+    tidal_frequencies = dict()
 
     for l in range(2, order_l+1):
 
@@ -155,25 +164,29 @@ def calculate_tides(shear_modulus: np.ndarray, viscosity: np.ndarray,
         # Scale by tvf
         l_coeff *= tidal_volume_fraction
 
-        mode_names, modes, freqs, heating_coeffs, ztorque_coeffs = \
+        mode_names, modes, freqs, heating_subterms, ztorque_subterms = \
             mode_calculator(orbital_frequency, spin_frequency, eccentricity, inclination)
 
-        for mode_name, freq, heating_coeff, ztorque_coeff in zip(mode_names, freqs, heating_coeffs, ztorque_coeffs):
+        for mode_name, freq, heating_coeff, ztorque_coeff in zip(mode_names, freqs, heating_subterms, ztorque_subterms):
 
             # Calculate the complex compliance
-            if mode_name not in cached_comps:
+            if mode_name not in cached_complex_comps:
+                # This particular frequency has not been calculated before.
                 cmplx_comp = complex_compliance_func(compliance, viscosity, freq, *complex_compliance_input)
-                cached_comps[mode_name] = cmplx_comp
+                cached_complex_comps[mode_name] = cmplx_comp
+                tidal_frequencies[mode_name] = freq
             else:
-                cmplx_comp = cached_comps[mode_name]
+                cmplx_comp = cached_complex_comps[mode_name]
 
             # Calculate the complex Love Number
             cmplx_love_number = complex_love_general(cmplx_comp, shear_modulus, eff_rigid, order_l=l)
             neg_imk = -np.imag(cmplx_love_number)
+
+            love_numbers.append(cmplx_love_number)
             heating_terms.append(heating_coeff * neg_imk * l_coeff)
             ztorque_terms.append(ztorque_coeff * neg_imk * l_coeff)
 
     # Collapse all the tidal modes into a single number
     tidal_heating, tidal_ztorque = _collapse_terms(heating_terms, ztorque_terms, tidal_susceptibility)
 
-    return tidal_heating, tidal_ztorque
+    return tidal_heating, tidal_ztorque, love_numbers, tidal_frequencies, cached_complex_comps

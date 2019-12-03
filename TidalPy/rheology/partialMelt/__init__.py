@@ -10,4 +10,4 @@ def get_partial_melt_model_default_inputs(layer_type: str):
     return build_model_default_inputs(known_model_const_args, partial_melt_defaults, inner_keys=layer_type)
 
 from .partialmelt import PartialMelt
-from .partialmelt import calc_partial_melting
+from .partialmelt import calculate_melt_fraction

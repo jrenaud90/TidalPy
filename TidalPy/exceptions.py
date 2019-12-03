@@ -31,6 +31,8 @@ class IncorrectArgumentType(ArgumentException):
 class MissingArgumentError(ArgumentException):
     default_message = 'One or more required argument(s) and/or key-word argument(s) were not provided.'
 
+class ArgumentOverloadError(ArgumentException):
+    default_message = 'Too many arguments were supplied to a function or method.'
 
 # Class Error
 class ClassException(TidalPyException):
@@ -105,10 +107,11 @@ class ParameterMissingError(ParameterException):
     default_message = 'One or more parameter(s) or configuration(s) are missing and have no defaults. ' \
                       'Check that keys have correct spelling and capitalization.'
 
+class ParameterTypeError(ParameterException):
+    default_message = 'One or more parameters were found to have an incorrect type.'
 
-class ParameterError(ParameterException):
-    default_message = 'One or more parameters are not supported as specified.'
-
+class ParameterValueError(ParameterException):
+    default_message = 'One or more parameter values are invalid or not supported.'
 
 class IncompatibleModelConfigError(ConfigurationException):
     default_message = 'One or more model parameters are not compatible with each other'

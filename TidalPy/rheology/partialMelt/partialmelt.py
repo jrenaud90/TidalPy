@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ...exceptions import BadValueError
+from ...exceptions import BadValueError, ImproperAttributeHandling
 from ...performance import njit
 from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 @njit
-def calc_partial_melting(temperature: np.ndarray, solidus: float, liquidus: float):
+def calculate_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: float):
     """ Calculates the partial melt volume fraction based on the material's solidus and liquidus
 
     Parameters
@@ -42,6 +42,34 @@ def calc_partial_melting(temperature: np.ndarray, solidus: float, liquidus: floa
     partial_melt_volume_frac[partial_melt_volume_frac > 1.] = 1.
 
     return partial_melt_volume_frac
+
+@njit
+def calculate_temperature_frommelt(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
+    """ Calculates the temperature from the volumetric melt fraction
+
+    Parameters
+    ----------
+    melt_frac : FloatArray
+        Volumetric Melt Fraction [m3 m-3]
+    solidus : float
+        Material/Layer solidus temperature [K]
+    liquidus : float
+        Material/Layer liquidus temperature [K]
+
+    Returns
+    -------
+    temp_at_melt : FloatArray
+        Temperature at melt fraction [K]
+
+    """
+
+    # Check for over/under-shoots
+    melt_frac[melt_frac < 0.] = 0.
+    melt_frac[melt_frac > 1.] = 1.
+
+    temp_at_melt = melt_frac * (liquidus - solidus) + solidus
+
+    return temp_at_melt
 
 
 class PartialMelt(LayerModelHolder):
@@ -73,26 +101,17 @@ class PartialMelt(LayerModelHolder):
         if self.model == 'off':
             self.use_partial_melt = False
 
-        # TODO: No debug calculation has been implemented
-        self._calculate_debug = self._calculate
+        # State attributes
+        self._melt_fraction = None
+        self._postmelt_viscosity = None
+        self._postmelt_shear_modulus = None
+        self._postmelt_compliance = None
 
-    def _calculate(self, temperature: np.ndarray, premelt_viscosity: np.ndarray, premelt_shear: np.ndarray,
-                   liquid_viscosity: np.ndarray):
+    def _calculate(self):
         """ Wrapper for the partial melting function.
 
         First the partial melt will be updated based on the provided temperature. Then changes to the shear modulus
             and viscosity are updated.
-
-        Parameters
-        ----------
-        temperature : np.ndarray
-            Layer/Material temperature [K]
-        premelt_viscosity : np.ndarray
-            Layer/Material viscosity before partial melting is considered [Pa s]
-        premelt_shear : np.ndarray
-            Layer/Material shear modulus before partial melting is considered [Pa]
-        liquid_viscosity : np.ndarray
-            Layer/Material viscosity if it were completely molten at this temperature [Pa s]
 
         Returns
         -------
@@ -105,12 +124,89 @@ class PartialMelt(LayerModelHolder):
         """
 
         if self.use_partial_melt:
-            melt_fraction = calc_partial_melting(temperature, self.solidus, self.liquidus)
-            postmelt_viscosity, postmelt_shear_modulus = self.func(self.layer.temperature, self.layer.melt_fraction,
-                                                                   premelt_viscosity, premelt_shear, liquid_viscosity,
-                                                                   *self.inputs, *self.live_inputs)
+            melt_fraction = calculate_melt_fraction(self.temperature, self.solidus, self.liquidus)
+            postmelt_viscosity, postmelt_shear_modulus = self.func(melt_fraction, *self.live_inputs, *self.inputs)
         else:
-            melt_fraction = np.zeros_like(temperature)
-            postmelt_viscosity, postmelt_shear_modulus = premelt_viscosity, premelt_shear
+            melt_fraction = np.zeros_like(self.temperature)
+            postmelt_viscosity, postmelt_shear_modulus = self.premelt_viscosity, self.premelt_shear
+
+        self._melt_fraction = melt_fraction
+        self._postmelt_viscosity = postmelt_shear_modulus
+        self._postmelt_shear_modulus = postmelt_shear_modulus
+        self._postmelt_compliance = 1. / postmelt_shear_modulus
 
         return melt_fraction, postmelt_viscosity, postmelt_shear_modulus
+
+    # Wrappers for user convenience
+    def calculate_melt_fraction(self, temperature: np.ndarray):
+        return calculate_melt_fraction(temperature, self.solidus, self.liquidus)
+
+    def calculate_temperature_frommelt(self, melt_fraction: np.ndarray):
+        return calculate_temperature_frommelt(melt_fraction, self.solidus, self.liquidus)
+
+
+    # State properties
+    @property
+    def postmelt_viscosity(self):
+        return self._postmelt_viscosity
+
+    @postmelt_viscosity.setter
+    def postmelt_viscosity(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def postmelt_shear_modulus(self):
+        return self._postmelt_shear_modulus
+
+    @postmelt_shear_modulus.setter
+    def postmelt_shear_modulus(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def postmelt_compliance(self):
+        return self._postmelt_compliance
+
+    @postmelt_compliance.setter
+    def postmelt_compliance(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def melt_fraction(self):
+        return self._melt_fraction
+
+    @melt_fraction.setter
+    def melt_fraction(self, value):
+        raise ImproperAttributeHandling
+
+    # Outerscope properties
+    @property
+    def temperature(self) -> np.ndarray:
+        return self.layer.temperature
+
+    @temperature.setter
+    def temperature(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def premelt_viscosity(self) -> np.ndarray:
+        return self.rheology_class.premelt_viscosity
+
+    @premelt_viscosity.setter
+    def premelt_viscosity(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def premelt_shear(self) -> np.ndarray:
+        return self.rheology_class.premelt_shear
+
+    @premelt_shear.setter
+    def premelt_shear(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def liquid_viscosity(self) -> np.ndarray:
+        return self.rheology_class.liquid_viscosity
+
+    @liquid_viscosity.setter
+    def liquid_viscosity(self, value):
+        raise ImproperAttributeHandling

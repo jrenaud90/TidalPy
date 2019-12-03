@@ -2,22 +2,46 @@ import numpy as np
 
 from TidalPy.performance import njit
 from . import MODE_ZERO_TOL
+from .modes_l2 import ModeOutput
 
 # TODO: A lot of the mode list construction is static and could take place outside of the functions at the expense of
 #   readibility.
 
 @njit
-def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray,
+                    inclination: np.ndarray) -> ModeOutput:
     """ Synchronous Rotation Tidal Modes (for heating and torque) for l=3, e^2, I^2
 
     These should all have the same shape!!
 
-    :param orbital_freq:
-    :param spin_freq:
-    :param eccentricity:
-    :param inclination:
-    :return:
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Orbital frequency (mean motion) [rads s-1]
+    spin_frequency : np.ndarray
+        Planet's spin frequency (inverse of period) [rads s-1]
+    eccentricity : np.ndarray
+        Orbital eccentricity
+    inclination : np.ndarray
+        Orbital inclination (relative to the orbital plane of the satellite) [rads]
+        Note: this is not relative to the host planet's equator
+
+    Returns
+    -------
+    mode_names : List[str, ...]
+        List of easy to read names for each mode.
+            "n" == orbital motion frequency
+            "o" == spin frequency
+    modes : List[np.ndarray, ...]
+        List of calculated modes [rads s-1]
+    freqs : List[np.ndarray, ...]
+        List of calculated frequencies (absolute value of modes) [rads s-1]
+    heating_subterms: List[np.ndarray, ...]
+        List of tidal heating coefficients [N m]
+    ztorque_subterms: List[np.ndarray, ...]
+        List of tidal torque coefficients [N m]
     """
+
     e2 = eccentricity**2
     i2 = inclination**2
 
@@ -30,8 +54,8 @@ def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricit
         ),
     )
 
-    heating_coeffs = list()
-    ztorque_coeffs = list()
+    heating_subterms = list()
+    ztorque_subterms = list()
     freqs = list()
     modes = list()
     mode_names = list()
@@ -52,28 +76,51 @@ def spin_sync_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricit
         freqs.append(freq)
         modes.append(mode)
         mode_names.append(mode_name)
-        heating_coeffs.append(heating_coeff)
-        ztorque_coeffs.append(ztorque_coeff)
+        heating_subterms.append(heating_coeff)
+        ztorque_subterms.append(ztorque_coeff)
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
     # freqs = tuple(freqs)
 
-    return mode_names, modes, freqs, heating_coeffs, ztorque_coeffs
+    return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
 
 @njit
-def spin_sync_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def spin_sync_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray,
+                      inclination: np.ndarray) -> ModeOutput:
     """ Synchronous Rotation Tidal Modes (for heating and torque) for l=3, e^4, I^4
 
     These should all have the same shape!!
 
-    :param orbital_freq:
-    :param spin_freq:
-    :param eccentricity:
-    :param inclination:
-    :return:
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Orbital frequency (mean motion) [rads s-1]
+    spin_frequency : np.ndarray
+        Planet's spin frequency (inverse of period) [rads s-1]
+    eccentricity : np.ndarray
+        Orbital eccentricity
+    inclination : np.ndarray
+        Orbital inclination (relative to the orbital plane of the satellite) [rads]
+        Note: this is not relative to the host planet's equator
+
+    Returns
+    -------
+    mode_names : List[str, ...]
+        List of easy to read names for each mode.
+            "n" == orbital motion frequency
+            "o" == spin frequency
+    modes : List[np.ndarray, ...]
+        List of calculated modes [rads s-1]
+    freqs : List[np.ndarray, ...]
+        List of calculated frequencies (absolute value of modes) [rads s-1]
+    heating_subterms: List[np.ndarray, ...]
+        List of tidal heating coefficients [N m]
+    ztorque_subterms: List[np.ndarray, ...]
+        List of tidal torque coefficients [N m]
     """
+
     e2 = eccentricity**2
     e4 = eccentricity**4
     i2 = inclination**2
@@ -95,8 +142,8 @@ def spin_sync_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
         )
     )
 
-    heating_coeffs = list()
-    ztorque_coeffs = list()
+    heating_subterms = list()
+    ztorque_subterms = list()
     freqs = list()
     modes = list()
     mode_names = list()
@@ -117,35 +164,58 @@ def spin_sync_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
         freqs.append(freq)
         modes.append(mode)
         mode_names.append(mode_name)
-        heating_coeffs.append(heating_coeff)
-        ztorque_coeffs.append(ztorque_coeff)
+        heating_subterms.append(heating_coeff)
+        ztorque_subterms.append(ztorque_coeff)
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
     # freqs = tuple(freqs)
 
-    return mode_names, modes, freqs, heating_coeffs, ztorque_coeffs
+    return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
 
 @njit
-def spin_sync_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def spin_sync_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray,
+                      inclination: np.ndarray) -> ModeOutput:
     """ Synchronous Rotation Tidal Modes (for heating and torque) for l=3, e^6, I^6
 
     These should all have the same shape!!
 
-    :param orbital_freq:
-    :param spin_freq:
-    :param eccentricity:
-    :param inclination:
-    :return:
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Orbital frequency (mean motion) [rads s-1]
+    spin_frequency : np.ndarray
+        Planet's spin frequency (inverse of period) [rads s-1]
+    eccentricity : np.ndarray
+        Orbital eccentricity
+    inclination : np.ndarray
+        Orbital inclination (relative to the orbital plane of the satellite) [rads]
+        Note: this is not relative to the host planet's equator
+
+    Returns
+    -------
+    mode_names : List[str, ...]
+        List of easy to read names for each mode.
+            "n" == orbital motion frequency
+            "o" == spin frequency
+    modes : List[np.ndarray, ...]
+        List of calculated modes [rads s-1]
+    freqs : List[np.ndarray, ...]
+        List of calculated frequencies (absolute value of modes) [rads s-1]
+    heating_subterms: List[np.ndarray, ...]
+        List of tidal heating coefficients [N m]
+    ztorque_subterms: List[np.ndarray, ...]
+        List of tidal torque coefficients [N m]
     """
+
     e2 = eccentricity**2
     e4 = eccentricity**4
     e6 = eccentricity**6
     i2 = inclination**2
     i4 = inclination**4
     i6 = inclination**6
-    i2e2 = e2 * i2
+    i2e2 = i2 * e2
     i2e4 = i2 * e4
     i4e2 = i4 * e2
 
@@ -174,8 +244,8 @@ def spin_sync_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
         )
     )
 
-    heating_coeffs = list()
-    ztorque_coeffs = list()
+    heating_subterms = list()
+    ztorque_subterms = list()
     freqs = list()
     modes = list()
     mode_names = list()
@@ -196,28 +266,51 @@ def spin_sync_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentric
         freqs.append(freq)
         modes.append(mode)
         mode_names.append(mode_name)
-        heating_coeffs.append(heating_coeff)
-        ztorque_coeffs.append(ztorque_coeff)
+        heating_subterms.append(heating_coeff)
+        ztorque_subterms.append(ztorque_coeff)
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
     # freqs = tuple(freqs)
 
-    return mode_names, modes, freqs, heating_coeffs, ztorque_coeffs
+    return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
 
 @njit
-def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray,
+              inclination: np.ndarray) -> ModeOutput:
     """ Non-Synchronous Rotation Tidal Modes (for heating and torque) for l=3, e^2, I^2
 
     These should all have the same shape!!
 
-    :param orbital_freq:
-    :param spin_freq:
-    :param eccentricity:
-    :param inclination:
-    :return:
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Orbital frequency (mean motion) [rads s-1]
+    spin_frequency : np.ndarray
+        Planet's spin frequency (inverse of period) [rads s-1]
+    eccentricity : np.ndarray
+        Orbital eccentricity
+    inclination : np.ndarray
+        Orbital inclination (relative to the orbital plane of the satellite) [rads]
+        Note: this is not relative to the host planet's equator
+
+    Returns
+    -------
+    mode_names : List[str, ...]
+        List of easy to read names for each mode.
+            "n" == orbital motion frequency
+            "o" == spin frequency
+    modes : List[np.ndarray, ...]
+        List of calculated modes [rads s-1]
+    freqs : List[np.ndarray, ...]
+        List of calculated frequencies (absolute value of modes) [rads s-1]
+    heating_subterms: List[np.ndarray, ...]
+        List of tidal heating coefficients [N m]
+    ztorque_subterms: List[np.ndarray, ...]
+        List of tidal torque coefficients [N m]
     """
+
     e2 = eccentricity**2
     i2 = inclination**2
 
@@ -278,8 +371,8 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
         )
     )
 
-    heating_coeffs = list()
-    ztorque_coeffs = list()
+    heating_subterms = list()
+    ztorque_subterms = list()
     freqs = list()
     modes = list()
     mode_names = list()
@@ -300,33 +393,56 @@ def nsr_modes(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.
         freqs.append(freq)
         modes.append(mode)
         mode_names.append(mode_name)
-        heating_coeffs.append(heating_coeff)
-        ztorque_coeffs.append(ztorque_coeff)
+        heating_subterms.append(heating_coeff)
+        ztorque_subterms.append(ztorque_coeff)
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
     # freqs = tuple(freqs)
 
-    return mode_names, modes, freqs, heating_coeffs, ztorque_coeffs
+    return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
 
 @njit
-def nsr_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def nsr_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray,
+                inclination: np.ndarray) -> ModeOutput:
     """ Non-Synchronous Rotation Tidal Modes (for heating and torque) for l=3, e^4, I^4
 
     These should all have the same shape!!
 
-    :param orbital_freq:
-    :param spin_freq:
-    :param eccentricity:
-    :param inclination:
-    :return:
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Orbital frequency (mean motion) [rads s-1]
+    spin_frequency : np.ndarray
+        Planet's spin frequency (inverse of period) [rads s-1]
+    eccentricity : np.ndarray
+        Orbital eccentricity
+    inclination : np.ndarray
+        Orbital inclination (relative to the orbital plane of the satellite) [rads]
+        Note: this is not relative to the host planet's equator
+
+    Returns
+    -------
+    mode_names : List[str, ...]
+        List of easy to read names for each mode.
+            "n" == orbital motion frequency
+            "o" == spin frequency
+    modes : List[np.ndarray, ...]
+        List of calculated modes [rads s-1]
+    freqs : List[np.ndarray, ...]
+        List of calculated frequencies (absolute value of modes) [rads s-1]
+    heating_subterms: List[np.ndarray, ...]
+        List of tidal heating coefficients [N m]
+    ztorque_subterms: List[np.ndarray, ...]
+        List of tidal torque coefficients [N m]
     """
+
     e2 = eccentricity**2
     e4 = eccentricity**4
     i2 = inclination**2
     i4 = inclination**4
-    i2e2 = e2 * i2
+    i2e2 = i2 * e2
 
     modes_coeffs = (
         (
@@ -433,8 +549,8 @@ def nsr_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         )
     )
 
-    heating_coeffs = list()
-    ztorque_coeffs = list()
+    heating_subterms = list()
+    ztorque_subterms = list()
     freqs = list()
     modes = list()
     mode_names = list()
@@ -455,35 +571,58 @@ def nsr_modes_4(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         freqs.append(freq)
         modes.append(mode)
         mode_names.append(mode_name)
-        heating_coeffs.append(heating_coeff)
-        ztorque_coeffs.append(ztorque_coeff)
+        heating_subterms.append(heating_coeff)
+        ztorque_subterms.append(ztorque_coeff)
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
     # freqs = tuple(freqs)
 
-    return mode_names, modes, freqs, heating_coeffs, ztorque_coeffs
+    return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
 
 @njit
-def nsr_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray):
+def nsr_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray,
+                inclination: np.ndarray) -> ModeOutput:
     """ Non-Synchronous Rotation Tidal Modes (for heating and torque) for l=3, e^6, I^6
 
     These should all have the same shape!!
 
-    :param orbital_freq:
-    :param spin_freq:
-    :param eccentricity:
-    :param inclination:
-    :return:
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Orbital frequency (mean motion) [rads s-1]
+    spin_frequency : np.ndarray
+        Planet's spin frequency (inverse of period) [rads s-1]
+    eccentricity : np.ndarray
+        Orbital eccentricity
+    inclination : np.ndarray
+        Orbital inclination (relative to the orbital plane of the satellite) [rads]
+        Note: this is not relative to the host planet's equator
+
+    Returns
+    -------
+    mode_names : List[str, ...]
+        List of easy to read names for each mode.
+            "n" == orbital motion frequency
+            "o" == spin frequency
+    modes : List[np.ndarray, ...]
+        List of calculated modes [rads s-1]
+    freqs : List[np.ndarray, ...]
+        List of calculated frequencies (absolute value of modes) [rads s-1]
+    heating_subterms: List[np.ndarray, ...]
+        List of tidal heating coefficients [N m]
+    ztorque_subterms: List[np.ndarray, ...]
+        List of tidal torque coefficients [N m]
     """
+
     e2 = eccentricity**2
     e4 = eccentricity**4
     e6 = eccentricity**6
     i2 = inclination**2
     i4 = inclination**4
     i6 = inclination**6
-    i2e2 = e2 * i2
+    i2e2 = i2 * e2
     i2e4 = i2 * e4
     i4e2 = i4 * e2
 
@@ -638,8 +777,8 @@ def nsr_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         )
     )
 
-    heating_coeffs = list()
-    ztorque_coeffs = list()
+    heating_subterms = list()
+    ztorque_subterms = list()
     freqs = list()
     modes = list()
     mode_names = list()
@@ -660,11 +799,11 @@ def nsr_modes_6(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         freqs.append(freq)
         modes.append(mode)
         mode_names.append(mode_name)
-        heating_coeffs.append(heating_coeff)
-        ztorque_coeffs.append(ztorque_coeff)
+        heating_subterms.append(heating_coeff)
+        ztorque_subterms.append(ztorque_coeff)
 
     # As of Numba June 2019, tuple(List) is not supported. If that support comes then these should be uncommented.
     # modes = tuple(modes)
     # freqs = tuple(freqs)
 
-    return mode_names, modes, freqs, heating_coeffs, ztorque_coeffs
+    return mode_names, modes, freqs, heating_subterms, ztorque_subterms

@@ -8,23 +8,19 @@ from TidalPy.performance import njit
 
 
 @njit
-def off(temperature: np.ndarray, melt_fraction: np.ndarray,
-        premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
-        premelt_shear: float) -> Tuple[np.ndarray, np.ndarray]:
+def off(melt_fraction: np.ndarray, premelt_viscosity: np.ndarray, premelt_shear: float) -> Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: off
+
+    !TPY_args live: self.premelt_viscosity, self.premelt_shear
 
     Parameters
     ----------
-    temperature : np.ndarray
-        Layer/Material temperature [K]
     melt_fraction : np.ndarray
         Layer/Material volumetric melt fraction [m3 m-3]
     premelt_viscosity : np.ndarray
         Layer/Material viscosity before partial melting is considered [Pa s]
     premelt_shear : np.ndarray
         Layer/Material shear modulus before partial melting is considered [Pa]
-    liquid_viscosity : np.ndarray
-        Layer/Material viscosity if it were completely molten at this temperature [Pa s]
 
     Returns
     -------
@@ -41,27 +37,23 @@ def off(temperature: np.ndarray, melt_fraction: np.ndarray,
 
 
 @njit
-def spohn(temperature: np.ndarray, melt_fraction: np.ndarray,
-          premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
-          premelt_shear: float,
+def spohn(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_viscosity: np.ndarray,
           liquid_shear: float = 1.0e-5,
           fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
           fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6) -> Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: spohn
 
     Fischer and Spohn (1990) Partial-Melt Viscosity Function
+
+    !TPY_args live: self.temperature, self.liquid_viscosity
     !TPY_args const: liquid_shear, fs_visc_power_slope, fs_visc_power_phase, fs_shear_power_slope, fs_shear_power_phase
 
     Parameters
     ----------
-    temperature : np.ndarray
-        Layer/Material temperature [K]
     melt_fraction : np.ndarray
         Layer/Material volumetric melt fraction [m3 m-3]
-    premelt_viscosity : np.ndarray
-        Layer/Material viscosity before partial melting is considered [Pa s]
-    premelt_shear : np.ndarray
-        Layer/Material shear modulus before partial melting is considered [Pa]
+    temperature : np.ndarray
+        Layer/Material temperature [K]
     liquid_viscosity : np.ndarray
         Layer/Material viscosity if it were completely molten at this temperature [Pa s]
     liquid_shear : float
@@ -94,10 +86,9 @@ def spohn(temperature: np.ndarray, melt_fraction: np.ndarray,
 
 
 @njit
-def henning(temperature: np.ndarray, melt_fraction: np.ndarray,
+def henning(melt_fraction: np.ndarray, temperature: np.ndarray,
             premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
             premelt_shear: float,
-
             liquid_shear: float, crit_melt_frac: float, crit_melt_frac_width: float, hn_visc_slope_1: float,
             hn_visc_slope_2: float, hn_shear_param_1: float, hn_shear_param_2: float,
             hn_shear_falloff_slope: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -106,14 +97,15 @@ def henning(temperature: np.ndarray, melt_fraction: np.ndarray,
     Henning (2009, 2010) Partial-Melt Viscosity Function
     See also Moore's work and Renaud and Henning (2018)
 
+    !TPY_args live: self.temperature, self.premelt_viscosity, self.liquid_viscosity, self.premelt_shear
     !TPY_args const: liquid_shear, crit_melt_frac, crit_melt_frac_width, hn_visc_slope_1, hn_visc_slope_2, hn_shear_param_1, hn_shear_param_2, hn_shear_falloff_slope
 
     Parameters
     ----------
-    temperature : np.ndarray
-        Layer/Material temperature [K]
     melt_fraction : np.ndarray
         Layer/Material volumetric melt fraction [m3 m-3]
+    temperature : np.ndarray
+        Layer/Material temperature [K]
     premelt_viscosity : np.ndarray
         Layer/Material viscosity before partial melting is considered [Pa s]
     premelt_shear : np.ndarray

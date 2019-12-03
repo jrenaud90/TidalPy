@@ -1,3 +1,5 @@
+import numpy as np
+
 complex_compliance_defaults = {
     'ice': {
         'model'                  : 'Maxwell',
@@ -5,6 +7,7 @@ complex_compliance_defaults = {
         'voigt_viscosity_offset' : .02,
         'alpha'                  : 1./3.,
         'zeta'                   : 1.,
+        'critical_freq'          : 2. * np.pi / (86400. * 3.)
     },
     'rock': {
         'model'                  : 'Maxwell',
@@ -12,6 +15,7 @@ complex_compliance_defaults = {
         'voigt_viscosity_offset' : .02,
         'alpha'                  : 1./3.,
         'zeta'                   : 1.,
+        'critical_freq'          : 2. * np.pi / (86400. * 3.)
     },
     'iron': {
         'model'                  : 'Maxwell',
@@ -19,5 +23,6 @@ complex_compliance_defaults = {
         'voigt_viscosity_offset' : .02,
         'alpha'                  : 1./3.,
         'zeta'                   : 1.,
+        'critical_freq'          : 2. * np.pi / (86400. * 3.)
     }
 }

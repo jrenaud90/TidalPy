@@ -14,6 +14,7 @@ def arrhenius(temperature: np.ndarray, pressure: np.ndarray,
 
     See, for example, Moore (2006)
 
+    !TPY_args live: self.temperature, self.pressure
     !TPY_args const: arrhenius_coeff, additional_temp_dependence, stress, stress_expo, grain_size, grain_size_expo, molar_activation_energy, molar_activation_volume
 
     """
@@ -38,6 +39,7 @@ def reference(temperature: np.ndarray, pressure: np.ndarray,
 
     See, for example, Henning (2009)
 
+    !TPY_args live: self.temperature, self.pressure
     !TPY_args const: reference_viscosity, reference_temperature, molar_activation_energy, molar_activation_volume
 
     """
@@ -58,6 +60,7 @@ def constant(temperature: np.ndarray, pressure: np.ndarray,
              reference_viscosity: float) -> np.ndarray:
     """ Ignores other input and returns the reference viscosity value
 
+    !TPY_args live: self.temperature, self.pressure
     !TPY_args const: reference_viscosity
 
     """

@@ -2,8 +2,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ...exceptions import BadValueError
-from ...performance import njit
+from ...exceptions import ImproperAttributeHandling
 from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
@@ -27,19 +26,11 @@ class ViscosityClass(LayerModelHolder):
 
         self.rheology_class = rheology_class
 
-        # TODO: No debug calculation has been implemented
-        self._calculate_debug = self._calculate
+        # State properties
+        self._viscosity = None
 
-    def _calculate(self, temperature: np.ndarray, pressure: ArrayNone = None):
+    def _calculate(self):
         """ Wrapper for the viscosity calculator
-
-        Parameters
-        ----------
-        temperature : np.ndarray
-            Temperature of the layer (generally taken as the average or middle temperature) [K]
-        pressure : ArrayNone = None
-            Pressure of the layer (taken at the same location as temperature) [Pa]
-            If set to None then a zero value for pressure will be used instead (pressure-independent viscosity)
 
         Returns
         -------
@@ -47,13 +38,44 @@ class ViscosityClass(LayerModelHolder):
             Viscosity of the layer [Pa s]
         """
 
-        # Check if pressure was provided
-        if pressure is None:
-            pressure = np.asarray(0., dtype=temperature.dtype)
-
-        viscosity = self.func(temperature, pressure, *self.inputs, *self.live_inputs)
+        viscosity = self.func(*self.live_inputs, *self.inputs)
+        self._viscosity = viscosity
 
         return viscosity
+
+
+    # State properties
+    @property
+    def viscosity(self):
+        return self._viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+        raise ImproperAttributeHandling
+
+    # Outerscope references
+    @property
+    def temperature(self) -> np.ndarray:
+        return self.layer.temperature
+
+    @temperature.setter
+    def temperature(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def pressure(self) -> np.ndarray:
+
+        # Pressure is often turned off in various model runs, so it may not be set. If that is the case let's make sure
+        #    that zeros are provided.
+        _pressure = self.layer.pressure
+        if _pressure is None:
+            _pressure = np.asarray(0., dtype=self.temperature.dtype)
+
+        return _pressure
+
+    @pressure.setter
+    def pressure(self, value):
+        raise ImproperAttributeHandling
 
 
 class LiquidViscosity(ViscosityClass):
