@@ -75,9 +75,9 @@ def find_nearest(array: np.ndarray, value: Union[int, float]):
     return (np.abs(array - value)).argmin()
 
 
-def value_cleanup(value):
-    if type(value) != np.ndarray:
-        value = np.asarray([value])
+def value_np_cleanup(value):
+    if type(value) in [float, int]:
+        value = np.asarray(value)
 
     return value
 

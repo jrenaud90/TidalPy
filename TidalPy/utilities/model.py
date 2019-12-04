@@ -15,14 +15,16 @@ if TYPE_CHECKING:
 
 class ModelHolder(ConfigHolder):
 
-    """ Classes which are used in OOP calculation scheme
+    """ Parent class for physics models
+
+    Provides basic functionality to load in default model inputs and run calculations using those inputs.
     """
 
     known_models = None
     known_model_const_args = None
     known_model_live_args = None
 
-    def __init__(self, model_name: str = None, replacement_config: dict = None):
+    def __init__(self, model_name: str = None, replacement_config: dict = None, auto_build_inputs: bool = True):
 
         # Pull out model information, check if it is a valid model name, then store it
         if model_name is None and 'model' in self.config:
@@ -39,25 +41,15 @@ class ModelHolder(ConfigHolder):
 
         # Attempt to find the model's function information
         self.func = None
+        self.get_live_args = None
+        self.live_inputs = None
+        self.inputs = None
         self._constant_arg_names = None
         self._live_arg_names = None
-        try:
-            self.func = self.known_models[self.model]
-            self._constant_arg_names = self.known_model_const_args[self.model]
-            self._live_arg_names = self.known_model_live_args[self.model]
-        except KeyError:
-            raise UnknownModelError(f'Unknown model: {self.model} for {self.__class__.__name__}')
 
-        # Pull out constant arguments
-        self.inputs = self.build_args(self._constant_arg_names, parameter_dict=self.config, is_live_args=False)
-
-        # Build live argument functions and calls
-        self.live_inputs = None
-        if len(self._live_arg_names) == 0:
-            self.get_live_args = None
-        else:
-            live_funcs = self.build_args(self._live_arg_names, is_live_args=True)
-            self.get_live_args = lambda: tuple([live_func(self) for live_func in live_funcs])
+        # Build constant and live inputs, and setup self.func
+        if auto_build_inputs:
+            self.build_inputs()
 
         # Switch between calculate and calculate debug. Generally, _calculate_debug is a much slower function that
         #    includes additional checks
@@ -81,6 +73,27 @@ class ModelHolder(ConfigHolder):
         if self._calc.__doc__ not in [None, '']:
             self.calculate.__doc__ = self._calc.__doc__
 
+    def build_inputs(self):
+        """ Builds the live and constant input tuples for the model's calculate function.
+        """
+        try:
+            self.func = self.known_models[self.model]
+            self._constant_arg_names = self.known_model_const_args[self.model]
+            self._live_arg_names = self.known_model_live_args[self.model]
+        except KeyError:
+            raise UnknownModelError(f'Unknown model: {self.model} for {self.__class__.__name__}')
+
+        # Pull out constant arguments
+        self.inputs = self.build_args(self._constant_arg_names, parameter_dict=self.config, is_live_args=False)
+
+        # Build live argument functions and calls
+        self.live_inputs = None
+        if len(self._live_arg_names) == 0:
+            self.get_live_args = None
+        else:
+            live_funcs = self.build_args(self._live_arg_names, is_live_args=True)
+            self.get_live_args = lambda: tuple([live_func(self) for live_func in live_funcs])
+
     def calculate(self, *args, **kwargs):
 
         # Some models have inputs that need to be updated at each call
@@ -88,7 +101,7 @@ class ModelHolder(ConfigHolder):
             try:
                 self.live_inputs = self.get_live_args()
             except AttributeError:
-                raise AttributeNotSetError('One or more live arguments are not set.')
+                raise AttributeNotSetError('One or more live arguments are not set or their references were not found.')
 
         return self._calc(*args, **kwargs)
 
@@ -144,13 +157,22 @@ class ModelHolder(ConfigHolder):
 
 class LayerModelHolder(ModelHolder):
 
-    """ Models which are stored within a layer and make calls to that layer's attributes and methods.
+    """ Parent class for physics models that are stored within a planet's layer
+
+    Provides basic functionality to load in default model inputs and run calculations using those inputs and the layer's
+        current state properties (e.g., temperature).
+
+    See Also
+    --------
+    cooling/
+    radiogenics/
+    rheology/
     """
 
     model_config_key = None
 
     def __init__(self, layer: ThermalLayer, model_name: str = None,
-                 store_config_in_layer: bool = True):
+                 store_config_in_layer: bool = True, auto_build_inputs: bool = True):
 
         # Store layer and world information
         self.layer = layer
@@ -182,7 +204,7 @@ class LayerModelHolder(ModelHolder):
                                         f"{self.__class__.__name__} and no defaults are set.")
 
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
-        super().__init__(model_name=model_name, replacement_config=config)
+        super().__init__(model_name=model_name, replacement_config=config, auto_build_inputs=auto_build_inputs)
 
         if self.store_config_in_layer:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then

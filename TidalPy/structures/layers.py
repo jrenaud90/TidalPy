@@ -7,7 +7,7 @@ import burnman
 import numpy as np
 
 from TidalPy.tides.tides import Tides
-from .defaults import layer_defaults
+from TidalPy.structures.worlds.defaults import layer_defaults
 from .. import debug_mode
 from ..burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ..configurations import burnman_interpolation_N, burnman_interpolation_method
@@ -809,6 +809,14 @@ class ThermalLayer(PhysicalObjSpherical):
     @boundary_layer_thickness.setter
     def boundary_layer_thickness(self, value):
         self.blt = value
+
+    def __str__(self):
+
+        if self.world is None:
+            text = f'[Layer {self.name.title()}:{self.type.title()} no world]'
+        else:
+            text = f'[Layer {self.name.title()}:{self.type.title()} in {self.world}]'
+        return text
 
     def __repr__(self):
 

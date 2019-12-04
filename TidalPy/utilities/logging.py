@@ -7,6 +7,7 @@ from typing import Union
 
 from .. import __version__, logging_level as global_logging_level, use_disk, verbose_level as global_verbose_level
 from ..io import unique_path
+from . import TidalPyClass
 
 
 now = datetime.now()
@@ -34,7 +35,7 @@ LEVEL_CONVERSION = {
 }
 
 
-class TidalLogger:
+class TidalLogger(TidalPyClass):
 
     def __init__(self, verbose_level=global_verbose_level, logging_level=global_logging_level,
                  use_timestamps: bool = True, auto_create: bool = use_disk):

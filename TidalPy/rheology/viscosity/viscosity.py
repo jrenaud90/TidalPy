@@ -2,11 +2,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ...exceptions import ImproperAttributeHandling
+from ...exceptions import ImproperAttributeHandling, AttributeNotSetError, IncorrectAttributeType
 from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-from ...types import ArrayNone
 
 if TYPE_CHECKING:
     from ...structures.layers import ThermalLayer
@@ -29,7 +28,7 @@ class ViscosityClass(LayerModelHolder):
         # State properties
         self._viscosity = None
 
-    def _calculate(self):
+    def _calculate(self) -> np.ndarray:
         """ Wrapper for the viscosity calculator
 
         Returns
@@ -43,10 +42,9 @@ class ViscosityClass(LayerModelHolder):
 
         return viscosity
 
-
     # State properties
     @property
-    def viscosity(self):
+    def viscosity(self) -> np.ndarray:
         return self._viscosity
 
     @viscosity.setter
@@ -64,7 +62,6 @@ class ViscosityClass(LayerModelHolder):
 
     @property
     def pressure(self) -> np.ndarray:
-
         # Pressure is often turned off in various model runs, so it may not be set. If that is the case let's make sure
         #    that zeros are provided.
         _pressure = self.layer.pressure

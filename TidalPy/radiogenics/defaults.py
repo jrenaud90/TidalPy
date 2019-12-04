@@ -1,8 +1,6 @@
 import copy
 
-
-ppm = 1.e-6
-ppb = 1.e-9
+from ..constants import ppm, ppb
 
 known_isotope_data = {
     'modern_day_chondritic': {
@@ -81,7 +79,7 @@ known_isotope_data = {
     }
 }
 
-radiogenics_param_defaults = {
+radiogenics_defaults = {
     'ice' : {
         'model'   : 'off'
     },

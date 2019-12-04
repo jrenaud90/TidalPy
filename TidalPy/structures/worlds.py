@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import copy
 import os
-from typing import List, TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import burnman
 import dill
 import numpy as np
 
-from ..dynamics.modes_l2 import nsr_modes, spin_sync_modes
 from ..utilities.numpy_help import value_cleanup
-from .defaults import world_defaults
+from TidalPy.structures.worlds.defaults import world_defaults
 from .physical import PhysicalObjSpherical
 from .. import debug_mode, use_disk, tidalpy_dir, __version__
 from ..configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
@@ -296,6 +295,15 @@ class WorldBase(PhysicalObjSpherical):
     def orbital_motion(self, value):
         self.orbital_freq = value
 
+    def __str__(self):
+
+        name = self.name
+        if name is None:
+            name = 'Unknown'
+        else:
+            name = name.title()
+        return name
+
     def __repr__(self):
 
         if 'name' in self.__dict__:
@@ -311,6 +319,15 @@ class BasicWorld(WorldBase):
         super().__init__(planet_config, call_reinit=call_reinit)
 
         self.set_geometry(planet_config['radius'], planet_config['mass'])
+
+    def __str__(self):
+
+        name = self.name
+        if name is None:
+            name = 'Unknown'
+        else:
+            name = name.title()
+        return name
 
     def __repr__(self):
 
@@ -365,6 +382,15 @@ class Star(BasicWorld):
         else:
             if self.effective_temperature is None:
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
+
+    def __str__(self):
+
+        name = self.name
+        if name is None:
+            name = 'Unknown'
+        else:
+            name = name.title()
+        return name
 
     def __repr__(self):
 
@@ -796,6 +822,15 @@ class TidalWorld(WorldBase):
         """
 
         return iter(self.layers)
+
+    def __str__(self):
+
+        name = self.name
+        if name is None:
+            name = 'Unknown'
+        else:
+            name = name.title()
+        return name
 
     def __repr__(self):
 

@@ -1,14 +1,11 @@
-from typing import TYPE_CHECKING, List
-from functools import partial
+from typing import TYPE_CHECKING, List, Dict
 
 import numpy as np
 
-from ..dynamics import mode_types
 from ..exceptions import (ImproperAttributeHandling, ParameterValueError, MissingArgumentError, ArgumentOverloadError,
-                          ArgumentException)
-from ..types import ArrayNone
+                          ArgumentException, ImplementationException)
 from ..utilities.classes import LayerConfigHolder
-from ..tides import calculate_tides
+from ..initialize import log
 from .complexCompliance import ComplexCompliance
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
@@ -20,11 +17,17 @@ if TYPE_CHECKING:
 
 class Rheology(LayerConfigHolder):
 
+    """ Rheology class - Holder for all strength-related physics
+
+    Rheology class stores model parameters and methods for viscosity(P, T, melt_frac), shear_modulus(P, T, melt_frac)
+        and complex_compliance(viscosity, shear_modulus, forcing frequency).
+    """
+
     default_config = rheology_defaults
     layer_config_key = 'rheology'
 
-    def __init__(self, layer: ThermalLayer, orbital_truncation_level: int = 2, tidal_order_l: int = 2,
-                 use_nsr: bool = True,
+    def __init__(self, layer: ThermalLayer,
+                 orbital_truncation_level: int = 2, tidal_order_l: int = 2, use_nsr: bool = True,
                  store_config_in_layer: bool = True):
 
         super().__init__(layer, store_config_in_layer)
@@ -36,23 +39,31 @@ class Rheology(LayerConfigHolder):
 
         # Find the correct Love and effective-rigidity functions based on the order number.
         if self.order_l > 3:
-            raise NotImplementedError(f'Tidal order {self.order_l} has not been implemented yet.')
+            raise ImplementationException(f'Tidal order {self.order_l} has not been implemented yet.')
         if self.orbit_trunc_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.orbit_trunc_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
         if self.orbit_trunc_lvl not in [2, 4, 6]:
-            raise NotImplementedError(f'Orbital truncation level of {self.orbit_trunc_lvl} is not currently supported.')
+            raise ImplementationException(f'Orbital truncation level of {self.orbit_trunc_lvl} is not currently '
+                                          f'supported.')
 
         # Load in sub-modules
-        self.complex_compliance_model = \
-            ComplexCompliance(self.layer, self, store_config_in_layer=self.store_config_in_layer)
-        self.partial_melting_model = \
-            PartialMelt(self.layer, self, store_config_in_layer=self.store_config_in_layer)
         self.viscosity_model = \
             SolidViscosity(self.layer, self, store_config_in_layer=self.store_config_in_layer)
         self.liquid_viscosity_model = \
             LiquidViscosity(self.layer, self, store_config_in_layer=self.store_config_in_layer)
+        self.partial_melting_model = \
+            PartialMelt(self.layer, self, store_config_in_layer=self.store_config_in_layer)
+        self.complex_compliance_model = \
+            ComplexCompliance(self.layer, self, store_config_in_layer=self.store_config_in_layer)
+
+        # Report information about the models loaded
+        log(f"Rheology loaded into {self.layer}:\n"
+            f"\tSolid Viscosity:    {self.viscosity_model.model}\n"
+            f"\tLiquid Viscosity:   {self.liquid_viscosity_model.model}\n"
+            f"\tPartial Melting:    {self.partial_melting_model.model}\n"
+            f"\tComplex Compliance: {self.complex_compliance_model.model}", level='info')
 
     def set_state(self, viscosity: np.ndarray = None, shear_modulus: np.ndarray = None):
         """ Set the rheology state and recalculate any parameters that may now be different.
@@ -85,6 +96,9 @@ class Rheology(LayerConfigHolder):
             self.partial_melting_model._postmelt_shear_modulus = shear_modulus
             self.partial_melting_model._postmelt_compliance = shear_modulus**(-1)
 
+        # A change to the viscosity or shear modulus will change the complex compliance so it needs to be updated
+        self.calculate_compliances()
+
     def calculate_strength(self):
         """ Calculates the strength of a layer/material based on temperature and pressure.
 
@@ -110,9 +124,8 @@ class Rheology(LayerConfigHolder):
 
         return self.viscosity, self.shear_modulus
 
-    def calculate_compliances(self) -> List[np.ndarray]:
+    def calculate_compliances(self) -> Dict[str, np.ndarray]:
         """ Calculate the complex compliances based on the post-melting viscosity and shear modulus
-
 
         Returns
         -------
@@ -122,33 +135,6 @@ class Rheology(LayerConfigHolder):
         self.complex_compliance_model.calculate()
 
         return self.complex_compliances
-
-    # State properties
-
-    # Alias properties
-    @property
-    def viscosity(self):
-        return self.postmelt_viscosity
-
-    @viscosity.setter
-    def viscosity(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def shear_modulus(self):
-        return self.postmelt_shear_modulus
-
-    @shear_modulus.setter
-    def shear_modulus(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def shear(self):
-        return self.postmelt_shear_modulus
-
-    @shear.setter
-    def shear(self, value):
-        raise ImproperAttributeHandling
 
     # Innerscope reference properties
     @property
@@ -239,3 +225,32 @@ class Rheology(LayerConfigHolder):
     @beta.setter
     def beta(self, value):
         raise ImproperAttributeHandling
+
+    # Alias properties
+    @property
+    def viscosity(self):
+        return self.postmelt_viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def shear_modulus(self):
+        return self.postmelt_shear_modulus
+
+    @shear_modulus.setter
+    def shear_modulus(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def shear(self):
+        return self.postmelt_shear_modulus
+
+    @shear.setter
+    def shear(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def compliance(self):
+        return self.partial_melting_model.postmelt_compliance

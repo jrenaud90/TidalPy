@@ -1,5 +1,8 @@
 from scipy.constants import G, Stefan_Boltzmann
 
+# Mathematics
+ppm = 1.e-6
+ppb = 1.e-9
 
 # Sun
 mass_solar = 1.988435e30  # [kg]

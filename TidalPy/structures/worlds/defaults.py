@@ -88,7 +88,7 @@ world_defaults = {
         'tidal_order_l'               : 2,
         'use_real_moi'                : True
     },
-    'basic'   : {
+    'geometric'   : {
         'name'                        : 'unknown_world_basictype',
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',

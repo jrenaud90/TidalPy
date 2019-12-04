@@ -1,53 +1,33 @@
 import numpy as np
-from scipy.constants import G
 
+from ..constants import G
 from .. import debug_mode
-from ..configurations import raise_on_changed_config
 from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, IncorrectAttributeType,
-                          ParameterMissingError, TidalPyException, UnusualRealValueError)
-from ..initialize import log
+                          UnusualRealValueError, ParameterMissingError)
 from ..types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
 
 
-class ImproperAttributeChanged(TidalPyException):
-    default_message = 'A pre-computed planet had a critical configuration change that ' \
-                      'requires a new instance to be created'
-
-    def __init__(self, *args, force_raise: bool = False, **kwargs):
-
-        # If no input is provided then the base exception will look at the class attribute 'default_message'
-        #   and send that to sys.stderr
-
-        if not force_raise and not raise_on_changed_config:
-            log.warn(self.default_message)
-        else:
-            if args or kwargs:
-                super().__init__(*args, **kwargs)
-            else:
-                super().__init__(self.default_message)
-
-
 class PhysicalObjSpherical(ConfigHolder):
-    """ PhysicalObj Class: contains attributes and functionality used for a few physical objects such as
-    planets or layers
+    """ PhysicalObj Class contains attributes and functionality used for objects such as planets or
+        spherical-shell layers
 
     Assumes spherical geometry
     """
 
-    def __init__(self, config: dict, call_reinit: bool = False):
+    def __init__(self, config: dict):
 
-        super().__init__(replacement_config=config, call_reinit=call_reinit)
+        super().__init__(replacement_config=config)
 
         self.pyname = f'{self.__class__}'
         self.geometry_init = False
 
-        # Required parameters that are set in the 'set_geometry' method
+        # Properties that are set in the 'set_geometry' method
         self._mass = None
         self._radius = None
         self._thickness = None
 
-        # parameters that are calculated
+        # Properties that are calculated from the above
         self._radius_inner = None
         self._volume = None
         self._surface_area_outer = None
@@ -59,12 +39,24 @@ class PhysicalObjSpherical(ConfigHolder):
         self._gravity_surf = None
         self._beta = None
 
+    def config_update(self):
+        """ Config update changes various state parameters of an object based on the self.config
+        """
+
+        # The base physical object class has no changes.
+        pass
+
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
         """ Sets and calculates object's physical parameters based on user provided input.
 
-        :param radius:      <float> outer radius of object
-        :param mass:        <float> mass of object
-        :param thickness:   <float> thickness of object
+        Parameters
+        ----------
+        radius : float
+            Outer radius of object [m]
+        mass : float
+            Mass of object [kg]
+        thickness : float = None
+            Thickness of the object [m]
         """
 
         if thickness is None:
@@ -103,8 +95,8 @@ class PhysicalObjSpherical(ConfigHolder):
             if self.radius_inner > self.radius:
                 # Inner radius should be <= self.radius
                 raise BadAttributeValueError
-            elif abs(self.radius_inner - self.radius) < float_eps and self.thickness > float_eps:
-                # Inner radius should be < self.radius is self.thickness != 0
+            elif abs(self.radius_inner - self.radius) < float_eps < self.thickness:
+                # Inner radius should be < self.radius if self.thickness != 0
                 raise BadAttributeValueError
 
             # Realistic Value Checks
@@ -117,9 +109,9 @@ class PhysicalObjSpherical(ConfigHolder):
 
         self.geometry_init = True
 
-    # Primary Parameters
+    # Independent state properties
     @property
-    def mass(self):
+    def mass(self) -> float:
         return self._mass
 
     @mass.setter
@@ -127,7 +119,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Mass must be set by the set_geometry method')
 
     @property
-    def radius(self):
+    def radius(self) -> float:
         return self._radius
 
     @radius.setter
@@ -135,16 +127,16 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Radius must be set by the set_geometry method')
 
     @property
-    def thickness(self):
+    def thickness(self) -> float:
         return self._thickness
 
     @thickness.setter
     def thickness(self, value):
         raise ImproperAttributeHandling('Thickness must be set by the set_geometry method')
 
-    # Secondary Parameters
+    # Dependent state properties
     @property
-    def volume(self):
+    def volume(self) -> float:
         return self._volume
 
     @volume.setter
@@ -152,7 +144,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Volume is set by the set_geometry method')
 
     @property
-    def radius_inner(self):
+    def radius_inner(self) -> float:
         return self._radius_inner
 
     @radius_inner.setter
@@ -160,7 +152,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Inner Radius is set by the set_geometry method')
 
     @property
-    def surface_area_outer(self):
+    def surface_area_outer(self) -> float:
         return self._surface_area_outer
 
     @surface_area_outer.setter
@@ -168,7 +160,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Outer Surface Area is set by the set_geometry method')
 
     @property
-    def surface_area_inner(self):
+    def surface_area_inner(self) -> float:
         return self._surface_area_inner
 
     @surface_area_inner.setter
@@ -176,7 +168,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Inner Surface Area is set by the set_geometry method')
 
     @property
-    def density_bulk(self):
+    def density_bulk(self) -> float:
         return self._density_bulk
 
     @density_bulk.setter
@@ -184,7 +176,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Bulk Density is set by the set_geometry method')
 
     @property
-    def gravity_surf(self):
+    def gravity_surf(self) -> float:
         """ Surface Gravity of a sphere"""
         return self._gravity_surf
 
@@ -193,7 +185,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Surface Gravity is set by the set_geometry method')
 
     @property
-    def moi_ideal(self):
+    def moi_ideal(self) -> float:
         """ Ideal Moment of Inertia (spherical shell)"""
         return self._moi_ideal
 
@@ -202,7 +194,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Ideal Moment of Inertia is set by the set_geometry method')
 
     @property
-    def moi_factor(self):
+    def moi_factor(self) -> float:
         """ Moment of Inertia Factor (real moi / ideal moi) """
         return self._moi_factor
 
@@ -212,7 +204,7 @@ class PhysicalObjSpherical(ConfigHolder):
                                         'by setting self.moi (the real moment of inertia)')
 
     @property
-    def beta(self):
+    def beta(self) -> float:
         """ Beta Parameter (R * rho * g) """
         return self._beta
 
@@ -221,10 +213,11 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperAttributeHandling('Beta Parameter is set by the set_geometry method')
 
     @property
-    def moi(self):
+    def moi(self) -> float:
         """ Real Moment of Inertia (usually found via BurnMan for tidal planets)"""
         return self._moi
 
+    # Properties set by user or other classes
     @moi.setter
     def moi(self, value):
 
@@ -240,7 +233,7 @@ class PhysicalObjSpherical(ConfigHolder):
         if self.moi_ideal is not None:
             self._moi_factor = self.moi / self.moi_ideal
 
-    # Alias Attributes
+    # Alias properties
     @property
     def surface_area(self):
         # Aliased with self.surface_area_outer

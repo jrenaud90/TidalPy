@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, List, Dict
 
 import numpy as np
 
-from ...exceptions import ImproperAttributeHandling
+from ...exceptions import ImproperAttributeHandling, MissingAttributeError, AttributeNotSetError, IncorrectAttributeType
 from ...utilities.model import LayerModelHolder
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
@@ -64,7 +64,7 @@ class ComplexCompliance(LayerModelHolder):
 
     # Outerscope properties
     @property
-    def compliance(self) -> np.ndarray:
+    def compliance(self):
         return self.rheology_class.compliance
 
     @compliance.setter
@@ -72,7 +72,7 @@ class ComplexCompliance(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def viscosity(self) -> np.ndarray:
+    def viscosity(self):
         return self.rheology_class.viscosity
 
     @viscosity.setter
@@ -80,7 +80,7 @@ class ComplexCompliance(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def quality_factor(self) -> float:
+    def quality_factor(self):
         return self.layer.world.quality_factor
 
     @quality_factor.setter
@@ -88,7 +88,7 @@ class ComplexCompliance(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def beta(self) -> float:
+    def beta(self):
         return self.layer.world.beta
 
     @beta.setter

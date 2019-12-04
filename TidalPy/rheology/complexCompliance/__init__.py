@@ -3,8 +3,6 @@ from . import compliance_models as complex_compliances
 from .compliance_models import find_factorial
 from .defaults import complex_compliance_defaults
 
-parameter_info_loc = ('rheology', 'complex_compliance')
-
 known_models, known_model_const_args, known_model_live_args = \
     find_all_models(complex_compliances, ignore_functional_types=(find_factorial,))
 

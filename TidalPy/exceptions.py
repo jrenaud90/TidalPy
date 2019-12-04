@@ -147,3 +147,25 @@ class TidalPyIntegrationException(TidalPyException):
 
 class IntegrationTimeOut(TidalPyIntegrationException):
     default_message = 'Integration was stopped due to long integration time'
+
+
+
+# FIXME TEMP TMEP TEMP -- was in strutures/physical.py
+
+from ..configurations import raise_on_changed_config
+class ImproperAttributeChanged(TidalPyException):
+    default_message = 'A pre-computed planet had a critical configuration change that ' \
+                      'requires a new instance to be created'
+
+    def __init__(self, *args, force_raise: bool = False, **kwargs):
+
+        # If no input is provided then the base exception will look at the class attribute 'default_message'
+        #   and send that to sys.stderr
+
+        if not force_raise and not raise_on_changed_config:
+            log.warn(self.default_message)
+        else:
+            if args or kwargs:
+                super().__init__(*args, **kwargs)
+            else:
+                super().__init__(self.default_message)

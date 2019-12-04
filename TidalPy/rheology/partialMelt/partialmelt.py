@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
-from ...exceptions import BadValueError, ImproperAttributeHandling
+from ...exceptions import BadValueError, ImproperAttributeHandling, AttributeNotSetError, IncorrectAttributeType
 from ...performance import njit
 from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
@@ -107,7 +107,7 @@ class PartialMelt(LayerModelHolder):
         self._postmelt_shear_modulus = None
         self._postmelt_compliance = None
 
-    def _calculate(self):
+    def _calculate(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """ Wrapper for the partial melting function.
 
         First the partial melt will be updated based on the provided temperature. Then changes to the shear modulus
@@ -147,7 +147,7 @@ class PartialMelt(LayerModelHolder):
 
     # State properties
     @property
-    def postmelt_viscosity(self):
+    def postmelt_viscosity(self) -> np.ndarray:
         return self._postmelt_viscosity
 
     @postmelt_viscosity.setter
@@ -155,7 +155,7 @@ class PartialMelt(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def postmelt_shear_modulus(self):
+    def postmelt_shear_modulus(self) -> np.ndarray:
         return self._postmelt_shear_modulus
 
     @postmelt_shear_modulus.setter
@@ -163,7 +163,7 @@ class PartialMelt(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def postmelt_compliance(self):
+    def postmelt_compliance(self) -> np.ndarray:
         return self._postmelt_compliance
 
     @postmelt_compliance.setter
@@ -171,7 +171,7 @@ class PartialMelt(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def melt_fraction(self):
+    def melt_fraction(self) -> np.ndarray:
         return self._melt_fraction
 
     @melt_fraction.setter
@@ -180,7 +180,7 @@ class PartialMelt(LayerModelHolder):
 
     # Outerscope properties
     @property
-    def temperature(self) -> np.ndarray:
+    def temperature(self):
         return self.layer.temperature
 
     @temperature.setter
@@ -188,7 +188,7 @@ class PartialMelt(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def premelt_viscosity(self) -> np.ndarray:
+    def premelt_viscosity(self):
         return self.rheology_class.premelt_viscosity
 
     @premelt_viscosity.setter
@@ -196,7 +196,7 @@ class PartialMelt(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def premelt_shear(self) -> np.ndarray:
+    def premelt_shear(self):
         return self.rheology_class.premelt_shear
 
     @premelt_shear.setter
@@ -204,7 +204,7 @@ class PartialMelt(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def liquid_viscosity(self) -> np.ndarray:
+    def liquid_viscosity(self):
         return self.rheology_class.liquid_viscosity
 
     @liquid_viscosity.setter

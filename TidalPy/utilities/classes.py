@@ -2,6 +2,7 @@ import copy
 import os
 from typing import Any, Tuple, TYPE_CHECKING
 
+from . import TidalPyClass
 from .. import auto_write, debug_mode, version
 from ..initialize import log
 from ..exceptions import ImproperAttributeHandling, ParameterMissingError
@@ -10,16 +11,6 @@ from .json_utils import save_dict_to_json
 
 if TYPE_CHECKING:
     from ..structures.layers import ThermalLayer
-
-
-class TidalPyClass:
-    """ All functional classes used in TidalPy inherit from this class
-    """
-
-    tidalpy_vers = version
-
-    def __init__(self):
-        self.pyname = f'{self.__class__.__name__}'
 
 
 class ConfigHolder(TidalPyClass):
