@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Union, Dict
 
 import burnman
 import numpy as np
@@ -19,7 +19,9 @@ from ..structures.physical import PhysicalObjSpherical
 from ..thermal import find_viscosity
 from ..thermal.cooling import Cooling
 from ..thermal.partial_melt import PartialMelt
-from ..types import floatarray_like
+
+from ..rheology import Rheology
+from ..types import floatarray_like, NoneType
 from ..utilities.dictionary_utils import nested_get
 from ..utilities.numpy_help import find_nearest, value_cleanup
 from ..types import ArrayNone
@@ -45,14 +47,14 @@ class ThermalLayer(PhysicalObjSpherical):
         self.default_config = self.default_config[self.type]
 
         # Setup Physical Layer Geometry
-        super().__init__(layer_config, call_reinit=False)
+        super().__init__(layer_config)
 
         self.name = layer_name
         self.world = world
 
         # Information about the other layers (mostly for gravity and cooling calculations)
-        self.layer_below = None  # type: ThermalLayer or None
-        self.layer_above = None  # type: ThermalLayer or None
+        self.layer_below = None  # type: Union[ThermalLayer, NoneType]
+        self.layer_above = None  # type: Union[ThermalLayer, NoneType]
 
         # Pull out information from the already initialized burnman Layer
         self.bm_layer = burnman_layer
@@ -127,14 +129,9 @@ class ThermalLayer(PhysicalObjSpherical):
         # State Variables
         self._temperature = None  # type: ArrayNone
         self._temperature_lower = None  # type: ArrayNone
-        self._melt_fraction = None  # type: ArrayNone
-        self._viscosity = None  # type: ArrayNone
-        self._shear_modulus = None  # type: ArrayNone
-        self._compliance = None  # type: ArrayNone
-        self._heat_flux = None  # type: ArrayNone
-        self._rayleigh = None  # type: ArrayNone
-        self._nusselt = None  # type: ArrayNone
-        self._blt = None  # type: ArrayNone
+        self._temperature_upper = None  # type: ArrayNone
+
+
         self._effective_rigidity = None  # type: ArrayNone
         self._complex_compliance = None  # type: ArrayNone
         self._complex_love = None  # type: ArrayNone
@@ -146,7 +143,9 @@ class ThermalLayer(PhysicalObjSpherical):
         self._diff_temperature = None  # type: ArrayNone
 
         # Model Holders
-        self.cooling = None  # type: Cooling or None
+        self.rheology = None  # type: Union[Rheology, NoneType]
+
+        self.cooling_model = None  # type: Cooling or None
         self.partial_melt = None  # type: PartialMelt or None
         self.radiogenics = None  # type: Radiogenics or None
         self.tides = None  # type: Tides or None
@@ -165,6 +164,109 @@ class ThermalLayer(PhysicalObjSpherical):
         self.is_top_layer = False
         self.is_tidal = False
         self.is_spin_sync = False
+
+    # Inner scope properties
+    @property
+    def compliance(self) -> ArrayNone:
+        return self.rheology.compliance
+
+    @compliance.setter
+    def compliance(self, value):
+        self.rheology.compliance = value
+
+    @property
+    def shear_modulus(self) -> ArrayNone:
+        return self.rheology.shear_modulus
+
+    @shear_modulus.setter
+    def shear_modulus(self, value):
+        self.rheology.shear_modulus = value
+
+    @property
+    def viscosity(self) -> np.ndarray:
+        return self.rheology.viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+        self.rheology.viscosity = value
+
+    @property
+    def melt_fraction(self) -> np.ndarray:
+        return self.rheology.melt_fraction
+
+    @melt_fraction.setter
+    def melt_fraction(self, value):
+        self.rheology.melt_fraction = value
+
+    @property
+    def complex_compliances(self) -> Dict[str, np.ndarray]:
+        return self.rheology.complex_compliances
+
+    @complex_compliances.setter
+    def complex_compliances(self, value):
+        self.rheology.complex_compliances = value
+
+
+
+    @property
+    def heat_flux(self):
+        return self.cooling_model.heat_flux
+
+    @heat_flux.setter
+    def heat_flux(self, value):
+        self.cooling_model.heat_flux = value
+
+    @property
+    def cooling(self):
+        return self.cooling_model.cooling
+
+    @cooling.setter
+    def cooling(self, value):
+        self.cooling_model.cooling = value
+
+    @property
+    def rayleigh(self):
+        return self.cooling_model.rayleigh
+
+    @rayleigh.setter
+    def rayleigh(self, value):
+        self.cooling_model.rayleigh = value
+
+    @property
+    def nusselt(self):
+        return self.cooling_model.nusselt
+
+    @nusselt.setter
+    def nusselt(self, value):
+        self.cooling_model.nusselt = value
+
+    @property
+    def boundary_layer_thickness(self):
+        return self.cooling.boundary_layer_thickness
+
+    @boundary_layer_thickness.setter
+    def boundary_layer_thickness(self, value):
+        self.cooling.boundary_layer_thickness = value
+
+    # Alias properties
+    @property
+    def shear(self):
+        return self.shear_modulus
+
+    @shear.setter
+    def shear(self, value):
+        self.shear_modulus = value
+
+    @property
+    def blt(self):
+        return self.boundary_layer_thickness
+
+    @blt.setter
+    def blt(self, value):
+        self.boundary_layer_thickness = value
+
+
+
 
     def _build_material_property_interpolation(self):
         """ Interpolates material properties based on a fixed pressure and a suggested temperature range.

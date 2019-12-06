@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, List, Dict
+from typing import TYPE_CHECKING, List, Dict, Tuple
+from functools import partial
 
 import numpy as np
 
@@ -10,6 +11,7 @@ from .complexCompliance import ComplexCompliance
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .defaults import rheology_defaults
+from ..tides.love_1d import effective_rigidity_general, complex_love_general
 
 if TYPE_CHECKING:
     from ..structures.layers import ThermalLayer
@@ -32,12 +34,29 @@ class Rheology(LayerConfigHolder):
 
         super().__init__(layer, store_config_in_layer)
 
+        # State properties
+        self._effective_rigidities = None
+        self._complex_love_numbers = None
+
         # Pull out model information
         self.order_l = tidal_order_l
         self.orbit_trunc_lvl = orbital_truncation_level
         self.use_nsr = use_nsr
 
-        # Find the correct Love and effective-rigidity functions based on the order number.
+        # Pull out switches
+        self.use_planet_params_for_love_calc = self.config['use_planet_params_for_love_calc']
+
+        # Pull out parameters for Love number and effective rigidity calculations
+        if self.use_planet_params_for_love_calc:
+            self.radius = self.layer.world.radius
+            self.density = self.layer.world.density
+            self.gravity = self.layer.world.gravity
+        else:
+            self.radius = self.layer.radius
+            self.density = self.layer.density_bulkd
+            self.gravity = self.layer.gravity_surf
+
+        # Ensure the tidal order and orbital truncation levels make sense
         if self.order_l > 3:
             raise ImplementationException(f'Tidal order {self.order_l} has not been implemented yet.')
         if self.orbit_trunc_lvl % 2 != 0:
@@ -47,6 +66,7 @@ class Rheology(LayerConfigHolder):
         if self.orbit_trunc_lvl not in [2, 4, 6]:
             raise ImplementationException(f'Orbital truncation level of {self.orbit_trunc_lvl} is not currently '
                                           f'supported.')
+        self.order_l_list = range(2, self.order_l+1)
 
         # Load in sub-modules
         self.viscosity_model = \
@@ -97,7 +117,7 @@ class Rheology(LayerConfigHolder):
             self.partial_melting_model._postmelt_compliance = shear_modulus**(-1)
 
         # A change to the viscosity or shear modulus will change the complex compliance so it needs to be updated
-        self.calculate_compliances()
+        self.calculate_love()
 
     def calculate_strength(self):
         """ Calculates the strength of a layer/material based on temperature and pressure.
@@ -124,17 +144,33 @@ class Rheology(LayerConfigHolder):
 
         return self.viscosity, self.shear_modulus
 
-    def calculate_compliances(self) -> Dict[str, np.ndarray]:
-        """ Calculate the complex compliances based on the post-melting viscosity and shear modulus
+    def calculate_love(self, only_frequency_change: bool = False) -> \
+            Tuple[Dict[str, np.ndarray], List[Dict[str, np.ndarray]]]:
+        """ Calculate the complex compliances and Love numbers based on the post-melting viscosity and shear modulus
 
         Returns
         -------
-        complex_compliances : List[np.ndarray]
+        complex_compliances : Dict[str, np.ndarray]
+            Complex compliances in a dictionary for each tidal frequency [Pa-1]
+        complex_love_numbers : List[Dict[str, np.ndarray]
+            Complex love numbers stored in a dictionary for each tidal frequency
+            Multiple dictionaries are stored in a list over tidal order l's
         """
 
+        # Calculate complex compliances for each tidal frequency
         self.complex_compliance_model.calculate()
 
-        return self.complex_compliances
+        if not only_frequency_change:
+            # Calculate effective rigidity at each order l (effective rigidity does not change with frequency changes).
+            self._effective_rigidities = [effective_rigidity_general(self.shear, self.gravity, self.radius, self.density, l)
+                                          for l in self.order_l_list]
+
+        # Calculate the complex love number at each tidal frequency and each order l
+        self._complex_love_numbers = [{mode: complex_love_general(cmplx_comp, self.shear, eff_rigid, l)
+                                       for mode, cmplx_comp in self.complex_compliances.items()}
+                                      for eff_rigid, l in zip(self.effective_rigidities, self.order_l_list)]
+
+        return self.complex_compliances, self.complex_love_numbers
 
     # Innerscope reference properties
     @property
@@ -191,6 +227,22 @@ class Rheology(LayerConfigHolder):
 
     @complex_compliances.setter
     def complex_compliances(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def effective_rigidities(self):
+        return self._effective_rigidities
+
+    @effective_rigidities.setter
+    def effective_rigidities(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def complex_love_numbers(self):
+        return self._complex_love_numbers
+
+    @complex_love_numbers.setter
+    def complex_love_numbers(self, value):
         raise ImproperAttributeHandling
 
     # Outerscope reference properties
