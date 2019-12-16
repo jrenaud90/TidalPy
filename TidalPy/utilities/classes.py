@@ -11,6 +11,7 @@ from .json_utils import save_dict_to_json
 
 if TYPE_CHECKING:
     from ..structures.layers import ThermalLayer
+    from ..structures.worlds import TidalWorld
 
 
 class ConfigHolder(TidalPyClass):
@@ -262,7 +263,8 @@ class ConfigHolder(TidalPyClass):
 
 class LayerConfigHolder(ConfigHolder):
 
-    """ Classes which are stored within a layer and make calls to that layer's attributes and methods.
+    """ Classes with configuration information which are stored within a layer and make calls to that
+    layer's attributes and methods.
     """
 
     layer_config_key = None
@@ -277,9 +279,6 @@ class LayerConfigHolder(ConfigHolder):
         if 'world' in layer.__dict__:
             self.world = layer.world
             world_name = self.world.name
-
-        # Update pyname
-        self.pyname += '_' + self.layer_type
 
         # Record if model config should be stored back into layer's config
         self.store_config_in_layer = store_config_in_layer
@@ -298,6 +297,9 @@ class LayerConfigHolder(ConfigHolder):
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
         super().__init__(replacement_config=config)
 
+        # Update pyname
+        self.pyname += '_' + self.layer_type
+
         if store_config_in_layer:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then
             #    store the new config in the layer's config, overwriting any previous parameters.
@@ -305,3 +307,47 @@ class LayerConfigHolder(ConfigHolder):
                 # Store the old config under a new key
                 self.layer._config[f'OLD_{self.layer_config_key}'] = self.layer.config[self.layer_config_key]
             self.layer._config[self.layer_config_key] = copy.deepcopy(self.config)
+
+
+class WorldConfigHolder(ConfigHolder):
+
+    """ Classes with configuration information which are stored within a world and make calls to that
+    world's attributes and methods.
+    """
+
+    world_config_key = None
+
+    def __init__(self, World: TidalWorld, store_config_in_world: bool = True):
+
+        # Store world information
+        self.world = World
+        world_name = self.world.name
+        self.world_type = self.world.world_type
+
+        # Record if model config should be stored back into world's config
+        self.store_config_in_world = store_config_in_world
+
+        config = None
+        try:
+            config = self.world.config[self.world_config_key]
+        except KeyError:
+            log(f"User provided no model information for [<WorldConfigHolder> in world: {world_name}]'s "
+                f"{self.__class__.__name__}, using defaults instead.", level='debug')
+
+        if config is None and self.default_config is None:
+            raise ParameterMissingError(f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
+                                        f"{self.__class__.__name__} and no defaults are set.")
+
+        # Setup ModelHolder and ConfigHolder classes. Using the world's config file as the replacement config.
+        super().__init__(replacement_config=config)
+
+        # Update pyname
+        self.pyname += '_' + self.world_type
+
+        if store_config_in_world:
+            # Once the configuration file is constructed (with defaults and any user-provided replacements) then
+            #    store the new config in the layer's config, overwriting any previous parameters.
+            if self.world_config_key in self.world.config:
+                # Store the old config under a new key
+                self.world._config[f'OLD_{self.world_config_key}'] = self.world.config[self.world_config_key]
+            self.world._config[self.world_config_key] = copy.deepcopy(self.config)

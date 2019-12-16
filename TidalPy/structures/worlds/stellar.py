@@ -3,7 +3,7 @@ from .basic import GeometricWorld
 
 class Star(GeometricWorld):
 
-    class_type = 'star'
+    world_class = 'star'
 
     def __init__(self, star_config: dict, name: str = None):
 

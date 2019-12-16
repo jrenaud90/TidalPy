@@ -43,11 +43,8 @@ class ComplexCompliance(LayerModelHolder):
             Complex compliance of the layer/material [Pa-1]
         """
 
-        tidal_freqs = self.world.unique_tidal_freqs
-        tidal_mode_names = self.world.tidal_mode_names
-
         complex_compliances = {mode_name: self.func(tidal_freq, *self.live_inputs, *self.inputs)
-                               for mode_name, tidal_freq in zip(tidal_mode_names, tidal_freqs)}
+                               for mode_name, tidal_freq in zip(self.tidal_mode_names, self.tidal_freqs)}
 
         self._complex_compliances = complex_compliances
 
@@ -63,6 +60,22 @@ class ComplexCompliance(LayerModelHolder):
         raise ImproperAttributeHandling
 
     # Outerscope properties
+    @property
+    def tidal_freqs(self) -> List[np.ndarray]:
+        return self.world.unique_tidal_freqs
+
+    @tidal_freqs.setter
+    def tidal_freqs(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def tidal_mode_names(self) -> List[str]:
+        return self.world.tidal_mode_names
+
+    @tidal_mode_names.setter
+    def tidal_mode_names(self, value):
+        raise ImproperAttributeHandling
+
     @property
     def compliance(self):
         return self.rheology_class.compliance

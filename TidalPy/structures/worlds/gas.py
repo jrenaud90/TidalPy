@@ -2,7 +2,7 @@ from .basic import GeometricWorld
 
 class GasGiant(GeometricWorld):
 
-    class_type = 'gasgiant'
+    world_class = 'gasgiant'
 
     def __repr__(self):
 

@@ -61,6 +61,8 @@ class AttributeException(ClassException):
 class ImproperAttributeHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
 
+class AttributeChangeRequiresReINIT(ImproperAttributeHandling):
+    default_message = 'The attribute(s) you are trying to change require the object to be reinitialized.'
 
 class MissingAttributeError(AttributeException):
     default_message = 'The attribute you are attempting to access has not been set.'
@@ -116,7 +118,6 @@ class ParameterValueError(ParameterException):
 class IncompatibleModelConfigError(ConfigurationException):
     default_message = 'One or more model parameters are not compatible with each other'
 
-
 class UnknownTidalPyConfigValue(ConfigurationException):
     default_message = 'A configuration set in TidalPy.configurations is not know or has not yet been implemented.'
 
@@ -129,7 +130,6 @@ class TidalPyValueException(TidalPyException):
 class BadArrayShape(TidalPyValueException):
     default_message = 'TidalPy requires certain arrays maintain the same shape for all layers and planets. ' \
                       'It has found an array with an unexpected shape.'
-
 
 class BadValueError(TidalPyValueException):
     default_message = 'An unrealistic value was encountered.'

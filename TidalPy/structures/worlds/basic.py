@@ -39,8 +39,8 @@ class WorldBase(PhysicalObjSpherical):
     """ WorldBase Class - Base class used to build other world classes.
     """
 
-    world_type = 'base'
     default_config = world_defaults
+    world_class = 'base'
 
     def __init__(self, world_config: dict, name: str = None):
 
@@ -74,7 +74,7 @@ class WorldBase(PhysicalObjSpherical):
         # Models to be initialized later
         self.equilibrium_insolation_func = None
 
-        self.pyname = f'{self.name}_{self.world_type}'
+        self.pyname = f'{self.name}_{self.world_class}'
 
     def config_update(self):
         """ Config update changes various state parameters of an object based on the self.config
@@ -382,7 +382,7 @@ class GeometricWorld(WorldBase):
     """ GeometricWorld Class - Most basic type of world that has a geometry (mass, radius, etc.).
     """
 
-    world_type = 'geometric'
+    world_class = 'geometric'
 
     def __init__(self, planet_config: dict, name: str = None):
 

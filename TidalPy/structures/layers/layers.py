@@ -1,34 +1,34 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Tuple, Union, Dict
+from typing import TYPE_CHECKING, Tuple, Union, Dict, List
 
 import burnman
 import numpy as np
 
-from TidalPy.tides.tides import Tides
-from TidalPy.structures.worlds.defaults import layer_defaults
-from .. import debug_mode
-from ..burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
-from ..configurations import burnman_interpolation_N, burnman_interpolation_method
-from ..exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
-                          ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError)
-from ..initialize import log
-from ..radiogenics.radiogenics import Radiogenics
-from ..structures.physical import PhysicalObjSpherical
-from ..thermal import find_viscosity
+from ...tides.tides import Tides
+from .defaults import layer_defaults
+from ... import debug_mode
+from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
+from ...configurations import burnman_interpolation_N, burnman_interpolation_method
+from ...exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
+                                ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError)
+from ...initialize import log
+from ...radiogenics.radiogenics import Radiogenics
+from ...structures.physical import PhysicalObjSpherical
+from ...thermal import find_viscosity
 from ..thermal.cooling import Cooling
 from ..thermal.partial_melt import PartialMelt
 
-from ..rheology import Rheology
-from ..types import floatarray_like, NoneType
-from ..utilities.dictionary_utils import nested_get
-from ..utilities.numpy_help import find_nearest, value_cleanup
-from ..types import ArrayNone
+from ...rheology import Rheology
+from ...types import floatarray_like, NoneType
+from ...utilities.dictionary_utils import nested_get
+from ...utilities.numpy_help import find_nearest, value_cleanup
+from ...types import ArrayNone
 
 
 if TYPE_CHECKING:
-    from .worlds import TidalWorld
+    from ..worlds import TidalWorld
 
 
 class ThermalLayer(PhysicalObjSpherical):
@@ -37,8 +37,8 @@ class ThermalLayer(PhysicalObjSpherical):
         Any functionality that requires information about material properties should be called from the layer class.
     """
 
-    default_config = copy.deepcopy(layer_defaults)
-    class_type = 'thermal'
+    default_config = layer_defaults
+    layer_class = 'thermal'
 
     def __init__(self, layer_name: str, world: TidalWorld, burnman_layer: burnman.Layer, layer_config: dict):
 
@@ -126,15 +126,13 @@ class ThermalLayer(PhysicalObjSpherical):
         self.temp_ratio = None  # type: ArrayNone
         self.stefan = None  # type: ArrayNone
 
-        # State Variables
+        # State Properties
         self._temperature = None  # type: ArrayNone
         self._temperature_lower = None  # type: ArrayNone
         self._temperature_upper = None  # type: ArrayNone
 
 
-        self._effective_rigidity = None  # type: ArrayNone
-        self._complex_compliance = None  # type: ArrayNone
-        self._complex_love = None  # type: ArrayNone
+
         self._tidal_heating = None  # type: ArrayNone
         self._tidal_ztorque = None
         self._radiogenic_heating = None  # type: ArrayNone
@@ -144,11 +142,9 @@ class ThermalLayer(PhysicalObjSpherical):
 
         # Model Holders
         self.rheology = None  # type: Union[Rheology, NoneType]
-
-        self.cooling_model = None  # type: Cooling or None
-        self.partial_melt = None  # type: PartialMelt or None
-        self.radiogenics = None  # type: Radiogenics or None
-        self.tides = None  # type: Tides or None
+        self.cooling_model = None  # type: Union[Cooling, NoneType]
+        self.radiogenics = None  # type: Union[Radiogenics, NoneType]
+        self.tides = None  # type: Union[Tides, NoneType]
         self.heat_sources = None
 
         # Function Holders
@@ -206,7 +202,21 @@ class ThermalLayer(PhysicalObjSpherical):
     def complex_compliances(self, value):
         self.rheology.complex_compliances = value
 
+    @property
+    def effective_rigidities(self) -> List[np.ndarray]:
+        return self.rheology.effective_rigidities
 
+    @effective_rigidities.setter
+    def effective_rigidities(self, value):
+        self.rheology.effective_rigidities = value
+
+    @property
+    def complex_love_numbers(self):
+        return self.rheology.complex_love_numbers
+
+    @complex_love_numbers.setter
+    def complex_love_numbers(self, value):
+        self.rheology.complex_love_numbers = value
 
     @property
     def heat_flux(self):
