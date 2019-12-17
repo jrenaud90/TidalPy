@@ -51,7 +51,7 @@ def semi_major_axis_derivative(semi_major_axis: np.ndarray, mass_1: float, mass_
     return da_dt
 
 
-@njit
+#@njit
 def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarray, mass_1: float, mass_2: float,
                             spin_freq_1: np.ndarray, ztorque_1: np.ndarray, tidal_heating_1: np.ndarray,
                             spin_freq_2: np.ndarray, ztorque_2: np.ndarray, tidal_heating_2: np.ndarray) -> np.ndarray:

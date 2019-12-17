@@ -5,8 +5,7 @@ import numpy as np
 from TidalPy.performance import njit
 from . import MODE_ZERO_TOL
 
-ModeOutput = Tuple[List[str, ...], List[np.ndarray, ...], List[np.ndarray, ...], List[np.ndarray, ...],
-                   List[np.ndarray, ...]]
+ModeOutput = Tuple[List[str], List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]
 
 
 # TODO: A lot of the mode list construction is static and could take place outside of the functions at the expense of
@@ -537,7 +536,7 @@ def nsr_modes_4(orbital_frequency: np.ndarray, spin_frequency: np.ndarray, eccen
     return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
 
-@njit
+#@njit
 def nsr_modes_6(orbital_frequency: np.ndarray, spin_frequency: np.ndarray, eccentricity: np.ndarray,
                 inclination: np.ndarray) -> ModeOutput:
     """ Non-Synchronous Rotation Tidal Modes (for heating and torque) for l=2, e^6, I^6
