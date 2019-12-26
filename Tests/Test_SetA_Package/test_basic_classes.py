@@ -13,13 +13,12 @@ def test_tidalpy_class():
 
     # Really not much to test here.
     test_class = TidalPyClass()
-    assert test_class.tidalpy_vers == version
+    assert test_class.tidalpy_version == version
 
 
 def test_config_class_init():
 
     config_test = ConfigHolder()
-    assert config_test.reinit_called
     assert config_test.default_config is None
     assert config_test.config is None
 
