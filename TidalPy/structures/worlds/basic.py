@@ -45,12 +45,12 @@ class WorldBase(PhysicalObjSpherical):
     def __init__(self, world_config: dict, name: str = None):
 
         # Load in defaults
-        self.default_config = self.default_config[self.class_type]
+        self.default_config = self.default_config[self.world_class]
 
         super().__init__(config=world_config)
 
         # Independent State variables
-        self._name = name
+        self.name = name
         self._spin_freq = None
         self._time = None
         self._albedo = None
@@ -76,20 +76,24 @@ class WorldBase(PhysicalObjSpherical):
 
         self.pyname = f'{self.name}_{self.world_class}'
 
+    def reinit(self):
+        """ Re-initialize the basic world based on changed to its configuration."""
+
+        # Pull out some basic information from the config
+        if self.name is None and 'name' in self.config:
+            self.name = self.config['name']
+        self._albedo = self.config['albedo']
+        self._emissivity = self.config['emissivity']
+        self._is_spin_sync = self.config['force_spin_sync']
+        self.update_orbit()
+
     def config_update(self):
         """ Config update changes various state parameters of an object based on the self.config
         """
         super().config_update()
 
-        # Pull out some basic information from the config
-        if self.name is None and 'name' in self.config:
-            self._name = self.config['name']
-        if self.albedo is None and 'albedo' in self.config:
-            self.albedo = self.config['albedo']
-        if self.emissivity is None and 'emissivity' in self.config:
-            self.emissivity = self.config['emissivity']
-        if 'is_spin_sync' in self.config:
-            self.is_spin_sync = self.config['force_spin_sync']
+        # Call reinit as some configurations may have changed
+        self.reinit()
 
         # Setup functions and models
         self.equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
@@ -104,7 +108,8 @@ class WorldBase(PhysicalObjSpherical):
         """
 
         # Tell the orbit class to update this planet's insolation heating
-        self.orbit.calculate_insolation(self.orbit_location)
+        if self.orbit is not None:
+            self.orbit.calculate_insolation(self.orbit_location)
 
     def set_state(self, orbital_freq: np.ndarray = None, semi_major_axis: np.ndarray = None,
                   eccentricity: np.ndarray = None, inclination: np.ndarray = None,
@@ -151,6 +156,7 @@ class WorldBase(PhysicalObjSpherical):
     def save_world(self):
 
         #TODO
+        pass
 
     #TODO: new way to kill world that doesn't throw so many errors?
 
@@ -188,24 +194,6 @@ class WorldBase(PhysicalObjSpherical):
                     with open(rundir_dill_path, 'wb') as dill_file:
                         dill.dump(self, dill_file)
 
-    # Independent state properties
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value: str):
-        assert type(value) == str
-        self._name = value
-        self.pyname = f'{self.name}_{self.class_type}'
-
-    @property
-    def orbit(self) -> Orbit:
-        return self._orbit
-
-    @orbit.setter
-    def orbit(self, value):
-        raise ImproperAttributeHandling('The orbit is set once the planet is passed to an Orbit class constructor.')
 
     @property
     def time(self) -> np.ndarray:
@@ -283,9 +271,18 @@ class WorldBase(PhysicalObjSpherical):
 
         self._emissivity = value
 
-        if self.orbit is not None
+        if self.orbit is not None:
             # This will change the planet's surface temperature
             self.orbit.calculate_insolation(self)
+
+    # Class properties
+    @property
+    def orbit(self) -> Orbit:
+        return self._orbit
+
+    @orbit.setter
+    def orbit(self, value):
+        raise ImproperAttributeHandling('The orbit is set once the planet is passed to an Orbit class constructor.')
 
     # Outerscope property references
     @property

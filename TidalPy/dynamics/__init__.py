@@ -26,6 +26,7 @@ from .modes_l2 import nsr_modes_6 as nsr_modes_l2_t6
 from .modes_l2 import spin_sync_modes as spin_sync_l2
 from .modes_l2 import spin_sync_modes_4 as spin_sync_l2_t4
 from .modes_l2 import spin_sync_modes_6 as spin_sync_l2_t6
+from .modes_l2 import ModeOutput
 
 from .modes_l3 import nsr_modes as nsr_modes_l3
 from .modes_l3 import nsr_modes_4 as nsr_modes_l3_t4

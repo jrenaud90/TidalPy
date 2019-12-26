@@ -1,6 +1,5 @@
 tide_defaults = {
     'orbital_truncation_level': 2,
-    'max_tidal_order_l': 2,
-    'use_nsr': True
+    'max_tidal_order_l': 2
 }
 

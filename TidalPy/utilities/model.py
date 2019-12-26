@@ -9,9 +9,6 @@ from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, Para
                           UnknownModelError, AttributeNotSetError)
 from ..initialize import log
 
-if TYPE_CHECKING:
-    from ..structures.layers import ThermalLayer
-
 
 class ModelHolder(ConfigHolder):
 
@@ -171,7 +168,7 @@ class LayerModelHolder(ModelHolder):
 
     model_config_key = None
 
-    def __init__(self, layer: ThermalLayer, model_name: str = None,
+    def __init__(self, layer, model_name: str = None,
                  store_config_in_layer: bool = True, auto_build_inputs: bool = True):
 
         # Store layer and world information

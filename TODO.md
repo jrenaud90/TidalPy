@@ -5,3 +5,17 @@
   
 ## On Future Python or 3rd Party Package Updates
 * If python's builtin `json` package updates to support json5 then it should be used over the currently supported 3rd party `json5` package.
+* Numba currently does not support array slicing with 2D index arrays.
+    * Currently does not work if `x` is 2D:
+    ```
+        res = x**t
+        res[res<2.] = 2.
+    ```
+    * Workaround that is njit-safe
+    ```
+        res = x**t
+        s = res.shape
+        res_f = res.flatten()
+        res_f[res_f<2.] = 2.
+        res_f = np.reshape(res_f, s)
+    ``` 

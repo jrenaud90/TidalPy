@@ -7,9 +7,6 @@ from ...utilities.model import LayerModelHolder
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
 
-if TYPE_CHECKING:
-    from ...structures.layers import ThermalLayer
-    from ..rheology import Rheology
 
 class ComplexCompliance(LayerModelHolder):
 
@@ -26,7 +23,7 @@ class ComplexCompliance(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = ('rheology', 'complex_compliance')
 
-    def __init__(self, layer: ThermalLayer, rheology_class: Rheology, model_name: str = None,
+    def __init__(self, layer, rheology_class, model_name: str = None,
                  store_config_in_layer: bool = True):
 
         super().__init__(layer, model_name, store_config_in_layer)
@@ -62,7 +59,7 @@ class ComplexCompliance(LayerModelHolder):
     # Outerscope properties
     @property
     def tidal_freqs(self) -> List[np.ndarray]:
-        return self.world.unique_tidal_freqs
+        return self.rheology_class.unique_tidal_freqs
 
     @tidal_freqs.setter
     def tidal_freqs(self, value):
@@ -70,7 +67,7 @@ class ComplexCompliance(LayerModelHolder):
 
     @property
     def tidal_mode_names(self) -> List[str]:
-        return self.world.tidal_mode_names
+        return self.rheology_class.tidal_mode_names
 
     @tidal_mode_names.setter
     def tidal_mode_names(self, value):

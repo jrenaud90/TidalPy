@@ -61,6 +61,13 @@ class AttributeException(ClassException):
 class ImproperAttributeHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
 
+class ConfigAttributeChangeError(ImproperAttributeHandling):
+    default_message = 'Attempted to change a configuration attribute. These must be changed in the planet ' \
+                      'configuration followed by a call to reinit.'
+
+class OuterscopeAttributeSetError(ImproperAttributeHandling):
+    default_message = 'Attempted to set an outerscope attribute from an inner class/model.'
+
 class AttributeChangeRequiresReINIT(ImproperAttributeHandling):
     default_message = 'The attribute(s) you are trying to change require the object to be reinitialized.'
 

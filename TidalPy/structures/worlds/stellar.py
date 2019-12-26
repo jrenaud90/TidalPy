@@ -1,7 +1,7 @@
-from .basic import GeometricWorld
+from .tidal import TidalWorld
 
 
-class Star(GeometricWorld):
+class Star(TidalWorld):
 
     world_class = 'star'
 

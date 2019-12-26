@@ -279,7 +279,7 @@ def spin_sync_modes_6(orbital_frequency: np.ndarray, spin_frequency: np.ndarray,
 
     return mode_names, modes, freqs, heating_subterms, ztorque_subterms
 
-@njit
+#@njit
 def nsr_modes(orbital_frequency: np.ndarray, spin_frequency: np.ndarray, eccentricity: np.ndarray,
               inclination: np.ndarray) -> ModeOutput:
     """ Non-Synchronous Rotation Tidal Modes (for heating and torque) for l=2, e^2, I^2

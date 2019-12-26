@@ -56,5 +56,16 @@ world_defaults = {
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
         'use_real_moi'                : True
+    },
+    'thermal'   : {
+        'name'                        : 'unknown_world_thermaltype',
+        'force_spin_sync'             : True,
+        'equilibrium_insolation_model': 'williams',
+        'emissivity'                  : 0.9,
+        'albedo'                      : 0.3,
+        'quality_factor'              : 10.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
+        'use_real_moi'                : True
     }
 }

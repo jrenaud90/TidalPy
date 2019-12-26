@@ -86,7 +86,7 @@ def fixed_q(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.ndarray
     return complex_compliance
 
 
-@njit
+#@njit
 def maxwell(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.ndarray) -> np.ndarray:
     """ Calculates the complex compliance utilizing the model: Maxwell
 
@@ -195,7 +195,7 @@ def burgers(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.ndarray
     return complex_compliance
 
 
-@njit
+#@njit
 def andrade(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.ndarray,
             alpha: float = 0.3, zeta: float = 1.) -> np.ndarray:
     """ Calculates the complex compliance utilizing the model: Andrade

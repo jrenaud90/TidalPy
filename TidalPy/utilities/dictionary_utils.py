@@ -6,7 +6,7 @@ PossibleKeyType = Union[str, int, float]
 
 
 def nested_get(input_dict: dict,
-               nested_keys: Union[PossibleKeyType, List[PossibleKeyType, ...], Tuple[PossibleKeyType, ...]],
+               nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType, ...]],
                default: Any = None,
                raiseon_nolocate: bool = False) -> Any:
     """ Returns a value from a series of nested dictionaries given a list of keys
@@ -59,7 +59,7 @@ def nested_get(input_dict: dict,
 
 
 def nested_place(replacement_value: Any, dict_to_overwrite: dict,
-                 nested_keys: Union[PossibleKeyType, List[PossibleKeyType, ...], Tuple[PossibleKeyType, ...]],
+                 nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType, ...]],
                  make_copy: bool = False, retain_old_value: bool = False) -> dict:
     """ Replaces a nested-dictionary value based on a list of keys.
 

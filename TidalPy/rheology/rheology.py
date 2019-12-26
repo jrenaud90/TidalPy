@@ -4,7 +4,7 @@ from functools import partial
 import numpy as np
 
 from ..exceptions import (ImproperAttributeHandling, ParameterValueError, MissingArgumentError, ArgumentOverloadError,
-                          ArgumentException, ImplementationException)
+                          ArgumentException, ImplementationException, OuterscopeAttributeSetError)
 from ..utilities.classes import LayerConfigHolder
 from ..initialize import log
 from .complexCompliance import ComplexCompliance
@@ -12,9 +12,6 @@ from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .defaults import rheology_defaults
 from ..tides.love_1d import effective_rigidity_general, complex_love_general
-
-if TYPE_CHECKING:
-    from ..structures.layers import ThermalLayer
 
 
 class Rheology(LayerConfigHolder):
@@ -28,8 +25,8 @@ class Rheology(LayerConfigHolder):
     default_config = rheology_defaults
     layer_config_key = 'rheology'
 
-    def __init__(self, layer: ThermalLayer,
-                 orbital_truncation_level: int = 2, tidal_order_l: int = 2, use_nsr: bool = True,
+    def __init__(self, layer,
+                 orbital_truncation_level: int = 2, tidal_order_lvl: int = 2, use_nsr: bool = True,
                  store_config_in_layer: bool = True):
 
         super().__init__(layer, store_config_in_layer)
@@ -39,9 +36,7 @@ class Rheology(LayerConfigHolder):
         self._complex_love_numbers = None
 
         # Pull out model information
-        self.order_l = tidal_order_l
-        self.orbit_trunc_lvl = orbital_truncation_level
-        self.use_nsr = use_nsr
+        self.order_lvl = tidal_order_lvl
 
         # Pull out switches
         self.use_planet_params_for_love_calc = self.config['use_planet_params_for_love_calc']
@@ -56,17 +51,7 @@ class Rheology(LayerConfigHolder):
             self.density = self.layer.density_bulkd
             self.gravity = self.layer.gravity_surf
 
-        # Ensure the tidal order and orbital truncation levels make sense
-        if self.order_l > 3:
-            raise ImplementationException(f'Tidal order {self.order_l} has not been implemented yet.')
-        if self.orbit_trunc_lvl % 2 != 0:
-            raise ParameterValueError('Orbital truncation level must be an even integer.')
-        if self.orbit_trunc_lvl <= 2:
-            raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
-        if self.orbit_trunc_lvl not in [2, 4, 6]:
-            raise ImplementationException(f'Orbital truncation level of {self.orbit_trunc_lvl} is not currently '
-                                          f'supported.')
-        self.order_l_list = range(2, self.order_l+1)
+        self.order_l_list = range(2, self.order_lvl+1)
 
         # Load in sub-modules
         self.viscosity_model = \
@@ -229,8 +214,9 @@ class Rheology(LayerConfigHolder):
     def complex_compliances(self, value):
         raise ImproperAttributeHandling
 
+    # State properties
     @property
-    def effective_rigidities(self):
+    def effective_rigidities(self) -> List[np.ndarray]:
         return self._effective_rigidities
 
     @effective_rigidities.setter
@@ -238,7 +224,7 @@ class Rheology(LayerConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def complex_love_numbers(self):
+    def complex_love_numbers(self) -> List[Dict[str, np.ndarray]]:
         return self._complex_love_numbers
 
     @complex_love_numbers.setter
@@ -252,23 +238,39 @@ class Rheology(LayerConfigHolder):
 
     @premelt_shear.setter
     def premelt_shear(self, value):
-        raise ImproperAttributeHandling
+        raise OuterscopeAttributeSetError
 
     @property
     def tidal_modes(self):
-        return self.layer.world.tidal_modes
+        return self.layer.tidal_modes
 
     @tidal_modes.setter
     def tidal_modes(self, value):
-        raise ImproperAttributeHandling
+        raise OuterscopeAttributeSetError
+
+    @property
+    def unique_tidal_freqs(self) -> List[np.ndarray]:
+        return self.layer.unique_tidal_freqs
+
+    @unique_tidal_freqs.setter
+    def unique_tidal_freqs(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def tidal_mode_names(self) -> List[str]:
+        return self.layer.tidal_mode_names
+
+    @tidal_mode_names.setter
+    def tidal_mode_names(self, value):
+        raise OuterscopeAttributeSetError
 
     @property
     def quality_factor(self) -> float:
-        return self.layer.world.quality_factor
+        return self.layer.quality_factor
 
     @quality_factor.setter
     def quality_factor(self, value):
-        raise ImproperAttributeHandling
+        raise OuterscopeAttributeSetError
 
     @property
     def beta(self) -> float:
@@ -276,7 +278,7 @@ class Rheology(LayerConfigHolder):
 
     @beta.setter
     def beta(self, value):
-        raise ImproperAttributeHandling
+        raise OuterscopeAttributeSetError
 
     # Alias properties
     @property
@@ -285,7 +287,7 @@ class Rheology(LayerConfigHolder):
 
     @viscosity.setter
     def viscosity(self, value):
-        raise ImproperAttributeHandling
+        self.postmelt_viscosity = value
 
     @property
     def shear_modulus(self):
@@ -293,7 +295,7 @@ class Rheology(LayerConfigHolder):
 
     @shear_modulus.setter
     def shear_modulus(self, value):
-        raise ImproperAttributeHandling
+        self.postmelt_shear_modulus = value
 
     @property
     def shear(self):
@@ -301,8 +303,12 @@ class Rheology(LayerConfigHolder):
 
     @shear.setter
     def shear(self, value):
-        raise ImproperAttributeHandling
+        self.postmelt_shear_modulus = value
 
     @property
     def compliance(self):
-        return self.partial_melting_model.postmelt_compliance
+        return self.postmelt_compliance
+
+    @compliance.setter
+    def compliance(self, value):
+        self.postmelt_compliance = value

@@ -12,23 +12,21 @@ from ... import debug_mode
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import burnman_interpolation_N, burnman_interpolation_method
 from ...exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
-                                ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError)
+                           ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError,
+                           OuterscopeAttributeSetError)
 from ...initialize import log
 from ...radiogenics.radiogenics import Radiogenics
 from ...structures.physical import PhysicalObjSpherical
-from ...thermal import find_viscosity
-from ..thermal.cooling import Cooling
-from ..thermal.partial_melt import PartialMelt
-
+from ...cooling import CoolingModel
 from ...rheology import Rheology
 from ...types import floatarray_like, NoneType
 from ...utilities.dictionary_utils import nested_get
-from ...utilities.numpy_help import find_nearest, value_cleanup
+from ...utilities.numpy_help import find_nearest
 from ...types import ArrayNone
 
 
 if TYPE_CHECKING:
-    from ..worlds import TidalWorld
+    from ..worlds import ThermalWorld
 
 
 class ThermalLayer(PhysicalObjSpherical):
@@ -40,7 +38,7 @@ class ThermalLayer(PhysicalObjSpherical):
     default_config = layer_defaults
     layer_class = 'thermal'
 
-    def __init__(self, layer_name: str, world: TidalWorld, burnman_layer: burnman.Layer, layer_config: dict):
+    def __init__(self, layer_name: str, world: ThermalWorld, burnman_layer: burnman.Layer, layer_config: dict):
 
         # Load layer defaults
         self.type = layer_config['type']
@@ -161,33 +159,25 @@ class ThermalLayer(PhysicalObjSpherical):
         self.is_tidal = False
         self.is_spin_sync = False
 
-    # Inner scope properties
+    # Inner scope properties - Rheology Class
     @property
-    def compliance(self) -> ArrayNone:
-        return self.rheology.compliance
+    def premelt_viscosity(self):
+        return self.rheology.premelt_viscosity
 
-    @compliance.setter
-    def compliance(self, value):
-        self.rheology.compliance = value
-
-    @property
-    def shear_modulus(self) -> ArrayNone:
-        return self.rheology.shear_modulus
-
-    @shear_modulus.setter
-    def shear_modulus(self, value):
-        self.rheology.shear_modulus = value
+    @premelt_viscosity.setter
+    def premelt_viscosity(self, value):
+        self.rheology.premelt_viscosity = value
 
     @property
-    def viscosity(self) -> np.ndarray:
-        return self.rheology.viscosity
+    def liquid_viscosity(self):
+        return self.rheology.liquid_viscosity
 
-    @viscosity.setter
-    def viscosity(self, value):
-        self.rheology.viscosity = value
+    @liquid_viscosity.setter
+    def liquid_viscosity(self, value):
+        self.rheology.liquid_viscosity = value
 
     @property
-    def melt_fraction(self) -> np.ndarray:
+    def melt_fraction(self):
         return self.rheology.melt_fraction
 
     @melt_fraction.setter
@@ -195,7 +185,31 @@ class ThermalLayer(PhysicalObjSpherical):
         self.rheology.melt_fraction = value
 
     @property
-    def complex_compliances(self) -> Dict[str, np.ndarray]:
+    def postmelt_viscosity(self):
+        return self.rheology.postmelt_viscosity
+
+    @postmelt_viscosity.setter
+    def postmelt_viscosity(self, value):
+        self.rheology.postmelt_viscosity = value
+
+    @property
+    def postmelt_shear_modulus(self):
+        return self.rheology.postmelt_shear_modulus
+
+    @postmelt_shear_modulus.setter
+    def postmelt_shear_modulus(self, value):
+        self.rheology.postmelt_shear_modulus = value
+
+    @property
+    def postmelt_compliance(self):
+        return self.rheology.postmelt_compliance
+
+    @postmelt_compliance.setter
+    def postmelt_compliance(self, value):
+        self.rheology.postmelt_compliance = value
+
+    @property
+    def complex_compliances(self):
         return self.rheology.complex_compliances
 
     @complex_compliances.setter
@@ -203,7 +217,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self.rheology.complex_compliances = value
 
     @property
-    def effective_rigidities(self) -> List[np.ndarray]:
+    def effective_rigidities(self):
         return self.rheology.effective_rigidities
 
     @effective_rigidities.setter
@@ -218,14 +232,16 @@ class ThermalLayer(PhysicalObjSpherical):
     def complex_love_numbers(self, value):
         self.rheology.complex_love_numbers = value
 
+    # Inner scope properties - Radiogenics Class
     @property
-    def heat_flux(self):
-        return self.cooling_model.heat_flux
+    def radiogenic_heating(self):
+        return self.radiogenics.heating
 
-    @heat_flux.setter
-    def heat_flux(self, value):
-        self.cooling_model.heat_flux = value
+    @radiogenic_heating.setter
+    def radiogenic_heating(self, value):
+        self.radiogenics.heating = value
 
+    # Inner scope properties - Cooling Class
     @property
     def cooling(self):
         return self.cooling_model.cooling
@@ -235,7 +251,23 @@ class ThermalLayer(PhysicalObjSpherical):
         self.cooling_model.cooling = value
 
     @property
-    def rayleigh(self):
+    def cooling_flux(self):
+        return self.cooling_model.cooling_flux
+
+    @cooling_flux.setter
+    def cooling_flux(self, value):
+        self.cooling_model = value
+
+    @property
+    def boundary_layer_thickness(self):
+        return self.cooling_model.boundary_layer_thickness
+
+    @boundary_layer_thickness.setter
+    def boundary_layer_thickness(self, value):
+        self.cooling_model.boundary_layer_thickness = value
+
+    @property
+    def rayleigh(self) -> np.ndarray:
         return self.cooling_model.rayleigh
 
     @rayleigh.setter
@@ -250,22 +282,88 @@ class ThermalLayer(PhysicalObjSpherical):
     def nusselt(self, value):
         self.cooling_model.nusselt = value
 
+    # Outer scope properties
     @property
-    def boundary_layer_thickness(self):
-        return self.cooling.boundary_layer_thickness
+    def tidal_modes(self):
+        return self.world.tidal_modes
 
-    @boundary_layer_thickness.setter
-    def boundary_layer_thickness(self, value):
-        self.cooling.boundary_layer_thickness = value
+    @tidal_modes.setter
+    def tidal_modes(self, value):
+        raise OuterscopeAttributeSetError
 
-    # Alias properties
+    @property
+    def tidal_frequencies(self):
+        return self.world.tidal_frequencies
+
+    @tidal_frequencies.setter
+    def tidal_frequencies(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def tidal_unique_tidal_frequencies(self):
+        return self.world.tidal_unique_tidal_frequencies
+
+    @tidal_unique_tidal_frequencies.setter
+    def tidal_unique_tidal_frequencies(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def tidal_mode_names(self):
+        return self.world.tidal_mode_names
+
+    @tidal_mode_names.setter
+    def tidal_mode_names(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def tidal_heating_subterms(self):
+        return self.world.tidal_heating_subterms
+
+    @tidal_heating_subterms.setter
+    def tidal_heating_subterms(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def tidal_ztorque_subterms(self):
+        return self.world.tidal_ztorque_subterms
+
+    @tidal_ztorque_subterms.setter
+    def tidal_ztorque_subterms(self, value):
+        raise OuterscopeAttributeSetError
+
+
+    # Alias Properties
+    @property
+    def viscosity(self):
+        return self.postmelt_viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+        self.viscosity = value
+
+    @property
+    def compliance(self):
+        return self.postmelt_compliance
+
+    @compliance.setter
+    def compliance(self, value):
+        self.postmelt_compliance = value
+
     @property
     def shear(self):
-        return self.shear_modulus
+        return self.postmelt_shear_modulus
 
     @shear.setter
     def shear(self, value):
-        self.shear_modulus = value
+        self.postmelt_shear_modulus = value
+
+    @property
+    def shear_modulus(self):
+        return self.postmelt_shear_modulus
+
+    @shear_modulus.setter
+    def shear_modulus(self, value):
+        self.postmelt_shear_modulus = value
 
     @property
     def blt(self):
@@ -274,6 +372,7 @@ class ThermalLayer(PhysicalObjSpherical):
     @blt.setter
     def blt(self, value):
         self.boundary_layer_thickness = value
+
 
 
 
@@ -350,22 +449,22 @@ class ThermalLayer(PhysicalObjSpherical):
         if 'rheology' in self.config:
             if 'liquid_viscosity' in self.config['rheology']:
                 liquid_visco_params = self.config['rheology']['liquid_viscosity']
-
-        self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = \
-            find_viscosity(solid_visco_model, parameters=solid_visco_params,
-                           default_key=[self.type, 'solid_viscosity'])
-        self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = \
-            find_viscosity(liquid_visco_model, parameters=liquid_visco_params,
-                           default_key=[self.type, 'liquid_viscosity'])
-
-        # Heat sources used in temperature derivative calculation
-        self.heat_sources = list()
-
-        # Setup Partial Melting
-        self.partial_melt = PartialMelt(self)
-
-        # Setup Cooling
-        self.cooling = Cooling(self)
+        # TODO
+        # self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = \
+        #     find_viscosity(solid_visco_model, parameters=solid_visco_params,
+        #                    default_key=[self.type, 'solid_viscosity'])
+        # self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = \
+        #     find_viscosity(liquid_visco_model, parameters=liquid_visco_params,
+        #                    default_key=[self.type, 'liquid_viscosity'])
+        #
+        # # Heat sources used in temperature derivative calculation
+        # self.heat_sources = list()
+        #
+        # # Setup Partial Melting
+        # self.partial_melt = PartialMelt(self)
+        #
+        # # Setup Cooling
+        # self.cooling = Cooling(self)
 
         # Setup Radiogenics
         self.radiogenics = Radiogenics(self)
@@ -420,12 +519,6 @@ class ThermalLayer(PhysicalObjSpherical):
                 else:
                     if value > 1.0e30 or value < 1.0e-10:
                         raise UnusualRealValueError
-
-        if viscosity is not None:
-            self._viscosity = value_cleanup(viscosity)
-
-        if shear_modulus is not None:
-            self._shear_modulus = value_cleanup(shear_modulus)
 
         # TODO: Have an option to calculate an effective temperature given the viscosity and shear modulus.
         #   If this is implemented then make sure it makes its way to the viscosity and shear .setters

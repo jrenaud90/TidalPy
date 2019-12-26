@@ -3,13 +3,10 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 
 from ..initialize import log
-from ..exceptions import MissingAttributeError, ImproperAttributeHandling
+from ..exceptions import MissingAttributeError, ImproperAttributeHandling, OuterscopeAttributeSetError
 from ..utilities.model import LayerModelHolder
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import cooling_defaults
-
-if TYPE_CHECKING:
-    from ..structures.layers import ThermalLayer
 
 
 class CoolingModel(LayerModelHolder):
@@ -26,7 +23,7 @@ class CoolingModel(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = 'cooling'
 
-    def __init__(self, layer: ThermalLayer, model_name: str = None, store_config_in_layer: bool = True):
+    def __init__(self, layer, model_name: str = None, store_config_in_layer: bool = True):
 
         super().__init__(layer, model_name, store_config_in_layer)
 
@@ -80,6 +77,7 @@ class CoolingModel(LayerModelHolder):
 
         return self._calculate()
 
+    # State properties
     @property
     def cooling(self) -> np.ndarray:
         return self._cooling
@@ -119,3 +117,70 @@ class CoolingModel(LayerModelHolder):
     @nusselt.setter
     def nusselt(self, value):
         raise ImproperAttributeHandling
+
+    # Outerscope properties
+    @property
+    def viscosity(self):
+        return self.layer.viscosity
+
+    @viscosity.setter
+    def viscosity(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def thermal_conductivity(self):
+        return self.layer.thermal_conductivity
+
+    @thermal_conductivity.setter
+    def thermal_conductivity(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def thermal_diffusivity(self):
+        return self.layer.thermal_diffusivity
+
+    @thermal_diffusivity.setter
+    def thermal_diffusivity(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def thermal_expansion(self):
+        return self.layer.thermal_expansion
+
+    @thermal_expansion.setter
+    def thermal_expansion(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def thickness(self):
+        return self.layer.thickness
+
+    @thickness.setter
+    def thickness(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def gravity(self):
+        # TODO: Should this be surface or central gravity?
+        return self.layer.gravity_surface
+
+    @gravity.setter
+    def gravity(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def density_bulk(self):
+        return self.layer.density_bulk
+
+    @density_bulk.setter
+    def density_bulk(self, value):
+        raise OuterscopeAttributeSetError
+
+    # Alias properties
+    @property
+    def blt(self):
+        return self.boundary_layer_thickness
+
+    @blt.setter
+    def blt(self, value):
+        self.boundary_layer_thickness = value

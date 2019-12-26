@@ -34,7 +34,7 @@ def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()
     model_const_args = dict()  # type: Dict[str, Tuple[str, ...]]
     model_live_args = dict()  # type: Dict[str, Tuple[str, ...]]
 
-    for item in module.__dict__:
+    for item_name, item in module.__dict__.items():
 
         skip = False
         if type(item) in ignore_functional_types:
@@ -49,11 +49,10 @@ def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()
             continue
 
         if is_function(item):
-            func_name = item.__name__
-            const_args, live_args = parse_model_docstring(func_name)
-            models[func_name] = item
-            model_const_args[func_name] = const_args
-            model_live_args[func_name] = live_args
+            const_args, live_args = parse_model_docstring(item)
+            models[item_name] = item
+            model_const_args[item_name] = const_args
+            model_live_args[item_name] = live_args
 
     return models, model_const_args, model_live_args
 

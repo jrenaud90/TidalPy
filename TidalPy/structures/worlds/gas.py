@@ -1,6 +1,6 @@
-from .basic import GeometricWorld
+from .tidal import TidalWorld
 
-class GasGiant(GeometricWorld):
+class GasGiant(TidalWorld):
 
     world_class = 'gasgiant'
 

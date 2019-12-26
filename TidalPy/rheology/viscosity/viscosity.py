@@ -7,10 +7,6 @@ from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
 
-if TYPE_CHECKING:
-    from ...structures.layers import ThermalLayer
-    from ..rheology import Rheology
-
 
 class ViscosityClass(LayerModelHolder):
     """ Common Viscosity class for liquid and solid viscosity model holders.
@@ -18,7 +14,7 @@ class ViscosityClass(LayerModelHolder):
 
     is_liquid = False
 
-    def __init__(self, layer: ThermalLayer, rheology_class: Rheology, model_name: str = None,
+    def __init__(self, layer, rheology_class, model_name: str = None,
                  store_config_in_layer: bool = True):
 
         super().__init__(layer, model_name, store_config_in_layer)

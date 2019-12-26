@@ -8,10 +8,6 @@ from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import partial_melt_defaults
 
-if TYPE_CHECKING:
-    from ...structures.layers import ThermalLayer
-    from ..rheology import Rheology
-
 
 @njit
 def calculate_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: float):
@@ -87,7 +83,7 @@ class PartialMelt(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = ('rheology', 'partial_melting')
 
-    def __init__(self, layer: ThermalLayer, rheology_class: Rheology, model_name: str = None,
+    def __init__(self, layer, rheology_class, model_name: str = None,
                  store_config_in_layer: bool = True):
 
         super().__init__(layer, model_name, store_config_in_layer)

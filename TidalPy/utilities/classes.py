@@ -9,11 +9,6 @@ from ..exceptions import ImproperAttributeHandling, ParameterMissingError
 from ..io import inner_save_dir, unique_path
 from .json_utils import save_dict_to_json
 
-if TYPE_CHECKING:
-    from ..structures.layers import ThermalLayer
-    from ..structures.worlds import TidalWorld
-
-
 class ConfigHolder(TidalPyClass):
     """ Classes which contain a parameter dictionary inherit from this class
 
@@ -269,7 +264,7 @@ class LayerConfigHolder(ConfigHolder):
 
     layer_config_key = None
 
-    def __init__(self, layer: ThermalLayer, store_config_in_layer: bool = True):
+    def __init__(self, layer, store_config_in_layer: bool = True):
 
         # Store layer and world information
         self.layer = layer
@@ -317,10 +312,10 @@ class WorldConfigHolder(ConfigHolder):
 
     world_config_key = None
 
-    def __init__(self, World: TidalWorld, store_config_in_world: bool = True):
+    def __init__(self, world, store_config_in_world: bool = True):
 
         # Store world information
-        self.world = World
+        self.world = world
         world_name = self.world.name
         self.world_type = self.world.world_type
 
