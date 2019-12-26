@@ -38,7 +38,7 @@ class ThermalLayer(PhysicalObjSpherical):
     default_config = layer_defaults
     layer_class = 'thermal'
 
-    def __init__(self, layer_name: str, world: ThermalWorld, burnman_layer: burnman.Layer, layer_config: dict):
+    def __init__(self, layer_name: str, world: 'ThermalWorld', burnman_layer: burnman.Layer, layer_config: dict, initialize: bool = True):
 
         # Load layer defaults
         self.type = layer_config['type']
@@ -51,8 +51,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.world = world
 
         # Information about the other layers (mostly for gravity and cooling calculations)
-        self.layer_below = None  # type: Union[ThermalLayer, NoneType]
-        self.layer_above = None  # type: Union[ThermalLayer, NoneType]
+        self.layer_below = None  # type: Union['ThermalLayer', NoneType]
+        self.layer_above = None  # type: Union['ThermalLayer', NoneType]
 
         # Pull out information from the already initialized burnman Layer
         self.bm_layer = burnman_layer
@@ -129,35 +129,45 @@ class ThermalLayer(PhysicalObjSpherical):
         self._temperature_lower = None  # type: ArrayNone
         self._temperature_upper = None  # type: ArrayNone
 
-
-
-        self._tidal_heating = None  # type: ArrayNone
-        self._tidal_ztorque = None
-        self._radiogenic_heating = None  # type: ArrayNone
-
         # State Derivatives
         self._diff_temperature = None  # type: ArrayNone
 
-        # Model Holders
-        self.rheology = None  # type: Union[Rheology, NoneType]
-        self.cooling_model = None  # type: Union[Cooling, NoneType]
-        self.radiogenics = None  # type: Union[Radiogenics, NoneType]
-        self.tides = None  # type: Union[Tides, NoneType]
-        self.heat_sources = None
-
-        # Function Holders
-        self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = None, None, None
-        self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = None, None, None
+        # Model holders - setup in reinit()
+        self.rheology = None  # type: Union['Rheology', NoneType]
+        self.cooling_model = None  # type: Union['CoolingModel', NoneType]
+        self.radiogenics = None  # type: Union['Radiogenics', NoneType]
 
         # Constants
         self.tidal_scale = 1.
-        if self.config['use_tvf']:
-            self.tidal_scale = self.volume / self.world.volume
 
         # Flags
         self.is_top_layer = False
         self.is_tidal = False
-        self.is_spin_sync = False
+
+        if initialize:
+            self.reinit()
+
+    def reinit(self):
+
+        super().reinit()
+
+        # Load in configurations
+        if self.config['use_tvf']:
+            self.tidal_scale = self.volume / self.world.volume
+        self.is_tidal = self.config['is_tidally_active']
+
+        # Material properties that might have been affected by new configuration files
+        self.static_shear_modulus = self.config['shear_modulus']
+        self.heat_fusion = self.config['heat_fusion']
+        self.thermal_conductivity = self.config['thermal_conductivity']
+        self.temp_ratio = self.config['boundary_temperature_ratio']
+        self.stefan = self.config['stefan']
+
+        # Setup Models
+        self.radiogenics = Radiogenics(self, store_config_in_layer=True)
+        self.rheology = Rheology(self, self.world.orbital_truncation_lvl,
+                                 self.world.tidal_order_lvl, self.world.use_nsr, store_config_in_layer=True)
+        self.cooling_model = CoolingModel(self, store_config_in_layer=True)
 
     # Inner scope properties - Rheology Class
     @property
@@ -331,6 +341,21 @@ class ThermalLayer(PhysicalObjSpherical):
     def tidal_ztorque_subterms(self, value):
         raise OuterscopeAttributeSetError
 
+    @property
+    def tidal_heating(self):
+        return self.world.tidal_heating_bylayer[self]
+
+    @tidal_heating.setter
+    def tidal_heating(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def tidal_ztorque(self):
+        return self.world.tidal_ztorque_bylayer[self]
+
+    @tidal_ztorque.setter
+    def tidal_ztorque(self, value):
+        raise OuterscopeAttributeSetError
 
     # Alias Properties
     @property
@@ -420,65 +445,7 @@ class ThermalLayer(PhysicalObjSpherical):
 
             self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
 
-    def reinit(self):
 
-        super().reinit()
-        log(f'Reinit called for Layer: {self.name} in {self.world.name}.', level='debug')
-
-        # Check for changes to config that may break the planet
-        if self._old_config is not None:
-            for critical_attribute in ['material', 'material_source', 'type', 'thickness', 'radius', 'slices']:
-                if self.config[critical_attribute] != self._old_config[critical_attribute]:
-                    raise ReinitError
-
-        # Material properties that might have been affected by new configuration files
-        self.static_shear_modulus = np.asarray([self.config['shear_modulus']])
-        self.heat_fusion = self.config['heat_fusion']
-        self.thermal_conductivity = self.config['thermal_conductivity']
-        self.temp_ratio = self.config['boundary_temperature_ratio']
-        self.stefan = self.config['stefan']
-
-        # Setup viscosity functions
-        solid_visco_model = nested_get(self.config, ['rheology', 'solid_viscosity', 'model'], default=None)
-        liquid_visco_model = nested_get(self.config, ['rheology', 'liquid_viscosity', 'model'], default=None)
-        solid_visco_params = None
-        if 'rheology' in self.config:
-            if 'solid_viscosity' in self.config['rheology']:
-                solid_visco_params = self.config['rheology']['solid_viscosity']
-        liquid_visco_params = None
-        if 'rheology' in self.config:
-            if 'liquid_viscosity' in self.config['rheology']:
-                liquid_visco_params = self.config['rheology']['liquid_viscosity']
-        # TODO
-        # self.viscosity_func, self.viscosity_inputs, self.viscosity_live_inputs = \
-        #     find_viscosity(solid_visco_model, parameters=solid_visco_params,
-        #                    default_key=[self.type, 'solid_viscosity'])
-        # self.viscosity_liq_func, self.viscosity_liq_inputs, self.viscosity_liq_live_inputs = \
-        #     find_viscosity(liquid_visco_model, parameters=liquid_visco_params,
-        #                    default_key=[self.type, 'liquid_viscosity'])
-        #
-        # # Heat sources used in temperature derivative calculation
-        # self.heat_sources = list()
-        #
-        # # Setup Partial Melting
-        # self.partial_melt = PartialMelt(self)
-        #
-        # # Setup Cooling
-        # self.cooling = Cooling(self)
-
-        # Setup Radiogenics
-        self.radiogenics = Radiogenics(self)
-        self.heat_sources.append(lambda: self.radiogenic_heating)
-
-        # Setup Tides
-        self.tides = Tides(self)
-        if self.tides.model != 'off':
-            self.is_tidal = True
-            self.heat_sources.append(lambda: self.tidal_heating)
-        else:
-            self.is_tidal = False
-
-        self.set_geometry(self.radius, self.mass, self.thickness)
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
 

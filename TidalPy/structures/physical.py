@@ -6,7 +6,7 @@ from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, Inc
                           UnusualRealValueError, ParameterMissingError)
 from ..types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
-
+from ..initialize import log
 
 class PhysicalObjSpherical(ConfigHolder):
     """ PhysicalObj Class contains attributes and functionality used for objects such as planets or
@@ -38,6 +38,12 @@ class PhysicalObjSpherical(ConfigHolder):
         self._moi_factor = None
         self._gravity_surf = None
         self._beta = None
+
+    def reinit(self):
+        """ Changes to the config may result in changes to models and classes. After making a change to a config
+        parameter be sure to call reinit to ensure those changes are propagated."""
+
+        log(f'Reinit called for {self.pyname}.', level='debug')
 
     def config_update(self):
         """ Config update changes various state parameters of an object based on the self.config

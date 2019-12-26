@@ -5,15 +5,15 @@ class Star(TidalWorld):
 
     world_class = 'star'
 
-    def __init__(self, star_config: dict, name: str = None):
+    def __init__(self, star_config: dict, name: str = None, initialize: bool = True):
 
-        super().__init__(star_config, name=name)
+        super().__init__(star_config, name=name, initialize=False)
 
         # Star-specific attributes
         self.luminosity = None
         self.effective_temperature = None
 
-        if call_reinit:
+        if initialize:
             self.reinit()
 
     def reinit(self):

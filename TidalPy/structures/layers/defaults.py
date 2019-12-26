@@ -7,7 +7,7 @@ layer_defaults = {
         # Switches
         'use_surf_gravity'          : True,
         'use_tvf'                   : True,
-        'is_tidal'                  : True,
+        'is_tidally_active'         : True,
 
         # Burnman Information
         'interp_temperature_range'  : [60., 273.15],
@@ -34,7 +34,7 @@ layer_defaults = {
         # Switches
         'use_surf_gravity'          : True,
         'use_tvf'                   : True,
-        'is_tidal'                  : True,
+        'is_tidally_active'         : True,
 
         # Burnman Information
         'interp_temperature_range'  : [500., 2200.],
@@ -58,7 +58,7 @@ layer_defaults = {
         # Switches
         'use_surf_gravity'          : True,
         'use_tvf'                   : True,
-        'is_tidal'                  : False,
+        'is_tidally_active'         : False,
 
         # Burnman Information
         'interp_temperature_range'  : [800., 2500.],

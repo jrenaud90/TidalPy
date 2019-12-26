@@ -1,4 +1,5 @@
 from . import GeometricWorld
+from ...exceptions import ImproperAttributeHandling, ConfigAttributeChangeError
 
 from ...tides.tides import Tides
 
@@ -7,22 +8,63 @@ class TidalWorld(GeometricWorld):
 
     world_class = 'tidal'
 
-    def __init__(self, world_config: dict, name: str = None):
+    def __init__(self, world_config: dict, name: str = None, initialize: bool = True):
 
-        super().__init__(world_config, name=name)
+        super().__init__(world_config, name=name, initialize=False)
+
+        # State properties
+        self._is_spin_sync = None
 
         # Things setup in reinit
-        self.tides = None
+        self._tides = None
+
+        if initialize:
+            self.reinit()
 
     def reinit(self):
 
         super().reinit()
 
-        # Setup tidal model
-        self.tides = Tides(self)
+        # Load in configurations
+        self._is_spin_sync = self.config['is_spin_sync']
 
+        # Setup tidal model
+        self._tides = Tides(self)
+
+    # State properties
+    @property
+    def tides(self):
+        return self._tides
+
+    @tides.setter
+    def tides(self, value):
+        raise ConfigAttributeChangeError
+
+    @property
+    def is_spin_sync(self):
+        return self._is_spin_sync
+
+    @is_spin_sync.setter
+    def is_spin_sync(self, value):
+        raise ConfigAttributeChangeError
 
     # Inner scope properties - Tides model
+    @property
+    def orbital_truncation_lvl(self):
+        return self.tides.orbital_truncation_lvl
+
+    @orbital_truncation_lvl.setter
+    def orbital_truncation_lvl(self, value):
+        self.tides.orbital_truncation_lvl = value
+
+    @property
+    def tidal_order_lvl(self):
+        return self.tides.tidal_order_lvl
+
+    @tidal_order_lvl.setter
+    def tidal_order_lvl(self, value):
+        self.tides.tidal_order_lvl = value
+
     @property
     def tidal_modes(self):
         return self.tides.modes
@@ -70,3 +112,29 @@ class TidalWorld(GeometricWorld):
     @tidal_ztorque_subterms.setter
     def tidal_ztorque_subterms(self, value):
         self.tides.ztorque_subterms = value
+
+    @property
+    def tidal_heating_bylayer(self):
+        return self.tides.tidal_heating_bylayer
+
+    @tidal_heating_bylayer.setter
+    def tidal_heating_bylayer(self, value):
+        self.tides.tidal_heating_bylayer = value
+
+    @property
+    def tidal_ztorque_bylayer(self):
+        return self.tides.tidal_ztorque_bylayer
+
+    @tidal_ztorque_bylayer.setter
+    def tidal_ztorque_bylayer(self, value):
+        self.tides.tidal_ztorque_bylayer = value
+
+    # Alias properties
+    @property
+    def use_nsr(self):
+        return not self.is_spin_sync
+
+    @use_nsr.setter
+    def use_nsr(self, value):
+        raise ImproperAttributeHandling
+

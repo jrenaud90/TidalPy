@@ -42,7 +42,7 @@ class WorldBase(PhysicalObjSpherical):
     default_config = world_defaults
     world_class = 'base'
 
-    def __init__(self, world_config: dict, name: str = None):
+    def __init__(self, world_config: dict, name: str = None, initialize: bool = True):
 
         # Load in defaults
         self.default_config = self.default_config[self.world_class]
@@ -75,6 +75,9 @@ class WorldBase(PhysicalObjSpherical):
         self.equilibrium_insolation_func = None
 
         self.pyname = f'{self.name}_{self.world_class}'
+
+        if initialize:
+            self.reinit()
 
     def reinit(self):
         """ Re-initialize the basic world based on changed to its configuration."""
@@ -381,11 +384,14 @@ class GeometricWorld(WorldBase):
 
     world_class = 'geometric'
 
-    def __init__(self, planet_config: dict, name: str = None):
+    def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
 
         super().__init__(planet_config, name=name)
 
         self.set_geometry(planet_config['radius'], planet_config['mass'])
+
+        if initialize:
+            self.reinit()
 
     def __str__(self):
 
