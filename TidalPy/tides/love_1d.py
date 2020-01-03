@@ -36,7 +36,7 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
     return cmplx_love
 
 
-#@njit
+@njit
 def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
                          order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order complex Love number
@@ -58,10 +58,17 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
         l-th order complex Love number
     """
 
-    compliance_term = (1. / (complex_compliance * shear_modulus))
-    breakpoint()
+    real_j = np.real(complex_compliance)
+    imag_j = np.imag(complex_compliance)
+    real_j2 = real_j**2
+    imag_j2 = imag_j**2
+    reduced_compliance = eff_rigidity_general / shear_modulus
+    common_factor = (3. / (order_l - 1.)) * ((real_j + reduced_compliance)**2 + imag_j2)**-1
+    real_love = (real_j2 + imag_j2 + real_j * reduced_compliance) * common_factor
+    imag_love = (imag_j * reduced_compliance) * common_factor
+    cmplx_love = real_love + 1.0j * imag_love
 
-    return (3. / 2. * (order_l - 1)) * (1. / (1. + (eff_rigidity_general * compliance_term)))
+    return cmplx_love
 
 
 @njit
