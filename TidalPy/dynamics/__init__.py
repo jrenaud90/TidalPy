@@ -26,6 +26,8 @@ from .modes_l2 import nsr_modes_6 as nsr_modes_l2_t6
 from .modes_l2 import nsr_modes_8 as nsr_modes_l2_t8
 from .modes_l2 import nsr_modes_10 as nsr_modes_l2_t10
 from .modes_l2 import nsr_modes_12 as nsr_modes_l2_t12
+from .modes_l2 import nsr_modes_16 as nsr_modes_l2_t16
+from .modes_l2 import nsr_modes_20 as nsr_modes_l2_t20
 from .modes_l2 import spin_sync_modes as spin_sync_l2
 from .modes_l2 import spin_sync_modes_4 as spin_sync_l2_t4
 from .modes_l2 import spin_sync_modes_6 as spin_sync_l2_t6
@@ -51,7 +53,9 @@ mode_types = {
             6: nsr_modes_l2_t6,
             8: nsr_modes_l2_t8,
             10: nsr_modes_l2_t10,
-            12: nsr_modes_l2_t12
+            12: nsr_modes_l2_t12,
+            16: nsr_modes_l2_t16,
+            20: nsr_modes_l2_t20
         },
         3: {
             # Truncation level
