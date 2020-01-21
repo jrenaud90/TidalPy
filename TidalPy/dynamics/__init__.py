@@ -78,3 +78,23 @@ mode_types = {
         }
     }
 }
+
+
+
+
+#
+# # Build function lists
+# mode_dict = dict()
+# for
+# nsr_order_l2_dict = dict()
+# nsr_order_l2_max_trunc = 0
+# for _name, _func in nsr_modes_l2_NEW.__dict__.items():
+#     if 'nsr_modes_t' in _name:
+#         trunc_lvl = int(_name.split('nsr_modes_t')[1])
+#         nsr_order_l2_dict[trunc_lvl] = _func
+#         if trunc_lvl > nsr_order_l2_max_trunc:
+#             nsr_order_l2_max_trunc = trunc_lvl
+# nsr_order_l2_list = list()
+# for i in range(nsr_order_l2_max_trunc+1):
+#     func_ = nsr_order_l2_dict[i]
+#     nsr_order_l2_list.append(func_)
