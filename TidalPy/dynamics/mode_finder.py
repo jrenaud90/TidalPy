@@ -4,7 +4,10 @@ from typing import Callable
 
 from ..performance import njit
 from .nsr_modes_l2_NEW import OutputType as NsrOutputType
+from .nsr_modes_l2_NEW import nsr_modes_t2
 from .sync_modes_l2_NEW import OutputType as SyncOutputType
+from .sync_modes_l2_NEW import sync_modes_t2
+
 from . import MODE_ZERO_TOL
 
 NsrModeFuncType = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray], NsrOutputType]
@@ -13,7 +16,7 @@ SyncModeFuncType = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray], Sy
 
 @njit
 def nsr_mode_finder(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray,
-                    nsr_mode_function: NsrModeFuncType):
+                    nsr_mode_function: NsrModeFuncType = nsr_modes_t2):
     """ Find the coefficients for NSR tidal dissipation using a provide mode function.
 
     The mode function sets the limits on eccentricity and inclination truncations.
@@ -110,7 +113,7 @@ def nsr_mode_finder(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricit
 
 @njit
 def sync_mode_finder(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: np.ndarray, inclination: np.ndarray,
-                     sync_mode_function: SyncModeFuncType):
+                     sync_mode_function: SyncModeFuncType = sync_modes_t2):
     """ Find the coefficients for spin-sync tidal dissipation using a provide mode function.
 
     The mode function sets the limits on eccentricity and inclination truncations.
