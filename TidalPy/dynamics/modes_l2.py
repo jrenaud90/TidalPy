@@ -854,16 +854,16 @@ def nsr_modes_8(orbital_freq: np.ndarray, spin_freq: np.ndarray, eccentricity: n
         heating_coeff = freq*coeff
         ztorque_coeff = coeff*torque_multi*sgn
 
-        # freq_too_low = freq < MODE_ZERO_TOL
-        # freq[freq_too_low] = 0.
-        # mode[freq_too_low] = 0.
-        # heating_coeff[freq_too_low] = 0.
-        # ztorque_coeff[freq_too_low] = 0.
+        freq_too_low = freq < MODE_ZERO_TOL
+        freq[freq_too_low] = 0.
+        mode[freq_too_low] = 0.
+        heating_coeff[freq_too_low] = 0.
+        ztorque_coeff[freq_too_low] = 0.
 
-        if freq < MODE_ZERO_TOL:
-            freq = 0.
-            heating_coeff = 0.
-            ztorque_coeff = 0.
+        # if freq < MODE_ZERO_TOL:
+        #     freq = 0.
+        #     heating_coeff = 0.
+        #     ztorque_coeff = 0.
 
         freqs.append(freq)
         modes.append(mode)

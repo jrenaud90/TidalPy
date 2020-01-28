@@ -1,3 +1,4 @@
+from ..exceptions import ImplementationException
 from ..performance import njit
 
 from .duel_dissipation import (eccentricity_derivative as eccentricity_derivative_duel,
@@ -78,23 +79,22 @@ mode_types = {
         }
     }
 }
+from functools import partial
+
+from .mode_finder import nsr_mode_finder, sync_mode_finder
 
 
+def get_mode_finder(order_l: int = 2, truncation_level: int = 2, use_nsr: bool = True):
 
+    try:
+        mode_func = mode_types[use_nsr][order_l][truncation_level]
+    except KeyError:
+        raise ImplementationException('Mode has not been implemented for: '
+                                      'NSR={use_nsr}, order-l={order_l}, and truncation level={truncation_level}.')
 
-#
-# # Build function lists
-# mode_dict = dict()
-# for
-# nsr_order_l2_dict = dict()
-# nsr_order_l2_max_trunc = 0
-# for _name, _func in nsr_modes_l2_NEW.__dict__.items():
-#     if 'nsr_modes_t' in _name:
-#         trunc_lvl = int(_name.split('nsr_modes_t')[1])
-#         nsr_order_l2_dict[trunc_lvl] = _func
-#         if trunc_lvl > nsr_order_l2_max_trunc:
-#             nsr_order_l2_max_trunc = trunc_lvl
-# nsr_order_l2_list = list()
-# for i in range(nsr_order_l2_max_trunc+1):
-#     func_ = nsr_order_l2_dict[i]
-#     nsr_order_l2_list.append(func_)
+    if use_nsr:
+        mode_finder_func = partial(nsr_mode_finder, nsr_mode_function=mode_func)
+    else:
+        mode_finder_func = partial(nsr_mode_finder, sync_mode_function=mode_func)
+
+    return mode_finder_func
