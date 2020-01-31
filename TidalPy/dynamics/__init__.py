@@ -56,7 +56,7 @@ mode_types = {
             10: nsr_modes_l2_t10,
             12: nsr_modes_l2_t12,
             16: nsr_modes_l2_t16,
-            20: nsr_modes_l2_t20
+            20: nsr_modes_l2_t20,
         },
         3: {
             # Truncation level
