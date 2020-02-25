@@ -5,6 +5,112 @@ import numpy as np
 from ...performance import njit
 
 @njit
+def eccentricity_funcs_trunc6(eccentricity: np.ndarray) -> Dict[Tuple[int, int, int], np.ndarray]:
+    """ Calculates the eccentricity functions (by mode) truncated to e^6
+
+    Parameters
+    ----------
+    eccentricity : np.ndarray
+        Orbital Eccentricity
+
+    Returns
+    -------
+    eccentricity_results_bymode : Dict[Tuple[int, int int], np.ndarray]
+
+    """
+    # Eccentricity functions calculated at truncation level 18. Reduced to 6
+
+    # Performance and readability improvements
+    e = eccentricity
+    e2  = e * e
+    e4  = e * e * e * e
+    e6  = e * e * e * e * e * e
+
+    eccentricity_results_bymode = {
+        (2, 0, -3): e6/2304,
+        (2, 0, -1): 13*e6/768 - e4/16 + e2/4,
+        (2, 0, 0):  -155*e6/36 + 63*e4/8 - 5*e2 + 1,
+        (2, 0, 1):  21975*e6/256 - 861*e4/16 + 49*e2/4,
+        (2, 0, 2):  -1955*e6/6 + 289*e4/4,
+        (2, 0, 3):  714025*e6/2304,
+        (2, 1, -3): 2809*e6/256,
+        (2, 1, -2): 63*e6/8 + 81*e4/16,
+        (2, 1, -1): 2295*e6/256 + 81*e4/16 + 9*e2/4,
+        (2, 1, 0):  -1/(e2 - 1)**3,
+        (2, 1, 1):  2295*e6/256 + 81*e4/16 + 9*e2/4,
+        (2, 1, 2):  63*e6/8 + 81*e4/16,
+        (2, 1, 3):  2809*e6/256,
+        (2, 2, -3): 714025*e6/2304,
+        (2, 2, -2): -1955*e6/6 + 289*e4/4,
+        (2, 2, -1): 21975*e6/256 - 861*e4/16 + 49*e2/4,
+        (2, 2, 0):  -155*e6/36 + 63*e4/8 - 5*e2 + 1,
+        (2, 2, 1):  13*e6/768 - e4/16 + e2/4,
+        (2, 2, 3):  e6/2304,
+    }
+
+    return eccentricity_results_bymode
+
+@njit
+def eccentricity_funcs_trunc10(eccentricity: np.ndarray) -> Dict[Tuple[int, int, int], np.ndarray]:
+    """ Calculates the eccentricity functions (by mode) truncated to e^10
+
+    Parameters
+    ----------
+    eccentricity : np.ndarray
+        Orbital Eccentricity
+
+    Returns
+    -------
+    eccentricity_results_bymode : Dict[Tuple[int, int int], np.ndarray]
+
+    """
+    # Eccentricity functions calculated at truncation level 18. Reduced to 10.
+
+    # Performance and readability improvements
+    e = eccentricity
+    e2  = e * e
+    e4  = e * e * e * e
+    e6  = e * e * e * e * e * e
+    e8  = e**8
+    e10 = e**10
+
+
+    eccentricity_results_bymode = {
+        (2, 0, -5): 6561*e10/1638400,
+        (2, 0, -4): 7*e10/2880 + e8/576,
+        (2, 0, -3): 619*e10/983040 + 11*e8/18432 + e6/2304,
+        (2, 0, -1): 2639*e10/491520 + 113*e8/18432 + 13*e6/768 - e4/16 + e2/4,
+        (2, 0, 0):  -3481*e10/19200 + 2881*e8/2304 - 155*e6/36 + 63*e4/8 - 5*e2 + 1,
+        (2, 0, 1):  4654389*e10/163840 - 132635*e8/2048 + 21975*e6/256 - 861*e4/16 + 49*e2/4,
+        (2, 0, 2):  -43773*e10/80 + 83551*e8/144 - 1955*e6/6 + 289*e4/4,
+        (2, 0, 3):  587225375*e10/196608 - 27483625*e8/18432 + 714025*e6/2304,
+        (2, 0, 4):  -7369791*e10/1280 + 284089*e8/256,
+        (2, 0, 5):  52142352409*e10/14745600,
+        (2, 1, -5): 3143529*e10/65536,
+        (2, 1, -4): 9933*e10/1280 + 5929*e8/256,
+        (2, 1, -3): 6019881*e10/327680 + 20829*e8/2048 + 2809*e6/256,
+        (2, 1, -2): 12027*e10/640 + 1661*e8/128 + 63*e6/8 + 81*e4/16,
+        (2, 1, -1): 3240741*e10/163840 + 28403*e8/2048 + 2295*e6/256 + 81*e4/16 + 9*e2/4,
+        (2, 1, 0):  -1/(e2 - 1)**3,
+        (2, 1, 1):  3240741*e10/163840 + 28403*e8/2048 + 2295*e6/256 + 81*e4/16 + 9*e2/4,
+        (2, 1, 2):  12027*e10/640 + 1661*e8/128 + 63*e6/8 + 81*e4/16,
+        (2, 1, 3):  6019881*e10/327680 + 20829*e8/2048 + 2809*e6/256,
+        (2, 1, 4):  9933*e10/1280 + 5929*e8/256,
+        (2, 1, 5):  3143529*e10/65536,
+        (2, 2, -5): 52142352409*e10/14745600,
+        (2, 2, -4): -7369791*e10/1280 + 284089*e8/256,
+        (2, 2, -3): 587225375*e10/196608 - 27483625*e8/18432 + 714025*e6/2304,
+        (2, 2, -2): -43773*e10/80 + 83551*e8/144 - 1955*e6/6 + 289*e4/4,
+        (2, 2, -1): 4654389*e10/163840 - 132635*e8/2048 + 21975*e6/256 - 861*e4/16 + 49*e2/4,
+        (2, 2, 0):  -3481*e10/19200 + 2881*e8/2304 - 155*e6/36 + 63*e4/8 - 5*e2 + 1,
+        (2, 2, 1):  2639*e10/491520 + 113*e8/18432 + 13*e6/768 - e4/16 + e2/4,
+        (2, 2, 3):  619*e10/983040 + 11*e8/18432 + e6/2304,
+        (2, 2, 4):  7*e10/2880 + e8/576,
+        (2, 2, 5):  6561*e10/1638400
+    }
+    return eccentricity_results_bymode
+
+@njit
 def eccentricity_funcs_trunc18(eccentricity: np.ndarray) -> Dict[Tuple[int, int, int], np.ndarray]:
     """ Calculates the eccentricity functions (by mode) truncated to e^18
 
