@@ -70,6 +70,7 @@ def eccentricity_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndar
         Mass of body 2 in [kg]
     dU_dM_2 : np.ndarray
         Derivative of body 2's tidal potential wrt mean anomaly
+
     dU_dw_2 : np.ndarray
         Derivative of body 2's tidal potential wrt pericentre
 
