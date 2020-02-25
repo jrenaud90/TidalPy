@@ -84,16 +84,17 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
 
                 # Store Results
                 tidal_modes.append(mode)
-                tidal_heating_bymode.append(freq * neg_imk * uni_coeff)
-                dUdM_bymode.append(orbital_coeff * neg_imk_sgn * uni_coeff)
-                dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * uni_coeff)
-                dUdO_bymode.append(m * neg_imk_sgn * uni_coeff)
+                tidal_heating_bymode.append(freq * neg_imk * multiplier)
+                dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
+                dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
+                dUdO_bymode.append(m * neg_imk_sgn * multiplier)
 
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
 
 
-def calculate(viscosity, shear_modulus, planet_radius, planet_gravity, planet_density,
-              spin_frequency, orbital_frequency, semi_major_axis, eccentricity, inclination = None,
+def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, inclination,
+              complex_compliance_func, complex_compliance_input,
+              shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
               eccentricity_truncation: int = 6, use_inclination: bool = True, max_order_l: int = 2):
     """ Calculate tidal potential derivatives and tidal heating """
 
@@ -121,11 +122,19 @@ def calculate(viscosity, shear_modulus, planet_radius, planet_gravity, planet_de
 
     # Calculate heating and potential derivative coefficients
     tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode = \
-        kaula_collapse(orbital_frequency, spin_frequency, semi_major_axis, max_order_l, max_q,
+        kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
+                       eccentricity_results_byorderl, inclination_results_byorderl,
                        complex_compliance_func, complex_compliance_input,
                        shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
-                       eccentricity_results_byorderl, inclination_results_byorderl,
-                       love_funcs_byorder)
+                       max_order_l)
+
+    # Collapse modes down to single values
+    tidal_heating = sum(tidal_heating_bymode)
+    dUdM = sum(dUdM_bymode)
+    dUdw = sum(dUdw_bymode)
+    dUdO = sum(dUdO_bymode)
+
+    return tidal_heating, dUdM, dUdw, dUdO
 
 
 
