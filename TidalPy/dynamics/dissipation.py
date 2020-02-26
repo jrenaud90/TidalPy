@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 
 from .love_1d import effective_rigidity_general, complex_love_general
-from .universal_coeffs import universal_coeffs_byorderl
+from .universal_coeffs import get_universal_coeffs
 from .inclinationFuncs import inclination_functions
 from .eccentricityFuncs import eccentricity_truncations
 
@@ -25,14 +25,14 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
     dUdw_bymode = []
     dUdO_bymode = []
 
-    for order_l in range(2, max_order_l):
+    for order_l in range(2, max_order_l+1):
 
         effective_rigidity = effective_rigidity_general(shear_modulus, planet_gravity, planet_radius, planet_density,
                                                         order_l=order_l)
 
-        inclination_results = inclination_results_byorderl[order_l]
-        eccentricity_results = eccentricity_results_byorderl[order_l]
-        universal_coeffs = universal_coeffs_byorderl[order_l]
+        inclination_results = inclination_results_byorderl[order_l-2]
+        eccentricity_results = eccentricity_results_byorderl[order_l-2]
+        universal_coeffs = get_universal_coeffs(order_l-2)
 
         # Order l acts as an exponent to the radius / semi-major axis. The tidal susceptibility already considers l=2
         #    It contains R^5 / a^6 already so that is why we subtract a 4 off below (2l + 1) @ l=2.
@@ -41,13 +41,15 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
         else:
             distance_scale = np.ones_like(semi_major_axis)
 
-        for (_, p, q), eccentricity_result in eccentricity_results:
+        for (_, p, q), eccentricity_result in eccentricity_results.items():
 
+            # Pull out specific inclination result
             inclination_subresults = inclination_results[p]
-            for m, inclination_result in inclination_results:
+
+            for m in range(0, order_l + 1):
 
                 # Driving term: eccentricity function squared times inclination function squared
-                F2G2 = inclination_result * eccentricity_result
+                F2G2 = eccentricity_result * inclination_subresults[m]
 
                 # Find universal coefficient.
                 #    The Tidal Susceptibility carries a factor of (3 / 2) already. So we need to divide the uni_coeff
@@ -58,9 +60,9 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 multiplier = distance_scale * uni_coeff * F2G2
 
                 # Find tidal mode and frequency
-                orbital_coeff = (order_l - 2*p + q)
+                orbital_coeff = (order_l - 2. * p + q)
                 spin_coeff = -m
-                mode = orbital_coeff*orbital_frequency + spin_coeff*spin_frequency
+                mode = orbital_coeff * orbital_frequency + spin_coeff * spin_frequency
                 freq = np.abs(mode)
                 sgn = np.sign(mode)
 
@@ -69,18 +71,15 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 #   We will use a frequency signature to store cached complex compliance results
                 #   This is especially important for max_order_l > 2 as many duplicate freqs will be hit.
                 mode_signature = (orbital_coeff, spin_coeff)
-                try:
+                if mode_signature in cached_complex_compliances:
                     complex_compliance = cached_complex_compliances[mode_signature]
-                except:
-                    # TODO: Currently Numba does not support more complex try/excepts. In the future this should
-                    #    be turned into a "except KeyError". I am specifically using try/except instead of a
-                    #    if/look-up to avoid doing two lookups.
+                else:
                     complex_compliance = complex_compliance_func(compliance, viscosity, freq, *complex_compliance_input)
                     cached_complex_compliances[mode_signature] = complex_compliance
 
                 neg_imk = -np.imag(complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
                                                         order_l=order_l))
-                neg_imk_sgn = sgn*neg_imk
+                neg_imk_sgn = sgn * neg_imk
 
                 # Store Results
                 tidal_modes.append(mode)
@@ -113,11 +112,11 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
     for order_l in range(2, max_order_l+1):
 
         # Get eccentricity function calculators
-        eccentricity_functions_sqrd = eccentricity_func_byorder[order_l](eccentricity)
+        eccentricity_functions_sqrd = eccentricity_func_byorder[order_l-2](eccentricity)
         eccentricity_results_byorderl.append(eccentricity_functions_sqrd)
 
         # Get inclination function calculators
-        inclination_functions_sqrt = inclination_func_byorder[order_l](inclination)
+        inclination_functions_sqrt = inclination_func_byorder[order_l-2](inclination)
         inclination_results_byorderl.append(inclination_functions_sqrt)
 
     # Calculate heating and potential derivative coefficients

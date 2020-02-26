@@ -1,14 +1,16 @@
+from .orderl2 import eccentricity_funcs_trunc2 as eccentricity_funcs_l2_trunc2
 from .orderl2 import eccentricity_funcs_trunc6 as eccentricity_funcs_l2_trunc6
 from .orderl2 import eccentricity_funcs_trunc10 as eccentricity_funcs_l2_trunc10
 from .orderl2 import eccentricity_funcs_trunc18 as eccentricity_funcs_l2_trunc18
+from .orderl2 import eccentricity_funcs_trunc20 as eccentricity_funcs_l2_trunc20
 
 # Change this from a dict to a tuple.
 eccentricity_truncations = {
-    # # Truncation Level 2
-    # (
-    #     eccentricity_funcs_l2_trunc2,
-    #     eccentricity_funcs_l3_trunc2,
-    # ),
+    # Truncation Level 2
+    2: (
+        eccentricity_funcs_l2_trunc2,
+        # eccentricity_funcs_l3_trunc2,
+    ),
     # # Truncation Level 4
     # (
     #     eccentricity_funcs_l2_trunc4,
@@ -49,9 +51,9 @@ eccentricity_truncations = {
         eccentricity_funcs_l2_trunc18,
         # eccentricity_funcs_l3_trunc18,
     ),
-    # # Truncation Level 20
-    # (
-    #     eccentricity_funcs_l2_trunc20,
-    #     eccentricity_funcs_l3_trunc20,
-    # ),
+    # Truncation Level 20
+    20: (
+        eccentricity_funcs_l2_trunc20,
+        # eccentricity_funcs_l3_trunc20,
+    ),
 }
