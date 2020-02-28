@@ -1,79 +1,66 @@
 import numpy as np
-from ...performance import njit
 
-sin = np.sin
-cos = np.cos
+from ...performance import njit
 
 @njit
 def calc_inclination_off(inclination):
-    """ Calculate inclination functions squared for inclination == 0
 
-    Parameters
-    ----------
-    inclination
-
-    Returns
-    -------
-    output : dict[(l, m, p)] = F^2
-    """
+    # Inclination Functions Calculated for l = 2, Inclination == off.
+    ones_ = np.ones_like(inclination)
 
     # Output is structured (p0_(m0_result, m1_result, ...), p1_(...), ...)
-    output = (
-        (
-            np.zeros_like(inclination),
-            np.zeros_like(inclination),
-            9. * np.ones_like(inclination)
-        ),
-        (
-            (1. / 4.) * np.ones_like(inclination),
-            np.zeros_like(inclination),
-            np.zeros_like(inclination)
-        ),
-        (
-            np.zeros_like(inclination),
-            np.zeros_like(inclination),
-            np.zeros_like(inclination)
-        )
-    )
+    inclination_results = {
+        0 : {
+            0 : 0 * ones_,
+            1 : 0 * ones_,
+            2 : 9.000000000000000000000000 * ones_
+        },
+        1 : {
+            0 : 0.2500000000000000000000000 * ones_,
+            1 : 0 * ones_,
+            2 : 0 * ones_
+        },
+        2 : {
+            0 : 0 * ones_,
+            1 : 0 * ones_,
+            2 : 0 * ones_
+        }
+    }
 
-    return output
+    return inclination_results
+
 
 @njit
 def calc_inclination(inclination):
-    """ Calculate inclination functions squared for a given inclination
 
-    Parameters
-    ----------
-    inclination
-
-    Returns
-    -------
-    output : Tuple[Tuple[float, float, float], ...]
-
-    """
-
+    # Inclination Functions Calculated for l = 2.
     # Optimizations
-    sin_i_4 = sin(inclination)**4
-    i_half = inclination / 2.
-    i_double = 2. * inclination
+    i = inclination
+    i_half = i / 2.
+    i_double = 2. * i
+    sin_i = np.sin(i)
+    sin_i_half = np.sin(i_half)
+    cos_i_half = np.cos(i_half)
+    sin_i_double = np.sin(i_double)
 
     # Output is structured (p0_(m0_result, m1_result, ...), p1_(...), ...)
-    output = (
-        (
-            (9. / 64.) * sin_i_4,
-            9. * (sin(i_half)**2) * (cos(i_half)**6),
-            9. * (cos(i_half)**8)
-        ),
-        (
-            (3. * sin(inclination)**2 - 2.)**2,
-            (9. / 16.) * (sin(i_double)**2),
-            (9. / 4.) * sin_i_4
-        ),
-        (
-            (9. / 64.)*sin_i_4,
-            9. * (sin(i_half)**6) * (cos(i_half)**2),
-            9. * (sin(i_half)**8)
-        )
-    )
+    inclination_results = {
+        0 : {
+            0 : 0.140625*sin_i**4,
+            1 : 9.0*sin_i_half**2*cos_i_half**6,
+            2 : 9.0*cos_i_half**8
+        },
+        1 : {
+            0 : (sin_i_half**4 - sin_i_half**2 - 0.5*sin_i**2 + 0.5)**2,
+            1 : 0.5625*sin_i_double**2,
+            2 : 2.25*sin_i**4
+        },
+        2 : {
+            0 : 0.140625*sin_i**4,
+            1 : 9.0*sin_i_half**6*cos_i_half**2,
+            2 : 9.0*sin_i_half**8
+        }
+    }
 
-    return output
+    return inclination_results
+
