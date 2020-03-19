@@ -1,0 +1,1 @@
+from .lapaz import lapaz_map
