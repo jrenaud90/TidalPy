@@ -1,0 +1,1 @@
+from .vik import vik_map
