@@ -11,7 +11,7 @@ from .complexCompliance import ComplexCompliance
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .defaults import rheology_defaults
-from ..tides.love_1d import effective_rigidity_general, complex_love_general
+from ..tides.love1d import effective_rigidity_general, complex_love_general
 
 
 class Rheology(LayerConfigHolder):

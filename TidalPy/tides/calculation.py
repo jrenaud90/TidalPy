@@ -2,10 +2,9 @@ from typing import List, Tuple, Dict
 
 import numpy as np
 
-from .love_1d import complex_love_general, effective_rigidity_general
+from .love1d import complex_love_general, effective_rigidity_general
 from ..performance import njit
 from ..types import FloatArray
-from ..dynamics import mode_types, ModeOutput
 from ..constants import G
 
 

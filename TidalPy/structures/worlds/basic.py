@@ -9,7 +9,6 @@ import dill
 import numpy as np
 
 from ...types import NoneType
-from ...dynamics.modes_l2 import nsr_modes, spin_sync_modes
 from ...utilities.numpy_help import value_np_cleanup
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical

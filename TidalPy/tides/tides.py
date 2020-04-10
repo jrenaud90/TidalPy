@@ -4,17 +4,14 @@ from typing import TYPE_CHECKING, List, Dict
 import numpy as np
 
 from ..constants import G
-from . import calculate_tides, calculate_tides_withmodes, calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError,
                           BadValueError, AttributeChangeRequiresReINIT, ImproperAttributeHandling, ParameterValueError,
                           OuterscopeAttributeSetError, ConfigAttributeChangeError, MissingArgumentError)
 
-from ..dynamics import mode_types
 from ..utilities.classes import WorldConfigHolder, LayerConfigHolder
 from ..types import ArrayNone
 from ..utilities.model import LayerModelHolder
-from .calculation import calc_tidal_susceptibility
-from .love_1d import complex_love_general, effective_rigidity_general
+from .love1d import complex_love_general, effective_rigidity_general
 
 if TYPE_CHECKING:
     from ..structures import TidalWorld

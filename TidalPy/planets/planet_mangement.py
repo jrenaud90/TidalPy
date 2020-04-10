@@ -13,7 +13,7 @@ from ..burnman_interface.build import build_planet as build_bm_planet
 from ..configurations import exit_planets
 from ..exceptions import MissingArgumentError, UnknownModelError, ImplementationException
 from ..initialize import log
-from ..structures.worlds import TidalWorld, world_types
+from ..structures.worlds import TidalWorld
 from ..utilities.pathing import get_all_files_of_type
 
 
