@@ -30,83 +30,76 @@ def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.nd
 
 
 @njit
-def semi_major_axis_derivative(semi_major_axis: np.ndarray, mass_host: float, mass_target: float,
-                               spin_freq: np.ndarray, ztorque: np.ndarray, tidal_heating: np.ndarray) -> np.ndarray:
-    """ Calculate the time derivative of the semi-major axis for a single-body system
-
-    See Joe Renaud's PhD Thesis (2019)
-
+def semi_major_axis_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndarray,
+                               mass_1: float, dU_dM_1: np.ndarray,
+                               mass_2: float) -> np.ndarray:
+    """ Calculate the time derivative of the semi-major axis for a duel dissipating system
+    See Boue and Efroimsky (2019, CMDA), Eq. 116
     Parameters
     ----------
     semi_major_axis : np.ndarray
         Semi-major axis in [m]
-    mass_host : float
-        Mass of tidal host in [kg]
-    mass_target : float
-        Mass of target body in [kg]
-    spin_freq : np.ndarray
-        Spin frequency of target body in [rads s-1]
-    ztorque : np.ndarray
-        Tidal polar torque of target body in [N m]
-    tidal_heating : np.ndarray
-        Tidal heating of target body in [Watts]
-
-
+    orbital_motion : np.ndarray
+        Orbital mean motion [rad s-1]
+    mass_1 : float
+        Mass of body 1 in [kg]
+    dU_dM_1 : np.ndarray
+        Derivative of body 1's tidal potential wrt mean anomaly
+    mass_2 : float
+        Mass of body 2 in [kg]
     Returns
     -------
     da_dt : np.ndarray
-        Time derivative of the semi-major axis in [m s-1]
+        Time derivative of the semi-major axis [m s-1]
     """
 
-    change_due_to_obj1 = spin_freq * ztorque + tidal_heating
-    change_due_to_obj2 = spin_freq * ztorque + tidal_heating
+    beta_invr = (mass_1 + mass_2) / (mass_1 * mass_2)
+    dR_dM_1 = -1. * beta_invr * mass_2 * dU_dM_1
 
-    da_dt = (-2. * semi_major_axis**2 / (G * mass_host * mass_target)) * (change_due_to_obj1 + change_due_to_obj2)
+    da_dt = (2. / (orbital_motion * semi_major_axis)) * dR_dM_1
 
     return da_dt
 
 
 @njit
-def eccentricity_derivative(semi_major_axis: np.ndarray, eccentricity: np.ndarray, mass_host: float, mass_target: float,
-                            spin_freq: np.ndarray, ztorque: np.ndarray, tidal_heating: np.ndarray) -> np.ndarray:
-    """ Calculate the time derivative of the semi-major axis for a single-body system
-
-    See Joe Renaud's PhD Thesis (2019)
-
+def eccentricity_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndarray, eccentricity,
+                            mass_1: float, dU_dM_1: np.ndarray, dU_dw_1: np.ndarray,
+                            mass_2: float) -> np.ndarray:
+    """ Calculate the time derivative of the eccentricity for a duel dissipating system
+    See Boue and Efroimsky (2019, CMDA), Eq. 117
     Parameters
     ----------
     semi_major_axis : np.ndarray
         Semi-major axis in [m]
+    orbital_motion : np.ndarray
+        Orbital mean motion [rad s-1]
     eccentricity : np.ndarray
-        Orbital Eccentricity
-    mass_host : float
-        Mass of tidal host in [kg]
-    mass_target : float
-        Mass of target body in [kg]
-    spin_freq : np.ndarray
-        Spin frequency of target body in [rads s-1]
-    ztorque : np.ndarray
-        Tidal polar torque of target body in [N m]
-    tidal_heating : np.ndarray
-        Tidal heating of target body in [Watts]
-
+        Orbital eccentricity
+    mass_1 : float
+        Mass of body 1 in [kg]
+    dU_dM_1 : np.ndarray
+        Derivative of body 1's tidal potential wrt mean anomaly
+    dU_dw_1 : np.ndarray
+        Derivative of body 1's tidal potential wrt pericentre
+    mass_2 : float
+        Mass of body 2 in [kg]
     Returns
     -------
-    de_dt : np.ndarray
-        Change in orbital eccentricity in [s-1]
+    da_dt : np.ndarray
+        Time derivative of the eccentricity [s-1]
     """
+    e_term1 = np.sqrt(1. - eccentricity * eccentricity)
+    denom = orbital_motion * semi_major_axis * semi_major_axis * eccentricity
 
-    # Check for bad values of eccentricity and set them to something workable for the equations
-    orbital_freq = np.sqrt(G * (mass_host + mass_target) / semi_major_axis**3)
-    e2_sqrt = np.sqrt(1 - eccentricity**2)
 
-    change_due_to_target = ztorque * (1. - (spin_freq / orbital_freq) * e2_sqrt) - \
-                           (tidal_heating / orbital_freq) * e2_sqrt
+    beta_invr = (mass_1 + mass_2) / (mass_1 * mass_2)
+    dR_dM_1 = -1. * beta_invr * mass_2 * dU_dM_1
+    dR_dM = dR_dM_1
 
-    denominator = (mass_host * mass_target * semi_major_axis**2 * orbital_freq * eccentricity)
-    de_dt = ((mass_host + mass_target) * e2_sqrt / denominator) * change_due_to_target
+    dR_dw_1 = -1. * beta_invr * mass_2 * dU_dw_1
+    de_dt = (e_term1 / denom) * (e_term1 * dR_dM - dR_dw_1)
 
-    # The eccentricity is not going to change (unless perturbed) when e = 0 (what the bad_indices indicate)
-    de_dt[denominator <= float_eps] = 0.
+    # Correct for zero eccentricity
+    de_dt[np.abs(denom) <= float_eps] = 0.
 
     return de_dt

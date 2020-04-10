@@ -31,28 +31,7 @@ def calc_tidal_susceptibility_reduced(host_mass: float, target_radius: float) ->
     return tidal_susceptibility_reduced
 
 
-@njit
-def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: np.ndarray) -> np.ndarray:
-    """ Calculate the tidal susceptibility for a given target radius, host mass, and their separation.
 
-    Parameters
-    ----------
-    host_mass : float
-        Mass of central host [kg]
-    target_radius : float
-        Radius of target body [m]
-    semi_major_axis : np.ndarray
-        Semi-major axis [m]
-
-    Returns
-    -------
-    tidal_susceptibility : np.ndarray
-        Tidal Susceptibility [N m]
-    """
-
-    tidal_susceptibility = (3. / 2.) * G * host_mass**2 * target_radius**5 / semi_major_axis**6
-
-    return tidal_susceptibility
 
 
 @njit

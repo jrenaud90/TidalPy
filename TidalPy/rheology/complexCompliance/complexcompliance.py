@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, List, Dict
+from typing import List, Dict
 
 import numpy as np
 
-from ...exceptions import ImproperAttributeHandling, MissingAttributeError, AttributeNotSetError, IncorrectAttributeType
+from ...exceptions import ImproperAttributeHandling
 from ...utilities.model import LayerModelHolder
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
@@ -12,7 +12,7 @@ class ComplexCompliance(LayerModelHolder):
 
     """ Complex Compliance Class - Child of LayerModelHolder Class
 
-    Complex compliance provides the functionality to calculate the complex compliance provided a viscosity, shear
+    Complex compliance provides the functionality to calculate the complex compliance once provided a viscosity, shear
         modulus, and forcing frequency. Different rheological models provide different functional forms of the
         complex compliance function.
     """
