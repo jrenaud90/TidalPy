@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from TidalPy.planets import build_planet
 
 # Computation number
-N = 5
+N = 10
 
 # Eventually we can just build the planets with real materials from BurnMan...
 # triton = build_planet('Triton')
@@ -179,6 +179,8 @@ ax_love.set_xlabel('Radius [km]')
 ax_love.set_ylabel('-Im[k_2]')
 plt.show()
 
+breakpoint()
+
 # Tidal Potential
 #    # TODO
 
@@ -187,9 +189,3 @@ potential_dTheta = 1
 potential_dPhi = 1
 potential_dTheta2 = 1
 potential_dTheta_dPhi = 1
-
-
-
-
-
-

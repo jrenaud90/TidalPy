@@ -32,6 +32,29 @@ def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major
     return tidal_susceptibility
 
 @njit
+def calc_tidal_susceptibility_reduced(host_mass: float, target_radius: float) -> float:
+    """ Calculate the tidal susceptibility (reduced) for a given target radius and host mass.
+
+    The reduced tidal susceptibility excludes the semi-major axis.
+
+    Parameters
+    ----------
+    host_mass : float
+        Mass of central host [kg]
+    target_radius : float
+        Radius of target body [m]
+
+    Returns
+    -------
+    tidal_susceptibility_reduced : np.ndarray
+        Tidal Susceptibility [N m]
+    """
+
+    tidal_susceptibility_reduced = (3. / 2.) * G * host_mass**2 * target_radius**5
+
+    return tidal_susceptibility_reduced
+
+@njit
 def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                    eccentricity_results_byorderl, inclination_results_byorderl,
                    complex_compliance_func, complex_compliance_input,

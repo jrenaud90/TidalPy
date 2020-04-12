@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, List, Dict
 
 import numpy as np
 
+from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from ..constants import G
 from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError,
                           BadValueError, AttributeChangeRequiresReINIT, ImproperAttributeHandling, ParameterValueError,
@@ -33,24 +34,24 @@ class Tides(WorldConfigHolder):
         super().__init__(world, store_config_in_world=store_config_in_world)
 
         # Model setup
-        self._orbital_truncation_lvl = self.config['orbital_truncation_level']
+        self._eccentricity_truncation_lvl = self.config['eccentricity_truncation_lvl']
         self._tidal_order_lvl = self.config['max_tidal_order_l']
 
         # Ensure the tidal order and orbital truncation levels make sense
-        if self._tidal_order_lvl > 3:
+        if self._tidal_order_lvl > 5:
             raise ImplementationException(f'Tidal order {self._tidal_order_lvl} has not been implemented yet.')
-        if self._orbital_truncation_lvl % 2 != 0:
+        if self._eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
-        if self._orbital_truncation_lvl <= 2:
+        if self._eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
-        if self._orbital_truncation_lvl not in [2, 4, 6]:
-            raise ImplementationException(f'Orbital truncation level of {self._orbital_truncation_lvl} is not '
+        if self._eccentricity_truncation_lvl not in [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]:
+            raise ImplementationException(f'Orbital truncation level of {self._eccentricity_truncation_lvl} is not '
                                           f'currently supported.')
 
         # Setup mode calculator
-        self._tidal_order_num_list = range(2, self._tidal_order_lvl+1)
-        self.mode_calculators = [mode_types[self.use_nsr][order_l][self._orbital_truncation_lvl]
-                                 for order_l in self._tidal_order_num_list]
+        self._tidal_order_range = range(2, self._tidal_order_lvl+1)
+        self.mode_calculators = [mode_types[self.use_nsr][order_l][self._eccentricity_truncation_lvl]
+                                 for order_l in self._tidal_order_range]
 
         # State properties
         self._modes = None
@@ -204,7 +205,7 @@ class Tides(WorldConfigHolder):
     # Configuration properties
     @property
     def orbital_truncation_lvl(self) -> int:
-        return self._orbital_truncation_lvl
+        return self._eccentricity_truncation_lvl
 
     @orbital_truncation_lvl.setter
     def orbital_truncation_lvl(self, value):
@@ -283,7 +284,7 @@ class Tides(WorldConfigHolder):
     def tidal_susceptibility_reduced(self, value):
         raise ImproperAttributeHandling
 
-    # Outer scope properties
+    # Outer-scope properties
     @property
     def semi_major_axis(self):
         return self.world.semi_major_axis

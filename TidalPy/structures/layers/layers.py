@@ -169,7 +169,7 @@ class ThermalLayer(PhysicalObjSpherical):
                                  self.world.tidal_order_lvl, self.world.use_nsr, store_config_in_layer=True)
         self.cooling_model = CoolingModel(self, store_config_in_layer=True)
 
-    # Inner scope properties - Rheology Class
+    # Inner-scope properties - Rheology Class
     @property
     def premelt_viscosity(self):
         return self.rheology.premelt_viscosity
@@ -242,7 +242,7 @@ class ThermalLayer(PhysicalObjSpherical):
     def complex_love_numbers(self, value):
         self.rheology.complex_love_numbers = value
 
-    # Inner scope properties - Radiogenics Class
+    # Inner-scope properties - Radiogenics Class
     @property
     def radiogenic_heating(self):
         return self.radiogenics.heating
@@ -251,7 +251,7 @@ class ThermalLayer(PhysicalObjSpherical):
     def radiogenic_heating(self, value):
         self.radiogenics.heating = value
 
-    # Inner scope properties - Cooling Class
+    # Inner-scope properties - Cooling Class
     @property
     def cooling(self):
         return self.cooling_model.cooling
@@ -292,7 +292,7 @@ class ThermalLayer(PhysicalObjSpherical):
     def nusselt(self, value):
         self.cooling_model.nusselt = value
 
-    # Outer scope properties
+    # Outer-scope properties
     @property
     def tidal_modes(self):
         return self.world.tidal_modes
@@ -364,7 +364,7 @@ class ThermalLayer(PhysicalObjSpherical):
 
     @viscosity.setter
     def viscosity(self, value):
-        self.viscosity = value
+        self.postmelt_viscosity = value
 
     @property
     def compliance(self):
@@ -399,6 +399,8 @@ class ThermalLayer(PhysicalObjSpherical):
         self.boundary_layer_thickness = value
 
 
+
+## TODO: OLD BELOW
 
 
 
