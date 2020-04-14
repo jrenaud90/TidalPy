@@ -1,16 +1,18 @@
 """ Universal coefficients used to calculate tidal heating and tidal potential derivatives
     Precomputed here to avoid calls to gamma functions in expensive loops.
     Defined as:
-        [(l - m)!  / (l + m)!] * delta(2 - delta_0m)
+        [(l - m)!  / (l + m)!] * (2 - delta_0m)
     Stored as:
         [order_l] [m]
         Starting with order_l = 2 and m = 0
 """
-
+from ..exceptions import TidalPyValueException
 from ..performance import njit
 
 @njit
 def get_universal_coeffs(order_l):
+
+    # TODO: Right now this is defined inside the function to ensure that it is compiled correctly by njit - if we make a typed dict it may be possible to pull it outside the function for better optimization
     universal_coeffs_byorderl = (
         {
             0: 1.,
@@ -39,4 +41,8 @@ def get_universal_coeffs(order_l):
             5: 2. / 3628800.
         }
     )
-    return universal_coeffs_byorderl[order_l]
+
+    if order_l < 2:
+        raise TidalPyValueException('Tidal order l must be an integer >= 2.')
+
+    return universal_coeffs_byorderl[order_l - 2]

@@ -1,15 +1,17 @@
+from typing import Tuple, Dict
+
 import numpy as np
 from numba import njit
 from scipy.constants import G
 
-from .love1d import effective_rigidity_general, complex_love_general
+from ..types import FloatArray
 from .universal_coeffs import get_universal_coeffs
 from .inclinationFuncs import inclination_functions
 from .eccentricityFuncs import eccentricity_truncations
 
 
 @njit
-def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: np.ndarray) -> np.ndarray:
+def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
     """ Calculate the tidal susceptibility for a given target radius, host mass, and their separation.
 
     Parameters
@@ -18,12 +20,12 @@ def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major
         Mass of central host [kg]
     target_radius : float
         Radius of target body [m]
-    semi_major_axis : np.ndarray
+    semi_major_axis : FloatArray
         Semi-major axis [m]
 
     Returns
     -------
-    tidal_susceptibility : np.ndarray
+    tidal_susceptibility : FloatArray
         Tidal Susceptibility [N m]
     """
 
@@ -55,129 +57,111 @@ def calc_tidal_susceptibility_reduced(host_mass: float, target_radius: float) ->
     return tidal_susceptibility_reduced
 
 @njit
-def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
-                   eccentricity_results_byorderl, inclination_results_byorderl,
-                   complex_compliance_func, complex_compliance_input,
-                   shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
-                   max_order_l):
+def mode_collapse( orbital_frequency: FloatArray, spin_frequency: FloatArray,
+                  eccentricity: FloatArray, obliquity: FloatArray,
+                  use_obliquity: bool = True, eccentricity_truncation_lvl: int = 2, max_order_l: int = 2) -> \
+        Dict[str, Tuple[FloatArray, Dict[int, Tuple[FloatArray, FloatArray, FloatArray, FloatArray]]]]:
+    """ Collapses tidal modes down to their unique frequencies for tidal heating and the tidal potential derivatives.
+
+    Returns the tidal heating and tidal potential derivative components for each unique frequency. They still must be
+        multiplied by the Love number (the Love's sign will be taken into account here and should not be
+        multiplied later), added together, and then scaled by the tidal susceptibility.
+
+    Parameters
+    ----------
+    orbital_frequency : np.ndarray
+        Planet's orbital frequency around tidal host [rad s-1]
+    spin_frequency : np.ndarray
+        Planet's rotation frequency [rad s-1]
+    eccentricity : np.ndarray
+        Planet's orbital eccentricity around tidal host
+    obliquity : np.ndarray
+        Planet's axial tilt relative to orbital plane around tidal host [radians]
+    use_obliquity : bool = True
+        Determine if a non-zero obliquity is allowed.
+        If you are sure that obliquity should always be equal to zero, then set to this False for faster computation.
+    eccentricity_truncation_lvl : int = 2
+        Eccentricity functions must be truncated to a power of e. The higher the truncation, the greater the accuracy
+        of the result, especial when dealing with high eccentricities.
+        Truncation level 2 is recommended when e <~ 0.05. See Renaud et al. 2020 for more information.
+    max_order_l : int = 2
+        Maximum harmonic number to include
+
+    Returns
+    -------
+    results_by_uniquefreq : Dict[str, Tuple[FloatArray, Dict[int, Tuple[FloatArray, FloatArray, FloatArray, FloatArray]]]]
+        Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
+        unique frequency.
     """
-    """
 
-    compliance = 1. / shear_modulus
-    cached_complex_compliances = {}
+    # Determine if obliquity is used
+    obliquity_func_set = inclination_functions[use_obliquity]
+    eccentricity_func_set = eccentricity_truncations[eccentricity_truncation_lvl]
 
-    tidal_modes = []
-    tidal_heating_bymode = []
-    dUdM_bymode = []
-    dUdw_bymode = []
-    dUdO_bymode = []
+    # Storage for results by unique frequency
+    results_by_uniquefreq = dict()
 
-    for order_l in range(2, max_order_l+1):
+    # This for loop is generally not going to be large (often will only loop once, for max_l == 2)
+    for order_l in range(2, max_order_l + 1):
 
-        effective_rigidity = effective_rigidity_general(shear_modulus, planet_gravity, planet_radius, planet_density,
-                                                        order_l=order_l)
+        # Find the obliquity and eccentricity functions for this harmonic
+        eccentricity_at_orderl = eccentricity_func_set[order_l](eccentricity)
+        obliquity_at_orderl = obliquity_func_set[order_l](obliquity)
 
-        inclination_results = inclination_results_byorderl[order_l-2]
-        eccentricity_results = eccentricity_results_byorderl[order_l-2]
-        universal_coeffs = get_universal_coeffs(order_l-2)
+        # Sort universal coefficients (multipliers to all tidal terms) by order l
+        universal_coeffs_bym = get_universal_coeffs(order_l)
 
-        # Order l acts as an exponent to the radius / semi-major axis. The tidal susceptibility already considers l=2
-        #    It contains R^5 / a^6 already so that is why we subtract a 4 off below (2l + 1) @ l=2.
-        if order_l > 2:
-            distance_scale = (planet_radius / semi_major_axis)**(2 * order_l - 4)
-        else:
-            distance_scale = np.ones_like(semi_major_axis)
+        for (p, m), obliquity_terms in obliquity_at_orderl.items():
+            # Pull out the p and m integers from the non-zero obliquity terms
 
-        for (_, p, q), eccentricity_result in eccentricity_results.items():
+            # Pull out universal coefficient
+            #    The Tidal Susceptibility carries a factor of (3 / 2) already. So we need to divide the uni_coeff
+            #    by that much to ensure it is not double counted.
+            uni_coeff = universal_coeffs_bym[m] / 1.5
 
-            # Pull out specific inclination result
-            inclination_subresults = inclination_results[p]
+            for q, eccentricity_terms in eccentricity_at_orderl[p].items():
+                # Pull out q integer from the non-zero eccentricity terms
 
-            for m in range(0, order_l + 1):
+                # Multiply eccentricity terms by the obliquity terms
+                eccen_obliq = obliquity_terms * eccentricity_terms
 
-                # Driving term: eccentricity function squared times inclination function squared
-                F2G2 = eccentricity_result * inclination_subresults[m]
+                # Calculate tidal mode, frequency, and sign
+                n_coeff = (order_l - 2 * p + q)
+                mode = n_coeff * orbital_frequency - m * spin_frequency
+                mode_sign = np.sign(mode)
+                mode_freq = np.abs(mode)
 
-                # Find universal coefficient.
-                #    The Tidal Susceptibility carries a factor of (3 / 2) already. So we need to divide the uni_coeff
-                #    by that much to ensure it is not double counted.
-                uni_coeff = universal_coeffs[m] / 1.5
-
-                # Collapse all multipliers
-                multiplier = distance_scale * uni_coeff * F2G2
-
-                # Find tidal mode and frequency
-                orbital_coeff = (order_l - 2. * p + q)
-                spin_coeff = -m
-                mode = orbital_coeff * orbital_frequency + spin_coeff * spin_frequency
-                freq = np.abs(mode)
-                sgn = np.sign(mode)
-
-                # Complex compliances are only a function of frequency (at least at this stage)
-                #   Since they can be expensive to calculate, and since the number of unique frequencies is < #modes
-                #   We will use a frequency signature to store cached complex compliance results
-                #   This is especially important for max_order_l > 2 as many duplicate freqs will be hit.
-                mode_signature = (orbital_coeff, spin_coeff)
-                if mode_signature in cached_complex_compliances:
-                    complex_compliance = cached_complex_compliances[mode_signature]
+                # Determine the frequency signature used to store unique frequencies
+                if n_coeff == 0:
+                    freq_sig = f'{m}|S|'
+                elif n_coeff < 0:
+                    freq_sig = f'|{n_coeff}n + {m}S|'
                 else:
-                    complex_compliance = complex_compliance_func(compliance, viscosity, freq, *complex_compliance_input)
-                    cached_complex_compliances[mode_signature] = complex_compliance
+                    freq_sig = f'|{n_coeff}n - {m}S|'
 
-                neg_imk = -np.imag(complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
-                                                        order_l=order_l))
-                neg_imk_sgn = sgn * neg_imk
+                # Calculate coefficients for heating and potential derivatives
+                uni_multiplier = uni_coeff * eccen_obliq
+                heating_term = uni_multiplier * mode_freq
+                dUdM_term = uni_multiplier * n_coeff * mode_sign
+                dUdw_term = uni_multiplier * (order_l - 2. * p) * mode_sign
+                dUdO_term = uni_multiplier * m * mode_sign
 
-                # Store Results
-                tidal_modes.append(mode)
-                tidal_heating_bymode.append(freq * neg_imk * multiplier)
-                dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
-                dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
-                dUdO_bymode.append(m * neg_imk_sgn * multiplier)
+                # The tidal heating and potential derivatives should also be multiplied by the love number calculated
+                #    for that mode. But, love number only cares about the frequencies and some of them may be repeated
 
-    return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
+                if freq_sig not in results_by_uniquefreq:
+                    # New frequency - create dictionary to store different order-l results.
+                    results_by_uniquefreq[freq_sig] = (mode_freq, dict())
+                    results_by_uniquefreq[freq_sig][1][order_l] = (heating_term, dUdM_term, dUdw_term, dUdO_term)
+                else:
+                    if order_l in results_by_uniquefreq[freq_sig][1]:
+                        results_by_uniquefreq[freq_sig][1][order_l][0] += heating_term
+                        results_by_uniquefreq[freq_sig][1][order_l][1] += dUdM_term
+                        results_by_uniquefreq[freq_sig][1][order_l][2] += dUdw_term
+                        results_by_uniquefreq[freq_sig][1][order_l][3] += dUdO_term
+                    else:
+                        results_by_uniquefreq[freq_sig][1][order_l] = (heating_term, dUdM_term, dUdw_term, dUdO_term)
+
+    return results_by_uniquefreq
 
 
-def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, inclination,
-              complex_compliance_func, complex_compliance_input,
-              shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
-              eccentricity_truncation: int = 6, use_inclination: bool = True, max_order_l: int = 2):
-    """ Calculate tidal potential derivatives and tidal heating """
-
-    # Check if inclination was provided as an input
-    if inclination is None:
-        use_inclination = False
-
-    # Get the truncation level for eccentricity
-    eccentricity_func_byorder = eccentricity_truncations[eccentricity_truncation]
-
-    # See if inclination is being used. If so then grab the appropriate function
-    inclination_func_byorder = inclination_functions[use_inclination]
-
-    eccentricity_results_byorderl = list()
-    inclination_results_byorderl = list()
-    for order_l in range(2, max_order_l+1):
-
-        # Get eccentricity function calculators
-        eccentricity_functions_sqrd = eccentricity_func_byorder[order_l-2](eccentricity)
-        eccentricity_results_byorderl.append(eccentricity_functions_sqrd)
-
-        # Get inclination function calculators
-        inclination_functions_sqrt = inclination_func_byorder[order_l-2](inclination)
-        inclination_results_byorderl.append(inclination_functions_sqrt)
-
-    # Calculate heating and potential derivative coefficients
-    tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode = \
-        kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
-                       eccentricity_results_byorderl, inclination_results_byorderl,
-                       complex_compliance_func, complex_compliance_input,
-                       shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
-                       max_order_l)
-
-    # Collapse modes down to single values
-    tidal_heating = sum(tidal_heating_bymode)
-    dUdM = sum(dUdM_bymode)
-    dUdw = sum(dUdw_bymode)
-    dUdO = sum(dUdO_bymode)
-
-    return tidal_heating, dUdM, dUdw, dUdO
