@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 
 class Tides(WorldConfigHolder):
 
-    """ Tides class - Holder for all tidal heating and torque calculation functions
+    """ Tides class - Holder for all tidal heating and tidal potential calculations
 
     Tides class stores model parameters and methods for heating and torque which are functions of
-        (T, P, melt_frac, w, e, I)
+        (T, P, melt_frac, w, e, theata)
     """
 
     default_config = tide_defaults
@@ -190,6 +190,12 @@ class Tides(WorldConfigHolder):
         self._dUdO = sum(dUdO_reduced_terms)
 
         return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
+
+    def calculate_spin_derivative(self):
+        """        """
+
+        #FIXME: Leftoff
+
 
     @staticmethod
     def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:

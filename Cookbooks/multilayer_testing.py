@@ -148,6 +148,7 @@ seed_matrix_new[:, 2] = Y[:, 2, 0]
 propagator_matrix = find_propagator_matrix(Y_reduced_shifted, seed_matrix_new)
 
 # Apply surface boundary conditions
+# TODO: Note the -5 is actually -(2l + 1), also the negative seems to depend on some other definition (tobie 2005 has positive)
 b_surf = np.asarray([0., 0., -5. / radius], dtype=np.complex)
 
 # Surface matrix is the 3rd, 4th, and 6th columns of the aggregate matrix at the top-most shell
