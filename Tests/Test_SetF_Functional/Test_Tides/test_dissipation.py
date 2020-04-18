@@ -73,53 +73,184 @@ def test_tidal_susceptibility():
                                -expected_susceptibility_array)
 
 
-def test_mode_collapse():
+def _test_calculate_modes(order_l, eccen_trunc_lvl):
 
-    from TidalPy.tides.dissipation import mode_collapse
+    from TidalPy.tides.dissipation import calculate_terms
 
     # Float testing
-    spin_frequency, orbital_frequency, eccentricity, obliquity = \
-        0.001, 0.002, 0.1, 0.2
-
-    for max_order_l in [2, 5, 7]:
-        results_by_uniquefreq = mode_collapse(spin_frequency, orbital_frequency, eccentricity, obliquity,
-                                use_obliquity=True, max_order_l=max_order_l)
-
-        assert type(results_by_uniquefreq) is dict
-        for freq_signature, (freq, result_by_orderl) in results_by_uniquefreq.items():
-            assert type(freq_signature) is str
-            assert type(freq) is float
-            assert type(result_by_orderl) is dict
-
-            # For each max_order_l result_by_orderl should have a length of max_order_l-1
-            assert len(result_by_orderl) == max_order_l-1
-            for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in result_by_orderl.items():
-                assert type(order_l) is int
-                assert type(tidal_heating_terms) is float
-                assert type(dUdM_terms) is float
-                assert type(dUdw_terms) is float
-                assert type(dUdO_terms) is float
+    spin_frequency, orbital_frequency = 0.001, 0.002
+    semi_major_axis = 100.
+    eccentricity, obliquity = 0.1, 0.2
+    radius = 10.
 
     # Array testing
-    spin_frequency, orbital_frequency, eccentricity, obliquity = \
-        np.linspace(0.001, 0.003, 4), np.linspace(0.002, 0.003, 4), 0.1, 0.2
+    spin_frequency_array = np.linspace(0.001, 0.005, 5)
+    orbital_frequency_array = 0.5 * spin_frequency_array
+    semi_major_axis_array = 100. * spin_frequency_array
+    eccentricity_array = np.linspace(0.1, 0.5, 6)
+    obliquity_array = np.linspace(0.1, 0.5, 6)
 
-    for max_order_l in [2, 5]:
-        results_by_uniquefreq = mode_collapse(spin_frequency, orbital_frequency, eccentricity, obliquity,
-                                              use_obliquity=True, max_order_l=max_order_l)
+    # Matrix Testing
+    spin_frequency_mtx, eccentricity_mtx = np.meshgrid(spin_frequency_array, eccentricity_array)
+    orbital_frequency_mtx = 0.5 * spin_frequency_mtx
+    semi_major_axis_mtx = 100. * spin_frequency_mtx
 
-        assert type(results_by_uniquefreq) is dict
-        for freq_signature, (freq, result_by_orderl) in results_by_uniquefreq.items():
-            assert type(freq_signature) is str
-            assert type(freq) is np.ndarray
-            assert type(result_by_orderl) is dict
+    # Test pure float version
+    unique_freqs_float, results_by_uniquefreq_float = \
+        calculate_terms(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, radius,
+                        use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl,
+                        max_order_l=order_l)
 
-            # For each max_order_l result_by_orderl should have a length of max_order_l-1
-            assert len(result_by_orderl) == max_order_l - 1
-            for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in result_by_orderl.items():
-                assert type(order_l) is int
-                assert type(tidal_heating_terms) is np.ndarray
-                assert type(dUdM_terms) is np.ndarray
-                assert type(dUdw_terms) is np.ndarray
-                assert type(dUdO_terms) is np.ndarray
-            
+    for freq_signature, freq in unique_freqs_float.items():
+        assert type(freq_signature) is tuple
+        assert len(freq_signature) == 2
+        assert type(freq_signature[0]) is int
+        assert type(freq_signature[1]) is int
+        assert type(freq) is float
+
+    assert type(results_by_uniquefreq_float) is dict
+    for _, results_by_orderl in results_by_uniquefreq_float.items():
+        assert type(results_by_orderl) is dict
+
+        for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in results_by_orderl.items():
+            assert type(order_l) in [int, np.int, np.int32]
+            assert type(tidal_heating_terms) in [float, np.float, np.float64]
+            assert type(dUdM_terms) in [float, np.float, np.float64]
+            assert type(dUdw_terms) in [float, np.float, np.float64]
+            assert type(dUdO_terms) in [float, np.float, np.float64]
+
+
+    # Test array version using array'd frequencies
+    unique_freqs_freq_array, results_by_uniquefreq_freq_array = \
+        calculate_terms(orbital_frequency_array, spin_frequency_array, eccentricity, obliquity, semi_major_axis_array,
+                        radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+
+    for freq_signature, freq in unique_freqs_freq_array.items():
+        assert type(freq_signature) is tuple
+        assert len(freq_signature) == 2
+        assert type(freq_signature[0]) is int
+        assert type(freq_signature[1]) is int
+        assert type(freq) is np.ndarray
+
+    assert type(results_by_uniquefreq_freq_array) is dict
+    for _, results_by_orderl in results_by_uniquefreq_freq_array.items():
+        assert type(results_by_orderl) is dict
+
+        for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in results_by_orderl.items():
+            assert type(order_l) in [int, np.int, np.int32]
+            assert type(tidal_heating_terms) is np.ndarray
+            assert type(dUdM_terms) is np.ndarray
+            assert type(dUdw_terms) is np.ndarray
+            assert type(dUdO_terms) is np.ndarray
+
+
+    # Test array version using array'd eccentricity
+    unique_freqs_eccen_array, results_by_uniquefreq_eccen_array = \
+        calculate_terms(orbital_frequency, spin_frequency, eccentricity_array, obliquity, semi_major_axis,
+                        radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+
+    for freq_signature, freq in unique_freqs_eccen_array.items():
+        assert type(freq_signature) is tuple
+        assert len(freq_signature) == 2
+        assert type(freq_signature[0]) is int
+        assert type(freq_signature[1]) is int
+        assert type(freq) is float
+
+    assert type(results_by_uniquefreq_eccen_array) is dict
+    for _, results_by_orderl in results_by_uniquefreq_eccen_array.items():
+        assert type(results_by_orderl) is dict
+
+        for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in results_by_orderl.items():
+            assert type(order_l) in [int, np.int, np.int32]
+            assert type(tidal_heating_terms) is np.ndarray
+            assert type(dUdM_terms) is np.ndarray
+            assert type(dUdw_terms) is np.ndarray
+            assert type(dUdO_terms) is np.ndarray
+
+
+    # Test array version using array'd obliquity
+    unique_freqs_obliq_array, results_by_uniquefreq_obliq_array = \
+        calculate_terms(orbital_frequency, spin_frequency, eccentricity, obliquity_array, semi_major_axis,
+                        radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+
+    for freq_signature, freq in unique_freqs_obliq_array.items():
+        assert type(freq_signature) is tuple
+        assert len(freq_signature) == 2
+        assert type(freq_signature[0]) is int
+        assert type(freq_signature[1]) is int
+        assert type(freq) is float
+
+    assert type(results_by_uniquefreq_obliq_array) is dict
+    for _, results_by_orderl in results_by_uniquefreq_obliq_array.items():
+        assert type(results_by_orderl) is dict
+
+        for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in results_by_orderl.items():
+            assert type(order_l) in [int, np.int, np.int32]
+            assert type(tidal_heating_terms) is np.ndarray
+            assert type(dUdM_terms) is np.ndarray
+            assert type(dUdw_terms) is np.ndarray
+            assert type(dUdO_terms) is np.ndarray
+
+
+    # Test matrix version using meshgrid of frequency and eccentricity
+    unique_freqs_mtx, results_by_uniquefreq_mtx = \
+        calculate_terms(orbital_frequency_mtx, spin_frequency_mtx, eccentricity_mtx, obliquity, semi_major_axis_mtx,
+                        radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+
+    for freq_signature, freq in unique_freqs_mtx.items():
+        assert type(freq_signature) is tuple
+        assert len(freq_signature) == 2
+        assert type(freq_signature[0]) is int
+        assert type(freq_signature[1]) is int
+        assert type(freq) is np.ndarray
+        assert len(freq.shape) == 2
+
+    assert type(results_by_uniquefreq_mtx) is dict
+    for _, results_by_orderl in results_by_uniquefreq_mtx.items():
+        assert type(results_by_orderl) is dict
+
+        for order_l, (tidal_heating_terms, dUdM_terms, dUdw_terms, dUdO_terms) in results_by_orderl.items():
+            assert type(order_l) in [int, np.int, np.int32]
+            assert type(tidal_heating_terms) is np.ndarray
+            assert type(dUdM_terms) is np.ndarray
+            assert type(dUdw_terms) is np.ndarray
+            assert type(dUdO_terms) is np.ndarray
+
+            assert len(tidal_heating_terms.shape) == 2
+            assert len(dUdM_terms.shape) == 2
+            assert len(dUdw_terms.shape) == 2
+            assert len(dUdO_terms.shape) == 2
+
+    return True
+
+
+def test_l2e2():
+    assert _test_calculate_modes(2, 2)
+
+def test_l2e8():
+    assert _test_calculate_modes(2, 8)
+
+def test_l2e10():
+    assert _test_calculate_modes(2, 10)
+
+def test_l2e20():
+    assert _test_calculate_modes(2, 20)
+
+def test_l4e2():
+    assert _test_calculate_modes(4, 2)
+
+def test_l4e10():
+    assert _test_calculate_modes(4, 10)
+
+def test_l6e2():
+    assert _test_calculate_modes(6, 2)
+
+def test_l6e8():
+    assert _test_calculate_modes(6, 8)
+
+def test_l6e10():
+    assert _test_calculate_modes(6, 10)
+
+# FIXME: once l6 and l7 e20 are done
+# def test_l6e20():
+#     assert _test_calculate_modes(6, 20)

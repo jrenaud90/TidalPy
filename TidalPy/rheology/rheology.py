@@ -11,7 +11,11 @@ from .complexCompliance import ComplexCompliance
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .defaults import rheology_defaults
-from ..tides.love1d import effective_rigidity_general, complex_love_general
+from ..types import FloatArray
+
+if TYPE_CHECKING:
+    from ..structures.layers import ThermalLayer
+    from ..tides.tides import Tides
 
 
 class Rheology(LayerConfigHolder):
@@ -25,9 +29,7 @@ class Rheology(LayerConfigHolder):
     default_config = rheology_defaults
     layer_config_key = 'rheology'
 
-    def __init__(self, layer,
-                 orbital_truncation_level: int = 2, tidal_order_lvl: int = 2, use_nsr: bool = True,
-                 store_config_in_layer: bool = True):
+    def __init__(self, layer: 'ThermalLayer', store_config_in_layer: bool = True):
 
         super().__init__(layer, store_config_in_layer)
 
@@ -35,23 +37,8 @@ class Rheology(LayerConfigHolder):
         self._effective_rigidities = None
         self._complex_love_numbers = None
 
-        # Pull out model information
-        self.order_lvl = tidal_order_lvl
-
         # Pull out switches
         self.use_planet_params_for_love_calc = self.config['use_planet_params_for_love_calc']
-
-        # Pull out parameters for Love number and effective rigidity calculations
-        if self.use_planet_params_for_love_calc:
-            self.radius = self.layer.world.radius
-            self.density = self.layer.world.density
-            self.gravity = self.layer.world.gravity
-        else:
-            self.radius = self.layer.radius
-            self.density = self.layer.density_bulkd
-            self.gravity = self.layer.gravity_surf
-
-        self.order_l_list = range(2, self.order_lvl+1)
 
         # Load in sub-modules
         self.viscosity_model = \
@@ -65,10 +52,10 @@ class Rheology(LayerConfigHolder):
 
         # Report information about the models loaded
         log(f"Rheology loaded into {self.layer}:\n"
-            f"\tSolid Viscosity:    {self.viscosity_model.model}\n"
-            f"\tLiquid Viscosity:   {self.liquid_viscosity_model.model}\n"
-            f"\tPartial Melting:    {self.partial_melting_model.model}\n"
-            f"\tComplex Compliance: {self.complex_compliance_model.model}", level='info')
+            f"    Solid Viscosity:    {self.viscosity_model.model}\n"
+            f"    Liquid Viscosity:   {self.liquid_viscosity_model.model}\n"
+            f"    Partial Melting:    {self.partial_melting_model.model}\n"
+            f"    Complex Compliance: {self.complex_compliance_model.model}", level='info')
 
     def set_state(self, viscosity: np.ndarray = None, shear_modulus: np.ndarray = None):
         """ Set the rheology state and recalculate any parameters that may now be different.
@@ -129,33 +116,16 @@ class Rheology(LayerConfigHolder):
 
         return self.viscosity, self.shear_modulus
 
-    def calculate_love(self, only_frequency_change: bool = False) -> \
-            Tuple[Dict[str, np.ndarray], List[Dict[str, np.ndarray]]]:
-        """ Calculate the complex compliances and Love numbers based on the post-melting viscosity and shear modulus
+    def update_tides(self):
+        """ Tell the tide class that changes have been made to the rheology that will impact tidal calculations.
 
-        Returns
-        -------
-        complex_compliances : Dict[str, np.ndarray]
-            Complex compliances in a dictionary for each tidal frequency [Pa-1]
-        complex_love_numbers : List[Dict[str, np.ndarray]
-            Complex love numbers stored in a dictionary for each tidal frequency
-            Multiple dictionaries are stored in a list over tidal order l's
+        The tides module will update just the results based on this layer.
+
         """
 
-        # Calculate complex compliances for each tidal frequency
-        self.complex_compliance_model.calculate()
 
-        if not only_frequency_change:
-            # Calculate effective rigidity at each order l (effective rigidity does not change with frequency changes).
-            self._effective_rigidities = [effective_rigidity_general(self.shear, self.gravity, self.radius, self.density, l)
-                                          for l in self.order_l_list]
+        self.tides.rheology_update(self.layer)
 
-        # Calculate the complex love number at each tidal frequency and each order l
-        self._complex_love_numbers = [{mode: complex_love_general(cmplx_comp, self.shear, eff_rigid, l)
-                                       for mode, cmplx_comp in self.complex_compliances.items()}
-                                      for eff_rigid, l in zip(self.effective_rigidities, self.order_l_list)]
-
-        return self.complex_compliances, self.complex_love_numbers
 
     # Innerscope reference properties
     @property
@@ -214,6 +184,7 @@ class Rheology(LayerConfigHolder):
     def complex_compliances(self, value):
         raise ImproperAttributeHandling
 
+
     # State properties
     @property
     def effective_rigidities(self) -> List[np.ndarray]:
@@ -231,37 +202,15 @@ class Rheology(LayerConfigHolder):
     def complex_love_numbers(self, value):
         raise ImproperAttributeHandling
 
+
     # Outerscope reference properties
+    #    Layer properties
     @property
     def premelt_shear(self):
         return self.layer.static_shear_modulus
 
     @premelt_shear.setter
     def premelt_shear(self, value):
-        raise OuterscopeAttributeSetError
-
-    @property
-    def tidal_modes(self):
-        return self.layer.tidal_modes
-
-    @tidal_modes.setter
-    def tidal_modes(self, value):
-        raise OuterscopeAttributeSetError
-
-    @property
-    def unique_tidal_freqs(self) -> List[np.ndarray]:
-        return self.layer.unique_tidal_freqs
-
-    @unique_tidal_freqs.setter
-    def unique_tidal_freqs(self, value):
-        raise OuterscopeAttributeSetError
-
-    @property
-    def tidal_mode_names(self) -> List[str]:
-        return self.layer.tidal_mode_names
-
-    @tidal_mode_names.setter
-    def tidal_mode_names(self, value):
         raise OuterscopeAttributeSetError
 
     @property
@@ -279,6 +228,24 @@ class Rheology(LayerConfigHolder):
     @beta.setter
     def beta(self, value):
         raise OuterscopeAttributeSetError
+
+    #    Tides properties
+    @property
+    def tides(self) -> Tides:
+        return self.world.tides
+
+    @tides.setter
+    def tides(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def unique_tidal_frequencies(self) -> Dict[str, FloatArray]:
+        return self.world.tides.unique_tidal_frequencies
+
+    @unique_tidal_frequencies.setter
+    def unique_tidal_frequencies(self, value):
+        raise OuterscopeAttributeSetError
+
 
     # Alias properties
     @property

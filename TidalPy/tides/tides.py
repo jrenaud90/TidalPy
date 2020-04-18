@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Dict
 import numpy as np
 
 from .defaults import tide_defaults
-from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, mode_collapse
+from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, calculate_modes
 from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperAttributeHandling, ParameterValueError,
                           OuterscopeAttributeSetError, ConfigAttributeChangeError)
 
@@ -89,11 +89,11 @@ class Tides(WorldConfigHolder):
         """
 
         # Calculate the various terms based on the current state
-        results_by_uniquefreq = mode_collapse(self.orbital_frequency, self.spin_frequency,
-                                              self.eccentricity, self.obliquity,
-                                              use_obliquity=self.use_obliquity_tides,
-                                              eccentricity_truncation_lvl=self.eccentricity_truncation_lvl,
-                                              max_order_l=self.tidal_order_lvl)
+        results_by_uniquefreq = calculate_modes(self.orbital_frequency, self.spin_frequency,
+                                                self.eccentricity, self.obliquity,
+                                                use_obliquity=self.use_obliquity_tides,
+                                                eccentricity_truncation_lvl=self.eccentricity_truncation_lvl,
+                                                max_order_l=self.tidal_order_lvl)
 
         # Pull out unique frequencies and tidal terms. Clear old storage.
         self._unique_tidal_frequencies = dict()
@@ -132,10 +132,15 @@ class Tides(WorldConfigHolder):
             # Pull out other parameters used in the calculations
             # TODO: These are used to calculate the effective rigidity. Should these be for the layer or for the planet
             #    as a whole?
+            if self.config['use_planet_params_for_love_calc']:
+                radius = self.world.radius
+                gravity = self.world.gravity_surface
+                density = self.world.density_bulk
+            else:
+                radius = layer.radius
+                gravity = layer.gravity_surface
+                density = layer.density_bulk
             shear_modulus = layer.shear_modulus
-            radius = layer.radius
-            gravity = layer.gravity_surface
-            density = layer.density_bulk
 
             tidal_heating_reduced_terms_for_layer = list()
             negative_imk_for_layer = list()
