@@ -19,7 +19,7 @@ Below publicly available software that is similar to `TidalPy`.
     * [VPLanet](https://github.com/VirtualPlanetaryLaboratory/vplanet)
     * [Posidonius (formerly Mercury-T)](https://github.com/marblestation/posidonius)
 * Do you not care about tides but are instead interested in interior structure and composition of planets?
-    * [Burnman](https://github.com/geodynamics/burnman)
+    * [BurnMan](https://github.com/geodynamics/burnman)
 * Are you interested in tides, interiors, *and* the chemical evolution of icy worlds but don't care too much about non-synchronous rotation?
     * [IcyDwarf](https://github.com/MarcNeveu/IcyDwarf)
 * Do you want all of the above (minus: chemical evolution and N-body integration)? Then you have come to the right place! Look below on how to download `TidalPy`.

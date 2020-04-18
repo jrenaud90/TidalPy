@@ -34,6 +34,25 @@ class MissingArgumentError(ArgumentException):
 class ArgumentOverloadError(ArgumentException):
     default_message = 'Too many arguments were supplied to a function or method.'
 
+
+# TidalPy Value Error
+class TidalPyValueException(TidalPyException):
+    default_message = 'There is an issue with the value of a variable.'
+
+
+class BadArrayShape(TidalPyValueException):
+    default_message = 'TidalPy requires certain arrays maintain the same shape for all layers and planets. ' \
+                      'It has found an array with an unexpected shape.'
+
+class BadValueError(TidalPyValueException):
+    default_message = 'An unrealistic value was encountered.'
+
+
+class UnusualRealValueError(TidalPyValueException):
+    default_message = 'An usually large or small value was encountered for a parameter. ' \
+                      'Confirm proper dimensional units.'
+
+
 # Class Error
 class ClassException(TidalPyException):
     default_message = 'There was an error with a TidalPy class or OOP process.'
@@ -129,50 +148,9 @@ class UnknownTidalPyConfigValue(ConfigurationException):
     default_message = 'A configuration set in TidalPy.configurations is not know or has not yet been implemented.'
 
 
-# TidalPy Value Error
-class TidalPyValueException(TidalPyException):
-    default_message = 'There is an issue with the value of a variable.'
-
-
-class BadArrayShape(TidalPyValueException):
-    default_message = 'TidalPy requires certain arrays maintain the same shape for all layers and planets. ' \
-                      'It has found an array with an unexpected shape.'
-
-class BadValueError(TidalPyValueException):
-    default_message = 'An unrealistic value was encountered.'
-
-
-class UnusualRealValueError(TidalPyValueException):
-    default_message = 'An usually large or small value was encountered for a parameter. ' \
-                      'Confirm proper dimensional units.'
-
-
 # TidalPy Integration Error
 class TidalPyIntegrationException(TidalPyException):
     default_message = 'An issue arose during time integration.'
 
-
 class IntegrationTimeOut(TidalPyIntegrationException):
     default_message = 'Integration was stopped due to long integration time'
-
-
-
-# FIXME TEMP TMEP TEMP -- was in strutures/physical.py
-#
-# from ..configurations import raise_on_changed_config
-# class ImproperAttributeChanged(TidalPyException):
-#     default_message = 'A pre-computed planet had a critical configuration change that ' \
-#                       'requires a new instance to be created'
-#
-#     def __init__(self, *args, force_raise: bool = False, **kwargs):
-#
-#         # If no input is provided then the base exception will look at the class attribute 'default_message'
-#         #   and send that to sys.stderr
-#
-#         if not force_raise and not raise_on_changed_config:
-#             log.warn(self.default_message)
-#         else:
-#             if args or kwargs:
-#                 super().__init__(*args, **kwargs)
-#             else:
-#                 super().__init__(self.default_message)

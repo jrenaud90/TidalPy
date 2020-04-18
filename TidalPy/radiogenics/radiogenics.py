@@ -6,10 +6,13 @@ from .defaults import known_isotope_data, radiogenics_defaults
 from . import known_models, known_model_const_args, known_model_live_args
 from .. import debug_mode
 from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, UnknownModelError, AttributeNotSetError,
-                          IncorrectAttributeType)
+                          IncorrectAttributeType, OuterscopeAttributeSetError)
 from ..initialize import log
 from ..types import float_like
 from ..utilities.model import LayerModelHolder
+
+if TYPE_CHECKING:
+    from ..structures import ThermalLayer
 
 
 class Radiogenics(LayerModelHolder):
@@ -26,7 +29,7 @@ class Radiogenics(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = 'radiogenics'
 
-    def __init__(self, layer, model_name: str = None, store_config_in_layer: bool = True):
+    def __init__(self, layer: 'ThermalLayer', model_name: str = None, store_config_in_layer: bool = True):
 
         # Set auto_build_inputs to False so that the functions can be built at the end of this __init__ once a few
         #    more parameters are loaded into the class's config.
@@ -156,6 +159,7 @@ class Radiogenics(LayerModelHolder):
 
         return radio_heating
 
+
     # State properties
     @property
     def heating(self) -> np.ndarray:
@@ -165,6 +169,7 @@ class Radiogenics(LayerModelHolder):
     def heating(self, value):
         raise ImproperAttributeHandling
 
+
     # Outerscope properties
     @property
     def time(self):
@@ -172,7 +177,7 @@ class Radiogenics(LayerModelHolder):
 
     @time.setter
     def time(self, value):
-        raise ImproperAttributeHandling
+        raise OuterscopeAttributeSetError
 
     @property
     def mass(self):
@@ -180,4 +185,4 @@ class Radiogenics(LayerModelHolder):
 
     @mass.setter
     def mass(self, value):
-        raise ImproperAttributeHandling
+        raise OuterscopeAttributeSetError

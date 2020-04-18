@@ -1,40 +1,32 @@
 """ Inclination functions (squared) for tidal order-l = 2. These are exact (no truncation on I)
 """
 
+from typing import Dict, Tuple
+
 import numpy as np
 
-from TidalPy.performance import njit
+from ...performance import njit
+from ...types import FloatArray
+
 
 @njit
-def calc_inclination_off(inclination):
+def calc_inclination_off(inclination: FloatArray) -> Dict[Tuple[int, int], FloatArray]:
+    """Calculate F^2_lmp (assuming I=0) for l = 2"""
 
     # Inclination Functions Calculated for l = 2, Inclination == off.
     ones_ = np.ones_like(inclination)
 
-    # Output is structured (p0_(m0_result, m1_result, ...), p1_(...), ...)
     inclination_results = {
-        0 : {
-            0 : 0 * ones_,
-            1 : 0 * ones_,
-            2 : 9. * ones_
-        },
-        1 : {
-            0 : 0.25 * ones_,
-            1 : 0 * ones_,
-            2 : 0 * ones_
-        },
-        2 : {
-            0 : 0 * ones_,
-            1 : 0 * ones_,
-            2 : 0 * ones_
-        }
+        (0, 1) : 0.25 * ones_,
+        (2, 0) : 9. * ones_,
     }
 
     return inclination_results
 
 
 @njit
-def calc_inclination(inclination):
+def calc_inclination(inclination: FloatArray) -> Dict[Tuple[int, int], FloatArray]:
+    """Calculate F^2_lmp for l = 2"""
 
     # Inclination Functions Calculated for l = 2.
     # Optimizations
@@ -46,23 +38,17 @@ def calc_inclination(inclination):
     cos_i_half = np.cos(i_half)
     sin_i_double = np.sin(i_double)
 
-    # Output is structured (p0_(m0_result, m1_result, ...), p1_(...), ...)
     inclination_results = {
-        0 : {
-            0 : 0.140625*sin_i**4,
-            1 : 9.0*sin_i_half**2*cos_i_half**6,
-            2 : 9.0*cos_i_half**8
-        },
-        1 : {
-            0 : (sin_i_half**4 - sin_i_half**2 - 0.5*sin_i**2 + 0.5)**2,
-            1 : 0.5625*sin_i_double**2,
-            2 : 2.25*sin_i**4
-        },
-        2 : {
-            0 : 0.140625*sin_i**4,
-            1 : 9.0*sin_i_half**6*cos_i_half**2,
-            2 : 9.0*sin_i_half**8
-        }
+        (0, 0) : 0.140625*sin_i**4,
+        (0, 1) : (sin_i_half**4 - sin_i_half**2 - 0.5*sin_i**2 + 0.5)**2,
+        (0, 2) : 0.140625*sin_i**4,
+        (1, 0) : 9.0*sin_i_half**2*cos_i_half**6,
+        (1, 1) : 0.5625*sin_i_double**2,
+        (1, 2) : 9.0*sin_i_half**6*cos_i_half**2,
+        (2, 0) : 9.0*cos_i_half**8,
+        (2, 1) : 2.25*sin_i**4,
+        (2, 2) : 9.0*sin_i_half**8
     }
 
     return inclination_results
+

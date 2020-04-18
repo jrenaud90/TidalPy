@@ -1,22 +1,17 @@
 """ Tides Module
 """
 
-import copy
-from typing import TYPE_CHECKING, List, Dict
+from typing import TYPE_CHECKING, Dict
 
 import numpy as np
 
 from .defaults import tide_defaults
 from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, mode_collapse
-from ..constants import G
-from ..exceptions import (AttributeNotSetError, ImplementationException, ParameterMissingError, UnknownModelError,
-                          BadValueError, AttributeChangeRequiresReINIT, ImproperAttributeHandling, ParameterValueError,
-                          OuterscopeAttributeSetError, ConfigAttributeChangeError, MissingArgumentError)
+from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperAttributeHandling, ParameterValueError,
+                          OuterscopeAttributeSetError, ConfigAttributeChangeError)
 
 from ..types import FloatArray
-from ..utilities.classes import WorldConfigHolder, LayerConfigHolder
-from ..types import ArrayNone
-from ..utilities.model import LayerModelHolder
+from ..utilities.classes import WorldConfigHolder
 from .love1d import complex_love_general, effective_rigidity_general
 
 if TYPE_CHECKING:
@@ -66,6 +61,7 @@ class Tides(WorldConfigHolder):
         self._dUdM = None
         self._dUdw = None
         self._dUdO = None
+        self._spin_rate_derivative = None
 
     def initialize_tides(self):
         """ Initialize various tidal parameters once a tidal host is connected to the target body.
@@ -109,7 +105,7 @@ class Tides(WorldConfigHolder):
     def thermal_change(self):
         """ Calculate Global Love number based on current thermal state.
 
-        The requires a prior orbital_change() call as unique frequencies are used to calculate the complex compliances
+        Requires a prior orbital_change() call as unique frequencies are used to calculate the complex compliances
             used to calculate the Love numbers.
 
         See Also
@@ -192,10 +188,19 @@ class Tides(WorldConfigHolder):
         return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
 
     def calculate_spin_derivative(self):
-        """        """
+        """ Calculate spin-rate derivative based on current state
 
-        #FIXME: Leftoff
+        Requires a prior thermal_change() call as dUdO must be set before spin-rate derivative can be calculated
+            is called.
+        """
 
+        if self.dUdO is None:
+            raise AttributeNotSetError(f'Potential derivatives not calculated for {self.world.name}.')
+
+        spin_rate_derivative = self.tidal_host.mass * self.dUdO / self.moi
+        self._spin_rate_derivative = spin_rate_derivative
+
+        return spin_rate_derivative
 
     @staticmethod
     def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
@@ -328,6 +333,14 @@ class Tides(WorldConfigHolder):
     def dUdO(self, value):
         raise ImproperAttributeHandling
 
+    @property
+    def spin_rate_derivative(self) -> FloatArray:
+        return self._spin_rate_derivative
+
+    @spin_rate_derivative.setter
+    def spin_rate_derivative(self, value):
+        raise ImproperAttributeHandling
+
 
     # Outer-scope Properties
     @property
@@ -379,4 +392,20 @@ class Tides(WorldConfigHolder):
 
     @tidal_host.setter
     def tidal_host(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def radius(self) -> float:
+        return self.world.radius
+
+    @radius.setter
+    def radius(self, value):
+        raise OuterscopeAttributeSetError
+
+    @property
+    def moi(self) -> float:
+        return self.world.moi
+
+    @moi.setter
+    def moi(self, value):
         raise OuterscopeAttributeSetError

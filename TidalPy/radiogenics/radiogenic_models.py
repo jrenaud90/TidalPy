@@ -3,15 +3,16 @@ from typing import Tuple
 import numpy as np
 
 from ..performance import njit
+from ..types import FloatArray
 
 LOG_HALF = np.log(0.5)
 
 
 @njit
-def isotope(time: np.ndarray, mass: float,
+def isotope(time: FloatArray, mass: float,
             iso_massfracs_of_isotope: Tuple[float, ...], iso_element_concentrations: Tuple[float, ...],
             iso_halflives: Tuple[float, ...], iso_heat_production: Tuple[float, ...],
-            ref_time: float = 4600.) -> np.ndarray:
+            ref_time: float = 4600.) -> FloatArray:
     """ Calculate radiogenic heating based on multiple isotopes
 
     !TPY_args live: self.time, self.mass
@@ -47,14 +48,16 @@ def isotope(time: np.ndarray, mass: float,
         q_iso = mass_frac * concen * hpr
         total_specific_heating += q_iso * np.exp(gamma * (time - ref_time))
 
+    # Multiple the specific heating by the total mass (radiogenic mass only)
     radiogenic_heating = total_specific_heating * mass
+
     return radiogenic_heating
 
 
 @njit
-def fixed(time: np.ndarray, mass: float,
+def fixed(time: FloatArray, mass: float,
           fixed_heat_production: float, average_half_life: float,
-          ref_time: float = 4600.) -> np.ndarray:
+          ref_time: float = 4600.) -> FloatArray:
     """ Calculate radiogenic heating based on a fixed rate and exponential decay (set at a reference time)
 
     !TPY_args live: self.time, self.mass
@@ -62,7 +65,7 @@ def fixed(time: np.ndarray, mass: float,
 
     Parameters
     ----------
-    time : np.ndarray
+    time : FloatArray
         Time at which to calculate radiogenic heating at [units must match average_half_life and ref_time]
     mass : float
         Total mass of radiogenic layer
@@ -75,30 +78,33 @@ def fixed(time: np.ndarray, mass: float,
 
     Returns
     -------
-    radiogenic_heating : np.ndarray
+    radiogenic_heating : FloatArray
         Radiogenic Heating [Watts]
 
     """
 
     gamma = LOG_HALF / average_half_life
+    radiogenic_heating = mass * fixed_heat_production * np.exp(gamma * (time - ref_time))
 
-    return mass * fixed_heat_production * np.exp(gamma * (time - ref_time))
+    return radiogenic_heating
 
 
 @njit
-def off(time: np.ndarray) -> np.ndarray:
+def off(time: FloatArray) -> FloatArray:
     """ Forces radiogenics to be off
 
     Parameters
     ----------
-    time : np.ndarray
+    time : FloatArray
        Time at which to calculate radiogenic heating at [units must match average_half_life and ref_time]
 
     Returns
     -------
-    radiogenic_heating : np.ndarray
+    radiogenic_heating : FloatArray
        Radiogenic heating set to zeros
 
     """
 
-    return np.zeros_like(time)
+    radiogenic_heating = np.zeros_like(time)
+
+    return radiogenic_heating

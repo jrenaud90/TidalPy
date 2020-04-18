@@ -57,8 +57,9 @@ def calc_tidal_susceptibility_reduced(host_mass: float, target_radius: float) ->
     return tidal_susceptibility_reduced
 
 @njit
-def mode_collapse( orbital_frequency: FloatArray, spin_frequency: FloatArray,
+def mode_collapse(orbital_frequency: FloatArray, spin_frequency: FloatArray,
                   eccentricity: FloatArray, obliquity: FloatArray,
+                  semi_major_axis: FloatArray, radius: float,
                   use_obliquity: bool = True, eccentricity_truncation_lvl: int = 2, max_order_l: int = 2) -> \
         Dict[str, Tuple[FloatArray, Dict[int, Tuple[FloatArray, FloatArray, FloatArray, FloatArray]]]]:
     """ Collapses tidal modes down to their unique frequencies for tidal heating and the tidal potential derivatives.
@@ -77,6 +78,10 @@ def mode_collapse( orbital_frequency: FloatArray, spin_frequency: FloatArray,
         Planet's orbital eccentricity around tidal host
     obliquity : np.ndarray
         Planet's axial tilt relative to orbital plane around tidal host [radians]
+    semi_major_axis : np.ndarray
+        Orbital separation [m]
+    radius : float
+        Planet's radius (used to calculate R/a) [m]
     use_obliquity : bool = True
         Determine if a non-zero obliquity is allowed.
         If you are sure that obliquity should always be equal to zero, then set to this False for faster computation.
@@ -111,13 +116,17 @@ def mode_collapse( orbital_frequency: FloatArray, spin_frequency: FloatArray,
         # Sort universal coefficients (multipliers to all tidal terms) by order l
         universal_coeffs_bym = get_universal_coeffs(order_l)
 
+        # Order l controls the distance multiplier. The minus 4 comes from the tidal susceptibility already carrying
+        #    (R / a)^5 so (R / a)^(2l + 1) --> (R / a)^(2l - 4)
+        distance_multiplier = (radius / semi_major_axis)**(2 * order_l - 4)
+
         for (p, m), obliquity_terms in obliquity_at_orderl.items():
             # Pull out the p and m integers from the non-zero obliquity terms
 
             # Pull out universal coefficient
             #    The Tidal Susceptibility carries a factor of (3 / 2) already. So we need to divide the uni_coeff
             #    by that much to ensure it is not double counted.
-            uni_coeff = universal_coeffs_bym[m] / 1.5
+            uni_coeff = distance_multiplier * universal_coeffs_bym[m] / 1.5
 
             for q, eccentricity_terms in eccentricity_at_orderl[p].items():
                 # Pull out q integer from the non-zero eccentricity terms

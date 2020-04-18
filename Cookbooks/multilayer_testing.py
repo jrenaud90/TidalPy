@@ -111,7 +111,7 @@ complex_compliance_array = andrade(orbital_motion, shear_array**(-1), viscosity_
 complex_shear_array = complex_compliance_array**(-1)
 
 # Multilayer Calculation
-from TidalPy.tides.love3d.propagation_matrix import build_fundamental_matrix, find_propagator_matrix
+from TidalPy.tides.love3d_dev.propagation_matrix import build_fundamental_matrix, find_propagator_matrix
 
 # Build propagator matrix
 Y, Y_inv, Y_reduced_shifted = \

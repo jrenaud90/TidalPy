@@ -1,11 +1,9 @@
-from typing import Tuple
-
 import numpy as np
 
-from TidalPy.constants import G
-from TidalPy.exceptions import BadValueError
-from TidalPy.performance import njit
-from TidalPy.types import FloatArray
+from ..constants import G
+from ..exceptions import BadValueError
+from ..performance import njit
+from ..types import FloatArray
 
 
 @njit
@@ -87,6 +85,40 @@ def days2rads(days: FloatArray) -> FloatArray:
 
     return radians_per_second
 
+@njit
+def sec2myr(seconds: FloatArray) -> FloatArray:
+    """ Convert time from seconds to millions of years
+
+    Parameters
+    ----------
+    seconds : FloatArray
+        Time in [sec]
+
+    Returns
+    -------
+    myrs : FloatArray
+        Time in [Myr]
+    """
+
+    return seconds / 3.154e13
+
+
+@njit
+def myr2sec(myrs: FloatArray) -> FloatArray:
+    """ Convert time from millions of years to seconds
+
+    Parameters
+    ----------
+    myrs : FloatArray
+        Time in [Myr]
+
+    Returns
+    -------
+    seconds : FloatArray
+        Time in [sec]
+    """
+
+    return myrs * 3.154e13
 
 @njit
 def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
@@ -144,70 +176,3 @@ def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_
     orbital_motion = (G * (host_mass + target_mass) / semi_major_axis**3)**(1/2)
 
     return orbital_motion
-
-
-@njit
-def sec2myr(seconds: FloatArray) -> FloatArray:
-    """ Convert time from seconds to millions of years
-
-    Parameters
-    ----------
-    seconds : FloatArray
-        Time in [sec]
-
-    Returns
-    -------
-    myrs : FloatArray
-        Time in [Myr]
-    """
-
-    return seconds / 3.154e13
-
-
-@njit
-def myr2sec(myrs: FloatArray) -> FloatArray:
-    """ Convert time from millions of years to seconds
-
-    Parameters
-    ----------
-    myrs : FloatArray
-        Time in [Myr]
-
-    Returns
-    -------
-    seconds : FloatArray
-        Time in [sec]
-    """
-
-    return myrs * 3.154e13
-
-
-@njit
-def convert_to_hms(seconds: float) -> Tuple[int, int, int, float]:
-    """ Convert seconds to a tuple of days, hours, minutes, seconds
-
-    Parameters
-    ----------
-    seconds : float
-        Time in seconds
-
-    Returns
-    -------
-    days : int
-        Days
-    hours : int
-        Hours
-    minutes : int
-        Minutes
-    seconds : float
-        Remaining seconds after conversion
-    """
-
-    days = int(seconds / (24. * 3600.))
-    seconds = seconds % (24. * 3600.)
-    hours = int(seconds / 3600.)
-    seconds = seconds % 3600.
-    minutes = int(seconds / 60.)
-    seconds = seconds % 60.
-
-    return days, hours, minutes, seconds

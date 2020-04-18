@@ -22,8 +22,8 @@ from ...exceptions import (ImproperAttributeHandling, ParameterMissingError, Rei
 from ...graphics.planet_plot import geotherm_plot
 from ...initialize import log
 from ...io import inner_save_dir
-from ...physics.stellar import (efftemp_from_luminosity, equilibrium_insolation_functions, equilibrium_temperature,
-                               luminosity_from_efftemp, luminosity_from_mass)
+from ...stellar.stellar import (efftemp_from_luminosity, equilibrium_insolation_functions, equilibrium_temperature,
+                                luminosity_from_efftemp, luminosity_from_mass)
 from ...utilities.dill_helper import dill_file_path
 from ...structures.layers import ThermalLayer
 
