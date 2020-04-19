@@ -8,6 +8,6 @@
 # 1.2.0a1     # Alpha Build
 # 1.2.0b1     # Beta Release
 # 1.2.0rc1    # Release Candidate
-# 1.2.X       # Final Release (X are bug and hot fixes that do not require the regular release cycle)
+# 1.2.X       # Final Release (X are bug fixes and patches that do not fall on the regular release cycle)
 
-version = 0.2.0dev13
+version = 0.2.0dev20

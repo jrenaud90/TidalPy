@@ -106,7 +106,7 @@ def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
             (combo of orbital motion and spin-rate) [rad s-1]
     results_by_unique_frequency : Dict[FreqSig, Dict[int, DissipTerms]]
         Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
-        unique frequency.
+            unique frequency.
 
     See Also
     --------

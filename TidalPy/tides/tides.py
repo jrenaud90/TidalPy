@@ -1,16 +1,17 @@
 """ Tides Module
 """
 
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Tuple
 
 import numpy as np
 
 from .defaults import tide_defaults
-from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, calculate_modes
+from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, calculate_terms, mode_collapse,\
+    FreqSig, DissipTerms
 from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperAttributeHandling, ParameterValueError,
-                          OuterscopeAttributeSetError, ConfigAttributeChangeError)
-
-from ..types import FloatArray
+                          OuterscopeAttributeSetError, ConfigAttributeChangeError, FailedForcedStateUpdate,
+                          BadAttributeValueError)
+from ..types import FloatArray, ComplexArray
 from ..utilities.classes import WorldConfigHolder
 from .love1d import complex_love_general, effective_rigidity_general
 
@@ -18,6 +19,8 @@ if TYPE_CHECKING:
     from ..structures import TidalWorld
     from ..structures import ThermalLayer
 
+
+# TODO: Add a spin-sync version
 
 class Tides(WorldConfigHolder):
 
@@ -50,6 +53,40 @@ class Tides(WorldConfigHolder):
             raise ImplementationException(f'Orbital truncation level of {self._eccentricity_truncation_lvl} has not '
                                           f'been implemented yet.')
 
+        # Pull out information from the planet's layers
+        self._tidal_inputs_by_layer = dict()
+        for layer in self.world:
+            if layer.is_tidal:
+                tidal_scale = layer.tidal_scale
+                # This system assumes that density, radius, and gravity will not change after initialization
+                radius = layer.radius
+                bulk_density = layer.density_bulk
+                gravity_surf = layer.gravity_surface
+
+                for param in [tidal_scale, radius, bulk_density, gravity_surf]:
+                    if param is None:
+                        # How did that happen?
+                        raise BadAttributeValueError
+
+                self._tidal_inputs_by_layer[layer] = (tidal_scale, radius, bulk_density, gravity_surf)
+            else:
+                # Layer does not contribute to tides. This will be marked by a None in this list
+                self._tidal_inputs_by_layer[layer] = None
+
+        # Pull out planet properties that may be used based on the configuration
+        self._planet_tidal_inputs = None
+        if self.config['use_planet_params_for_love_calc']:
+            # TODO: These are used to calculate the effective rigidity. Should these be for the layer or for the planet
+            #    as a whole?
+            planet_radius = self.world.radius
+            planet_gravity = self.world.gravity_surface
+            planet_density = self.world.density_bulk
+            self._planet_tidal_inputs =  (planet_radius, planet_density, planet_gravity)
+
+        # Flags
+        self._thermal_set = False
+        self._orbit_set = False
+
         # State properties
         self._tidal_susceptibility = None
         self._tidal_susceptibility_reduced = None
@@ -58,6 +95,7 @@ class Tides(WorldConfigHolder):
         self._tidal_heating_by_layer = None
         self._negative_imk_by_layer = None
         self._tidal_heating_global = None
+        self._negative_imk_global = None
         self._dUdM = None
         self._dUdw = None
         self._dUdO = None
@@ -70,6 +108,7 @@ class Tides(WorldConfigHolder):
         if self.tidal_host is None:
             raise AttributeNotSetError('Tidal host must be connected to target body in order to initialize tides.')
 
+        # Try to update properties that depend on orbit and tidal host
         self._tidal_susceptibility_reduced = \
             calc_tidal_susceptibility_reduced(self.tidal_host.mass, self.world.radius)
 
@@ -77,122 +116,212 @@ class Tides(WorldConfigHolder):
             self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
                                                                    self.semi_major_axis)
 
-    def orbital_change(self):
+
+    def orbital_change(self, force_update: bool = True) -> \
+            Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTerms]]]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
         This will also calculate new unique tidal frequencies which must then be digested by the rheological model
             at each planetary layer.
+
+
+        Parameters
+        ----------
+        force_update : bool = True
+            If True, will raise an error if the update does not successful complete.
+            Failed completions are usually a result of a missing state property(ies).
+
+
+        Returns
+        -------
+        unique_tidal_frequencies : Dict[FreqSig, FloatArray]
+            Each unique frequency stored as a signature (orbital motion and spin-rate coeffs), and the calculated frequency
+                (combo of orbital motion and spin-rate) [rad s-1]
+        tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTerms]]
+            Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
+                unique frequency.
 
         See Also
         --------
         TidalPy.tides.dissipation.mode_collapse
         """
 
-        # Calculate the various terms based on the current state
-        results_by_uniquefreq = calculate_modes(self.orbital_frequency, self.spin_frequency,
-                                                self.eccentricity, self.obliquity,
-                                                use_obliquity=self.use_obliquity_tides,
-                                                eccentricity_truncation_lvl=self.eccentricity_truncation_lvl,
-                                                max_order_l=self.tidal_order_lvl)
+        # Check to see if all the needed state properties are present
+        all_values_present = True
+        for param in [self.orbital_frequency, self.spin_frequency, self.eccentricity, self.semi_major_axis]:
+            if param is None:
+                all_values_present = False
+                break
 
-        # Pull out unique frequencies and tidal terms. Clear old storage.
-        self._unique_tidal_frequencies = dict()
-        self._tidal_terms_by_frequency = dict()
-        for unique_freq_signature, (unique_frequency, tidal_terms_by_orderl) in results_by_uniquefreq:
-            self._unique_tidal_frequencies[unique_freq_signature] = unique_frequency
-            self._tidal_terms_by_frequency[unique_freq_signature] = tidal_terms_by_orderl
+        if all_values_present:
+            # Calculate the various terms based on the current state
+            unique_freqs, results_by_unique_frequency = \
+                calculate_terms(self.orbital_frequency, self.spin_frequency, self.eccentricity, self.obliquity,
+                                self.semi_major_axis, self.radius, use_obliquity=self.use_obliquity_tides,
+                                eccentricity_truncation_lvl=self.eccentricity_truncation_lvl,
+                                max_order_l=self.tidal_order_lvl)
 
-    def thermal_change(self):
+            # Pull out unique frequencies and tidal terms. Clear old storage.
+            self._unique_tidal_frequencies = unique_freqs
+            self._tidal_terms_by_frequency = results_by_unique_frequency
+
+            # Orbital changes may have changed the tidal susceptibility
+            self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
+                                                                   self.semi_major_axis)
+
+            # Set orbit to true. Check if thermals are set and collapse modes
+            self._orbit_set = True
+            if self.thermal_set:
+                self.collapse_modes()
+
+            # Return frequencies and tidal terms
+            return self.unique_tidal_frequencies, self.tidal_terms_by_frequency
+
+        else:
+            if force_update:
+                raise FailedForcedStateUpdate
+
+    def collapse_modes(self, force_update: bool = True) -> Tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
         """ Calculate Global Love number based on current thermal state.
 
         Requires a prior orbital_change() call as unique frequencies are used to calculate the complex compliances
             used to calculate the Love numbers.
+
+        Parameters
+        ----------
+        force_update : bool = True
+            If True, will raise an error if the update does not successful complete.
+            Failed completions are usually a result of a missing state property(ies).
+
+        Returns
+        -------
+        tidal_heating : FloatArray
+            Tidal heating [W]
+            This could potentially restricted to a layer or for an entire planet.
+        dUdM : FloatArray
+            Tidal potential derivative with respect to the mean anomaly [J kg-1 radians-1]
+            This could potentially restricted to a layer or for an entire planet.
+        dUdw : FloatArray
+            Tidal potential derivative with respect to the pericentre [J kg-1 radians-1]
+            This could potentially restricted to a layer or for an entire planet.
+        dUdO : FloatArray
+            Tidal potential derivative with respect to the planet's node [J kg-1 radians-1]
+            This could potentially restricted to a layer or for an entire planet.
 
         See Also
         --------
         TidalPy.tides.Tides.orbital_change
         """
 
-        # TODO: Can any of this be pulled out into a njit'd function to improve performance?
+        # Check to see if all the needed state properties are present
+        all_values_present = True
 
-        global_love_number_terms = list()
-        tidal_heating_reduced_terms = list()
-        dUdM_reduced_terms = list()
-        dUdw_reduced_terms = list()
-        dUdO_reduced_terms = list()
+        # Check to see if tidal terms have been loaded.
+        if self.tidal_terms_by_frequency is None:
+            # Attempt to update the orbit to see if we can load them
+            self.orbital_change(force_update=False)
 
-        for layer in self.world:
-            # Check to see if the layer is contributing to tides
-            if not layer.is_tidal:
-                continue
+            if self.tidal_terms_by_frequency is None:
+                # Update did not help.
+                all_values_present = False
 
-            # The love number will be reduced by each layer's tidal volume fraction or tidal scale
-            layer_tidal_scale = layer.tidal_scale
 
-            # Pull out other parameters used in the calculations
-            # TODO: These are used to calculate the effective rigidity. Should these be for the layer or for the planet
-            #    as a whole?
-            if self.config['use_planet_params_for_love_calc']:
-                radius = self.world.radius
-                gravity = self.world.gravity_surface
-                density = self.world.density_bulk
+        if all_values_present:
+
+            nonNone_love_number = list()
+            nonNone_neg_imk = list()
+            nonNone_tidal_heating = list()
+            nonNone_dUdM = list()
+            nonNone_dUdw = list()
+            nonNone_dUdO = list()
+
+            love_number_by_layer = dict()
+            neg_imk_by_layer = dict()
+            tidal_heating_by_layer = dict()
+            dUdM_by_layer = dict()
+            dUdw_by_layer = dict()
+            dUdO_by_layer = dict()
+
+            broke_out = False
+            for layer, other_inputs in self._tidal_inputs_by_layer.items():
+                if other_inputs is None:
+                    # Not a tidal layer
+                    love_number_by_layer[layer] = None
+                    neg_imk_by_layer[layer] = None
+                    tidal_heating_by_layer[layer] = None
+                    dUdM_by_layer[layer] = None
+                    dUdw_by_layer[layer] = None
+                    dUdO_by_layer[layer] = None
+
+                else:
+                    tidal_scale, radius, bulk_density, gravity_surf = other_inputs
+                    if self._planet_tidal_inputs is not None:
+                        radius, bulk_density, gravity_surf = self._planet_tidal_inputs
+
+                    # Pull out variables that change often
+                    shear_modulus = layer.shear_modulus
+                    complex_compliances_by_frequency = layer.complex_compliance_by_frequency
+
+                    if shear_modulus is None or complex_compliances_by_frequency is None:
+                        # uh oh
+                        broke_out = True
+                        break
+
+                    # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global and
+                    #    localized dissipation values
+                    tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+                        mode_collapse(gravity_surf, radius, bulk_density, shear_modulus,
+                                      layer.complex_compliance_by_frequency,
+                                      self.tidal_terms_by_frequency, self.tidal_susceptibility,
+                                      self.tidal_host.mass,
+                                      tidal_scale, max_tidal_l=self.tidal_order_lvl)
+
+                    # These will be summed for global values
+                    nonNone_love_number.append(love_number)
+                    nonNone_neg_imk.append(negative_imk)
+                    nonNone_tidal_heating.append(tidal_heating)
+                    nonNone_dUdM.append(dUdM)
+                    nonNone_dUdw.append(dUdw)
+                    nonNone_dUdO.append(dUdO)
+
+                    # Accessed by layer classes for thermal evolution
+                    tidal_heating_by_layer[layer] = tidal_heating
+                    neg_imk_by_layer[layer] = negative_imk
+
+                    # TODO: Not accessible at the moment. I suppose it would be useful info?
+                    love_number_by_layer[layer] = love_number
+                    dUdM_by_layer[layer] = dUdM
+                    dUdw_by_layer[layer] = dUdw
+                    dUdO_by_layer[layer] = dUdO
+
+            if not broke_out:
+                # Loop finished successfully. Store info in accessible containers
+                self._tidal_heating_by_layer = tidal_heating_by_layer
+                self._negative_imk_by_layer = neg_imk_by_layer
+
+                self._tidal_heating_global = sum(nonNone_tidal_heating)
+                self._dUdM = sum(nonNone_dUdM)
+                self._dUdw = sum(nonNone_dUdw)
+                self._dUdO = sum(nonNone_dUdO)
+                self._negative_imk_global = sum(nonNone_neg_imk)
+
+                # Now tell other methods to update now that derivatives and heating has been altered
+                # TODO: orbit derivatives
+                # TODO: layer thermal evolution
+                self.set_spin_derivative()
+
+                # Return tidal heating and derivatives
+                return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
+
             else:
-                radius = layer.radius
-                gravity = layer.gravity_surface
-                density = layer.density_bulk
-            shear_modulus = layer.shear_modulus
+                if force_update:
+                    raise FailedForcedStateUpdate
 
-            tidal_heating_reduced_terms_for_layer = list()
-            negative_imk_for_layer = list()
+        else:
+            if force_update:
+                raise FailedForcedStateUpdate
 
-            # For each tidal order number calculate the complex love number and use it to make the first collapse
-            #    on tidal terms.
-            for tidal_order_l in range(2, self.tidal_order_lvl + 1):
-
-                # Calculate the effective rigidity which does not use the complex compliance
-                effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
-                                                                order_l=tidal_order_l)
-
-                # Pull out the already computed complex compliances for each frequency
-                for unique_freq_signature, complex_compliance in layer.complex_compliance_by_frequency.items():
-
-                    complex_love = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
-                                                        order_l=tidal_order_l)
-
-                    # Scale the Love number by the layer's contribution
-                    # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
-                    neg_imk = np.imag(complex_love) * layer_tidal_scale
-                    neg_imk_scaled = neg_imk * self.tidal_susceptibility
-
-                    # The tidal potential carries one fewer dependence on the tidal host mass that is built into the
-                    #    tidal susceptibility. Divide that out now.
-                    neg_imk_scaled_potential = neg_imk_scaled / self.tidal_host.mass
-
-                    # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.orbital_change
-                    heating_term, dUdM_term, dUdw_term, dUdO_term = self.tidal_terms_by_frequency[unique_freq_signature]
-
-                    # Store results
-                    tidal_heating_reduced_terms.append(heating_term * neg_imk_scaled)
-                    dUdM_reduced_terms.append(dUdM_term * neg_imk_scaled_potential)
-                    dUdw_reduced_terms.append(dUdw_term * neg_imk_scaled_potential)
-                    dUdO_reduced_terms.append(dUdO_term * neg_imk_scaled_potential)
-
-                    global_love_number_terms.append(complex_love)
-                    negative_imk_for_layer.append(neg_imk_scaled)
-
-            # The layer needs to know what the tidal heating is within it. Store this now.
-            self.tidal_heating_by_layer[layer] = sum(tidal_heating_reduced_terms_for_layer)
-            self.negative_imk_by_layer[layer] = sum(negative_imk_for_layer)
-
-        # Collapse all unqiue frequencies and tidal order-l terms down into a single value (or array)
-        self._tidal_heating_global = sum(tidal_heating_reduced_terms)
-        self._dUdM = sum(dUdM_reduced_terms)
-        self._dUdw = sum(dUdw_reduced_terms)
-        self._dUdO = sum(dUdO_reduced_terms)
-
-        return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
-
-    def calculate_spin_derivative(self):
+    def set_spin_derivative(self):
         """ Calculate spin-rate derivative based on current state
 
         Requires a prior thermal_change() call as dUdO must be set before spin-rate derivative can be calculated
@@ -208,7 +337,7 @@ class Tides(WorldConfigHolder):
         return spin_rate_derivative
 
     @staticmethod
-    def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
+    def calculate_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
         """ Calculate the tidal susceptibility for a target object orbiting
 
         Wrapper for dissipation.py/calc_tidal_susceptibility
@@ -230,6 +359,62 @@ class Tides(WorldConfigHolder):
 
         tidal_susceptibility = calc_tidal_susceptibility(host_mass, target_radius, semi_major_axis)
         return tidal_susceptibility
+
+    @staticmethod
+    def calculate_effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, bulk_density: float,
+                                     tidal_order_l: int = 2) -> FloatArray:
+        """ Calculate the effective rigidity of a layer or planet
+
+        Parameters
+        ----------
+        shear_modulus : FloatArray
+            Shear modulus of a layer/planet [Pa]
+        gravity : float
+            Acceleration of gravity at the surface of a layer/planet [m s-2]
+        radius : float
+            Radius at the top of a layer/planet [m]
+        bulk_density : float
+            Bulk density of a layer/planet [kg m-3]
+        tidal_order_l : int = 2
+            Tidal harmonic order integer
+
+        Returns
+        -------
+        effective_rigidity : FloatArray
+            Effective rigidity of the layer/planet [Pa Pa-1]
+        """
+
+        effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, bulk_density,
+                                                        order_l=tidal_order_l)
+        return effective_rigidity
+
+    @staticmethod
+    def calculate_complex_love_number(shear_modulus: FloatArray, complex_compliance: ComplexArray,
+                                      effective_rigidity: FloatArray, tidal_order_l: int = 2) -> ComplexArray:
+        """ Calculate the complex Love number of a layer or planet
+
+        Parameters
+        ----------
+        shear_modulus : FloatArray
+            Shear modulus of a layer/planet [Pa]
+        complex_compliance : ComplexArray
+            Complex compliance of a layer/planet [Pa -1]
+        effective_rigidity : FloatArray
+            Effective rigidity of a layer/planet [Pa Pa-1]
+            See: Tides.calculate_effective_rigidity
+        tidal_order_l : int = 2
+            Tidal harmonic order integer
+
+        Returns
+        -------
+        complex_love_number : ComplexArray
+            Complex Love number for the layer/planet
+        """
+
+        complex_love_number = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
+                                                   order_l=tidal_order_l)
+        return complex_love_number
+
 
     # Configuration properties
     @property
@@ -259,6 +444,22 @@ class Tides(WorldConfigHolder):
 
     # State properties
     @property
+    def thermal_set(self) -> bool:
+        return self._thermal_set
+
+    @thermal_set.setter
+    def thermal_set(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def orbit_set(self) -> bool:
+        return self._orbit_set
+
+    @orbit_set.setter
+    def orbit_set(self, value):
+        raise ImproperAttributeHandling
+
+    @property
     def tidal_susceptibility_reduced(self) -> FloatArray:
         return self._tidal_susceptibility_reduced
 
@@ -275,7 +476,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def unique_tidal_frequencies(self) -> Dict[str, FloatArray]:
+    def unique_tidal_frequencies(self) -> Dict[FreqSig, FloatArray]:
         return self._unique_tidal_frequencies
 
     @unique_tidal_frequencies.setter
@@ -283,7 +484,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_terms_by_frequency(self) -> Dict[str, Dict[int, FloatArray]]:
+    def tidal_terms_by_frequency(self) -> Dict[FreqSig, Dict[int, DissipTerms]]:
         return self._tidal_terms_by_frequency
 
     @tidal_terms_by_frequency.setter
@@ -312,6 +513,14 @@ class Tides(WorldConfigHolder):
 
     @tidal_heating_global.setter
     def tidal_heating_global(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def negative_imk_global(self) -> FloatArray:
+        return self._negative_imk_global
+
+    @negative_imk_global.setter
+    def negative_imk_global(self, value):
         raise ImproperAttributeHandling
 
     @property

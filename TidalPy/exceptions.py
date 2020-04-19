@@ -62,6 +62,10 @@ class ImplementedBySubclassError(ClassException):
     default_message = 'Trying to access sub-class functionality from a base class.'
 
 
+class FailedForcedStateUpdate(ClassException):
+    default_message = 'The state of a class was forced to update but was unable to do so.'
+
+
 class ReinitError(ClassException):
     default_message = 'One or more critical parameters have changed since planet was made. ' \
                       'Construct new planet instead.'
