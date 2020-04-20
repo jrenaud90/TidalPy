@@ -41,12 +41,13 @@ def isotope(time: FloatArray, mass: float,
         Summed radiogenic heating added for all isotopes [Watts]
     """
 
-    total_specific_heating = np.zeros_like(time)
+    total_specific_heatings = list()
     for mass_frac, concen, halflife, hpr in \
             zip(iso_massfracs_of_isotope, iso_element_concentrations, iso_halflives, iso_heat_production):
         gamma = LOG_HALF / halflife
         q_iso = mass_frac * concen * hpr
-        total_specific_heating += q_iso * np.exp(gamma * (time - ref_time))
+        total_specific_heatings.append(q_iso * np.exp(gamma * (time - ref_time)))
+    total_specific_heating = sum(total_specific_heatings)
 
     # Multiple the specific heating by the total mass (radiogenic mass only)
     radiogenic_heating = total_specific_heating * mass

@@ -2,8 +2,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .defaults import known_isotope_data, radiogenics_defaults
 from . import known_models, known_model_const_args, known_model_live_args
+from .defaults import known_isotope_data, radiogenics_defaults
 from .. import debug_mode
 from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, UnknownModelError, AttributeNotSetError,
                           IncorrectAttributeType, OuterscopeAttributeSetError)
@@ -124,12 +124,12 @@ class Radiogenics(LayerModelHolder):
             Radiogenic heating [W]
         """
 
-        radiogenic_heating = self.func(*self.live_inputs, *self.inputs)
+        radiogenic_heating = self.func_array(*self.live_inputs, *self.inputs)
         self._heating = radiogenic_heating
 
         return radiogenic_heating
 
-    def _calculate_debug(self):
+    def _calculate_debug(self) -> np.ndarray:
 
         # Attribute checks
         if self.time is None:
@@ -151,13 +151,13 @@ class Radiogenics(LayerModelHolder):
                          'Check units of the time array and fixed half-life.')
 
         # Calculate and perform more value checks
-        radio_heating = self.func(self.time, self.layer.mass, *self.inputs)
-        if np.any(radio_heating < 0.):
-            log.warn(f'Negative radiogenic heating encountered at time:\n{self.time[radio_heating < 0.]}')
-        if np.any(radio_heating > 1.e23):
-            log.warn(f'Very large radiogenic heating encountered at time:\n{self.time[radio_heating > 1.e23]}')
+        radiogenic_heating = self._calculate()
+        if np.any(radiogenic_heating < 0.):
+            log.warn(f'Negative radiogenic heating encountered at time:\n{self.time[radiogenic_heating < 0.]}')
+        if np.any(radiogenic_heating > 1.e23):
+            log.warn(f'Very large radiogenic heating encountered at time:\n{self.time[radiogenic_heating > 1.e23]}')
 
-        return radio_heating
+        return radiogenic_heating
 
 
     # State properties
@@ -170,7 +170,7 @@ class Radiogenics(LayerModelHolder):
         raise ImproperAttributeHandling
 
 
-    # Outerscope properties
+    # Outer-scope properties
     @property
     def time(self):
         return self.layer.world.time

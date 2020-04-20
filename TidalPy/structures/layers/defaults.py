@@ -5,9 +5,10 @@ layer_defaults = {
         'slices'                    : 50,
 
         # Switches
-        'use_surf_gravity'          : True,
-        'use_tvf'                   : True,
-        'is_tidally_active'         : True,
+        'use_surf_gravity'              : True,
+        'use_tvf'                       : True,
+        'is_tidally_active'             : True,
+        'use_pressure_in_strength_calc' : False,
 
         # Burnman Information
         'interp_temperature_range'  : [60., 273.15],
@@ -32,9 +33,10 @@ layer_defaults = {
         'slices'                    : 50,
 
         # Switches
-        'use_surf_gravity'          : True,
-        'use_tvf'                   : True,
-        'is_tidally_active'         : True,
+        'use_surf_gravity'              : True,
+        'use_tvf'                       : True,
+        'is_tidally_active'             : True,
+        'use_pressure_in_strength_calc' : False,
 
         # Burnman Information
         'interp_temperature_range'  : [500., 2200.],
@@ -56,9 +58,10 @@ layer_defaults = {
         'slices'                    : 1,
 
         # Switches
-        'use_surf_gravity'          : True,
-        'use_tvf'                   : True,
-        'is_tidally_active'         : False,
+        'use_surf_gravity'              : True,
+        'use_tvf'                       : True,
+        'is_tidally_active'             : False,
+        'use_pressure_in_strength_calc' : False,
 
         # Burnman Information
         'interp_temperature_range'  : [800., 2500.],

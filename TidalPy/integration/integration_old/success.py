@@ -5,7 +5,7 @@ from typing import Tuple, Dict
 
 import numpy as np
 
-from ..utilities.numpy_help import find_nearest, normalize_dict
+from TidalPy.utilities.numpy_help import find_nearest, normalize_dict
 
 def calc_success_index(data_dict: Dict[str, np.ndarray], integration_success: int,
                        variables_to_check: Tuple[str], expected_values: Tuple[float],

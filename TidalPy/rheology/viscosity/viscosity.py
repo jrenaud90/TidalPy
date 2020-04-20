@@ -59,7 +59,7 @@ class ViscosityClass(LayerModelHolder):
         # Pressure is often turned off in various model runs, so it may not be set. If that is the case let's make sure
         #    that zeros are provided.
         _pressure = self.layer.pressure
-        if _pressure is None:
+        if _pressure is None or not self.layer.use_pressure_in_strength_calc:
             _pressure = np.asarray(0., dtype=self.temperature.dtype)
 
         return _pressure

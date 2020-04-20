@@ -1,12 +1,11 @@
-from typing import TYPE_CHECKING, Tuple
-
 import numpy as np
 
-from ..initialize import log
-from ..exceptions import MissingAttributeError, ImproperAttributeHandling, OuterscopeAttributeSetError
-from ..utilities.model import LayerModelHolder
 from . import known_models, known_model_live_args, known_model_const_args
+from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
+from ..exceptions import MissingAttributeError, ImproperAttributeHandling, OuterscopeAttributeSetError
+from ..initialize import log
+from ..utilities.model import LayerModelHolder
 
 
 class CoolingModel(LayerModelHolder):
@@ -37,7 +36,7 @@ class CoolingModel(LayerModelHolder):
         # Report model building
         log(f'Cooling model build in {self.layer}: {self.model}.')
 
-    def _calculate(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _calculate(self) -> CoolingOutputTypeArray:
         """ Calculate layer cooling based on the layer's state properties.
 
         Returns
@@ -58,7 +57,7 @@ class CoolingModel(LayerModelHolder):
         delta_temp = temp - surface_temp
 
         cooling_flux, boundary_layer_thickness, rayleigh, nusselt = \
-            self.func(delta_temp, *self.live_inputs, *self.inputs)
+            self.func_array(delta_temp, *self.live_inputs, *self.inputs)
 
         self._cooling_flux = cooling_flux
         self._boundary_layer_thickness = boundary_layer_thickness
@@ -68,7 +67,7 @@ class CoolingModel(LayerModelHolder):
 
         return self.cooling_flux, self.boundary_layer_thickness, self.rayleigh, self.nusselt
 
-    def _calculate_debug(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _calculate_debug(self) -> CoolingOutputTypeArray:
 
         if self.layer.temperature_surf is None:
             raise MissingAttributeError(f"Layer {self.layer.name}'s surface temperature has not been set yet.")
@@ -118,7 +117,8 @@ class CoolingModel(LayerModelHolder):
     def nusselt(self, value):
         raise ImproperAttributeHandling
 
-    # Outerscope properties
+
+    # Outer-scope properties
     @property
     def viscosity(self):
         return self.layer.viscosity
@@ -161,8 +161,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def gravity(self):
-        # TODO: Should this be surface or central gravity?
-        return self.layer.gravity_surface
+        return self.layer.gravity
 
     @gravity.setter
     def gravity(self, value):
@@ -175,6 +174,7 @@ class CoolingModel(LayerModelHolder):
     @density_bulk.setter
     def density_bulk(self, value):
         raise OuterscopeAttributeSetError
+
 
     # Alias properties
     @property

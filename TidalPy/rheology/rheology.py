@@ -6,7 +6,8 @@ from .complexCompliance import ComplexCompliance
 from .defaults import rheology_defaults
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
-from ..exceptions import MissingArgumentError, ArgumentException, OuterscopeAttributeSetError
+from .. import debug_mode
+from ..exceptions import MissingArgumentError, ArgumentException, OuterscopeAttributeSetError, UnusualRealValueError
 from ..initialize import log
 from ..types import FloatArray
 from ..utilities.arrayHelp import reshape_help
@@ -48,7 +49,7 @@ class Rheology(LayerConfigHolder):
             f"    Partial Melting:    {self.partial_melting_model.model}\n"
             f"    Complex Compliance: {self.complex_compliance_model.model}", level='info')
 
-    def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None):
+    def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None, called_by_layer: bool = False):
         """ Set the rheology state and recalculate any parameters that may be affected.
 
         Setting the state manually overrides the functionality of the viscosity, shear, and partial melting functions.
@@ -59,6 +60,12 @@ class Rheology(LayerConfigHolder):
             Layer/Material viscosity [Pa s]
         shear_modulus : FloatArray
             Layer/Material shear modulus [Pa]
+        called_by_layer : bool = False
+            Should be False unless this function is called by the layer.set_strength method
+
+        See Also
+        --------
+        TidalPy.structures.layers.layers.ThermalLayer.set_strength
         """
 
         # Now set the relevant parameters
@@ -76,6 +83,14 @@ class Rheology(LayerConfigHolder):
         if shear_modulus is not None:
             shear_modulus = reshape_help(shear_modulus, self.world.global_shape, f'{self}.set_state.shear_modulus')
 
+        # Check for unusual values
+        if debug_mode:
+            for value in [viscosity, shear_modulus]:
+                if value is None:
+                    continue
+                if np.any(value > 1.0e35) or np.any(value < 1.0e-10):
+                    raise UnusualRealValueError
+
         # The premelt viscosity are no longer applicable as these new values would override them. To ensure they are
         #    not used let's set them to null
         self.liquid_viscosity_model._viscosity = None
@@ -90,15 +105,21 @@ class Rheology(LayerConfigHolder):
 
         # A change to the viscosity or shear modulus will change the complex compliance so anything that depends on
         #     that will need to be updated as well.
-        self.world.strength_change()
+        if not called_by_layer:
+            self.world.update_tides()
 
-    def calculate_strength(self) -> Tuple[np.ndarray, np.ndarray]:
+    def update_strength(self, called_from_layer: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """ Calculates the strength of a layer/material based on temperature and pressure.
 
         Strength, in this context, refers to the layer's viscosity and shear modulus.
 
         Depending upon the model, partial melt fraction is also calculated and used to further modify the final
             strength.
+
+        Parameters
+        ----------
+        called_from_layer: bool = False
+            Should be false unless this method is being called from its host layer.
 
         Returns
         -------
@@ -115,14 +136,22 @@ class Rheology(LayerConfigHolder):
         # Add in the effects of partial melting
         self.partial_melting_model.calculate()
 
+        # Now that there is a new viscosity and shear modulus, update complex compliance as well.
+        #    Complex compliances depend upon forcing frequencies, which may or may not be set when this is called.
+        if self.layer.is_tidal:
+            if self.unique_tidal_frequencies is not None:
+                self.complex_compliance_model.calculate()
+
         # A change to the viscosity or shear modulus will change the complex compliance so anything that depends on
         #     that will need to be updated as well.
-        self.world.strength_change()
+        if not called_from_layer and self.layer.is_tidal:
+            self.world.update_tides()
 
         return self.viscosity, self.shear_modulus
 
 
     # Inner-scope reference properties
+    # # Viscosity Class
     @property
     def premelt_viscosity(self):
         return self.viscosity_model.viscosity
@@ -131,6 +160,7 @@ class Rheology(LayerConfigHolder):
     def premelt_viscosity(self, value):
         self.viscosity_model.viscosity = value
 
+    # # Liquid Viscosity Class
     @property
     def liquid_viscosity(self):
         return self.liquid_viscosity_model.viscosity
@@ -139,6 +169,7 @@ class Rheology(LayerConfigHolder):
     def liquid_viscosity(self, value):
         self.liquid_viscosity.liquid_viscosity = value
 
+    # # Partial Melting Class
     @property
     def melt_fraction(self):
         return self.partial_melting_model.melt_fraction
@@ -171,17 +202,18 @@ class Rheology(LayerConfigHolder):
     def postmelt_compliance(self, value):
         self.partial_melting_model.postmelt_compliance = value
 
+    # # Complex Compliance Class
     @property
     def complex_compliances(self):
         return self.complex_compliance_model.complex_compliances
 
     @complex_compliances.setter
     def complex_compliances(self, value):
-        self.partial_melting_model.complex_compliances = value
+        self.complex_compliance_model.complex_compliances = value
 
 
-    # Outerscope reference properties
-    #    Layer properties
+    # Outer-scope reference properties
+    # # Layer Class
     @property
     def premelt_shear(self):
         return self.layer.static_shear_modulus
@@ -206,7 +238,7 @@ class Rheology(LayerConfigHolder):
     def beta(self, value):
         raise OuterscopeAttributeSetError
 
-    #    Tides properties
+    # # Tides Class
     @property
     def tides(self):
         return self.world.tides

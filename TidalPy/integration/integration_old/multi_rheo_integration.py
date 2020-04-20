@@ -4,8 +4,8 @@ from typing import Tuple, List
 
 import numpy as np
 
-from ..initialize import log
-from ..io import inner_save_dir
+from TidalPy.initialize import log
+from TidalPy.io import inner_save_dir
 from .integration import ivp_integration
 
 

@@ -7,11 +7,11 @@ from scipy.integrate import solve_ivp
 from scipy.integrate._ivp.ivp import METHODS
 from datetime import datetime
 
-from .. import verbose_level
-from ..io import inner_save_dir
+from TidalPy import verbose_level
+from TidalPy.io import inner_save_dir
 from TidalPy.tools.conversions import convert_to_hms
-from ..initialize import log as real_log
-from ..exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
+from TidalPy.initialize import log as real_log
+from TidalPy.exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException
 from TidalPy.tools.conversions import sec2myr
 
 

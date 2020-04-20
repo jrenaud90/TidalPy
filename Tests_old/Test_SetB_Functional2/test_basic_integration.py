@@ -17,7 +17,7 @@ def test_integration():
 
         return [2. * time]
 
-    from TidalPy.integration_old.integration import ivp_integration
+    from TidalPy.integration.integration_old import ivp_integration
 
     _, integration_results_lsoda = ivp_integration(simple_diffeq, (0, 10.), initial_conditions,
                                                 dependent_variable_names=('x',),

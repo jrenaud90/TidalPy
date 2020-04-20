@@ -1,12 +1,12 @@
 import numpy as np
 
-from ..constants import G
 from .. import debug_mode
+from ..constants import G
 from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, IncorrectAttributeType,
                           UnusualRealValueError, ParameterMissingError)
 from ..types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
-from ..initialize import log
+
 
 class PhysicalObjSpherical(ConfigHolder):
     """ PhysicalObj Class contains attributes and functionality used for objects such as planets or
@@ -27,7 +27,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self._radius = None
         self._thickness = None
 
-        # Properties that are calculated from the above
+        # Properties that are calculated using the above parameters
         self._radius_inner = None
         self._volume = None
         self._surface_area_outer = None
@@ -40,16 +40,10 @@ class PhysicalObjSpherical(ConfigHolder):
         self._beta = None
 
     def reinit(self):
-        """ Changes to the config may result in changes to models and classes. After making a change to a config
-        parameter be sure to call reinit to ensure those changes are propagated."""
-
-        log(f'Reinit called for {self.pyname}.', level='debug')
-
-    def config_update(self):
-        """ Config update changes various state parameters of an object based on the self.config
+        """ Reinitialize the physical layer by pulling in any potentially new config changes.
         """
 
-        # The base physical object class has no changes.
+        # Setup by child classes
         pass
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
