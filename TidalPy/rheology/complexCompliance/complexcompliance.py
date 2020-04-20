@@ -2,10 +2,11 @@ from typing import List, Dict
 
 import numpy as np
 
-from ...exceptions import ImproperAttributeHandling
-from ...utilities.model import LayerModelHolder
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
+from ...exceptions import ImproperAttributeHandling
+from ...tides.dissipation import FreqSig
+from ...utilities.model import LayerModelHolder
 
 
 class ComplexCompliance(LayerModelHolder):
@@ -31,7 +32,7 @@ class ComplexCompliance(LayerModelHolder):
         self.rheology_class = rheology_class
         self._complex_compliances = None
 
-    def _calculate(self) -> Dict[str, np.ndarray]:
+    def _calculate(self) -> Dict[FreqSig, np.ndarray]:
         """ Calculate the complex compliance for forcing frequency mode the planet is experiencing.
 
         Returns
@@ -40,8 +41,8 @@ class ComplexCompliance(LayerModelHolder):
             Complex compliance of the layer/material [Pa-1]
         """
 
-        complex_compliances = {mode_name: self.func(tidal_freq, *self.live_inputs, *self.inputs)
-                               for mode_name, tidal_freq in zip(self.tidal_mode_names, self.tidal_freqs)}
+        complex_compliances = {mode_signature: self.func_array(tidal_freq, *self.live_inputs, *self.inputs)
+                               for mode_signature, tidal_freq in self.tidal_freqs.items()}
 
         self._complex_compliances = complex_compliances
 
@@ -49,7 +50,7 @@ class ComplexCompliance(LayerModelHolder):
 
     # State properties
     @property
-    def complex_compliances(self) -> Dict[str, np.ndarray]:
+    def complex_compliances(self) -> Dict[FreqSig, np.ndarray]:
         return self._complex_compliances
 
     @complex_compliances.setter
@@ -58,19 +59,11 @@ class ComplexCompliance(LayerModelHolder):
 
     # Outerscope properties
     @property
-    def tidal_freqs(self) -> List[np.ndarray]:
+    def tidal_freqs(self):
         return self.rheology_class.unique_tidal_freqs
 
     @tidal_freqs.setter
     def tidal_freqs(self, value):
-        raise ImproperAttributeHandling
-
-    @property
-    def tidal_mode_names(self) -> List[str]:
-        return self.rheology_class.tidal_mode_names
-
-    @tidal_mode_names.setter
-    def tidal_mode_names(self, value):
         raise ImproperAttributeHandling
 
     @property

@@ -4,14 +4,16 @@ import numpy as np
 from numba import njit
 from scipy.constants import G
 
-from ..types import FloatArray, ComplexArray
-from .universal_coeffs import get_universal_coeffs
-from .inclinationFuncs import inclination_functions
 from .eccentricityFuncs import eccentricity_truncations
+from .inclinationFuncs import inclination_functions
 from .love1d import effective_rigidity_general, complex_love_general
+from .universal_coeffs import get_universal_coeffs
+from ..types import FloatArray, ComplexArray
 
 FreqSig = Tuple[int, int]
-DissipTerms = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
+DissipTermsFloat = Tuple[float, float, float, float]
+DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
 @njit
 def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
@@ -63,7 +65,7 @@ def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
                     eccentricity: FloatArray, obliquity: FloatArray,
                     semi_major_axis: FloatArray, radius: float,
                     use_obliquity: bool = True, eccentricity_truncation_lvl: int = 2,
-                    max_order_l: int = 2) -> Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTerms]]]:
+                    max_order_l: int = 2) -> Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTermsMix]]]:
     """ Calculate tidal dissipation terms for each tidal harmonic order l
 
     Returns the tidal heating and tidal potential derivative components for each unique frequency. They still must be
@@ -104,7 +106,7 @@ def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
     unique_freqs : Dict[FreqSig, FloatArray]
         Each unique frequency stored as a signature (orbital motion and spin-rate coeffs), and the calculated frequency
             (combo of orbital motion and spin-rate) [rad s-1]
-    results_by_unique_frequency : Dict[FreqSig, Dict[int, DissipTerms]]
+    results_by_unique_frequency : Dict[FreqSig, Dict[int, DissipTermsMix]]
         Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
             unique frequency.
 
@@ -155,7 +157,7 @@ def calculate_terms_at_orderl(orbital_frequency: FloatArray, spin_frequency: Flo
                               eccentricity_results: Dict[int, Dict[int, FloatArray]],
                               inclination_results: Dict[Tuple[int, int], FloatArray],
                               universal_coeff_by_m: Dict[int, float],
-                              order_l: int) -> Tuple[List[Tuple[FreqSig, FloatArray]], List[DissipTerms]]:
+                              order_l: int) -> Tuple[List[Tuple[FreqSig, FloatArray]], List[DissipTermsMix]]:
     """ Calculate tidal dissipation terms for a given tidal harmonic order-l.
 
     Requires the user to provide the correct eccentricity and inclination functions. This is generally done by the
@@ -188,7 +190,7 @@ def calculate_terms_at_orderl(orbital_frequency: FloatArray, spin_frequency: Flo
     unique_frequencies : List[Tuple[FreqSig, FloatArray]]
         Unique frequency signature and calculate frequency [rad s-1]
         Frequencies are integer combinations of orbital motion and spin-rate.
-    results_by_frequency : List[DissipTerms]
+    results_by_frequency : List[DissipTermsMix]
         Tidal dissipation terms stored for each unique frequency.
         At each frequency dissipation terms are stored as:
             heating_term, dUdM_term, dUdw_term, dUdO_term
@@ -295,7 +297,7 @@ def calculate_terms_at_orderl(orbital_frequency: FloatArray, spin_frequency: Flo
 @njit
 def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: FloatArray,
                   complex_compliance_by_frequency: Dict[str, ComplexArray],
-                  tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTerms]],
+                  tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
                   tidal_susceptibility: FloatArray, tidal_host_mass: float, tidal_scale: float,
                   max_tidal_l: int) -> Tuple[FloatArray, FloatArray, FloatArray, FloatArray, ComplexArray, FloatArray]:
     """ Collapses the tidal terms calculated by calculate_modes() combined with rheological information from the layer.

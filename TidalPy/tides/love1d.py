@@ -1,7 +1,5 @@
-import numpy as np
-
-from TidalPy.performance import njit
-from TidalPy.types import FloatArray
+from ..performance import njit
+from ..types import FloatArray
 
 
 @njit
@@ -95,10 +93,6 @@ def static_love_general(eff_rigidity_general: FloatArray, order_l: int = 2) -> F
     static_love = (3. / (2. * (order_l - 1))) * (1. / (1. + eff_rigidity_general))
     return static_love
 
-
-# The functions below could, in theory, be cached but with shear_modulus potentially being an array lru_cache does not
-#    work. Testing showed that a modified lru_cache is slower than just using njit (or the combination of the two).
-#    Also, the modified cache would cause nasty bugs if an array were changed.
 @njit
 def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float) -> FloatArray:
     """ Calculates the 2nd order effective rigidity

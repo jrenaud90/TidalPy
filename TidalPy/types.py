@@ -23,5 +23,6 @@ list_like = [list, tuple, set]
 # Type-annotation helpers
 FloatArray = Union[float, np.float, np.float64, np.ndarray]
 ComplexArray = Union[complex, np.complex, np.complex128, np.ndarray]
+NumArray = Union[FloatArray, ComplexArray]
 TupleNone = Union[tuple, NoneType]
 ArrayNone = Union[np.ndarray, NoneType]

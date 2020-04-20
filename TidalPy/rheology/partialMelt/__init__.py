@@ -1,6 +1,6 @@
-from ...utilities.model_utils import find_all_models, build_model_default_inputs
-from .defaults import partial_melt_defaults
 from . import melting_models as partial_melting_models
+from .defaults import partial_melt_defaults
+from ...utilities.model_utils import find_all_models, build_model_default_inputs
 
 known_models, known_model_const_args, known_model_live_args = find_all_models(partial_melting_models)
 

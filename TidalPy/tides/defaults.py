@@ -4,4 +4,3 @@ tide_defaults = {
     'obliquity_tides_on': True,
     'use_planet_params_for_love_calc': False
 }
-

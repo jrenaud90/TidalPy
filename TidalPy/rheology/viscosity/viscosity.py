@@ -1,11 +1,9 @@
-from typing import TYPE_CHECKING
-
 import numpy as np
 
-from ...exceptions import ImproperAttributeHandling, AttributeNotSetError, IncorrectAttributeType
-from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
+from ...exceptions import ImproperAttributeHandling
+from ...utilities.model import LayerModelHolder
 
 
 class ViscosityClass(LayerModelHolder):
@@ -33,7 +31,7 @@ class ViscosityClass(LayerModelHolder):
             Viscosity of the layer [Pa s]
         """
 
-        viscosity = self.func(*self.live_inputs, *self.inputs)
+        viscosity = self.func_array(*self.live_inputs, *self.inputs)
         self._viscosity = viscosity
 
         return viscosity
@@ -49,7 +47,7 @@ class ViscosityClass(LayerModelHolder):
 
     # Outerscope references
     @property
-    def temperature(self) -> np.ndarray:
+    def temperature(self):
         return self.layer.temperature
 
     @temperature.setter
@@ -57,7 +55,7 @@ class ViscosityClass(LayerModelHolder):
         raise ImproperAttributeHandling
 
     @property
-    def pressure(self) -> np.ndarray:
+    def pressure(self):
         # Pressure is often turned off in various model runs, so it may not be set. If that is the case let's make sure
         #    that zeros are provided.
         _pressure = self.layer.pressure

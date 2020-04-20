@@ -1,17 +1,50 @@
-from typing import TYPE_CHECKING, Tuple
+from typing import Tuple
 
 import numpy as np
 
-from ...exceptions import BadValueError, ImproperAttributeHandling, AttributeNotSetError, IncorrectAttributeType
-from ...performance import njit
-from ...utilities.model import LayerModelHolder
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import partial_melt_defaults
+from ...exceptions import BadValueError, ImproperAttributeHandling
+from ...performance import njit
+from ...types import FloatArray
+from ...utilities.model import LayerModelHolder
 
 
 @njit
-def calculate_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: float):
-    """ Calculates the partial melt volume fraction based on the material's solidus and liquidus
+def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float) -> float:
+    """ Calculates the partial melt volume fraction based on the material's solidus and liquidus - NonArray Only
+
+    Parameters
+    ----------
+    temperature : float
+        Temperature of the layer or material [K]
+    solidus : float
+        Solidus temperature of the material [K]
+    liquidus : float
+        Liquidus temperature of the material [K]
+
+    Returns
+    -------
+    partial_melt_volume_frac : float
+        Volumetric Melt Fraction [m3 m-3]
+    """
+
+    if solidus >= liquidus:
+        raise BadValueError('Solidus temperature can not be larger to equal to the liquidus temperature.')
+
+    partial_melt_volume_frac = (temperature - solidus) / (liquidus - solidus)
+
+    # Check for over/under-shoots
+    if partial_melt_volume_frac < 0.:
+        partial_melt_volume_frac = 0.
+    elif partial_melt_volume_frac > 1.:
+        partial_melt_volume_frac = 1.
+
+    return partial_melt_volume_frac
+
+@njit
+def calculate_melt_fraction_array(temperature: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
+    """ Calculates the partial melt volume fraction based on the material's solidus and liquidus - Arrays Only
 
     Parameters
     ----------
@@ -40,12 +73,12 @@ def calculate_melt_fraction(temperature: np.ndarray, solidus: float, liquidus: f
     return partial_melt_volume_frac
 
 @njit
-def calculate_temperature_frommelt(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
-    """ Calculates the temperature from the volumetric melt fraction
+def calculate_temperature_frommelt(melt_frac: float, solidus: float, liquidus: float) -> float:
+    """ Calculates the temperature from the volumetric melt fraction - NonArray Only
 
     Parameters
     ----------
-    melt_frac : FloatArray
+    melt_frac : float
         Volumetric Melt Fraction [m3 m-3]
     solidus : float
         Material/Layer solidus temperature [K]
@@ -54,7 +87,37 @@ def calculate_temperature_frommelt(melt_frac: np.ndarray, solidus: float, liquid
 
     Returns
     -------
-    temp_at_melt : FloatArray
+    temp_at_melt : float
+        Temperature at melt fraction [K]
+
+    """
+
+    # Check for over/under-shoots
+    if melt_frac < 0.:
+        melt_frac = 0.
+    elif melt_frac > 1.:
+        melt_frac = 1.
+
+    temp_at_melt = melt_frac * (liquidus - solidus) + solidus
+
+    return temp_at_melt
+
+@njit
+def calculate_temperature_frommelt_array(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
+    """ Calculates the temperature from the volumetric melt fraction - Arrays Only
+
+    Parameters
+    ----------
+    melt_frac : np.ndarray
+        Volumetric Melt Fraction [m3 m-3]
+    solidus : float
+        Material/Layer solidus temperature [K]
+    liquidus : float
+        Material/Layer liquidus temperature [K]
+
+    Returns
+    -------
+    temp_at_melt : np.ndarray
         Temperature at melt fraction [K]
 
     """
@@ -120,8 +183,8 @@ class PartialMelt(LayerModelHolder):
         """
 
         if self.use_partial_melt:
-            melt_fraction = calculate_melt_fraction(self.temperature, self.solidus, self.liquidus)
-            postmelt_viscosity, postmelt_shear_modulus = self.func(melt_fraction, *self.live_inputs, *self.inputs)
+            melt_fraction = calculate_melt_fraction_array(self.temperature, self.solidus, self.liquidus)
+            postmelt_viscosity, postmelt_shear_modulus = self.func_array(melt_fraction, *self.live_inputs, *self.inputs)
         else:
             melt_fraction = np.zeros_like(self.temperature)
             postmelt_viscosity, postmelt_shear_modulus = self.premelt_viscosity, self.premelt_shear
@@ -133,12 +196,21 @@ class PartialMelt(LayerModelHolder):
 
         return melt_fraction, postmelt_viscosity, postmelt_shear_modulus
 
-    # Wrappers for user convenience
-    def calculate_melt_fraction(self, temperature: np.ndarray):
-        return calculate_melt_fraction(temperature, self.solidus, self.liquidus)
 
-    def calculate_temperature_frommelt(self, melt_fraction: np.ndarray):
-        return calculate_temperature_frommelt(melt_fraction, self.solidus, self.liquidus)
+    # Wrappers for user convenience
+    def calculate_melt_fraction(self, temperature: FloatArray) -> FloatArray:
+
+        if type(temperature) is np.ndarray:
+            return calculate_melt_fraction_array(temperature, self.solidus, self.liquidus)
+        else:
+            return calculate_melt_fraction(temperature, self.solidus, self.liquidus)
+
+    def calculate_temperature_frommelt(self, melt_fraction: FloatArray) -> FloatArray:
+
+        if type(melt_fraction) is np.ndarray:
+            return calculate_temperature_frommelt_array(melt_fraction, self.solidus, self.liquidus)
+        else:
+            return calculate_temperature_frommelt(melt_fraction, self.solidus, self.liquidus)
 
 
     # State properties
@@ -174,7 +246,8 @@ class PartialMelt(LayerModelHolder):
     def melt_fraction(self, value):
         raise ImproperAttributeHandling
 
-    # Outerscope properties
+
+    # Outer-scope properties
     @property
     def temperature(self):
         return self.layer.temperature

@@ -38,6 +38,15 @@ class ModelHolder(ConfigHolder):
 
         # Attempt to find the model's function information
         self.func = None
+        # Some functions can support arrays and floats interchangeably. Others require separate functions.
+        #    These functions should be stored separately.
+        self.func_array = None
+        # If a separately defined function was defined then set this flag to True.
+        self.func_array_defined = False
+
+        # Functions may have separately inputs. These are stored as inputs or live inputs:
+        #    inputs: tuple of constants passed to the self.func
+        #    live_inputs: tuple of inputs that may change after TidalPy is loaded (e.g., the viscosity of a layer)
         self.get_live_args = None
         self.live_inputs = None
         self.inputs = None
@@ -75,6 +84,13 @@ class ModelHolder(ConfigHolder):
         """
         try:
             self.func = self.known_models[self.model]
+            if self.model + '_array' in self.known_models:
+                self.func_array = self.known_models[self.model + '_array']
+                self.func_array_defined = True
+            else:
+                # No separate array function found. Try to use the regular float version
+                self.func_array = self.func
+                self.func_array_defined = False
             self._constant_arg_names = self.known_model_const_args[self.model]
             self._live_arg_names = self.known_model_live_args[self.model]
         except KeyError:

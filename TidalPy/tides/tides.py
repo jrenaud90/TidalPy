@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING, Dict, Tuple
 import numpy as np
 
 from .defaults import tide_defaults
-from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, calculate_terms, mode_collapse,\
-    FreqSig, DissipTerms
+from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, calculate_terms, mode_collapse, \
+    FreqSig, DissipTermsArray
+from .love1d import complex_love_general, effective_rigidity_general
 from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperAttributeHandling, ParameterValueError,
                           OuterscopeAttributeSetError, ConfigAttributeChangeError, FailedForcedStateUpdate,
                           BadAttributeValueError)
 from ..types import FloatArray, ComplexArray
 from ..utilities.classes import WorldConfigHolder
-from .love1d import complex_love_general, effective_rigidity_general
 
 if TYPE_CHECKING:
     from ..structures import TidalWorld
@@ -36,6 +36,24 @@ class Tides(WorldConfigHolder):
     def __init__(self, world: 'TidalWorld', store_config_in_world: bool = True):
 
         super().__init__(world, store_config_in_world=store_config_in_world)
+
+        # Flags
+        self._thermal_set = False
+        self._orbit_set = False
+
+        # State properties
+        self._tidal_susceptibility = None
+        self._tidal_susceptibility_reduced = None
+        self._unique_tidal_frequencies = None
+        self._tidal_terms_by_frequency = None
+        self._tidal_heating_by_layer = None
+        self._negative_imk_by_layer = None
+        self._tidal_heating_global = None
+        self._negative_imk_global = None
+        self._dUdM = None
+        self._dUdw = None
+        self._dUdO = None
+        self._spin_rate_derivative = None
 
         # Model setup
         self._eccentricity_truncation_lvl = self.config['eccentricity_truncation_lvl']
@@ -83,24 +101,6 @@ class Tides(WorldConfigHolder):
             planet_density = self.world.density_bulk
             self._planet_tidal_inputs =  (planet_radius, planet_density, planet_gravity)
 
-        # Flags
-        self._thermal_set = False
-        self._orbit_set = False
-
-        # State properties
-        self._tidal_susceptibility = None
-        self._tidal_susceptibility_reduced = None
-        self._unique_tidal_frequencies = None
-        self._tidal_terms_by_frequency = None
-        self._tidal_heating_by_layer = None
-        self._negative_imk_by_layer = None
-        self._tidal_heating_global = None
-        self._negative_imk_global = None
-        self._dUdM = None
-        self._dUdw = None
-        self._dUdO = None
-        self._spin_rate_derivative = None
-
     def initialize_tides(self):
         """ Initialize various tidal parameters once a tidal host is connected to the target body.
         """
@@ -118,7 +118,7 @@ class Tides(WorldConfigHolder):
 
 
     def orbital_change(self, force_update: bool = True) -> \
-            Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTerms]]]:
+            Tuple[Dict[FreqSig, np.ndarray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
         This will also calculate new unique tidal frequencies which must then be digested by the rheological model
@@ -134,10 +134,10 @@ class Tides(WorldConfigHolder):
 
         Returns
         -------
-        unique_tidal_frequencies : Dict[FreqSig, FloatArray]
+        unique_tidal_frequencies : Dict[FreqSig, np.ndarray]
             Each unique frequency stored as a signature (orbital motion and spin-rate coeffs), and the calculated frequency
                 (combo of orbital motion and spin-rate) [rad s-1]
-        tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTerms]]
+        tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTermsArray]]
             Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
                 unique frequency.
 
@@ -181,7 +181,7 @@ class Tides(WorldConfigHolder):
             if force_update:
                 raise FailedForcedStateUpdate
 
-    def collapse_modes(self, force_update: bool = True) -> Tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+    def collapse_modes(self, force_update: bool = True) -> DissipTermsArray:
         """ Calculate Global Love number based on current thermal state.
 
         Requires a prior orbital_change() call as unique frequencies are used to calculate the complex compliances
@@ -195,16 +195,16 @@ class Tides(WorldConfigHolder):
 
         Returns
         -------
-        tidal_heating : FloatArray
+        tidal_heating : np.ndarray
             Tidal heating [W]
             This could potentially restricted to a layer or for an entire planet.
-        dUdM : FloatArray
+        dUdM : np.ndarray
             Tidal potential derivative with respect to the mean anomaly [J kg-1 radians-1]
             This could potentially restricted to a layer or for an entire planet.
-        dUdw : FloatArray
+        dUdw : np.ndarray
             Tidal potential derivative with respect to the pericentre [J kg-1 radians-1]
             This could potentially restricted to a layer or for an entire planet.
-        dUdO : FloatArray
+        dUdO : np.ndarray
             Tidal potential derivative with respect to the planet's node [J kg-1 radians-1]
             This could potentially restricted to a layer or for an entire planet.
 
@@ -225,9 +225,7 @@ class Tides(WorldConfigHolder):
                 # Update did not help.
                 all_values_present = False
 
-
         if all_values_present:
-
             nonNone_love_number = list()
             nonNone_neg_imk = list()
             nonNone_tidal_heating = list()
@@ -321,11 +319,16 @@ class Tides(WorldConfigHolder):
             if force_update:
                 raise FailedForcedStateUpdate
 
-    def set_spin_derivative(self):
+    def set_spin_derivative(self) -> np.ndarray:
         """ Calculate spin-rate derivative based on current state
 
         Requires a prior thermal_change() call as dUdO must be set before spin-rate derivative can be calculated
             is called.
+
+        Returns
+        -------
+        spin_rate_derivative : np.ndarray
+            Spin-rate derivative for the planet [rads s-2]
         """
 
         if self.dUdO is None:
@@ -337,7 +340,8 @@ class Tides(WorldConfigHolder):
         return spin_rate_derivative
 
     @staticmethod
-    def calculate_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
+    def calculate_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) \
+            -> FloatArray:
         """ Calculate the tidal susceptibility for a target object orbiting
 
         Wrapper for dissipation.py/calc_tidal_susceptibility
@@ -460,7 +464,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_susceptibility_reduced(self) -> FloatArray:
+    def tidal_susceptibility_reduced(self) -> np.ndarray:
         return self._tidal_susceptibility_reduced
 
     @tidal_susceptibility_reduced.setter
@@ -468,7 +472,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_susceptibility(self) -> FloatArray:
+    def tidal_susceptibility(self) -> np.ndarray:
         return self._tidal_susceptibility
 
     @tidal_susceptibility.setter
@@ -476,7 +480,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def unique_tidal_frequencies(self) -> Dict[FreqSig, FloatArray]:
+    def unique_tidal_frequencies(self) -> Dict[FreqSig, np.ndarray]:
         return self._unique_tidal_frequencies
 
     @unique_tidal_frequencies.setter
@@ -484,7 +488,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_terms_by_frequency(self) -> Dict[FreqSig, Dict[int, DissipTerms]]:
+    def tidal_terms_by_frequency(self) -> Dict[FreqSig, Dict[int, DissipTermsArray]]:
         return self._tidal_terms_by_frequency
 
     @tidal_terms_by_frequency.setter
@@ -492,7 +496,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_heating_by_layer(self) -> Dict[ThermalLayer, FloatArray]:
+    def tidal_heating_by_layer(self) -> Dict['ThermalLayer', np.ndarray]:
         return self._tidal_heating_by_layer
 
     @tidal_heating_by_layer.setter
@@ -500,7 +504,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def negative_imk_by_layer(self) -> Dict[ThermalLayer, FloatArray]:
+    def negative_imk_by_layer(self) -> Dict['ThermalLayer', np.ndarray]:
         return self._negative_imk_by_layer
 
     @negative_imk_by_layer.setter
@@ -508,7 +512,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def tidal_heating_global(self) -> FloatArray:
+    def tidal_heating_global(self) -> np.ndarray:
         return self._tidal_heating_global
 
     @tidal_heating_global.setter
@@ -516,7 +520,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def negative_imk_global(self) -> FloatArray:
+    def negative_imk_global(self) -> np.ndarray:
         return self._negative_imk_global
 
     @negative_imk_global.setter
@@ -524,7 +528,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def dUdM(self) -> FloatArray:
+    def dUdM(self) -> np.ndarray:
         return self._dUdM
 
     @dUdM.setter
@@ -532,7 +536,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def dUdw(self) -> FloatArray:
+    def dUdw(self) -> np.ndarray:
         return self._dUdw
 
     @dUdw.setter
@@ -540,7 +544,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def dUdO(self) -> FloatArray:
+    def dUdO(self) -> np.ndarray:
         return self._dUdO
 
     @dUdO.setter
@@ -548,7 +552,7 @@ class Tides(WorldConfigHolder):
         raise ImproperAttributeHandling
 
     @property
-    def spin_rate_derivative(self) -> FloatArray:
+    def spin_rate_derivative(self) -> np.ndarray:
         return self._spin_rate_derivative
 
     @spin_rate_derivative.setter
@@ -558,7 +562,7 @@ class Tides(WorldConfigHolder):
 
     # Outer-scope Properties
     @property
-    def semi_major_axis(self) -> FloatArray:
+    def semi_major_axis(self):
         return self.world.semi_major_axis
 
     @semi_major_axis.setter
@@ -566,7 +570,7 @@ class Tides(WorldConfigHolder):
         raise OuterscopeAttributeSetError
 
     @property
-    def orbital_frequency(self) -> FloatArray:
+    def orbital_frequency(self):
         return self.world.orbital_frequency
 
     @orbital_frequency.setter
@@ -574,7 +578,7 @@ class Tides(WorldConfigHolder):
         raise OuterscopeAttributeSetError
 
     @property
-    def spin_frequency(self) -> FloatArray:
+    def spin_frequency(self):
         return self.world.spin_frequency
 
     @spin_frequency.setter
@@ -582,7 +586,7 @@ class Tides(WorldConfigHolder):
         raise OuterscopeAttributeSetError
 
     @property
-    def eccentricity(self) -> FloatArray:
+    def eccentricity(self):
         return self.world.eccentricity
 
     @eccentricity.setter
@@ -609,7 +613,7 @@ class Tides(WorldConfigHolder):
         raise OuterscopeAttributeSetError
 
     @property
-    def radius(self) -> float:
+    def radius(self):
         return self.world.radius
 
     @radius.setter
@@ -617,7 +621,7 @@ class Tides(WorldConfigHolder):
         raise OuterscopeAttributeSetError
 
     @property
-    def moi(self) -> float:
+    def moi(self):
         return self.world.moi
 
     @moi.setter

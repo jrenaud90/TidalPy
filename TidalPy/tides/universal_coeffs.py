@@ -10,7 +10,7 @@ from ..exceptions import TidalPyValueException
 from ..performance import njit
 
 @njit
-def get_universal_coeffs(order_l):
+def get_universal_coeffs(order_l: int):
 
     # TODO: Right now this is defined inside the function to ensure that it is compiled correctly by njit - if we make a typed dict it may be possible to pull it outside the function for better optimization
     universal_coeffs_byorderl = (
