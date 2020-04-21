@@ -49,6 +49,16 @@ class Rheology(LayerConfigHolder):
             f"    Partial Melting:    {self.partial_melting_model.model}\n"
             f"    Complex Compliance: {self.complex_compliance_model.model}", level='info')
 
+    def clear_state(self):
+
+        super().clear_state()
+
+        # Clear the state of all inner models
+        for model in [self.viscosity_model, self.liquid_viscosity_model,
+                      self.partial_melting_model, self.complex_compliance_model]:
+            model.clear_state()
+
+
     def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None, called_by_layer: bool = False):
         """ Set the rheology state and recalculate any parameters that may be affected.
 
@@ -79,9 +89,15 @@ class Rheology(LayerConfigHolder):
         # The shape of the viscosity and shear modulus must match the planet's global shape parameter (visco/shear.shape
         #    for each layer).
         if viscosity is not None:
-            viscosity = reshape_help(viscosity, self.world.global_shape, f'{self}.set_state.viscosity')
+            new_shape, viscosity = reshape_help(viscosity, self.world.global_shape,
+                                                f'{self}.set_state.viscosity')
+            if new_shape:
+                self.world.change_shape(new_shape)
         if shear_modulus is not None:
-            shear_modulus = reshape_help(shear_modulus, self.world.global_shape, f'{self}.set_state.shear_modulus')
+            new_shape, shear_modulus = reshape_help(shear_modulus, self.world.global_shape,
+                                                    f'{self}.set_state.shear_modulus')
+            if new_shape:
+                self.world.change_shape(new_shape)
 
         # Check for unusual values
         if debug_mode:
@@ -101,7 +117,7 @@ class Rheology(LayerConfigHolder):
             self.partial_melting_model._postmelt_viscosity = viscosity
         if shear_modulus is not None:
             self.partial_melting_model._postmelt_shear_modulus = shear_modulus
-            self.partial_melting_model._postmelt_compliance = shear_modulus**(-1)
+            self.partial_melting_model._postmelt_compliance = 1. / shear_modulus
 
         # A change to the viscosity or shear modulus will change the complex compliance so anything that depends on
         #     that will need to be updated as well.

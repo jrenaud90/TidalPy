@@ -203,6 +203,20 @@ class OrbitBase(TidalPyClass):
         if isinstance(self.host, TidalWorld):
             self.calculate_insolation(self.host)
 
+    def clear_state(self):
+
+        if debug_mode:
+            log(f'State cleared for {self}', level='debug')
+
+        # Clear state properties
+        # TODO:
+
+        # Clear planet properties
+        for world in self:
+            # We are 'preserving' the orbit here because all of those properties should have just been reset by the
+            #    above section.
+            world.clear_state(preserve_orbit=True)
+
     def find_planet_pointer(self, planet_reference: PlanetRefType) -> WorldBase:
         """ Find the object pointer to a planet or object stored in this orbit
 

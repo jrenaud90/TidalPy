@@ -32,6 +32,14 @@ class ComplexCompliance(LayerModelHolder):
         self.rheology_class = rheology_class
         self._complex_compliances = None
 
+    def clear_state(self):
+        """ Clears the current state of the class without destroying data set by initialization.
+        """
+
+        super().clear_state()
+
+        self._complex_compliances = None
+
     def _calculate(self) -> Dict[FreqSig, np.ndarray]:
         """ Calculate the complex compliance for forcing frequency mode the planet is experiencing.
 

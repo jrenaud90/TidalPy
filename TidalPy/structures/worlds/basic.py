@@ -94,6 +94,8 @@ class WorldBase(PhysicalObjSpherical):
     def reinit(self):
         """ Re-initialize the basic world based on changed to its configuration."""
 
+        super().reinit()
+
         # Pull out some basic information from the config
         if self.name is None and 'name' in self.config:
             self.name = self.config['name']
@@ -103,6 +105,25 @@ class WorldBase(PhysicalObjSpherical):
 
         if self.orbit is not None:
             self.update_orbit()
+
+    def clear_state(self, preserve_orbit: bool = False):
+
+        super().clear_state()
+
+        # Clear world-specific state properties
+        self._spin_freq = None
+        self._obliquity = None
+        self._time = None
+        self._surf_temperature = None
+        self._int2surface_heating = None
+
+        if not preserve_orbit and self.orbit is not None:
+            # Purge orbital properties for this world from the Orbit class.
+            self.orbit.set_orbit(self, purge_data=True)
+
+        # Clear the global shape now that all state data has been cleared
+        #     (probably the reason this function was called in the first place)
+        self._global_shape = None
 
     def config_update(self):
         """ Config update changes various state parameters of an object based on the self.config
@@ -121,7 +142,7 @@ class WorldBase(PhysicalObjSpherical):
         del thickness
         super().set_geometry(radius, mass, thickness=radius)
 
-    def update_shape(self, new_shape: Tuple[int, ...], force_override: bool = False):
+    def change_shape(self, new_shape: Tuple[int, ...], force_override: bool = False):
         """ Update the global shape parameter
 
         Global shape parameter is used to set the shape of arrays throughout the planet.
@@ -137,7 +158,7 @@ class WorldBase(PhysicalObjSpherical):
         """
 
         if self.orbit is not None:
-            self.orbit.update_shape(new_shape, set_by_planet=self)
+            self.orbit.change_shape(new_shape, set_by_planet=self)
 
         if self._global_shape is None:
             self._global_shape = new_shape
@@ -224,7 +245,7 @@ class WorldBase(PhysicalObjSpherical):
             new_shape, planet_param = \
                 reshape_help(planet_param, self.global_shape, call_locale=f'{self}.set_state.{planet_param_name}')
             if new_shape:
-                self.update_shape(new_shape)
+                self.change_shape(new_shape)
 
             setattr(self, planet_param_name, planet_param)
 
@@ -325,7 +346,7 @@ class WorldBase(PhysicalObjSpherical):
         if self.orbit is None:
             new_shape, new_time = reshape_help(new_time, self.global_shape, call_locale=f'{self}.time.setter')
             if new_shape:
-                self.update_shape(new_shape)
+                self.change_shape(new_shape)
 
             if debug_mode:
                 if np.any(abs(new_time)) > 1.e6:
@@ -349,9 +370,10 @@ class WorldBase(PhysicalObjSpherical):
         new_spin_frequency: np.ndarray
             New spin frequency (inverse of period) [rads s-1]
         """
-        new_shape, new_spin_frequency = reshape_help(new_spin_frequency, self.global_shape, call_locale=f'{self}.time.setter')
+        new_shape, new_spin_frequency = reshape_help(new_spin_frequency, self.global_shape,
+                                                     call_locale=f'{self}.spin_freq.setter')
         if new_shape:
-            self.update_shape(new_shape)
+            self.change_shape(new_shape)
 
         if debug_mode:
             if np.any(np.abs(new_spin_frequency)) > 1.e-3:
@@ -412,7 +434,8 @@ class WorldBase(PhysicalObjSpherical):
 
     @obliquity.setter
     def obliquity(self, new_obliquity: FloatArray):
-        new_shape, new_obliquity = reshape_help(new_obliquity, self.global_shape, call_locale=f'{self}.obliquity.setter')
+        new_shape, new_obliquity = reshape_help(new_obliquity, self.global_shape,
+                                                call_locale=f'{self}.obliquity.setter')
         if new_shape:
             self.change_shape(new_shape)
 
@@ -456,9 +479,10 @@ class WorldBase(PhysicalObjSpherical):
         if self.orbit is None:
             raise AttributeNotSetError('Can not set semi-major axis until an Orbit class has been applied to the planet.')
 
-        new_shape, new_semi_major_axis = reshape_help(new_semi_major_axis, self.global_shape, call_locale=f'{self}.semi_major_axis.setter' )
+        new_shape, new_semi_major_axis = reshape_help(new_semi_major_axis, self.global_shape,
+                                                      call_locale=f'{self}.semi_major_axis.setter' )
         if new_shape:
-            self.update_shape(new_shape)
+            self.change_shape(new_shape)
 
         self.orbit.set_semi_major_axis(self.orbit_location, new_semi_major_axis, set_by_planet=True)
         self.update_orbit()
@@ -473,9 +497,10 @@ class WorldBase(PhysicalObjSpherical):
         if self.orbit is None:
             raise AttributeNotSetError('Can not set orbital frequency (or period) until an Orbit class has been applied to the planet.')
 
-        new_shape, new_orbital_frequency = reshape_help(new_orbital_frequency, self.global_shape, call_locale=f'{self}.orbital_frequency.setter')
+        new_shape, new_orbital_frequency = reshape_help(new_orbital_frequency, self.global_shape,
+                                                        call_locale=f'{self}.orbital_frequency.setter')
         if new_shape:
-            self.update_shape(new_shape)
+            self.change_shape(new_shape)
 
         self.orbit.set_orbital_freq(self.orbit_location, new_orbital_frequency, set_by_planet=True)
         self.update_orbit()
@@ -490,9 +515,10 @@ class WorldBase(PhysicalObjSpherical):
         if self.orbit is None:
             raise AttributeNotSetError('Can not set eccentricity until an Orbit class has been applied to the planet.')
 
-        new_shape, new_eccentricity = reshape_help(new_eccentricity, self.global_shape, call_locale=f'{self}.eccentricity.setter')
+        new_shape, new_eccentricity = reshape_help(new_eccentricity, self.global_shape,
+                                                   call_locale=f'{self}.eccentricity.setter')
         if new_shape:
-            self.update_shape(new_shape)
+            self.change_shape(new_shape)
 
         self.orbit.set_eccentricity(self.orbit_location, new_eccentricity, set_by_planet=True)
         self.update_orbit()

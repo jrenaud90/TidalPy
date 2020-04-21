@@ -105,6 +105,9 @@ class ThermalLayer(PhysicalObjSpherical):
         else:
             raise UnknownTidalPyConfigValue
 
+        # Set up a pressure that will persist if the layer's state is cleared
+        self._persistent_pressure = self.pressure
+
         # Setup Physical Layer Geometry
         self.material_name = self.config['material']
 
@@ -165,6 +168,25 @@ class ThermalLayer(PhysicalObjSpherical):
         if self.is_tidal:
             self.heat_sources.append(lambda: self.tidal_heating)
 
+    def clear_state(self, clear_pressure: bool = False):
+
+        super().clear_state()
+
+        # Clear all state properties for the layer
+        self._pressure = None
+        self._temperature = None
+        # State Derivatives
+        self._deriv_temperature = None
+
+        if not clear_pressure:
+            # Keep the old pressure so it does not have to be reinterpolated
+            self._pressure = self._persistent_pressure
+
+        # Clear the state of all inner-scope classes
+        for model in [self.rheology, self.radiogenics, self.cooling_model]:
+            model.clear_state()
+
+
     def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None):
         """ Set the layer's temperature and update all related properties.
 
@@ -178,7 +200,11 @@ class ThermalLayer(PhysicalObjSpherical):
         """
 
         if temperature is not None:
-            temperature = reshape_help(temperature, self.world.global_shape)
+            new_shape, temperature = reshape_help(temperature, self.world.global_shape,
+                                                  call_locale=f'{self}.set_state.temperature')
+            if new_shape:
+                self.world.change_shape(new_shape)
+
             self._temperature = temperature
 
             # Set new material properties based on BurnMan Interpolation
@@ -187,7 +213,10 @@ class ThermalLayer(PhysicalObjSpherical):
             self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
 
         if pressure is not None:
-            pressure = reshape_help(pressure, self.world.global_shape)
+            new_shape, pressure = reshape_help(pressure, self.world.global_shape,
+                                               call_locale=f'{self}.set_state.pressure')
+            if new_shape:
+                self.world.change_shape(new_shape)
             self._pressure = pressure
 
         # Temperature and pressure will change the strength of the layer and all of its dependencies

@@ -52,6 +52,16 @@ class ConfigHolder(TidalPyClass):
         # Install and merge the replacement config with the default config
         self.update_config()
 
+    def clear_state(self):
+        """ Clear the state of the class by setting state properties to None
+
+        Purposefully avoid clearing things set during initialization
+        """
+
+        # Nothing to clear in the parent class, but record that a clear call was made
+        if debug_mode:
+            log(f'State cleared for {self}', level='debug')
+
     def replace_config(self, replacement_config: dict, force_default_merge: bool = False):
         """ Replaces the current configuration dictionary with a user provided one
 

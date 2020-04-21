@@ -36,6 +36,16 @@ class CoolingModel(LayerModelHolder):
         # Report model building
         log(f'Cooling model build in {self.layer}: {self.model}.')
 
+    def clear_state(self):
+
+        super().clear_state()
+
+        self._cooling = None
+        self._cooling_flux = None
+        self._boundary_layer_thickness = None
+        self._rayleigh = None
+        self._nusselt = None
+
     def _calculate(self) -> CoolingOutputTypeArray:
         """ Calculate layer cooling based on the layer's state properties.
 

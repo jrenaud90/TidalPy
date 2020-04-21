@@ -115,6 +115,12 @@ class Radiogenics(LayerModelHolder):
         # Finish loading the model functions and inputs
         self.build_inputs()
 
+    def clear_state(self):
+
+        super().clear_state()
+
+        self._heating = None
+
     def _calculate(self) -> np.ndarray:
         """ Calculates the radiogenic heating of layer in which the radiogenic class is installed.
 

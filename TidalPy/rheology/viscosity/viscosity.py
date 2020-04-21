@@ -22,6 +22,12 @@ class ViscosityClass(LayerModelHolder):
         # State properties
         self._viscosity = None
 
+    def clear_state(self):
+
+        super().clear_state()
+
+        self._viscosity = None
+
     def _calculate(self) -> np.ndarray:
         """ Wrapper for the viscosity calculator
 

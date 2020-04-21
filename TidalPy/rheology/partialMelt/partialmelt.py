@@ -166,6 +166,17 @@ class PartialMelt(LayerModelHolder):
         self._postmelt_shear_modulus = None
         self._postmelt_compliance = None
 
+    def clear_state(self):
+        """ Clears the current state of the class without destroying data set by initialization.
+        """
+
+        super().clear_state()
+
+        self._melt_fraction = None
+        self._postmelt_viscosity = None
+        self._postmelt_shear_modulus = None
+        self._postmelt_compliance = None
+
     def _calculate(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """ Wrapper for the partial melting function.
 
