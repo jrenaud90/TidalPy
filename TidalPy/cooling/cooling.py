@@ -5,7 +5,7 @@ from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
 from ..exceptions import MissingAttributeError, ImproperAttributeHandling, OuterscopeAttributeSetError
 from ..initialize import log
-from ..utilities.model import LayerModelHolder
+from ..utilities.classes.model import LayerModelHolder
 
 
 class CoolingModel(LayerModelHolder):

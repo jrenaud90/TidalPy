@@ -1,10 +1,10 @@
+import copy
 from types import ModuleType
 from typing import Callable, Tuple, Dict, Union, Any
-import copy
 from warnings import warn
 
-from .dictionary_utils import nested_get
 from .functional_utils import is_function, parse_model_docstring
+from ..config.dictionary_utils import nested_get
 
 
 def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()) -> \

@@ -1,7 +1,7 @@
 import numpy as np
 
-from ..performance import njit
-from ..types import float_eps
+from ..utilities.performance.numba import njit
+from ..utilities.types import float_eps
 
 
 # Duel Dissipation model's spin-rate derivative is the same as the single dissipation model

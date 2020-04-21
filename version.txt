@@ -10,4 +10,4 @@
 # 1.2.0rc1    # Release Candidate
 # 1.2.X       # Final Release (X are bug fixes and patches that do not fall on the regular release cycle)
 
-version = 0.2.0dev20
+version = 0.2.0dev21

@@ -1,12 +1,12 @@
 from inspect import isfunction
 from typing import List, Tuple, Callable
 
-from numba.targets.registry import CPUTarget, CPUDispatcher
-from numba.array_analysis import MAP_TYPES
 from numba import njit as real_njit
+from numba.array_analysis import MAP_TYPES
+from numba.targets.registry import CPUTarget, CPUDispatcher
 
-from TidalPy.exceptions import ModelException
-from ..performance import njit as tpy_njit
+from ...performance.numba import njit as tpy_njit
+from ....exceptions import ModelException
 
 
 def is_function(potential_func: Callable, ignore_njit: bool = True) -> bool:

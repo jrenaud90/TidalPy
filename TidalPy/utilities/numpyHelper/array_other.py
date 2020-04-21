@@ -1,10 +1,10 @@
-from typing import Union, Dict
+from typing import Dict
 
 import numpy as np
 
-from TidalPy.exceptions import BadArrayShape
-from ..performance import njit
-from ..types import FloatArray
+from ..performance.numba import njit
+from ..types import FloatArray, NumericalType
+from ...exceptions import BadArrayShape
 
 
 def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool = False,
@@ -63,16 +63,25 @@ def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool =
 
 
 @njit
-def find_nearest(array: np.ndarray, value: Union[int, float]):
-    """ Returns the index of the value closest to a provided value in an array
+def find_nearest(array: np.ndarray, value: NumericalType):
+    """ Returns the index of the value closest to a provided value in a numpy array.
 
-    :param array: <ndarray> Array to search
-    :param value: <float or int> value to search for
-    :return:      <int> index of nearest value
+    Parameters
+    ----------
+    array : np.ndarray
+        Numpy array to search in
+    value : NumericalType
+        Value to search for within array
+
+    Returns
+    -------
+    index: int
+        Index of nearest value
     """
 
     array = np.asarray(array)
-    return (np.abs(array - value)).argmin()
+    index = (np.abs(array - value)).argmin()
+    return index
 
 
 def value_np_cleanup(value):

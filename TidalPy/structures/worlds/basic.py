@@ -1,35 +1,23 @@
 from __future__ import annotations
 
-import copy
 import os
-from typing import List, TYPE_CHECKING, Tuple, Union
+from typing import TYPE_CHECKING, Tuple
 
-import burnman
-import dill
 import numpy as np
 from ...rheology.complexCompliance.compliance_models import fixed_q, fixed_q_array
-from ...types import FloatArray, ArrayNone
+from TidalPy.utilities.types import FloatArray
 
-from ...utilities.arrayHelp import reshape_help
-from ...types import NoneType
-from ...utilities.numpy_help import value_np_cleanup
+from ...utilities.numpyHelper import reshape_help
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
-from ... import debug_mode, use_disk, tidalpy_dir, __version__
+from ... import debug_mode, use_disk, tidalpy_dir
 from ...configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
-                              auto_save_planet_dill_to_rundir, auto_save_planet_dill_to_tidalpydir, overwrite_configs,
-                              overwrite_dills)
-from ...dynamics import spin_rate_derivative
-from ...exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError,
-                           IncompatibleModelError, IncorrectAttributeType, AttributeNotSetError, AttributeException,
+                               overwrite_configs)
+from ...exceptions import (ImproperAttributeHandling, UnusualRealValueError,
+                           IncorrectAttributeType, AttributeNotSetError, AttributeException,
                            IOException)
-from ...graphics.planet_plot import geotherm_plot
 from ...initialize import log
-from ...io import inner_save_dir
-from ...stellar.stellar import (efftemp_from_luminosity, equilibrium_insolation_functions, equilibrium_temperature,
-                                luminosity_from_efftemp, luminosity_from_mass)
-from ...utilities.dill_helper import dill_file_path
-from ...structures.layers import ThermalLayer
+from ...stellar.stellar import (equilibrium_insolation_functions, equilibrium_temperature)
 
 planet_config_loc = os.path.join(tidalpy_dir, 'planets', 'planet_configs')
 

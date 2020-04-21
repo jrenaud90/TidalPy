@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from TidalPy.tools.conversions import convert_to_hms
+from ...tools.timing import convert_to_hms
 
 
 def progress_bar(loop_limits: tuple, verbose: bool = True, poll_time: float = 1.5):

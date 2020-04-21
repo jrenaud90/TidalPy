@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
-from ..performance import njit
+from ..utilities.performance.numba import njit
 
 MIN_VISCOSITY = 1.
 MIN_THICKNESS = 50.

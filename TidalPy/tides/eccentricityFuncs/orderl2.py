@@ -1,12 +1,11 @@
 """ Eccentricity functions (squared) for various truncations of e at tidal order-l = 2
 """
 
-from typing import Tuple, Dict
+from typing import Dict
 
-import numpy as np
+from ...utilities.performance.numba import njit
+from ...utilities.types import FloatArray
 
-from ...performance import njit
-from ...types import FloatArray
 
 @njit
 def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:

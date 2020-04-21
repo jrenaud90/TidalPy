@@ -1,6 +1,6 @@
 import copy
 
-from ..constants import ppm, ppb
+from ..constants import ppm
 
 known_isotope_data = {
     'modern_day_chondritic': {

@@ -5,10 +5,9 @@ import warnings
 from datetime import datetime
 from typing import Union
 
-from .. import __version__, logging_level as global_logging_level, use_disk, verbose_level as global_verbose_level
-from ..io import unique_path
-from . import TidalPyClass
-
+from .io import unique_path
+from ..classes.base import TidalPyClass
+from ... import __version__, logging_level as global_logging_level, use_disk, verbose_level as global_verbose_level
 
 now = datetime.now()
 now_str = now.strftime('%x at %X')

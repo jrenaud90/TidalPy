@@ -9,9 +9,9 @@ from .viscosity import SolidViscosity, LiquidViscosity
 from .. import debug_mode
 from ..exceptions import MissingArgumentError, ArgumentException, OuterscopeAttributeSetError, UnusualRealValueError
 from ..initialize import log
-from ..types import FloatArray
-from ..utilities.arrayHelp import reshape_help
 from ..utilities.classes import LayerConfigHolder
+from ..utilities.numpyHelper import reshape_help
+from ..utilities.types import FloatArray
 
 if TYPE_CHECKING:
     from ..structures.layers import ThermalLayer

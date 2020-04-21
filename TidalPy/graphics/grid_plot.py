@@ -1,9 +1,7 @@
-import matplotlib.gridspec as gspec
-import matplotlib.pyplot as plt
-from matplotlib import colors
 import numpy as np
+from matplotlib import gridspec as gspec, pyplot as plt, colors
 
-from ..utilities.numpy_help import normalize_dict
+from ..utilities.numpyHelper.array_other import normalize_dict
 
 
 def success_grid_plot(success_by_rheo: dict, x: np.ndarray, y: np.ndarray,

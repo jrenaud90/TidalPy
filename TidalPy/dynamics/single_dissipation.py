@@ -1,8 +1,7 @@
 import numpy as np
-from scipy.constants import G
 
-from ..performance import njit
-from ..types import float_eps
+from ..utilities.performance.numba import njit
+from ..utilities.types import float_eps
 
 
 @njit

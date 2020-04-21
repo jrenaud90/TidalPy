@@ -6,7 +6,6 @@ import burnman
 import numpy as np
 
 from .basic import LayerBase
-from .defaults import layer_defaults
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import burnman_interpolation_N, burnman_interpolation_method
 from ...cooling import CoolingModel
@@ -14,10 +13,9 @@ from ...exceptions import (AttributeNotSetError, ImproperAttributeHandling, Inco
                            ParameterMissingError, UnknownTidalPyConfigValue, OuterscopeAttributeSetError)
 from ...radiogenics.radiogenics import Radiogenics
 from ...rheology import Rheology
-from ...structures.physical import PhysicalObjSpherical
-from ...types import NoneType, FloatArray
-from ...utilities.arrayHelp.shaper import reshape_help
-from ...utilities.numpy_help import find_nearest
+from TidalPy.utilities.types import NoneType, FloatArray
+from ...utilities.numpyHelper.array_shape import reshape_help
+from TidalPy.utilities.numpyHelper.array_other import find_nearest
 
 if TYPE_CHECKING:
     from ..worlds import TidalWorld

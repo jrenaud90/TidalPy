@@ -5,7 +5,7 @@ from typing import Tuple, List
 import numpy as np
 
 from TidalPy.initialize import log
-from TidalPy.io import inner_save_dir
+from TidalPy.utilities.io.io import inner_save_dir
 from .integration import ivp_integration
 
 

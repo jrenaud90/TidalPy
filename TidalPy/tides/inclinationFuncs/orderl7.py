@@ -5,8 +5,8 @@ from typing import Dict, Tuple
 
 import numpy as np
 
-from ...performance import njit
-from ...types import FloatArray
+from ...utilities.performance.numba import njit
+from ...utilities.types import FloatArray
 
 
 @njit
@@ -17,10 +17,10 @@ def calc_inclination_off(inclination: FloatArray) -> Dict[Tuple[int, int], Float
     ones_ = np.ones_like(inclination)
 
     inclination_results = {
-        (1, 3) : 4.785156250000000000000000 * ones_,
-        (3, 2) : 13953.51562500000000000000 * ones_,
-        (5, 1) : 27014006.25000000000000000 * ones_,
-        (7, 0) : 18261468225.00000000000000 * ones_,
+        (1, 3) : 4.78515625 * ones_,
+        (3, 2) : 13953.515625 * ones_,
+        (5, 1) : 27014006.25 * ones_,
+        (7, 0) : 18261468225. * ones_,
     }
 
     return inclination_results

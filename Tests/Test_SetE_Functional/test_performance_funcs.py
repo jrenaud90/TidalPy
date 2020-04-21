@@ -5,7 +5,7 @@ import numpy as np
 def test_find_factorial():
 
     # Test Load
-    from TidalPy.performance import find_factorial
+    from TidalPy.utilities.performance.numba import find_factorial
     assert type(find_factorial(1.)) in [float, np.float, np.float64]
 
     # Test Floats

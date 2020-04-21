@@ -4,7 +4,7 @@ from typing import Tuple
 
 import numpy as np
 
-from ...performance import njit
+from ...utilities.performance.numba import njit
 
 
 @njit

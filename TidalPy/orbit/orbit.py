@@ -5,14 +5,14 @@ from typing import List, Union
 import numpy as np
 from scipy.constants import G
 
-from TidalPy.utilities.numpy_help import value_cleanup
+from TidalPy.utilities.numpyHelper.array_other import value_cleanup
 from .. import debug_mode
 from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
 from ..exceptions import (ImproperAttributeHandling, ArgumentException, IncompatibleModelConfigError,
                           IncorrectArgumentType, IncorrectModelInitialized, ParameterValueError, ParameterMissingError)
 from ..initialize import log
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
-from ..types import FloatArray
+from TidalPy.utilities.types import FloatArray
 from ..utilities.classes import TidalPyClass
 from TidalPy.tools.conversions import Au2m, days2rads, rads2days
 

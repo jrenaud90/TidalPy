@@ -1,16 +1,14 @@
-import os
-from warnings import warn
-from typing import Tuple
 import copy
+import os
 from collections import OrderedDict
+from typing import Tuple
+from warnings import warn
 
 import json5
 import numpy as np
 
-
-from ..io import unique_path
-from .. import auto_write
-
+from ...io.io import unique_path
+from .... import auto_write
 
 JSON5_KWARGS = {'indent': 4}
 

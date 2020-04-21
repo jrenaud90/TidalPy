@@ -3,10 +3,10 @@ import numpy as np
 
 from .material.helper import find_material
 from .. import debug_mode
+from ..configurations import force_burnman_quiet
 from ..exceptions import BadValueError, ParameterValueError, ParameterMissingError
 from ..initialize import log
-from ..types import float_eps
-from ..configurations import force_burnman_quiet
+from ..utilities.types import float_eps
 
 burnman_verbose = debug_mode and not force_burnman_quiet
 

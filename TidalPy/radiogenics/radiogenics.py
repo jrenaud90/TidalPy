@@ -8,8 +8,8 @@ from .. import debug_mode
 from ..exceptions import (ImproperAttributeHandling, ParameterMissingError, UnknownModelError, AttributeNotSetError,
                           IncorrectAttributeType, OuterscopeAttributeSetError)
 from ..initialize import log
-from ..types import float_like
-from ..utilities.model import LayerModelHolder
+from ..utilities.classes.model import LayerModelHolder
+from ..utilities.types import float_like
 
 if TYPE_CHECKING:
     from ..structures import ThermalLayer

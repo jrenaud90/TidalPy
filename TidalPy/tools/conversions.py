@@ -2,8 +2,8 @@ import numpy as np
 
 from ..constants import G
 from ..exceptions import BadValueError
-from ..performance import njit
-from ..types import FloatArray
+from ..utilities.performance.numba import njit
+from ..utilities.types import FloatArray
 
 
 @njit

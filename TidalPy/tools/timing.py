@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ..performance import njit
+from ..utilities.performance.numba import njit
 
 
 @njit

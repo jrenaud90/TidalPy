@@ -5,9 +5,9 @@ import numpy as np
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import partial_melt_defaults
 from ...exceptions import BadValueError, ImproperAttributeHandling
-from ...performance import njit
-from ...types import FloatArray
-from ...utilities.model import LayerModelHolder
+from ...utilities.classes.model import LayerModelHolder
+from ...utilities.performance.numba import njit
+from ...utilities.types import FloatArray
 
 
 @njit

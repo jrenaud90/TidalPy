@@ -1,4 +1,4 @@
-from .utilities.logging import TidalLogger
+from .utilities.io.logging import TidalLogger
 
 
 # Make logger that will be used throughout TidalPy

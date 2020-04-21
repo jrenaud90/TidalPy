@@ -2,8 +2,9 @@ from typing import Tuple
 
 import numpy as np
 
+from ..types import NumArray
 from ...exceptions import BadArrayShape
-from ...types import NumArray
+
 
 def reshape_help(value: NumArray, comparison_shape: tuple, call_locale = None,
                  force_into_new_shape: bool = False, force_ints_to_floats: bool = True) -> \

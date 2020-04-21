@@ -1,13 +1,12 @@
-import copy
-from typing import Tuple, TYPE_CHECKING
 import operator
+from typing import Tuple
 
-from .dictionary_utils import nested_get, nested_place
-from .classes import ConfigHolder
-from .. import debug_mode
-from ..exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError, TidalPyException,
-                          UnknownModelError, AttributeNotSetError)
-from ..initialize import log
+from ..config.config import ConfigHolder
+from ..config.dictionary_utils import nested_get, nested_place
+from .... import debug_mode
+from ....exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError,
+                            UnknownModelError, AttributeNotSetError)
+from ....initialize import log
 
 
 class ModelHolder(ConfigHolder):

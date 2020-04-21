@@ -1,12 +1,10 @@
 """ Eccentricity functions (squared) for various truncations of e at tidal order-l = 4
 """
 
-from typing import Tuple, Dict
+from typing import Dict
 
-import numpy as np
-
-from ...performance import njit
-from ...types import FloatArray
+from ...utilities.performance.numba import njit
+from ...utilities.types import FloatArray
 
 
 @njit

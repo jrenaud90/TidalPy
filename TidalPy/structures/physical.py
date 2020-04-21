@@ -4,7 +4,7 @@ from .. import debug_mode
 from ..constants import G
 from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, IncorrectAttributeType,
                           UnusualRealValueError, ParameterMissingError)
-from ..types import float_eps, float_like
+from TidalPy.utilities.types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
 
 

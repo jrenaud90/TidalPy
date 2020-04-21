@@ -1,4 +1,4 @@
-from typing import Union, Tuple
+from typing import Union
 
 import numpy as np
 
@@ -21,6 +21,7 @@ float_lognat_max = np.log(float_max)
 list_like = [list, tuple, set]
 
 # Type-annotation helpers
+NumericalType = Union[float, int, complex, np.float, np.int, np.complex]
 FloatArray = Union[float, np.float, np.float64, np.ndarray]
 ComplexArray = Union[complex, np.complex, np.complex128, np.ndarray]
 NumArray = Union[FloatArray, ComplexArray]

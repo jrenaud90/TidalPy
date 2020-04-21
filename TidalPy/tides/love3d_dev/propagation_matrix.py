@@ -2,8 +2,6 @@ from scipy.constants import G, pi
 import numpy as np
 
 
-from ...performance import njit
-
 #@njit
 def build_fundamental_matrix(radius_array: np.ndarray, shear_array: np.ndarray,
                              density_array: np.ndarray, gravity_array: np.ndarray, order_l: int = 2):

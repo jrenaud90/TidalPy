@@ -6,7 +6,7 @@ from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
 from ...exceptions import ImproperAttributeHandling
 from ...tides.dissipation import FreqSig
-from ...utilities.model import LayerModelHolder
+from ...utilities.classes.model import LayerModelHolder
 
 
 class ComplexCompliance(LayerModelHolder):

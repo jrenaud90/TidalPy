@@ -3,7 +3,7 @@ import numpy as np
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
 from ...exceptions import ImproperAttributeHandling
-from ...utilities.model import LayerModelHolder
+from ...utilities.classes.model import LayerModelHolder
 
 
 class ViscosityClass(LayerModelHolder):

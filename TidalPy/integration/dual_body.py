@@ -1,4 +1,3 @@
-from ..performance import njit
 #
 # def build_diffeq(object_1, object_2):
 #

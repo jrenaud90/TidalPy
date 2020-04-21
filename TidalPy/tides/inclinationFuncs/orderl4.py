@@ -5,8 +5,8 @@ from typing import Dict, Tuple
 
 import numpy as np
 
-from ...performance import njit
-from ...types import FloatArray
+from ...utilities.performance.numba import njit
+from ...utilities.types import FloatArray
 
 
 @njit

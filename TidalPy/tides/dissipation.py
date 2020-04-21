@@ -8,7 +8,7 @@ from .eccentricityFuncs import eccentricity_truncations
 from .inclinationFuncs import inclination_functions
 from .love1d import effective_rigidity_general, complex_love_general
 from .universal_coeffs import get_universal_coeffs
-from ..types import FloatArray, ComplexArray
+from ..utilities.types import FloatArray, ComplexArray
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]

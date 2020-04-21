@@ -2,8 +2,8 @@ from typing import Tuple
 
 import numpy as np
 
-from ..performance import njit
-from ..types import FloatArray
+from ..utilities.performance.numba import njit
+from ..utilities.types import FloatArray
 
 LOG_HALF = np.log(0.5)
 

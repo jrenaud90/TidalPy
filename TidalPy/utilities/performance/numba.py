@@ -1,13 +1,11 @@
 import numpy as np
 from scipy.special import gamma
-from .types import FloatArray
 
-from .configurations import use_numba
-
+from ...configurations import use_numba
 
 if use_numba:
     import numba
-    from numba.types import UniTuple as nbTuple
+
     njit = numba.njit
     vectorize = numba.vectorize
     float64 = numba.float64

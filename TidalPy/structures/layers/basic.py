@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
-from ...types import NoneType
+from TidalPy.utilities.types import NoneType
 from ..physical import PhysicalObjSpherical
 from .defaults import layer_defaults
 from ...exceptions import ImproperAttributeHandling, OuterscopeAttributeSetError

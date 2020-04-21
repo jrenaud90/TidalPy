@@ -21,8 +21,8 @@ How To Implement a new compliance model:
 
 import numpy as np
 
-from ...performance import find_factorial, njit
-from ...types import float_eps, float_lognat_max
+from ...utilities.performance.numba import find_factorial, njit
+from ...utilities.types import float_eps, float_lognat_max
 
 
 @njit

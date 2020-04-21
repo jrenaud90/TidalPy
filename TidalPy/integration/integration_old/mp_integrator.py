@@ -8,13 +8,11 @@ from pathos.multiprocessing import ProcessingPool as Pool
 
 from TidalPy.exceptions import TidalPyIntegrationException
 from TidalPy.initialize import log
-from TidalPy.io import inner_save_dir, unique_path
+from TidalPy.utilities.io.io import inner_save_dir, unique_path
 from TidalPy.graphics.grid_plot import success_grid_plot
 from .integration import ivp_integration
 from .success import calc_success_index
-from TidalPy.types import TupleNone
-from TidalPy.utilities.numpy_help import normalize_dict
-
+from TidalPy.utilities.types import TupleNone
 
 MAX_PROCS_DUE_TO_RAM = 6
 

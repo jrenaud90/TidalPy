@@ -8,7 +8,7 @@ from scipy.integrate._ivp.ivp import METHODS
 from datetime import datetime
 
 from TidalPy import verbose_level
-from TidalPy.io import inner_save_dir
+from TidalPy.utilities.io.io import inner_save_dir
 from TidalPy.tools.conversions import convert_to_hms
 from TidalPy.initialize import log as real_log
 from TidalPy.exceptions import IntegrationTimeOut, UnknownModelError, TidalPyIntegrationException

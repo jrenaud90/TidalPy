@@ -2,19 +2,15 @@ import atexit
 import copy
 from typing import TextIO, Union
 
-import dill
 import json5
-import numpy as np
 
-from .dilled_planets import dilled_planets_loc
 from .planet_configs import planet_config_loc
-from .. import other_data_locs
 from ..burnman_interface.build import build_planet as build_bm_planet
 from ..configurations import exit_planets
 from ..exceptions import MissingArgumentError, UnknownModelError, ImplementationException
 from ..initialize import log
-from ..structures.worlds import TidalWorld
-from ..utilities.pathing import get_all_files_of_type
+from ..structures.worlds import world_types, LayeredWorld
+from ..utilities.io.pathing import get_all_files_of_type
 
 
 def check_for_duplicates(dict_to_check: dict):
@@ -32,12 +28,6 @@ def check_for_duplicates(dict_to_check: dict):
     for planet_name in potential_dups:
         log.warn(f'Possible duplicate saved planet found: {planet_name}. Ensure you use the correct subscript.')
 
-
-# Locate all dilled planets
-known_planets_dill = dict()
-for potential_data_location in other_data_locs + [dilled_planets_loc]:
-    known_planets_dill = {**known_planets_dill, **get_all_files_of_type(potential_data_location, ['dill', 'pickle'])}
-check_for_duplicates(known_planets_dill)
 
 # Locate all planet configurations
 known_planets_cfg = get_all_files_of_type(planet_config_loc, ['cfg', 'json', 'json5'])
@@ -57,13 +47,12 @@ def _cfgpath_to_json():
 
 # Check for conflict nam
 
-def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, force_build: bool = True,
-                 planet_dill_path: str = None):
+def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, force_build: bool = True):
     log(f'Preparing to find and/or build world: {planet_name}')
 
     if not force_build:
         # TODO: Once this is implemented and tested change force_build to default=False
-        raise NotImplementedError('TidalPy 0.1.0 has not fully implemented dill/pickle loading. '
+        raise NotImplementedError('TidalPy 0.2.0 has not fully implemented dill/pickle loading. '
                                   'You must force_build planets for now.')
 
     # If planet_config is a file then load it through json and get a dict
@@ -74,34 +63,13 @@ def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, fo
         # Make a copy of the dict so any subsequent changes do not affect the original
         planet_config = copy.deepcopy(planet_config)
 
-    # See if dilled planet exists
     need_to_build = force_build
     if not force_build:
 
-        if planet_dill_path is None:
-            if planet_name in known_planets_dill:
-                planet_dill_path = known_planets_dill[planet_name]
-            elif planet_name.lower() in known_planets_dill:
-                planet_dill_path = known_planets_dill[planet_name.lower()]
-
-        if planet_dill_path is not None:
-            log(f'Dilled planet was found! This will save a lot of time...', level='debug')
-            # Planet was found! This will save a lot of time.
-            with open(planet_dill_path, 'r') as planet_file:
-                planet = dill.load(planet_file)
-
-            # If no new planet_config is provided then we are done
-            if planet_config is None:
-                log(f'No new configurations were provided. Returning dilled planet', level='debug')
-                return planet
-            else:
-                log(f'New configurations were provided. Attempting to load them into dilled planet.', level='debug')
-                planet.replacement_config = planet_config
-                planet.reinit()
-                log(f'New configurations were successful loaded with no obvious issues.', level='debug')
-        else:
-            log(f'Dilled version of {planet_name} was not found. Attempting to build.', level='debug')
-            need_to_build = True
+        # See if dilled planet exists
+        # TODO: Is it worth the trouble to add dill-save feature to speed-up planet load?
+        # log(f'Dilled version of {planet_name} was not found. Attempting to build.', level='debug')
+        need_to_build = True
 
     planet = None
     if need_to_build:
@@ -125,7 +93,7 @@ def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, fo
             raise UnknownModelError('Unknown world type encountered.')
         planet_class = world_types[planet_type]
 
-        if planet_class == TidalWorld:
+        if planet_class == LayeredWorld:
             log('Burnman planet type detected. Attempting to build BurnMan planet. This may take a while.',
                 level='debug')
             # Build BurnMan Planet first

@@ -1,13 +1,14 @@
 import copy
 import os
-from typing import Any, Tuple, TYPE_CHECKING
+from typing import Any, Tuple
 
-from . import TidalPyClass
-from .. import auto_write, debug_mode, version
-from ..initialize import log
-from ..exceptions import ImproperAttributeHandling, ParameterMissingError
-from ..io import inner_save_dir, unique_path
 from .json_utils import save_dict_to_json
+from ..base import TidalPyClass
+from ...io.io import inner_save_dir
+from .... import version, debug_mode
+from ....exceptions import ImproperAttributeHandling, ParameterMissingError
+from ....initialize import log
+
 
 class ConfigHolder(TidalPyClass):
     """ Classes which contain a parameter dictionary inherit from this class

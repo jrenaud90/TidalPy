@@ -7,7 +7,7 @@
         Starting with order_l = 2 and m = 0
 """
 from ..exceptions import TidalPyValueException
-from ..performance import njit
+from ..utilities.performance.numba import njit
 
 @njit
 def get_universal_coeffs(order_l: int):

@@ -17,9 +17,9 @@ import copy
 
 import numpy as np
 
+from .planet_mangement import build_from_planet
 from ..exceptions import IncompatibleModelError
 from ..initialize import log
-from .planet_mangement import build_from_planet
 
 
 def planet_iterator(base_planet, goal_radius, goal_mass, ice_mass_frac: float = None,
