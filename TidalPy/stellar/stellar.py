@@ -18,7 +18,7 @@ def equilibrium_insolation_mendez(luminosity: float, semi_major_axis: FloatArray
     Parameters
     ----------
     luminosity : float
-        Stellar luminosity in [Watts]
+        Stellar luminosity in [W]
     semi_major_axis : FloatArray
         Target planet's semi-major axis to the star (you want to use the host planet's semi-a) in [m]
     albedo : float
@@ -31,7 +31,7 @@ def equilibrium_insolation_mendez(luminosity: float, semi_major_axis: FloatArray
     Returns
     -------
     insolation_heating : FloatArray
-        Heating at the target planet's surface in [Watts]
+        Heating at the target planet's surface in [W]
 
     See Also
     --------
@@ -56,7 +56,7 @@ def equilibrium_insolation_williams(luminosity: float, semi_major_axis: FloatArr
     Parameters
     ----------
     luminosity : float
-        Stellar luminosity in [Watts]
+        Stellar luminosity in [W]
     semi_major_axis : FloatArray
         Target planet's semi-major axis to the star (you want to use the host planet's semi-a) in [m]
     albedo : float
@@ -69,7 +69,7 @@ def equilibrium_insolation_williams(luminosity: float, semi_major_axis: FloatArr
     Returns
     -------
     insolation_heating : FloatArray
-        Heating at the target planet's surface in [Watts]
+        Heating at the target planet's surface in [W]
 
     See Also
     --------
@@ -90,7 +90,7 @@ def equilibrium_insolation_no_eccentricity(luminosity: float, semi_major_axis: F
     Parameters
     ----------
     luminosity : float
-        Stellar luminosity in [Watts]
+        Stellar luminosity in [W]
     semi_major_axis : FloatArray
         Target planet's semi-major axis to the star (you want to use the host planet's semi-a) in [m]
     albedo : float
@@ -103,7 +103,7 @@ def equilibrium_insolation_no_eccentricity(luminosity: float, semi_major_axis: F
     Returns
     -------
     insolation_heating : FloatArray
-        Heating at the target planet's surface in [Watts]
+        Heating at the target planet's surface in [W]
 
     See Also
     --------
@@ -123,7 +123,7 @@ def equilibrium_temperature(surface_heating: FloatArray, radius: float, emissivi
     Parameters
     ----------
     surface_heating : FloatArray
-        Summation of all surface heating in [Watts]
+        Summation of all surface heating in [W]
     radius : float
         Target planet's surface radius (or mean radius) in [m]
     emissivity : float

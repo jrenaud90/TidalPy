@@ -1,6 +1,8 @@
 from .tidal import TidalWorld
 
 
+# TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
+
 class Star(TidalWorld):
 
     world_class = 'star'

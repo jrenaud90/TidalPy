@@ -1,33 +1,25 @@
 from __future__ import annotations
 
-import copy
-from typing import TYPE_CHECKING, Tuple, Union, Dict, List
+from typing import TYPE_CHECKING, Union
 
 import burnman
 import numpy as np
 
-from ...utilities.arrayHelp.shaper import reshape_help
-from ...tides.tides import Tides
 from .defaults import layer_defaults
-from ... import debug_mode
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import burnman_interpolation_N, burnman_interpolation_method
+from ...cooling import CoolingModel
 from ...exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
-                           ParameterMissingError, ReinitError, UnknownTidalPyConfigValue, UnusualRealValueError,
-                           OuterscopeAttributeSetError)
-from ...initialize import log
+                           ParameterMissingError, UnknownTidalPyConfigValue, OuterscopeAttributeSetError)
 from ...radiogenics.radiogenics import Radiogenics
-from ...structures.physical import PhysicalObjSpherical
-from ...cooling import CoolingModel, CoolingOutputTypeArray
 from ...rheology import Rheology
-from ...types import floatarray_like, NoneType
-from ...utilities.dictionary_utils import nested_get
+from ...structures.physical import PhysicalObjSpherical
+from ...types import NoneType, FloatArray
+from ...utilities.arrayHelp.shaper import reshape_help
 from ...utilities.numpy_help import find_nearest
-from ...types import ArrayNone, FloatArray
-
 
 if TYPE_CHECKING:
-    from ..worlds import ThermalWorld
+    from ..worlds import TidalWorld
 
 
 class ThermalLayer(PhysicalObjSpherical):
@@ -47,7 +39,7 @@ class ThermalLayer(PhysicalObjSpherical):
     default_config = layer_defaults
     layer_class = 'thermal'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'ThermalWorld', burnman_layer: burnman.Layer,
+    def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorld', burnman_layer: burnman.Layer,
                  layer_config: dict, initialize: bool = True):
 
         # Load layer defaults based on layer type
@@ -70,10 +62,11 @@ class ThermalLayer(PhysicalObjSpherical):
         self._pressure = None
         self._temperature = None
         # State Derivatives
-        self._deriv_temperature = None  # type: ArrayNone
+        self._deriv_temperature = None
 
         # Other attributes
         self.name = layer_name
+        self.material_name = self.config['material']
         self.tidal_scale = 1.
         self.heat_sources = None
         # Flags
@@ -91,7 +84,7 @@ class ThermalLayer(PhysicalObjSpherical):
         bm_thickness = bm_radius - np.min(self.bm_layer.radii)
         bm_mass = self.bm_layer.mass
         self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
-        self._bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - self.thickness / 2.)
+        self._bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - (self.thickness / 2.))
 
         # Attributes calculated by BurnMan but set at a specific spot
         if burnman_interpolation_method == 'mid':
@@ -113,12 +106,8 @@ class ThermalLayer(PhysicalObjSpherical):
             raise UnknownTidalPyConfigValue
 
         # Setup Physical Layer Geometry
-        self.slices = self.config['slices'] # TODO: ????
         self.material_name = self.config['material']
 
-
-
-        # TODO: ????
         # Material Properties set by BurnMan
         self.bulk_modulus = None
         self.thermal_expansion = None
@@ -127,15 +116,17 @@ class ThermalLayer(PhysicalObjSpherical):
         self.interp_temperature_range = np.linspace(*tuple(self.config['interp_temperature_range']),
                                                     burnman_interpolation_N)
         self._interp_prop_data_lookup = dict()
+
+        # Build lookup tables
         self._build_material_property_interpolation()
 
         # Material properties that might have been affected by new configuration file (BurnMan does not calculate these)
-        self.static_shear_modulus = None  # type: ArrayNone
-        self.thermal_diffusivity = None  # type: ArrayNone
-        self.thermal_conductivity = None  # type: ArrayNone
-        self.heat_fusion = None  # type: ArrayNone
-        self.temp_ratio = None  # type: ArrayNone
-        self.stefan = None  # type: ArrayNone
+        self.static_shear_modulus = None
+        self.thermal_diffusivity = None
+        self.thermal_conductivity = None
+        self.heat_fusion = None
+        self.temp_ratio = None
+        self.stefan = None
 
         if initialize:
             self.reinit()
@@ -189,6 +180,12 @@ class ThermalLayer(PhysicalObjSpherical):
         if temperature is not None:
             temperature = reshape_help(temperature, self.world.global_shape)
             self._temperature = temperature
+
+            # Set new material properties based on BurnMan Interpolation
+            for prop_name, prop_data in self._interp_prop_data_lookup.items():
+                setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
+            self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
+
         if pressure is not None:
             pressure = reshape_help(pressure, self.world.global_shape)
             self._pressure = pressure
@@ -409,7 +406,7 @@ class ThermalLayer(PhysicalObjSpherical):
         return self.deriv_temperature
 
     def geotherm(self, avg_temperature: float = None):
-        """ Calculates layer's geotherm
+        """ Calculates layer's geotherm based on an average temperature (or layer's current temperature)
 
         Returns
         -------
@@ -424,6 +421,49 @@ class ThermalLayer(PhysicalObjSpherical):
 
         return temperature_profile
 
+    def _build_material_property_interpolation(self):
+        """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
+
+        Using the BurnMan package's equation of states, this function will build interpolated lookup tables for several
+            material properties. These lookup tables are functions of only temperature; pressure is assumed to not
+            change significantly in a TidalPy simulation. However, the machinery to change properties based on
+            pressure is built into BurnMan and can be accessed via the layer's reference to the Burnman layer:
+                self.bm_material.evaluate
+
+        The specific constant pressure used in building the lookup table is set by the layer configuration. See the
+            variable 'burnman_interpolation_method' in TidalPy's main configurations.py
+
+        Conversions between BurnMan and TidalPy property names are also performed here. Some conversions require a
+             transition from molar to specific.
+
+        The final interpolated lookup table is stored in the self._interp_prop_data_lookup which is used in the
+             temperature.setter
+        """
+
+        if self.pressure is None:
+            raise AttributeNotSetError
+
+        interp_properties = ['bulk_modulus', 'thermal_expansion', 'specific_heat']
+        bm_properties = [burnman_property_name_conversion[interp_prop] for interp_prop in interp_properties]
+
+        # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
+        #     These results will then be used in an interpolation for whenever self.temperature changes
+        pressures = self.pressure * np.ones_like(self.interp_temperature_range)
+        property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
+
+        for interp_prop, prop_result in zip(interp_properties, property_results):
+
+            # Perform any unit or other conversions needed to interface BurnMan to TidalPy
+            conversion_type = burnman_property_value_conversion.get(interp_prop, None)
+            if conversion_type is not None:
+                if conversion_type == 'molar':
+                    # Convert the parameter from a molar value to a specific value
+                    prop_result = prop_result / self.bm_material.molar_mass
+                else:
+                    raise KeyError
+
+            self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
+
     # State properties
     @property
     def layer_index(self) -> int:
@@ -434,7 +474,7 @@ class ThermalLayer(PhysicalObjSpherical):
         raise ImproperAttributeHandling('Layer index can not be changed after planet has been initialized.')
 
     @property
-    def world(self) -> 'ThermalWorld':
+    def world(self) -> 'TidalWorld':
         return self._world
 
     @world.setter
@@ -781,138 +821,3 @@ class ThermalLayer(PhysicalObjSpherical):
             text += '; not associated with a world'
 
         return text
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# TODO OLD
-
-    def _build_material_property_interpolation(self):
-        """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
-
-        Using the Burnman package's equation of states, this function will build interpolated lookup tables for several
-        material properties. These lookup tables are functions of only temperature; pressure is assumed to not change
-        significantly in a TidalPy simulation. However, the machinery to change properties based on temperature is
-        built into Burnman and can be accessed via the layer's reference to the Burnman layer:
-        self.bm_material.evaluate
-
-        The specific constant pressure used in building the lookup table is set by the layer configuration. See the
-        variable 'burnman_interpolation_method' in the layers __init__ method.
-
-        Conversions between Burnman TidalPy property names are also performed here. Some conversions require a
-        transition from molar to specific.
-
-        The final interpolated lookup table is stored in the self._interp_prop_data_lookup which is used in the
-        temperature.setter
-        """
-
-        if self.pressure is None:
-            raise AttributeNotSetError
-
-        interp_properties = ['bulk_modulus', 'thermal_expansion', 'specific_heat']
-        bm_properties = [burnman_property_name_conversion[interp_prop] for interp_prop in interp_properties]
-
-        # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
-        #     These results will then be used in an interpolation for whenever self.temperature changes
-        pressures = self.pressure * np.ones_like(self.interp_temperature_range)
-        property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
-
-        for interp_prop, prop_result in zip(interp_properties, property_results):
-
-            # Perform any unit or other conversions needed to interface BurnMan to TidalPy
-            conversion_type = burnman_property_value_conversion.get(interp_prop, None)
-            if conversion_type is not None:
-                if conversion_type == 'molar':
-                    # Convert the parameter from a molar value to a specific value
-                    prop_result = prop_result / self.bm_material.molar_mass
-                else:
-                    raise KeyError
-
-            self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
-
-
-
-    def set_geometry(self, radius: float, mass: float, thickness: float = None):
-
-        super().set_geometry(radius, mass, thickness)
-
-
-
-
-    @property
-    def temperature(self) -> np.ndarray:
-
-        return self._temperature
-
-    @temperature.setter
-    def temperature(self, value):
-
-        if debug_mode:
-            if type(value) not in floatarray_like:
-                raise IncorrectAttributeType
-            if type(value) == np.ndarray:
-                if np.any(value > 1.0e5) or np.any(value < 5.0):
-                    raise UnusualRealValueError
-            else:
-                if value > 1.0e5 or value < 5.0:
-                    raise UnusualRealValueError
-
-        self._temperature = value_cleanup(value)
-
-        # Update material properties and phase changes
-        self._melt_fraction = self.partial_melt.calc_melt_fraction()
-        # Set new material properties based on BurnMan Interpolation
-        for prop_name, prop_data in self._interp_prop_data_lookup.items():
-            setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
-        self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
-        # Update shear and viscosity
-        self.update_strength()
-
-        # Update other models
-        # TODO: Are these forces still needed or are the a relic of past code?
-        force_cooling = True
-        force_tides = False
-        if self.orbital_freq is not None:
-            if self.spin_freq is not None or self.is_spin_sync:
-                force_tides = True
-
-        self.update_tides(force_calculation=force_tides)
-        self.update_cooling(force_calculation=force_cooling)
-
-    # TODO: For now lower temperature just returns self.temperature. This is used in cooling calculations
-    @property
-    def temperature_lower(self):
-        return self.temperature
-
-    @temperature_lower.setter
-    def temperature_lower(self, value):
-        raise ImproperAttributeHandling('temperature_lower is calculated by setting self.temperature.')
-
-    @property
-    def temperature_surf(self):
-
-        if self.is_top_layer:
-            if self.world.orbit is None:
-                # surface temperature will not have been set yet. Use a fake value for now
-                log('Surface temperature is not set until an orbit is applied to the planet. '
-                    'Using default value of 100K.', level='info')
-                return np.asarray([150.])
-            else:
-                return self.world.surface_temperature
-
-        if self.layer_above is not None:
-            if self.layer_above.temperature_lower is not None:
-                return self.layer_above.temperature_lower
-
-        raise ParameterMissingError

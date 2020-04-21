@@ -14,6 +14,11 @@ class TidalPyException(Exception):
             super().__init__(self.default_message)
 
 
+# Package Errors
+class IOException(TidalPyException):
+    default_message = 'An issue arose when accessing system disk (either loading or saving data)'
+
+
 # General Errors
 class ImplementationException(TidalPyException):
     default_message = 'Tried to use functionality that is not yet implemented.'

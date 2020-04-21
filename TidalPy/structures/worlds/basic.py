@@ -8,6 +8,9 @@ import burnman
 import dill
 import numpy as np
 
+from ...types import FloatArray, ArrayNone
+
+from ...utilities.arrayHelp import reshape_help
 from ...types import NoneType
 from ...utilities.numpy_help import value_np_cleanup
 from .defaults import world_defaults
@@ -18,7 +21,8 @@ from ...configurations import (auto_save_planet_config_to_rundir, auto_save_plan
                               overwrite_dills)
 from ...dynamics import spin_rate_derivative
 from ...exceptions import (ImproperAttributeHandling, ParameterMissingError, ReinitError, UnusualRealValueError,
-                           IncompatibleModelError, IncorrectAttributeType)
+                           IncompatibleModelError, IncorrectAttributeType, AttributeNotSetError, AttributeException,
+                           IOException)
 from ...graphics.planet_plot import geotherm_plot
 from ...initialize import log
 from ...io import inner_save_dir
@@ -32,6 +36,8 @@ planet_config_loc = os.path.join(tidalpy_dir, 'planets', 'planet_configs')
 if TYPE_CHECKING:
     from ...orbit import Orbit
 
+
+FREQ_TO_DAY = (2. * np.pi ) / 86400.
 
 class WorldBase(PhysicalObjSpherical):
 
@@ -48,15 +54,22 @@ class WorldBase(PhysicalObjSpherical):
 
         super().__init__(config=world_config)
 
-        # Independent State variables
+        # Attributes
         self.name = name
+
+        # Independent State variables
         self._spin_freq = None
+        self._obliquity = None
         self._time = None
         self._albedo = None
         self._emissivity = None
+        self._surf_temperature = None
+        self._int2surface_heating = None
+        # Global shape is overridden if an orbit is present (see property definition)
+        self._global_shape = None
 
         # Orbit reference
-        self._orbit = None  # type: Union[Orbit, NoneType]
+        self._orbit = None
 
         # Other flags
         self.is_host = False
@@ -86,8 +99,10 @@ class WorldBase(PhysicalObjSpherical):
             self.name = self.config['name']
         self._albedo = self.config['albedo']
         self._emissivity = self.config['emissivity']
-        self._is_spin_sync = self.config['force_spin_sync']
-        self.update_orbit()
+        self.is_spin_sync = self.config['force_spin_sync']
+
+        if self.orbit is not None:
+            self.update_orbit()
 
     def config_update(self):
         """ Config update changes various state parameters of an object based on the self.config
@@ -100,10 +115,49 @@ class WorldBase(PhysicalObjSpherical):
         # Setup functions and models
         self.equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
 
-    def set_geometry(self, radius: float, mass: float):
+    def set_geometry(self, radius: float, mass: float, thickness: float = None):
 
         # Thickness of a world will always be equal to its radius.
+        del thickness
         super().set_geometry(radius, mass, thickness=radius)
+
+    def update_shape(self, new_shape: Tuple[int, ...], force_override: bool = False):
+        """ Update the global shape parameter
+
+        Global shape parameter is used to set the shape of arrays throughout the planet.
+
+        It is overridden by the orbit's global shape, if an Orbit class has been applied.
+
+        Parameters
+        ----------
+        new_shape : Tuple[int, ...]
+            New array shape provided by numpy.ndarray.shape
+        force_override : bool = False
+            Force an override if global_shape is already set.
+        """
+
+        if self.orbit is not None:
+            self.orbit.update_shape(new_shape, set_by_planet=self)
+
+        if self._global_shape is None:
+            self._global_shape = new_shape
+        else:
+            if force_override:
+                self._global_shape = new_shape
+            raise AttributeException('global_shape is already set.')
+
+    def update_surface_temperature(self):
+        """ Update the planet's surface temperature based on its distance from its host star.
+
+        Orbit must be applied before surface temperature can be updated.
+        """
+
+        if self.orbit is not None:
+            surface_heating = self.insolation_heating
+            if self.int2surface_heating is not None:
+                surface_heating += self.int2surface_heating
+
+            self._surf_temperature = equilibrium_temperature(surface_heating, self.radius, self.emissivity)
 
     def update_orbit(self):
         """ Performs state updates whenever the planet's orbital parameters are changed
@@ -113,9 +167,24 @@ class WorldBase(PhysicalObjSpherical):
         if self.orbit is not None:
             self.orbit.calculate_insolation(self.orbit_location)
 
-    def set_state(self, orbital_freq: np.ndarray = None, semi_major_axis: np.ndarray = None,
-                  eccentricity: np.ndarray = None, inclination: np.ndarray = None,
-                  spin_freq: np.ndarray = None, time: np.ndarray = None):
+        # A change to the orbit will also change tides
+        self.update_tides()
+
+        # A change to semi-major axis for a planet orbiting a star will cause a change to its surface temperature
+        self.update_surface_temperature()
+
+    def update_tides(self):
+        """ Update the tides module
+
+        Only applicable for some child class types
+        """
+
+        # Not applicable for this class. Do nothing
+        pass
+
+    def set_state(self, orbital_freq: FloatArray = None, semi_major_axis: FloatArray = None,
+                  eccentricity: FloatArray = None, obliquity: FloatArray = None,
+                  spin_freq: FloatArray = None, time: FloatArray = None):
         """ Set multiple orbital parameters at once, this reduces the number of calls to self.orbit_change
 
         This contains a wrapper to the orbit class method set_state. It extends that function by including the spin
@@ -126,41 +195,86 @@ class WorldBase(PhysicalObjSpherical):
 
         Parameters
         ----------
-        orbital_freq : np.ndarray
+        orbital_freq : FloatArray (Optional)
             Mean orbital frequency of an object in [rads s-1]
-            Optional, exclusive w/ semi_major_axis
-        semi_major_axis : np.ndarray
+            Exclusive w/ semi_major_axis
+        semi_major_axis : FloatArray (Optional)
             Semi-major axis of an object in [m]
-            Optional, exclusive w/ semi_major_axis
-        eccentricity : np.ndarray
+            Exclusive w/ orbital_freq
+        eccentricity : FloatArray (Optional)
             Orbital eccentricity
-            Optional
-        inclination : np.ndarray
-            Orbital inclination in [rads]
-            Optional
-        spin_freq : np.ndarray
+        obliquity : FloatArray (Optional)
+            Planet's axial tilt (or inclination) in [rads]
+        spin_freq : FloatArray (Optional)
             Object's rotation frequency in [rads s-1]
-            Optional
-        time : np.ndarray
+        time : FloatArray (Optional)
             Object's calculation time (used in things like radiogenics) in [s]
-            Optional
         """
 
-        if time is not None:
-            self.time = time
-        if spin_freq is not None:
-            self.spin_freq = spin_freq
+        update_tides_flag = False
 
-        self.orbit.set_orbit(self.orbit_location, orbital_freq, semi_major_axis, eccentricity, inclination,
-                             set_by_planet=True)
-        self.update_orbit()
+        for planet_param_name, planet_param in {'time': time, '_spin_freq': spin_freq, '_obliquity': obliquity}.items():
 
-    def save_world(self):
+            if planet_param is None:
+                continue
 
-        #TODO
-        pass
+            if planet_param_name in ['_spin_freq', '_obliquity']:
+                update_tides_flag = True
 
-    #TODO: new way to kill world that doesn't throw so many errors?
+            new_shape, planet_param = \
+                reshape_help(planet_param, self.global_shape, call_locale=f'{self}.set_state.{planet_param_name}')
+            if new_shape:
+                self.update_shape(new_shape)
+
+            setattr(self, planet_param_name, planet_param)
+
+        if orbital_freq is not None or semi_major_axis is not None or eccentricity is not None:
+            if self.orbit is not None:
+                raise AttributeNotSetError('Trying to set orbital parameters at the planet '
+                                           'level before an Orbit class has been applied.')
+
+            self.orbit.set_orbit(self.orbit_location, orbital_freq, semi_major_axis, eccentricity, set_by_planet=True)
+
+            # A call to update_orbit will automatically call update tides.
+            #     So we do not need to worry about another call to it.
+            self.update_orbit()
+        else:
+            # Update tides has not been called at this point. Call it if needed
+            if update_tides_flag:
+                self.update_tides()
+
+    def save_world(self, save_dir: str = None, no_cwd: bool = False, save_to_tidalpy_dir: bool = False):
+        """ Save the world's configuration file to a specified directory.
+
+        Parameters
+        ----------
+        save_dir : str = None
+            The current working directory will be preappended unless no_cwd is set to true.
+            If no directory is provided it will be saved os.getcwd()
+        no_cwd : bool = False
+            If True, the current working directory will *not* be prepended to the provided directory.
+        save_to_tidalpy_dir : bool = False
+            If True, the config will be saved to the TidalPy directory as well as the CWD.
+        """
+
+        if not use_disk:
+            raise IOException("User attempted to save a world's configurations when TidalPy has been set to "
+                              "not use_disk")
+        log(f'Saving world {self.name}...', level='debug')
+        save_locales = list()
+        if save_to_tidalpy_dir:
+            save_locales.append(planet_config_loc)
+
+        if save_dir is not None:
+            if no_cwd:
+                save_locales.append(save_dir)
+            else:
+                save_locales.append(os.path.join(os.getcwd(), save_dir))
+        else:
+            save_locales.append(os.getcwd())
+
+        # No need to save to run dir as that will automatically happen when the planet is killed.
+        self.save_config(save_to_run_dir=False, additional_save_dirs=save_locales, overwrite=overwrite_configs)
 
     def kill_world(self):
         """ Performs saving tasks when the world is about to be deleted due to end of run
@@ -179,45 +293,48 @@ class WorldBase(PhysicalObjSpherical):
             self.save_config(save_to_run_dir=auto_save_planet_config_to_rundir,
                              additional_save_dirs=tidalpy_planet_cfg_dir, overwrite=overwrite_configs)
 
-        # Dill this object and save it
-        if use_disk:
-            dill_name, tidalpy_dill_path = dill_file_path(self.name)
-            if auto_save_planet_dill_to_tidalpydir:
-                if os.path.isfile(tidalpy_dill_path) and not overwrite_dills:
-                    pass
-                else:
-                    with open(tidalpy_dill_path, 'wb') as dill_file:
-                        dill.dump(self, dill_file)
-            if auto_save_planet_dill_to_rundir:
-                rundir_dill_path = os.path.join(inner_save_dir, dill_name)
-                if os.path.isfile(rundir_dill_path) and not overwrite_dills:
-                    pass
-                else:
-                    with open(rundir_dill_path, 'wb') as dill_file:
-                        dill.dump(self, dill_file)
 
+    # State properties
+    @property
+    def global_shape(self) -> Tuple[int, ...]:
+        if self.orbit is None:
+            return self._global_shape
+        else:
+            return self.orbit.global_shape
+
+    @global_shape.setter
+    def global_shape(self, value):
+        raise ImproperAttributeHandling
 
     @property
     def time(self) -> np.ndarray:
-        return self._time
+        if self.orbit is None:
+            return self._time
+        else:
+            return self.orbit.time
 
     @time.setter
-    def time(self, new_time: np.ndarray):
-        """ Update spin frequency of a world
+    def time(self, new_time: FloatArray):
+        """ Update time for a world
 
         Parameters
         ----------
-        new_time: np.ndarray
-            New time [Myr]
+        new_time : FloatArray
+            Time [Myr]
         """
+        if self.orbit is None:
+            new_shape, new_time = reshape_help(new_time, self.global_shape, call_locale=f'{self}.time.setter')
+            if new_shape:
+                self.update_shape(new_shape)
 
-        new_time = value_np_cleanup(new_time)
-        if debug_mode:
-            if np.any(abs(new_time)) > 1.e6:
-                raise UnusualRealValueError(f'Time should be entered in units of [Myr]. '
-                                            f'|{new_time}| seems very large.')
+            if debug_mode:
+                if np.any(abs(new_time)) > 1.e6:
+                    raise UnusualRealValueError(f'Time should be entered in units of [Myr]. '
+                                                f'|{new_time}| seems very large.')
 
-        self._time = new_time
+            self._time = new_time
+        else:
+            raise ImproperAttributeHandling('Time must be set at the Orbit-level once an orbit is applied.')
 
     @property
     def spin_freq(self) -> np.ndarray:
@@ -232,16 +349,19 @@ class WorldBase(PhysicalObjSpherical):
         new_spin_frequency: np.ndarray
             New spin frequency (inverse of period) [rads s-1]
         """
-        new_spin_frequency = value_np_cleanup(new_spin_frequency)
+        new_shape, new_spin_frequency = reshape_help(new_spin_frequency, self.global_shape, call_locale=f'{self}.time.setter')
+        if new_shape:
+            self.update_shape(new_shape)
+
         if debug_mode:
             if np.any(np.abs(new_spin_frequency)) > 1.e-3:
                 raise UnusualRealValueError(f'Spin-frequency should be entered in units of [rads s-1]. '
                                             f'|{new_spin_frequency}| seems very large.')
 
         self._spin_freq = new_spin_frequency
-        if not self.is_spin_sync and self.orbit is not None:
+        if not self.is_spin_sync:
             # A change to the spin-rate during NSR will change tidal modes
-            self.update_orbit()
+            self.update_tides()
 
     @property
     def albedo(self) -> float:
@@ -258,7 +378,7 @@ class WorldBase(PhysicalObjSpherical):
 
         if self.orbit is not None:
             # This will change the planet's surface temperature
-            self.orbit.calculate_insolation(self)
+            self.update_surface_temperature()
 
     @property
     def emissivity(self) -> float:
@@ -275,82 +395,121 @@ class WorldBase(PhysicalObjSpherical):
 
         if self.orbit is not None:
             # This will change the planet's surface temperature
-            self.orbit.calculate_insolation(self)
-
-    # Class properties
-    @property
-    def orbit(self) -> Orbit:
-        return self._orbit
-
-    @orbit.setter
-    def orbit(self, value):
-        raise ImproperAttributeHandling('The orbit is set once the planet is passed to an Orbit class constructor.')
-
-    # Outerscope property references
-    @property
-    def semi_major_axis(self) -> np.ndarray:
-        return self.orbit.get_semi_major_axis(self.orbit_location)
-
-    @semi_major_axis.setter
-    def semi_major_axis(self, value: np.ndarray):
-        self.orbit.set_semi_major_axis(self.orbit_location, value, set_by_planet=True)
-        self.update_orbit()
-
-    @property
-    def orbital_freq(self) -> np.ndarray:
-        return self.orbit.get_orbital_freq(self.orbit_location)
-
-    @orbital_freq.setter
-    def orbital_freq(self, value: np.ndarray):
-
-        self.orbit.set_orbital_freq(self.orbit_location, value, set_by_planet=True)
-        self.update_orbit()
-
-    @property
-    def eccentricity(self) -> np.ndarray:
-        return self.orbit.get_eccentricity(self.orbit_location)
-
-    @eccentricity.setter
-    def eccentricity(self, value: np.ndarray):
-        self.orbit.set_eccentricity(self.orbit_location, value, set_by_planet=True)
-        self.update_orbit()
-
-    @property
-    def inclination(self) -> np.ndarray:
-        return self.orbit.get_inclination(self.orbit_location)
-
-    @inclination.setter
-    def inclination(self, value: np.ndarray):
-        self.orbit.set_inclination(self.orbit_location, value, set_by_planet=True)
-        self.update_orbit()
-
-    @property
-    def insolation_heating(self) -> np.ndarray:
-
-        inso_heating = None
-        if self.orbit is not None:
-            inso_heating = self.orbit.get_insolation(self)
-
-        return inso_heating
-
-    @insolation_heating.setter
-    def insolation_heating(self, value):
-        raise ImproperAttributeHandling
+            self.update_surface_temperature()
 
     @property
     def surface_temperature(self) -> np.ndarray:
 
-        surf_temp = None
-        if self.orbit is not None:
-            surf_temp = self.orbit.get_surface_temperature(self)
-
-        return surf_temp
+        return self._surf_temperature
 
     @surface_temperature.setter
     def surface_temperature(self, value):
         raise ImproperAttributeHandling
 
-    # Aliased Parameter Names
+    @property
+    def obliquity(self) -> np.ndarray:
+        return self._obliquity
+
+    @obliquity.setter
+    def obliquity(self, new_obliquity: FloatArray):
+        new_shape, new_obliquity = reshape_help(new_obliquity, self.global_shape, call_locale=f'{self}.obliquity.setter')
+        if new_shape:
+            self.change_shape(new_shape)
+
+        if debug_mode:
+            if np.any(new_obliquity > 7.):
+                raise UnusualRealValueError('Obliquity should be entered in radians. '
+                                            f'A value of {np.max(new_obliquity)} seems unusually large.')
+        self._obliquity = new_obliquity
+        self.update_tides()
+
+    @property
+    def int2surface_heating(self) -> np.ndarray:
+        return self._int2surface_heating
+
+    @int2surface_heating.setter
+    def int2surface_heating(self, value):
+        raise ImproperAttributeHandling
+
+    @property
+    def orbit(self) -> Orbit:
+        return self._orbit
+
+    @orbit.setter
+    def orbit(self, value: Orbit):
+
+        self._orbit = value
+
+        # Now that orbit is set, various other updates can be performed.
+        self.update_orbit()
+
+
+    # Outer-scope properties
+    # # Orbit Class
+    @property
+    def semi_major_axis(self):
+        return self.orbit.get_semi_major_axis(self.orbit_location)
+
+    @semi_major_axis.setter
+    def semi_major_axis(self, new_semi_major_axis: FloatArray):
+
+        if self.orbit is None:
+            raise AttributeNotSetError('Can not set semi-major axis until an Orbit class has been applied to the planet.')
+
+        new_shape, new_semi_major_axis = reshape_help(new_semi_major_axis, self.global_shape, call_locale=f'{self}.semi_major_axis.setter' )
+        if new_shape:
+            self.update_shape(new_shape)
+
+        self.orbit.set_semi_major_axis(self.orbit_location, new_semi_major_axis, set_by_planet=True)
+        self.update_orbit()
+
+    @property
+    def orbital_freq(self):
+        return self.orbit.get_orbital_freq(self.orbit_location)
+
+    @orbital_freq.setter
+    def orbital_freq(self, new_orbital_frequency: FloatArray):
+
+        if self.orbit is None:
+            raise AttributeNotSetError('Can not set orbital frequency (or period) until an Orbit class has been applied to the planet.')
+
+        new_shape, new_orbital_frequency = reshape_help(new_orbital_frequency, self.global_shape, call_locale=f'{self}.orbital_frequency.setter')
+        if new_shape:
+            self.update_shape(new_shape)
+
+        self.orbit.set_orbital_freq(self.orbit_location, new_orbital_frequency, set_by_planet=True)
+        self.update_orbit()
+
+    @property
+    def eccentricity(self):
+        return self.orbit.get_eccentricity(self.orbit_location)
+
+    @eccentricity.setter
+    def eccentricity(self, new_eccentricity: FloatArray):
+
+        if self.orbit is None:
+            raise AttributeNotSetError('Can not set eccentricity until an Orbit class has been applied to the planet.')
+
+        new_shape, new_eccentricity = reshape_help(new_eccentricity, self.global_shape, call_locale=f'{self}.eccentricity.setter')
+        if new_shape:
+            self.update_shape(new_shape)
+
+        self.orbit.set_eccentricity(self.orbit_location, new_eccentricity, set_by_planet=True)
+        self.update_orbit()
+
+    @property
+    def insolation_heating(self):
+
+        if self.orbit is not None:
+            return self.orbit.get_insolation(self)
+        return None
+
+    @insolation_heating.setter
+    def insolation_heating(self, value):
+        raise ImproperAttributeHandling
+
+
+    # Aliased properties
     @property
     def orbital_motion(self):
         return self.orbital_freq
@@ -359,6 +518,36 @@ class WorldBase(PhysicalObjSpherical):
     def orbital_motion(self, value):
         self.orbital_freq = value
 
+    @property
+    def orbital_period(self):
+        return FREQ_TO_DAY / self.orbital_freq
+
+    @orbital_period.setter
+    def orbital_period(self, new_orbital_period: FloatArray):
+        """ Set orbital period in days
+
+        Parameters
+        ----------
+        new_orbital_period : FloatArray
+            Orbital period [days]
+        """
+
+        if debug_mode:
+            unusual_value = False
+            if type(new_orbital_period) is np.ndarray:
+                if np.any(new_orbital_period < 0.01):
+                    unusual_value = True
+            else:
+                if new_orbital_period < 0.01:
+                    unusual_value = True
+            if unusual_value:
+                raise UnusualRealValueError(f'Unusually small orbital period encountered (should be entered in days): {new_orbital_period}')
+
+        new_orbital_freq =  FREQ_TO_DAY / new_orbital_period
+        self.orbital_freq = new_orbital_freq
+
+
+    # Dunder properties
     def __str__(self):
 
         name = self.name

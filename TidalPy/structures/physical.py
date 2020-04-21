@@ -46,6 +46,11 @@ class PhysicalObjSpherical(ConfigHolder):
         # Setup by child classes
         pass
 
+    def config_update(self):
+        """ Any changes to the configuration of an object should be followed by a call to its config_update"""
+
+        pass
+
     def set_geometry(self, radius: float, mass: float, thickness: float = None):
         """ Sets and calculates object's physical parameters based on user provided input.
 

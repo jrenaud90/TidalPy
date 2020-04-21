@@ -2,7 +2,6 @@ layer_defaults = {
     'ice' : {
         # General Layer Information
         'type'                      : 'ice',
-        'slices'                    : 50,
 
         # Switches
         'use_surf_gravity'              : True,
@@ -11,7 +10,7 @@ layer_defaults = {
         'use_pressure_in_strength_calc' : False,
 
         # Burnman Information
-        'interp_temperature_range'  : [60., 273.15],
+        'interp_temperature_range'  : [20., 273.15],
 
         # Material Information
         'material'                  : None,
@@ -30,7 +29,6 @@ layer_defaults = {
     'rock': {
         # General Layer Information
         'type'                      : 'rock',
-        'slices'                    : 50,
 
         # Switches
         'use_surf_gravity'              : True,
@@ -39,7 +37,7 @@ layer_defaults = {
         'use_pressure_in_strength_calc' : False,
 
         # Burnman Information
-        'interp_temperature_range'  : [500., 2200.],
+        'interp_temperature_range'  : [100., 3200.],
 
         # Material Information
         'material'                  : None,
@@ -55,7 +53,6 @@ layer_defaults = {
     'iron': {
         # General Layer Information
         'type'                      : 'iron',
-        'slices'                    : 1,
 
         # Switches
         'use_surf_gravity'              : True,
@@ -64,7 +61,7 @@ layer_defaults = {
         'use_pressure_in_strength_calc' : False,
 
         # Burnman Information
-        'interp_temperature_range'  : [800., 2500.],
+        'interp_temperature_range'  : [500., 5000.],
 
         # Material Information
         'material'                  : None,
