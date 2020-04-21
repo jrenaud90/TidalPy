@@ -4,7 +4,30 @@ from ...exceptions import ImproperAttributeHandling, ConfigAttributeChangeError
 from ...tides.tides import Tides
 
 
-class TidalWorld(GeometricWorld):
+class SimpleTidalWorld(GeometricWorld):
+    """ TidalWorld - Provides a simple base to build tidally dissipative worlds off of.
+    """
+
+    world_class = 'simple_tide'
+
+    def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
+        super().__init__(planet_config, name=name, initialize=False)
+
+        # State Properties
+
+        # Additional models to be set in reinit
+        self.tides = None
+
+        if initialize:
+            self.reinit(initial_init=True)
+
+    def reinit(self, initial_init: bool = False):
+        super().reinit(initial_init)
+
+        self.tides = Tides(self, store_config_in_world=True)
+
+
+class TidalWorld(SimpleTidalWorld):
 
     world_class = 'tidal'
 
@@ -19,11 +42,11 @@ class TidalWorld(GeometricWorld):
         self._tides = None
 
         if initialize:
-            self.reinit()
+            self.reinit(initial_init=True)
 
-    def reinit(self):
+    def reinit(self, initial_init: bool = False):
 
-        super().reinit()
+        super().reinit(initial_init)
 
         # Load in configurations
         self._is_spin_sync = self.config['is_spin_sync']

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Union
 import burnman
 import numpy as np
 
+from .basic import LayerBase
 from .defaults import layer_defaults
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import burnman_interpolation_N, burnman_interpolation_method
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from ..worlds import TidalWorld
 
 
-class ThermalLayer(PhysicalObjSpherical):
+class ThermalLayer(LayerBase):
     """ Layer Class: Tidal Planets are made up of various Layers of different compositions.
 
     The ThermalLayer class acts as the holder for:
@@ -36,42 +37,23 @@ class ThermalLayer(PhysicalObjSpherical):
 
     """
 
-    default_config = layer_defaults
     layer_class = 'thermal'
 
     def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorld', burnman_layer: burnman.Layer,
                  layer_config: dict, initialize: bool = True):
 
-        # Load layer defaults based on layer type
-        self.type = layer_config['type']
-        self.default_config = self.default_config[self.type]
-
         # Setup Physical Layer Geometry
-        super().__init__(layer_config)
+        super().__init__(layer_name, layer_index, world, layer_config, initialize=False)
 
-        # State properties
-        self._layer_index = layer_index
-        self._world = world
-        # Pull out information from the already initialized burnman Layer
+        # Thermal layer is built on the BurnMan API and layer system.
+        # Pull out BurnMan parameters
         self._bm_layer = burnman_layer
         self._bm_material = burnman_layer.material
-        # Setup by burnman interpolations
-        self._gravity = None
-        self._density = None
-        # Set later on by user
-        self._pressure = None
-        self._temperature = None
+
         # State Derivatives
         self._deriv_temperature = None
 
         # Other attributes
-        self.name = layer_name
-        self.material_name = self.config['material']
-        self.tidal_scale = 1.
-        self.heat_sources = None
-        # Flags
-        self.is_top_layer = layer_index == 0
-        self.is_tidal = False
         self.use_pressure_in_strength_calc = True
 
         # Model holders - setup in reinit()
@@ -108,9 +90,6 @@ class ThermalLayer(PhysicalObjSpherical):
         # Set up a pressure that will persist if the layer's state is cleared
         self._persistent_pressure = self.pressure
 
-        # Setup Physical Layer Geometry
-        self.material_name = self.config['material']
-
         # Material Properties set by BurnMan
         self.bulk_modulus = None
         self.thermal_expansion = None
@@ -132,11 +111,11 @@ class ThermalLayer(PhysicalObjSpherical):
         self.stefan = None
 
         if initialize:
-            self.reinit()
+            self.reinit(initial_init=True)
 
-    def reinit(self):
+    def reinit(self, initial_init: bool = False):
 
-        super().reinit()
+        super().reinit(initial_init=initial_init)
 
         # Load in configurations
         if self.config['use_tvf']:
@@ -170,22 +149,14 @@ class ThermalLayer(PhysicalObjSpherical):
 
     def clear_state(self, clear_pressure: bool = False):
 
-        super().clear_state()
+        super().clear_state(clear_pressure=clear_pressure)
 
-        # Clear all state properties for the layer
-        self._pressure = None
-        self._temperature = None
         # State Derivatives
         self._deriv_temperature = None
-
-        if not clear_pressure:
-            # Keep the old pressure so it does not have to be reinterpolated
-            self._pressure = self._persistent_pressure
 
         # Clear the state of all inner-scope classes
         for model in [self.rheology, self.radiogenics, self.cooling_model]:
             model.clear_state()
-
 
     def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None):
         """ Set the layer's temperature and update all related properties.
@@ -495,22 +466,6 @@ class ThermalLayer(PhysicalObjSpherical):
 
     # State properties
     @property
-    def layer_index(self) -> int:
-        return self._layer_index
-
-    @layer_index.setter
-    def layer_index(self, value):
-        raise ImproperAttributeHandling('Layer index can not be changed after planet has been initialized.')
-
-    @property
-    def world(self) -> 'TidalWorld':
-        return self._world
-
-    @world.setter
-    def world(self, value):
-        raise ImproperAttributeHandling('Can not change world association after a layer has been initialized.')
-
-    @property
     def bm_layer(self) -> burnman.Layer:
         return self._bm_layer
 
@@ -535,14 +490,6 @@ class ThermalLayer(PhysicalObjSpherical):
         raise ImproperAttributeHandling
 
     @property
-    def pressure(self) -> np.ndarray:
-        return self._pressure
-
-    @pressure.setter
-    def pressure(self, value):
-        self.set_pressure(value)
-
-    @property
     def pressure_lower(self) -> float:
         return self._bm_layer.pressures[0]
 
@@ -557,14 +504,6 @@ class ThermalLayer(PhysicalObjSpherical):
     @temperature_upper.setter
     def temperature_upper(self, value):
         raise ImproperAttributeHandling
-
-    @property
-    def temperature(self) -> np.ndarray:
-        return self._temperature
-
-    @temperature.setter
-    def temperature(self, value):
-        self.set_temperature(value)
 
     @property
     def temperature_lower(self) -> float:
@@ -753,7 +692,7 @@ class ThermalLayer(PhysicalObjSpherical):
         self.cooling_model.boundary_layer_thickness = value
 
     @property
-    def rayleigh(self) -> np.ndarray:
+    def rayleigh(self):
         return self.cooling_model.rayleigh
 
     @rayleigh.setter
@@ -770,37 +709,6 @@ class ThermalLayer(PhysicalObjSpherical):
 
 
     # Outer-scope properties
-    # # World Class
-    @property
-    def layer_below(self) -> Union['ThermalLayer', NoneType]:
-        if self.layer_index == 0:
-            return None
-        else:
-            return self.world.layers_by_index[self.layer_index - 1]
-
-    @layer_below.setter
-    def layer_below(self, value):
-        raise OuterscopeAttributeSetError
-
-    @property
-    def layer_above(self) -> Union['ThermalLayer', NoneType]:
-        if self.layer_index == self.world.num_layers - 1:
-            return None
-        else:
-            return self.world.layers_by_index[self.layer_index + 1]
-
-    @layer_above.setter
-    def layer_above(self, value):
-        raise OuterscopeAttributeSetError
-
-    @property
-    def time(self):
-        return self.world.time
-
-    @time.setter
-    def time(self, value):
-        raise OuterscopeAttributeSetError
-
     # # Tides Class
     @property
     def tidal_heating(self):
@@ -827,26 +735,3 @@ class ThermalLayer(PhysicalObjSpherical):
     @blt.setter
     def blt(self, value):
         self.boundary_layer_thickness = value
-
-
-    # Dunder methods
-    def __str__(self):
-
-        if self.world is None:
-            text = f'[Layer {self.name.title()}:{self.type.title()} no world]'
-        else:
-            text = f'[Layer {self.name.title()}:{self.type.title()} in {self.world}]'
-        return text
-
-    def __repr__(self):
-
-        text = f'{self.__class__} object at {hex(id(self))}'
-        if 'name' in self.__dict__:
-            if self.name is not None:
-                text = f'{self.name} ' + text
-        if self.world is not None:
-            text += f'; stored in {repr(self.world)}'
-        else:
-            text += '; not associated with a world'
-
-        return text

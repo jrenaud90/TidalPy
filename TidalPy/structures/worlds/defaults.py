@@ -5,13 +5,18 @@ world_defaults = {
         'equilibrium_insolation_model': 'williams',  # Options are no_eccentricity, williams, or mendez
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
-        'quality_factor'              : 10.,
-        'orbital_truncation_level'    : 2,
-        'tidal_order_l'               : 2,
         'use_real_moi'                : True
     },
     'geometric'   : {
         'name'                        : 'unknown_world_basictype',
+        'force_spin_sync'             : True,
+        'equilibrium_insolation_model': 'williams',
+        'emissivity'                  : 0.9,
+        'albedo'                      : 0.3,
+        'use_real_moi'                : True
+    },
+    'simple_tide'   : {
+        'name'                        : 'unknown_world_simple_tide_type',
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',
         'emissivity'                  : 0.9,

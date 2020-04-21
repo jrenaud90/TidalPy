@@ -7,7 +7,7 @@ from typing import List, TYPE_CHECKING, Tuple, Union
 import burnman
 import dill
 import numpy as np
-
+from ...rheology.complexCompliance.compliance_models import fixed_q, fixed_q_array
 from ...types import FloatArray, ArrayNone
 
 from ...utilities.arrayHelp import reshape_help
@@ -89,12 +89,15 @@ class WorldBase(PhysicalObjSpherical):
         self.pyname = f'{self.name}_{self.world_class}'
 
         if initialize:
-            self.reinit()
+            self.reinit(initial_init=True)
 
-    def reinit(self):
+    def reinit(self, initial_init: bool = False):
         """ Re-initialize the basic world based on changed to its configuration."""
 
         super().reinit()
+
+        if not initial_init:
+            self.clear_state()
 
         # Pull out some basic information from the config
         if self.name is None and 'name' in self.config:
@@ -600,25 +603,60 @@ class GeometricWorld(WorldBase):
 
     def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
 
-        super().__init__(planet_config, name=name)
+        super().__init__(planet_config, name=name, initialize=False)
 
         self.set_geometry(planet_config['radius'], planet_config['mass'])
 
         if initialize:
             self.reinit()
 
-    def __str__(self):
 
-        name = self.name
-        if name is None:
-            name = 'Unknown'
-        else:
-            name = name.title()
-        return name
 
-    def __repr__(self):
 
-        if 'name' in self.__dict__:
-            if self.name is not None:
-                return f'{self.name} {self.__class__} object at {hex(id(self))}'
-        return f'{self.__class__} object at {hex(id(self))}'
+
+
+
+
+
+
+class TidalWorld(GeometricWorld):
+
+    """ TidalWorld - Provides a simple base to build tidally dissipative worlds off of.
+    """
+
+    world_class = 'simple_tide'
+
+    def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
+
+        super().__init__(planet_config, name=name, initialize=False)
+
+        # State Properties
+        self._fixed_q = None
+
+        self.fixed_q_func = fixed_q
+        self.fixed_q_func_array = fixed_q_array()
+
+        if initialize:
+            self.reinit(initial_init=True)
+
+    def reinit(self, initial_init: bool = False):
+
+        super().reinit(initial_init)
+
+        self._fixed_q = self.config['quality_factor']
+
+
+    # State properties
+    @property
+    def fixed_q(self) -> float:
+        return self._fixed_q
+
+    @fixed_q.setter
+    def fixed_q(self, new_fixed_q: float):
+
+        if type(new_fixed_q) is not float:
+            raise IncorrectAttributeType
+
+        self._fixed_q = new_fixed_q
+        self.update_tides()
+
