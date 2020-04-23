@@ -1,11 +1,12 @@
 from typing import Union
 
 from .basic import GeometricWorld, WorldBase
-from .gas import GasGiant
-from .stellar import Star
+from .gas import GasGiantWorld
+from .stellar import StarWorld
 from .tidal import TidalWorld, SimpleTidalWorld, LayeredWorld
 
-TidalWorldType = Union[SimpleTidalWorld, TidalWorld, LayeredWorld]
+GasPlasmaWorldType = Union[GasGiantWorld, StarWorld]
+TidalWorldType = Union[GasPlasmaWorldType, TidalWorld, LayeredWorld]
 
 # FIXME: Add all world types here:
 world_types = {

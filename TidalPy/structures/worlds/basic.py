@@ -66,7 +66,7 @@ class WorldBase(PhysicalObjSpherical):
         # Additional orbit information
         # orbit_location is an index for where a planet is at in the orbit's geometry. This is set by the initialization
         # of an orbit class.
-        #   0 == Star location
+        #   0 == StarWorld location
         #   1 == Host location
         #   2+ == Various target bodies
         self.orbit_location = None

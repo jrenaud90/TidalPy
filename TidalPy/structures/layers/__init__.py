@@ -1,6 +1,7 @@
 from typing import Union
 
+from .basic import LayerBase
+from .gas import GasLayer
 from .thermal import ThermalLayer
-from .basic import BasicLayer
 
-LayerTypes = Union[ThermalLayer, BasicLayer, GasLayer]
+LayerTypes = Union[ThermalLayer, LayerBase, GasLayer]

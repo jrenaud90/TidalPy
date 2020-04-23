@@ -3,7 +3,7 @@ from .tidal import TidalWorld
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
 
-class Star(TidalWorld):
+class StarWorld(TidalWorld):
 
     world_class = 'star'
 
@@ -11,7 +11,7 @@ class Star(TidalWorld):
 
         super().__init__(star_config, name=name, initialize=False)
 
-        # Star-specific attributes
+        # StarWorld-specific attributes
         self.luminosity = None
         self.effective_temperature = None
 

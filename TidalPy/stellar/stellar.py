@@ -143,9 +143,9 @@ def equilibrium_temperature(surface_heating: FloatArray, radius: float, emissivi
 def efftemp_from_luminosity(luminosity: float, radius: float):
     """ Calculates a star's effective surface temperature provided a luminosity
 
-    :param luminosity: <float> Star's luminosity [Watts]
-    :param radius:     <float> Star's Surface Radius [m]
-    :return:           <float> Star's Effective Surface temperature [K]
+    :param luminosity: <float> StarWorld's luminosity [Watts]
+    :param radius:     <float> StarWorld's Surface Radius [m]
+    :return:           <float> StarWorld's Effective Surface temperature [K]
     """
 
     return (luminosity / (4. * np.pi * sbc * radius**2))**(1 / 4)
@@ -155,9 +155,9 @@ def efftemp_from_luminosity(luminosity: float, radius: float):
 def luminosity_from_efftemp(effective_temperature: float, radius: float):
     """ Calculates a star's luminosity provided an effective surface temperature
 
-    :param effective_temperature: <Float> Star's Effective Surface temperature [K]
-    :param radius:     <float> Star's Surface Radius [m]
-    :return:           <float> Star's luminosity [Watt]
+    :param effective_temperature: <Float> StarWorld's Effective Surface temperature [K]
+    :param radius:     <float> StarWorld's Surface Radius [m]
+    :return:           <float> StarWorld's luminosity [Watt]
     """
 
     return 4. * np.pi * sbc * radius**2 * effective_temperature**4
@@ -170,8 +170,8 @@ def luminosity_from_mass(stellar_mass: float):
 
     Partially based on Cuntz & Wang 2018 (doi:10.3847/2515-5172/aaaa67) and wikipedia.org/wiki/Mass–luminosity_relation
 
-    :param stellar_mass: <float> Star's mass [kg]
-    :return:             <float> Star's luminosity [Watts]
+    :param stellar_mass: <float> StarWorld's mass [kg]
+    :return:             <float> StarWorld's luminosity [Watts]
     """
 
     mass_ratio = stellar_mass / mass_solar

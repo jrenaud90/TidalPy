@@ -178,22 +178,3 @@ class LayerBase(PhysicalObjSpherical):
             text += '; not associated with a world'
 
         return text
-
-
-class SimpleTideLayer(LayerBase):
-
-    """ Simple layer that implements a fixed-Q tidal model """
-
-
-    def __init__(self, layer_name: str, layer_index: int, world: 'GeometricWorld', layer_config: dict,
-                 initialize: bool = True):
-
-        super().__init__(layer_name, layer_index, world, layer_config, initialize=False)
-
-
-
-    # Outer-scope properties
-    # # World properties
-    @property
-    def fixed_q(self):
-        return self.world.fixed_q

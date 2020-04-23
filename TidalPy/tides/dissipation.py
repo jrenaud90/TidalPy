@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Union
 
 import numpy as np
 from numba import njit
@@ -8,7 +8,7 @@ from .eccentricityFuncs import eccentricity_truncations
 from .inclinationFuncs import inclination_functions
 from .love1d import effective_rigidity_general, complex_love_general
 from .universal_coeffs import get_universal_coeffs
-from ..utilities.types import FloatArray, ComplexArray
+from ..utilities.types import FloatArray, ComplexArray, NoneType
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]
@@ -295,7 +295,7 @@ def calculate_terms_at_orderl(orbital_frequency: FloatArray, spin_frequency: Flo
     return unique_frequencies, results_by_frequency
 
 @njit
-def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: FloatArray,
+def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: Union[NoneType, FloatArray],
                   complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
                   tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
                   tidal_susceptibility: FloatArray, tidal_host_mass: float, tidal_scale: float,
@@ -373,8 +373,11 @@ def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: 
         #    Right now it is using the effective rigidity. If it only needs the static then this could be done outside
         #    this function.
         if cpl_ctl_method:
-            effective_rigidity = np.ones_like(shear_modulus)
+            effective_rigidity = None
         else:
+            if shear_modulus is None:
+                raise Exception('Shear modulus is required for non-CTL/CPL models.')
+
             effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
                                                             order_l=tidal_order_l)
 

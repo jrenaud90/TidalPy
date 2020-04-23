@@ -11,7 +11,7 @@ from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
 from ..exceptions import (ImproperPropertyHandling, ArgumentException, IncompatibleModelConfigError,
                           IncorrectArgumentType, IncorrectModelInitialized, ParameterValueError, ParameterMissingError)
 from ..initialize import log
-from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
+from ..structures.worlds import BasicWorld, StarWorld, TidalWorld, WorldBase
 from TidalPy.utilities.types import FloatArray
 from ..utilities.classes import TidalPyClass
 from TidalPy.tools.conversions import Au2m, days2rads, rads2days
@@ -55,14 +55,14 @@ class OrbitBase(TidalPyClass):
 
     """
 
-    def __init__(self, star: Star, host: HostTypes = None, target_bodies: TargetBodyType = None,
+    def __init__(self, star: StarWorld, host: HostTypes = None, target_bodies: TargetBodyType = None,
                  duel_dissipation: bool = False, host_tide_raiser_location: int = None, use_host_orbit: bool = False,
                  time_study: bool = False):
         """
 
         Parameters
         ----------
-        star : Star
+        star : StarWorld
         host : HostTypes
         target_bodies : TargetBodyType
         duel_dissipation : bool
@@ -175,7 +175,7 @@ class OrbitBase(TidalPyClass):
             self._derivative_e.append(np.asarray([0.]))
 
         for t_i, world in enumerate(self.all_objects):
-            # Star does not need (or have) any of the following parameters - so skip it
+            # StarWorld does not need (or have) any of the following parameters - so skip it
             if world is self.star:
                 continue
 
@@ -227,7 +227,7 @@ class OrbitBase(TidalPyClass):
                     the first letter.
             int:
                 Planet's location in the orbit based on the following scheme:
-                    0 == Star
+                    0 == StarWorld
                     1 == Host
                     2+ == Various target planets (these are probably the ones you want to set!)
 
@@ -372,7 +372,7 @@ class OrbitBase(TidalPyClass):
             self._semi_major_axis[planet_loc] = \
                 np.cbrt(G * (planet_pointer.mass + self.star.mass) / new_orbital_freq**2)
         else:
-            # Star and Target bodies all orbit the host (albeit the star doesn't do much...).
+            # StarWorld and Target bodies all orbit the host (albeit the star doesn't do much...).
             self._semi_major_axis[planet_loc] = \
                 np.cbrt(G * (planet_pointer.mass + self.host.mass) / new_orbital_freq**2)
         if not set_by_planet:
@@ -422,7 +422,7 @@ class OrbitBase(TidalPyClass):
             self._orbital_freqs[planet_loc] = \
                 np.sqrt(G * (planet_pointer.mass + self.star.mass) / new_semi_major_axis**3)
         else:
-            # Star and Target bodies all orbit the host (albeit the star doesn't do much...).
+            # StarWorld and Target bodies all orbit the host (albeit the star doesn't do much...).
             self._orbital_freqs[planet_loc] = \
                 np.sqrt(G * (planet_pointer.mass + self.host.mass) / new_semi_major_axis**3)
         if not set_by_planet:

@@ -599,56 +599,31 @@ class SimpleTides(TidesBase):
 
             tidal_scale, radius, bulk_density, gravity_surf = self.tidal_inputs
 
-            # Pull out variables that change often
-            shear_modulus = layer.shear_modulus
-            complex_compliances_by_frequency = layer.complex_compliance_by_frequency
+            # Shear modulus is not used in the CTL/CPL scheme.
+            shear_modulus = None
 
-            if shear_modulus is None or complex_compliances_by_frequency is None:
-                # uh oh
-                if force_update:
-                    raise FailedForcedStateUpdate
+            # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global dissipation
+            #    values
+            tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+                mode_collapse(gravity_surf, radius, bulk_density, shear_modulus,
+                              self.neg_imk_by_unique_freq,
+                              self.tidal_terms_by_frequency, self.tidal_susceptibility,
+                              self.tidal_host.mass,
+                              tidal_scale, max_tidal_l=self.tidal_order_lvl)
 
-            # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global and
-            #    localized dissipation values
-            if self.use_ctl:
-                tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                    mode_collapse(gravity_surf, radius, bulk_density, shear_modulus,
-                                  self.neg_imk_ctl_by_unique_freq,
-                                  self.tidal_terms_by_frequency, self.tidal_susceptibility,
-                                  self.tidal_host.mass,
-                                  tidal_scale, max_tidal_l=self.tidal_order_lvl)
+            # Calculation finished. Store info in accessible containers
+            self._tidal_heating_global = tidal_heating
+            self._dUdM = dUdM
+            self._dUdw = dUdw
+            self._dUdO = dUdO
+            self._negative_imk_global = negative_imk
 
-            # These will be summed for global values
-            nonNone_love_number.append(love_number)
-            nonNone_neg_imk.append(negative_imk)
-            nonNone_tidal_heating.append(tidal_heating)
-            nonNone_dUdM.append(dUdM)
-            nonNone_dUdw.append(dUdw)
-            nonNone_dUdO.append(dUdO)
+            # Now tell other methods to update now that derivatives and heating has been altered
+            # TODO: orbit derivatives
+            self.set_spin_derivative()
 
-
-            if not broke_out:
-                # Loop finished successfully. Store info in accessible containers
-                self._tidal_heating_by_layer = tidal_heating_by_layer
-                self._negative_imk_by_layer = neg_imk_by_layer
-
-                self._tidal_heating_global = sum(nonNone_tidal_heating)
-                self._dUdM = sum(nonNone_dUdM)
-                self._dUdw = sum(nonNone_dUdw)
-                self._dUdO = sum(nonNone_dUdO)
-                self._negative_imk_global = sum(nonNone_neg_imk)
-
-                # Now tell other methods to update now that derivatives and heating has been altered
-                # TODO: orbit derivatives
-                # TODO: layer thermal evolution
-                self.set_spin_derivative()
-
-                # Return tidal heating and derivatives
-                return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
-
-            else:
-                if force_update:
-                    raise FailedForcedStateUpdate
+            # Return tidal heating and derivatives
+            return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
 
         else:
             if force_update:
@@ -680,6 +655,14 @@ class SimpleTides(TidesBase):
     def neg_imk_cpl(self, value):
         raise ConfigPropertyChangeError
 
+    @property
+    def tidal_inputs(self):
+        return self._tidal_inputs
+
+    @tidal_inputs.setter
+    def tidal_inputs(self, value):
+        raise ImproperPropertyHandling
+
 
     # State properties
     @property
@@ -696,14 +679,6 @@ class SimpleTides(TidesBase):
 
     @neg_imk_cpl_by_unique_freq.setter
     def neg_imk_cpl_by_unique_freq(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def tidal_inputs(self):
-        return self._tidal_inputs
-
-    @tidal_inputs.setter
-    def tidal_inputs(self, value):
         raise ImproperPropertyHandling
 
     @property
@@ -889,7 +864,7 @@ class LayeredTides(TidesBase):
                     tidal_heating_by_layer[layer] = tidal_heating
                     neg_imk_by_layer[layer] = negative_imk
 
-                    # TODO: Not accessible at the moment. I suppose it would be useful info?
+                    # TODO: These are not accessible at the moment. I suppose it would be useful info?
                     love_number_by_layer[layer] = love_number
                     dUdM_by_layer[layer] = dUdM
                     dUdw_by_layer[layer] = dUdw
