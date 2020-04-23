@@ -4,7 +4,7 @@ import numpy as np
 
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
-from ...exceptions import ImproperAttributeHandling
+from ...exceptions import ImproperPropertyHandling
 from ...tides.dissipation import FreqSig
 from ...utilities.classes.model import LayerModelHolder
 
@@ -63,7 +63,7 @@ class ComplexCompliance(LayerModelHolder):
 
     @complex_compliances.setter
     def complex_compliances(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     # Outerscope properties
     @property
@@ -72,7 +72,7 @@ class ComplexCompliance(LayerModelHolder):
 
     @tidal_freqs.setter
     def tidal_freqs(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def compliance(self):
@@ -80,7 +80,7 @@ class ComplexCompliance(LayerModelHolder):
 
     @compliance.setter
     def compliance(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def viscosity(self):
@@ -88,7 +88,7 @@ class ComplexCompliance(LayerModelHolder):
 
     @viscosity.setter
     def viscosity(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def quality_factor(self):
@@ -96,7 +96,7 @@ class ComplexCompliance(LayerModelHolder):
 
     @quality_factor.setter
     def quality_factor(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def beta(self):
@@ -104,4 +104,4 @@ class ComplexCompliance(LayerModelHolder):
 
     @beta.setter
     def beta(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling

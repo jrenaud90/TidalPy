@@ -1,5 +1,5 @@
 from . import GeometricWorld
-from ...exceptions import ImproperAttributeHandling, ConfigAttributeChangeError
+from ...exceptions import ImproperPropertyHandling, ConfigPropertyChangeError
 
 from ...tides.tides import Tides
 
@@ -61,7 +61,7 @@ class TidalWorld(SimpleTidalWorld):
 
     @tides.setter
     def tides(self, value):
-        raise ConfigAttributeChangeError
+        raise ConfigPropertyChangeError
 
     @property
     def is_spin_sync(self):
@@ -69,7 +69,7 @@ class TidalWorld(SimpleTidalWorld):
 
     @is_spin_sync.setter
     def is_spin_sync(self, value):
-        raise ConfigAttributeChangeError
+        raise ConfigPropertyChangeError
 
     # Inner scope properties - Tides model
     @property
@@ -159,5 +159,5 @@ class TidalWorld(SimpleTidalWorld):
 
     @use_nsr.setter
     def use_nsr(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 

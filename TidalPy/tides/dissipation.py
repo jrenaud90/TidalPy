@@ -296,10 +296,11 @@ def calculate_terms_at_orderl(orbital_frequency: FloatArray, spin_frequency: Flo
 
 @njit
 def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: FloatArray,
-                  complex_compliance_by_frequency: Dict[str, ComplexArray],
+                  complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
                   tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
                   tidal_susceptibility: FloatArray, tidal_host_mass: float, tidal_scale: float,
-                  max_tidal_l: int) -> Tuple[FloatArray, FloatArray, FloatArray, FloatArray, ComplexArray, FloatArray]:
+                  max_tidal_l: int, cpl_ctl_method: bool = False) -> \
+        Tuple[FloatArray, FloatArray, FloatArray, FloatArray, ComplexArray, FloatArray]:
     """ Collapses the tidal terms calculated by calculate_modes() combined with rheological information from the layer.
 
     Parameters
@@ -312,7 +313,7 @@ def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: 
         Bulk density of the layer or planet [kg m-3]
     shear_modulus : FloatArray
         Effective shear modulus of the layer or planet [Pa]
-    complex_compliance_by_frequency : Dict[str, ComplexArray]
+    complex_compliance_by_frequency : Dict[FreqSig, ComplexArray]
         The complex compliance for the layer or planet calculated at each unique tidal frequency [Pa-1]
     tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTerms]]
         Each dissipation term: E^dot, dUdM, dUdw, dUdO; calculated for each unique tidal frequency and order-l
@@ -326,6 +327,9 @@ def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: 
             only a portion of a planet's volume is contributing to the tidal dissipation.
     max_tidal_l : int
         Tidal harmonic order
+    cpl_ctl_method : bool = False
+        Changes functionality based on if the method is ctl cpl or neither
+        See tides.SimpleTides.mode_collapse
 
     Returns
     -------
@@ -368,15 +372,21 @@ def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: 
         # TODO: Should this use the static shear modulus or the effective (post-melting/heating) shear?
         #    Right now it is using the effective rigidity. If it only needs the static then this could be done outside
         #    this function.
-        effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
-                                                        order_l=tidal_order_l)
+        if cpl_ctl_method:
+            effective_rigidity = np.ones_like(shear_modulus)
+        else:
+            effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
+                                                            order_l=tidal_order_l)
 
         # Pull out the already computed complex compliances for each frequency
         for unique_freq_signature, complex_compliance in complex_compliance_by_frequency.items():
 
-            # Calculate the complex Love number, which also changes functional form for each order_l
-            complex_love = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
-                                                order_l=tidal_order_l)
+            if cpl_ctl_method:
+                complex_love = complex_compliance
+            else:
+                # Calculate the complex Love number, which also changes functional form for each order_l
+                complex_love = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
+                                                    order_l=tidal_order_l)
 
             # Scale the Love number by the layer's contribution
             # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
@@ -388,7 +398,7 @@ def mode_collapse(gravity: float, radius: float, density: float, shear_modulus: 
             #    tidal susceptibility. Divide that out now.
             neg_imk_scaled_potential = neg_imk_scaled / tidal_host_mass
 
-            # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.orbital_change
+            # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.update_orbit_spin
             heating_term, dUdM_term, dUdw_term, dUdO_term = \
                 tidal_terms_by_frequency[unique_freq_signature][tidal_order_l]
 

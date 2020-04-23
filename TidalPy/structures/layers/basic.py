@@ -7,7 +7,7 @@ import numpy as np
 from TidalPy.utilities.types import NoneType
 from ..physical import PhysicalObjSpherical
 from .defaults import layer_defaults
-from ...exceptions import ImproperAttributeHandling, OuterscopeAttributeSetError
+from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError
 
 if TYPE_CHECKING:
     from ..worlds import GeometricWorld
@@ -97,7 +97,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @layer_index.setter
     def layer_index(self, value):
-        raise ImproperAttributeHandling('Layer index can not be changed after planet has been initialized.')
+        raise ImproperPropertyHandling('Layer index can not be changed after planet has been initialized.')
 
     @property
     def world(self) -> 'GeometricWorld':
@@ -105,7 +105,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @world.setter
     def world(self, value):
-        raise ImproperAttributeHandling('Can not change world association after a layer has been initialized.')
+        raise ImproperPropertyHandling('Can not change world association after a layer has been initialized.')
 
     @property
     def temperature(self) -> np.ndarray:
@@ -135,7 +135,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @layer_below.setter
     def layer_below(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def layer_above(self) -> Union['LayerTypes', NoneType]:
@@ -146,7 +146,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @layer_above.setter
     def layer_above(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def time(self):
@@ -154,7 +154,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @time.setter
     def time(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
 
     # Dunder methods

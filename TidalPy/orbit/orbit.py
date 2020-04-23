@@ -8,7 +8,7 @@ from scipy.constants import G
 from TidalPy.utilities.numpyHelper.array_other import value_cleanup
 from .. import debug_mode
 from ..dynamics import diff_eqs_duel_dissipation, diff_eqs_single_dissipation
-from ..exceptions import (ImproperAttributeHandling, ArgumentException, IncompatibleModelConfigError,
+from ..exceptions import (ImproperPropertyHandling, ArgumentException, IncompatibleModelConfigError,
                           IncorrectArgumentType, IncorrectModelInitialized, ParameterValueError, ParameterMissingError)
 from ..initialize import log
 from ..structures.worlds import BasicWorld, Star, TidalWorld, WorldBase
@@ -314,7 +314,7 @@ class OrbitBase(TidalPyClass):
         #    Will do a single call to orbit_update at the end.
         if orbital_freq is not None:
             if semi_major_axis is not None:
-                raise ImproperAttributeHandling('Only set orbital frequency or semi-major axis, not both.')
+                raise ImproperPropertyHandling('Only set orbital frequency or semi-major axis, not both.')
             self.set_orbital_freq(planet_pointer, orbital_freq, set_by_planet=True)
 
         if semi_major_axis is not None:

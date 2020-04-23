@@ -9,8 +9,8 @@ from .basic import LayerBase
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import burnman_interpolation_N, burnman_interpolation_method
 from ...cooling import CoolingModel
-from ...exceptions import (AttributeNotSetError, ImproperAttributeHandling, IncorrectAttributeType,
-                           ParameterMissingError, UnknownTidalPyConfigValue, OuterscopeAttributeSetError)
+from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, IncorrectAttributeType,
+                           ParameterMissingError, UnknownTidalPyConfigValue, OuterscopePropertySetError)
 from ...radiogenics.radiogenics import Radiogenics
 from ...rheology import Rheology
 from TidalPy.utilities.types import NoneType, FloatArray
@@ -469,7 +469,7 @@ class ThermalLayer(LayerBase):
 
     @bm_layer.setter
     def bm_layer(self, value):
-        raise ImproperAttributeHandling('Can not change burnman layer information after layer has been initialized.')
+        raise ImproperPropertyHandling('Can not change burnman layer information after layer has been initialized.')
 
     @property
     def bm_material(self) -> burnman.Material:
@@ -477,7 +477,7 @@ class ThermalLayer(LayerBase):
 
     @bm_material.setter
     def bm_material(self, value):
-        raise ImproperAttributeHandling('Can not change burnman layer information after layer has been initialized.')
+        raise ImproperPropertyHandling('Can not change burnman layer information after layer has been initialized.')
 
     @property
     def pressure_upper(self) -> float:
@@ -485,7 +485,7 @@ class ThermalLayer(LayerBase):
 
     @pressure_upper.setter
     def pressure_upper(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def pressure_lower(self) -> float:
@@ -493,7 +493,7 @@ class ThermalLayer(LayerBase):
 
     @pressure_lower.setter
     def pressure_lower(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def temperature_upper(self) -> float:
@@ -501,7 +501,7 @@ class ThermalLayer(LayerBase):
 
     @temperature_upper.setter
     def temperature_upper(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def temperature_lower(self) -> float:
@@ -509,7 +509,7 @@ class ThermalLayer(LayerBase):
 
     @temperature_lower.setter
     def temperature_lower(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def density_upper(self) -> float:
@@ -517,7 +517,7 @@ class ThermalLayer(LayerBase):
 
     @density_upper.setter
     def density_upper(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def density(self) -> float:
@@ -535,7 +535,7 @@ class ThermalLayer(LayerBase):
 
     @density_lower.setter
     def density_lower(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def gravity_upper(self) -> float:
@@ -543,7 +543,7 @@ class ThermalLayer(LayerBase):
 
     @gravity_upper.setter
     def gravity_upper(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def gravity(self) -> float:
@@ -561,7 +561,7 @@ class ThermalLayer(LayerBase):
 
     @gravity_lower.setter
     def gravity_lower(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def radii(self) -> np.ndarray:
@@ -569,7 +569,7 @@ class ThermalLayer(LayerBase):
 
     @radii.setter
     def radii(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     # TODO: make a "slice" inner class that handles this stuff an 3d Love calculation?
     @property
@@ -578,7 +578,7 @@ class ThermalLayer(LayerBase):
 
     @pressure_slices.setter
     def pressure_slices(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def density_slices(self) -> np.ndarray:
@@ -586,7 +586,7 @@ class ThermalLayer(LayerBase):
 
     @density_slices.setter
     def density_slices(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def gravity_slices(self) -> np.ndarray:
@@ -594,7 +594,7 @@ class ThermalLayer(LayerBase):
 
     @gravity_slices.setter
     def gravity_slices(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def deriv_temperature(self) -> np.ndarray:
@@ -602,7 +602,7 @@ class ThermalLayer(LayerBase):
 
     @deriv_temperature.setter
     def deriv_temperature(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
 
     # Inner-scope properties
@@ -714,7 +714,7 @@ class ThermalLayer(LayerBase):
 
     @tidal_heating.setter
     def tidal_heating(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
 
     # Aliased properties

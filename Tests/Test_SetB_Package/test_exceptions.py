@@ -17,8 +17,8 @@ def test_exception_load():
     from TidalPy.exceptions import (ClassException, ImplementedBySubclassError, ReinitError, ReinitNotAllowedError)
 
     # Attribute or Method Error
-    from TidalPy.exceptions import (AttributeException, ImproperAttributeHandling, ConfigAttributeChangeError,
-                                    OuterscopeAttributeSetError, AttributeChangeRequiresReINIT, MissingArgumentError,
+    from TidalPy.exceptions import (AttributeException, ImproperPropertyHandling, ConfigPropertyChangeError,
+                                    OuterscopePropertySetError, PropertyChangeRequiresReINIT, MissingArgumentError,
                                     IncorrectAttributeType, AttributeNotSetError, BadAttributeValueError)
 
     # Configuration Error

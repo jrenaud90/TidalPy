@@ -6,7 +6,7 @@ from .json_utils import save_dict_to_json
 from ..base import TidalPyClass
 from ...io.io import inner_save_dir
 from .... import version, debug_mode
-from ....exceptions import ImproperAttributeHandling, ParameterMissingError
+from ....exceptions import ImproperPropertyHandling, ParameterMissingError
 from ....initialize import log
 
 
@@ -254,7 +254,7 @@ class ConfigHolder(TidalPyClass):
 
     @old_config.setter
     def old_config(self, value):
-        raise ImproperAttributeHandling('To change configurations set the "config_user" attribute '
+        raise ImproperPropertyHandling('To change configurations set the "config_user" attribute '
                                         'or run "update_config"')
 
     @property
@@ -263,7 +263,7 @@ class ConfigHolder(TidalPyClass):
 
     @config.setter
     def config(self, value):
-        raise ImproperAttributeHandling('To change configurations set the "replacement_config" attribute '
+        raise ImproperPropertyHandling('To change configurations set the "replacement_config" attribute '
                                         'or run "update_config"')
 
 

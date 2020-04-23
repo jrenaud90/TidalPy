@@ -5,7 +5,7 @@ from .gas import GasGiant
 from .stellar import Star
 from .tidal import TidalWorld, SimpleTidalWorld, LayeredWorld
 
-TidalWorldType = Union[SimpleTidalWorld, TidalWorld]
+TidalWorldType = Union[SimpleTidalWorld, TidalWorld, LayeredWorld]
 
 # FIXME: Add all world types here:
 world_types = {

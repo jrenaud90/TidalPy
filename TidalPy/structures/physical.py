@@ -2,7 +2,7 @@ import numpy as np
 
 from .. import debug_mode
 from ..constants import G
-from ..exceptions import (BadAttributeValueError, ImproperAttributeHandling, IncorrectAttributeType,
+from ..exceptions import (BadAttributeValueError, ImproperPropertyHandling, IncorrectAttributeType,
                           UnusualRealValueError, ParameterMissingError)
 from TidalPy.utilities.types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
@@ -121,7 +121,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @mass.setter
     def mass(self, value):
-        raise ImproperAttributeHandling('Mass must be set by the set_geometry method')
+        raise ImproperPropertyHandling('Mass must be set by the set_geometry method')
 
     @property
     def radius(self) -> float:
@@ -129,7 +129,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @radius.setter
     def radius(self, value):
-        raise ImproperAttributeHandling('Radius must be set by the set_geometry method')
+        raise ImproperPropertyHandling('Radius must be set by the set_geometry method')
 
     @property
     def thickness(self) -> float:
@@ -137,7 +137,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @thickness.setter
     def thickness(self, value):
-        raise ImproperAttributeHandling('Thickness must be set by the set_geometry method')
+        raise ImproperPropertyHandling('Thickness must be set by the set_geometry method')
 
     # Dependent state properties
     @property
@@ -146,7 +146,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @volume.setter
     def volume(self, value):
-        raise ImproperAttributeHandling('Volume is set by the set_geometry method')
+        raise ImproperPropertyHandling('Volume is set by the set_geometry method')
 
     @property
     def radius_inner(self) -> float:
@@ -154,7 +154,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @radius_inner.setter
     def radius_inner(self, value):
-        raise ImproperAttributeHandling('Inner Radius is set by the set_geometry method')
+        raise ImproperPropertyHandling('Inner Radius is set by the set_geometry method')
 
     @property
     def surface_area_outer(self) -> float:
@@ -162,7 +162,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @surface_area_outer.setter
     def surface_area_outer(self, value):
-        raise ImproperAttributeHandling('Outer Surface Area is set by the set_geometry method')
+        raise ImproperPropertyHandling('Outer Surface Area is set by the set_geometry method')
 
     @property
     def surface_area_inner(self) -> float:
@@ -170,7 +170,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @surface_area_inner.setter
     def surface_area_inner(self, value):
-        raise ImproperAttributeHandling('Inner Surface Area is set by the set_geometry method')
+        raise ImproperPropertyHandling('Inner Surface Area is set by the set_geometry method')
 
     @property
     def density_bulk(self) -> float:
@@ -178,7 +178,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @density_bulk.setter
     def density_bulk(self, value):
-        raise ImproperAttributeHandling('Bulk Density is set by the set_geometry method')
+        raise ImproperPropertyHandling('Bulk Density is set by the set_geometry method')
 
     @property
     def gravity_surf(self) -> float:
@@ -187,7 +187,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @gravity_surf.setter
     def gravity_surf(self, value):
-        raise ImproperAttributeHandling('Surface Gravity is set by the set_geometry method')
+        raise ImproperPropertyHandling('Surface Gravity is set by the set_geometry method')
 
     @property
     def moi_ideal(self) -> float:
@@ -196,7 +196,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @moi_ideal.setter
     def moi_ideal(self, value):
-        raise ImproperAttributeHandling('Ideal Moment of Inertia is set by the set_geometry method')
+        raise ImproperPropertyHandling('Ideal Moment of Inertia is set by the set_geometry method')
 
     @property
     def moi_factor(self) -> float:
@@ -205,7 +205,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @moi_factor.setter
     def moi_factor(self, value):
-        raise ImproperAttributeHandling('Moment of Inertia Factor is set by the set_geometry method or '
+        raise ImproperPropertyHandling('Moment of Inertia Factor is set by the set_geometry method or '
                                         'by setting self.moi (the real moment of inertia)')
 
     @property
@@ -215,7 +215,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @beta.setter
     def beta(self, value):
-        raise ImproperAttributeHandling('Beta Parameter is set by the set_geometry method')
+        raise ImproperPropertyHandling('Beta Parameter is set by the set_geometry method')
 
     @property
     def moi(self) -> float:

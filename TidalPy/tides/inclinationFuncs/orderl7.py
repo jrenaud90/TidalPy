@@ -43,6 +43,8 @@ def calc_inclination(inclination: FloatArray) -> Dict[Tuple[int, int], FloatArra
     cos_i_double = np.cos(i_double)
     cos_i_triple = np.cos(i_triple)
 
+    # TODO: Optimizations - Lots of powers duplicated in the below. Could be precalculated and turned into references.
+
     inclination_results = {
         (0, 0) : 718.91015625*sin_i_half**14*cos_i_half**14,
         (0, 1) : 208.44140625*(-13.0*sin_i_half**4 + 13.0*sin_i_half**2 - 3.0)**2*sin_i_half**10*cos_i_half**10,

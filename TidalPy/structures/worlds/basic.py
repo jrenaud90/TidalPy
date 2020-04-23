@@ -13,7 +13,7 @@ from .. import PhysicalObjSpherical
 from ... import debug_mode, use_disk, tidalpy_dir
 from ...configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
                                overwrite_configs)
-from ...exceptions import (ImproperAttributeHandling, UnusualRealValueError,
+from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            IncorrectAttributeType, AttributeNotSetError, AttributeException,
                            IOException)
 from ...initialize import log
@@ -316,7 +316,7 @@ class WorldBase(PhysicalObjSpherical):
 
     @global_shape.setter
     def global_shape(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def time(self) -> np.ndarray:
@@ -346,7 +346,7 @@ class WorldBase(PhysicalObjSpherical):
 
             self._time = new_time
         else:
-            raise ImproperAttributeHandling('Time must be set at the Orbit-level once an orbit is applied.')
+            raise ImproperPropertyHandling('Time must be set at the Orbit-level once an orbit is applied.')
 
     @property
     def spin_freq(self) -> np.ndarray:
@@ -417,7 +417,7 @@ class WorldBase(PhysicalObjSpherical):
 
     @surface_temperature.setter
     def surface_temperature(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def obliquity(self) -> np.ndarray:
@@ -443,7 +443,7 @@ class WorldBase(PhysicalObjSpherical):
 
     @int2surface_heating.setter
     def int2surface_heating(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def orbit(self) -> Orbit:
@@ -523,7 +523,7 @@ class WorldBase(PhysicalObjSpherical):
 
     @insolation_heating.setter
     def insolation_heating(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
 
     # Aliased properties

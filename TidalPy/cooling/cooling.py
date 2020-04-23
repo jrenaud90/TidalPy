@@ -3,7 +3,7 @@ import numpy as np
 from . import known_models, known_model_live_args, known_model_const_args
 from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
-from ..exceptions import MissingAttributeError, ImproperAttributeHandling, OuterscopeAttributeSetError
+from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError
 from ..initialize import log
 from ..utilities.classes.model import LayerModelHolder
 
@@ -93,7 +93,7 @@ class CoolingModel(LayerModelHolder):
 
     @cooling.setter
     def cooling(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def cooling_flux(self) -> np.ndarray:
@@ -101,7 +101,7 @@ class CoolingModel(LayerModelHolder):
 
     @cooling_flux.setter
     def cooling_flux(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def boundary_layer_thickness(self) -> np.ndarray:
@@ -109,7 +109,7 @@ class CoolingModel(LayerModelHolder):
 
     @boundary_layer_thickness.setter
     def boundary_layer_thickness(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def rayleigh(self) -> np.ndarray:
@@ -117,7 +117,7 @@ class CoolingModel(LayerModelHolder):
 
     @rayleigh.setter
     def rayleigh(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def nusselt(self) -> np.ndarray:
@@ -125,7 +125,7 @@ class CoolingModel(LayerModelHolder):
 
     @nusselt.setter
     def nusselt(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
 
     # Outer-scope properties
@@ -135,7 +135,7 @@ class CoolingModel(LayerModelHolder):
 
     @viscosity.setter
     def viscosity(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def thermal_conductivity(self):
@@ -143,7 +143,7 @@ class CoolingModel(LayerModelHolder):
 
     @thermal_conductivity.setter
     def thermal_conductivity(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def thermal_diffusivity(self):
@@ -151,7 +151,7 @@ class CoolingModel(LayerModelHolder):
 
     @thermal_diffusivity.setter
     def thermal_diffusivity(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def thermal_expansion(self):
@@ -159,7 +159,7 @@ class CoolingModel(LayerModelHolder):
 
     @thermal_expansion.setter
     def thermal_expansion(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def thickness(self):
@@ -167,7 +167,7 @@ class CoolingModel(LayerModelHolder):
 
     @thickness.setter
     def thickness(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def gravity(self):
@@ -175,7 +175,7 @@ class CoolingModel(LayerModelHolder):
 
     @gravity.setter
     def gravity(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def density_bulk(self):
@@ -183,7 +183,7 @@ class CoolingModel(LayerModelHolder):
 
     @density_bulk.setter
     def density_bulk(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
 
     # Alias properties

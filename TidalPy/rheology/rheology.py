@@ -7,7 +7,7 @@ from .defaults import rheology_defaults
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .. import debug_mode
-from ..exceptions import MissingArgumentError, ArgumentException, OuterscopeAttributeSetError, UnusualRealValueError
+from ..exceptions import MissingArgumentError, ArgumentException, OuterscopePropertySetError, UnusualRealValueError
 from ..initialize import log
 from ..utilities.classes import LayerConfigHolder
 from ..utilities.numpyHelper import reshape_help
@@ -236,7 +236,7 @@ class Rheology(LayerConfigHolder):
 
     @premelt_shear.setter
     def premelt_shear(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def quality_factor(self):
@@ -244,7 +244,7 @@ class Rheology(LayerConfigHolder):
 
     @quality_factor.setter
     def quality_factor(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def beta(self):
@@ -252,7 +252,7 @@ class Rheology(LayerConfigHolder):
 
     @beta.setter
     def beta(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     # # Tides Class
     @property
@@ -261,7 +261,7 @@ class Rheology(LayerConfigHolder):
 
     @tides.setter
     def tides(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
     @property
     def unique_tidal_frequencies(self):
@@ -269,7 +269,7 @@ class Rheology(LayerConfigHolder):
 
     @unique_tidal_frequencies.setter
     def unique_tidal_frequencies(self, value):
-        raise OuterscopeAttributeSetError
+        raise OuterscopePropertySetError
 
 
     # Alias properties

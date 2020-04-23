@@ -4,7 +4,7 @@ import numpy as np
 
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import partial_melt_defaults
-from ...exceptions import BadValueError, ImproperAttributeHandling
+from ...exceptions import BadValueError, ImproperPropertyHandling
 from ...utilities.classes.model import LayerModelHolder
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
@@ -231,7 +231,7 @@ class PartialMelt(LayerModelHolder):
 
     @postmelt_viscosity.setter
     def postmelt_viscosity(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def postmelt_shear_modulus(self) -> np.ndarray:
@@ -239,7 +239,7 @@ class PartialMelt(LayerModelHolder):
 
     @postmelt_shear_modulus.setter
     def postmelt_shear_modulus(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def postmelt_compliance(self) -> np.ndarray:
@@ -247,7 +247,7 @@ class PartialMelt(LayerModelHolder):
 
     @postmelt_compliance.setter
     def postmelt_compliance(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def melt_fraction(self) -> np.ndarray:
@@ -255,7 +255,7 @@ class PartialMelt(LayerModelHolder):
 
     @melt_fraction.setter
     def melt_fraction(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
 
     # Outer-scope properties
@@ -265,7 +265,7 @@ class PartialMelt(LayerModelHolder):
 
     @temperature.setter
     def temperature(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def premelt_viscosity(self):
@@ -273,7 +273,7 @@ class PartialMelt(LayerModelHolder):
 
     @premelt_viscosity.setter
     def premelt_viscosity(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def premelt_shear(self):
@@ -281,7 +281,7 @@ class PartialMelt(LayerModelHolder):
 
     @premelt_shear.setter
     def premelt_shear(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def liquid_viscosity(self):
@@ -289,4 +289,4 @@ class PartialMelt(LayerModelHolder):
 
     @liquid_viscosity.setter
     def liquid_viscosity(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling

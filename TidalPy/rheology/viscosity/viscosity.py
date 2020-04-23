@@ -2,7 +2,7 @@ import numpy as np
 
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-from ...exceptions import ImproperAttributeHandling
+from ...exceptions import ImproperPropertyHandling
 from ...utilities.classes.model import LayerModelHolder
 
 
@@ -49,7 +49,7 @@ class ViscosityClass(LayerModelHolder):
 
     @viscosity.setter
     def viscosity(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     # Outerscope references
     @property
@@ -58,7 +58,7 @@ class ViscosityClass(LayerModelHolder):
 
     @temperature.setter
     def temperature(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
     @property
     def pressure(self):
@@ -72,7 +72,7 @@ class ViscosityClass(LayerModelHolder):
 
     @pressure.setter
     def pressure(self, value):
-        raise ImproperAttributeHandling
+        raise ImproperPropertyHandling
 
 
 class LiquidViscosity(ViscosityClass):

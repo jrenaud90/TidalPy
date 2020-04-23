@@ -81,35 +81,32 @@ class ReinitNotAllowedError(ReinitError):
                       'Partial reinit (via self.reinit()) is not supported.'
 
 
-# Attribute or Method Error
+# Attribute/Property or Method Error
 class AttributeException(ClassException):
     default_message = 'There was a problem with one or more class attributes or methods.'
 
 
-class ImproperAttributeHandling(AttributeException):
+class ImproperPropertyHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
 
-class ConfigAttributeChangeError(ImproperAttributeHandling):
+class ConfigPropertyChangeError(ImproperPropertyHandling):
     default_message = 'Attempted to change a configuration attribute. These must be changed in the planet ' \
                       'configuration followed by a call to reinit.'
 
-class OuterscopeAttributeSetError(ImproperAttributeHandling):
+class OuterscopePropertySetError(ImproperPropertyHandling):
     default_message = 'Attempted to set an outerscope attribute from an inner class/model.'
 
-class AttributeChangeRequiresReINIT(ImproperAttributeHandling):
+class PropertyChangeRequiresReINIT(ImproperPropertyHandling):
     default_message = 'The attribute(s) you are trying to change require the object to be reinitialized.'
 
 class MissingAttributeError(AttributeException):
     default_message = 'The attribute you are attempting to access has not been set.'
 
-
 class IncorrectAttributeType(AttributeException):
     default_message = 'An attribute was set with incorrect type.'
 
-
 class AttributeNotSetError(AttributeException):
     default_message = 'An attribute has not been changed from its default value.'
-
 
 class BadAttributeValueError(AttributeException):
     default_message = 'Bad value found in attribute setter.'
