@@ -12,6 +12,7 @@ from ..utilities.types import FloatArray, ComplexArray, NoneType
 FreqSig = Tuple[int, int]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
+
 def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: int = 8, use_obliquity: bool = True):
 
     # Pull out eccentricity and obliquity (inclination) functions for each order-l.
