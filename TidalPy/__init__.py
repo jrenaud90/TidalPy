@@ -11,6 +11,9 @@ __version__ = version
 _vers_major, _vers_minor, _vers_hotfix = version.split('.')
 compatibility_signature = _vers_major + _vers_minor
 
+# Location of TidalPy Install
+tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
+
 
 def is_compatible(test_version: str):
     """ Tests rather or not a feature made in test_version is likely to be compatible in current __version__

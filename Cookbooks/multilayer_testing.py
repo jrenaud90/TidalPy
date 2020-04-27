@@ -2,7 +2,7 @@ import numpy as np
 from scipy.constants import G
 import matplotlib.pyplot as plt
 
-from TidalPy.planets import build_planet
+# from TidalPy.planets import build_planet
 
 # Computation number
 N = 10
@@ -106,8 +106,8 @@ shear_array[crust_radii] = crust_shear
 
 # Solve for complex compliance. For now we are only looking at one mode, at the orbital frequency
 #    TODO: Add multi-mode calculation
-from TidalPy.rheology.complexCompliance.compliance_models import andrade
-complex_compliance_array = andrade(orbital_motion, shear_array**(-1), viscosity_array, alpha=0.3, zeta=1.)
+from TidalPy.rheology.complexCompliance.compliance_models import andrade_array
+complex_compliance_array = andrade_array(orbital_motion, shear_array**(-1), viscosity_array, alpha=0.3, zeta=1.)
 complex_shear_array = complex_compliance_array**(-1)
 
 # Multilayer Calculation
@@ -121,7 +121,7 @@ Y, Y_inv, Y_reduced_shifted = \
 # Build seed matrix at core (central boundary conditions)
 seed_matrix = np.zeros((6, 3), dtype=np.complex)
 # From IcyDwarf: "Central boundary conditions (3). They are inconsequential on the rest of the solution, so false assumptions are OK."
-# seed_matrix[0, 2] = 1.0 + 0.j# Roberts & Nimmo (2008): liquid innermost zone.
+# seed_matrix[0, 2] = 1.0 + 0.j # Roberts & Nimmo (2008): liquid innermost zone.
 # seed_matrix[1, 3] = 1.0 + 0.j
 # seed_matrix[2, 5] = 1.0 + 0.j
 

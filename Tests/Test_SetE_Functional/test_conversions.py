@@ -3,6 +3,8 @@ import pytest
 import numpy as np
 from scipy.constants import G
 
+import TidalPy
+TidalPy.use_disk = False
 from TidalPy.exceptions import BadValueError
 
 def test_m2Au():

@@ -14,6 +14,7 @@ from ..exceptions import (AttributeNotSetError, ImplementationException, Imprope
                           BadAttributeValueError, ImplementedBySubclassError)
 from ..rheology.complexCompliance.compliance_models import fixed_q_array as fixed_q_array_func
 from ..utilities.classes.config.config import WorldConfigHolder
+from .mode_manipulation import build_mode_manipulators
 from ..utilities.types import FloatArray, ComplexArray
 
 if TYPE_CHECKING:
@@ -57,8 +58,13 @@ class TidesBase(WorldConfigHolder):
 
         # Model setup
         self._eccentricity_truncation_lvl = self.config['eccentricity_truncation_lvl']
-        self._tidal_order_lvl = self.config['max_tidal_order_l']
+        self._max_tidal_order_lvl = self.config['max_tidal_order_l']
         self._use_obliquity_tides = self.config['obliquity_tides_on']
+
+        # Function setup - Set up mode manipulation functions
+        self.calculate_terms, self.collapse_modes_func = \
+            build_mode_manipulators(self.max_tidal_order_lvl, self.eccentricity_truncation_lvl,
+                                    self.use_obliquity_tides)
 
     def clear_state(self):
 
@@ -128,10 +134,8 @@ class TidesBase(WorldConfigHolder):
         if all_values_present:
             # Calculate the various terms based on the current state
             unique_freqs, results_by_unique_frequency = \
-                calculate_terms(self.orbital_frequency, self.spin_frequency, self.eccentricity, self.obliquity,
-                                self.semi_major_axis, self.radius, use_obliquity=self.use_obliquity_tides,
-                                eccentricity_truncation_lvl=self.eccentricity_truncation_lvl,
-                                max_order_l=self.tidal_order_lvl)
+            self.calculate_terms(self.orbital_frequency, self.spin_frequency, self.eccentricity, self.obliquity,
+                                self.semi_major_axis, self.radius)
 
             # Pull out unique frequencies and tidal terms. Clear old storage.
             self._unique_tidal_frequencies = unique_freqs
@@ -298,11 +302,11 @@ class TidesBase(WorldConfigHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def tidal_order_lvl(self) -> int:
-        return self._tidal_order_lvl
+    def max_tidal_order_lvl(self) -> int:
+        return self._max_tidal_order_lvl
 
-    @tidal_order_lvl.setter
-    def tidal_order_lvl(self, value):
+    @max_tidal_order_lvl.setter
+    def max_tidal_order_lvl(self, value):
         raise ConfigPropertyChangeError
 
     @property
@@ -538,15 +542,18 @@ class SimpleTides(TidesBase):
         # If the CTL method is used then the dissipation efficiency will change with frequency
         if self.unique_tidal_frequencies is not None:
 
-            if self.use_ctl:
+            real_val = self.fixed_k2
 
+            if self.use_ctl:
                 # Calculate new values
-                self._neg_imk_ctl_by_unique_freq = {freq_sig: self.fixed_k2 * (self._fixed_dt_coeff * freq)
-                                                    for freq_sig, freq in self.unique_tidal_frequencies.items()}
+                self._neg_imk_ctl_by_unique_freq = \
+                    {freq_sig: real_val + 1.0j * self.fixed_k2 * (self._fixed_dt_coeff * freq)
+                     for freq_sig, freq in self.unique_tidal_frequencies.items()}
             else:
 
-                self._neg_imk_cpl_by_unique_freq = {freq_sig: self.neg_imk_cpl
-                                                    for freq_sig, freq in self.unique_tidal_frequencies.items()}
+                self._neg_imk_cpl_by_unique_freq = \
+                    {freq_sig: real_val + 1.0j * self.neg_imk_cpl
+                     for freq_sig, freq in self.unique_tidal_frequencies.items()}
 
         # Return frequencies and tidal terms
         return self.unique_tidal_frequencies, self.tidal_terms_by_frequency
@@ -599,17 +606,17 @@ class SimpleTides(TidesBase):
 
             tidal_scale, radius, bulk_density, gravity_surf = self.tidal_inputs
 
-            # Shear modulus is not used in the CTL/CPL scheme.
-            shear_modulus = None
+            # Shear modulus is not used in the CTL/CPL scheme. Needs to be provided as a number though.
+            shear_modulus = 1.
 
             # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global dissipation
             #    values
             tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                mode_collapse(gravity_surf, radius, bulk_density, shear_modulus,
-                              self.neg_imk_by_unique_freq,
-                              self.tidal_terms_by_frequency, self.tidal_susceptibility,
-                              self.tidal_host.mass,
-                              tidal_scale, max_tidal_l=self.tidal_order_lvl)
+                self.collapse_modes_func(gravity_surf, radius, bulk_density, shear_modulus,
+                                         self.neg_imk_by_unique_freq,
+                                         self.tidal_terms_by_frequency, self.tidal_susceptibility,
+                                         self.tidal_host.mass,
+                                         tidal_scale, cpl_ctl_method=True)
 
             # Calculation finished. Store info in accessible containers
             self._tidal_heating_global = tidal_heating
@@ -711,8 +718,8 @@ class LayeredTides(TidesBase):
         self._negative_imk_by_layer = {layer: None for layer in self.world}
 
         # Ensure the tidal order and orbital truncation levels make sense
-        if self.tidal_order_lvl > 7:
-            raise ImplementationException(f'Tidal order {self.tidal_order_lvl} has not been implemented yet.')
+        if self.max_tidal_order_lvl > 7:
+            raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented yet.')
         if self.eccentricity_truncation_lvl%2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
@@ -846,11 +853,11 @@ class LayeredTides(TidesBase):
                     # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global and
                     #    localized dissipation values
                     tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                        mode_collapse(gravity_surf, radius, bulk_density, shear_modulus,
-                                      layer.complex_compliance_by_frequency,
-                                      self.tidal_terms_by_frequency, self.tidal_susceptibility,
-                                      self.tidal_host.mass,
-                                      tidal_scale, max_tidal_l=self.tidal_order_lvl)
+                        self.collapse_modes_func(gravity_surf, radius, bulk_density, shear_modulus,
+                                                 layer.complex_compliance_by_frequency,
+                                                 self.tidal_terms_by_frequency, self.tidal_susceptibility,
+                                                 self.tidal_host.mass,
+                                                 tidal_scale, cpl_ctl_method=False)
 
                     # These will be summed for global values
                     nonNone_love_number.append(love_number)

@@ -51,7 +51,7 @@ from .orderl6 import eccentricity_funcs_trunc12 as eccentricity_funcs_l6_trunc12
 from .orderl6 import eccentricity_funcs_trunc14 as eccentricity_funcs_l6_trunc14
 from .orderl6 import eccentricity_funcs_trunc16 as eccentricity_funcs_l6_trunc16
 from .orderl6 import eccentricity_funcs_trunc18 as eccentricity_funcs_l6_trunc18
-# from .orderl6 import eccentricity_funcs_trunc20 as eccentricity_funcs_l6_trunc20
+from .orderl6 import eccentricity_funcs_trunc20 as eccentricity_funcs_l6_trunc20
 
 from .orderl7 import eccentricity_funcs_trunc2 as eccentricity_funcs_l7_trunc2
 from .orderl7 import eccentricity_funcs_trunc4 as eccentricity_funcs_l7_trunc4
@@ -62,9 +62,8 @@ from .orderl7 import eccentricity_funcs_trunc12 as eccentricity_funcs_l7_trunc12
 from .orderl7 import eccentricity_funcs_trunc14 as eccentricity_funcs_l7_trunc14
 from .orderl7 import eccentricity_funcs_trunc16 as eccentricity_funcs_l7_trunc16
 from .orderl7 import eccentricity_funcs_trunc18 as eccentricity_funcs_l7_trunc18
-# from .orderl7 import eccentricity_funcs_trunc20 as eccentricity_funcs_l7_trunc20
+from .orderl7 import eccentricity_funcs_trunc20 as eccentricity_funcs_l7_trunc20
 
-# TODO: Make a more elegant way to get njit to lookup these funcs.
 
 eccentricity_truncations = {
     2: # Truncation Level 2
@@ -154,7 +153,7 @@ eccentricity_truncations = {
         3: eccentricity_funcs_l3_trunc20,
         4: eccentricity_funcs_l4_trunc20,
         5: eccentricity_funcs_l5_trunc20,
-        # 6: eccentricity_funcs_l6_trunc20,
-        # 7: eccentricity_funcs_l7_trunc20
+        6: eccentricity_funcs_l6_trunc20,
+        7: eccentricity_funcs_l7_trunc20
     }
 }

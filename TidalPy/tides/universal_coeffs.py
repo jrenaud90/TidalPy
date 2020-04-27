@@ -13,7 +13,7 @@ from ..utilities.performance.numba import njit
 def get_universal_coeffs(order_l: int):
 
     # TODO: Right now this is defined inside the function to ensure that it is compiled correctly by njit - if we make a typed dict it may be possible to pull it outside the function for better optimization
-    universal_coeffs_byorderl = (
+    universal_coeffs_by_orderl_minus2 = (
         # l = 2
         {
             0: 1.,
@@ -70,4 +70,4 @@ def get_universal_coeffs(order_l: int):
     if order_l < 2:
         raise TidalPyValueException('Tidal order l must be an integer >= 2.')
 
-    return universal_coeffs_byorderl[order_l - 2]
+    return universal_coeffs_by_orderl_minus2[order_l - 2]

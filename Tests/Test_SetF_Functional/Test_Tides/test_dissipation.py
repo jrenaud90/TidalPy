@@ -4,6 +4,9 @@ import pytest
 import numpy as np
 from scipy.constants import G
 
+import TidalPy
+TidalPy.use_disk = False
+
 earth_radius = 6.37101e6
 sun_mass = 1.988435e30
 earth_semi_a = 1.4959789e11
@@ -75,13 +78,18 @@ def test_tidal_susceptibility():
 
 def _test_calculate_modes(order_l, eccen_trunc_lvl):
 
-    from TidalPy.tides.dissipation import calculate_terms
+    from TidalPy.tides.dissipation import calculate_terms, mode_collapse
 
     # Float testing
     spin_frequency, orbital_frequency = 0.001, 0.002
     semi_major_axis = 100.
     eccentricity, obliquity = 0.1, 0.2
     radius = 10.
+    gravity = 9.
+    density = 1000.
+    shear_modulus = 1.e9
+    tidal_scale = 0.9
+    tidal_host_mass = 1.e12
 
     # Array testing
     spin_frequency_array = np.linspace(0.001, 0.005, 5)
@@ -100,6 +108,7 @@ def _test_calculate_modes(order_l, eccen_trunc_lvl):
         calculate_terms(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, radius,
                         use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl,
                         max_order_l=order_l)
+    tidal_susceptibility = 10000. * np.ones_like(orbital_frequency)
 
     for freq_signature, freq in unique_freqs_float.items():
         assert type(freq_signature) is tuple
@@ -119,11 +128,21 @@ def _test_calculate_modes(order_l, eccen_trunc_lvl):
             assert type(dUdw_terms) in [float, np.float, np.float64]
             assert type(dUdO_terms) in [float, np.float, np.float64]
 
+    # Test Mode Collapse
+    complex_compliance_by_frequency = {freq_sig: freq / 100. for freq_sig, freq in unique_freqs_float.items()}
+    tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+        mode_collapse(gravity, radius, density, shear_modulus,
+                      complex_compliance_by_frequency, results_by_uniquefreq_float, tidal_susceptibility,
+                      tidal_host_mass, tidal_scale, max_tidal_l=order_l, cpl_ctl_method=False)
+    for value in [tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk]:
+        assert type(value) in [float, np.float, np.float64]
+
 
     # Test array version using array'd frequencies
     unique_freqs_freq_array, results_by_uniquefreq_freq_array = \
         calculate_terms(orbital_frequency_array, spin_frequency_array, eccentricity, obliquity, semi_major_axis_array,
                         radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+    tidal_susceptibility = 10000. * np.ones_like(orbital_frequency)
 
     for freq_signature, freq in unique_freqs_freq_array.items():
         assert type(freq_signature) is tuple
@@ -143,11 +162,22 @@ def _test_calculate_modes(order_l, eccen_trunc_lvl):
             assert type(dUdw_terms) is np.ndarray
             assert type(dUdO_terms) is np.ndarray
 
+    # Test Mode Collapse
+    complex_compliance_by_frequency = {freq_sig: freq / 100. for freq_sig, freq in
+                                       unique_freqs_freq_array.items()}
+    tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+        mode_collapse(gravity, radius, density, shear_modulus,
+                      complex_compliance_by_frequency, results_by_uniquefreq_freq_array, tidal_susceptibility,
+                      tidal_host_mass, tidal_scale, max_tidal_l=order_l, cpl_ctl_method=False)
+    for value in [tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk]:
+        assert type(value) is np.ndarray
+
 
     # Test array version using array'd eccentricity
     unique_freqs_eccen_array, results_by_uniquefreq_eccen_array = \
         calculate_terms(orbital_frequency, spin_frequency, eccentricity_array, obliquity, semi_major_axis,
                         radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+    tidal_susceptibility = 10000. * np.ones_like(orbital_frequency)
 
     for freq_signature, freq in unique_freqs_eccen_array.items():
         assert type(freq_signature) is tuple
@@ -167,11 +197,21 @@ def _test_calculate_modes(order_l, eccen_trunc_lvl):
             assert type(dUdw_terms) is np.ndarray
             assert type(dUdO_terms) is np.ndarray
 
+    # Test Mode Collapse
+    complex_compliance_by_frequency = {freq_sig: freq / 100. for freq_sig, freq in
+                                       unique_freqs_eccen_array.items()}
+    tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+        mode_collapse(gravity, radius, density, shear_modulus,
+                      complex_compliance_by_frequency, results_by_uniquefreq_eccen_array, tidal_susceptibility,
+                      tidal_host_mass, tidal_scale, max_tidal_l=order_l, cpl_ctl_method=False)
+    for value in [tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk]:
+        assert type(value) is np.ndarray
 
     # Test array version using array'd obliquity
     unique_freqs_obliq_array, results_by_uniquefreq_obliq_array = \
         calculate_terms(orbital_frequency, spin_frequency, eccentricity, obliquity_array, semi_major_axis,
                         radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+    tidal_susceptibility = 10000. * np.ones_like(orbital_frequency)
 
     for freq_signature, freq in unique_freqs_obliq_array.items():
         assert type(freq_signature) is tuple
@@ -191,11 +231,22 @@ def _test_calculate_modes(order_l, eccen_trunc_lvl):
             assert type(dUdw_terms) is np.ndarray
             assert type(dUdO_terms) is np.ndarray
 
+    # Test Mode Collapse
+    complex_compliance_by_frequency = {freq_sig: freq / 100. for freq_sig, freq in
+                                       unique_freqs_obliq_array.items()}
+    tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+        mode_collapse(gravity, radius, density, shear_modulus,
+                      complex_compliance_by_frequency, results_by_uniquefreq_obliq_array, tidal_susceptibility,
+                      tidal_host_mass, tidal_scale, max_tidal_l=order_l, cpl_ctl_method=False)
+    for value in [tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk]:
+        assert type(value) is np.ndarray
+
 
     # Test matrix version using meshgrid of frequency and eccentricity
     unique_freqs_mtx, results_by_uniquefreq_mtx = \
         calculate_terms(orbital_frequency_mtx, spin_frequency_mtx, eccentricity_mtx, obliquity, semi_major_axis_mtx,
                         radius, use_obliquity=True, eccentricity_truncation_lvl=eccen_trunc_lvl, max_order_l=order_l)
+    tidal_susceptibility = 10000. * np.ones_like(orbital_frequency)
 
     for freq_signature, freq in unique_freqs_mtx.items():
         assert type(freq_signature) is tuple
@@ -220,6 +271,17 @@ def _test_calculate_modes(order_l, eccen_trunc_lvl):
             assert len(dUdM_terms.shape) == 2
             assert len(dUdw_terms.shape) == 2
             assert len(dUdO_terms.shape) == 2
+
+    # Test Mode Collapse
+    complex_compliance_by_frequency = {freq_sig: freq / 100. for freq_sig, freq in
+                                       unique_freqs_mtx.items()}
+    tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+        mode_collapse(gravity, radius, density, shear_modulus,
+                      complex_compliance_by_frequency, results_by_uniquefreq_mtx, tidal_susceptibility,
+                      tidal_host_mass, tidal_scale, max_tidal_l=order_l, cpl_ctl_method=False)
+    for value in [tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk]:
+        assert type(value) is np.ndarray
+        assert len(value.shape) == 2
 
     return True
 

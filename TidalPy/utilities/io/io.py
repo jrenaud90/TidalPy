@@ -2,10 +2,7 @@ import os
 from datetime import datetime
 from shutil import copyfile
 
-from ... import auto_write, use_disk, version
-
-tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
-
+from ... import auto_write, use_disk, version, tidalpy_loc
 
 def timestamped_str(date: bool = True, time: bool = True, millisecond: bool = False,
                     string_to_stamp: str = None, preappend: bool = True, separation: str = '_',

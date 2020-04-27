@@ -2,6 +2,9 @@
 from scipy.special import gamma
 import numpy as np
 
+import TidalPy
+TidalPy.use_disk = False
+
 def test_find_factorial():
 
     # Test Load
