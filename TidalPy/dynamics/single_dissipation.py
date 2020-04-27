@@ -1,21 +1,23 @@
 import numpy as np
 
 from ..utilities.performance.numba import njit
-from ..utilities.types import float_eps
+from ..utilities.types import float_eps, FloatArray
 
 
 @njit
-def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.ndarray:
-    """ Calculate the time derivative of the spin frequency for a single-body or duel dissipation system
+def spin_rate_derivative(dU_dO: FloatArray, moment_of_inertia: float, host_mass: float) -> FloatArray:
+    """ Calculate the time derivative of the spin frequency for a single-body or single or dual dissipation system
 
     See Ferraz-Mello et. al. (2008)
 
     Parameters
     ----------
-    ztorque : np.ndarray
-        Tidal polar torque in [N m]
+    dU_dO : FloatArray
+        Partial derivative of the tidal potential wrt the target planet's orbital node
     moment_of_inertia : float
         Planet's moment of inertia in [kg m2]
+    host_mass : float
+        Mass of the tidal host [kg]
 
     Returns
     -------
@@ -23,7 +25,7 @@ def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.nd
         Change of spin frequency in [rad s-2]
     """
 
-    dspin_dt = ztorque / moment_of_inertia
+    dspin_dt = (host_mass / moment_of_inertia) * dU_dO
 
     return dspin_dt
 
@@ -32,7 +34,7 @@ def spin_rate_derivative(ztorque: np.ndarray, moment_of_inertia: float) -> np.nd
 def semi_major_axis_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndarray,
                                mass_1: float, dU_dM_1: np.ndarray,
                                mass_2: float) -> np.ndarray:
-    """ Calculate the time derivative of the semi-major axis for a duel dissipating system
+    """ Calculate the time derivative of the semi-major axis for a single-body dissipating system
     See Boue and Efroimsky (2019, CMDA), Eq. 116
     Parameters
     ----------
@@ -64,7 +66,7 @@ def semi_major_axis_derivative(semi_major_axis: np.ndarray, orbital_motion: np.n
 def eccentricity_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndarray, eccentricity,
                             mass_1: float, dU_dM_1: np.ndarray, dU_dw_1: np.ndarray,
                             mass_2: float) -> np.ndarray:
-    """ Calculate the time derivative of the eccentricity for a duel dissipating system
+    """ Calculate the time derivative of the eccentricity for a single-body dissipating system
     See Boue and Efroimsky (2019, CMDA), Eq. 117
     Parameters
     ----------

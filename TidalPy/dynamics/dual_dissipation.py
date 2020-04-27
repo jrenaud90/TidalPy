@@ -10,7 +10,7 @@ from ..utilities.types import float_eps
 def semi_major_axis_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndarray,
                                mass_1: float, dU_dM_1: np.ndarray,
                                mass_2: float, dU_dM_2: np.ndarray) -> np.ndarray:
-    """ Calculate the time derivative of the semi-major axis for a duel dissipating system
+    """ Calculate the time derivative of the semi-major axis for a dual dissipating system
     See Boue and Efroimsky (2019, CMDA), Eq. 116
     Parameters
     ----------
@@ -45,7 +45,7 @@ def semi_major_axis_derivative(semi_major_axis: np.ndarray, orbital_motion: np.n
 def eccentricity_derivative(semi_major_axis: np.ndarray, orbital_motion: np.ndarray, eccentricity,
                             mass_1: float, dU_dM_1: np.ndarray, dU_dw_1: np.ndarray,
                             mass_2: float, dU_dM_2: np.ndarray, dU_dw_2: np.ndarray) -> np.ndarray:
-    """ Calculate the time derivative of the eccentricity for a duel dissipating system
+    """ Calculate the time derivative of the eccentricity for a dual dissipating system
     See Boue and Efroimsky (2019, CMDA), Eq. 117
     Parameters
     ----------
