@@ -301,7 +301,7 @@ def voigt_array(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.nda
     denominator = (voigt_comp * voigt_visc * frequency)**2 + 1.
     real_j = voigt_comp / denominator
     imag_j = -voigt_comp**2 * voigt_visc * frequency / denominator
-    imag_j[np.abs(denominator - 1.) <= float_eps] = 0.
+    imag_j[np.abs(frequency) <= float_eps] = 0.
 
     complex_compliance = real_j + 1.0j * imag_j
 
@@ -335,8 +335,8 @@ def burgers(frequency: float, compliance: float, viscosity: float,
         Complex compliance (complex number) [Pa-1]
     """
 
-    voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
-    maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
+    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
 
     complex_compliance = voigt_complex_comp + maxwell_complex_comp
 
@@ -370,8 +370,8 @@ def burgers_array(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.n
         Complex compliance (complex number) [Pa-1]
     """
 
-    voigt_complex_comp = voigt_array(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
-    maxwell_complex_comp = maxwell_array(compliance, viscosity, frequency)
+    voigt_complex_comp = voigt_array(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+    maxwell_complex_comp = maxwell_array(frequency, compliance, viscosity)
 
     complex_compliance = voigt_complex_comp + maxwell_complex_comp
 
@@ -407,15 +407,16 @@ def andrade(frequency: float, compliance: float, viscosity: float,
 
     andrade_term = compliance * viscosity * frequency * zeta
     const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
-    real_j = np.cos(alpha * np.pi / 2.) * const_term
 
     if abs(frequency) <= float_eps:
+        real_j = 1.e100
         imag_j = 0.
     else:
+        real_j = np.cos(alpha*np.pi/2.) * const_term
         imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
     andrade_complex_comp = real_j + 1.0j * imag_j
-    maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
+    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -453,10 +454,12 @@ def andrade_array(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.n
     const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+
+    real_j[np.abs(andrade_term) <= float_eps] = 1.e100
     imag_j[np.abs(andrade_term) <= float_eps] = 0.
     andrade_complex_comp = real_j + 1.0j * imag_j
 
-    maxwell_complex_comp = maxwell_array(compliance, viscosity, frequency)
+    maxwell_complex_comp = maxwell_array(frequency, compliance, viscosity)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -502,14 +505,15 @@ def andrade_freq(frequency: float, compliance: float, viscosity: float,
 
     andrade_term = compliance * viscosity * frequency * zeta
     const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
-    real_j = np.cos(alpha * np.pi / 2.) * const_term
     if abs(frequency) <= float_eps:
+        real_j = 1.e100
         imag_j = 0.
     else:
+        real_j = np.cos(alpha*np.pi/2.)*const_term
         imag_j = -np.sin(alpha*np.pi/2.)*const_term
     andrade_complex_comp = real_j + 1.0j * imag_j
 
-    maxwell_complex_comp = maxwell(compliance, viscosity, frequency)
+    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -555,10 +559,12 @@ def andrade_freq_array(frequency: np.ndarray, compliance: np.ndarray, viscosity:
     const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
+
+    real_j[np.abs(andrade_term) <= float_eps] = 1.e100
     imag_j[np.abs(andrade_term) <= float_eps] = 0.
     andrade_complex_comp = real_j + 1.0j * imag_j
 
-    maxwell_complex_comp = maxwell_array(compliance, viscosity, frequency)
+    maxwell_complex_comp = maxwell_array(frequency, compliance, viscosity)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -597,8 +603,8 @@ def sundberg(frequency: float, compliance: float, viscosity: float,
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade(compliance, viscosity, frequency, alpha, zeta)
-    voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta)
+    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 
@@ -637,8 +643,8 @@ def sundberg_array(frequency: np.ndarray, compliance: np.ndarray, viscosity: np.
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade_array(compliance, viscosity, frequency, alpha, zeta)
-    voigt_complex_comp = voigt_array(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_complex_comp = andrade_array(frequency, compliance, viscosity, alpha, zeta)
+    voigt_complex_comp = voigt_array(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 
@@ -680,8 +686,8 @@ def sundberg_freq(frequency: float, compliance: float, viscosity: float,
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade_freq(compliance, viscosity, frequency, alpha, zeta, critical_freq)
-    voigt_complex_comp = voigt(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_complex_comp = andrade_freq(frequency, compliance, viscosity, alpha, zeta, critical_freq)
+    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 
@@ -723,8 +729,8 @@ def sundberg_freq_array(frequency: np.ndarray, compliance: np.ndarray, viscosity
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade_freq_array(compliance, viscosity, frequency, alpha, zeta, critical_freq)
-    voigt_complex_comp = voigt_array(compliance, viscosity, frequency, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_complex_comp = andrade_freq_array(frequency, compliance, viscosity, alpha, zeta, critical_freq)
+    voigt_complex_comp = voigt_array(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 

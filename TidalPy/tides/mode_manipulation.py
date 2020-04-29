@@ -77,12 +77,12 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         TidalPy.tides.dissipation.calculate_terms
         """
 
-        # Storage for results by unique frequency signature. Must provide fake values in order to initialize
-        #    numba.
+        # Storage for results by unique frequency signature. Must provide fake data structures and values so that numba
+        #    has an idea on how to compile.
         fake_result = orbital_frequency * spin_frequency * eccentricity * obliquity
         results_by_frequency = {
             (-100, -100): {
-                0: fake_result
+                0: (fake_result, fake_result, fake_result, fake_result)
             }
         }
         unique_frequencies = {
@@ -178,7 +178,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         return unique_frequencies, results_by_frequency
 
-
+    # @njit
     def collapse_modes(gravity: float, radius: float, density: float, shear_modulus: Union[NoneType, FloatArray],
                        complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
                        tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
@@ -278,7 +278,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
                 # Scale the Love number by the layer's contribution
                 # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
-                complex_love = np.real(complex_love) + (np.imag(complex_love) * tidal_scale)
+                complex_love = np.real(complex_love) + (1.0j * np.imag(complex_love) * tidal_scale)
                 neg_imk = -np.imag(complex_love)
                 neg_imk_scaled = neg_imk * tidal_susceptibility
 
