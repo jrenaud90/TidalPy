@@ -266,45 +266,50 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                 effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
                                                                 order_l=tidal_order_l)
 
+            # Number of tidal terms (by freq) should be equal to number of complex compliances (by freq)
+            assert len(tidal_terms_by_frequency) == len(complex_compliance_by_frequency)
+
             # Pull out the already computed tidal heating and potential terms each frequency
             freq_i = 0
             for unique_freq_signature, tidal_terms in tidal_terms_by_frequency.items():
 
                 # Many higher-order frequencies do not have lower-order l results.
                 if tidal_order_l not in tidal_terms:
-                    continue
-
-                # Pull out the complex compliance at this frequency
-                complex_compliance = complex_compliance_by_frequency[freq_i]
-
-                if cpl_ctl_method:
-                    # In the CTL/CPL method, the complex love number is passed in as the complex compliance
-                    complex_love = complex_compliance
+                    # No tidal terms for this order-l / freq combo. Skip it.
+                    pass
                 else:
-                    # Calculate the complex Love number, which also changes functional form for each order_l
-                    complex_love = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
-                                                        order_l=tidal_order_l)
 
-                # Scale the Love number by the layer's contribution
-                # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
-                complex_love = np.real(complex_love) + (1.0j * np.imag(complex_love) * tidal_scale)
-                neg_imk = -np.imag(complex_love)
-                neg_imk_scaled = neg_imk * tidal_susceptibility
+                    # Pull out the complex compliance at this frequency
+                    complex_compliance = complex_compliance_by_frequency[freq_i]
 
-                # The tidal potential carries one fewer dependence on the tidal host mass that is built into the
-                #    tidal susceptibility. Divide that out now.
-                neg_imk_scaled_potential = neg_imk_scaled / tidal_host_mass
+                    if cpl_ctl_method:
+                        # In the CTL/CPL method, the complex love number is passed in as the complex compliance
+                        complex_love = complex_compliance
+                    else:
+                        # Calculate the complex Love number, which also changes functional form for each order_l
+                        complex_love = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
+                                                            order_l=tidal_order_l)
 
-                # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.update_orbit_spin
-                heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
+                    # Scale the Love number by the layer's contribution
+                    # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
+                    complex_love = np.real(complex_love) + (1.0j * np.imag(complex_love) * tidal_scale)
+                    neg_imk = -np.imag(complex_love)
+                    neg_imk_scaled = neg_imk * tidal_susceptibility
 
-                # Store results
-                tidal_heating_terms.append(heating_term * neg_imk_scaled)
-                dUdM_terms.append(dUdM_term * neg_imk_scaled_potential)
-                dUdw_terms.append(dUdw_term * neg_imk_scaled_potential)
-                dUdO_terms.append(dUdO_term * neg_imk_scaled_potential)
-                love_number_terms.append(complex_love)
-                negative_imk_terms.append(neg_imk_scaled)
+                    # The tidal potential carries one fewer dependence on the tidal host mass that is built into the
+                    #    tidal susceptibility. Divide that out now.
+                    neg_imk_scaled_potential = neg_imk_scaled / tidal_host_mass
+
+                    # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.update_orbit_spin
+                    heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
+
+                    # Store results
+                    tidal_heating_terms.append(heating_term * neg_imk_scaled)
+                    dUdM_terms.append(dUdM_term * neg_imk_scaled_potential)
+                    dUdw_terms.append(dUdw_term * neg_imk_scaled_potential)
+                    dUdO_terms.append(dUdO_term * neg_imk_scaled_potential)
+                    love_number_terms.append(complex_love)
+                    negative_imk_terms.append(neg_imk_scaled)
 
                 freq_i += 1
 
