@@ -1,14 +1,10 @@
-from typing import Tuple, Dict, List, Union
+from typing import Tuple
 
 import numpy as np
 from numba import njit
 from scipy.constants import G
 
-from .eccentricityFuncs import eccentricity_truncations
-from .inclinationFuncs import inclination_functions
-from .love1d import effective_rigidity_general, complex_love_general
-from .universal_coeffs import get_universal_coeffs
-from ..utilities.types import FloatArray, ComplexArray, NoneType
+from ..utilities.types import FloatArray
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]

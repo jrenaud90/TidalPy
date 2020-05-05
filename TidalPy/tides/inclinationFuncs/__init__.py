@@ -1,3 +1,9 @@
+from typing import Dict, Tuple
+
+from ...utilities.types import FloatArray
+
+InclinOutput = Dict[Tuple[int, int], FloatArray]
+
 from .orderl2 import calc_inclination as calc_inclin_l2
 from .orderl2 import calc_inclination_off as calc_inclin_l2_off
 from .orderl3 import calc_inclination as calc_inclin_l3
@@ -6,10 +12,10 @@ from .orderl4 import calc_inclination as calc_inclin_l4
 from .orderl4 import calc_inclination_off as calc_inclin_l4_off
 from .orderl5 import calc_inclination as calc_inclin_l5
 from .orderl5 import calc_inclination_off as calc_inclin_l5_off
-from .orderl5 import calc_inclination as calc_inclin_l6
-from .orderl5 import calc_inclination_off as calc_inclin_l6_off
-from .orderl5 import calc_inclination as calc_inclin_l7
-from .orderl5 import calc_inclination_off as calc_inclin_l7_off
+from .orderl6 import calc_inclination as calc_inclin_l6
+from .orderl6 import calc_inclination_off as calc_inclin_l6_off
+from .orderl7 import calc_inclination as calc_inclin_l7
+from .orderl7 import calc_inclination_off as calc_inclin_l7_off
 
 # Build Truncation Tables
 #    Two different tables for the case that inclination (obliquity) is used or not. In the case that obliquity is not

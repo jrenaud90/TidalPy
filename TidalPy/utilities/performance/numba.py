@@ -16,8 +16,11 @@ else:
     float64 = np.float64
     int64 = np.int64
 
-    def njit(func):
-        return func
+    def njit(*args, **kwargs):
+        def njit_inner(func):
+
+            return func
+        return njit_inner
 
     def nbTuple(*args):
         return None

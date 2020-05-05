@@ -1,16 +1,16 @@
 """ Inclination functions (squared) for tidal order-l = 5. These are exact (no truncation on I)
 """
 
-from typing import Dict, Tuple
-
 import numpy as np
 
+from . import InclinOutput
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
+from ...configurations import cache_numba
 
 
-@njit
-def calc_inclination_off(inclination: FloatArray) -> Dict[Tuple[int, int], FloatArray]:
+@njit(cache=cache_numba)
+def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp (assuming I=0) for l = 5"""
 
     # Inclination Functions Calculated for l = 5, Inclination == off.
@@ -25,8 +25,8 @@ def calc_inclination_off(inclination: FloatArray) -> Dict[Tuple[int, int], Float
     return inclination_results
 
 
-@njit
-def calc_inclination(inclination: FloatArray) -> Dict[Tuple[int, int], FloatArray]:
+@njit(cache=cache_numba)
+def calc_inclination(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp for l = 5"""
 
     # Inclination Functions Calculated for l = 5.

@@ -1,14 +1,14 @@
 """ Eccentricity functions (squared) for various truncations of e at tidal order-l = 4
 """
 
-from typing import Dict
-
+from . import EccenOutput
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
+from ...configurations import cache_numba
 
 
-@njit
-def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^2 for order-l = 4
     Parameters
     ----------
@@ -16,7 +16,7 @@ def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> Dict[int, Dict[int, F
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 2.
     #     and order-l = 4.
@@ -61,8 +61,8 @@ def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> Dict[int, Dict[int, F
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc4(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc4(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^4 for order-l = 4
     Parameters
     ----------
@@ -70,7 +70,7 @@ def eccentricity_funcs_trunc4(eccentricity: FloatArray) -> Dict[int, Dict[int, F
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 4.
     #     and order-l = 4.
@@ -124,8 +124,8 @@ def eccentricity_funcs_trunc4(eccentricity: FloatArray) -> Dict[int, Dict[int, F
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc6(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc6(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^6 for order-l = 4
     Parameters
     ----------
@@ -133,7 +133,7 @@ def eccentricity_funcs_trunc6(eccentricity: FloatArray) -> Dict[int, Dict[int, F
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 6.
     #     and order-l = 4.
@@ -198,8 +198,8 @@ def eccentricity_funcs_trunc6(eccentricity: FloatArray) -> Dict[int, Dict[int, F
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc8(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc8(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^8 for order-l = 4
     Parameters
     ----------
@@ -207,7 +207,7 @@ def eccentricity_funcs_trunc8(eccentricity: FloatArray) -> Dict[int, Dict[int, F
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 8.
     #     and order-l = 4.
@@ -281,8 +281,8 @@ def eccentricity_funcs_trunc8(eccentricity: FloatArray) -> Dict[int, Dict[int, F
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc10(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc10(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^10 for order-l = 4
     Parameters
     ----------
@@ -290,7 +290,7 @@ def eccentricity_funcs_trunc10(eccentricity: FloatArray) -> Dict[int, Dict[int, 
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 10.
     #     and order-l = 4.
@@ -375,8 +375,8 @@ def eccentricity_funcs_trunc10(eccentricity: FloatArray) -> Dict[int, Dict[int, 
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc12(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc12(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^12 for order-l = 4
     Parameters
     ----------
@@ -384,7 +384,7 @@ def eccentricity_funcs_trunc12(eccentricity: FloatArray) -> Dict[int, Dict[int, 
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 12.
     #     and order-l = 4.
@@ -480,8 +480,8 @@ def eccentricity_funcs_trunc12(eccentricity: FloatArray) -> Dict[int, Dict[int, 
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc14(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc14(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^14 for order-l = 4
     Parameters
     ----------
@@ -489,7 +489,7 @@ def eccentricity_funcs_trunc14(eccentricity: FloatArray) -> Dict[int, Dict[int, 
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 14.
     #     and order-l = 4.
@@ -596,8 +596,8 @@ def eccentricity_funcs_trunc14(eccentricity: FloatArray) -> Dict[int, Dict[int, 
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc16(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc16(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^16 for order-l = 4
     Parameters
     ----------
@@ -605,7 +605,7 @@ def eccentricity_funcs_trunc16(eccentricity: FloatArray) -> Dict[int, Dict[int, 
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 16.
     #     and order-l = 4.
@@ -723,8 +723,8 @@ def eccentricity_funcs_trunc16(eccentricity: FloatArray) -> Dict[int, Dict[int, 
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc18(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc18(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^18 for order-l = 4
     Parameters
     ----------
@@ -732,7 +732,7 @@ def eccentricity_funcs_trunc18(eccentricity: FloatArray) -> Dict[int, Dict[int, 
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 18.
     #     and order-l = 4.
@@ -861,8 +861,8 @@ def eccentricity_funcs_trunc18(eccentricity: FloatArray) -> Dict[int, Dict[int, 
 
     return eccentricity_results_bymode
 
-@njit
-def eccentricity_funcs_trunc20(eccentricity: FloatArray) -> Dict[int, Dict[int, FloatArray]]:
+@njit(cache=cache_numba)
+def eccentricity_funcs_trunc20(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^20 for order-l = 4
     Parameters
     ----------
@@ -870,7 +870,7 @@ def eccentricity_funcs_trunc20(eccentricity: FloatArray) -> Dict[int, Dict[int, 
         Orbital Eccentricity
     Returns
     -------
-    eccentricity_results_bymode : Dict[int, Dict[int, FloatArray]]
+    eccentricity_results_bymode : EccenOutput
     """
     # Eccentricity functions calculated at truncation level 20.
     #     and order-l = 4.

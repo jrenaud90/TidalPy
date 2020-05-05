@@ -3,8 +3,10 @@ from typing import List, Tuple, Dict, Union
 import numpy as np
 
 from .universal_coeffs import get_universal_coeffs
-from .inclinationFuncs import inclination_functions
-from .eccentricityFuncs import eccentricity_truncations
+from .eccentricityFuncs.numba_help import eccentricity_func_by_truncation_lvl, eccentricity_func_by_truncation_lvl_fast
+from .eccentricityFuncs.numba_help import MAX_L_FOR_FAST_SUPPORT as MAX_L_FOR_FAST_SUPPORT_ECCEN
+from .inclinationFuncs.numba_help import inclination_funcs, inclination_funcs_fast
+from .inclinationFuncs.numba_help import MAX_L_FOR_FAST_SUPPORT as MAX_L_FOR_FAST_SUPPORT_INCLIN
 from .love1d import effective_rigidity_general, complex_love_general
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray, ComplexArray, NoneType
@@ -15,24 +17,25 @@ DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
 def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: int = 8, use_obliquity: bool = True):
 
-    # Pull out eccentricity and obliquity (inclination) functions for each order-l.
-    #    Note for all lists and tuples that are of order-l, assume that they are off by 2:
-    #    l=2 -> index=0, l=3 -> index=1
-    obliquity_func_by_order_l_temp = inclination_functions[use_obliquity]
-    eccentricity_func_by_order_l_temp = eccentricity_truncations[eccentricity_truncation_lvl]
+    # TODO: As of 0.44, Numba does not support lits of njit-ed functions. So we can not build a list of, say, G(e)
+    #    for each order-l and then have it parse through that list. Instead we must give it a function that will
+    #    individually pull in each function and wrap it in a new njited function. See numba_help.py files in the
+    #    eccentricity and inclination function directories.
 
-    # Store functions in list (that will then be tupled) this will interface in a numba-safe way.
-    obliquity_func_by_order_l_minus2 = list()
-    eccentricity_func_by_order_l_minus2 = list()
-    for order_l_ in range(2, max_order_l + 1):
-        obliquity_func_by_order_l_minus2.append(obliquity_func_by_order_l_temp[order_l_])
-        eccentricity_func_by_order_l_minus2.append(eccentricity_func_by_order_l_temp[order_l_])
-    obliquity_func_by_order_l_minus2 = tuple(obliquity_func_by_order_l_minus2)
-    eccentricity_func_by_order_l_minus2 = tuple(eccentricity_func_by_order_l_minus2)
+    if max_order_l <= MAX_L_FOR_FAST_SUPPORT_ECCEN:
+        # Can use the faster version that does not include functions for order-l > MAX_L_FOR_FAST_SUPPORT_ECCEN
+        eccentricity_func = eccentricity_func_by_truncation_lvl_fast[eccentricity_truncation_lvl]
+    else:
+        eccentricity_func = eccentricity_func_by_truncation_lvl[eccentricity_truncation_lvl]
 
-    # Since this name space is used for the following functions, let's make sure it is as clean as possible
-    del eccentricity_func_by_order_l_temp, obliquity_func_by_order_l_temp, eccentricity_truncation_lvl,\
-        use_obliquity, order_l_
+    if max_order_l <= MAX_L_FOR_FAST_SUPPORT_INCLIN:
+        # Can use the faster version that does not include functions for order-l > MAX_L_FOR_FAST_SUPPORT_INCLIN
+        obliquity_func = inclination_funcs_fast[use_obliquity]
+    else:
+        obliquity_func = inclination_funcs[use_obliquity]
+
+    # Since we are building functions within this function, let's try to keep the namespace as clean as possible.
+    del use_obliquity, eccentricity_truncation_lvl
 
     @njit
     def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
@@ -59,8 +62,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         radius : float
             Planet's radius (used to calculate R/a) [m]
 
-
-            # TODO
         Returns
         -------
         unique_frequencies : Dict[FreqSig, FloatArray]
@@ -94,11 +95,9 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
             # Get universal coefficients for this order l
             universal_coeff_by_m = get_universal_coeffs(order_l)
 
-            # Pull out eccentricity and obliquity function (from global variable stroage), and calculate
-            eccentricity_func = eccentricity_func_by_order_l_minus2[order_l - 2]
-            obliquity_func = obliquity_func_by_order_l_minus2[order_l - 2]
-            eccentricity_results = eccentricity_func(eccentricity)
-            obliquity_results = obliquity_func(obliquity)
+            # Calculate eccentricity and obliquity at this tidal order
+            eccentricity_results = eccentricity_func(eccentricity, order_l)
+            obliquity_results = obliquity_func(obliquity, order_l)
 
             # Order l controls the distance multiplier. The minus 4 comes from the tidal susceptibility already carrying
             #    (R / a)^5 so (R / a)^(2l + 1) --> (R / a)^(2l - 4)
@@ -178,9 +177,9 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         return unique_frequencies, results_by_frequency
 
-    # @njit
+    @njit
     def collapse_modes(gravity: float, radius: float, density: float, shear_modulus: Union[NoneType, FloatArray],
-                       complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
+                       complex_compliance_by_frequency: Tuple[ComplexArray],
                        tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
                        tidal_susceptibility: FloatArray, tidal_host_mass: float, tidal_scale: float,
                        cpl_ctl_method: bool = False) -> \
@@ -197,7 +196,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
             Bulk density of the layer or planet [kg m-3]
         shear_modulus : FloatArray
             Effective shear modulus of the layer or planet [Pa]
-        complex_compliance_by_frequency : Dict[FreqSig, ComplexArray]
+        complex_compliance_by_frequency : Tuple[ComplexArray]
             The complex compliance for the layer or planet calculated at each unique tidal frequency [Pa-1]
         tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTerms]]
             Each dissipation term: E^dot, dUdM, dUdw, dUdO; calculated for each unique tidal frequency and order-l
@@ -257,16 +256,26 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
             #    Right now it is using the effective rigidity. If it only needs the static then this could be done outside
             #    this function.
             if cpl_ctl_method:
-                effective_rigidity = shear_modulus
+                effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
+                                                                order_l=2)
             else:
                 if shear_modulus is None:
+                    # Numba does not support specific exception classes.
                     raise Exception('Shear modulus is required for non-CTL/CPL models. Set it to a fake float e.g., 1.')
 
                 effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
                                                                 order_l=tidal_order_l)
 
-            # Pull out the already computed complex compliances for each frequency
-            for unique_freq_signature, complex_compliance in complex_compliance_by_frequency.items():
+            # Pull out the already computed tidal heating and potential terms each frequency
+            freq_i = 0
+            for unique_freq_signature, tidal_terms in tidal_terms_by_frequency.items():
+
+                # Many higher-order frequencies do not have lower-order l results.
+                if tidal_order_l not in tidal_terms:
+                    continue
+
+                # Pull out the complex compliance at this frequency
+                complex_compliance = complex_compliance_by_frequency[freq_i]
 
                 if cpl_ctl_method:
                     # In the CTL/CPL method, the complex love number is passed in as the complex compliance
@@ -287,8 +296,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                 neg_imk_scaled_potential = neg_imk_scaled / tidal_host_mass
 
                 # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.update_orbit_spin
-                heating_term, dUdM_term, dUdw_term, dUdO_term = \
-                    tidal_terms_by_frequency[unique_freq_signature][tidal_order_l]
+                heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
 
                 # Store results
                 tidal_heating_terms.append(heating_term * neg_imk_scaled)
@@ -298,13 +306,28 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                 love_number_terms.append(complex_love)
                 negative_imk_terms.append(neg_imk_scaled)
 
+                freq_i += 1
+
         # Collapse Modes
-        tidal_heating = sum(tidal_heating_terms)
-        dUdM = sum(dUdM_terms)
-        dUdw = sum(dUdw_terms)
-        dUdO = sum(dUdO_terms)
-        love_number = sum(love_number_terms)
-        negative_imk = sum(negative_imk_terms)
+        # Njit did not like sum( ), so doing separate loop for these...
+        tidal_heating = tidal_heating_terms[0]
+        dUdM = dUdM_terms[0]
+        dUdw = dUdw_terms[0]
+        dUdO = dUdO_terms[0]
+        love_number = love_number_terms[0]
+        negative_imk = negative_imk_terms[0]
+
+        for term_i in range(len(tidal_heating_terms)):
+
+            if term_i == 0:
+                continue
+
+            tidal_heating += tidal_heating_terms[term_i]
+            dUdM += dUdM_terms[term_i]
+            dUdw += dUdw_terms[term_i]
+            dUdO += dUdO_terms[term_i]
+            love_number += love_number_terms[term_i]
+            negative_imk += negative_imk_terms[term_i]
 
         return tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk
 

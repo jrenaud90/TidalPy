@@ -1,3 +1,9 @@
+from typing import Tuple, Dict
+
+from ...utilities.types import FloatArray
+
+EccenOutput = Dict[int, Dict[int, FloatArray]]
+
 from .orderl2 import eccentricity_funcs_trunc2 as eccentricity_funcs_l2_trunc2
 from .orderl2 import eccentricity_funcs_trunc4 as eccentricity_funcs_l2_trunc4
 from .orderl2 import eccentricity_funcs_trunc6 as eccentricity_funcs_l2_trunc6

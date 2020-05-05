@@ -86,3 +86,6 @@ tidalpy_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Data could be saved in other locations the user can tell TidalPy where to search for things like dilled planets, etc.
 other_data_locs = [os.getcwd()]
+
+# Bring up various functionality to top-level
+from .utilities.performance import clear_cache

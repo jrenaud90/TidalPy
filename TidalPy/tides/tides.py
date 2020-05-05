@@ -843,9 +843,9 @@ class LayeredTides(TidesBase):
 
                     # Pull out variables that change often
                     shear_modulus = layer.shear_modulus
-                    complex_compliances_by_frequency = layer.complex_compliance_by_frequency
+                    complex_compliances_by_frequency_list = layer.complex_compliance_by_frequency_list
 
-                    if shear_modulus is None or complex_compliances_by_frequency is None:
+                    if shear_modulus is None or complex_compliances_by_frequency_list is None:
                         # uh oh
                         broke_out = True
                         break
@@ -854,7 +854,7 @@ class LayeredTides(TidesBase):
                     #    localized dissipation values
                     tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
                         self.collapse_modes_func(gravity_surf, radius, bulk_density, shear_modulus,
-                                                 layer.complex_compliance_by_frequency,
+                                                 complex_compliances_by_frequency_list,
                                                  self.tidal_terms_by_frequency, self.tidal_susceptibility,
                                                  self.tidal_host.mass,
                                                  tidal_scale, cpl_ctl_method=False)
