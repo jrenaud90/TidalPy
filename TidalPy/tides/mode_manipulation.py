@@ -125,18 +125,15 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     if n_coeff == 0 and m == 0:
                         continue
 
-                    n_coeff_abs = abs(n_coeff)
                     mode = n_coeff * orbital_frequency - m * spin_frequency
                     mode_sign = np.sign(mode)
                     mode_frequency = np.abs(mode)
 
                     # Determine the frequency signature used to store unique frequencies
                     if n_coeff == 0:
-                        freq_sig = (0, m)
+                        freq_sig = (0, -m)
                     elif m == 0:
-                        freq_sig = (n_coeff_abs, 0)
-                    elif n_coeff < 0:
-                        freq_sig = (n_coeff_abs, m)
+                        freq_sig = (n_coeff, 0)
                     else:
                         freq_sig = (n_coeff, -m)
 
