@@ -7,6 +7,7 @@ from ..performance import njit
 from ..types import FloatArray
 from ..dynamics import mode_types
 from ..constants import G
+from ..rheology.compliance_models import fixed_q
 
 
 @njit
