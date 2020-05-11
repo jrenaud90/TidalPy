@@ -98,6 +98,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
 
     print(complex_compliance_func)
     from pprint import pprint
+    pprint(cached_freqs)
     pprint(cached_complex_compliances)
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
 
