@@ -19,6 +19,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
 
     compliance = 1. / shear_modulus
     cached_complex_compliances = {}
+    cached_freqs = {}
 
     tidal_modes = []
     tidal_heating_bymode = []
@@ -61,7 +62,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 multiplier = distance_scale * uni_coeff * F2G2
 
                 # Find tidal mode and frequency
-                orbital_coeff = (order_l - 2. * p + q)
+                orbital_coeff = (order_l - 2 * p + q)
                 spin_coeff = -m
                 mode = orbital_coeff * orbital_frequency + spin_coeff * spin_frequency
                 freq = np.abs(mode)
@@ -77,7 +78,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 else:
                     complex_compliance = complex_compliance_func(compliance, viscosity, freq, *complex_compliance_input)
                     cached_complex_compliances[mode_signature] = complex_compliance
-
+                    cached_freqs[mode_signature] = freq
 
                 if complex_compliance_func is fixed_q:
                     Q, _, k_2 = complex_compliance_input
@@ -97,6 +98,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
 
     print(complex_compliance_func)
     from pprint import pprint
+    pprint(cached_freqs)
     pprint(cached_complex_compliances)
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
 
