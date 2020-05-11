@@ -95,21 +95,29 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 sigs.append(mode_signature)
 
                 tidal_modes.append(mode)
-                tidal_heating_bymode.append(freq * neg_imk * multiplier)
+                tidal_heating_bymode.append(freq * multiplier) #                 tidal_heating_bymode.append(freq * neg_imk * multiplier) #
                 dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
                 dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
 
-                if mode_signature == (-5, 0):
+                if spin_coeff == -2:
                     breakpoint()
+
 
 
     print(complex_compliance_func)
     from pprint import pprint
-    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, tidal_heating_bymode)})
-    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, dUdM_bymode)})
-    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, dUdw_bymode)})
-    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, dUdO_bymode)})
+
+    heatings = {}
+    for sig, heating in zip(sigs, tidal_heating_bymode):
+        if sig in heatings:
+            heatings[sig] += heating
+        else:
+            heatings[sig] = heating
+    pprint(heatings)
+    pprint([(mode, tidal_heating_) for mode, tidal_heating_ in zip(sigs, dUdM_bymode)])
+    pprint([(mode, tidal_heating_) for mode, tidal_heating_ in zip(sigs, dUdw_bymode)])
+    pprint([(mode, tidal_heating_) for mode, tidal_heating_ in zip(sigs, dUdO_bymode)])
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
 
 
