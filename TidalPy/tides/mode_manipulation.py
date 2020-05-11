@@ -17,10 +17,10 @@ DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
 def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: int = 8, use_obliquity: bool = True):
 
-    # TODO: As of 0.44, Numba does not support lits of njit-ed functions. So we can not build a list of, say, G(e)
-    #    for each order-l and then have it parse through that list. Instead we must give it a function that will
-    #    individually pull in each function and wrap it in a new njited function. See numba_help.py files in the
-    #    eccentricity and inclination function directories.
+    # TODO: As of 0.44, Numba does not support lists/tuples of njit-ed functions.
+    #    So we can not build a list of, say, G(e) for each order-l and then have it parse through that list.
+    #    Instead we must give it a function that will individually pull in each function and wrap it in a
+    #    new njited function. See numba_help.py files in the eccentricity and inclination function directories.
 
     if max_order_l <= MAX_L_FOR_FAST_SUPPORT_ECCEN:
         # Can use the faster version that does not include functions for order-l > MAX_L_FOR_FAST_SUPPORT_ECCEN
@@ -116,6 +116,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
                     # Multiply eccentricity terms by the obliquity terms
                     eccen_obliq = obliquity_terms * eccentricity_terms
+                    uni_multiplier = uni_coeff * eccen_obliq
 
                     # Calculate tidal mode, frequency, and sign
                     n_coeff = (order_l - 2 * p + q)
@@ -140,7 +141,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                         freq_sig = (n_coeff, -m)
 
                     # Calculate coefficients for heating and potential derivatives
-                    uni_multiplier = uni_coeff * eccen_obliq
                     heating_term = uni_multiplier * mode_frequency
                     dUdM_term = uni_multiplier * n_coeff * mode_sign
                     dUdw_term = uni_multiplier * (order_l - 2. * p) * mode_sign

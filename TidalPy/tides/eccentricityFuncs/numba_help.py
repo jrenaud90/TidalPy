@@ -431,7 +431,6 @@ eccentricity_func_by_truncation_lvl = {
 # The _fast versions below are restricted to only order 2 and 3. This reduces JIT compile times. The above general
 #    functions must compile all orders (2 -- max) in order to tun. In contrast these fast functions only need to compile
 #    l=2 and l=3.
-
 MAX_L_FOR_FAST_SUPPORT = 3
 
 @njit(cache=cache_numba)
