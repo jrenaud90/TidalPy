@@ -130,17 +130,12 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     mode_frequency = np.abs(mode)
 
                     # Determine the frequency signature used to store unique frequencies
-                    if n_coeff == 0:
-                        freq_sig = (0, -m)
-                    elif m == 0:
-                        freq_sig = (n_coeff, 0)
-                    else:
-                        freq_sig = (n_coeff, -m)
+                    freq_sig = (n_coeff, -m)
 
                     # Calculate coefficients for heating and potential derivatives
                     heating_term = uni_multiplier * mode_frequency
                     dUdM_term = uni_multiplier * n_coeff * mode_sign
-                    dUdw_term = uni_multiplier * (order_l - 2. * p) * mode_sign
+                    dUdw_term = uni_multiplier * (order_l - 2 * p) * mode_sign
                     dUdO_term = uni_multiplier * m * mode_sign
 
                     # The tidal heating and potential derivatives should also be multiplied by the love number calculated
@@ -153,7 +148,8 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                         results_by_frequency[freq_sig] = {order_l: (heating_term, dUdM_term, dUdw_term, dUdO_term)}
                     else:
                         if order_l in results_by_frequency[freq_sig]:
-                            # Previous results found at this frequency and order_l, add new results to previous one
+                            # Previous results found at this frequency and this order_l.
+                            #     Add new results to previous one.
                             heating_term_old, dUdM_term_old, dUdw_term_old, dUdO_term_old = \
                                 results_by_frequency[freq_sig][order_l]
                             heating_term_new = heating_term_old + heating_term
@@ -291,22 +287,21 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
                     complex_love = np.real(complex_love) + (1.0j * np.imag(complex_love) * tidal_scale)
                     neg_imk = -np.imag(complex_love)
-                    neg_imk_scaled = neg_imk * tidal_susceptibility
 
                     # The tidal potential carries one fewer dependence on the tidal host mass that is built into the
                     #    tidal susceptibility. Divide that out now.
-                    neg_imk_scaled_potential = neg_imk_scaled / tidal_host_mass
+                    neg_imk_potential = neg_imk / tidal_host_mass
 
                     # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.update_orbit_spin
                     heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
 
                     # Store results
-                    tidal_heating_terms.append(heating_term * neg_imk_scaled)
-                    dUdM_terms.append(dUdM_term * neg_imk_scaled_potential)
-                    dUdw_terms.append(dUdw_term * neg_imk_scaled_potential)
-                    dUdO_terms.append(dUdO_term * neg_imk_scaled_potential)
+                    tidal_heating_terms.append(heating_term * neg_imk)
+                    dUdM_terms.append(dUdM_term * neg_imk_potential)
+                    dUdw_terms.append(dUdw_term * neg_imk_potential)
+                    dUdO_terms.append(dUdO_term * neg_imk_potential)
                     love_number_terms.append(complex_love)
-                    negative_imk_terms.append(neg_imk_scaled)
+                    negative_imk_terms.append(neg_imk)
 
                 freq_i += 1
 
@@ -319,10 +314,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         love_number = love_number_terms[0]
         negative_imk = negative_imk_terms[0]
 
-        for term_i in range(len(tidal_heating_terms)):
-
-            if term_i == 0:
-                continue
+        for term_i in range(1, len(tidal_heating_terms)):
 
             tidal_heating += tidal_heating_terms[term_i]
             dUdM += dUdM_terms[term_i]
@@ -330,6 +322,11 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
             dUdO += dUdO_terms[term_i]
             love_number += love_number_terms[term_i]
             negative_imk += negative_imk_terms[term_i]
+
+        tidal_heating *= tidal_susceptibility
+        dUdM *= tidal_susceptibility
+        dUdw *= tidal_susceptibility
+        dUdO *=tidal_susceptibility
 
         return tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk
 
