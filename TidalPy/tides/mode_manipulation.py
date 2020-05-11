@@ -173,7 +173,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         return unique_frequencies, results_by_frequency
 
-    @njit
+    # @njit
     def collapse_modes(gravity: float, radius: float, density: float, shear_modulus: Union[NoneType, FloatArray],
                        complex_compliance_by_frequency: Tuple[ComplexArray],
                        tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
@@ -238,6 +238,9 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         """
 
+        sigs = list()
+
+
         tidal_heating_terms = list()
         dUdM_terms = list()
         dUdw_terms = list()
@@ -299,6 +302,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
 
                     # Store results
+                    sigs.append(unique_freq_signature)
                     tidal_heating_terms.append(heating_term * neg_imk)
                     dUdM_terms.append(dUdM_term * neg_imk_potential)
                     dUdw_terms.append(dUdw_term * neg_imk_potential)
@@ -307,6 +311,9 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     negative_imk_terms.append(neg_imk)
 
                 freq_i += 1
+
+        from pprint import pprint
+        pprint({unique_freq_signature: heating for unique_freq_signature, heating in zip(sigs, tidal_heating_terms)})
 
         # Collapse Modes
         # Njit did not like sum( ), so doing separate loop for these...
