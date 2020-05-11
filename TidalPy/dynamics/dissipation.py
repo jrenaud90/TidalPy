@@ -27,6 +27,8 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
     dUdw_bymode = []
     dUdO_bymode = []
 
+    sigs = []
+
     for order_l in range(2, max_order_l+1):
 
         effective_rigidity = effective_rigidity_general(shear_modulus, planet_gravity, planet_radius, planet_density,
@@ -90,16 +92,21 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 neg_imk_sgn = sgn * neg_imk
 
                 # Store Results
+                sigs.append(mode_signature)
+
                 tidal_modes.append(mode)
                 tidal_heating_bymode.append(freq * neg_imk * multiplier)
                 dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
                 dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
 
+
     print(complex_compliance_func)
     from pprint import pprint
-    pprint(cached_freqs)
-    pprint(cached_complex_compliances)
+    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, tidal_heating_bymode)})
+    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, dUdM_bymode)})
+    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, dUdw_bymode)})
+    pprint({mode: tidal_heating_ for mode, tidal_heating_ in zip(sigs, dUdO_bymode)})
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
 
 
