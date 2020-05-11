@@ -313,6 +313,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                 freq_i += 1
 
         from pprint import pprint
+        print(radius)
         pprint({unique_freq_signature: heating for unique_freq_signature, heating in zip(sigs, tidal_heating_terms)})
 
         # Collapse Modes
