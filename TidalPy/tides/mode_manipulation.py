@@ -37,7 +37,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
     # Since we are building functions within this function, let's try to keep the namespace as clean as possible.
     del use_obliquity, eccentricity_truncation_lvl
 
-    # @njit
+    @njit
     def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
                         eccentricity: FloatArray, obliquity: FloatArray,
                         semi_major_axis: FloatArray, radius: float) \
@@ -140,9 +140,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     dUdM_term = uni_multiplier * n_coeff * mode_sign
                     dUdw_term = uni_multiplier * (order_l - 2 * p) * mode_sign
                     dUdO_term = uni_multiplier * m * mode_sign
-
-                    if freq_sig[1] == -2:
-                        breakpoint()
 
                     # The tidal heating and potential derivatives should also be multiplied by the love number calculated
                     #    for that mode. But, the Love number only cares about the complex compliance which in turn only requires
