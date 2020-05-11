@@ -95,15 +95,10 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 sigs.append(mode_signature)
 
                 tidal_modes.append(mode)
-                tidal_heating_bymode.append(freq * multiplier) #                 tidal_heating_bymode.append(freq * neg_imk * multiplier) #
+                tidal_heating_bymode.append(freq * neg_imk * multiplier)
                 dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
                 dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
-
-                if spin_coeff == -2 and complex_compliance_func is not fixed_q:
-                    breakpoint()
-                    pass
-
 
 
     if complex_compliance_func is not fixed_q:
