@@ -63,7 +63,7 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
     real_j2 = real_j**2
     imag_j2 = imag_j**2
     reduced_compliance = eff_rigidity_general / shear_modulus
-    common_factor = (3. / (order_l - 1.)) * ((real_j + reduced_compliance)**2 + imag_j2)**-1
+    common_factor = (3. / 2. * (order_l - 1.)) * ((real_j + reduced_compliance)**2 + imag_j2)**-1
     real_love = (real_j2 + imag_j2 + real_j * reduced_compliance) * common_factor
     imag_love = (imag_j * reduced_compliance) * common_factor
     cmplx_love = real_love + 1.0j * imag_love
