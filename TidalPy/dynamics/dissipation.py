@@ -19,12 +19,14 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
 
     compliance = 1. / shear_modulus
     cached_complex_compliances = {}
+    cached_freqs = {}
 
     tidal_modes = []
     tidal_heating_bymode = []
     dUdM_bymode = []
     dUdw_bymode = []
     dUdO_bymode = []
+    signatures = []
 
     for order_l in range(2, max_order_l+1):
 
@@ -61,7 +63,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 multiplier = distance_scale * uni_coeff * F2G2
 
                 # Find tidal mode and frequency
-                orbital_coeff = (order_l - 2. * p + q)
+                orbital_coeff = (order_l - 2 * p + q)
                 spin_coeff = -m
                 mode = orbital_coeff * orbital_frequency + spin_coeff * spin_frequency
                 freq = np.abs(mode)
@@ -72,12 +74,13 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 #   We will use a frequency signature to store cached complex compliance results
                 #   This is especially important for max_order_l > 2 as many duplicate freqs will be hit.
                 mode_signature = (orbital_coeff, spin_coeff)
+
                 if mode_signature in cached_complex_compliances:
                     complex_compliance = cached_complex_compliances[mode_signature]
                 else:
                     complex_compliance = complex_compliance_func(compliance, viscosity, freq, *complex_compliance_input)
                     cached_complex_compliances[mode_signature] = complex_compliance
-
+                    cached_freqs[mode_signature] = freq
 
                 if complex_compliance_func is fixed_q:
                     Q, _, k_2 = complex_compliance_input
@@ -94,8 +97,9 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
                 dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
+                signatures.append(mode_signature)
 
-    return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
+    return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode, signatures
 
 
 def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, inclination,
@@ -127,12 +131,28 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
         inclination_results_byorderl.append(inclination_functions_sqrt)
 
     # Calculate heating and potential derivative coefficients
-    tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode = \
+    tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode, signatures = \
         kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                        eccentricity_results_byorderl, inclination_results_byorderl,
                        complex_compliance_func, complex_compliance_input,
                        shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
                        max_order_l)
+
+
+    # from pprint import pprint
+    # t_heating = [(sig, heat) for sig, heat in zip(signatures, tidal_heating_bymode)]
+    #
+    # mini_sum = {}
+    # for sig, heat in zip(signatures, tidal_heating_bymode):
+    #     if sig in mini_sum:
+    #         old_heat = mini_sum[sig]
+    #         new_heat = old_heat + heat
+    #         mini_sum[sig] = new_heat
+    #     else:
+    #         mini_sum[sig] = heat
+    #
+    # pprint(mini_sum)
+    # breakpoint()
 
     # Collapse modes down to single values
     tidal_heating = sum(tidal_heating_bymode)
