@@ -141,7 +141,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     dUdw_term = uni_multiplier * (order_l - 2 * p) * mode_sign
                     dUdO_term = uni_multiplier * m * mode_sign
 
-                    if freq_sig == (-5, 0):
+                    if freq_sig[1] == -2:
                         breakpoint()
 
                     # The tidal heating and potential derivatives should also be multiplied by the love number calculated
