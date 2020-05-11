@@ -5,9 +5,10 @@ from .love_1d import effective_rigidity_general, complex_love_general
 from .universal_coeffs import get_universal_coeffs
 from .inclinationFuncs import inclination_functions
 from .eccentricityFuncs import eccentricity_truncations
+from ..rheology.compliance_models import fixed_q
 
 
-@njit
+# @njit
 def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                    eccentricity_results_byorderl, inclination_results_byorderl,
                    complex_compliance_func, complex_compliance_input,
@@ -77,8 +78,14 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                     complex_compliance = complex_compliance_func(compliance, viscosity, freq, *complex_compliance_input)
                     cached_complex_compliances[mode_signature] = complex_compliance
 
-                neg_imk = -np.imag(complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
-                                                        order_l=order_l))
+
+                if complex_compliance_func is fixed_q:
+                    Q, _, k_2 = complex_compliance_input
+                    cmplx_love_number = k_2 * (1.0 - 1.0j / Q) * np.ones_like(freq * shear_modulus)
+                else:
+                    cmplx_love_number = complex_love_general(complex_compliance, shear_modulus, effective_rigidity, order_l=order_l)
+
+                neg_imk = -np.imag(cmplx_love_number)
                 neg_imk_sgn = sgn * neg_imk
 
                 # Store Results
