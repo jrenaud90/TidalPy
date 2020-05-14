@@ -37,7 +37,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
     # Since we are building functions within this function, let's try to keep the namespace as clean as possible.
     del use_obliquity, eccentricity_truncation_lvl
 
-    # @njit
+    @njit
     def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
                         eccentricity: FloatArray, obliquity: FloatArray,
                         semi_major_axis: FloatArray, radius: float) \
@@ -173,7 +173,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         return unique_frequencies, results_by_frequency
 
-    # @njit
+    @njit
     def collapse_modes(gravity: float, radius: float, density: float, shear_modulus: Union[NoneType, FloatArray],
                        complex_compliance_by_frequency: Tuple[ComplexArray],
                        tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
