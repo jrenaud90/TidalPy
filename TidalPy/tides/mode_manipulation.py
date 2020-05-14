@@ -173,7 +173,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         return unique_frequencies, results_by_frequency
 
-    @njit
+    # @njit
     def collapse_modes(gravity: float, radius: float, density: float, shear_modulus: Union[NoneType, FloatArray],
                        complex_compliance_by_frequency: Tuple[ComplexArray],
                        tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
@@ -204,8 +204,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         tidal_scale : float
             Multiplier that ranges from 0 to 1 that scales the imaginary portion of the complex love number to simulate
                 only a portion of a planet's volume is contributing to the tidal dissipation.
-        max_tidal_l : int
-            Tidal harmonic order
         cpl_ctl_method : bool = False
             Changes functionality based on if the method is ctl cpl or neither
             See tides.SimpleTides.mode_collapse
@@ -237,9 +235,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         TidalPy.tides.tides.Tides
 
         """
-
-        sigs = list()
-
 
         tidal_heating_terms = list()
         dUdM_terms = list()
@@ -302,7 +297,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
 
                     # Store results
-                    sigs.append(unique_freq_signature)
                     tidal_heating_terms.append(heating_term * neg_imk)
                     dUdM_terms.append(dUdM_term * neg_imk_potential)
                     dUdw_terms.append(dUdw_term * neg_imk_potential)
@@ -313,13 +307,14 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                 freq_i += 1
 
         # Collapse Modes
-        # Njit did not like sum( ), so doing separate loop for these...
+        # FIXME: Njit did not like sum( ), so doing separate loop for these for now...
         tidal_heating = tidal_heating_terms[0]
         dUdM = dUdM_terms[0]
         dUdw = dUdw_terms[0]
         dUdO = dUdO_terms[0]
         love_number = love_number_terms[0]
         negative_imk = negative_imk_terms[0]
+        breakpoint()
 
         for term_i in range(1, len(tidal_heating_terms)):
 
