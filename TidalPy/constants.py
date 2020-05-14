@@ -1,4 +1,4 @@
-from scipy.constants import G, Stefan_Boltzmann
+from scipy.constants import G, Stefan_Boltzmann, au
 
 # Mathematics
 ppm = 1.e-6
