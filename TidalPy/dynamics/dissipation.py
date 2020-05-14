@@ -96,7 +96,6 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
 
-    breakpoint()
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
 
 
