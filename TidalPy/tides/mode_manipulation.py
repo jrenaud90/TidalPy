@@ -37,7 +37,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
     # Since we are building functions within this function, let's try to keep the namespace as clean as possible.
     del use_obliquity, eccentricity_truncation_lvl
 
-    @njit
+    # @njit
     def calculate_terms(orbital_frequency: FloatArray, spin_frequency: FloatArray,
                         eccentricity: FloatArray, obliquity: FloatArray,
                         semi_major_axis: FloatArray, radius: float) \
@@ -77,6 +77,8 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         --------
         TidalPy.tides.dissipation.calculate_terms
         """
+
+        sigs = list()
 
         # Storage for results by unique frequency signature. Must provide fake data structures and values so that numba
         #    has an idea on how to compile.
@@ -149,6 +151,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                         # New unique frequency
                         unique_frequencies[freq_sig] = mode_frequency
                         results_by_frequency[freq_sig] = {order_l: (heating_term, dUdM_term, dUdw_term, dUdO_term)}
+                        sigs.append(freq_sig)
                     else:
                         if order_l in results_by_frequency[freq_sig]:
                             # Previous results found at this frequency and this order_l.
@@ -170,6 +173,9 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         # Delete those fake results
         del results_by_frequency[(-100, -100)]
         del unique_frequencies[(-100, -100)]
+
+        dudo_debug = {fs: results_by_frequency[fs][2][3] for fs in results_by_frequency}
+        breakpoint()
 
         return unique_frequencies, results_by_frequency
 
