@@ -99,7 +99,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
                 signatures.append(mode_signature)
 
-                if orbital_coeff == -3 and spin_coeff == 0:
+                if orbital_coeff == 1 and spin_coeff == -1:
                     breakpoint()
 
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode, signatures
