@@ -135,6 +135,9 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     # Determine the frequency signature used to store unique frequencies
                     freq_sig = (n_coeff, -m)
 
+                    if n_coeff == -3:
+                        breakpoint()
+
                     # Calculate coefficients for heating and potential derivatives
                     heating_term = uni_multiplier * mode_frequency
                     dUdM_term = uni_multiplier * n_coeff * mode_sign
