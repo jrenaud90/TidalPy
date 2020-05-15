@@ -74,6 +74,10 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 #   We will use a frequency signature to store cached complex compliance results
                 #   This is especially important for max_order_l > 2 as many duplicate freqs will be hit.
                 mode_signature = (orbital_coeff, spin_coeff)
+
+                if orbital_coeff == -3:
+                    breakpoint()
+
                 if mode_signature in cached_complex_compliances:
                     complex_compliance = cached_complex_compliances[mode_signature]
                 else:
