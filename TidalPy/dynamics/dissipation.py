@@ -99,6 +99,9 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
                 signatures.append(mode_signature)
 
+                if orbital_coeff == -3 and spin_coeff == 0:
+                    breakpoint()
+
     return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode, signatures
 
 
@@ -141,7 +144,17 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
 
     from pprint import pprint
     t_heating = [(sig, heat) for sig, heat in zip(signatures, tidal_heating_bymode)]
-    pprint(t_heating)
+
+    mini_sum = {}
+    for sig, heat in zip(signatures, tidal_heating_bymode):
+        if sig in mini_sum:
+            old_heat = mini_sum[sig]
+            new_heat = old_heat + heat
+            mini_sum[sig] = new_heat
+        else:
+            mini_sum[sig] = heat
+
+    pprint(mini_sum)
     breakpoint()
 
     # Collapse modes down to single values
