@@ -141,6 +141,8 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
     dUdw = sum(dUdw_bymode)
     dUdO = sum(dUdO_bymode)
 
+    breakpoint()
+
     return tidal_heating, dUdM, dUdw, dUdO
 
 
