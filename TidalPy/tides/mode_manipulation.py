@@ -135,9 +135,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     # Determine the frequency signature used to store unique frequencies
                     freq_sig = (n_coeff, -m)
 
-                    if n_coeff == -3:
-                        breakpoint()
-
                     # Calculate coefficients for heating and potential derivatives
                     heating_term = uni_multiplier * mode_frequency
                     dUdM_term = uni_multiplier * n_coeff * mode_sign
@@ -239,8 +236,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         """
 
-        t_heating = list()
-
         tidal_heating_terms = list()
         dUdM_terms = list()
         dUdw_terms = list()
@@ -309,11 +304,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     love_number_terms.append(complex_love)
                     negative_imk_terms.append(neg_imk)
 
-                    t_heating.append((unique_freq_signature, heating_term * neg_imk))
-
                 freq_i += 1
-
-        breakpoint()
 
         # Collapse Modes
         # FIXME: Njit did not like sum( ), so doing separate loop for these for now...
