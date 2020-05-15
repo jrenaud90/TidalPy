@@ -236,6 +236,8 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
         """
 
+        t_heating = list()
+
         tidal_heating_terms = list()
         dUdM_terms = list()
         dUdw_terms = list()
@@ -303,6 +305,8 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     dUdO_terms.append(dUdO_term * neg_imk_potential)
                     love_number_terms.append(complex_love)
                     negative_imk_terms.append(neg_imk)
+
+                    t_heating.append((unique_freq_signature, heating_term * neg_imk))
 
                 freq_i += 1
 
