@@ -138,6 +138,12 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
                        shear_modulus, viscosity, planet_radius, planet_gravity, planet_density,
                        max_order_l)
 
+
+    from pprint import pprint
+    t_heating = [(sig, heat) for sig, heat in zip(signatures, tidal_heating_bymode)]
+    pprint(t_heating)
+    breakpoint()
+
     # Collapse modes down to single values
     tidal_heating = sum(tidal_heating_bymode)
     dUdM = sum(dUdM_bymode)
