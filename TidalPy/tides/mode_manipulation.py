@@ -297,9 +297,6 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     # Pull out the tidal terms pre-calculated for this unique frequency. See Tides.update_orbit_spin
                     heating_term, dUdM_term, dUdw_term, dUdO_term = tidal_terms[tidal_order_l]
 
-                    if unique_freq_signature == (1, -1):
-                        breakpoint()
-
                     # Store results
                     tidal_heating_terms.append(heating_term * neg_imk)
                     dUdM_terms.append(dUdM_term * neg_imk_potential)
@@ -311,20 +308,20 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
                 freq_i += 1
 
-        from pprint import pprint
-        t_heating = [(sig, heat) for sig, heat in zip(signatures, tidal_heating_terms)]
-
-        mini_sum = {}
-        for sig, heat in zip(signatures, tidal_heating_terms):
-            if sig in mini_sum:
-                old_heat = mini_sum[sig]
-                new_heat = old_heat + heat
-                mini_sum[sig] = new_heat
-            else:
-                mini_sum[sig] = heat
-
-        pprint(mini_sum)
-        breakpoint()
+        # from pprint import pprint
+        # t_heating = [(sig, heat) for sig, heat in zip(signatures, tidal_heating_terms)]
+        #
+        # mini_sum = {}
+        # for sig, heat in zip(signatures, tidal_heating_terms):
+        #     if sig in mini_sum:
+        #         old_heat = mini_sum[sig]
+        #         new_heat = old_heat + heat
+        #         mini_sum[sig] = new_heat
+        #     else:
+        #         mini_sum[sig] = heat
+        #
+        # pprint(mini_sum)
+        # breakpoint()
 
         # Collapse Modes
         # FIXME: Njit did not like sum( ), so doing separate loop for these for now...
