@@ -26,6 +26,7 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
     dUdM_bymode = []
     dUdw_bymode = []
     dUdO_bymode = []
+    signatures = []
 
     for order_l in range(2, max_order_l+1):
 
@@ -95,8 +96,9 @@ def kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                 dUdM_bymode.append(orbital_coeff * neg_imk_sgn * multiplier)
                 dUdw_bymode.append((order_l - 2*p) * neg_imk_sgn * multiplier)
                 dUdO_bymode.append(m * neg_imk_sgn * multiplier)
+                signatures.append(mode_signature)
 
-    return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode
+    return tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode, signatures
 
 
 def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, inclination,
@@ -128,7 +130,7 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
         inclination_results_byorderl.append(inclination_functions_sqrt)
 
     # Calculate heating and potential derivative coefficients
-    tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode = \
+    tidal_modes, tidal_heating_bymode, dUdM_bymode, dUdw_bymode, dUdO_bymode, signatures = \
         kaula_collapse(spin_frequency, orbital_frequency, semi_major_axis,
                        eccentricity_results_byorderl, inclination_results_byorderl,
                        complex_compliance_func, complex_compliance_input,
@@ -140,6 +142,8 @@ def calculate(spin_frequency, orbital_frequency, semi_major_axis, eccentricity, 
     dUdM = sum(dUdM_bymode)
     dUdw = sum(dUdw_bymode)
     dUdO = sum(dUdO_bymode)
+
+    t_heating = [(sig, heat_) for sig, heat_ in zip(signatures, tidal_heating_bymode)]
 
     breakpoint()
 
