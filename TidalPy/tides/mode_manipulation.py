@@ -242,6 +242,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
         dUdO_terms = list()
         love_number_terms = list()
         negative_imk_terms = list()
+        signatures = list()
 
         for tidal_order_l in range(2, max_order_l + 1):
 
@@ -303,8 +304,14 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
                     dUdO_terms.append(dUdO_term * neg_imk_potential)
                     love_number_terms.append(complex_love)
                     negative_imk_terms.append(neg_imk)
+                    signatures.append(unique_freq_signature)
 
                 freq_i += 1
+
+        from pprint import pprint
+        t_heating = [(sig, heat) for sig, heat in zip(signatures, tidal_heating_terms)]
+
+        breakpoint()
 
         # Collapse Modes
         # FIXME: Njit did not like sum( ), so doing separate loop for these for now...
