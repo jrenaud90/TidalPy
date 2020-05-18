@@ -412,7 +412,7 @@ def andrade(frequency: float, compliance: float, viscosity: float,
         real_j = 1.e100
         imag_j = 0.
     else:
-        real_j = np.cos(alpha*np.pi/2.) * const_term
+        real_j =  np.cos(alpha * np.pi / 2.) * const_term
         imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
     andrade_complex_comp = real_j + 1.0j * imag_j
