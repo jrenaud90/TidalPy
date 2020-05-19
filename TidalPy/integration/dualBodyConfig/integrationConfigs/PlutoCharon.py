@@ -1,20 +1,22 @@
 import numpy as np
 from scipy.constants import R
 
+# Planet and Layer Radii are from Nimmo+2017
+
 pluto = {
     'name':                'Pluto',
-    'radius':              1189.9e3,
+    'radius':              1188.3e3,
     'mass':                1.3895506e22,
     'constant_obliquity':  0.,
     'surface_temperature': 40.,
     'layers':              {
         'Core':      {
             # Pre-calculated Layer Structure
-            'radius_upper':                      910.903e3,
+            'radius_upper':                      853.2e3,
             'radius_lower':                      0.,
-            'mass':                              1.0298825e22,
+            'mass':                              3400. * (4. / 3.) * np.pi * 853.2e3**3,
             # Material Parameters
-            'material_density':                  3300.,
+            'material_density':                  3400.,
             'thermal_expansion':                 5.0e-5,
             'thermal_conductivity':              4.0,
             'specific_heat':                     1225.5,
@@ -45,10 +47,10 @@ pluto = {
         'Icy Shell': {
             # Pre-calculated Layer Structure
             'radius_upper':                      1189.9e3,
-            'radius_lower':                      910.903e3,
-            'mass':                              3.59668e+21,
+            'radius_lower':                      853.2e3,
+            'mass':                              950. * (4. / 3.) * np.pi * (1189.9e3**3 - 853.2e3**3),
             # Material Parameters
-            'material_density':                  920.,
+            'material_density':                  950.,
             'thermal_expansion':                 1.56e-4,
             'thermal_conductivity':              2.27,
             'specific_heat':                     1925.,
@@ -88,11 +90,11 @@ charon = {
     'layers':              {
         'Core':      {
             # Pre-calculated Layer Structure
-            'radius_upper':                      437374.8067,
+            'radius_upper':                      408.7e3,
             'radius_lower':                      0.,
-            'mass':                              1.1356611e21,
+            'mass':                              3400. * (4. / 3.) * np.pi * (408.7e3**3),
             # Material Parameters
-            'material_density':                  3300.,
+            'material_density':                  3400.,
             'thermal_expansion':                 5.0e-5,
             'thermal_conductivity':              4.0,
             'specific_heat':                     1225.5,
@@ -123,10 +125,10 @@ charon = {
         'Icy Shell': {
             # Pre-calculated Layer Structure
             'radius_upper':                      606000.0,
-            'radius_lower':                      437374.8067,
-            'mass':                              5.346380e20,
+            'radius_lower':                      408.7e3,
+            'mass':                              950. * (4. / 3.) * np.pi * (606000.0**3 - 408.7e3**3),
             # Material Parameters
-            'material_density':                  920.,
+            'material_density':                  950.,
             'thermal_expansion':                 1.56e-4,
             'thermal_conductivity':              2.27,
             'specific_heat':                     1925.,

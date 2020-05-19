@@ -101,10 +101,7 @@ def build_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: i
 
             # Order l controls the distance multiplier. The minus 4 comes from the tidal susceptibility already carrying
             #    (R / a)^5 so (R / a)^(2l + 1) --> (R / a)^(2l - 4)
-            if order_l > 2:
-                distance_multiplier = (radius / semi_major_axis)**(2 * order_l - 4)
-            else:
-                distance_multiplier = np.ones_like(semi_major_axis)
+            distance_multiplier = (radius / semi_major_axis)**(2 * order_l - 4)
 
             for (m, p), obliquity_terms in obliquity_results.items():
                 # Pull out the m and p integers from the non-zero obliquity terms
