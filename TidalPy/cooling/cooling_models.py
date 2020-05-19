@@ -129,27 +129,33 @@ def convection(delta_temp: float,
     """
 
     # Value checks.
-    if delta_temp < 0.:
-        delta_temp = 0.
-    if viscosity < MIN_VISCOSITY:
-        viscosity = MIN_VISCOSITY
+    if delta_temp <= 0. or layer_thickness < MIN_THICKNESS:
+        boundary_layer_thickness = layer_thickness
+        rayleigh = 0.
+        nusselt = 1.
+    else:
+        if viscosity < MIN_VISCOSITY:
+            viscosity = MIN_VISCOSITY
 
-    rate_heat_loss = thermal_diffusivity / layer_thickness
+        rate_heat_loss = thermal_diffusivity / layer_thickness
 
-    # TODO: Right now negative delta-temps do not lead to backwards cooling.
-    #  Convection should def shut off, but there could still be backwards conduction. How to handle this and keep
-    #  the boundary layer still smaller (doesn't make sense for it to explode to 50% layer thickness between two time
-    #  steps).
-    parcel_rise_rate = thermal_expansion * density * gravity * delta_temp * layer_thickness**2 / viscosity
-    rayleigh = parcel_rise_rate / rate_heat_loss
-    nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta
-    # Technically convection should shut off at nusselt == 1, but the 2 here forces the max boundary layer thickness
-    #  to be 50% the layer thickness.
-    if nusselt < 2.:
-        nusselt = 2.
+        # TODO: Right now negative delta-temps do not lead to backwards cooling.
+        #  Convection should def shut off, but there could still be backwards conduction. How to handle this and keep
+        #  the boundary layer still smaller (doesn't make sense for it to explode to 50% layer thickness between two time
+        #  steps).
+        parcel_rise_rate = thermal_expansion * density * gravity * delta_temp * layer_thickness**2 / viscosity
+        rayleigh = parcel_rise_rate / rate_heat_loss
+        if rayleigh < 1.e-10:
+            rayleigh = 1.e-10
+        nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta
+        # Technically convection should shut off at nusselt == 1, but the 2 here forces the max boundary layer thickness
+        #  to be 50% the layer thickness.
+        if nusselt < 2.:
+            nusselt = 2.
 
-    # Thickness of boundary layer must be between MIN_THICKNESS and 50% of layer_thickness
-    boundary_layer_thickness = layer_thickness / nusselt
+        # Thickness of boundary layer must be between MIN_THICKNESS and 50% of layer_thickness
+        boundary_layer_thickness = layer_thickness / nusselt
+
     if boundary_layer_thickness < MIN_THICKNESS:
         boundary_layer_thickness = MIN_THICKNESS
 
@@ -216,6 +222,7 @@ def convection_array(delta_temp: np.ndarray,
     #  steps).
     parcel_rise_rate = thermal_expansion * density * gravity * delta_temp * layer_thickness**2 / viscosity
     rayleigh = parcel_rise_rate / rate_heat_loss
+    rayleigh[rayleigh < 1.e-10] = 1.e-10
     nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta
     # Technically convection should shut off at nusselt == 1, but the 2 here forces the max boundary layer thickness
     #  to be 50% the layer thickness.
@@ -262,7 +269,7 @@ def conduction(delta_temp: float,
 
     """
 
-    boundary_layer_thickness = 0.5 * layer_thickness
+    boundary_layer_thickness = layer_thickness
 
     cooling_flux = thermal_conductivity * delta_temp / boundary_layer_thickness
 
