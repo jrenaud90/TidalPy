@@ -215,12 +215,12 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     # We are going to be building several functions in this function. Make sure the namespace is as clean as possible.
     del _layer_i, _layer_masses_below_for_object, _mass, _n_layer, _object_i,
 
-    # @njit
+    @njit
     def diffeq_scipy(time, variables):
 
         # Progress bar
-        percent_done = time / time_interval
-        print(percent_done, '%')
+        percent_done = round(1000. * (time / time_interval)) / 1000.
+        print('Percent Done:', percent_done, '%')
         # print('\rPercent Done: {:0>5.2f}%'.format(100. * percent_done), flush=True, end='')
 
         # Pull out independent variables
@@ -276,9 +276,6 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             # tidal_susceptibility = \
             #     calc_tidal_susceptibility(tidal_host_mass, obj_radius, semi_major_axis)
 
-            # Storage for various parameters that need to be accessed during the layer looping
-            layer_coolings = list()
-
             # First loop through layers to determine geometry and find bottom temperatures which are used for next loop
             bottom_temperatures = list()
             layer_geometries = list()
@@ -287,7 +284,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 top_layer = layer_i == num_layers[object_i] - 1
                 # Pull out often used parameters
                 #    State Properties
-                layer_temperature = temperatures[object_i][layer_i]
+                viscoelastic_temperature = temperatures[object_i][layer_i]
                 layer_radius_upper = layer_radii_upper[object_i][layer_i]
                 layer_radius_lower = layer_radii_lower[object_i][layer_i]
                 #    Layer Properties
@@ -298,41 +295,60 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 # Determine layer geometry
                 layer_stagnant = False
                 layer_freeze_out = False
+                layer_lost_lid = False
                 is_growth_layer = growth_layer_flags[object_i][layer_i]
 
                 if is_growth_layer:
                     elastic_radius_upper = layer_radius_upper
                     elastic_radius_lower = layer_radius_upper - elastic_dxs[object_i][layer_i]
-                    if elastic_radius_lower < layer_radius_lower + 1.:
+
+                    # Check if the layer is totally elastic or if the elastic layer is totally gone
+                    if (elastic_radius_lower < layer_radius_lower + 1.) or \
+                            abs(viscoelastic_temperature - viscoelastic_top_temperatures[object_i][layer_i]) < 1.:
                         elastic_radius_lower = layer_radius_lower
                         # Layer is all elastic. No viscoelastic portion
                         layer_stagnant = True
-                    elif elastic_radius_lower > layer_radius_upper - 0.5:
-                        elastic_radius_lower = 0.5
+
+                    elif elastic_radius_lower > layer_radius_upper:
+                        # Elastic layer is basically non-existent. Make it small so we don't have divide by zero issues
+                        elastic_radius_lower = layer_radius_upper
+                        elastic_radius_upper = layer_radius_upper
+                        layer_lost_lid = True
 
                     if layer_stagnant:
+                        # Viscoelastic layer is non-existent
                         viscoelastic_radius_lower = layer_radius_lower
                         viscoelastic_radius_upper = layer_radius_lower
-                        # If no viscoelastic layer, then viscoelastic temperature will not matter
-                        #    FIXME: This is not right because it this is used as the bottom layer temp which will be higher than the surf temp.
-                        viscoelastic_temperature = surface_temperatures[object_i]
+                        if top_layer:
+                            # TODO: this is not right, but we don't really care about the thermal evolution after freezeout.
+                            viscoelastic_temperature = 0.5 * (surface_temperatures[object_i] +
+                                                              constant_viscoelastic_temperatures[object_i][layer_i])
+                        else:
+                            # TODO: And this should really be a based off the bottom temperature of the above layer.
+                            viscoelastic_temperature = constant_viscoelastic_temperatures[object_i][layer_i]
+                        bottom_temperature = viscoelastic_temperature
                     else:
+                        # Viscoelastic layer is present
                         viscoelastic_radius_upper = elastic_radius_lower
                         viscoelastic_radius_lower = elastic_radius_lower - viscoelastic_dxs[object_i][layer_i]
-                        # If the ocean layer is present then the viscoelastic temperature is a constant
-                        viscoelastic_temperature = constant_viscoelastic_temperatures[object_i][layer_i]
                         if viscoelastic_radius_lower < layer_radius_lower:
                             viscoelastic_radius_lower = layer_radius_lower
                             # Layer is all either elastic or viscoelastic. No ocean
+                            ocean_radius_lower = layer_radius_lower
+                            ocean_radius_upper = layer_radius_lower
                             layer_freeze_out = True
-                            # If the ocean layer is gone, then the viscoelastic temperature will start to decrease
-                            viscoelastic_temperature = layer_temperature
-                    ocean_radius_lower = layer_radius_lower
-                    if layer_freeze_out or layer_stagnant:
-                        ocean_radius_upper = layer_radius_upper
-                    else:
-                        ocean_radius_upper = viscoelastic_radius_lower
+                            # Bottom temperature is now equal to the viscoelastic temperature
+                            bottom_temperature = viscoelastic_temperature
+                        else:
+                            # Ocean layer is still present
+                            ocean_radius_lower = layer_radius_lower
+                            ocean_radius_upper = viscoelastic_radius_lower
+                            # If the ocean layer is present then the viscoelastic temperature is a constant
+                            viscoelastic_temperature = constant_viscoelastic_temperatures[object_i][layer_i]
+                            # And bottom temperature is the ocean temperature
+                            bottom_temperature = constant_ocean_temperatures[object_i][layer_i]
 
+                    # Calculate derivec properties
                     elastic_thickness = elastic_radius_upper - elastic_radius_lower
                     elastic_volume = (4. / 3.) * np.pi * \
                         (elastic_radius_upper * elastic_radius_upper * elastic_radius_upper -
@@ -353,21 +369,6 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     viscoelastic_gravity = G * viscoelastic_mass_below / \
                                            (viscoelastic_radius_upper * viscoelastic_radius_upper)
 
-                    # Determine the temperature at the base of the layer (used for other layer's thermal evolution)
-                    if layer_stagnant:
-                        # This is not right. But we don't much care about the results once total freezeout occurs.
-                        #     TODO: fix me.
-                        if top_layer:
-                            bottom_temperature = surface_temperatures[object_i]
-                        else:
-                            bottom_temperature = \
-                                0.5 * (constant_viscoelastic_temperatures[object_i][layer_i] +
-                                       temperatures[object_i][layer_i])
-                    elif layer_freeze_out:
-                        bottom_temperature = viscoelastic_temperature
-                    else:
-                        # Still an ocean
-                        bottom_temperature = constant_ocean_temperatures[object_i][layer_i]
                 else:
                     # For the non-growth model, the entire layer is assumed to be viscoelastic (no stagnant lid)
                     viscoelastic_radius_lower = layer_radii_lower[object_i][layer_i]
@@ -377,7 +378,6 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     viscoelastic_surf_area = layer_surf_areas[object_i][layer_i]
                     viscoelastic_mass = layer_masses[object_i][layer_i]
                     viscoelastic_gravity = layer_gravities[object_i][layer_i]
-                    viscoelastic_temperature = layer_temperature
 
                     # Elastic parameters will not be used.
                     elastic_radius_lower = 0.
@@ -389,7 +389,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     elastic_gravity = 0.
 
                     # Determine the temperature at the base of the layer (used for other layer's thermal evolution)
-                    bottom_temperature = layer_temperature
+                    bottom_temperature = viscoelastic_temperature
 
                 if use_tidal_scale:
                     if use_visco_volume_for_tidal_scale:
@@ -401,14 +401,16 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
                 bottom_temperatures.append(bottom_temperature)
                 layer_geometries.append(
-                        (layer_tidal_scale, layer_freeze_out, layer_stagnant,
+                        (layer_tidal_scale, layer_freeze_out, layer_stagnant, layer_lost_lid,
                          viscoelastic_radius_lower, viscoelastic_radius_upper, viscoelastic_thickness,
                          viscoelastic_volume, viscoelastic_surf_area, viscoelastic_mass, viscoelastic_gravity,
                          viscoelastic_temperature,
                          elastic_radius_lower, elastic_radius_upper, elastic_thickness,
-                         elastic_volume, elastic_surf_area, elastic_mass, elastic_gravity
-                        )
+                         elastic_volume, elastic_surf_area, elastic_mass, elastic_gravity)
                 )
+
+            # Storage for various parameters that need to be accessed during the layer looping
+            layer_coolings = list()
 
             # Now that layer's bottom temperatures are known we can loop through again and calculate everything else.
             for layer_i in range(number_of_layers):
@@ -417,12 +419,6 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 is_growth_layer = growth_layer_flags[object_i][layer_i]
 
                 # Pull out often used parameters
-                #    State Properties
-                layer_temperature = temperatures[object_i][layer_i]
-                layer_radius_upper = layer_radii_upper[object_i][layer_i]
-                layer_radius_lower = layer_radii_lower[object_i][layer_i]
-                #    Layer Properties
-                layer_mass_below = layer_masses_below[object_i][layer_i]
                 #    Material Properties
                 material_density = material_densities[object_i][layer_i]
                 thermal_conductivity = thermal_conductivities[object_i][layer_i]
@@ -438,16 +434,22 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 critical_rayleigh = critical_rayleighs[object_i][layer_i]
 
                 # Pull out geometry information that was just calculated in the previous loop
-                layer_tidal_scale, layer_freeze_out, layer_stagnant, viscoelastic_radius_lower,\
-                viscoelastic_radius_upper, viscoelastic_thickness,\
-                viscoelastic_volume, viscoelastic_surf_area, viscoelastic_mass, viscoelastic_gravity,\
-                viscoelastic_temperature, elastic_radius_lower, elastic_radius_upper, elastic_thickness,\
+                layer_tidal_scale, layer_freeze_out, layer_stagnant, layer_lost_lid, \
+                viscoelastic_radius_lower, viscoelastic_radius_upper, viscoelastic_thickness, \
+                viscoelastic_volume, viscoelastic_surf_area, viscoelastic_mass, viscoelastic_gravity, \
+                viscoelastic_temperature, \
+                elastic_radius_lower, elastic_radius_upper, elastic_thickness, \
                 elastic_volume, elastic_surf_area, elastic_mass, elastic_gravity = \
                     layer_geometries[layer_i]
 
+                elastic_passes_all_heat = False
+                if layer_lost_lid:
+                    elastic_passes_all_heat = True
+
+                viscoelastic_passes_all_heat = False
                 # Calculate viscoelastic portion's strength
+                if viscoelastic_volume != 0.:
                 #    TODO: Assume 0. pressure dependence for now (the zero in the input below)
-                if viscoelastic_temperature != 0.:
                     pre_melt_viscosity = \
                         viscosity_funcs[object_i][layer_i](viscoelastic_temperature, 0., *viscosity_inputs[object_i][layer_i])
                     pre_melt_shear = static_shears[object_i][layer_i]
@@ -469,101 +471,131 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                         shear_modulus = 0.1
                     elif shear_modulus > 1.e100:
                         shear_modulus = 1.e100
+                    compliance = 1. / shear_modulus
+
+                    # Calculate viscoelastic cooling
+                    if is_growth_layer:
+                        if layer_lost_lid:
+                            if top_layer:
+                                visco_top_temp = surface_temperatures[object_i]
+                            else:
+                                visco_top_temp = bottom_temperatures[layer_i + 1]
+                        else:
+                            visco_top_temp = viscoelastic_top_temperatures[object_i][layer_i]
+                    else:
+                        if top_layer:
+                            visco_top_temp = surface_temperatures[object_i]
+                        else:
+                            visco_top_temp = bottom_temperatures[layer_i + 1]
+
+                    #    Covective cooling for viscoelastic layer
+                    viscoelastic_temperature_delta = viscoelastic_temperature - visco_top_temp
+                    viscoelastic_cooling_flux, viscoelastic_boundary_layer_thickness, viscoelastic_rayleigh, \
+                    viscoelastic_nusselt = \
+                        convection(viscoelastic_temperature_delta, viscosity, thermal_conductivity,
+                                   thermal_diffusivity, thermal_expansion,
+                                   viscoelastic_thickness, viscoelastic_gravity, material_density, alpha_conv,
+                                   beta_conv, critical_rayleigh)
+                    viscoelastic_cooling = viscoelastic_surf_area * viscoelastic_cooling_flux
+
+                    #    Calculate complex compliance based on layer's strength and the unique tidal forcing frequencies
+
+                    # unique_complex_compliances = \
+                    #     {freq_sig: complex_compliance_func(freq, compliance, viscosity, *rheology_input[object_i][layer_i])
+                    #      for freq_sig, freq in unique_frequencies.items()}
+                    #
+                    # # Calculate tidal dissipation
+                    # if use_planetary_params_for_tide_calc:
+                    #     _radius = object_radius[object_i]
+                    #     _gravity = object_gravity[object_i]
+                    #     _density = object_density_bulk[object_i]
+                    # else:
+                    #     _radius = radius_upper[object_i][layer_i]
+                    #     _gravity = layer_gravity[object_i][layer_i]
+                    #     _density = layer_density_bulk[object_i][layer_i]
+                    # tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+                    #     collapse_modes(_gravity, _radius, _density, shear_modulus, unique_complex_compliances,
+                    #                    tidal_results_by_frequency, tidal_susceptibility, tidal_host_mass, tidal_scale=,
+                    #                    cpl_ctl_method=False)
+
+                    # FIXME
+                    tidal_heating = 0.
+
                 else:
-                    viscosity = 1.
-                    shear_modulus = 1.
+                    # No viscoelastic layer present. No tides or convection
+                    viscosity = 0.
+                    shear_modulus = 0.
                     melt_fraction = 0.
+                    compliance = 0.
+                    tidal_heating = 0.
+                    visco_top_temp = bottom_temperatures[layer_i]
 
-                #    Calculate complex compliance based on layer's strength and the unique tidal forcing frequencies
-                compliance = 1. / shear_modulus
+                    viscoelastic_temperature_delta = 0.
+                    viscoelastic_cooling = 0.
+                    viscoelastic_cooling_flux = 0.
+                    viscoelastic_passes_all_heat = True
 
-                # unique_complex_compliances = \
-                #     {freq_sig: complex_compliance_func(freq, compliance, viscosity, *rheology_input[object_i][layer_i])
-                #      for freq_sig, freq in unique_frequencies.items()}
-                #
-                # # Calculate tidal dissipation
-                # if use_planetary_params_for_tide_calc:
-                #     _radius = object_radius[object_i]
-                #     _gravity = object_gravity[object_i]
-                #     _density = object_density_bulk[object_i]
-                # else:
-                #     _radius = radius_upper[object_i][layer_i]
-                #     _gravity = layer_gravity[object_i][layer_i]
-                #     _density = layer_density_bulk[object_i][layer_i]
-                # tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                #     collapse_modes(_gravity, _radius, _density, shear_modulus, unique_complex_compliances,
-                #                    tidal_results_by_frequency, tidal_susceptibility, tidal_host_mass, tidal_scale=,
-                #                    cpl_ctl_method=False)
-
-                tidal_heating = 0.
-                if layer_i == 0 and object_i == 0:
-                    radiogenic_heating = 5.e11
-                else:
-                    radiogenic_heating = 0.
+                # Calculate radiogenic heating
+                # FIXME
+                radiogenic_heating = 0.
 
                 # Determine Heating
                 total_incoming_heating = tidal_heating + radiogenic_heating
                 if not bottom_layer:
                     total_incoming_heating += layer_coolings[layer_i - 1]
 
-                # Determine Cooling
+                # Determine thermal evolution model: growing layer or static
                 if is_growth_layer:
-                    visco_top_temp = viscoelastic_top_temperatures[object_i][layer_i]
-                else:
-                    if top_layer:
-                        visco_top_temp = surface_temperatures[object_i][layer_i]
-                    else:
-                        visco_top_temp = bottom_temperatures[layer_i + 1]
-                #    Covective cooling for viscoelastic layer
-                viscoelastic_temperature_delta = viscoelastic_temperature - visco_top_temp
-                viscoelastic_cooling_flux, viscoelastic_boundary_layer_thickness, viscoelastic_rayleigh, \
-                viscoelastic_nusselt = \
-                    convection(viscoelastic_temperature_delta, viscosity, thermal_conductivity,
-                               thermal_diffusivity, thermal_expansion,
-                               viscoelastic_thickness, viscoelastic_gravity, material_density, alpha_conv,
-                               beta_conv, critical_rayleigh)
-                viscoelastic_cooling = viscoelastic_surf_area * viscoelastic_cooling_flux
-
-                    # Determine thermal evolution model: growing layer or static
-                if is_growth_layer:
-                    # Determine Cooling for the elastic layer
-                    if top_layer:
-                        elastic_delta_temperature = visco_top_temp - surface_temperatures[object_i]
-                    else:
-                        elastic_delta_temperature = visco_top_temp - temperatures[object_i][layer_i + 1]
-                    # The 2x factor for the layer thickness is there to counteract the 1/2 within the
-                    #     conduction function
-                    elastic_cooling_flux, elastic_boundary_layer_thickness, elastic_rayleigh, elastic_nusselt = \
-                        conduction(elastic_delta_temperature, thermal_conductivity, elastic_thickness)
-                    elastic_cooling = elastic_surf_area * elastic_cooling_flux
 
                     # Determine heating fluxes
                     viscoelastic_heating_flux = total_incoming_heating / viscoelastic_surf_area
+
+                    if viscoelastic_passes_all_heat:
+                        viscoelastic_cooling_flux = viscoelastic_heating_flux
+
                     elastic_heating_flux = viscoelastic_cooling_flux
 
-                    energy_to_freeze = specific_heat * viscoelastic_temperature_delta
-                    elastic_layer_change = \
-                        (elastic_cooling_flux - elastic_heating_flux) / (material_density * energy_to_freeze)
-
-                    # The viscoelastic layer's temperature is allowed to decrease if the layer is frozen out.
-                    #    If the layer is stagnant (all elastic) then there is no change in temperature.
-                    if layer_stagnant:
-                        viscoelastic_temperature_change = 0.
-                        viscoelastic_layer_change = 0.
-                        elastic_layer_change = 0.
-                    elif layer_freeze_out:
-                        viscoelastic_layer_change = -elastic_layer_change
-                        viscoelastic_temperature_change = \
-                            (total_incoming_heating - viscoelastic_cooling) / \
-                            (viscoelastic_volume * material_density * specific_heat)
+                    if elastic_passes_all_heat:
+                        elastic_cooling_flux = viscoelastic_cooling_flux
+                        elastic_cooling = viscoelastic_cooling_flux * elastic_surf_area
+                        elastic_boundary_layer_thickness = 0.
+                        elastic_rayleigh = 0.
+                        elastic_nusselt = 1.
                     else:
+                        # Determine Cooling for the elastic layer
+                        if top_layer:
+                            elastic_delta_temperature = visco_top_temp - surface_temperatures[object_i]
+                        else:
+                            elastic_delta_temperature = visco_top_temp - temperatures[object_i][layer_i + 1]
+                        #     conduction function
+                        elastic_cooling_flux, elastic_boundary_layer_thickness, elastic_rayleigh, elastic_nusselt = \
+                            conduction(elastic_delta_temperature, thermal_conductivity, elastic_thickness)
+                        elastic_cooling = elastic_surf_area * elastic_cooling_flux
+
+                    if layer_stagnant:
+                        # If the layer is stagnant (all elastic) then there is no change in temperature.
+                        elastic_layer_change = 0.
+                        viscoelastic_layer_change = 0.
                         viscoelastic_temperature_change = 0.
+                    else:
+                        energy_to_freeze = specific_heat * viscoelastic_temperature_delta
+                        elastic_layer_change = \
+                            (elastic_cooling_flux - elastic_heating_flux) / (material_density * energy_to_freeze)
+                        if layer_freeze_out:
+                            # The viscoelastic layer's temperature is allowed to decrease if the layer is frozen out.
+                            viscoelastic_layer_change = -elastic_layer_change
+                            viscoelastic_temperature_change = \
+                                (total_incoming_heating - viscoelastic_cooling) / \
+                                (viscoelastic_volume * material_density * specific_heat)
+                        else:
+                            viscoelastic_temperature_change = 0.
+                            # If there is an ocean then the viscoelastic layer will change depending on the
+                            #     energy balance
+                            viscoelastic_layer_change = \
+                                (viscoelastic_cooling_flux - viscoelastic_heating_flux) / \
+                                (material_density * latent_heat)
 
-                        # Determine change in layer thickness
-                        viscoelastic_layer_change = \
-                            (viscoelastic_cooling_flux - viscoelastic_heating_flux) / (material_density * latent_heat)
-
-                    # Store results and derivatives
+                    # Heat coming out of the layer is equal to the elastic cooling
                     layer_cooling = elastic_cooling
 
                 else:
@@ -599,8 +631,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         return derivative_storage
 
 
-    @njit
-    def diffeq_julia(variables, time):
+    def diffeq_julia(variables, parameters, time):
 
         output = diffeq_scipy(time, variables)
 
@@ -724,7 +755,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         print('Integrating Dual Body System:')
         print(f'\t{object_names[0]} and {object_names[1]}')
         if use_julia:
-            print('f\tUsing Julia Diffeq...')
+            print('\tUsing Julia Diffeq...')
 
             # Import Julia's Diffeqpy and setup the problem
             from diffeqpy import de
@@ -742,7 +773,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             from scipy.integrate import solve_ivp
 
             solution = solve_ivp(diffeq_to_use, time_span, initial_conditions,
-                                 method='LSODA', vectorized=False, rtol=1e-5)
+                                 method='LSODA', vectorized=False)
 
             # Pull out dependent variables
             if len(solution.t) > MAX_DATA_SIZE:

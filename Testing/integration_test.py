@@ -7,7 +7,7 @@ integration_config = {
     'use_tidal_scale': True,
     'use_visco_volume_for_tidal_scale': True,
     'use_julia': False,
-    'time_span': (0., myr2sec(500.))
+    'time_span': (0., myr2sec(5000.))
 }
 
 orbital_config = {
@@ -19,7 +19,7 @@ orbital_config = {
 pluto_crust_thickness = pluto['layers']['Icy Shell']['radius_upper'] - pluto['layers']['Icy Shell']['radius_lower']
 charon_crust_thickness = charon['layers']['Icy Shell']['radius_upper'] - charon['layers']['Icy Shell']['radius_lower']
 
-initial_conditions = (
+initial_conditions = [
     # Pluto
     #    Core
     1600.,
@@ -45,7 +45,7 @@ initial_conditions = (
     # Orbit
     0.,
     0.
-)
+]
 
 diffeq, integrator, plotter = build_2layer_icy_shell_diffeq(pluto, charon, orbital_config, integration_config)
 
