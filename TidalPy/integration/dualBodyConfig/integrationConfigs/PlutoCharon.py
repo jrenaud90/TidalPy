@@ -9,6 +9,9 @@ pluto = {
     'mass':                1.3895506e22,
     'constant_obliquity':  0.,
     'surface_temperature': 40.,
+    'modern_semi_major_axis': 19.596e6,
+    'tides_on': True,
+    'moi':5.65e33,
     'layers':              {
         'Core':      {
             # Pre-calculated Layer Structure
@@ -38,6 +41,7 @@ pluto = {
             'rheology_model':                    'andrade',
             'rheology_input':                    (.3, 1.),
             'tidal_scale':                       1.,
+            'force_tides_off':                   False,
             # Other Model Inputs
             'growth_layer':                      False,
             'constant_ocean_temperature':        0.,
@@ -72,6 +76,7 @@ pluto = {
             'rheology_model':                    'andrade',
             'rheology_input':                    (.3, 1.),
             'tidal_scale':                       1.,
+            'force_tides_off':                   False,
             # Other Model Inputs
             'growth_layer':                      True,
             'constant_ocean_temperature':        273.15,
@@ -87,6 +92,9 @@ charon = {
     'mass':                1.670299e21,
     'constant_obliquity':  0.,
     'surface_temperature': 40.,
+    'modern_semi_major_axis': 19.596e6,
+    'tides_on': True,
+    'moi':1.77e32,
     'layers':              {
         'Core':      {
             # Pre-calculated Layer Structure
@@ -116,6 +124,7 @@ charon = {
             'rheology_model':                    'andrade',
             'rheology_input':                    (.3, 1.),
             'tidal_scale':                       1.,
+            'force_tides_off':                   False,
             # Other Model Inputs
             'growth_layer':                      False,
             'constant_ocean_temperature':        0.,
@@ -150,6 +159,7 @@ charon = {
             'rheology_model':                    'andrade',
             'rheology_input':                    (.3, 1.),
             'tidal_scale':                       1.,
+            'force_tides_off':                   False,
             # Other Model Inputs
             'growth_layer':                      True,
             'constant_ocean_temperature':        273.15,

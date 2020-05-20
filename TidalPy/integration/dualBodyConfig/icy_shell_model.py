@@ -1,10 +1,11 @@
 import os
+from time import time
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 from ...constants import G
-from ...tools.conversions import orbital_motion2semi_a, sec2myr
+from ...tools.conversions import orbital_motion2semi_a, sec2myr, semi_a2orbital_motion
 from ...utilities.performance import njit
 from ...tides.mode_manipulation import build_mode_manipulators
 from ...tides.dissipation import calc_tidal_susceptibility
@@ -12,6 +13,7 @@ from ...cooling.cooling_models import conduction, convection
 from ...rheology.viscosity import known_models as known_viscosity_models
 from ...rheology.complexCompliance import known_models as known_complex_compliance_models
 from ...rheology.partialMelt import known_models as known_partial_melt_models
+from ...dynamics import spin_rate_derivative, semia_eccen_derivatives_dual
 
 plt.rcParams.update({'font.size': 14})
 
@@ -28,6 +30,8 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     object_obliquities = tuple([object_config['constant_obliquity'] for object_config in object_configs])
     surface_temperatures = tuple([object_config['surface_temperature'] for object_config in object_configs])
     num_layers = tuple([int(len(object_config['layers'])) for object_config in object_configs])
+    tides_on_flags = tuple([object_config['tides_on'] for object_config in object_configs])
+    object_mois = tuple([object_config['moi'] for object_config in object_configs])
 
     # Layer data are stored as the following: ( (obj0_layer_0, obj0_layer_1), (obj1_layer_0, obj1_layer1) )
     layer_names = tuple(
@@ -118,6 +122,10 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         [tuple([layer_config.get('tidal_scale', 1.) for _, layer_config in object_config['layers'].items()])
         for object_config in object_configs]
     )
+    force_tides_off_flags = tuple(
+        [tuple([layer_config.get('force_tides_off', False) for _, layer_config in object_config['layers'].items()])
+        for object_config in object_configs]
+    )
     growth_layer_flags = tuple(
         [tuple([layer_config['growth_layer'] for _, layer_config in object_config['layers'].items()])
          for object_config in object_configs]
@@ -163,6 +171,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     use_visco_volume_for_tidal_scale = integration_config['use_visco_volume_for_tidal_scale']
     use_julia = integration_config['use_julia']
     time_span = integration_config['time_span']
+    lock_at_1to1 = integration_config['lock_at_1to1']
     time_interval = time_span[-1] - time_span[0]
 
     # Calculate derived properties
@@ -219,8 +228,8 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     def diffeq_scipy(time, variables):
 
         # Progress bar
-        percent_done = round(1000. * (time / time_interval)) / 1000.
-        print('Percent Done:', percent_done, '%')
+        percent_done = round(100000. * (time / time_interval)) / 100000.
+        print('Percent Done:', 100. * percent_done, '%')
         # print('\rPercent Done: {:0>5.2f}%'.format(100. * percent_done), flush=True, end='')
 
         # Pull out independent variables
@@ -249,10 +258,10 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         eccentricity = variables[index + 1]
 
         # Calculate parameters that only depend on orbital properties
-        # FIXME
-        # semi_major_axis = orbital_motion2semi_a(orbital_motion, object_masses[0], object_masses[1])
+        semi_major_axis = orbital_motion2semi_a(orbital_motion, object_masses[0], object_masses[1])
 
         # Derivative storage
+        tidal_derivative_storage = list()
         derivative_storage = list()
 
         # Perform thermal evolution on each object's layers
@@ -267,14 +276,27 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             # Pull out parameters referenced often
             object_radius = object_radii[object_i]
             object_mass = object_masses[object_i]
+            object_gravity = object_gravities[object_i]
+            object_density_bulk = object_densities_bulk[object_i]
             tidal_host_mass = object_masses[opposite_object_i]
+            spin_rate = spin_rates[object_i]
+            spin_locked = False
+            if lock_at_1to1:
+                if (abs((spin_rate / orbital_motion) - 1.) < 0.1) and eccentricity <= 0.05:
+                    spin_locked = True
+                    spin_rate = orbital_motion
 
-            # # Calculate tidal modes and susceptibility
-            # unique_frequencies, tidal_results_by_frequency = \
-            #     calculate_tidal_terms(orbital_motion, spin_rate[object_i], eccentricity, object_obliquity[object_i],
-            #                           semi_major_axis, obj_radius)
-            # tidal_susceptibility = \
-            #     calc_tidal_susceptibility(tidal_host_mass, obj_radius, semi_major_axis)
+            # Calculate tidal modes and susceptibility
+            unique_frequencies, tidal_results_by_frequency = \
+                calculate_tidal_terms(orbital_motion, spin_rate, eccentricity, object_obliquities[object_i],
+                                      semi_major_axis, object_radius)
+            tidal_susceptibility = \
+                calc_tidal_susceptibility(tidal_host_mass, object_radius, semi_major_axis)
+
+            # Tidal parameter storage
+            dUdM_total = 0.
+            dUdw_total = 0.
+            dUdO_total = 0.
 
             # First loop through layers to determine geometry and find bottom temperatures which are used for next loop
             bottom_temperatures = list()
@@ -488,7 +510,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                         else:
                             visco_top_temp = bottom_temperatures[layer_i + 1]
 
-                    #    Covective cooling for viscoelastic layer
+                    # Convective cooling for viscoelastic layer
                     viscoelastic_temperature_delta = viscoelastic_temperature - visco_top_temp
                     viscoelastic_cooling_flux, viscoelastic_boundary_layer_thickness, viscoelastic_rayleigh, \
                     viscoelastic_nusselt = \
@@ -498,28 +520,40 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                                    beta_conv, critical_rayleigh)
                     viscoelastic_cooling = viscoelastic_surf_area * viscoelastic_cooling_flux
 
-                    #    Calculate complex compliance based on layer's strength and the unique tidal forcing frequencies
 
-                    # unique_complex_compliances = \
-                    #     {freq_sig: complex_compliance_func(freq, compliance, viscosity, *rheology_input[object_i][layer_i])
-                    #      for freq_sig, freq in unique_frequencies.items()}
-                    #
-                    # # Calculate tidal dissipation
-                    # if use_planetary_params_for_tide_calc:
-                    #     _radius = object_radius[object_i]
-                    #     _gravity = object_gravity[object_i]
-                    #     _density = object_density_bulk[object_i]
-                    # else:
-                    #     _radius = radius_upper[object_i][layer_i]
-                    #     _gravity = layer_gravity[object_i][layer_i]
-                    #     _density = layer_density_bulk[object_i][layer_i]
-                    # tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                    #     collapse_modes(_gravity, _radius, _density, shear_modulus, unique_complex_compliances,
-                    #                    tidal_results_by_frequency, tidal_susceptibility, tidal_host_mass, tidal_scale=,
-                    #                    cpl_ctl_method=False)
+                    # Tidal Calculations
+                    calculate_tides = (not force_tides_off_flags[object_i][layer_i]) and tides_on_flags[object_i] \
+                                      and (layer_tidal_scale != 0.)
 
-                    # FIXME
-                    tidal_heating = 0.
+                    if not calculate_tides:
+                        tidal_heating = 0.
+                        dUdM, dUdw, dUdO = 0., 0., 0.
+                        love_number, negative_imk = 0. + 0.j, 0.
+                    else:
+                        # Calculate tides!
+                        complex_compliance_func = complex_compliance_funcs[object_i][layer_i]
+                        rheology_input = rheology_inputs[object_i][layer_i]
+                        # Calculate complex compliance based on layer's strength and the unique tidal forcing frequencies
+                        unique_complex_compliances = []
+                        for freq_sig, freq in unique_frequencies.items():
+                            unique_complex_compliances.append(
+                                    complex_compliance_func(freq, compliance, viscosity, *rheology_input)
+                            )
+
+                        # Calculate tidal dissipation
+                        if use_planetary_params_for_tide_calc:
+                            _radius = object_radius
+                            _gravity = object_gravity
+                            _density = object_density_bulk
+                        else:
+                            _radius = viscoelastic_radius_upper
+                            _gravity = viscoelastic_gravity
+                            _density = viscoelastic_mass / viscoelastic_volume
+                        tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
+                            collapse_modes(_gravity, _radius, _density, shear_modulus, unique_complex_compliances,
+                                           tidal_results_by_frequency, tidal_susceptibility, tidal_host_mass,
+                                           tidal_scale=layer_tidal_scale,
+                                           cpl_ctl_method=False)
 
                 else:
                     # No viscoelastic layer present. No tides or convection
@@ -528,12 +562,18 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     melt_fraction = 0.
                     compliance = 0.
                     tidal_heating = 0.
+                    dUdM, dUdw, dUdO = 0., 0., 0.
                     visco_top_temp = bottom_temperatures[layer_i]
 
                     viscoelastic_temperature_delta = 0.
                     viscoelastic_cooling = 0.
                     viscoelastic_cooling_flux = 0.
                     viscoelastic_passes_all_heat = True
+
+                # Add this layer's tidal dissipation to the total for the object
+                dUdM_total += dUdM
+                dUdw_total += dUdw
+                dUdO_total += dUdO
 
                 # Calculate radiogenic heating
                 # FIXME
@@ -616,18 +656,25 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
 
             # Determine change in this object's spin-rate
-            # FIXME:
-            spin_rate_change = 0.
+            if spin_locked or dUdO_total == 0.:
+                spin_rate_change = 0.
+            else:
+                spin_rate_change = spin_rate_derivative(dUdO_total, object_mois[object_i], tidal_host_mass)
             derivative_storage.append(spin_rate_change)
 
+            # Store tidal partial derivatives for orbital calculations
+            tidal_derivative_storage.append((dUdM_total, dUdw_total, dUdO_total))
+
         # Determine orbital changes
-        # FIXME:
-        eccentricity_change = 0.
-        semi_major_axis_change = 0.
-        orbital_motion_change = 0.
+        obj1_dUdM, obj1_dUdw, obj1_dUdO = tidal_derivative_storage[0]
+        obj2_dUdM, obj2_dUdw, obj2_dUdO = tidal_derivative_storage[1]
+        da_dt, de_dt = semia_eccen_derivatives_dual(semi_major_axis, orbital_motion, eccentricity,
+                                                    object_masses[0], obj1_dUdM, obj1_dUdw,
+                                                    object_masses[1], obj2_dUdM, obj2_dUdw)
+        eccentricity_change = de_dt
+        orbital_motion_change = (-3. / 2.) * (orbital_motion / semi_major_axis) * da_dt
         derivative_storage.append(orbital_motion_change)
         derivative_storage.append(eccentricity_change)
-
         return derivative_storage
 
 
@@ -643,7 +690,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         diffeq = diffeq_scipy
 
 
-    def plotter(variables, time_domain, logtime: bool = False, save_locale: str = None):
+    def plotter(variables, time_domain, logtime: bool = False, save_locale: str = None, semi_major_scale: float = None):
 
         # Plot Styles
         object_colors = ('r', 'b')
@@ -658,8 +705,8 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
         # Setup x-axis
         if logtime:
-            x_label = 'Time [yr]'
-            x = time_domain / 3.154e7
+            x_label = 'Time [Myr]'
+            x = time_domain / 3.154e13
             x_scale = 'log'
         else:
             x_label = 'Time [Myr]'
@@ -673,15 +720,23 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         for ax in [ax_semia, ax_spin]:
             ax.set(xscale=x_scale, xlabel=x_label)
         ax_eccen = ax_semia.twinx()
-        ax_semia.set(ylabel='Semi-major Axis [km]')
+
+        if semi_major_scale is None:
+            ax_semia.set(ylabel='Semi-major Axis [km]')
+        else:
+            ax_semia.set(ylabel='Semi-major Axis [% of modern]')
         ax_eccen.set(ylabel='Eccentricity (dotted)')
-        ax_spin.set(ylabel='Spin Period [days]')
+        ax_spin.set(ylabel='Spin-rate / Orbital Motion')
 
         # Plot non-object dependent parameters
-        semi_major_axis = variables['semi_major_axis'] / 1000.
+        if semi_major_scale is None:
+            semi_a_y = variables['semi_major_axis'] / 1000.
+        else:
+            semi_a_y = 100 * variables['semi_major_axis'] / semi_major_scale
+        ax_semia.plot(x, semi_a_y, ls='-', c='k')
+
         eccentricity = variables['eccentricity']
-        ax_semia.plot(x, semi_major_axis, ls='-')
-        ax_eccen.plot(x, eccentricity, ls=':')
+        ax_eccen.plot(x, eccentricity, ls=':', c='k')
 
         # Plot object dependent parameters
         planet_figures = list()
@@ -691,7 +746,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
             # Plot spin period
             spin_period = (2. * np.pi / (object_variables['spin_rate'])) / 86400.
-            ax_spin.plot(x, spin_period, label=object_name, ls='-', c=color)
+            ax_spin.plot(x, object_variables['spin_rate'] / variables['orbital_motion'], label=object_name, ls='-', c=color)
 
             # Plot layer properties
             n_layers = num_layers[object_i]
@@ -701,7 +756,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             growth_model_encountered = False
             for layer_i, layer_name in enumerate(layer_names[object_i]):
                 ax = layer_axes[layer_i]
-                ax.set(title=layer_name)
+                ax.set(title=layer_name, xlabel=x_label, xscale=x_scale)
                 layer_variables = object_variables[layer_name]
 
                 # Determine if this is a growth or regular layer
@@ -743,6 +798,9 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                    auto_plot: bool = True, save_data: bool = False,
                    save_locale: str = None, **plotter_kwargs):
 
+        # Timer
+        time_init = time()
+
         # Determine save location
         run_save_name = object_names[0].lower() + '_' + object_names[1].lower()
         if save_locale is None:
@@ -762,8 +820,10 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             min_interval = MIN_INTERVAL_SCALE * time_interval
             problem = de.ODEProblem(diffeq_to_use, initial_conditions, time_span)
             print(f'Solving...')
+            time_setup_done = time()
             solution = de.solve(problem, de.BS3(), saveat=min_interval, abstol=1e-8, reltol=integration_rtol)
             print('\nIntegration Done!')
+            time_integration_done = time()
 
             y = np.transpose(solution.u)
             t = solution.t
@@ -771,9 +831,11 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             del solution
         else:
             from scipy.integrate import solve_ivp
-
+            time_setup_done = time()
             solution = solve_ivp(diffeq_to_use, time_span, initial_conditions,
                                  method='LSODA', vectorized=False)
+
+            time_integration_done = time()
 
             # Pull out dependent variables
             if len(solution.t) > MAX_DATA_SIZE:
@@ -785,6 +847,8 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 t = solution.t
                 y = solution.y
             del solution
+
+        print(f'Integration Time: {(time_integration_done - time_setup_done) / 60.:0.2f} Mins')
 
         # Pull out independent variables
         starting_index = 0
@@ -812,6 +876,13 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         if save_data:
             data_save_dir = save_locale
             print(f'Saving Data to:\n\t{data_save_dir}')
+            with open(os.path.join(data_save_dir, 'initial_condition.txt'), 'w') as initial_cond_file:
+                for initial_cond in initial_conditions:
+                    initial_cond_file.write(str(initial_cond) + '\n')
+                initial_cond_file.write('\nIntegration Stats:\n')
+                initial_cond_file.write(f'Integration Setup Time: {(time_setup_done - time_init) / 60.:0.2f} Mins\n')
+                initial_cond_file.write(f'Integration Time: {(time_integration_done - time_setup_done) / 60.:0.2f} Mins\n')
+
             np.save(os.path.join(data_save_dir, f'{run_save_name}_TimeDomainMyr.npy'), time_domain)
             for object_i, object_name in enumerate(object_names):
                 object_results = result_dict[object_name]
