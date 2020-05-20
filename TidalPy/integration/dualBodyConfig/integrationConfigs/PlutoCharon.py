@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.constants import R
 
+from ....radiogenics.defaults import standard_isotope_input
 # Planet and Layer Radii are from Nimmo+2017
 
 pluto = {
@@ -45,7 +46,11 @@ pluto = {
             # Other Model Inputs
             'growth_layer':                      False,
             'constant_ocean_temperature':        0.,
-            'constant_viscoelastic_temperature': 0.
+            'constant_viscoelastic_temperature': 0.,
+            # Radiogenic Model
+            'use_radiogenics':                   True,
+            'radiogenic_model':                  'isotope',
+            'radiogenic_input':                  standard_isotope_input
 
         },
         'Icy Shell': {
@@ -81,7 +86,11 @@ pluto = {
             'growth_layer':                      True,
             'constant_ocean_temperature':        273.15,
             'constant_viscoelastic_temperature': 273.,
-            'viscoelastic_top_temperature':      273.15 / ((np.log(10.) / (58.4e3 / (R * 273.15))) + 1.)
+            'viscoelastic_top_temperature':      273.15 / ((np.log(10.) / (58.4e3 / (R * 273.15))) + 1.),
+            # Radiogenic Model
+            'use_radiogenics':                   False,
+            'radiogenic_model':                  'isotope',
+            'radiogenic_input':                  standard_isotope_input
         }
     }
 }
@@ -128,8 +137,11 @@ charon = {
             # Other Model Inputs
             'growth_layer':                      False,
             'constant_ocean_temperature':        0.,
-            'constant_viscoelastic_temperature': 0.
-
+            'constant_viscoelastic_temperature': 0.,
+            # Radiogenic Model
+            'use_radiogenics':                   True,
+            'radiogenic_model':                  'isotope',
+            'radiogenic_input':                  standard_isotope_input
         },
         'Icy Shell': {
             # Pre-calculated Layer Structure
@@ -164,7 +176,11 @@ charon = {
             'growth_layer':                      True,
             'constant_ocean_temperature':        273.15,
             'constant_viscoelastic_temperature': 273.,
-            'viscoelastic_top_temperature':      273.15 / ((np.log(10.) / (58.4e3 / (R * 273.15))) + 1.)
+            'viscoelastic_top_temperature':      273.15 / ((np.log(10.) / (58.4e3 / (R * 273.15))) + 1.),
+            # Radiogenic Model
+            'use_radiogenics':                   False,
+            'radiogenic_model':                  'isotope',
+            'radiogenic_input':                  standard_isotope_input
         }
     }
 }

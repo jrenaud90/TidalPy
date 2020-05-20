@@ -4,11 +4,12 @@ import numpy as np
 
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray
+from ..configurations import cache_numba
 
 LOG_HALF = np.log(0.5)
 
 
-@njit
+@njit(cache=cache_numba)
 def isotope(time: FloatArray, mass: float,
             iso_massfracs_of_isotope: Tuple[float, ...], iso_element_concentrations: Tuple[float, ...],
             iso_halflives: Tuple[float, ...], iso_heat_production: Tuple[float, ...],
@@ -41,13 +42,14 @@ def isotope(time: FloatArray, mass: float,
         Summed radiogenic heating added for all isotopes [Watts]
     """
 
-    total_specific_heatings = list()
-    for mass_frac, concen, halflife, hpr in \
+    # Start with something fake so that njit knows how to compile. The *0 will make this not matter in the final sum.
+    total_specific_heating = time * 0.
+
+    for mass_frac, concentration, halflife, heat_production_rate in \
             zip(iso_massfracs_of_isotope, iso_element_concentrations, iso_halflives, iso_heat_production):
         gamma = LOG_HALF / halflife
-        q_iso = mass_frac * concen * hpr
-        total_specific_heatings.append(q_iso * np.exp(gamma * (time - ref_time)))
-    total_specific_heating = sum(total_specific_heatings)
+        q_iso = mass_frac * concentration * heat_production_rate
+        total_specific_heating += q_iso * np.exp(gamma * (time - ref_time))
 
     # Multiple the specific heating by the total mass (radiogenic mass only)
     radiogenic_heating = total_specific_heating * mass
@@ -55,7 +57,7 @@ def isotope(time: FloatArray, mass: float,
     return radiogenic_heating
 
 
-@njit
+@njit(cache=cache_numba)
 def fixed(time: FloatArray, mass: float,
           fixed_heat_production: float, average_half_life: float,
           ref_time: float = 4600.) -> FloatArray:
@@ -90,14 +92,43 @@ def fixed(time: FloatArray, mass: float,
     return radiogenic_heating
 
 
-@njit
-def off(time: FloatArray) -> FloatArray:
-    """ Forces radiogenics to be off
+@njit(cache=cache_numba)
+def off(time: float, mass: float) -> float:
+    """ Forces radiogenics to be off - Floats only
+
+    !TPY_args live: self.time, self.mass
 
     Parameters
     ----------
     time : FloatArray
        Time at which to calculate radiogenic heating at [units must match average_half_life and ref_time]
+    mass : float
+        Total mass of radiogenic layer
+
+    Returns
+    -------
+    radiogenic_heating : FloatArray
+       Radiogenic heating set to zeros
+
+    """
+
+    radiogenic_heating = 0.
+
+    return radiogenic_heating
+
+
+@njit(cache=cache_numba)
+def off_array(time: np.ndarray, mass: float) -> np.ndarray:
+    """ Forces radiogenics to be off - Arrays Only
+
+    !TPY_args live: self.time, self.mass
+
+    Parameters
+    ----------
+    time : FloatArray
+       Time at which to calculate radiogenic heating at [units must match average_half_life and ref_time]
+    mass : float
+        Total mass of radiogenic layer
 
     Returns
     -------

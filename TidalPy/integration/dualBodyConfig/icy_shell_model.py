@@ -14,6 +14,7 @@ from ...rheology.viscosity import known_models as known_viscosity_models
 from ...rheology.complexCompliance import known_models as known_complex_compliance_models
 from ...rheology.partialMelt import known_models as known_partial_melt_models
 from ...dynamics import spin_rate_derivative, semia_eccen_derivatives_dual
+from ...radiogenics import known_models as known_radiogenic_models
 
 plt.rcParams.update({'font.size': 14})
 
@@ -126,6 +127,18 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         [tuple([layer_config.get('force_tides_off', False) for _, layer_config in object_config['layers'].items()])
         for object_config in object_configs]
     )
+    radiogenic_model_names = tuple(
+        [tuple([layer_config.get('radiogenic_model', 'off') for _, layer_config in object_config['layers'].items()])
+        for object_config in object_configs]
+    )
+    radiogenic_model_inputs = tuple(
+        [tuple([layer_config.get('radiogenic_input', tuple()) for _, layer_config in object_config['layers'].items()])
+        for object_config in object_configs]
+    )
+    use_radiogenic_flags = tuple(
+        [tuple([layer_config.get('use_radiogenics', False) for _, layer_config in object_config['layers'].items()])
+        for object_config in object_configs]
+    )
     growth_layer_flags = tuple(
         [tuple([layer_config['growth_layer'] for _, layer_config in object_config['layers'].items()])
          for object_config in object_configs]
@@ -155,6 +168,10 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     partial_melt_funcs = tuple(
             [tuple([known_partial_melt_models[_model_name] for _model_name in _layer_partial_melt_models])
              for _layer_partial_melt_models in partial_melt_model_names]
+    )
+    radiogenic_funcs = tuple(
+            [tuple([known_radiogenic_models[_model_name] for _model_name in _layer_radiogenic_models])
+             for _layer_radiogenic_models in radiogenic_model_names]
     )
 
     # Load orbital configurations
@@ -282,7 +299,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
             spin_rate = spin_rates[object_i]
             spin_locked = False
             if lock_at_1to1:
-                if (abs((spin_rate / orbital_motion) - 1.) < 0.1) and eccentricity <= 0.05:
+                if (abs((spin_rate / orbital_motion) - 1.) < 0.01) and eccentricity <= 0.05:
                     spin_locked = True
                     spin_rate = orbital_motion
 
@@ -325,13 +342,13 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     elastic_radius_lower = layer_radius_upper - elastic_dxs[object_i][layer_i]
 
                     # Check if the layer is totally elastic or if the elastic layer is totally gone
-                    if (elastic_radius_lower < layer_radius_lower + 1.) or \
+                    if (elastic_radius_lower <= layer_radius_lower) or \
                             abs(viscoelastic_temperature - viscoelastic_top_temperatures[object_i][layer_i]) < 1.:
                         elastic_radius_lower = layer_radius_lower
                         # Layer is all elastic. No viscoelastic portion
                         layer_stagnant = True
 
-                    elif elastic_radius_lower > layer_radius_upper:
+                    elif elastic_radius_lower >= layer_radius_upper:
                         # Elastic layer is basically non-existent. Make it small so we don't have divide by zero issues
                         elastic_radius_lower = layer_radius_upper
                         elastic_radius_upper = layer_radius_upper
@@ -576,8 +593,14 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 dUdO_total += dUdO
 
                 # Calculate radiogenic heating
-                # FIXME
-                radiogenic_heating = 0.
+                if use_radiogenic_flags[object_i][layer_i]:
+                    radiogenic_mass = layer_masses[object_i][layer_i]
+                    radiogenic_time = sec2myr(time)
+                    radiogenic_input = radiogenic_model_inputs[object_i][layer_i]
+                    radiogenic_heating = \
+                        radiogenic_funcs[object_i][layer_i](radiogenic_time, radiogenic_mass, *radiogenic_input)
+                else:
+                    radiogenic_heating = 0.
 
                 # Determine Heating
                 total_incoming_heating = tidal_heating + radiogenic_heating
@@ -668,13 +691,23 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         # Determine orbital changes
         obj1_dUdM, obj1_dUdw, obj1_dUdO = tidal_derivative_storage[0]
         obj2_dUdM, obj2_dUdw, obj2_dUdO = tidal_derivative_storage[1]
-        da_dt, de_dt = semia_eccen_derivatives_dual(semi_major_axis, orbital_motion, eccentricity,
-                                                    object_masses[0], obj1_dUdM, obj1_dUdw,
-                                                    object_masses[1], obj2_dUdM, obj2_dUdw)
-        eccentricity_change = de_dt
-        orbital_motion_change = (-3. / 2.) * (orbital_motion / semi_major_axis) * da_dt
+        if obj1_dUdM == 0. and obj1_dUdw == 0. and obj2_dUdM == 0. and obj2_dUdw == 0.:
+            # No tides. No change.
+            eccentricity_change = 0.
+            de_dt = 0.
+            da_dt = 0.
+            orbital_motion_change = 0.
+        else:
+            da_dt, de_dt = \
+                semia_eccen_derivatives_dual(semi_major_axis, orbital_motion, eccentricity,
+                                             object_masses[0], obj1_dUdM, obj1_dUdw,
+                                             object_masses[1], obj2_dUdM, obj2_dUdw)
+            eccentricity_change = de_dt
+            orbital_motion_change = (-3. / 2.) * (orbital_motion / semi_major_axis) * da_dt
+
         derivative_storage.append(orbital_motion_change)
         derivative_storage.append(eccentricity_change)
+
         return derivative_storage
 
 
