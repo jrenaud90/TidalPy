@@ -18,7 +18,7 @@ from ...radiogenics import known_models as known_radiogenic_models
 
 plt.rcParams.update({'font.size': 14})
 
-MIN_INTERVAL_SCALE = 0.005
+MIN_INTERVAL_SCALE = 0.0005
 MAX_DATA_SIZE = 2000
 
 def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_config: dict, integration_config: dict):
@@ -759,7 +759,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         else:
             ax_semia.set(ylabel='Semi-major Axis [% of modern]')
         ax_eccen.set(ylabel='Eccentricity (dotted)')
-        ax_spin.set(ylabel='Spin-rate / Orbital Motion')
+        ax_spin.set(ylabel='Spin-rate / Orbital Motion', yscale='log')
 
         # Plot non-object dependent parameters
         if semi_major_scale is None:
@@ -917,9 +917,12 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                 initial_cond_file.write(f'Integration Time: {(time_integration_done - time_setup_done) / 60.:0.2f} Mins\n')
 
             np.save(os.path.join(data_save_dir, f'{run_save_name}_TimeDomainMyr.npy'), time_domain)
+            np.save(os.path.join(data_save_dir, f'{run_save_name}_SemiMajorAxis.npy'), result_dict['semi_major_axis'])
+            np.save(os.path.join(data_save_dir, f'{run_save_name}_OrbitalMotion.npy'), result_dict['orbital_motion'])
+            np.save(os.path.join(data_save_dir, f'{run_save_name}_Eccentricity.npy'), result_dict['eccentricity'])
             for object_i, object_name in enumerate(object_names):
                 object_results = result_dict[object_name]
-                np.save(os.path.join(data_save_dir, f'{run_save_name}_{object_name}_TimeDomainMyr.npy'),
+                np.save(os.path.join(data_save_dir, f'{run_save_name}_{object_name}_SpinRate.npy'),
                         object_results['spin_rate'])
                 for layer_name in layer_names[object_i]:
                     layer_results = result_dict[object_name][layer_name]

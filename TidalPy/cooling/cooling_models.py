@@ -138,18 +138,14 @@ def convection(delta_temp: float,
             viscosity = MIN_VISCOSITY
 
         rate_heat_loss = thermal_diffusivity / layer_thickness
-
-        # TODO: Right now negative delta-temps do not lead to backwards cooling.
-        #  Convection should def shut off, but there could still be backwards conduction. How to handle this and keep
-        #  the boundary layer still smaller (doesn't make sense for it to explode to 50% layer thickness between two time
-        #  steps).
-        parcel_rise_rate = thermal_expansion * density * gravity * delta_temp * layer_thickness**2 / viscosity
+        parcel_rise_rate = thermal_expansion * density * gravity * delta_temp * layer_thickness * layer_thickness / \
+                           viscosity
         rayleigh = parcel_rise_rate / rate_heat_loss
         if rayleigh < 1.e-10:
             rayleigh = 1.e-10
         nusselt = convection_alpha * (rayleigh / critical_rayleigh)**convection_beta
         # Technically convection should shut off at nusselt == 1, but the 2 here forces the max boundary layer thickness
-        #  to be 50% the layer thickness.
+        #  to be 50% the layer thickness to mimic that the average temperature is around the half-way point in the layer.
         if nusselt < 2.:
             nusselt = 2.
 
