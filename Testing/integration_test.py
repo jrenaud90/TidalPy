@@ -60,7 +60,7 @@ initial_conditions = [
     initial_eccentricity
 ]
 
-for pluto_on, charon_on in [(True, True), (False, True), (True, False)]:
+for pluto_on, charon_on in [(True, True)]: # , (False, True), (True, False)]:
 
     pluto['tides_on'] = pluto_on
     charon['tides_on'] = charon_on

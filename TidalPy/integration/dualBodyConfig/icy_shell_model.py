@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from ...constants import G
 from ...tools.conversions import orbital_motion2semi_a, sec2myr, semi_a2orbital_motion
 from ...utilities.performance import njit
-from ...tides.mode_manipulation import build_mode_manipulators
+from ...tides.mode_manipulation import find_mode_manipulators
 from ...tides.dissipation import calc_tidal_susceptibility
 from ...cooling.cooling_models import conduction, convection
 from ...rheology.viscosity import known_models as known_viscosity_models
@@ -179,8 +179,8 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     max_tidal_order_l = orbital_config['max_tidal_order_l']
     use_obliquity = orbital_config['use_obliquity']
     #    Build tidal mode manipulators
-    calculate_tidal_terms, collapse_modes = \
-        build_mode_manipulators(max_tidal_order_l, eccentricity_truncation, use_obliquity=use_obliquity)
+    calculate_tidal_terms, collapse_modes, eccentricity_func, inclination_func = \
+        find_mode_manipulators(max_tidal_order_l, eccentricity_truncation, use_obliquity=use_obliquity)
 
     # Load integration configurations
     use_planetary_params_for_tide_calc = integration_config['use_planetary_params_for_tides']
@@ -274,6 +274,9 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         orbital_motion = variables[index]
         eccentricity = variables[index + 1]
 
+        # Calculate eccentricity functions
+        eccentricity_results = eccentricity_func(eccentricity)
+
         # Calculate parameters that only depend on orbital properties
         semi_major_axis = orbital_motion2semi_a(orbital_motion, object_masses[0], object_masses[1])
 
@@ -303,10 +306,15 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     spin_locked = True
                     spin_rate = orbital_motion
 
+            # Calculate obliquity results
+            # TODO: For now obliquity is not tracked so it can be calculated outside the main function
+            obliquity_results = inclination_func(object_obliquities[object_i])
+
             # Calculate tidal modes and susceptibility
             unique_frequencies, tidal_results_by_frequency = \
-                calculate_tidal_terms(orbital_motion, spin_rate, eccentricity, object_obliquities[object_i],
-                                      semi_major_axis, object_radius)
+                calculate_tidal_terms(spin_rate, orbital_motion, semi_major_axis, object_radius,
+                                      eccentricity_results, obliquity_results)
+
             tidal_susceptibility = \
                 calc_tidal_susceptibility(tidal_host_mass, object_radius, semi_major_axis)
 
@@ -567,10 +575,11 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                             _gravity = viscoelastic_gravity
                             _density = viscoelastic_mass / viscoelastic_volume
                         tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                            collapse_modes(_gravity, _radius, _density, shear_modulus, unique_complex_compliances,
-                                           tidal_results_by_frequency, tidal_susceptibility, tidal_host_mass,
-                                           tidal_scale=layer_tidal_scale,
-                                           cpl_ctl_method=False)
+                            collapse_modes(_gravity, _radius, _density, shear_modulus, layer_tidal_scale,
+                                           tidal_host_mass, tidal_susceptibility,
+                                           unique_complex_compliances,
+                                           tidal_results_by_frequency,
+                                           max_tidal_order_l, cpl_ctl_method=False)
 
                 else:
                     # No viscoelastic layer present. No tides or convection
