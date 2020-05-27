@@ -7,7 +7,7 @@ from typing import Union
 
 from .io import unique_path
 from ..classes.base import TidalPyClass
-from ... import __version__, logging_level as global_logging_level, use_disk, verbose_level as global_verbose_level
+from ... import __version__, logging_level as global_logging_level, use_disk, auto_write, verbose_level as global_verbose_level
 
 now = datetime.now()
 now_str = now.strftime('%x at %X')
@@ -49,6 +49,7 @@ class TidalLogger(TidalPyClass):
         self._last_offload = time.time()
         self._buffer = ''
         self.filepath = None
+        self.file_made = False
 
         # Make sure log is cleaned up whenever python is closed or the process is finished
         atexit.register(self.cleanup)
@@ -58,9 +59,15 @@ class TidalLogger(TidalPyClass):
 
     def create_log(self):
         # Create log file
-        self.filepath = unique_path('TidalPy.log', is_dir=False, preappend_run_dir=True)
-        with open(self.filepath, 'w') as logfile:
-            logfile.write(HEADER_TEXT)
+        self.filepath = \
+            unique_path('TidalPy.log', is_dir=False, preappend_run_dir=True, make_dir=True)
+
+        if not auto_write:
+            self.file_made = False
+        else:
+            with open(self.filepath, 'w') as logfile:
+                logfile.write(HEADER_TEXT)
+            self.file_made = True
 
     def record(self, text: str, level: Union[int, str] = 'info', warning: bool = False):
         """ Records text to buffer and prints to display if verbose_level exceeds message level"""
@@ -131,8 +138,12 @@ class TidalLogger(TidalPyClass):
         if self._buffer == '':
             return True
 
+        if not self.file_made:
+            # If log file is not made, try to make it.
+            self.create_log()
+
         offloaded = False
-        if self.filepath in [False, None]:
+        if self.filepath in [False, None] or not self.file_made:
             if must_offload:
                 warnings.warn('Can not offload buffer when no log filepath is provided. Buffer will be lost')
         else:

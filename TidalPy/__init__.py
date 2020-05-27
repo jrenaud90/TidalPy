@@ -43,7 +43,7 @@ init_time = time.time()
 debug_mode = True
 
 # auto_write determines if TidalPy will automatically create output directories and save logs, data, plots, etc. to it.
-auto_write = True
+auto_write = False
 
 # verbose_level determines what logging information will be displayed to standard output.
 # Set to 0 or False for no printing including warnings

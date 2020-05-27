@@ -1,6 +1,4 @@
-
 import numpy as np
-import pytest
 import numba
 
 import TidalPy
@@ -15,38 +13,37 @@ def test_eccentricity_func_load():
     assert len(eccentricity_truncations) == 10
 
     # As of version 0.2, each truncation level should contain l = 2 ... 7 harmonics
-    for funcs_by_orderl in eccentricity_truncations:
+    for trunc_lvl, funcs_by_orderl in eccentricity_truncations.items():
 
-        # FIXME: for now we don't have l=5,6,7
-        # assert len(funcs_by_orderl) == 6
-        assert len(funcs_by_orderl) >= 3
+        assert len(funcs_by_orderl) == 6
 
 
 def test_eccentricity_func():
 
     from TidalPy.tides.eccentricityFuncs import eccentricity_truncations
 
-    print('Testing Eccentricity Functions. Compile times for njit may take a long time.')
+    print('Testing Eccentricity Functions. Compile times for njit may take a long time the first time.')
     # Each eccentricity function should return a nested dictionary setup like:
     #   {p_0: {q_0: <result>, q_1: <result>, ...}, p_1: {...}, ...}
 
-    for funcs_by_orderl in eccentricity_truncations:
+    for trunc_lvl, funcs_by_orderl in eccentricity_truncations.items():
 
         # As of 0.2, the max l = 7
-        # FIXME: for now we don't have l=5,6,7
-        for order_l in range(2, 4+1):
+        for order_l in range(2, 7+1):
 
-            # Pull out function. Index 0 corresponds to order-l = 2.
-            e_func = funcs_by_orderl[order_l - 2]
+            # Get the eccentricity function at this order l
+            e_func = funcs_by_orderl[order_l]
 
             # Perform float calculation
             e_result_float = e_func(0.3)
             for p, p_result in e_result_float.items():
+                assert type(p) is int
                 for q, q_result in p_result.items():
+                    assert type(q) is int
                     assert type(q_result) is float
 
             # Perform array calculation
-            e_result_array = e_func(np.linspace(0.1, 0.4, 4))
+            e_result_array = e_func(np.linspace(0.1, 0.9, 4))
             for p, p_result in e_result_array.items():
                 for q, q_result in p_result.items():
                     assert type(q_result) is np.ndarray
@@ -77,8 +74,8 @@ def test_inclination_func():
     for order_l in range(2, 7+1):
 
         # Pull out obliquity function
-        obliqu_func_on = inclination_functions_on[order_l - 2]
-        obliqu_func_off = inclination_functions_off[order_l - 2]
+        obliqu_func_on = inclination_functions_on[order_l]
+        obliqu_func_off = inclination_functions_off[order_l]
 
         # Perform float calculation
         obliqu_result_on_float = obliqu_func_on(0.1)
