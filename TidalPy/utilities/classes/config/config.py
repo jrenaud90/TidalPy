@@ -54,14 +54,16 @@ class ConfigHolder(TidalPyClass):
         self.update_config()
 
     def clear_state(self):
-        """ Clear the state of the class by setting state properties to None
+        """ Clear all state properties to None.
 
-        Purposefully avoid clearing things set during initialization
+
+        Purposefully avoid clearing things set during initialization: This should not clear configurations, methods,
+            or loaded functions. Instead it will reset properties like
+            temperature, pressure, orbital frequency, etc.
         """
 
         # Nothing to clear in the parent class, but record that a clear call was made
-        if debug_mode:
-            log(f'State cleared for {self}', level='debug')
+        log(f'State cleared for {self}', level='debug')
 
     def replace_config(self, replacement_config: dict, force_default_merge: bool = False):
         """ Replaces the current configuration dictionary with a user provided one

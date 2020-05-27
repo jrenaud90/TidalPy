@@ -10,5 +10,4 @@ json5>=0.7.0
 numba>=0.43.0
 send2trash>=1.5.0
 pathos
-pytest
 git+git://github.com/geodynamics/burnman.git@master#egg=burnman

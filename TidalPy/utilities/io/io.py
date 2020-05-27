@@ -96,10 +96,16 @@ def unique_path(attempt_path: str, is_dir: bool = None, preappend_run_dir: bool 
                 try_num += 1
             else:
                 break
+
     return attempt_path
 
 
-if use_disk:
+master_directory = outer_save_dir = inner_save_dir = None
+
+def make_tidalpy_output_dir():
+
+    global master_directory, outer_save_dir, inner_save_dir
+
     # Create Output Directory Structure
     master_directory = os.getcwd()
     outer_save_dir = os.path.join(master_directory, 'TidalPy_Output')
@@ -107,14 +113,18 @@ if use_disk:
     if auto_write:
         if not os.path.isdir(outer_save_dir):
             os.mkdir(outer_save_dir)
-        inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=True)
+        inner_save_dir_ = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=True)
 
         # Save TidalPy Configurations
         config_file_src = os.path.join(tidalpy_loc, 'configurations.py')
-        config_file_dst = os.path.join(inner_save_dir, f'configurations.TidalPy_v{version}.py')
+        config_file_dst = os.path.join(inner_save_dir_, f'configurations.TidalPy_v{version}.py')
         copyfile(config_file_src, config_file_dst)
 
     else:
-        inner_save_dir = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=False)
-else:
-    master_directory = outer_save_dir = inner_save_dir = None
+        inner_save_dir_ = unique_path(inner_save_dir, is_dir=True, preappend_run_dir=False, make_dir=False)
+
+    return master_directory, outer_save_dir, inner_save_dir_
+
+
+if use_disk:
+    make_tidalpy_output_dir()

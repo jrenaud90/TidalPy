@@ -6,16 +6,18 @@ from typing import TYPE_CHECKING, Dict, Tuple
 import numpy as np
 
 from .defaults import tide_defaults
-from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced, calculate_terms, mode_collapse, \
-    FreqSig, DissipTermsArray
+from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from .love1d import complex_love_general, effective_rigidity_general
 from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperPropertyHandling, ParameterValueError,
                           OuterscopePropertySetError, ConfigPropertyChangeError, FailedForcedStateUpdate,
-                          BadAttributeValueError, ImplementedBySubclassError)
+                          BadAttributeValueError, ImplementedBySubclassError, IncompatibleModelError)
 from ..rheology.complexCompliance.compliance_models import fixed_q_array as fixed_q_array_func
 from ..utilities.classes.config.config import WorldConfigHolder
-from .mode_manipulation import build_mode_manipulators
+from .mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
 from ..utilities.types import FloatArray, ComplexArray
+from .eccentricityFuncs import EccenOutput
+from .inclinationFuncs import InclinOutput
+from .. import log
 
 if TYPE_CHECKING:
     from ..structures.worlds import SimpleTidalWorld, LayeredWorld, TidalWorldType
@@ -31,12 +33,34 @@ class TidesBase(WorldConfigHolder):
 
     Tides class stores model parameters and methods for calculating tidal heating and tidal potential derivatives
         which are general functions of (T, P, melt_frac, w, e, obliquity)
+
+    Attributes
+    ----------
+    _thermal_set : bool
+        Flag - If world's thermal state (can calculate complex compliance) has been set or not.
+        Class Property
+    _orbit_set : bool
+        Flag - If the world's orbital state has been set or not.
+        Class Property
+    _tidal_susceptibility : np.ndarray
+        Tidal susceptibility for the world [N m].
+        Class Property
+    _tidal_susceptibility_reduced : np.ndarray
+        Reduced tidal susceptibility for the world (no semi-major axis dependence).
+        Class Property
+    _unique_tidal_frequencies : Dict[freq_sig, np.ndarray]
+        Unique tidal forcing frequencies experienced by the world
+            (combination of orbital motion and spin frequency).
+        Class Property
+    _tidal_terms_by_frequency : Dict[freq_sig, Dict[int, np.ndarray]]
+
+        Class Property
     """
 
     default_config = tide_defaults['base']
     world_config_key = 'tides'
 
-    def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True):
+    def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, auto_compile_funcs: bool = True):
 
         super().__init__(world, store_config_in_world=store_config_in_world)
 
@@ -54,20 +78,58 @@ class TidesBase(WorldConfigHolder):
         self._dUdM = None
         self._dUdw = None
         self._dUdO = None
+        self._tidal_polar_torque = None
         self._spin_rate_derivative = None
 
-        # Model setup
-        self._eccentricity_truncation_lvl = self.config['eccentricity_truncation_lvl']
-        self._max_tidal_order_lvl = self.config['max_tidal_order_l']
-        self._use_obliquity_tides = self.config['obliquity_tides_on']
+        # Model configurations that will be set in setup
+        self._eccentricity_truncation_lvl = None
+        self._max_tidal_order_lvl = None
+        self._use_obliquity_tides = None
 
-        # Function setup - Set up mode manipulation functions
-        self.calculate_terms, self.collapse_modes_func = \
-            build_mode_manipulators(self.max_tidal_order_lvl, self.eccentricity_truncation_lvl,
-                                    self.use_obliquity_tides)
+        # Functions to be initialized in self.setup
+        self._eccentricity_results = None
+        self._obliquity_results = None
+        self.eccentricity_func = None
+        self.obliquity_func = None
+        self.collapse_modes_func = None
+        self.calculate_modes_func = None
+
+        # Call setup for initialization
+        self.setup(auto_compile_funcs=auto_compile_funcs)
+
+    def setup(self, overload_tidal_l: int = None, overload_eccentricity_truncation: int = None,
+              auto_compile_funcs: bool = False):
+        """ Load configurations into the Tides class and import any config-dependent functions.
+
+        This setup process is separate from the __init__ method because the Orbit class may need to overload some
+            configurations after class initialization.
+        """
+
+        # Load in configurations
+        self._use_obliquity_tides = self.config['obliquity_tides_on']
+        if overload_tidal_l is not None:
+            log(f'Tidal-l overloaded in {self}', level='debug')
+            self._max_tidal_order_lvl = overload_tidal_l
+        else:
+            self._max_tidal_order_lvl = self.config['max_tidal_order_l']
+
+        if overload_eccentricity_truncation is not None:
+            log(f'Eccentricity Truncation overloaded in {self}', level='debug')
+            self._eccentricity_truncation_lvl = overload_eccentricity_truncation
+        else:
+            self._eccentricity_truncation_lvl = self.config['eccentricity_truncation_lvl']
+
+        # Setup functions
+        self.eccentricity_func, self.obliquity_func, self.collapse_modes_func, self.calculate_modes_func = \
+            find_mode_manipulators(self.max_tidal_order_lvl, self.eccentricity_truncation_lvl, self.use_obliquity_tides)
+
+        # Clear the state as some of the old values probably would change with an override update
+        self.clear_state()
 
     def clear_state(self):
 
+        self._eccentricity_results = None
+        self._obliquity_results = None
         self._tidal_susceptibility = None
         self._tidal_susceptibility_reduced = None
         self._unique_tidal_frequencies = None
@@ -77,6 +139,7 @@ class TidesBase(WorldConfigHolder):
         self._dUdM = None
         self._dUdw = None
         self._dUdO = None
+        self._tidal_polar_torque = None
         self._spin_rate_derivative = None
 
     def initialize_tides(self):
@@ -94,8 +157,9 @@ class TidesBase(WorldConfigHolder):
             self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
                                                                    self.semi_major_axis)
 
-
-    def update_orbit_spin(self, force_update: bool = True) -> \
+    def update_orbit_spin(self, force_update: bool = True, eccentricity_change: bool = True,
+                          obliquity_change: bool = True, frequency_change: bool = True,
+                          eccentricity_results: Dict[int, EccenOutput] = None) -> \
             Tuple[Dict[FreqSig, np.ndarray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
@@ -108,7 +172,18 @@ class TidesBase(WorldConfigHolder):
         force_update : bool = True
             If True, will raise an error if the update does not successful complete.
             Failed completions are usually a result of a missing state property(ies).
-
+        eccentricity_change : bool = True
+            If there was no change in eccentricity (or if the orbit set the eccentricity) set this to False for a
+            performance boost. If False, eccentricity functions won't be called.
+        obliquity_change : bool = True
+            If there was no change in obliquity set this to False for a performance boost.
+            If False, obliquity functions won't be called.
+        frequency_change : bool = True
+            If there was no change in orbital or rotation frequency set this to False for a performance boost.
+            If False, calculate_terms won't be called.
+        eccentricity_results : Dict[int, EccenOutput] = None
+            Eccentricity functions can be calculated by the Orbit class (or by the user). Pass a pre-caclualted result
+            for a performance boost.
 
         Returns
         -------
@@ -132,30 +207,48 @@ class TidesBase(WorldConfigHolder):
                 break
 
         if all_values_present:
-            # Calculate the various terms based on the current state
-            unique_freqs, results_by_unique_frequency = \
-            self.calculate_terms(self.orbital_frequency, self.spin_frequency, self.eccentricity, self.obliquity,
-                                self.semi_major_axis, self.radius)
+            need_to_collapse_modes = False
 
-            # Pull out unique frequencies and tidal terms. Clear old storage.
-            self._unique_tidal_frequencies = unique_freqs
-            self._tidal_terms_by_frequency = results_by_unique_frequency
+            if eccentricity_results is not None:
+                self._eccentricity_results = eccentricity_results
+                need_to_collapse_modes = True
+            elif eccentricity_change:
+                self._eccentricity_results = self.eccentricity_func(self.eccentricity)
+                need_to_collapse_modes = True
 
-            # Orbital changes may have changed the tidal susceptibility
-            self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
-                                                                   self.semi_major_axis)
+            if obliquity_change:
+                self._obliquity_results = self.obliquity_func(self.obliquity)
+                need_to_collapse_modes = True
+
+            # Check that obliquity and eccentricity results have the same length (same max_l used).
+            if len(self.obliquity_results) != len(self.eccentricity_results):
+                raise IncompatibleModelError('Obliquity and Eccentricity results do not have the same length.'
+                                             'max_tidal_l may not have been set the same for the functions.')
+
+            if frequency_change:
+                self._unique_tidal_frequencies, self._tidal_terms_by_frequency = \
+                    self.calculate_modes_func(self.spin_frequency, self.orbital_frequency, self.semi_major_axis,
+                                              self.radius, self.eccentricity_results, self.obliquity_results)
+                # Now that there are new frequencies, tell the world so that new complex compliances can be calculated.
+                self.world.unique_frequencies_updated()
+                need_to_collapse_modes = True
+
+            if frequency_change:
+                # Orbital changes may have changed the tidal susceptibility
+                self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
+                                                                       self.semi_major_axis)
 
             # Set orbit to true. Check if thermals are set and collapse modes
             self._orbit_set = True
             if self.thermal_set:
                 self.collapse_modes(force_update=force_update)
 
-            # Return frequencies and tidal terms
-            return self.unique_tidal_frequencies, self.tidal_terms_by_frequency
-
         else:
             if force_update:
                 raise FailedForcedStateUpdate
+
+        # Return frequencies and tidal terms
+        return self.unique_tidal_frequencies, self.tidal_terms_by_frequency
 
     def collapse_modes(self, force_update: bool = True) -> DissipTermsArray:
         """ Calculate Global Love number based on current thermal state.
@@ -208,6 +301,7 @@ class TidesBase(WorldConfigHolder):
 
         spin_rate_derivative = self.tidal_host.mass * self.dUdO / self.moi
         self._spin_rate_derivative = spin_rate_derivative
+        self._tidal_polar_torque = self.tidal_host.mass * self.dUdO
 
         return spin_rate_derivative
 
@@ -299,6 +393,8 @@ class TidesBase(WorldConfigHolder):
 
     @eccentricity_truncation_lvl.setter
     def eccentricity_truncation_lvl(self, value):
+        # TODO: Think about if you want the user to update these. These setters could make a call to self.setup()
+        #    which the user could make on their own. So it may make sense to allow the setter.
         raise ConfigPropertyChangeError
 
     @property
@@ -333,6 +429,22 @@ class TidesBase(WorldConfigHolder):
 
     @orbit_set.setter
     def orbit_set(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def eccentricity_results(self) -> Dict[int, InclinOutput]:
+        return self._eccentricity_results
+
+    @eccentricity_results.setter
+    def eccentricity_results(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def obliquity_results(self) -> Dict[int, EccenOutput]:
+        return self._obliquity_results
+
+    @obliquity_results.setter
+    def obliquity_results(self, value):
         raise ImproperPropertyHandling
 
     @property
@@ -405,6 +517,14 @@ class TidesBase(WorldConfigHolder):
 
     @dUdO.setter
     def dUdO(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def tidal_polar_torque(self) -> np.ndarray:
+        return self._tidal_polar_torque
+
+    @tidal_polar_torque.setter
+    def tidal_polar_torque(self, value):
         raise ImproperPropertyHandling
 
     @property

@@ -12,8 +12,9 @@ from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray, ComplexArray, NoneType
 
 FreqSig = Tuple[int, int]
+DissipTermsFloat = Tuple[float, float, float, float]
+DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
-
 
 @njit(cache=cache_numba)
 def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
@@ -171,7 +172,7 @@ def collapse_modes(gravity: float, radius: float, density: float,
                    shear_modulus: Union[NoneType, FloatArray], tidal_scale: float,
                    tidal_host_mass: float,
                    tidal_susceptibility: FloatArray,
-                   complex_compliance_by_frequency: Tuple[ComplexArray],
+                   complex_compliance_by_frequency: Tuple[ComplexArray, ...],
                    tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
                    max_order_l: int, cpl_ctl_method: bool = False) -> \
         Tuple[FloatArray, FloatArray, FloatArray, FloatArray, ComplexArray, FloatArray]:

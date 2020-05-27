@@ -13,7 +13,7 @@ integration_config = {
 
 orbital_config = {
     'eccentricity_truncation': 20,
-    'max_tidal_order_l': 2,
+    'max_tidal_order_l': 3,
     'use_obliquity': True
 }
 
@@ -26,11 +26,11 @@ charon_crust_thickness = charon['layers']['Icy Shell']['radius_upper'] - charon[
 modern_semi_major_axis = charon['modern_semi_major_axis']
 modern_orbital_motion = semi_a2orbital_motion(modern_semi_major_axis, pluto['mass'], charon['mass'])
 
-initial_semi_a = 0.85 * modern_semi_major_axis
+initial_semi_a = 6. * pluto['radius']
 initial_orbital_motion = semi_a2orbital_motion(initial_semi_a, pluto['mass'], charon['mass'])
-initial_pluto_spin = 25. * initial_orbital_motion
-initial_charon_spin = 50. * initial_orbital_motion
-initial_eccentricity = 0.6
+initial_pluto_spin = 10. * initial_orbital_motion
+initial_charon_spin = 20. * initial_orbital_motion
+initial_eccentricity = 0.4
 
 initial_conditions = [
     # Pluto
@@ -60,7 +60,7 @@ initial_conditions = [
     initial_eccentricity
 ]
 
-for pluto_on, charon_on in [(True, True)]: # , (False, True), (True, False)]:
+for pluto_on, charon_on in [(True, True), (False, True), (True, False)]:
 
     pluto['tides_on'] = pluto_on
     charon['tides_on'] = charon_on
@@ -74,7 +74,7 @@ for pluto_on, charon_on in [(True, True)]: # , (False, True), (True, False)]:
     else:
         on_txt = 'BothOff'
 
-    save_text = 'RadioOn_Ap85_LockOn_P25C50_e6_' + on_txt
+    save_text = 'A6Rp_LockOn_P10C20_e5_tEnd10Myr_l3_' + on_txt
 
     diffeq, integrator, plotter = build_2layer_icy_shell_diffeq(pluto, charon, orbital_config, integration_config)
 

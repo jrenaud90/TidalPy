@@ -18,7 +18,7 @@ from ...radiogenics import known_models as known_radiogenic_models
 
 plt.rcParams.update({'font.size': 14})
 
-MIN_INTERVAL_SCALE = 0.0005
+MIN_INTERVAL_SCALE = 1.0e-6
 MAX_DATA_SIZE = 2000
 
 def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_config: dict, integration_config: dict):
@@ -768,7 +768,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         else:
             ax_semia.set(ylabel='Semi-major Axis [% of modern]')
         ax_eccen.set(ylabel='Eccentricity (dotted)')
-        ax_spin.set(ylabel='Spin-rate / Orbital Motion', yscale='log')
+        ax_spin.set(ylabel='Spin-rate / Orbital Motion', yscale='linear')
 
         # Plot non-object dependent parameters
         if semi_major_scale is None:
