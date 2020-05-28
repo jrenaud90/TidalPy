@@ -6,11 +6,6 @@ from scipy.constants import G
 
 from ..utilities.types import FloatArray
 
-FreqSig = Tuple[int, int]
-DissipTermsFloat = Tuple[float, float, float, float]
-DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
-
 @njit
 def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
     """ Calculate the tidal susceptibility for a given target radius, host mass, and their separation.

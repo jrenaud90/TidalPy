@@ -89,3 +89,6 @@ other_data_locs = [os.getcwd()]
 
 # Bring up various functionality to top-level
 from .utilities.performance import clear_cache
+
+# Initialize logger
+from .initialize import log

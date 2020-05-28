@@ -12,8 +12,9 @@ from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray, ComplexArray, NoneType
 
 FreqSig = Tuple[int, int]
+DissipTermsFloat = Tuple[float, float, float, float]
+DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
-
 
 @njit(cache=cache_numba)
 def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
