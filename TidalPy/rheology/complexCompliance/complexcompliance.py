@@ -5,7 +5,7 @@ import numpy as np
 from . import known_models, known_model_live_args, known_model_const_args
 from .defaults import complex_compliance_defaults
 from ...exceptions import ImproperPropertyHandling
-from ...tides.dissipation import FreqSig
+from ...tides.mode_manipulation import FreqSig
 from ...utilities.classes.model import LayerModelHolder
 
 
