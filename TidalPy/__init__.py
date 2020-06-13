@@ -59,9 +59,11 @@ else:
 
 # Check to see if this is running in a jupyter notebook. If it is then it is usually not ideal to print log information
 #   to the console.
-from .configurations import print_log_in_jupyter, write_log_in_jupyter, format_numpy_floats
+from . import configurations
+# Alias name for configurations file
+config = configurations
 
-if format_numpy_floats:
+if config.format_numpy_floats:
     # Format numpy array's so their floats don't print a ton of digits
     float_formatter = lambda x: f'{x:0.3e}'
     import numpy as np
@@ -76,9 +78,9 @@ for path in sys.path:
         running_in_jupyter = True
     if running_in_jupyter:
         break
-if running_in_jupyter and not print_log_in_jupyter:
+if running_in_jupyter and not config.print_log_in_jupyter:
     verbose_level = 0
-if running_in_jupyter and not write_log_in_jupyter:
+if running_in_jupyter and not config.write_log_in_jupyter:
     logging_level = 0
 
 # Some data files are stored in the TidalPy directory chain. Need to know where TidalPy is located to find those files.
