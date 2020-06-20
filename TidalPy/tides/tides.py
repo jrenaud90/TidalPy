@@ -627,7 +627,7 @@ class SimpleTides(TidesBase):
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
-        if self.eccentricity_truncation_lvl not in [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]:
+        if self.eccentricity_truncation_lvl not in (2, 4, 6, 8, 10, 12, 14, 16, 18, 20):
             raise ImplementationException(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
                                           f'been implemented yet.')
 
@@ -656,7 +656,9 @@ class SimpleTides(TidesBase):
         self._neg_imk_ctl_by_unique_freq = None
         self._neg_imk_cpl_by_unique_freq = None
 
-    def update_orbit_spin(self, force_update: bool = True) -> \
+    def update_orbit_spin(self, force_update: bool = True, eccentricity_change: bool = True,
+                          obliquity_change: bool = True, frequency_change: bool = True,
+                          eccentricity_results: Dict[int, EccenOutput] = None) -> \
             Tuple[Dict[FreqSig, np.ndarray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
 
         # If the CTL method is used then the dissipation efficiency will change with frequency
@@ -667,7 +669,7 @@ class SimpleTides(TidesBase):
             if self.use_ctl:
                 # Calculate new values
                 self._neg_imk_ctl_by_unique_freq = \
-                    {freq_sig: real_val + 1.0j * self.fixed_k2 * (self._fixed_dt_coeff * freq)
+                    {freq_sig: real_val + 1.0j * self.fixed_k2 * (self.fixed_dt_coeff * freq)
                      for freq_sig, freq in self.unique_tidal_frequencies.items()}
             else:
 
@@ -844,7 +846,7 @@ class LayeredTides(TidesBase):
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
-        if self.eccentricity_truncation_lvl not in [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]:
+        if self.eccentricity_truncation_lvl not in (2, 4, 6, 8, 10, 12, 14, 16, 18, 20):
             raise ImplementationException(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
                                           f'been implemented yet.')
 

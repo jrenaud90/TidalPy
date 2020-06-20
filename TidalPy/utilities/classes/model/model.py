@@ -6,7 +6,7 @@ from ..config.dictionary_utils import nested_get, nested_place
 from .... import debug_mode
 from ....exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError,
                             UnknownModelError, AttributeNotSetError)
-from ....initialize import log
+from .... import log
 
 
 class ModelHolder(ConfigHolder):

@@ -6,10 +6,10 @@ import numpy as np
 from . import InclinOutput
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
-from ...configurations import cache_numba
 
 
-@njit(cache=cache_numba)
+
+@njit(cacheable=True)
 def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp (assuming I=0) for l = 5"""
 
@@ -25,7 +25,7 @@ def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     return inclination_results
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def calc_inclination(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp for l = 5"""
 

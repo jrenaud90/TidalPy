@@ -1,12 +1,21 @@
 import numpy as np
 from scipy.special import gamma
 
-from ...configurations import use_numba
+from ... import config
+
+use_numba = config['use_numba']
+cache_numba = config['cache_numba']
 
 if use_numba:
     import numba
 
-    njit = numba.njit
+    def njit(*args, **kwargs):
+        if 'cacheable' in kwargs:
+            if kwargs['cacheable'] and cache_numba:
+                del kwargs['cacheable']
+                return numba.njit(*args, cache=True, **kwargs)
+        return numba.njit(*args, **kwargs)
+
     vectorize = numba.vectorize
     float64 = numba.float64
     int64 = numba.int64

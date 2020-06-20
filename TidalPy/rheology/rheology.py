@@ -6,9 +6,8 @@ from .complexCompliance import ComplexCompliance
 from .defaults import rheology_defaults
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
-from .. import debug_mode
+from .. import debug_mode, log
 from ..exceptions import MissingArgumentError, ArgumentException, OuterscopePropertySetError, UnusualRealValueError
-from ..initialize import log
 from ..utilities.classes import LayerConfigHolder
 from ..utilities.numpyHelper import reshape_help
 from ..utilities.types import FloatArray

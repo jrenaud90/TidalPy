@@ -4,10 +4,9 @@ import numpy as np
 
 from ..utilities.performance.numba import njit
 from ..utilities.types import float_eps, FloatArray
-from ..configurations import cache_numba
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def spin_rate_derivative(dU_dO: FloatArray, moment_of_inertia: float, host_mass: float) -> FloatArray:
     """ Calculate the time derivative of the spin frequency for a single-body or single or dual dissipation system
 
@@ -32,7 +31,7 @@ def spin_rate_derivative(dU_dO: FloatArray, moment_of_inertia: float, host_mass:
 
     return dspin_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def semi_major_axis_derivative(semi_major_axis: FloatArray, orbital_motion: FloatArray,
                                mass_1: float, dU_dM_1: FloatArray, mass_2: float) -> FloatArray:
     """ Calculate the time derivative of the semi-major axis for a signle-body dissipating system
@@ -66,7 +65,7 @@ def semi_major_axis_derivative(semi_major_axis: FloatArray, orbital_motion: Floa
 
     return da_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_derivative(semi_major_axis: float, orbital_motion: float, eccentricity: float,
                             mass_1: float, dU_dM_1: float, dU_dw_1: float, mass_2: float) -> float:
     """ Calculate the time derivative of the eccentricity for a single-body dissipating system - NonArrays Only
@@ -113,7 +112,7 @@ def eccentricity_derivative(semi_major_axis: float, orbital_motion: float, eccen
     return de_dt
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_derivative_array(semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity,
                                   mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray, mass_2: float) -> FloatArray:
     """ Calculate the time derivative of the eccentricity for a single-body dissipating system - Arrays Only
@@ -158,7 +157,7 @@ def eccentricity_derivative_array(semi_major_axis: FloatArray, orbital_motion: F
 
     return de_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def semia_eccen_derivatives(semi_major_axis: float, orbital_motion: float, eccentricity: float,
                             mass_1: float, dU_dM_1: float, dU_dw_1: float, mass_2: float) \
         -> Tuple[float, float]:
@@ -211,7 +210,7 @@ def semia_eccen_derivatives(semi_major_axis: float, orbital_motion: float, eccen
 
     return da_dt, de_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def semia_eccen_derivatives_array(semi_major_axis: np.ndarray, orbital_motion: np.ndarray, eccentricity: np.ndarray,
                                   mass_1: float, dU_dM_1: np.ndarray, dU_dw_1: np.ndarray, mass_2: float) \
         -> Tuple[np.ndarray, np.ndarray]:

@@ -1,12 +1,11 @@
 from typing import Dict
 
 from ..inclinationFuncs import orderl2, InclinOutput
-from ...configurations import cache_numba
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def inclination_off_maxl_2(obliquity: FloatArray) -> Dict[int, InclinOutput]:
     """ Calculates inclination functions (squared) for a given maximum tidal order (going through each l) - Off Mode
 
@@ -31,7 +30,7 @@ def inclination_off_maxl_2(obliquity: FloatArray) -> Dict[int, InclinOutput]:
     return result_by_orderl
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def inclination_on_maxl_2(obliquity: FloatArray) -> Dict[int, InclinOutput]:
     """ Calculates inclination functions (squared) for a given maximum tidal order (going through each l) - On Mode
 

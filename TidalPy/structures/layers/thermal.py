@@ -7,7 +7,7 @@ import numpy as np
 
 from .basic import LayerBase
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
-from ...configurations import burnman_interpolation_N, burnman_interpolation_method
+from ... import configurations
 from ...cooling import CoolingModel
 from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, IncorrectAttributeType,
                            ParameterMissingError, UnknownTidalPyConfigValue, OuterscopePropertySetError)
@@ -67,17 +67,17 @@ class ThermalLayer(LayerBase):
         self._bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - (self.thickness / 2.))
 
         # Attributes calculated by BurnMan but set at a specific spot
-        if burnman_interpolation_method == 'mid':
+        if configurations['burnman_interpolation_method'] == 'mid':
             self.pressure = self.bm_layer.pressures[self._bm_mid_index]
             self.density = self.bm_layer.density[self._bm_mid_index]
             self.gravity = self.bm_layer.gravity[self._bm_mid_index]
             self.interp_func = lambda array: array[self._bm_mid_index]
-        elif burnman_interpolation_method == 'avg':
+        elif configurations['burnman_interpolation_method'] == 'avg':
             self.pressure = np.average(self.bm_layer.pressures)
             self.density = np.average(self.bm_layer.density)
             self.gravity = np.average(self.bm_layer.gravity)
             self.interp_func = np.average
-        elif burnman_interpolation_method == 'median':
+        elif configurations['burnman_interpolation_method'] == 'median':
             self.pressure = np.median(self.bm_layer.pressures)
             self.density = np.median(self.bm_layer.density)
             self.gravity = np.median(self.bm_layer.gravity)
@@ -94,7 +94,7 @@ class ThermalLayer(LayerBase):
         self.specific_heat = None
         self.energy_per_therm = None
         self.interp_temperature_range = np.linspace(*tuple(self.config['interp_temperature_range']),
-                                                    burnman_interpolation_N)
+                                                    configurations['burnman_interpolation_N'])
         self._interp_prop_data_lookup = dict()
 
         # Build lookup tables

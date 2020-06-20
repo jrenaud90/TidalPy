@@ -1,13 +1,21 @@
 import os
-from typing import List, Union
+from typing import List, Union, Dict
 
 
-def get_all_files_of_type(directory_to_search: str, file_extensions: Union[List[str], str]):
+def get_all_files_of_type(directory_to_search: str, file_extensions: Union[List[str], str]) -> Dict[str, str]:
     """ Returns all files with a specified extension(s) in a given directory
 
-    :param directory_to_search:
-    :param file_extensions:
-    :return:
+    Parameters
+    ----------
+    directory_to_search : str
+        The directory to search for files in.
+    file_extensions : Union[List[str], str]
+        Extension, or list of extensions, to search for.
+
+    Returns
+    -------
+    files : Dict[str, str]
+        Dictionary of files stored as file_name: file_path
     """
 
     if type(file_extensions) == str:

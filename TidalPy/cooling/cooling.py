@@ -4,7 +4,7 @@ from . import known_models, known_model_live_args, known_model_const_args
 from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
 from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError
-from ..initialize import log
+from .. import log
 from ..utilities.classes.model import LayerModelHolder
 
 

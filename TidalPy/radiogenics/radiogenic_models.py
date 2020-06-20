@@ -4,12 +4,11 @@ import numpy as np
 
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray
-from ..configurations import cache_numba
 
 LOG_HALF = np.log(0.5)
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def isotope(time: FloatArray, mass: float,
             iso_massfracs_of_isotope: Tuple[float, ...], iso_element_concentrations: Tuple[float, ...],
             iso_halflives: Tuple[float, ...], iso_heat_production: Tuple[float, ...],
@@ -57,7 +56,7 @@ def isotope(time: FloatArray, mass: float,
     return radiogenic_heating
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def fixed(time: FloatArray, mass: float,
           fixed_heat_production: float, average_half_life: float,
           ref_time: float = 4600.) -> FloatArray:
@@ -92,7 +91,7 @@ def fixed(time: FloatArray, mass: float,
     return radiogenic_heating
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def off(time: float, mass: float) -> float:
     """ Forces radiogenics to be off - Floats only
 
@@ -117,7 +116,7 @@ def off(time: float, mass: float) -> float:
     return radiogenic_heating
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def off_array(time: np.ndarray, mass: float) -> np.ndarray:
     """ Forces radiogenics to be off - Arrays Only
 

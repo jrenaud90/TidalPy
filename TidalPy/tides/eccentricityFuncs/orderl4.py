@@ -4,10 +4,10 @@
 from . import EccenOutput
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
-from ...configurations import cache_numba
 
 
-@njit(cache=cache_numba)
+
+@njit(cacheable=True)
 def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^2 for order-l = 4
     Parameters
@@ -61,7 +61,7 @@ def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc4(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^4 for order-l = 4
     Parameters
@@ -124,7 +124,7 @@ def eccentricity_funcs_trunc4(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc6(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^6 for order-l = 4
     Parameters
@@ -198,7 +198,7 @@ def eccentricity_funcs_trunc6(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc8(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^8 for order-l = 4
     Parameters
@@ -281,7 +281,7 @@ def eccentricity_funcs_trunc8(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc10(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^10 for order-l = 4
     Parameters
@@ -375,7 +375,7 @@ def eccentricity_funcs_trunc10(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc12(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^12 for order-l = 4
     Parameters
@@ -480,7 +480,7 @@ def eccentricity_funcs_trunc12(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc14(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^14 for order-l = 4
     Parameters
@@ -596,7 +596,7 @@ def eccentricity_funcs_trunc14(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc16(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^16 for order-l = 4
     Parameters
@@ -723,7 +723,7 @@ def eccentricity_funcs_trunc16(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc18(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^18 for order-l = 4
     Parameters
@@ -861,7 +861,7 @@ def eccentricity_funcs_trunc18(eccentricity: FloatArray) -> EccenOutput:
 
     return eccentricity_results_bymode
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_funcs_trunc20(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^20 for order-l = 4
     Parameters

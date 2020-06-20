@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from ..io.io import tidalpy_loc
+from ... import tidalpy_loc
 
 def clear_cache(verbose: bool = False):
     """ Clears TidalPy Cache including cached numba functions

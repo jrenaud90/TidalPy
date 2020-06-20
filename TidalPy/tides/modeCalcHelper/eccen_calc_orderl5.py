@@ -1,12 +1,11 @@
 from typing import Dict
 
 from TidalPy.tides.eccentricityFuncs import orderl2, orderl3, orderl4, orderl5, EccenOutput
-from TidalPy.configurations import cache_numba
 from TidalPy.utilities.performance.numba import njit
 from TidalPy.utilities.types import FloatArray
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_2_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -32,7 +31,7 @@ def eccentricity_truncation_2_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_4_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -58,7 +57,7 @@ def eccentricity_truncation_4_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_6_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -84,7 +83,7 @@ def eccentricity_truncation_6_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_8_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -110,7 +109,7 @@ def eccentricity_truncation_8_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_10_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -136,7 +135,7 @@ def eccentricity_truncation_10_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_12_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -162,7 +161,7 @@ def eccentricity_truncation_12_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_14_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -188,7 +187,7 @@ def eccentricity_truncation_14_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_16_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -214,7 +213,7 @@ def eccentricity_truncation_16_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_18_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
@@ -240,7 +239,7 @@ def eccentricity_truncation_18_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
     return result_by_orderl
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_truncation_20_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
