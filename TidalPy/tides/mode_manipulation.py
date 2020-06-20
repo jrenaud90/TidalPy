@@ -7,7 +7,6 @@ from .inclinationFuncs import InclinOutput
 from .love1d import effective_rigidity_general, complex_love_general
 from .modeCalcHelper import eccentricity_functions_lookup, inclination_functions_lookup
 from .universal_coeffs import get_universal_coeffs
-from ..configurations import cache_numba
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray, ComplexArray, NoneType
 
@@ -16,7 +15,7 @@ DissipTermsFloat = Tuple[float, float, float, float]
 DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
                     semi_major_axis: FloatArray, radius: float,
                     eccentricity_results_byorderl: Dict[int, EccenOutput],
@@ -167,7 +166,7 @@ def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
 
     return unique_frequencies, results_by_frequency
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def collapse_modes(gravity: float, radius: float, density: float,
                    shear_modulus: Union[NoneType, FloatArray], tidal_scale: float,
                    tidal_host_mass: float,

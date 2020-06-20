@@ -4,10 +4,9 @@ import numpy as np
 
 from . import known_models, known_model_const_args, known_model_live_args
 from .defaults import known_isotope_data, radiogenics_defaults
-from .. import debug_mode
+from .. import debug_mode, log
 from ..exceptions import (ImproperPropertyHandling, ParameterMissingError, UnknownModelError, AttributeNotSetError,
                           IncorrectAttributeType, OuterscopePropertySetError)
-from ..initialize import log
 from ..utilities.classes.model import LayerModelHolder
 from ..utilities.types import float_like
 

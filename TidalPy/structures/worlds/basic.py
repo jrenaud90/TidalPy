@@ -10,16 +10,13 @@ from TidalPy.utilities.types import FloatArray
 from ...utilities.numpyHelper import reshape_help
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
-from ... import debug_mode, use_disk, tidalpy_dir
-from ...configurations import (auto_save_planet_config_to_rundir, auto_save_planet_config_to_tidalpydir,
-                               overwrite_configs)
+from ... import debug_mode, use_disk, tidalpy_loc, configurations, log
 from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            IncorrectAttributeType, AttributeNotSetError, AttributeException,
                            IOException)
-from ...initialize import log
 from ...stellar.stellar import (equilibrium_insolation_functions, equilibrium_temperature)
 
-planet_config_loc = os.path.join(tidalpy_dir, 'planets', 'planet_configs')
+planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 
 if TYPE_CHECKING:
     from ...orbit import Orbit
@@ -286,7 +283,8 @@ class WorldBase(PhysicalObjSpherical):
             save_locales.append(os.getcwd())
 
         # No need to save to run dir as that will automatically happen when the planet is killed.
-        self.save_config(save_to_run_dir=False, additional_save_dirs=save_locales, overwrite=overwrite_configs)
+        self.save_config(save_to_run_dir=False, additional_save_dirs=save_locales,
+                         overwrite=configurations['overwrite_configs'])
 
     def kill_world(self):
         """ Performs saving tasks when the world is about to be deleted due to end of run
@@ -295,15 +293,16 @@ class WorldBase(PhysicalObjSpherical):
         called automatically.
         """
 
-        log(f'Killing world {self.name}...', level='debug')
+        log.debug(f'Killing world {self.name}...')
         # Save configuration file
         if use_disk:
-            if auto_save_planet_config_to_tidalpydir:
+            if configurations['auto_save_planet_config_to_tidalpydir']:
                 tidalpy_planet_cfg_dir = [planet_config_loc]
             else:
                 tidalpy_planet_cfg_dir = list()
-            self.save_config(save_to_run_dir=auto_save_planet_config_to_rundir,
-                             additional_save_dirs=tidalpy_planet_cfg_dir, overwrite=overwrite_configs)
+            self.save_config(save_to_run_dir=configurations['auto_save_planet_config_to_rundir'],
+                             additional_save_dirs=tidalpy_planet_cfg_dir,
+                             overwrite=configurations['overwrite_configs'])
 
 
     # State properties

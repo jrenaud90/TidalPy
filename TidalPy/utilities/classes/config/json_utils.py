@@ -7,8 +7,8 @@ from warnings import warn
 import json5
 import numpy as np
 
-from ...io.io import unique_path
-from .... import auto_write
+from ...io.io_helper import unique_path
+from .... import use_disk, log
 
 JSON5_KWARGS = {'indent': 4}
 
@@ -96,8 +96,8 @@ def save_dict_to_json(dict_to_save: dict, full_save_path: str, overwrite: bool =
 
     """
 
-    if not auto_write:
-        warn('Tried to write config to JSON file but auto_write set to False.')
+    if not use_disk:
+        log.warning('Tried to write config to JSON file but use_disk set to False.')
     else:
 
         if not overwrite and os.path.isfile(full_save_path):

@@ -4,10 +4,10 @@
 from . import EccenOutput
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
-from ...configurations import cache_numba
 
 
-@njit(cache=cache_numba)
+
+@njit(cacheable=True)
 def eccentricity_funcs_trunc2(eccentricity: FloatArray) -> EccenOutput:
     """ Calculates the eccentricity functions (by mode) truncated to e^2 for order-l = 5
     Parameters

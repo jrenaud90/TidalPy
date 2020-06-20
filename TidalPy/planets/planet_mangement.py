@@ -6,9 +6,8 @@ import json5
 
 from .planet_configs import planet_config_loc
 from ..burnman_interface.build import build_planet as build_bm_planet
-from ..configurations import exit_planets
+from .. import configurations, log
 from ..exceptions import MissingArgumentError, UnknownModelError, ImplementationException
-from ..initialize import log
 from ..structures.worlds import world_types, LayeredWorld
 from ..utilities.io.pathing import get_all_files_of_type
 
@@ -111,7 +110,7 @@ def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, fo
     log('Note that the first calculations with a new world will be slow as numba compiles functions. '
         'Subsequent calls should speed up.', level='info')
 
-    if exit_planets:
+    if configurations['exit_planets']:
         atexit.register(planet.kill_world)
 
     return planet

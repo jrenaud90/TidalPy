@@ -4,12 +4,11 @@ import numpy as np
 
 from ..utilities.performance.numba import njit
 from ..utilities.types import float_eps, FloatArray
-from ..configurations import cache_numba
 
 
 # Duel Dissipation model's spin-rate derivative is the same as the single dissipation model
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def semi_major_axis_derivative(semi_major_axis: FloatArray, orbital_motion: FloatArray,
                                mass_1: float, dU_dM_1: FloatArray,
                                mass_2: float, dU_dM_2: FloatArray) -> FloatArray:
@@ -47,7 +46,7 @@ def semi_major_axis_derivative(semi_major_axis: FloatArray, orbital_motion: Floa
 
     return da_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_derivative(semi_major_axis: float, orbital_motion: float, eccentricity: float,
                             mass_1: float, dU_dM_1: float, dU_dw_1: float,
                             mass_2: float, dU_dM_2: float, dU_dw_2: float) -> float:
@@ -101,7 +100,7 @@ def eccentricity_derivative(semi_major_axis: float, orbital_motion: float, eccen
     return de_dt
 
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def eccentricity_derivative_array(semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity,
                                   mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray,
                                   mass_2: float, dU_dM_2: FloatArray, dU_dw_2: FloatArray) -> FloatArray:
@@ -153,7 +152,7 @@ def eccentricity_derivative_array(semi_major_axis: FloatArray, orbital_motion: F
 
     return de_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def semia_eccen_derivatives(semi_major_axis: float, orbital_motion: float, eccentricity: float,
                             mass_1: float, dU_dM_1: float, dU_dw_1: float,
                             mass_2: float, dU_dM_2: float, dU_dw_2: float) \
@@ -213,7 +212,7 @@ def semia_eccen_derivatives(semi_major_axis: float, orbital_motion: float, eccen
 
     return da_dt, de_dt
 
-@njit(cache=cache_numba)
+@njit(cacheable=True)
 def semia_eccen_derivatives_array(semi_major_axis: np.ndarray, orbital_motion: np.ndarray, eccentricity: np.ndarray,
                                   mass_1: float, dU_dM_1: np.ndarray, dU_dw_1: np.ndarray,
                                   mass_2: float, dU_dM_2: np.ndarray, dU_dw_2: np.ndarray) \

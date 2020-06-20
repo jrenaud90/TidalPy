@@ -4,10 +4,8 @@ from typing import Any, Tuple
 
 from .json_utils import save_dict_to_json
 from ..base import TidalPyClass
-from ...io.io import inner_save_dir
-from .... import version, debug_mode
+from .... import disk_loc, log, debug_mode, version
 from ....exceptions import ImproperPropertyHandling, ParameterMissingError
-from ....initialize import log
 
 
 class ConfigHolder(TidalPyClass):
@@ -206,7 +204,7 @@ class ConfigHolder(TidalPyClass):
         # Compile a list of directories at which to save configurations to
         save_dirs = list()
         if save_to_run_dir:
-            save_dirs.append(inner_save_dir)
+            save_dirs.append(disk_loc)
         if additional_save_dirs is not None:
             for directory in additional_save_dirs:
                 if directory not in save_dirs:
