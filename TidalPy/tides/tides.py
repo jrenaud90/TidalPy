@@ -7,17 +7,16 @@ import numpy as np
 
 from .defaults import tide_defaults
 from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
+from .eccentricityFuncs import EccenOutput
+from .inclinationFuncs import InclinOutput
 from .love1d import complex_love_general, effective_rigidity_general
+from .mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
+from .. import log
 from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperPropertyHandling, ParameterValueError,
                           OuterscopePropertySetError, ConfigPropertyChangeError, FailedForcedStateUpdate,
                           BadAttributeValueError, ImplementedBySubclassError, IncompatibleModelError)
-from ..rheology.complexCompliance.compliance_models import fixed_q_array as fixed_q_array_func
 from ..utilities.classes.config.config import WorldConfigHolder
-from .mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
 from ..utilities.types import FloatArray, ComplexArray
-from .eccentricityFuncs import EccenOutput
-from .inclinationFuncs import InclinOutput
-from .. import log
 
 if TYPE_CHECKING:
     from ..structures.worlds import SimpleTidalWorld, LayeredWorld, TidalWorldType
@@ -620,8 +619,8 @@ class SimpleTides(TidesBase):
 
         # Ensure the tidal order and orbital truncation levels make sense
         # TODO: For the simple tidal world, how to allow for higher order l? User provides k_3, k_4, ...
-        if self.tidal_order_lvl > 2:
-            raise ImplementationException(f'Tidal order {self.tidal_order_lvl} has not been implemented for '
+        if self.max_tidal_order_lvl > 2:
+            raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented for '
                                             'simple tidal worlds yet.')
         if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
@@ -842,7 +841,7 @@ class LayeredTides(TidesBase):
         # Ensure the tidal order and orbital truncation levels make sense
         if self.max_tidal_order_lvl > 7:
             raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented yet.')
-        if self.eccentricity_truncation_lvl%2 != 0:
+        if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')

@@ -1,5 +1,6 @@
 from .tidal import TidalWorld
-
+from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, luminosity_from_efftemp
+from ... import log
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
 
@@ -29,8 +30,8 @@ class StarWorld(TidalWorld):
             # If no luminosity provided: Try to convert effective surface temperature
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
-                log(
-                        'Luminosity and effective temperature of {self.name} was not provided. Estimating from stellar mass.')
+                log.info('Luminosity and effective temperature of {self.name} was not provided. '
+                         'Estimating from stellar mass.')
                 self.luminosity = luminosity_from_mass(self.mass)
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
             else:

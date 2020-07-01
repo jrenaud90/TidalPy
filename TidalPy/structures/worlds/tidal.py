@@ -1,7 +1,7 @@
 from . import GeometricWorld
 from ...exceptions import ImproperPropertyHandling, ConfigPropertyChangeError
 
-from ...tides.tides import Tides
+from ...tides.tides import SimpleTides
 
 
 class SimpleTidalWorld(GeometricWorld):
@@ -16,7 +16,7 @@ class SimpleTidalWorld(GeometricWorld):
         # State Properties
 
         # Additional models to be set in reinit
-        self.tides = None
+        self.tides = None # type: SimpleTides
 
         if initialize:
             self.reinit(initial_init=True)
@@ -24,7 +24,7 @@ class SimpleTidalWorld(GeometricWorld):
     def reinit(self, initial_init: bool = False):
         super().reinit(initial_init)
 
-        self.tides = Tides(self, store_config_in_world=True)
+        self.tides = SimpleTides(self, store_config_in_world=True)
 
 
 class TidalWorld(SimpleTidalWorld):
@@ -52,7 +52,7 @@ class TidalWorld(SimpleTidalWorld):
         self._is_spin_sync = self.config['is_spin_sync']
 
         # Setup tidal model
-        self._tides = Tides(self)
+        self._tides = SimpleTides(self)
 
     # State properties
     @property

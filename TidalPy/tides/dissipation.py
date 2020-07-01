@@ -1,10 +1,9 @@
-from typing import Tuple
-
 import numpy as np
 from numba import njit
 from scipy.constants import G
 
 from ..utilities.types import FloatArray
+
 
 @njit
 def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:

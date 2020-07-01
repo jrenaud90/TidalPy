@@ -8,7 +8,7 @@ import json5
 
 import TidalPy
 
-from .logging import log_setup
+from .logger import log_setup
 from .version import version
 from .utilities.io.io_helper import timestamped_str, unique_path
 

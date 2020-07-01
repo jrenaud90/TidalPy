@@ -31,7 +31,9 @@ mass_io = 8.9298e22  # [kg]
 radius_io = 1.82149e6  # [m]
 
 # Alias Names
+Au = au
 sbc = Stefan_Boltzmann
+SBC = sbc
 newtons_constant = G
 
 M_sol = mass_solar

@@ -71,8 +71,8 @@ class ModelHolder(ConfigHolder):
                 self._calc = self._calculate_debug
         else:
             if debug_mode:
-                log(f'Debug mode is on, but it appears that no debug calculation method has been implemented '
-                    f'for {self.__class__.__name__}. Using regular calculate method.')
+                log.debug(f'Debug mode is on, but it appears that no debug calculation method has been implemented '
+                          f'for {self.__class__.__name__}. Using regular calculate method.')
 
         # Give calculate the same doc string as whatever is store in _calc (debug or regular)
         if self._calc.__doc__ not in [None, '']:
