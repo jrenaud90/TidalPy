@@ -70,8 +70,8 @@ def static_love(eff_rigidity: FloatArray) -> FloatArray:
         2nd order complex Love number
     """
 
-    static_love = (3. / 2.) * (1. / (1. + eff_rigidity))
-    return static_love
+    static_love_ = (3. / 2.) * (1. / (1. + eff_rigidity))
+    return static_love_
 
 @njit
 def static_love_general(eff_rigidity_general: FloatArray, order_l: int = 2) -> FloatArray:

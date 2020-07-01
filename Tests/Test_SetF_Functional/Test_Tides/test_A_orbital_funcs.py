@@ -3,7 +3,8 @@ import numba
 
 import TidalPy
 TidalPy.use_disk = False
-from TidalPy.configurations import use_numba
+
+use_numba = TidalPy.configurations['use_numba']
 
 def test_eccentricity_func_load():
 

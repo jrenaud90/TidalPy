@@ -1,5 +1,6 @@
 from .tidal import TidalWorld
-
+from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, luminosity_from_efftemp
+from ... import log
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
 
@@ -18,9 +19,9 @@ class StarWorld(TidalWorld):
         if initialize:
             self.reinit()
 
-    def reinit(self):
+    def reinit(self, initial_init: bool = False):
 
-        super().reinit()
+        super().reinit(initial_init)
 
         self.luminosity = self.config.get('luminosity', None)
         self.effective_temperature = self.config.get('effective_temperature', None)
@@ -29,8 +30,8 @@ class StarWorld(TidalWorld):
             # If no luminosity provided: Try to convert effective surface temperature
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
-                log(
-                        'Luminosity and effective temperature of {self.name} was not provided. Estimating from stellar mass.')
+                log.info('Luminosity and effective temperature of {self.name} was not provided. '
+                         'Estimating from stellar mass.')
                 self.luminosity = luminosity_from_mass(self.mass)
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
             else:
@@ -38,19 +39,3 @@ class StarWorld(TidalWorld):
         else:
             if self.effective_temperature is None:
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
-
-    def __str__(self):
-
-        name = self.name
-        if name is None:
-            name = 'Unknown'
-        else:
-            name = name.title()
-        return name
-
-    def __repr__(self):
-
-        if 'name' in self.__dict__:
-            if self.name is not None:
-                return f'{self.name} {self.__class__} object at {hex(id(self))}'
-        return f'{self.__class__} object at {hex(id(self))}'

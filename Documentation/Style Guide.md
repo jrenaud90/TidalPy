@@ -1,8 +1,5 @@
 # Style Guide
-
-TBA
-
-For now look at the Google/Numpy style guide found [here](https://numpydoc.readthedocs.io/en/latest/format.html)
+TidalPy largely follows the Google/Numpy style guide which can be found [here](https://numpydoc.readthedocs.io/en/latest/format.html).
 
 ## Doc Strings
 ### File Doc String

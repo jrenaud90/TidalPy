@@ -7,17 +7,16 @@ import numpy as np
 
 from .defaults import tide_defaults
 from .dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
+from .eccentricityFuncs import EccenOutput
+from .inclinationFuncs import InclinOutput
 from .love1d import complex_love_general, effective_rigidity_general
+from .mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
+from .. import log
 from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperPropertyHandling, ParameterValueError,
                           OuterscopePropertySetError, ConfigPropertyChangeError, FailedForcedStateUpdate,
                           BadAttributeValueError, ImplementedBySubclassError, IncompatibleModelError)
-from ..rheology.complexCompliance.compliance_models import fixed_q_array as fixed_q_array_func
 from ..utilities.classes.config.config import WorldConfigHolder
-from .mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
 from ..utilities.types import FloatArray, ComplexArray
-from .eccentricityFuncs import EccenOutput
-from .inclinationFuncs import InclinOutput
-from .. import log
 
 if TYPE_CHECKING:
     from ..structures.worlds import SimpleTidalWorld, LayeredWorld, TidalWorldType
@@ -57,6 +56,7 @@ class TidesBase(WorldConfigHolder):
         Class Property
     """
 
+    model = 'base'
     default_config = tide_defaults['base']
     world_config_key = 'tides'
 
@@ -94,6 +94,10 @@ class TidesBase(WorldConfigHolder):
         self.collapse_modes_func = None
         self.calculate_modes_func = None
 
+        # TidalPy logging and debug info
+        self.pyname = f'{self.world.name}_{self.model}_tides'
+        log.debug(f'Building {self.model} tides class for {self.world.name}.')
+
         # Call setup for initialization
         self.setup(auto_compile_funcs=auto_compile_funcs)
 
@@ -127,6 +131,8 @@ class TidesBase(WorldConfigHolder):
         self.clear_state()
 
     def clear_state(self):
+
+        super().clear_state()
 
         self._eccentricity_results = None
         self._obliquity_results = None
@@ -612,6 +618,7 @@ class SimpleTides(TidesBase):
         (T, P, melt_frac, w, e, theata)
     """
 
+    model = 'simple'
     default_config = tide_defaults['simple']
 
     def __init__(self, world: 'SimpleTidalWorld', store_config_in_world: bool = True):
@@ -620,8 +627,8 @@ class SimpleTides(TidesBase):
 
         # Ensure the tidal order and orbital truncation levels make sense
         # TODO: For the simple tidal world, how to allow for higher order l? User provides k_3, k_4, ...
-        if self.tidal_order_lvl > 2:
-            raise ImplementationException(f'Tidal order {self.tidal_order_lvl} has not been implemented for '
+        if self.max_tidal_order_lvl > 2:
+            raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented for '
                                             'simple tidal worlds yet.')
         if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
@@ -631,13 +638,7 @@ class SimpleTides(TidesBase):
             raise ImplementationException(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
                                           f'been implemented yet.')
 
-        # Configuration properties
-        self._fixed_k2 = self.config['static_k2']
-        self._fixed_q = self.config['fixed_q']
-        self._fixed_dt_coeff = self.config['fixed_dt_coeff']
-
         # Calculated state properties
-        self._neg_imk_cpl = self.fixed_k2 / self.fixed_q
         self._tidal_inputs = (self.world.tidal_scale, self.radius, self.world.bulk_density, self.world.gravity_surface)
 
         # State properties
@@ -661,7 +662,13 @@ class SimpleTides(TidesBase):
                           eccentricity_results: Dict[int, EccenOutput] = None) -> \
             Tuple[Dict[FreqSig, np.ndarray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
 
-        # If the CTL method is used then the dissipation efficiency will change with frequency
+        # If the CTL method is used then the dissipation efficiency will change with frequency.
+        #    In CPL: Dissipation ~ k_2 / Q
+        #    In CTL: Dissipation ~ k_2 / Q * (1 / \Delta{}t w) (see Correia 2009 and Heller+2011)
+        #    \Delta{}t is often set equal to 1 so that CTL dissipation ~ k_2 / (Q * w)
+        #    w is a ill-defined frequency. Generally it is set to the orbital motion, but some set it to the spin-rate
+        #        for a world experiencing NSR (see Correia 2009).
+
         if self.unique_tidal_frequencies is not None:
 
             real_val = self.fixed_k2
@@ -669,12 +676,12 @@ class SimpleTides(TidesBase):
             if self.use_ctl:
                 # Calculate new values
                 self._neg_imk_ctl_by_unique_freq = \
-                    {freq_sig: real_val + 1.0j * self.fixed_k2 * (self.fixed_dt_coeff * freq)
+                    {freq_sig: real_val + 1.0j * self.fixed_k2 / (self.fixed_q * freq * self.fixed_dt)
                      for freq_sig, freq in self.unique_tidal_frequencies.items()}
             else:
 
                 self._neg_imk_cpl_by_unique_freq = \
-                    {freq_sig: real_val + 1.0j * self.neg_imk_cpl
+                    {freq_sig: real_val + 1.0j * self.fixed_k2 / self.fixed_q
                      for freq_sig, freq in self.unique_tidal_frequencies.items()}
 
         # Return frequencies and tidal terms
@@ -725,10 +732,10 @@ class SimpleTides(TidesBase):
                 all_values_present = False
 
         if all_values_present:
-
             tidal_scale, radius, bulk_density, gravity_surf = self.tidal_inputs
 
-            # Shear modulus is not used in the CTL/CPL scheme. Needs to be provided as a number though.
+            # Shear modulus is not used in the CTL/CPL scheme. However, it needs to be provided as a number to the
+            #    collapse_modes function.
             shear_modulus = 1.
 
             # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global dissipation
@@ -760,30 +767,6 @@ class SimpleTides(TidesBase):
 
 
     # Configuration properties
-    @property
-    def fixed_k2(self) -> float:
-        return self._fixed_k2
-
-    @fixed_k2.setter
-    def fixed_k2(self, value):
-        raise ConfigPropertyChangeError
-
-    @property
-    def fixed_q(self) -> float:
-        return self._fixed_q
-
-    @fixed_q.setter
-    def fixed_q(self, value):
-        raise ConfigPropertyChangeError
-
-    @property
-    def neg_imk_cpl(self) -> float:
-        return self._neg_imk_cpl
-
-    @neg_imk_cpl.setter
-    def neg_imk_cpl(self, value):
-        raise ConfigPropertyChangeError
-
     @property
     def tidal_inputs(self):
         return self._tidal_inputs
@@ -822,6 +805,32 @@ class SimpleTides(TidesBase):
         raise ImproperPropertyHandling
 
 
+    # Outer-scope properties
+    @property
+    def fixed_k2(self) -> float:
+        return self.world.static_love
+
+    @fixed_k2.setter
+    def fixed_k2(self, value):
+        raise OuterscopePropertySetError
+
+    @property
+    def fixed_q(self) -> float:
+        return self.world.fixed_q
+
+    @fixed_q.setter
+    def fixed_q(self, value):
+        raise OuterscopePropertySetError
+
+    @property
+    def fixed_dt(self):
+        return self.world.fixed_dt
+
+    @fixed_dt.setter
+    def fixed_dt(self, value):
+        raise OuterscopePropertySetError
+
+
 class LayeredTides(TidesBase):
     """ LayeredTides class - Used for layered planets (icy or rocky worlds)
 
@@ -842,7 +851,7 @@ class LayeredTides(TidesBase):
         # Ensure the tidal order and orbital truncation levels make sense
         if self.max_tidal_order_lvl > 7:
             raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented yet.')
-        if self.eccentricity_truncation_lvl%2 != 0:
+        if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')

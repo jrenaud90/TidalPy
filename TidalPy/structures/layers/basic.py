@@ -10,7 +10,7 @@ from .defaults import layer_defaults
 from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError
 
 if TYPE_CHECKING:
-    from ..worlds import GeometricWorld
+    from ..worlds import LayeredWorld
     from . import LayerTypes
 
 
@@ -22,7 +22,7 @@ class LayerBase(PhysicalObjSpherical):
     default_config = layer_defaults
     layer_class = 'base'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'GeometricWorld', layer_config: dict,
+    def __init__(self, layer_name: str, layer_index: int, world: 'LayeredWorld', layer_config: dict,
                  initialize: bool = True):
 
         # Load layer defaults based on layer type

@@ -61,7 +61,7 @@ class ConfigHolder(TidalPyClass):
         """
 
         # Nothing to clear in the parent class, but record that a clear call was made
-        log(f'State cleared for {self}', level='debug')
+        log.debug(f'State cleared for {self.pyname}.')
 
     def replace_config(self, replacement_config: dict, force_default_merge: bool = False):
         """ Replaces the current configuration dictionary with a user provided one

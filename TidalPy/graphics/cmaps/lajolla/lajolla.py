@@ -272,7 +272,8 @@ if __name__ == "__main__":
     try:      
         from viscm import viscm      
         viscm(lajolla_map)      
-    except ImportError:      
+    except ImportError:
+        viscm = None
         print("viscm not found, falling back on simple display")      
         plt.imshow(np.linspace(0, 100, 256)[None, :], aspect='auto',      
                    cmap=lajolla_map)      

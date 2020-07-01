@@ -1,6 +1,6 @@
 import numpy as np
 
-from TidalPy.rheology.compliance import known_models
+from TidalPy.rheology.complexCompliance import known_models
 
 def test_all_models():
 
