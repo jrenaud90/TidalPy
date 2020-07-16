@@ -19,9 +19,9 @@ class StarWorld(TidalWorld):
         if initialize:
             self.reinit()
 
-    def reinit(self):
+    def reinit(self, initial_init: bool = False):
 
-        super().reinit()
+        super().reinit(initial_init)
 
         self.luminosity = self.config.get('luminosity', None)
         self.effective_temperature = self.config.get('effective_temperature', None)
@@ -39,19 +39,3 @@ class StarWorld(TidalWorld):
         else:
             if self.effective_temperature is None:
                 self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
-
-    def __str__(self):
-
-        name = self.name
-        if name is None:
-            name = 'Unknown'
-        else:
-            name = name.title()
-        return name
-
-    def __repr__(self):
-
-        if 'name' in self.__dict__:
-            if self.name is not None:
-                return f'{self.name} {self.__class__} object at {hex(id(self))}'
-        return f'{self.__class__} object at {hex(id(self))}'

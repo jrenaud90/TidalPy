@@ -4,11 +4,4 @@ from .tidal import TidalWorld
 
 class GasGiantWorld(TidalWorld):
 
-    world_class = 'gasgiant'
-
-    def __repr__(self):
-
-        if 'name' in self.__dict__:
-            if self.name is not None:
-                return f'{self.name} {self.__class__} object at {hex(id(self))}'
-        return f'{self.__class__} object at {hex(id(self))}'
+    world_class = 'gas_giant'

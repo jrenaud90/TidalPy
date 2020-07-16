@@ -11,7 +11,7 @@ class TidalWorld(BaseWorld):
     Adds basic functionality for CPL or CTL worlds.
     """
 
-    world_class = 'simple_tidal_world'
+    world_class = 'simple_tidal'
 
     def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
 
