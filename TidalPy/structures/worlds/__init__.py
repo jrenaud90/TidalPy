@@ -1,6 +1,6 @@
 from typing import Union
 
-from .basic import GeometricWorld, WorldBase
+from .basic import GeometricWorld, BaseWorld
 from .gas import GasGiantWorld
 from .stellar import StarWorld
 from .tidal import TidalWorld, SimpleTidalWorld

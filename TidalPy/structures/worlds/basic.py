@@ -4,10 +4,8 @@ import os
 from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
-from ...rheology.complexCompliance.compliance_models import fixed_q, fixed_q_array
-from TidalPy.utilities.types import FloatArray
 
-from ...utilities.numpyHelper import reshape_help
+from TidalPy.utilities.types import FloatArray
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ... import debug_mode, use_disk, tidalpy_loc, configurations, log
@@ -15,6 +13,7 @@ from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            IncorrectAttributeType, AttributeNotSetError, AttributeException,
                            IOException)
 from ...stellar.stellar import (equilibrium_insolation_functions, equilibrium_temperature)
+from ...utilities.numpyHelper import reshape_help
 
 planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 
@@ -24,7 +23,7 @@ if TYPE_CHECKING:
 
 FREQ_TO_DAY = (2. * np.pi ) / 86400.
 
-class WorldBase(PhysicalObjSpherical):
+class BaseWorld(PhysicalObjSpherical):
 
     """ WorldBase Class - Base class used to build other world classes.
     """
@@ -71,7 +70,9 @@ class WorldBase(PhysicalObjSpherical):
         # Models to be initialized later
         self.equilibrium_insolation_func = None
 
+        # TidalPy logging and debug info
         self.pyname = f'{self.name}_{self.world_class}'
+        log.debug(f'Setting up new world: {self.name}; class type = {self.world_class}.')
 
         if initialize:
             self.reinit(initial_init=True)
@@ -80,6 +81,7 @@ class WorldBase(PhysicalObjSpherical):
         """ Re-initialize the basic world based on changed to its configuration."""
 
         super().reinit()
+        log.debug(f'First initialization call = {initial_init}.')
 
         if not initial_init:
             self.clear_state()
@@ -91,10 +93,15 @@ class WorldBase(PhysicalObjSpherical):
         self._emissivity = self.config['emissivity']
         self.is_spin_sync = self.config['force_spin_sync']
 
+        # Setup geometry
+        self.set_geometry(self.config['radius'], self.config['mass'])
+
         if self.orbit is not None:
             self.update_orbit()
 
     def clear_state(self, preserve_orbit: bool = False):
+
+        log.debug(f'{self.pyname} clear state called. Orbit preserved = {preserve_orbit}.')
 
         super().clear_state()
 
@@ -269,7 +276,9 @@ class WorldBase(PhysicalObjSpherical):
         if not use_disk:
             raise IOException("User attempted to save a world's configurations when TidalPy has been set to "
                               "not use_disk")
-        log(f'Saving world {self.name}...', level='debug')
+
+        log.debug(f'Saving world configurations {self.pyname}...')
+
         save_locales = list()
         if save_to_tidalpy_dir:
             save_locales.append(planet_config_loc)
@@ -293,7 +302,8 @@ class WorldBase(PhysicalObjSpherical):
         called automatically.
         """
 
-        log.debug(f'Killing world {self.name}...')
+        log.debug(f'Killing world {self.pyname}...')
+
         # Save configuration file
         if use_disk:
             if configurations['auto_save_planet_config_to_tidalpydir']:
@@ -478,11 +488,11 @@ class WorldBase(PhysicalObjSpherical):
         self.update_orbit()
 
     @property
-    def orbital_freq(self):
+    def orbital_frequency(self):
         return self.orbit.get_orbital_freq(self.orbit_location)
 
-    @orbital_freq.setter
-    def orbital_freq(self, new_orbital_frequency: FloatArray):
+    @orbital_frequency.setter
+    def orbital_frequency(self, new_orbital_frequency: FloatArray):
 
         if self.orbit is None:
             raise AttributeNotSetError('Can not set orbital frequency (or period) until an Orbit class has been applied to the planet.')
@@ -527,16 +537,32 @@ class WorldBase(PhysicalObjSpherical):
 
     # Aliased properties
     @property
+    def orbital_freq(self):
+        return self.orbital_frequency
+
+    @orbital_freq.setter
+    def orbital_freq(self, new_orbital_frequency):
+        self.orbital_frequency = new_orbital_frequency
+
+    @property
+    def n(self):
+        return self.orbital_frequency
+
+    @n.setter
+    def n(self, new_orbital_frequency):
+        self.orbital_frequency = new_orbital_frequency
+
+    @property
     def orbital_motion(self):
-        return self.orbital_freq
+        return self.orbital_frequency
 
     @orbital_motion.setter
     def orbital_motion(self, value):
-        self.orbital_freq = value
+        self.orbital_frequency = value
 
     @property
     def orbital_period(self):
-        return FREQ_TO_DAY / self.orbital_freq
+        return FREQ_TO_DAY / self.orbital_frequency
 
     @orbital_period.setter
     def orbital_period(self, new_orbital_period: FloatArray):
@@ -560,7 +586,7 @@ class WorldBase(PhysicalObjSpherical):
                 raise UnusualRealValueError(f'Unusually small orbital period encountered (should be entered in days): {new_orbital_period}')
 
         new_orbital_freq =  FREQ_TO_DAY / new_orbital_period
-        self.orbital_freq = new_orbital_freq
+        self.orbital_frequency = new_orbital_freq
 
 
     # Dunder properties
@@ -568,7 +594,7 @@ class WorldBase(PhysicalObjSpherical):
 
         name = self.name
         if name is None:
-            name = 'Unknown'
+            name = 'Unknown World'
         else:
             name = name.title()
         return name
@@ -579,71 +605,3 @@ class WorldBase(PhysicalObjSpherical):
             if self.name is not None:
                 return f'{self.name} {self.__class__} object at {hex(id(self))}'
         return f'{self.__class__} object at {hex(id(self))}'
-
-
-class GeometricWorld(WorldBase):
-
-    """ GeometricWorld Class - Most basic type of world that has a geometry (mass, radius, etc.).
-    """
-
-    world_class = 'geometric'
-
-    def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
-
-        super().__init__(planet_config, name=name, initialize=False)
-
-        self.set_geometry(planet_config['radius'], planet_config['mass'])
-
-        if initialize:
-            self.reinit()
-
-
-
-
-
-
-
-
-
-
-class TidalWorld(GeometricWorld):
-
-    """ TidalWorld - Provides a simple base to build tidally dissipative worlds off of.
-    """
-
-    world_class = 'simple_tide'
-
-    def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
-
-        super().__init__(planet_config, name=name, initialize=False)
-
-        # State Properties
-        self._fixed_q = None
-
-        self.fixed_q_func = fixed_q
-        self.fixed_q_func_array = fixed_q_array()
-
-        if initialize:
-            self.reinit(initial_init=True)
-
-    def reinit(self, initial_init: bool = False):
-
-        super().reinit(initial_init)
-
-        self._fixed_q = self.config['quality_factor']
-
-
-    # State properties
-    @property
-    def fixed_q(self) -> float:
-        return self._fixed_q
-
-    @fixed_q.setter
-    def fixed_q(self, new_fixed_q: float):
-
-        if type(new_fixed_q) is not float:
-            raise IncorrectAttributeType
-
-        self._fixed_q = new_fixed_q
-        self.update_tides()
-

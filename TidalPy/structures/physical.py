@@ -1,6 +1,6 @@
 import numpy as np
 
-from .. import debug_mode
+from .. import debug_mode, log
 from ..constants import G
 from ..exceptions import (BadAttributeValueError, ImproperPropertyHandling, IncorrectAttributeType,
                           UnusualRealValueError, ParameterMissingError)
@@ -43,8 +43,8 @@ class PhysicalObjSpherical(ConfigHolder):
         """ Reinitialize the physical layer by pulling in any potentially new config changes.
         """
 
-        # Setup by child classes
-        pass
+        log.debug(f'Reinit called for {self.pyname}.')
+        # Other reinit steps are setup by child classes
 
     def config_update(self):
         """ Any changes to the configuration of an object should be followed by a call to its config_update"""

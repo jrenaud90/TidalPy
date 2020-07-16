@@ -57,7 +57,7 @@ def test_orbit_parameter_getters():
 
     # See if values were passed on to the objects
     np.testing.assert_approx_equal(io.eccentricity, eccen)
-    np.testing.assert_approx_equal(io.orbital_freq, orb_freq)
+    np.testing.assert_approx_equal(io.orbital_frequency, orb_freq)
 
     # See if the orbit can find the same values
     np.testing.assert_approx_equal(orbit.get_eccentricity(2), eccen)
@@ -74,7 +74,7 @@ def test_orbit_parameter_setters():
     np.testing.assert_approx_equal(io.eccentricity, new_eccen)
     orbit.set_semi_major_axis(2, new_semi_a)
     np.testing.assert_approx_equal(io.semi_major_axis, new_semi_a)
-    np.testing.assert_approx_equal(io.orbital_freq, semi_a2orbital_motion(new_semi_a, jupiter.mass, io.mass))
+    np.testing.assert_approx_equal(io.orbital_frequency, semi_a2orbital_motion(new_semi_a, jupiter.mass, io.mass))
 
     # Set from planet
     newer_eccen = 0.1
