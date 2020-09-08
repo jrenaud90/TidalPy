@@ -20,7 +20,7 @@ from ..utilities.types import FloatArray, ComplexArray
 
 if TYPE_CHECKING:
     from ..structures.worlds import SimpleTidalWorld, LayeredWorld, TidalWorldType
-    from ..structures import ThermalLayer
+    from ..structures import PhysicsLayer
 
 
 # TODO: Add a spin-sync version
@@ -1036,7 +1036,7 @@ class LayeredTides(TidesBase):
                 raise FailedForcedStateUpdate
 
     @property
-    def tidal_heating_by_layer(self) -> Dict['ThermalLayer', np.ndarray]:
+    def tidal_heating_by_layer(self) -> Dict['PhysicsLayer', np.ndarray]:
         return self._tidal_heating_by_layer
 
     @tidal_heating_by_layer.setter
@@ -1044,7 +1044,7 @@ class LayeredTides(TidesBase):
         raise ImproperPropertyHandling
 
     @property
-    def negative_imk_by_layer(self) -> Dict['ThermalLayer', np.ndarray]:
+    def negative_imk_by_layer(self) -> Dict['PhysicsLayer', np.ndarray]:
         return self._negative_imk_by_layer
 
     @negative_imk_by_layer.setter

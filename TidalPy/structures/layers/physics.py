@@ -2,29 +2,26 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-import burnman
 import numpy as np
 
 from .basic import LayerBase
-from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
-from ... import configurations
 from ...cooling import CoolingModel
-from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, IncorrectAttributeType,
-                           ParameterMissingError, UnknownTidalPyConfigValue, OuterscopePropertySetError)
+from ...exceptions import (ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError)
 from ...radiogenics.radiogenics import Radiogenics
 from ...rheology import Rheology
-from TidalPy.utilities.types import NoneType, FloatArray
 from ...utilities.numpyHelper.array_shape import reshape_help
-from TidalPy.utilities.numpyHelper.array_other import find_nearest
+from ...utilities.types import NoneType, FloatArray
 
 if TYPE_CHECKING:
-    from ..worlds import TidalWorld
+    from ..worlds import TidalWorldType
 
 
-class ThermalLayer(LayerBase):
+class PhysicsLayer(LayerBase):
     """ Layer Class: Tidal Planets are made up of various Layers of different compositions.
 
-    The ThermalLayer class acts as the holder for:
+    *Not* to be used for a BurnMan initialized world (see 'BurnManLayer')
+
+    The PhysicsLayer class acts as the holder for:
         - Material properties (initially set by configurations or BurnMan data)
         - Rheology Class
             * ComplexCompliance Class
@@ -35,18 +32,13 @@ class ThermalLayer(LayerBase):
 
     """
 
-    layer_class = 'thermal'
+    layer_class = 'physics'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorld', burnman_layer: burnman.Layer,
+    def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorldType',
                  layer_config: dict, initialize: bool = True):
 
         # Setup Physical Layer Geometry
         super().__init__(layer_name, layer_index, world, layer_config, initialize=False)
-
-        # Thermal layer is built on the BurnMan API and layer system.
-        # Pull out BurnMan parameters
-        self._bm_layer = burnman_layer
-        self._bm_material = burnman_layer.material
 
         # State Derivatives
         self._deriv_temperature = None
@@ -59,46 +51,20 @@ class ThermalLayer(LayerBase):
         self.cooling_model = None  # type: Union['CoolingModel', NoneType]
         self.radiogenics = None    # type: Union['Radiogenics', NoneType]
 
-        # Setup geometry based on the BurnMan results
-        bm_radius = np.max(self.bm_layer.radii)
-        bm_thickness = bm_radius - np.min(self.bm_layer.radii)
-        bm_mass = self.bm_layer.mass
-        self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
-        self._bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - (self.thickness / 2.))
-
-        # Attributes calculated by BurnMan but set at a specific spot
-        if configurations['burnman_interpolation_method'] == 'mid':
-            self.pressure = self.bm_layer.pressures[self._bm_mid_index]
-            self.density = self.bm_layer.density[self._bm_mid_index]
-            self.gravity = self.bm_layer.gravity[self._bm_mid_index]
-            self.interp_func = lambda array: array[self._bm_mid_index]
-        elif configurations['burnman_interpolation_method'] == 'avg':
-            self.pressure = np.average(self.bm_layer.pressures)
-            self.density = np.average(self.bm_layer.density)
-            self.gravity = np.average(self.bm_layer.gravity)
-            self.interp_func = np.average
-        elif configurations['burnman_interpolation_method'] == 'median':
-            self.pressure = np.median(self.bm_layer.pressures)
-            self.density = np.median(self.bm_layer.density)
-            self.gravity = np.median(self.bm_layer.gravity)
-            self.interp_func = np.median
-        else:
-            raise UnknownTidalPyConfigValue
+        # Physical Properties
+        self.pressure = None
+        self.density = None
+        self.gravity = None
 
         # Set up a pressure that will persist if the layer's state is cleared
         self._persistent_pressure = self.pressure
 
-        # Material Properties set by BurnMan
+        # Material Properties
+        #     These are calculated by BurnMan in the BurnManLayer version, can be set by user/config here.
         self.bulk_modulus = None
         self.thermal_expansion = None
         self.specific_heat = None
         self.energy_per_therm = None
-        self.interp_temperature_range = np.linspace(*tuple(self.config['interp_temperature_range']),
-                                                    configurations['burnman_interpolation_N'])
-        self._interp_prop_data_lookup = dict()
-
-        # Build lookup tables
-        self._build_material_property_interpolation()
 
         # Material properties that might have been affected by new configuration file (BurnMan does not calculate these)
         self.static_shear_modulus = None
@@ -111,15 +77,26 @@ class ThermalLayer(LayerBase):
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False):
+    def reinit(self, initial_init: bool = False, called_from_bm_layer: bool = False):
 
+        if initial_init and not called_from_bm_layer:
+            # Physical and geometric properties set up on initial call.
+            radius = self.config.get('radius', None)
+            mass = self.config.get('mass', None)
+            thickness = self.config.get('thickness', None)
+
+            if radius is not None and mass is not None:
+                if thickness is None and self.layer_index == 0:
+                    # Bottom-most layer: thickness = radius
+                    thickness = radius
+                else:
+                    # Thickness unknown - geometry can not be calculated
+                    pass
+                if thickness is not None:
+                    self.set_geometry(radius=radius, mass=mass, thickness=thickness)
+
+        # Base class's reinit is called *after* the geometry is set (so that tidal volume fraction is set correctly)
         super().reinit(initial_init=initial_init)
-
-        # Load in configurations
-        if self.config['use_tvf']:
-            self.tidal_scale = self.volume / self.world.volume
-        self.is_tidal = self.config['is_tidally_active']
-        self.use_pressure_in_strength_calc = self.config['use_pressure_in_strength_calc']
 
         if self.config['use_surf_gravity']:
             # Use surface gravity for layer instead of the gravity set by interpolating burnman data (mid/avg/etc)
@@ -156,7 +133,8 @@ class ThermalLayer(LayerBase):
         for model in [self.rheology, self.radiogenics, self.cooling_model]:
             model.clear_state()
 
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None):
+    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None,
+                  force_update_strength: bool = True):
         """ Set the layer's temperature and update all related properties.
 
         Parameters
@@ -165,6 +143,8 @@ class ThermalLayer(LayerBase):
             Temperature of layer [K]
         pressure : FloatArray = None
             Pressure of layer [Pa]
+        force_update_strength : bool = True
+            If True, <layer>.update_strength() will be called
 
         """
 
@@ -176,11 +156,6 @@ class ThermalLayer(LayerBase):
 
             self._temperature = temperature
 
-            # Set new material properties based on BurnMan Interpolation
-            for prop_name, prop_data in self._interp_prop_data_lookup.items():
-                setattr(self, prop_name, np.interp(self._temperature, self.interp_temperature_range, prop_data))
-            self.thermal_diffusivity = self.thermal_conductivity / (self.density * self.specific_heat)
-
         if pressure is not None:
             new_shape, pressure = reshape_help(pressure, self.world.global_shape,
                                                call_locale=f'{self}.set_state.pressure')
@@ -188,11 +163,12 @@ class ThermalLayer(LayerBase):
                 self.world.change_shape(new_shape)
             self._pressure = pressure
 
-        # Temperature and pressure will change the strength of the layer and all of its dependencies
-        self.update_strength()
+        if force_update_strength:
+            # Temperature and pressure will change the strength of the layer and all of its dependencies
+            self.update_strength()
 
     def set_temperature(self, temperature: FloatArray):
-        """ Wrapper for ThermalLayer.set_state
+        """ Wrapper for PhysicsLayer.set_state
 
         Parameters
         ----------
@@ -201,13 +177,13 @@ class ThermalLayer(LayerBase):
 
         See Also
         --------
-        TidalPy.structures.layers.layers.ThermalLayer.set_state
+        TidalPy.structures.layers.layers.PhysicsLayer.set_state
         """
 
         self.set_state(temperature=temperature, pressure=None)
 
     def set_pressure(self, pressure: FloatArray):
-        """ Wrapper for ThermalLayer.set_state
+        """ Wrapper for PhysicsLayer.set_state
 
         Parameters
         ----------
@@ -216,7 +192,7 @@ class ThermalLayer(LayerBase):
 
         See Also
         --------
-        TidalPy.structures.layers.layers.ThermalLayer.set_state
+        TidalPy.structures.layers.layers.PhysicsLayer.set_state
         """
 
         self.set_state(temperature=None, pressure=pressure)
@@ -264,8 +240,6 @@ class ThermalLayer(LayerBase):
         except ParameterMissingError as error:
             if force_calculation:
                 raise error
-            else:
-                pass
 
         # New radiogenic heating will change the temperature derivative
         self.calc_temperature_derivative(force_calculation=False)
@@ -415,187 +389,11 @@ class ThermalLayer(LayerBase):
         if avg_temperature is None:
             avg_temperature = self.temperature
 
-        temperature_profile = burnman.geotherm.adiabatic(self.pressure_slices, avg_temperature, self.bm_material)
+        temperature_profile = avg_temperature
 
         return temperature_profile
 
-    def _build_material_property_interpolation(self):
-        """ Interpolates material properties based on a fixed pressure and a suggested temperature range.
-
-        Using the BurnMan package's equation of states, this function will build interpolated lookup tables for several
-            material properties. These lookup tables are functions of only temperature; pressure is assumed to not
-            change significantly in a TidalPy simulation. However, the machinery to change properties based on
-            pressure is built into BurnMan and can be accessed via the layer's reference to the Burnman layer:
-                self.bm_material.evaluate
-
-        The specific constant pressure used in building the lookup table is set by the layer configuration. See the
-            variable 'burnman_interpolation_method' in TidalPy's main configurations.py
-
-        Conversions between BurnMan and TidalPy property names are also performed here. Some conversions require a
-             transition from molar to specific.
-
-        The final interpolated lookup table is stored in the self._interp_prop_data_lookup which is used in the
-             temperature.setter
-        """
-
-        if self.pressure is None:
-            raise AttributeNotSetError
-
-        interp_properties = ['bulk_modulus', 'thermal_expansion', 'specific_heat']
-        bm_properties = [burnman_property_name_conversion[interp_prop] for interp_prop in interp_properties]
-
-        # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
-        #     These results will then be used in an interpolation for whenever self.temperature changes
-        pressures = self.pressure * np.ones_like(self.interp_temperature_range)
-        property_results = self.bm_material.evaluate(bm_properties, pressures, self.interp_temperature_range)
-
-        for interp_prop, prop_result in zip(interp_properties, property_results):
-
-            # Perform any unit or other conversions needed to interface BurnMan to TidalPy
-            conversion_type = burnman_property_value_conversion.get(interp_prop, None)
-            if conversion_type is not None:
-                if conversion_type == 'molar':
-                    # Convert the parameter from a molar value to a specific value
-                    prop_result = prop_result / self.bm_material.molar_mass
-                else:
-                    raise KeyError
-
-            self._interp_prop_data_lookup[interp_prop] = np.asarray(prop_result)
-
     # State properties
-    @property
-    def bm_layer(self) -> burnman.Layer:
-        return self._bm_layer
-
-    @bm_layer.setter
-    def bm_layer(self, value):
-        raise ImproperPropertyHandling('Can not change burnman layer information after layer has been initialized.')
-
-    @property
-    def bm_material(self) -> burnman.Material:
-        return self._bm_material
-
-    @bm_material.setter
-    def bm_material(self, value):
-        raise ImproperPropertyHandling('Can not change burnman layer information after layer has been initialized.')
-
-    @property
-    def pressure_upper(self) -> float:
-        return self._bm_layer.pressures[-1]
-
-    @pressure_upper.setter
-    def pressure_upper(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def pressure_lower(self) -> float:
-        return self._bm_layer.pressures[0]
-
-    @pressure_lower.setter
-    def pressure_lower(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def temperature_upper(self) -> float:
-        return self._bm_layer.temperatures[-1]
-
-    @temperature_upper.setter
-    def temperature_upper(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def temperature_lower(self) -> float:
-        return self._bm_layer.temperatures[0]
-
-    @temperature_lower.setter
-    def temperature_lower(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def density_upper(self) -> float:
-        return self._bm_layer.density[-1]
-
-    @density_upper.setter
-    def density_upper(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def density(self) -> float:
-        return self._density
-
-    @density.setter
-    def density(self, value: float):
-        if type(value) is not float:
-            raise IncorrectAttributeType
-        self._density = value
-
-    @property
-    def density_lower(self) -> float:
-        return self._bm_layer.density[0]
-
-    @density_lower.setter
-    def density_lower(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def gravity_upper(self) -> float:
-        return self._bm_layer.gravity[-1]
-
-    @gravity_upper.setter
-    def gravity_upper(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def gravity(self) -> float:
-        return self._gravity
-
-    @gravity.setter
-    def gravity(self, value: float):
-        if type(value) is not float:
-            raise IncorrectAttributeType
-        self._gravity = value
-
-    @property
-    def gravity_lower(self) -> float:
-        return self._bm_layer.gravity[0]
-
-    @gravity_lower.setter
-    def gravity_lower(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def radii(self) -> np.ndarray:
-        return self._bm_layer.radii
-
-    @radii.setter
-    def radii(self, value):
-        raise ImproperPropertyHandling
-
-    # TODO: make a "slice" inner class that handles this stuff an 3d Love calculation?
-    @property
-    def pressure_slices(self) -> np.ndarray:
-        return self._bm_layer.pressures
-
-    @pressure_slices.setter
-    def pressure_slices(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def density_slices(self) -> np.ndarray:
-        return self._bm_layer.density
-
-    @density_slices.setter
-    def density_slices(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def gravity_slices(self) -> np.ndarray:
-        return self._bm_layer.gravity
-
-    @gravity_slices.setter
-    def gravity_slices(self, value):
-        raise ImproperPropertyHandling
-
     @property
     def deriv_temperature(self) -> np.ndarray:
         return self._deriv_temperature

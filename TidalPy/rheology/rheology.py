@@ -13,7 +13,7 @@ from ..utilities.numpyHelper import reshape_help
 from ..utilities.types import FloatArray
 
 if TYPE_CHECKING:
-    from ..structures.layers import ThermalLayer
+    from ..structures.layers import PhysicsLayer
 
 
 class Rheology(LayerConfigHolder):
@@ -27,7 +27,7 @@ class Rheology(LayerConfigHolder):
     default_config = rheology_defaults
     layer_config_key = 'rheology'
 
-    def __init__(self, layer: 'ThermalLayer', store_config_in_layer: bool = True):
+    def __init__(self, layer: 'PhysicsLayer', store_config_in_layer: bool = True):
 
         super().__init__(layer, store_config_in_layer)
 
@@ -74,7 +74,7 @@ class Rheology(LayerConfigHolder):
 
         See Also
         --------
-        TidalPy.structures.layers.layers.ThermalLayer.set_strength
+        TidalPy.structures.layers.layers.PhysicsLayer.set_strength
         """
 
         # Now set the relevant parameters
