@@ -3,7 +3,7 @@ import numpy as np
 from .. import debug_mode, log
 from ..constants import G
 from ..exceptions import (BadAttributeValueError, ImproperPropertyHandling, IncorrectAttributeType,
-                          UnusualRealValueError, ParameterMissingError)
+                          UnusualRealValueError, MissingArgumentError)
 from TidalPy.utilities.types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
 
@@ -38,6 +38,18 @@ class PhysicalObjSpherical(ConfigHolder):
         self._moi_factor = None
         self._gravity_surf = None
         self._beta = None
+        self._beta_inner = None
+        self._beta_outer = None
+
+        # Other properties than an object may or may not have depending on how it was initialized
+        self._temperature_outer = None
+        self._temperature_inner = None
+        self._density_outer = None
+        self._density_inner = None
+        self._gravity_outer = None
+        self._gravity_inner = None
+        self._pressure_outer = None
+        self._pressure_inner = None
 
     def reinit(self):
         """ Reinitialize the physical layer by pulling in any potentially new config changes.
@@ -51,7 +63,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
         pass
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None):
+    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.):
         """ Sets and calculates object's physical parameters based on user provided input.
 
         Parameters
@@ -62,10 +74,12 @@ class PhysicalObjSpherical(ConfigHolder):
             Mass of object [kg]
         thickness : float = None
             Thickness of the object [m]
+        mass_below : float = 0.
+            Mass below this object (only applicable for shell-like structures)
         """
 
         if thickness is None:
-            raise ParameterMissingError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
+            raise MissingArgumentError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
 
         if debug_mode:
             for arg in [radius, thickness, mass]:
@@ -79,15 +93,26 @@ class PhysicalObjSpherical(ConfigHolder):
         self._mass = mass
 
         # Update Physical Properties
-        self._gravity_surf = G * self.mass / self.radius**2
+        self._gravity_surf = G * (self.mass + mass_below) / self.radius**2
+        self._gravity_outer = self._gravity_surf
+        self._radius_inner = self.radius - self.thickness
+        if thickness is None or thickness == self.radius:
+            self._gravity_outer = 0.
+        else:
+            self._gravity_outer = G * mass_below / self.radius_inner**2
+
         self._radius_inner = self.radius - self.thickness
         self._volume = (4. / 3.) * np.pi * (self.radius**3 - self.radius_inner**3)
         self._surface_area_outer = 4. * np.pi * self.radius**2
         self._surface_area_inner = 4. * np.pi * self.radius_inner**2
         self._density_bulk = self.mass / self.volume
+        self._density_inner = self._density_bulk
+        self._density_outer = self._density_bulk
         self._moi_ideal = (2. / 5.) * self.mass * (self.radius**5 - self.radius_inner**5) / \
                           (self.radius**3 - self.radius_inner**3)
         self._beta = self.gravity_surf * self.radius * self.density_bulk
+        self._beta_outer = self.gravity_outer * self.radius * self.density_outer
+        self._beta_inner = self.gravity_inner * self.radius_inner * self.density_inner
 
         if self.moi is not None:
             self._moi_factor = self.moi / self.moi_ideal
@@ -218,11 +243,93 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperPropertyHandling('Beta Parameter is set by the set_geometry method')
 
     @property
+    def beta_inner(self) -> float:
+        """ Beta Parameter (R * rho * g) - Inner side of object"""
+        return self._beta_inner
+
+    @beta_inner.setter
+    def beta_inner(self, value):
+        raise ImproperPropertyHandling('Beta (inner) Parameter is set by the set_geometry method')
+
+    @property
+    def beta_outer(self) -> float:
+        """ Beta Parameter (R * rho * g) - Outer side of object"""
+        return self._beta_outer
+
+    @beta_outer.setter
+    def beta_outer(self, value):
+        raise ImproperPropertyHandling('Beta (outer) Parameter is set by the set_geometry method')
+
+    @property
     def moi(self) -> float:
         """ Real Moment of Inertia (usually found via BurnMan for tidal planets)"""
         return self._moi
 
     # Properties set by user or other classes
+    @property
+    def temperature_outer(self) -> float:
+        return self._temperature_outer
+
+    @temperature_outer.setter
+    def temperature_outer(self, value):
+        self._temperature_outer = value
+
+    @property
+    def temperature_inner(self) -> float:
+        return self._temperature_inner
+
+    @temperature_inner.setter
+    def temperature_inner(self, value):
+        self._temperature_inner = value
+
+    @property
+    def density_outer(self) -> float:
+        return self._density_outer
+
+    @density_outer.setter
+    def density_outer(self, value):
+        self._density_outer = value
+
+    @property
+    def density_inner(self) -> float:
+        return self._density_inner
+
+    @density_inner.setter
+    def density_inner(self, value):
+        self._density_inner = value
+
+    @property
+    def gravity_outer(self) -> float:
+        return self._gravity_outer
+
+    @gravity_outer.setter
+    def gravity_outer(self, value):
+        self._gravity_outer = value
+
+    @property
+    def gravity_inner(self) -> float:
+        return self._gravity_inner
+
+    @gravity_inner.setter
+    def gravity_inner(self, value):
+        self._gravity_inner = value
+
+    @property
+    def pressure_inner(self) -> float:
+        return self._pressure_inner
+
+    @pressure_inner.setter
+    def pressure_inner(self, value):
+        self._pressure_inner = value
+
+    @property
+    def pressure_outer(self) -> float:
+        return self._pressure_outer
+
+    @pressure_outer.setter
+    def pressure_outer(self, value):
+        self._pressure_outer = value
+
     @moi.setter
     def moi(self, value):
 

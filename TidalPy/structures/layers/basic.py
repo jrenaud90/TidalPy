@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 from TidalPy.utilities.types import NoneType
-from ..physical import PhysicalObjSpherical
 from .defaults import layer_defaults
-from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError
+from ..physical import PhysicalObjSpherical
+from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError, MissingArgumentError
 
 if TYPE_CHECKING:
     from ..worlds import LayeredWorld
@@ -68,6 +68,17 @@ class LayerBase(PhysicalObjSpherical):
         if self.config['use_tvf']:
             self.tidal_scale = self.volume / self.world.volume
         self.is_tidal = self.config['is_tidally_active']
+
+    def set_geometry(self, radius: float, mass: float, thickness: float = None):
+
+        if thickness is None:
+            if self.layer_index == 0:
+                # Bottom layer: thickness = radius
+                thickness = radius
+            else:
+                raise MissingArgumentError
+
+        super().set_geometry(radius, mass, thickness)
 
     def clear_state(self, clear_pressure: bool = False):
 
