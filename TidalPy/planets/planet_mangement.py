@@ -116,40 +116,6 @@ def build_planet(planet_name: str, planet_config: Union[dict, TextIO] = None, fo
     return planet
 
 
-def clean_planet_config(planet_config: dict, make_copy: bool = True):
-    """ Provides a clean copy of a planet's configuration, deleting items initialized by TidalPy
-
-    Parameters
-    ----------
-    planet_config : dict
-        Planet's configuration dictionary
-    make_copy : bool = True
-        Determines if a copy of the dictionary is made. Otherwise changes in this function will affect any other
-        pointers to this dict object.
-    Returns
-    -------
-    cleaned_dict : dict
-        Cleaned dictionary with no TidalPy entries
-    """
-
-    if make_copy:
-        cleaned_dict = copy.deepcopy(planet_config)
-    else:
-        cleaned_dict = planet_config
-
-    if 'TidalPy_version' in planet_config:
-        del cleaned_dict['TidalPy_version']
-    for layer_name, layer_dict in planet_config['layers'].items():
-        if 'radii' in layer_dict:
-            del cleaned_dict['layers'][layer_name]['radii']
-        for thermal_param in ['thermal_conductivity', 'thermal_diffusivity', 'thermal_expansion', 'stefan',
-                              'shear_modulus']:
-            if thermal_param in layer_dict:
-                del cleaned_dict['layers'][layer_name][thermal_param]
-
-    return cleaned_dict
-
-
 def build_from_planet(old_planet, new_config: dict, new_name: str = None):
     """ Constructs a new planet based on a previously built one.
 
