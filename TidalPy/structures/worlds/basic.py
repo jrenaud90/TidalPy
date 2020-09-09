@@ -131,11 +131,11 @@ class BaseWorld(PhysicalObjSpherical):
         # Setup functions and models
         self.equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None):
+    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.):
 
         # Thickness of a world will always be equal to its radius.
         del thickness
-        super().set_geometry(radius, mass, thickness=radius)
+        super().set_geometry(radius, mass, thickness=radius, mass_below=0.)
 
     def change_shape(self, new_shape: Tuple[int, ...], force_override: bool = False):
         """ Update the global shape parameter

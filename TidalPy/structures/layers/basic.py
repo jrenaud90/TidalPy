@@ -69,7 +69,7 @@ class LayerBase(PhysicalObjSpherical):
             self.tidal_scale = self.volume / self.world.volume
         self.is_tidal = self.config['is_tidally_active']
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None):
+    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.):
 
         if thickness is None:
             if self.layer_index == 0:
@@ -78,7 +78,10 @@ class LayerBase(PhysicalObjSpherical):
             else:
                 raise MissingArgumentError
 
-        super().set_geometry(radius, mass, thickness)
+        if self.layer_below is not None:
+            layer_below_mass = self.layer_below.mass
+
+        super().set_geometry(radius, mass, thickness, mass_below=layer_below_mass)
 
     def clear_state(self, clear_pressure: bool = False):
 
