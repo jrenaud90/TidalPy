@@ -21,11 +21,8 @@ else:
     disp = print
 
 # Helper Functions
-def taylor(func, x, n, x0=0., debug=False, simplify=True):
-    if debug:
-        return func
-    else:
-        res = series(func, x, x0, n)
-        if simplify:
-            res = nsimplify(res)
+def taylor(func, x, n, x0=0., simplify=True):
+    res = series(func, x, x0, n)
+    if simplify:
+        res = nsimplify(res)
     return res

@@ -7,33 +7,66 @@ from sympy import Rational
 from .general_math import binomial_coeff, besselj_func
 from .sympy_help import taylor
 
+from time import time
+
+@lru_cache(maxsize=10)
+def calc_bessel_beta(eccentricity, cutoff_power):
+    beta = (1 - (1 - eccentricity**2)**(1 / 2)) / eccentricity
+    beta = taylor(beta, eccentricity, cutoff_power).removeO()
+    return beta
 
 @lru_cache(maxsize=500)
 def hansen_bessel(a, b, c, eccentricity, cutoff_power):
-    cutoff_power_touse = cutoff_power
+    print(a, b, c)
+    ti = time()
 
-    beta = (1 - (1 - eccentricity**2)**(1 / 2)) / eccentricity
-    beta = taylor(beta, eccentricity, cutoff_power_touse).removeO()
+    beta = calc_bessel_beta(eccentricity, cutoff_power)
 
+    progress = 0
     outer_sum = 0
     p = 0
+    terms = 0
+    sub_terms = 0
     while True:
-        if p > cutoff_power_touse + 1:
+        if p > cutoff_power + 1:
             break
 
         inner_sum = 0
         for h in range(0, p + 1):
             coeff_1 = binomial_coeff(a + b + 1, p - h)
             coeff_2 = binomial_coeff(a - b + 1, h)
-            bess = besselj_func(c - b + p - 2 * h, c * eccentricity, cutoff_power_touse)
+            bess = besselj_func(c - b + p - 2 * h, c * eccentricity, cutoff_power)
             inner_sum += coeff_1 * coeff_2 * bess
+            terms += 1
+            sub_terms += 1
 
         outer_sum += inner_sum * (-beta)**p
+
+        # If all of the terms are simply added then sympy has a real hard time taylor expanding at the end
+        #    (very heavy computation time as cutoff_power > 10). To help with this, let us pick some interval where we
+        #    stop the calculation and perform an early taylor expansion so that the number of terms does not grow so
+        #    large for the final taylor series.
+        if sub_terms >= 20:
+            print('Compiling Progress')
+            progress += outer_sum
+            progress = taylor(progress, eccentricity, cutoff_power)
+            outer_sum = 0
+            sub_terms = 0
+
         p += 1
 
-    res = (1 + beta**2)**(-a - 1) * outer_sum
-    return taylor(res, eccentricity, cutoff_power)
+    # Depending on the number of terms, there may be a bit left over in the outer sum - this will grab that.
+    if outer_sum != 0:
+        progress += outer_sum
 
+    print(terms)
+    res = (1 + beta**2)**(-a - 1) * progress
+    res = taylor(res, eccentricity, cutoff_power)
+
+    print(f'total time = {time() - ti}')
+    return res
+
+@lru_cache(maxsize=100)
 def hansen_kIsZero_nIsPos(n, m, eccentricity, cutoff_power, force_break=True):
     """
 
@@ -62,7 +95,7 @@ def hansen_kIsZero_nIsPos(n, m, eccentricity, cutoff_power, force_break=True):
         summation += coeff * eccen
     return is_exact, outer_coeff * summation
 
-
+@lru_cache(maxsize=100)
 def hansen_kIsZero_nIsNeg(n, m, eccentricity, cutoff_power, force_break=True):
     """
 
@@ -99,25 +132,17 @@ def hansen_kIsZero_nIsNeg(n, m, eccentricity, cutoff_power, force_break=True):
             summation += coeff * eccen
         return is_exact, outer_coeff * summation
 
-# @lru_cache(maxsize=200)
-def hansen_wrapper(n, m, k, eccentricity, cutoff_power, force_break: bool = False, going_to_square: bool = True):
+@lru_cache(maxsize=200)
+def hansen_wrapper(n, m, k, eccentricity, cutoff_power,
+                   force_break: bool = True):
     # Some hansen numbers can be provided with exact precision (if k==0)
     is_exact = False
-
-    # Fix the cutoff power to ensure that precision is maximum while keeping efficiency high.
-    #     First we need to use +1 for the taylor since "cutoff" means "last one we WANT to keep"
-    cutoff_power_touse = cutoff_power + 1
-    if going_to_square and k != 0:
-        # An additional efficiency gain can be made by reducing the cutoff threshold if we assume the user is going to
-        #    square the result. Since the minimum e power is equal to q then we never need terms that are > cutoff - q
-        q_ = k - m
-        cutoff_power_touse -= abs(q_)
 
     if k == 0:
         is_exact = True
         if m < 0:
             return hansen_wrapper(n, -m, 0, eccentricity, cutoff_power,
-                                  force_break=force_break, going_to_square=going_to_square)
+                                  force_break=force_break)
 
         # When k==0 then the Hansen coefficients are exact (see Laskar and Boue 2010)
         if n == -1:
@@ -140,6 +165,6 @@ def hansen_wrapper(n, m, k, eccentricity, cutoff_power, force_break: bool = Fals
         # k != 0 is not exact and requires a truncation on a series (see Renaud et al. 2020)
         if m <= 0 and k < 0:
             # TODO: Where is this from?
-            return is_exact, hansen_bessel(n, -m, -k, eccentricity, cutoff_power_touse)
+            return is_exact, hansen_bessel(n, -m, -k, eccentricity, cutoff_power)
 
-        return is_exact, hansen_bessel(n, m, k, eccentricity, cutoff_power_touse)
+        return is_exact, hansen_bessel(n, m, k, eccentricity, cutoff_power)

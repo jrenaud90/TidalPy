@@ -9,7 +9,7 @@ def test_g_func(max_e_power, show_specific_qs=tuple()):
     if show_specific_qs == tuple():
         show_all_relavent_qs = True
 
-    max_q = math.ceil(max_e_power / 2)
+    max_q = math.ceil(max_e_power / 2) + 1
 
     if show_all_relavent_qs:
         q_range = range(-max_q, max_q + 1)
@@ -39,3 +39,6 @@ def test_g_func(max_e_power, show_specific_qs=tuple()):
                 res = taylor(g_, eccentricity, max_e_power + 1)
             print(f'Taylor Time = {time() - t_i}')
             disp(res)
+
+if __name__ == '__main__':
+    test_g_func(22, show_specific_qs=(-1,))
