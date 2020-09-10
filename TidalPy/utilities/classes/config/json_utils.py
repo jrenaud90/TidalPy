@@ -7,7 +7,7 @@ from warnings import warn
 import json5
 import numpy as np
 
-from ...io.io_helper import unique_path
+from io_helper import unique_path
 from .... import use_disk, log
 
 JSON5_KWARGS = {'indent': 4}

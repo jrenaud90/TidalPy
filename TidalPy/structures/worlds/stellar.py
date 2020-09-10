@@ -17,9 +17,9 @@ class StarWorld(TidalWorld):
         self.effective_temperature = None
 
         if initialize:
-            self.reinit()
+            self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False):
+    def reinit(self, initial_init: bool = False, setup_simple_tides: bool = True):
 
         super().reinit(initial_init)
 

@@ -1,7 +1,10 @@
-from exceptions import IncorrectAttributeType, ConfigPropertyChangeError, OuterscopePropertySetError
+from typing import Union
+
 from .basic import BaseWorld
+from ...exceptions import IncorrectAttributeType, ConfigPropertyChangeError, OuterscopePropertySetError
 from ...rheology.complexCompliance.compliance_models import fixed_q, fixed_q_array
 from ...tides.tides import SimpleTides
+from ...utilities.types import NoneType
 
 
 class TidalWorld(BaseWorld):
@@ -13,9 +16,9 @@ class TidalWorld(BaseWorld):
 
     world_class = 'simple_tidal'
 
-    def __init__(self, planet_config: dict, name: str = None, initialize: bool = True):
+    def __init__(self, world_config: dict, name: str = None, initialize: bool = True):
 
-        super().__init__(planet_config, name=name, initialize=False)
+        super().__init__(world_config, name=name, initialize=False)
 
         # State Properties
         self._fixed_q = None
@@ -23,29 +26,55 @@ class TidalWorld(BaseWorld):
         self._tidal_host = None
 
         # Configurations
+        self.tidal_scale = 1.
         self._is_spin_sync = False
+        self._tides_on = False
 
         # Class Objects
-        self.tides = None  # type: SimpleTides
+        self.tides = None  # type: Union[NoneType, SimpleTides]
 
         # Helper Functions
         self.fixed_q_func = fixed_q
         self.fixed_q_func_array = fixed_q_array
 
         if initialize:
-            self.reinit(initial_init=True)
+            self.reinit(initial_init=True, setup_simple_tides=True)
 
-    def reinit(self, initial_init: bool = False):
+    def reinit(self, initial_init: bool = False, setup_simple_tides: bool = True):
 
         super().reinit(initial_init)
 
         # Load in configurations
-        self._is_spin_sync = self.config['is_spin_sync']
+        self._is_spin_sync = self.config['force_spin_sync']
         self._fixed_dt = self.config['fixed_time_lag']
         self._fixed_q = self.config['quality_factor']
 
-        # Setup the simple tides class
-        self.tides = SimpleTides(self, store_config_in_world=self.config['store_tides_config_in_world'])
+        # Setup the simple tides class - this first switch determines if the world should even check if tides should
+        #    be on or not (to allow for child classes to setup different kinds of tides models)
+        if setup_simple_tides:
+            self._tides_on = self.config['tides_on']
+            if self.tides_on:
+                self.tides = SimpleTides(self, store_config_in_world=self.config['store_tides_config_in_world'])
+            else:
+                self.tides = None
+
+
+    # Configuration properties
+    @property
+    def tides_on(self):
+        return self._tides_on
+
+    @tides_on.setter
+    def tides_on(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def is_spin_sync(self) -> bool:
+        return self._is_spin_sync
+
+    @is_spin_sync.setter
+    def is_spin_sync(self, value: bool):
+        raise ConfigPropertyChangeError
 
 
     # State properties
@@ -74,14 +103,6 @@ class TidalWorld(BaseWorld):
 
         self._fixed_dt = new_fixed_time_lag
         self.update_tides()
-
-    @property
-    def is_spin_sync(self) -> bool:
-        return self._is_spin_sync
-
-    @is_spin_sync.setter
-    def is_spin_sync(self, value: bool):
-        raise ConfigPropertyChangeError
 
     # Inner-scope properties - Tides model
     @property

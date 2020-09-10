@@ -40,3 +40,6 @@ from .utilities.performance import clear_cache
 #    Graphics
 from .graphics import cmaps
 #    Physics
+
+#    OOP
+from .structures import build_world, build_from_world, scale_from_world

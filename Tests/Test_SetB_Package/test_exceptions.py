@@ -5,8 +5,8 @@ def test_exception_load():
     assert issubclass(TidalPyException, Exception)
 
     # General Errors
-    from TidalPy.exceptions import ImplementationException
-    assert issubclass(ImplementationException, Exception)
+    from TidalPy.exceptions import NotYetImplementedError
+    assert issubclass(NotYetImplementedError, Exception)
 
     # Argument Errors
     from TidalPy.exceptions import (ArgumentException, IncorrectArgumentType,

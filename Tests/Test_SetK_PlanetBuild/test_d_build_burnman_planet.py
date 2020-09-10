@@ -8,7 +8,7 @@ TidalPy.verbose_level = 0
 TidalPy.logging_level = 0
 TidalPy.use_disk = False
 
-from TidalPy.planets import build_planet
+from TidalPy.structures import build_world
 
 
 io_config = {
@@ -45,7 +45,7 @@ io_config = {
     }
 }
 
-Io = build_planet('Io', force_build=True)
+Io = build_world('Io')
 
 
 def planet_asserts(planet):
@@ -59,7 +59,7 @@ def planet_asserts(planet):
 
 
 def test_build_planet_from_dict():
-    result = build_planet('Io', planet_config=io_config, force_build=True)
+    result = build_world('Io', world_config=io_config)
 
     assert planet_asserts(result)
 
@@ -69,7 +69,7 @@ def test_build_planet_from_json():
         json.dump(io_config, planet_file)
 
     with open('temp_io.json', 'r') as planet_file:
-        result = build_planet('Io', planet_config=planet_file, force_build=True)
+        result = build_world('Io', world_config=planet_file)
 
     os.remove('temp_io.json')
 
@@ -77,7 +77,7 @@ def test_build_planet_from_json():
 
 
 def test_build_planet_from_tidalpy():
-    result = build_planet('Io', force_build=True)
+    result = build_world('Io')
 
     assert planet_asserts(result)
 

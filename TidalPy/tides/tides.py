@@ -12,7 +12,7 @@ from .inclinationFuncs import InclinOutput
 from .love1d import complex_love_general, effective_rigidity_general
 from .mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
 from .. import log
-from ..exceptions import (AttributeNotSetError, ImplementationException, ImproperPropertyHandling, ParameterValueError,
+from ..exceptions import (AttributeNotSetError, NotYetImplementedError, ImproperPropertyHandling, ParameterValueError,
                           OuterscopePropertySetError, ConfigPropertyChangeError, FailedForcedStateUpdate,
                           BadAttributeValueError, ImplementedBySubclassError, IncompatibleModelError)
 from ..utilities.classes.config.config import WorldConfigHolder
@@ -628,18 +628,18 @@ class SimpleTides(TidesBase):
         # Ensure the tidal order and orbital truncation levels make sense
         # TODO: For the simple tidal world, how to allow for higher order l? User provides k_3, k_4, ...
         if self.max_tidal_order_lvl > 2:
-            raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented for '
+            raise NotYetImplementedError(f'Tidal order {self.max_tidal_order_lvl} has not been implemented for '
                                             'simple tidal worlds yet.')
         if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
         if self.eccentricity_truncation_lvl not in (2, 4, 6, 8, 10, 12, 14, 16, 18, 20):
-            raise ImplementationException(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
+            raise NotYetImplementedError(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
                                           f'been implemented yet.')
 
         # Calculated state properties
-        self._tidal_inputs = (self.world.tidal_scale, self.radius, self.world.bulk_density, self.world.gravity_surface)
+        self._tidal_inputs = (self.world.tidal_scale, self.radius, self.world.density_bulk, self.world.gravity_surface)
 
         # State properties
         self._neg_imk_ctl_by_unique_freq = None
@@ -850,13 +850,13 @@ class LayeredTides(TidesBase):
 
         # Ensure the tidal order and orbital truncation levels make sense
         if self.max_tidal_order_lvl > 7:
-            raise ImplementationException(f'Tidal order {self.max_tidal_order_lvl} has not been implemented yet.')
+            raise NotYetImplementedError(f'Tidal order {self.max_tidal_order_lvl} has not been implemented yet.')
         if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
         if self.eccentricity_truncation_lvl not in (2, 4, 6, 8, 10, 12, 14, 16, 18, 20):
-            raise ImplementationException(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
+            raise NotYetImplementedError(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
                                           f'been implemented yet.')
 
         # Pull out information from the planet's layers

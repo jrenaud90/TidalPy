@@ -149,18 +149,18 @@ class Radiogenics(LayerModelHolder):
         # Value checks
         if self.model == 'isotope':
             if abs(self.time[-1] / max(self.isos_halflife)) > 1.0e4:
-                log.warn('Time is much larger than radiogenic half-life - Check units of the time array and half lives.')
+                log.warning('Time is much larger than radiogenic half-life - Check units of the time array and half lives.')
         elif self.model == 'fixed':
             if abs(self.time[-1] / max(self.config['average_half_life'])) > 1.0e4:
-                log.warn('Time is much larger than the fixed-average radiogenic half-life - '
+                log.warning('Time is much larger than the fixed-average radiogenic half-life - '
                          'Check units of the time array and fixed half-life.')
 
         # Calculate and perform more value checks
         radiogenic_heating = self._calculate()
         if np.any(radiogenic_heating < 0.):
-            log.warn(f'Negative radiogenic heating encountered at time:\n{self.time[radiogenic_heating < 0.]}')
+            log.warning(f'Negative radiogenic heating encountered at time:\n{self.time[radiogenic_heating < 0.]}')
         if np.any(radiogenic_heating > 1.e23):
-            log.warn(f'Very large radiogenic heating encountered at time:\n{self.time[radiogenic_heating > 1.e23]}')
+            log.warning(f'Very large radiogenic heating encountered at time:\n{self.time[radiogenic_heating > 1.e23]}')
 
         return radiogenic_heating
 

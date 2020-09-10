@@ -13,5 +13,11 @@ TidalWorldType = Union[GasStarWorldType, BurnManType, TidalWorld, LayeredWorld]
 
 # FIXME: Add all world types here:
 world_types = {
-    'test': 1
-    }
+    'star': StarWorld,
+    'gas': GasGiantWorld,
+    'gas_giant': GasGiantWorld,
+    'ice_giant': GasGiantWorld,
+    'simple_tide': TidalWorld,
+    'layered': LayeredWorld,
+    'burnman': BurnManWorld
+}
