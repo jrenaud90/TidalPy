@@ -20,7 +20,7 @@ class IOException(TidalPyException):
 
 
 # General Errors
-class ImplementationException(TidalPyException):
+class NotYetImplementedError(TidalPyException):
     default_message = 'Tried to use functionality that is not yet implemented.'
 
 
@@ -58,7 +58,7 @@ class UnusualRealValueError(TidalPyValueException):
                       'Confirm proper dimensional units.'
 
 
-# Class Error
+# Class / OOP Error
 class ClassException(TidalPyException):
     default_message = 'There was an error with a TidalPy class or OOP process.'
 
@@ -89,6 +89,7 @@ class AttributeException(ClassException):
 class ImproperPropertyHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
 
+
 class ConfigPropertyChangeError(ImproperPropertyHandling):
     default_message = 'Attempted to change a configuration attribute. These must be changed in the planet ' \
                       'configuration followed by a call to reinit.'
@@ -96,17 +97,22 @@ class ConfigPropertyChangeError(ImproperPropertyHandling):
 class OuterscopePropertySetError(ImproperPropertyHandling):
     default_message = 'Attempted to set an outerscope attribute from an inner class/model.'
 
+
 class PropertyChangeRequiresReINIT(ImproperPropertyHandling):
     default_message = 'The attribute(s) you are trying to change require the object to be reinitialized.'
+
 
 class MissingAttributeError(AttributeException):
     default_message = 'The attribute you are attempting to access has not been set.'
 
+
 class IncorrectAttributeType(AttributeException):
     default_message = 'An attribute was set with incorrect type.'
 
+
 class AttributeNotSetError(AttributeException):
     default_message = 'An attribute has not been changed from its default value.'
+
 
 class BadAttributeValueError(AttributeException):
     default_message = 'Bad value found in attribute setter.'
@@ -144,19 +150,34 @@ class ParameterMissingError(ParameterException):
 class ParameterTypeError(ParameterException):
     default_message = 'One or more parameters were found to have an incorrect type.'
 
+
 class ParameterValueError(ParameterException):
     default_message = 'One or more parameter values are invalid or not supported.'
+
 
 class IncompatibleModelConfigError(ConfigurationException):
     default_message = 'One or more model parameters are not compatible with each other'
 
+
 class UnknownTidalPyConfigValue(ConfigurationException):
     default_message = 'A configuration set in TidalPy.configurations is not know or has not yet been implemented.'
 
+# World Errors
+class TidalPyWorldError(TidalPyException):
+    default_message = 'There was a problem related to the functionality or building of a TidalPy world.'
+
+
+class UnknownWorld(TidalPyWorldError):
+    default_message = 'User provided world name does not match any prebuilt world configs. ' \
+                      'Check name or provide a manual configuration dictionary.'
+
+class UnknownWorldType(TidalPyWorldError):
+    default_message = 'A world type was encountered that is either unknown, contains a typo, or is not yet implemented.'
 
 # TidalPy Integration Error
 class TidalPyIntegrationException(TidalPyException):
     default_message = 'An issue arose during time integration.'
+
 
 class IntegrationTimeOut(TidalPyIntegrationException):
     default_message = 'Integration was stopped due to long integration time'

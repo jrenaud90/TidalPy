@@ -57,7 +57,7 @@ class BaseWorld(PhysicalObjSpherical):
 
         # Other flags
         self.is_host = False
-        self.is_spin_sync = False
+        self._is_spin_sync = False
 
         # Additional orbit information
         # orbit_location is an index for where a planet is at in the orbit's geometry. This is set by the initialization
@@ -71,7 +71,7 @@ class BaseWorld(PhysicalObjSpherical):
         self.equilibrium_insolation_func = None
 
         # TidalPy logging and debug info
-        self.pyname = f'{self.name}_{self.world_class}'
+        self.pyname = f'{self}'
         log.debug(f'Setting up new world: {self.name}; class type = {self.world_class}.')
 
         if initialize:
@@ -81,7 +81,9 @@ class BaseWorld(PhysicalObjSpherical):
         """ Re-initialize the basic world based on changed to its configuration."""
 
         super().reinit()
-        log.debug(f'First initialization call = {initial_init}.')
+
+        if initial_init:
+            log.debug(f'First initialization call for {self}.')
 
         if not initial_init:
             self.clear_state()
@@ -91,7 +93,7 @@ class BaseWorld(PhysicalObjSpherical):
             self.name = self.config['name']
         self._albedo = self.config['albedo']
         self._emissivity = self.config['emissivity']
-        self.is_spin_sync = self.config['force_spin_sync']
+        self._is_spin_sync = self.config['force_spin_sync']
 
         # Setup geometry
         self.set_geometry(self.config['radius'], self.config['mass'])
@@ -594,7 +596,7 @@ class BaseWorld(PhysicalObjSpherical):
 
         name = self.name
         if name is None:
-            name = 'Unknown World'
+            name = f'Unknown World, {self.world_class} type'
         else:
             name = name.title()
         return name
@@ -603,5 +605,5 @@ class BaseWorld(PhysicalObjSpherical):
 
         if 'name' in self.__dict__:
             if self.name is not None:
-                return f'{self.name} {self.__class__} object at {hex(id(self))}'
-        return f'{self.__class__} object at {hex(id(self))}'
+                return f'{self.name}, {self.world_class}, {self.__class__} object at {hex(id(self))}'
+        return f'{self.world_class}, {self.__class__} object at {hex(id(self))}'

@@ -49,8 +49,6 @@ def clean_world_config(world_config: dict, make_copy: bool = True):
 def check_for_duplicate_worlds(world_configs: dict):
     """ Check for duplicate worlds in the world config listing.
 
-
-
     Parameters
     ----------
     world_configs : dict
@@ -70,19 +68,38 @@ def check_for_duplicate_worlds(world_configs: dict):
                 potential_dups.append(world_name)
 
     for planet_name in potential_dups:
-        log.warn(f'Possible duplicate saved planet found: {planet_name}. Ensure you use the correct subscript.')
+        log.warning(f'Possible duplicate saved planet found: {planet_name}. Ensure you use the correct subscript.')
 
 # Find all planet configurations and import their config files
 # Locate all planet configurations
-known_planets_cfg = get_all_files_of_type(WORLD_CONFIG_LOC, ['cfg', 'json', 'json5'])
-check_for_duplicate_worlds(known_planets_cfg)
-_configs_are_dict = False
+known_worlds_files = get_all_files_of_type(WORLD_CONFIG_LOC, ['cfg', 'json', 'json5'])
+known_worlds_cfg = dict()
+check_for_duplicate_worlds(known_worlds_cfg)
+_configs_loaded = False
 
 def _cfgpath_to_json():
-    global known_planets_cfg
-    global _configs_are_dict
-    for planet_name, config_path in known_planets_cfg.items():
-        with open(config_path, 'r') as config_file:
-            known_planets_cfg[planet_name] = json5.load(config_file)
+    global known_worlds_cfg
+    global _configs_loaded
 
-    _configs_are_dict = True
+    if not _configs_loaded:
+        log.debug('Loading pre-built world configurations into the known worlds config dictionary.')
+        for world_name, config_path in known_worlds_files.items():
+            with open(config_path, 'r') as config_file:
+                # Store with filename
+                known_worlds_cfg[world_name] = json5.load(config_file)
+            # Also store with name used in config
+            if 'name' in known_worlds_cfg[world_name]:
+                config_name = known_worlds_cfg[world_name]['name']
+                if config_name != world_name:
+                    known_worlds_cfg[config_name] = known_worlds_cfg[world_name]
+
+    _configs_loaded = True
+
+def get_world_configs():
+    global known_planets_cfg
+    global _configs_loaded
+
+    if not _configs_loaded:
+        _cfgpath_to_json()
+
+    return known_worlds_cfg

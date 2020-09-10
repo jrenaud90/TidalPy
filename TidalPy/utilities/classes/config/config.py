@@ -328,7 +328,7 @@ class WorldConfigHolder(ConfigHolder):
         # Store world information
         self.world = world
         world_name = self.world.name
-        self.world_type = self.world.world_type
+        self.world_type = self.world.world_class
 
         # Record if model config should be stored back into world's config
         self.store_config_in_world = store_config_in_world
@@ -337,10 +337,12 @@ class WorldConfigHolder(ConfigHolder):
         try:
             config = self.world.config[self.world_config_key]
         except KeyError:
-            log(f"User provided no model information for [<WorldConfigHolder> in world: {world_name}]'s "
-                f"{self.__class__.__name__}, using defaults instead.", level='debug')
+            log.debug(f"User provided no model information for [<WorldConfigHolder> in world: {world_name}]'s "
+                        f"{self.__class__.__name__}, using defaults instead.")
 
         if config is None and self.default_config is None:
+            log.error(f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
+                      f"{self.__class__.__name__} and no defaults are set.")
             raise ParameterMissingError(f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
                                         f"{self.__class__.__name__} and no defaults are set.")
 

@@ -10,7 +10,7 @@ import TidalPy
 
 from .logger import log_setup
 from .version import version
-from .utilities.io.io_helper import timestamped_str, unique_path
+from .io_helper import timestamped_str, unique_path
 
 def initialize_tidalpy():
     """ Initialize TidalPy based on information stored in TidalPy.config

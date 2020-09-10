@@ -8,13 +8,13 @@ TidalPy.logging_level = 0
 TidalPy.use_disk = False
 
 from TidalPy.orbit import Orbit
-from TidalPy.planets import build_planet
+from TidalPy.structures import build_world
 from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a, semi_a2orbital_motion
 
 
-io = build_planet('io')
-jupiter = build_planet('jupiter')
-sol = build_planet('sol')
+io = build_world('io')
+jupiter = build_world('jupiter')
+sol = build_world('sol')
 orbit = Orbit(sol, jupiter, io)
 
 

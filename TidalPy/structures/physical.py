@@ -97,9 +97,9 @@ class PhysicalObjSpherical(ConfigHolder):
         self._gravity_outer = self._gravity_surf
         self._radius_inner = self.radius - self.thickness
         if thickness is None or thickness == self.radius:
-            self._gravity_outer = 0.
+            self._gravity_inner = 0.
         else:
-            self._gravity_outer = G * mass_below / self.radius_inner**2
+            self._gravity_inner = G * mass_below / self.radius_inner**2
 
         self._radius_inner = self.radius - self.thickness
         self._volume = (4. / 3.) * np.pi * (self.radius**3 - self.radius_inner**3)
@@ -345,7 +345,15 @@ class PhysicalObjSpherical(ConfigHolder):
         if self.moi_ideal is not None:
             self._moi_factor = self.moi / self.moi_ideal
 
-    # Alias properties
+    # Aliased properties
+    @property
+    def gravity_surface(self):
+        return self.gravity_surf
+
+    @gravity_surface.setter
+    def gravity_surface(self, value):
+        self.gravity_surf = value
+
     @property
     def surface_area(self):
         # Aliased with self.surface_area_outer
@@ -390,3 +398,11 @@ class PhysicalObjSpherical(ConfigHolder):
     @dx.setter
     def dx(self, value):
         self.thickness = value
+
+    @property
+    def radius_outer(self):
+        return self.radius
+
+    @radius_outer.setter
+    def radius_outer(self, value):
+        self.radius = value

@@ -61,9 +61,11 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None):
     tidalpy_log = logging.getLogger('tidalpy')
     tidalpy_log.setLevel(LOGGING_LEVELS['DEBUG'])
 
-    # Setup the logs' format
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(messages)s')
-    stream_formatter = logging.Formatter('%(levelname)s: %(messages)s')
+    # Setup the log's format
+    #    How the saved file looks...
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
+    #    How the console output looks...
+    stream_formatter = logging.Formatter('TidalPy Log - %(levelname)s: %(message)s')
 
     # Setup logger filenames
     regular_log_filepath = None

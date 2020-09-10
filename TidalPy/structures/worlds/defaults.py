@@ -19,7 +19,8 @@ world_defaults = {
         'fixed_time_lag'              : 1.,
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
-        'use_real_moi'                : True
+        'use_real_moi'                : True,
+        'tides_on'                    : True
     },
     'gas_giant': {
         'name'                        : 'unknown_world_gas_giant_type',
@@ -32,7 +33,8 @@ world_defaults = {
         'fixed_time_lag'              : 1.,
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
-        'use_real_moi'                : True
+        'use_real_moi'                : True,
+        'tides_on'                    : True
     },
     'star'    : {
         'name'                        : 'unknown_world_star_type',
@@ -45,7 +47,8 @@ world_defaults = {
         'fixed_time_lag'              : 1.,
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
-        'use_real_moi'                : True
+        'use_real_moi'                : True,
+        'tides_on'                    : False
     },
     'layered'   : {
         'name'                        : 'unknown_world_thermal_type',
@@ -58,6 +61,7 @@ world_defaults = {
         'fixed_time_lag'              : 1.,
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
-        'use_real_moi'                : True
+        'use_real_moi'                : True,
+        'tides_on'                    : False
     }
 }
