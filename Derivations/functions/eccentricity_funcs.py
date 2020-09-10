@@ -1,7 +1,10 @@
+from functools import lru_cache
+
 from .hansen import hansen_wrapper
-from .sympy_help import taylor
+
 
 # Eccentricity Functions
+@lru_cache(maxsize=50)
 def G_func(l, p, q, eccentricity, cutoff_power, going_to_square: bool = True):
 
     cutoff_power_to_use = cutoff_power

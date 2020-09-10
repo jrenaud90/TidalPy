@@ -17,8 +17,6 @@ def calc_bessel_beta(eccentricity, cutoff_power):
 
 @lru_cache(maxsize=500)
 def hansen_bessel(a, b, c, eccentricity, cutoff_power):
-    print(a, b, c)
-    ti = time()
 
     beta = calc_bessel_beta(eccentricity, cutoff_power)
 
@@ -26,7 +24,6 @@ def hansen_bessel(a, b, c, eccentricity, cutoff_power):
     outer_sum = 0
     p = 0
     terms = 0
-    sub_terms = 0
     while True:
         if p > cutoff_power + 1:
             break
@@ -38,7 +35,6 @@ def hansen_bessel(a, b, c, eccentricity, cutoff_power):
             bess = besselj_func(c - b + p - 2 * h, c * eccentricity, cutoff_power)
             inner_sum += coeff_1 * coeff_2 * bess
             terms += 1
-            sub_terms += 1
 
         outer_sum += inner_sum * (-beta)**p
 
@@ -46,12 +42,11 @@ def hansen_bessel(a, b, c, eccentricity, cutoff_power):
         #    (very heavy computation time as cutoff_power > 10). To help with this, let us pick some interval where we
         #    stop the calculation and perform an early taylor expansion so that the number of terms does not grow so
         #    large for the final taylor series.
-        if sub_terms >= 20:
-            print('Compiling Progress')
+        if terms >= 20:
             progress += outer_sum
             progress = taylor(progress, eccentricity, cutoff_power)
             outer_sum = 0
-            sub_terms = 0
+            terms = 0
 
         p += 1
 
@@ -59,11 +54,9 @@ def hansen_bessel(a, b, c, eccentricity, cutoff_power):
     if outer_sum != 0:
         progress += outer_sum
 
-    print(terms)
     res = (1 + beta**2)**(-a - 1) * progress
     res = taylor(res, eccentricity, cutoff_power)
 
-    print(f'total time = {time() - ti}')
     return res
 
 @lru_cache(maxsize=100)
