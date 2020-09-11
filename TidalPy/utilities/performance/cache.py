@@ -3,6 +3,7 @@ import shutil
 
 from ... import tidalpy_loc
 
+
 def clear_cache(verbose: bool = False):
     """ Clears TidalPy Cache including cached numba functions
     """

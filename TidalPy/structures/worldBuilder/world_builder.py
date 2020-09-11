@@ -7,7 +7,7 @@ from .config_handler import get_world_configs, WORLD_CONFIG_LOC, clean_world_con
 from ..worlds import world_types, BurnManWorld
 from ... import log
 from ...burnman_interface.build import build_planet as build_bm_planet
-from ...exceptions import UnknownWorld, UnknownWorldType, TidalPyWorldError, NotYetImplementedError,\
+from ...exceptions import UnknownWorld, UnknownWorldType, TidalPyWorldError, NotYetImplementedError, \
     MissingArgumentError
 
 

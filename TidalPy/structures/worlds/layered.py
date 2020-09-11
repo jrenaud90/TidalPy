@@ -1,6 +1,11 @@
+from typing import Tuple, Dict
+
 from .tidal import TidalWorld
-from ...exceptions import ImproperPropertyHandling
-from ..layers import PhysicsLayer
+from ..layers import PhysicsLayer, layers_class_by_world_class, LayerType
+from ... import log
+from ...exceptions import ImproperPropertyHandling, ParameterMissingError, TidalPyWorldError
+
+BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^', '&', '(', ')', '~', '`')
 
 class LayeredWorld(TidalWorld):
 
@@ -12,13 +17,96 @@ class LayeredWorld(TidalWorld):
 
     def __init__(self, world_config: dict, name: str = None, initialize: bool = True):
 
-        super().__init__(self, world_config, name, initialize=False)
+        if 'layers' not in world_config:
+            log.error("Layered world's configurations do not contain layer information. "
+                      "Construction can not be completed.")
+            raise ParameterMissingError("Layered world's configurations do not contain layer information.")
+
+        super().__init__(world_config, name, initialize=False)
+
+        # Basic Configurations
+        LayerClass = layers_class_by_world_class[self.world_class]
+        self._layers_class = LayerClass.layer_class
 
         # Layer storage properties
         self._layers_by_name = dict()
-        self._layers = None
+        self._layers = []
+        self._layer_types = []
+        self._num_layers = None
 
-    def find_layer(self, layer_name: str) -> PhysicsLayer:
+        # Get layer types
+        layer_i = 0
+        for layer_name, layer_config in self.config['layers'].items():
+
+            # Check for issues
+            if any(bad_symbol in layer_name for bad_symbol in BAD_LAYER_SYMBOLS):
+                log.error(f'An illegal symbol was found in {layer_name} for {self}.')
+                raise TidalPyWorldError('Illegal symbol found in layer name.')
+
+            # Pull out configuration info
+            layer_type = layer_config['type']
+            self._layer_types.append(layer_type)
+
+            # Build Layer
+            layer = LayerClass(layer_name, layer_i, self, layer_config, initialize=False)
+
+            # Store layer in the world's containers
+            self._layers.append(layer)
+            self._layers_by_name[layer_name] = layer
+
+            # Also store it in the world itself as its own attribute
+            setattr(self, layer_name, layer)
+
+        # Make layer storage immutable
+        self._layers = tuple(self._layers)
+        self._layer_types = tuple(self._layer_types)
+
+        if initialize:
+            self.reinit(initial_init=True, setup_simple_tides=False, reinit_layers=True)
+
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
+               reinit_layers: bool = True):
+
+        # Don't let parent classes initialize geometry since a LayeredWorld's mass is based on its layers' masses
+        super().reinit(initial_init=initial_init, reinit_geometry=False,
+                       setup_simple_tides=setup_simple_tides)
+
+        # Pull out planet configurations
+        radius = self.config['radius']
+        mass = self.config.get('mass', None)
+
+        # Layer constructor may need the planets mass and radius.
+        #     So set those here (they will be reset by the set_geometry method).
+        self._radius = radius
+        self._mass = mass
+
+        # Update the global tidal volume fraction
+        running_tidal_fraction = 0.
+        running_layer_masses = 0.
+
+        if reinit_layers:
+            # Tell the top-most layer that it is the top-most layer.
+            self.layers[-1]._is_top_layer = True
+
+            # Call reinit to the layers within this planet.
+            for layer in self.layers:
+                layer.reinit(initial_init)
+
+                running_layer_masses += layer.mass
+                if layer.is_tidal:
+                    running_tidal_fraction += layer.tidal_scale
+
+            self.tidal_scale = running_tidal_fraction
+
+        if self.mass is None:
+            mass = running_layer_masses
+        else:
+            mass = self.mass
+
+        if reinit_geometry:
+            self.set_geometry(self.radius, mass)
+
+    def find_layer(self, layer_name: str) -> LayerType:
         """ Returns a reference to a layer with the provided name
 
         Layers are also stored in the planet's __dict__ and can be accessed via <world>."layer_name" as well as:
@@ -39,7 +127,7 @@ class LayeredWorld(TidalWorld):
         layer = self.layers_by_name[layer_name]
         return layer
 
-    def find_layer_by_radius(self, radius: float) -> PhysicsLayer:
+    def find_layer_by_radius(self, radius: float) -> LayerType:
         """ Returns a reference to a layer that the provided radius resides in
         If the provided radius is at the interface of two layers this method will choose the lower layer.
 
@@ -64,7 +152,15 @@ class LayeredWorld(TidalWorld):
 
     # State properties
     @property
-    def layers_by_name(self):
+    def layers_class(self) -> str:
+        return self._layers_class
+
+    @layers_class.setter
+    def layers_class(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def layers_by_name(self) -> Dict[str, LayerType]:
         return self._layers_by_name
 
     @layers_by_name.setter
@@ -72,19 +168,27 @@ class LayeredWorld(TidalWorld):
         raise ImproperPropertyHandling
 
     @property
-    def layers_by_order(self):
-        return self._layers_by_order
-
-    @layers_by_order.setter
-    def layers_by_order(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def layers(self):
+    def layers(self) -> Tuple[LayerType, ...]:
         return self._layers
 
     @layers.setter
     def layers(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def layer_types(self) -> Tuple[str, ...]:
+        return self._layer_types
+
+    @layer_types.setter
+    def layer_types(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def num_layers(self) -> int:
+        return self._num_layers
+
+    @num_layers.setter
+    def num_layers(self, value):
         raise ImproperPropertyHandling
 
 
@@ -98,47 +202,3 @@ class LayeredWorld(TidalWorld):
         """
 
         return iter(self.layers)
-
-
-
-
-x={"layers": {
-        "Core": {
-            "type": "iron",
-            "is_tidal": false,
-            "radius": 810.0e3,
-            "material": [
-                "Pyrite",
-                "Fe_Dewaele"
-            ],
-            "material_source": [
-                "TidalPy",
-                "other"
-            ],
-            "material_fractions": [
-                0.5,
-                0.5
-            ],
-            "temperature_mode": "user-defined",
-            "temperature_fixed": 1800.0
-        },
-        "Mantle": {
-            "type": "rock",
-            "is_tidal": true,
-            "radius": 1821.49e3,
-            "material": [
-                "forsterite",
-                "mg_perovskite"
-            ],
-            "material_source": [
-                "SLB_2011",
-                "SLB_2011"
-            ],
-            "material_fractions": [
-                0.65,
-                0.35
-            ],
-            "temperature_mode": "adiabatic",
-            "temperature_top": 1800.0,
-            "surface_temperature": 100.0
-        }}

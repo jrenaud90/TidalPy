@@ -1,14 +1,18 @@
+from typing import TYPE_CHECKING
+
 import burnman
 import numpy as np
 
 from .physics import PhysicsLayer
-from ..worlds import BurnManWorld
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import configurations
 from ...exceptions import (UnknownTidalPyConfigValue, AttributeNotSetError, ImproperPropertyHandling,
                            IncorrectAttributeType)
 from ...utilities.numpyHelper.array_other import find_nearest
 from ...utilities.types import FloatArray
+
+if TYPE_CHECKING:
+    from ..worlds import BurnManWorld
 
 
 class BurnManLayer(PhysicsLayer):

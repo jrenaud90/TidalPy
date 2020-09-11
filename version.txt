@@ -1,4 +1,4 @@
-# Version number should always be updated before pushing to git
+# Version number should always be updated before pushing commits onto the main branch (or when merging branches onto the main).
 # Version number should have the following format:
 # A.B.C<desc>
 #     A = Major Release: May break backwards compatibility

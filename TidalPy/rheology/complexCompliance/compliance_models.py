@@ -553,7 +553,7 @@ def andrade_freq_array(frequency: np.ndarray, compliance: np.ndarray, viscosity:
     # Update Zeta based on an additional frequency dependence.
     freq_ratio = np.abs(critical_freq / frequency)
     freq_ratio[freq_ratio > float_lognat_max] = float_lognat_max
-    zeta *= np.exp(freq_ratio)
+    zeta = zeta * np.exp(freq_ratio)
 
     andrade_term = compliance * viscosity * frequency * zeta
     const_term = compliance * andrade_term**(-alpha) * find_factorial(alpha)

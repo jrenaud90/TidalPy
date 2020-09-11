@@ -61,6 +61,13 @@ def test_exception_load():
     assert issubclass(IncompatibleModelConfigError, Exception)
     assert issubclass(UnknownTidalPyConfigValue, Exception)
 
+    # TidalPy World/Layer Error
+    from TidalPy.exceptions import (TidalPyWorldError, UnknownWorld, UnknownWorldType, TidalPyLayerError)
+    assert issubclass(TidalPyWorldError, Exception)
+    assert issubclass(UnknownWorld, Exception)
+    assert issubclass(UnknownWorldType, Exception)
+    assert issubclass(TidalPyLayerError, Exception)
+
     # TidalPy Integration Error
     from TidalPy.exceptions import (TidalPyIntegrationException, IntegrationTimeOut)
     assert issubclass(TidalPyIntegrationException, Exception)

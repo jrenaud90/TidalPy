@@ -1,7 +1,6 @@
 from typing import Dict
 
 from ..inclinationFuncs import orderl2, orderl3, orderl4, orderl5, orderl6, orderl7, InclinOutput
-
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 

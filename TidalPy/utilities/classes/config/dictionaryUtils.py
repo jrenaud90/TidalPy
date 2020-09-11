@@ -49,7 +49,7 @@ def nested_get(input_dict: dict,
 
         if key not in internal_dict_value:
             if raiseon_nolocate:
-                raise KeyError
+                raise KeyError(f'Key:"{key}" not located.')
             else:
                 return default
         else:
@@ -117,6 +117,10 @@ def nested_place(replacement_value: Any, dict_to_overwrite: dict,
 
     if type(nested_keys) not in [tuple, list]:
         # No nesting: simply override the value stored at the key
+        if nested_keys not in dict_to_overwrite:
+            # If the key is not already present in the dictionary, create a new entry.
+            dict_to_overwrite[nested_keys] = dict()
+
         _retain(nested_keys, dict_to_overwrite[nested_keys], dict_to_overwrite)
         dict_to_overwrite[nested_keys] = replacement_value
     else:
@@ -124,6 +128,10 @@ def nested_place(replacement_value: Any, dict_to_overwrite: dict,
         last_i = len(nested_keys) - 1
         dict_ref = dict_to_overwrite
         for k_i, key in enumerate(nested_keys):
+            if key not in dict_ref:
+                # Key not found, make a new dictionary to nest into
+                dict_ref[key] = dict()
+
             if k_i == last_i:
                 # Make the replacement
                 _retain(key, dict_ref[key], dict_ref)

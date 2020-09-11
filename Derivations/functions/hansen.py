@@ -5,7 +5,7 @@ from scipy.special import gamma
 from sympy import Rational
 
 from .general_math import binomial_coeff, besselj_func
-from .sympy_help import taylor
+from .sympy_help import taylor, disp
 
 from time import time
 
@@ -16,14 +16,19 @@ def calc_bessel_beta(eccentricity, cutoff_power):
     return beta
 
 @lru_cache(maxsize=500)
-def hansen_bessel(a, b, c, eccentricity, cutoff_power):
+def hansen_bessel(a, b, c, eccentricity, cutoff_power, loud=True, use_floats=False):
 
     beta = calc_bessel_beta(eccentricity, cutoff_power)
 
-    progress = 0
+
     outer_sum = 0
     p = 0
     terms = 0
+    if loud:
+        print(f'Starting Hansen Calculation (Bessel Domain, CO={cutoff_power})')
+
+    progbar_max = cutoff_power + 1
+
     while True:
         if p > cutoff_power + 1:
             break
@@ -36,26 +41,28 @@ def hansen_bessel(a, b, c, eccentricity, cutoff_power):
             inner_sum += coeff_1 * coeff_2 * bess
             terms += 1
 
+        if use_floats:
+            inner_sum = inner_sum.evalf()
         outer_sum += inner_sum * (-beta)**p
 
         # If all of the terms are simply added then sympy has a real hard time taylor expanding at the end
         #    (very heavy computation time as cutoff_power > 10). To help with this, let us pick some interval where we
         #    stop the calculation and perform an early taylor expansion so that the number of terms does not grow so
         #    large for the final taylor series.
-        if terms >= 20:
-            progress += outer_sum
-            progress = taylor(progress, eccentricity, cutoff_power)
-            outer_sum = 0
-            terms = 0
+        outer_sum = taylor(outer_sum, eccentricity, cutoff_power)
+        if loud:
+            num_left = ((cutoff_power + 1) - p) / progbar_max
+            num_left = math.floor(num_left * 30)
+            num_done = 30 - num_left
+            print('\t[' + '#'*num_done + ' '*num_left + ']\r', end='', flush=True)
 
         p += 1
 
-    # Depending on the number of terms, there may be a bit left over in the outer sum - this will grab that.
-    if outer_sum != 0:
-        progress += outer_sum
-
-    res = (1 + beta**2)**(-a - 1) * progress
+    res = (1 + beta**2)**(-a - 1) * outer_sum
     res = taylor(res, eccentricity, cutoff_power)
+
+    if loud:
+        print('')
 
     return res
 
@@ -127,7 +134,7 @@ def hansen_kIsZero_nIsNeg(n, m, eccentricity, cutoff_power, force_break=True):
 
 @lru_cache(maxsize=200)
 def hansen_wrapper(n, m, k, eccentricity, cutoff_power,
-                   force_break: bool = True):
+                   force_break: bool = True, use_floats=False):
     # Some hansen numbers can be provided with exact precision (if k==0)
     is_exact = False
 
@@ -158,6 +165,6 @@ def hansen_wrapper(n, m, k, eccentricity, cutoff_power,
         # k != 0 is not exact and requires a truncation on a series (see Renaud et al. 2020)
         if m <= 0 and k < 0:
             # TODO: Where is this from?
-            return is_exact, hansen_bessel(n, -m, -k, eccentricity, cutoff_power)
+            return is_exact, hansen_bessel(n, -m, -k, eccentricity, cutoff_power, use_floats=use_floats)
 
-        return is_exact, hansen_bessel(n, m, k, eccentricity, cutoff_power)
+        return is_exact, hansen_bessel(n, m, k, eccentricity, cutoff_power, use_floats=use_floats)

@@ -116,9 +116,10 @@ def spohn(melt_fraction: float, temperature: float, liquid_viscosity: float,
 
 @njit
 def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_viscosity: np.ndarray,
-          liquid_shear: float = 1.0e-5,
-          fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
-          fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6) -> Tuple[np.ndarray, np.ndarray]:
+                liquid_shear: float = 1.0e-5,
+                fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
+                fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6) -> \
+        Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: spohn - Arrays Only
 
     Fischer and Spohn (1990) Partial-Melt Viscosity Function
@@ -164,11 +165,10 @@ def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_visco
 
 @njit
 def henning(melt_fraction: float, temperature: float,
-            premelt_viscosity: float, liquid_viscosity: float,
-            premelt_shear: float,
-            liquid_shear: float, crit_melt_frac: float, crit_melt_frac_width: float, hn_visc_slope_1: float,
-            hn_visc_slope_2: float, hn_shear_param_1: float, hn_shear_param_2: float,
-            hn_shear_falloff_slope: float) -> Tuple[float, float]:
+            premelt_viscosity: float, liquid_viscosity: float, premelt_shear: float,
+            liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
+            hn_visc_slope_1: float = 13.5, hn_visc_slope_2: float = 370., hn_shear_param_1: float = 40000.,
+            hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.) -> Tuple[float, float]:
     """ Viscosity and Shear Modulus Partial Melting Model: henning - NonArrays Only
 
     Henning (2009, 2010) Partial-Melt Viscosity Function
@@ -251,11 +251,10 @@ def henning(melt_fraction: float, temperature: float,
 
 @njit
 def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
-                  premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
-                  premelt_shear: float,
-                  liquid_shear: float, crit_melt_frac: float, crit_melt_frac_width: float, hn_visc_slope_1: float,
-                  hn_visc_slope_2: float, hn_shear_param_1: float, hn_shear_param_2: float,
-                  hn_shear_falloff_slope: float) -> Tuple[np.ndarray, np.ndarray]:
+                  premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray, premelt_shear: float,
+                  liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
+                  hn_visc_slope_1: float = 13.5, hn_visc_slope_2: float = 370., hn_shear_param_1: float = 40000.,
+                  hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.) -> Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: henning
 
     Henning (2009, 2010) Partial-Melt Viscosity Function

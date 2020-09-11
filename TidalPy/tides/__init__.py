@@ -1,6 +1,4 @@
-from .love1d import complex_love as calc_complex_love
-from .love1d import complex_love_general as calc_complex_love_general
-from .love1d import effective_rigidity as calc_effective_rigidity
-from .love1d import effective_rigidity_general as calc_effective_rigidity_general
-from .love1d import static_love as calc_static_love
-from .love1d import static_love_general as calc_static_love_general
+from .classes import TidesBase, SimpleTides, LayeredTides
+from .love1d import complex_love as calc_complex_love, complex_love_general as calc_complex_love_general, \
+    effective_rigidity as calc_effective_rigidity, effective_rigidity_general as calc_effective_rigidity_general, \
+    static_love as calc_static_love, static_love_general as calc_static_love_general

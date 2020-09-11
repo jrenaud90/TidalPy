@@ -2,10 +2,10 @@ import copy
 import os
 from typing import Any, Tuple
 
-from .json_utils import save_dict_to_json
+from .jsonUtils import save_dict_to_json
 from ..base import TidalPyClass
 from .... import disk_loc, log, debug_mode, version
-from ....exceptions import ImproperPropertyHandling, ParameterMissingError
+from ....exceptions import ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError
 
 
 class ConfigHolder(TidalPyClass):
@@ -36,7 +36,7 @@ class ConfigHolder(TidalPyClass):
         # Add class information to the default dictionary
         if self.default_config is not None:
             self.default_config['pyclass'] = self.__class__.__name__
-            self.default_config['pyname'] = self.pyname
+            self.default_config['pyname'] = f'{self}'
             self.default_config['TidalPy_Vers'] = version
 
         # State Variables
@@ -61,7 +61,7 @@ class ConfigHolder(TidalPyClass):
         """
 
         # Nothing to clear in the parent class, but record that a clear call was made
-        log.debug(f'State cleared for {self.pyname}.')
+        log.debug(f'State cleared for {self}.')
 
     def replace_config(self, replacement_config: dict, force_default_merge: bool = False):
         """ Replaces the current configuration dictionary with a user provided one
@@ -165,7 +165,7 @@ class ConfigHolder(TidalPyClass):
             if 'pyclass' not in self.config:
                 self._config['pyclass'] = self.__class__.__name__
             if 'pyname' not in self.config:
-                self._config['pyname'] = self.pyname
+                self._config['pyname'] = f'{self}'
             if 'TidalPy_Vers' not in self.config:
                 self._config['TidalPy_Vers'] = version
 
@@ -215,7 +215,10 @@ class ConfigHolder(TidalPyClass):
             if 'name' in self.__dict__:
                 class_name = self.__dict__['name']
             else:
-                class_name = self.pyname
+                # Convert pyname to dictionary save version.
+                pyname = f'{self}'.replace('[', '').replace(']', '')
+                pyname = pyname.replace(',', '-').replace(';', '-').replace('=', '-')
+                class_name = pyname
 
         config_filepaths = list()
         if self.config is not None:
@@ -266,6 +269,9 @@ class ConfigHolder(TidalPyClass):
         raise ImproperPropertyHandling('To change configurations set the "replacement_config" attribute '
                                         'or run "update_config"')
 
+    def __str__(self):
+        return f'{self.__class__.__name__}'
+
 
 class LayerConfigHolder(ConfigHolder):
 
@@ -278,13 +284,13 @@ class LayerConfigHolder(ConfigHolder):
     def __init__(self, layer, store_config_in_layer: bool = True):
 
         # Store layer and world information
-        self.layer = layer
-        self.world = None
-        self.layer_type = layer.type
+        self._layer = layer
+        self._world = None
         world_name = 'Unknown'
         if 'world' in layer.__dict__:
-            self.world = layer.world
-            world_name = self.world.name
+            if layer.world is not None:
+                self._world = layer.world
+                world_name = self.world.name
 
         # Record if model config should be stored back into layer's config
         self.store_config_in_layer = store_config_in_layer
@@ -293,8 +299,7 @@ class LayerConfigHolder(ConfigHolder):
         try:
             config = self.layer.config[self.layer_config_key]
         except KeyError:
-            log(f"User provided no model information for [layer: {self.layer.name} in world: {world_name}]'s "
-                f"{self.__class__.__name__}, using defaults instead.", level='debug')
+            log.debug(f"User provided no model ({self}) information for {self.layer}, using defaults instead.")
 
         if config is None and self.default_config is None:
             raise ParameterMissingError(f"Config was not provided for [layer: {self.layer.name} in world: {world_name}]'s "
@@ -303,9 +308,6 @@ class LayerConfigHolder(ConfigHolder):
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
         super().__init__(replacement_config=config)
 
-        # Update pyname
-        self.pyname += '_' + self.layer_type
-
         if store_config_in_layer:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then
             #    store the new config in the layer's config, overwriting any previous parameters.
@@ -313,6 +315,35 @@ class LayerConfigHolder(ConfigHolder):
                 # Store the old config under a new key
                 self.layer._config[f'OLD_{self.layer_config_key}'] = self.layer.config[self.layer_config_key]
             self.layer._config[self.layer_config_key] = copy.deepcopy(self.config)
+
+    # State properties
+    @property
+    def layer(self):
+        return self._layer
+
+    @layer.setter
+    def layer(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def world(self):
+        return self._world
+
+    @world.setter
+    def world(self, value):
+        raise ImproperPropertyHandling
+
+    # Outer-scope Properties
+    @property
+    def layer_type(self):
+        return self.layer.type
+
+    @layer_type.setter
+    def layer_type(self, value):
+        raise OuterscopePropertySetError
+
+    def __str__(self):
+        return f'{self.__class__.__name__} ({self.layer})'
 
 
 class WorldConfigHolder(ConfigHolder):
@@ -326,9 +357,8 @@ class WorldConfigHolder(ConfigHolder):
     def __init__(self, world, store_config_in_world: bool = True):
 
         # Store world information
-        self.world = world
+        self._world = world
         world_name = self.world.name
-        self.world_type = self.world.world_class
 
         # Record if model config should be stored back into world's config
         self.store_config_in_world = store_config_in_world
@@ -349,9 +379,6 @@ class WorldConfigHolder(ConfigHolder):
         # Setup ModelHolder and ConfigHolder classes. Using the world's config file as the replacement config.
         super().__init__(replacement_config=config)
 
-        # Update pyname
-        self.pyname += '_' + self.world_type
-
         if store_config_in_world:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then
             #    store the new config in the layer's config, overwriting any previous parameters.
@@ -359,3 +386,25 @@ class WorldConfigHolder(ConfigHolder):
                 # Store the old config under a new key
                 self.world._config[f'OLD_{self.world_config_key}'] = self.world.config[self.world_config_key]
             self.world._config[self.world_config_key] = copy.deepcopy(self.config)
+
+    # # State properties
+    @property
+    def world(self):
+        return self._world
+
+    @world.setter
+    def world(self, value):
+        raise ImproperPropertyHandling
+
+    # # Outer-scope properties
+    @property
+    def world_type(self):
+        return self.world.world_class
+
+    @world_type.setter
+    def world_type(self, value):
+        raise OuterscopePropertySetError
+
+    # # Dunder properties
+    def __str__(self):
+        return f'{self.__class__.__name__} ({self.world})'

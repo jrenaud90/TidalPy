@@ -1,6 +1,7 @@
 from .tidal import TidalWorld
-from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, luminosity_from_efftemp
 from ... import log
+from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, luminosity_from_efftemp
+
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
 
@@ -19,9 +20,9 @@ class StarWorld(TidalWorld):
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False, setup_simple_tides: bool = True):
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = True):
 
-        super().reinit(initial_init)
+        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry)
 
         self.luminosity = self.config.get('luminosity', None)
         self.effective_temperature = self.config.get('effective_temperature', None)

@@ -36,10 +36,10 @@ class BaseWorld(PhysicalObjSpherical):
         # Load in defaults
         self.default_config = self.default_config[self.world_class]
 
-        super().__init__(config=world_config)
-
-        # Attributes
+        # Key Attributes
         self.name = name
+
+        super().__init__(config=world_config)
 
         # Independent State variables
         self._spin_freq = None
@@ -70,20 +70,15 @@ class BaseWorld(PhysicalObjSpherical):
         # Models to be initialized later
         self.equilibrium_insolation_func = None
 
-        # TidalPy logging and debug info
-        self.pyname = f'{self}'
         log.debug(f'Setting up new world: {self.name}; class type = {self.world_class}.')
 
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False):
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True):
         """ Re-initialize the basic world based on changed to its configuration."""
 
-        super().reinit()
-
-        if initial_init:
-            log.debug(f'First initialization call for {self}.')
+        super().reinit(initial_init=initial_init)
 
         if not initial_init:
             self.clear_state()
@@ -96,14 +91,15 @@ class BaseWorld(PhysicalObjSpherical):
         self._is_spin_sync = self.config['force_spin_sync']
 
         # Setup geometry
-        self.set_geometry(self.config['radius'], self.config['mass'])
+        if reinit_geometry:
+            self.set_geometry(self.config['radius'], self.config['mass'])
 
         if self.orbit is not None:
             self.update_orbit()
 
     def clear_state(self, preserve_orbit: bool = False):
 
-        log.debug(f'{self.pyname} clear state called. Orbit preserved = {preserve_orbit}.')
+        log.debug(f'Clear state called for {self}. Orbit preserved = {preserve_orbit}.')
 
         super().clear_state()
 
@@ -279,7 +275,7 @@ class BaseWorld(PhysicalObjSpherical):
             raise IOException("User attempted to save a world's configurations when TidalPy has been set to "
                               "not use_disk")
 
-        log.debug(f'Saving world configurations {self.pyname}...')
+        log.debug(f'Saving world configurations for {self}.')
 
         save_locales = list()
         if save_to_tidalpy_dir:
@@ -304,7 +300,7 @@ class BaseWorld(PhysicalObjSpherical):
         called automatically.
         """
 
-        log.debug(f'Killing world {self.pyname}...')
+        log.debug(f'Killing world {self}.')
 
         # Save configuration file
         if use_disk:
@@ -596,14 +592,15 @@ class BaseWorld(PhysicalObjSpherical):
 
         name = self.name
         if name is None:
-            name = f'Unknown World, {self.world_class} type'
-        else:
-            name = name.title()
+            name = f'Unknown World'
+
+        name = f'{name} ({self.world_class} world)'
+
         return name
 
     def __repr__(self):
 
         if 'name' in self.__dict__:
             if self.name is not None:
-                return f'{self.name}, {self.world_class}, {self.__class__} object at {hex(id(self))}'
-        return f'{self.world_class}, {self.__class__} object at {hex(id(self))}'
+                return f'{self.name}, {self.__class__} object at {hex(id(self))}'
+        return f'Unknown World, {self.__class__} object at {hex(id(self))}'

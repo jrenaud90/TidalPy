@@ -1,7 +1,6 @@
 from typing import Dict
 
 from ..eccentricityFuncs import orderl2, EccenOutput
-
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 

@@ -1,3 +1,6 @@
+* Make collaboration guide with notes on TODO, FIXME, OPT
+* Make known issues somewhere; mention numba.errors.TypingError and the flatten() workaround
+* Once TidalPy is live on Github look into making a community on https://gitter.im/home/explore#
 * Make a "build_from_planet" function to take an already built planet and then provide some global changes that builds a new planet with, for example, a larger mass/radius
     * Make it so if only mass, or only radius, is provided an approx (M-R) of the other is used?
 * Make a custom vectorize function that uses numba.vectorize if numba enables otherwise uses np.vectorize.

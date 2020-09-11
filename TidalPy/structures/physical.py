@@ -1,10 +1,10 @@
 import numpy as np
 
+from TidalPy.utilities.types import float_eps, float_like
 from .. import debug_mode, log
 from ..constants import G
 from ..exceptions import (BadAttributeValueError, ImproperPropertyHandling, IncorrectAttributeType,
                           UnusualRealValueError, MissingArgumentError)
-from TidalPy.utilities.types import float_eps, float_like
 from ..utilities.classes import ConfigHolder
 
 
@@ -19,13 +19,11 @@ class PhysicalObjSpherical(ConfigHolder):
 
         super().__init__(replacement_config=config)
 
-        self.pyname = f'{self.__class__}'
-        self.geometry_init = False
-
         # Properties that are set in the 'set_geometry' method
         self._mass = None
         self._radius = None
         self._thickness = None
+        self.geometry_init = False
 
         # Properties that are calculated using the above parameters
         self._radius_inner = None
@@ -51,11 +49,14 @@ class PhysicalObjSpherical(ConfigHolder):
         self._pressure_outer = None
         self._pressure_inner = None
 
-    def reinit(self):
+    def reinit(self, initial_init: bool = False):
         """ Reinitialize the physical layer by pulling in any potentially new config changes.
         """
+        if initial_init:
+            log.debug(f'First initialization called for {self}.')
+        else:
+            log.debug(f'Reinit called for {self}.')
 
-        log.debug(f'Reinit called for {self.pyname}.')
         # Other reinit steps are setup by child classes
 
     def config_update(self):
@@ -78,7 +79,10 @@ class PhysicalObjSpherical(ConfigHolder):
             Mass below this object (only applicable for shell-like structures)
         """
 
+        log.debug(f'Set geometry called for {self}')
         if thickness is None:
+            # TODO: Why is the below error here?
+            log.error('Base class of PhysicalObjSpherical requires thickness to set geometry.')
             raise MissingArgumentError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
 
         if debug_mode:

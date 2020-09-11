@@ -37,7 +37,7 @@ class Radiogenics(LayerModelHolder):
         # State attributes
         self._heating = None
 
-        log(f'Loading Radiogenics into {self.layer}...', level='info')
+        log.debug(f'Loading Radiogenics ({self.model}) into {self.layer}.')
 
         # Convert isotope information into list[tuple] format
         if 'ref_time' not in self.config:
