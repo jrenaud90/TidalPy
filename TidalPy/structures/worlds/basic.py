@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
-from TidalPy.utilities.types import FloatArray
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ... import debug_mode, use_disk, tidalpy_loc, configurations, log
@@ -14,6 +13,7 @@ from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            IOException)
 from ...stellar.stellar import (equilibrium_insolation_functions, equilibrium_temperature)
 from ...utilities.numpyHelper import reshape_help
+from ...utilities.types import FloatArray
 
 planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 
