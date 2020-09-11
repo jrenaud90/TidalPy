@@ -1,8 +1,8 @@
 from typing import Dict
 
-from TidalPy.tides.eccentricityFuncs import orderl2, orderl3, orderl4, orderl5, orderl6, orderl7, EccenOutput
-from TidalPy.utilities.performance.numba import njit
-from TidalPy.utilities.types import FloatArray
+from ..eccentricityFuncs import orderl2, orderl3, orderl4, orderl5, orderl6, orderl7, EccenOutput
+from ...utilities.performance.numba import njit
+from ...utilities.types import FloatArray
 
 
 @njit(cacheable=True)

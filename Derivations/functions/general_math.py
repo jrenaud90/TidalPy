@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+from .sympy_help import taylor
 from scipy.special import gamma
 from sympy import Rational, I
 
@@ -41,6 +41,7 @@ def besselj_func(a, x, cutoff):
 
         this_term = (-1)**m * Rational(1, gamma(m + 1) * gamma(m + abs_a + 1)) * Rational(1, 2**expo) * x**expo
         summation += this_term
+
         m += 1
 
     return summation * I**(abs_a - a)

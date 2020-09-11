@@ -1,6 +1,6 @@
 from . import cooling_models
 from .defaults import cooling_defaults
-from ..utilities.classes.model.model_utils import find_all_models, build_model_default_inputs
+from ..utilities.classes.model.modelUtils import find_all_models, build_model_default_inputs
 
 parameter_info_loc = ('cooling',)
 

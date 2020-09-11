@@ -32,7 +32,7 @@ layer_defaults = {
 
         # Switches
         'use_surf_gravity'              : True,
-        'use_tvf'                       : True,
+        'use_tidal_vol_frac'            : True,
         'is_tidally_active'             : True,
         'use_pressure_in_strength_calc' : False,
 
@@ -56,7 +56,7 @@ layer_defaults = {
 
         # Switches
         'use_surf_gravity'              : True,
-        'use_tvf'                       : True,
+        'use_tidal_vol_frac'            : True,
         'is_tidally_active'             : False,
         'use_pressure_in_strength_calc' : False,
 

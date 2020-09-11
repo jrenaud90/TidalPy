@@ -3,8 +3,8 @@ import numpy as np
 from . import known_models, known_model_live_args, known_model_const_args
 from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
-from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError
 from .. import log
+from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError
 from ..utilities.classes.model import LayerModelHolder
 
 
@@ -34,7 +34,7 @@ class CoolingModel(LayerModelHolder):
         self._nusselt = None
 
         # Report model building
-        log(f'Cooling model build in {self.layer}: {self.model}.')
+        log.debug(f'Loading cooling model ({self.model}) into {self.layer}.')
 
     def clear_state(self):
 

@@ -18,8 +18,8 @@ import copy
 import numpy as np
 
 from . import build_from_world
-from ...exceptions import IncompatibleModelError
 from ... import log
+from ...exceptions import IncompatibleModelError
 
 
 def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: float = None,

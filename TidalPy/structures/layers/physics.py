@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 from .basic import LayerBase
+from ... import log
 from ...cooling import CoolingModel
 from ...exceptions import (ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError)
 from ...radiogenics.radiogenics import Radiogenics
@@ -51,11 +52,6 @@ class PhysicsLayer(LayerBase):
         self.cooling_model = None  # type: Union['CoolingModel', NoneType]
         self.radiogenics = None    # type: Union['Radiogenics', NoneType]
 
-        # Physical Properties
-        self.pressure = None
-        self.density = None
-        self.gravity = None
-
         # Set up a pressure that will persist if the layer's state is cleared
         self._persistent_pressure = self.pressure
 
@@ -84,16 +80,68 @@ class PhysicsLayer(LayerBase):
             radius = self.config.get('radius', None)
             mass = self.config.get('mass', None)
             thickness = self.config.get('thickness', None)
+            density = self.config.get('density', None)
+            if density is None:
+                density = self.config.get('density_bulk', None)
+            mass_frac = self.config.get('mass_frac', None)
 
-            if radius is not None and mass is not None:
-                if thickness is None and self.layer_index == 0:
-                    # Bottom-most layer: thickness = radius
-                    thickness = radius
+            # Try to determine the layer's physical geometry
+            geo_fail = False
+            if radius is None:
+                if thickness is None:
+                    if self.is_top_layer:
+                        if self.layer_below.radius is None:
+                            geo_fail = True
+                        else:
+                            radius = self.world.radius
+                            thickness = radius - self.layer_below.radius
+                    else:
+                        geo_fail = True
                 else:
-                    # Thickness unknown - geometry can not be calculated
-                    pass
-                if thickness is not None:
-                    self.set_geometry(radius=radius, mass=mass, thickness=thickness)
+                    if self.layer_index == 0:
+                        radius = thickness
+                    else:
+                        if self.layer_below.radius is None:
+                            geo_fail = True
+                        else:
+                            radius = self.layer_below.radius + thickness
+            else:
+                if thickness is None:
+                    if self.layer_index == 0:
+                        thickness = radius
+                    else:
+                        if self.layer_below.radius is None:
+                            geo_fail = True
+                        else:
+                            thickness = radius - self.layer_below.radius
+            if geo_fail:
+                log.error(f'Not enough information provided to determine geometry for {self}.')
+                raise ParameterMissingError(f'Not enough information provided to determine geometry for {self}.')
+            volume = (4. / 3.) * np.pi * (radius**3 - (radius - thickness)**3)
+
+            # Try to determine the layer's mass
+            mass_fail = False
+            if mass is None:
+                if density is None:
+                    if mass_frac is None:
+                        mass_fail = True
+                    else:
+                        # Mass fraction provided.
+                        if self.world.mass is None:
+                            mass_fail = True
+                        else:
+                            mass = self.world.mass * mass_frac
+                else:
+                    mass = density * volume
+            if mass_fail:
+                log.error(f'Not enough information provided to calculate mass for {self}.')
+                raise ParameterMissingError(f'Not enough information provided to calculate mass for layer {self}.')
+
+            # Set the layer's geometry
+            #     OPT: some of set_geometry will end up redoing some of the above calculations, but they are not
+            #         expensive calculations and it should only be preformed a handful of times.
+            #         But perhaps an area for future optimization.
+            self.set_geometry(radius=radius, mass=mass, thickness=thickness)
 
         # Base class's reinit is called *after* the geometry is set (so that tidal volume fraction is set correctly)
         super().reinit(initial_init=initial_init)
@@ -518,11 +566,11 @@ class PhysicsLayer(LayerBase):
     # Aliased properties
     @property
     def gravity_surf(self):
-        return self.gravity_upper
+        return self.gravity_outer
 
     @gravity_surf.setter
     def gravity_surf(self, value):
-        self.gravity_upper = value
+        self.gravity_outer = value
 
     @property
     def blt(self):

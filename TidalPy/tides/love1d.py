@@ -1,7 +1,6 @@
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray
 
-
 @njit
 def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number

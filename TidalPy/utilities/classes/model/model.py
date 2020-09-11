@@ -1,12 +1,12 @@
 import operator
-from typing import Tuple
+from typing import Tuple, Callable
 
 from ..config.config import ConfigHolder
-from ..config.dictionary_utils import nested_get, nested_place
-from .... import debug_mode
+from ..config.dictionaryUtils import nested_get, nested_place
+from .... import debug_mode, log
 from ....exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError,
-                            UnknownModelError, AttributeNotSetError)
-from .... import log
+                            UnknownModelError, AttributeNotSetError, ImproperPropertyHandling,
+                            OuterscopePropertySetError)
 
 
 class ModelHolder(ConfigHolder):
@@ -22,26 +22,23 @@ class ModelHolder(ConfigHolder):
 
     def __init__(self, model_name: str = None, replacement_config: dict = None, auto_build_inputs: bool = True):
 
+        # Setup parent class
+        super().__init__(replacement_config=replacement_config)
+
         # Pull out model information, check if it is a valid model name, then store it
         if model_name is None and 'model' in self.config:
             model_name = self.config['model']
 
         # Store model name information
-        self.model = model_name
-
-        # Setup parent class
-        super().__init__(replacement_config=replacement_config)
-
-        # Override any previously set variables
-        self.pyname += '_' + self.model
+        self._model = model_name
 
         # Attempt to find the model's function information
-        self.func = None
+        self._func = None
         # Some functions can support arrays and floats interchangeably. Others require separate functions.
         #    These functions should be stored separately.
-        self.func_array = None
+        self._func_array = None
         # If a separately defined function was defined then set this flag to True.
-        self.func_array_defined = False
+        self._func_array_defined = False
 
         # Functions may have separately inputs. These are stored as inputs or live inputs:
         #    inputs: tuple of constants passed to the self.func
@@ -74,26 +71,41 @@ class ModelHolder(ConfigHolder):
                 log.debug(f'Debug mode is on, but it appears that no debug calculation method has been implemented '
                           f'for {self.__class__.__name__}. Using regular calculate method.')
 
-        # Give calculate the same doc string as whatever is store in _calc (debug or regular)
-        if self._calc.__doc__ not in [None, '']:
-            self.calculate.__doc__ = self._calc.__doc__
+        # TODO: The below breaks when calculate is a method. Not sure if there is a solution:
+        #    Error: AttributeError: attribute '__doc__' of 'method' objects is not writable
+        # # Give calculate the same doc string as whatever is store in _calc (debug or regular)
+        # if self._calc.__doc__ not in [None, '']:
+        #     self.calculate.__doc__ = self._calc.__doc__
 
     def build_inputs(self):
         """ Builds the live and constant input tuples for the model's calculate function.
         """
+
+        # Try to find the provided model and load in its main function
         try:
-            self.func = self.known_models[self.model]
-            if self.model + '_array' in self.known_models:
-                self.func_array = self.known_models[self.model + '_array']
-                self.func_array_defined = True
-            else:
-                # No separate array function found. Try to use the regular float version
-                self.func_array = self.func
-                self.func_array_defined = False
-            self._constant_arg_names = self.known_model_const_args[self.model]
-            self._live_arg_names = self.known_model_live_args[self.model]
+            self._func = self.known_models[self.model]
         except KeyError:
-            raise UnknownModelError(f'Unknown model: {self.model} for {self.__class__.__name__}')
+            try:
+                self._func = self.known_models[self.model.lower()]
+            except KeyError:
+                log.error(f'Unknown model: "{self.model}" for {self.__class__.__name__}')
+                raise UnknownModelError(f'Unknown model: {self.model} for {self.__class__.__name__}')
+            else:
+                # Model has capitalization that does not match TidalPy
+                log.warning(f'Model "{self.model}" for {self.__class__.__name__} does not match TidalPy capitalization. '
+                            f'Changing to {self.model.lower()}.')
+                self._model = self.model.lower()
+
+        # Load in other related functionality
+        if self.model + '_array' in self.known_models:
+            self._func_array = self.known_models[self.model + '_array']
+            self._func_array_defined = True
+        else:
+            # No separate array function found. Try to use the regular float version
+            self._func_array = self.func
+            self._func_array_defined = False
+        self._constant_arg_names = self.known_model_const_args[self.model]
+        self._live_arg_names = self.known_model_live_args[self.model]
 
         # Pull out constant arguments
         self.inputs = self.build_args(self._constant_arg_names, parameter_dict=self.config, is_live_args=False)
@@ -147,10 +159,13 @@ class ModelHolder(ConfigHolder):
         if not is_live_args:
             # Constant Arguments
             if parameter_dict is None:
-                raise MissingArgumentError('Parameter configuration dictionary is required to build constant args.')
+                log.error(f'Parameter configuration dictionary is required to build constant model arguments.')
+                raise MissingArgumentError(f'Parameter configuration dictionary is required to build constant '
+                                           f'model arguments.')
 
             for arg_name in arg_names:
                 if arg_name not in parameter_dict:
+                    log.error(f'Parameter: {arg_name} is missing from configuration dictionary.')
                     raise ParameterMissingError(f'Parameter: {arg_name} is missing from configuration dictionary.')
                 args.append(parameter_dict[arg_name])
         else:
@@ -165,6 +180,39 @@ class ModelHolder(ConfigHolder):
                 args.append(getter_func)
 
         return tuple(args)
+
+    # State properties
+    @property
+    def model(self) -> str:
+        return self._model
+
+    @model.setter
+    def model(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def func(self) -> Callable:
+        return self._func
+
+    @func.setter
+    def func(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def func_array(self) -> Callable:
+        return self._func_array
+
+    @func_array.setter
+    def func_array(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def func_array_defined(self) -> bool:
+        return self._func_array_defined
+
+    @func_array_defined.setter
+    def func_array_defined(self, value):
+        raise ImproperPropertyHandling
 
 
 class LayerModelHolder(ModelHolder):
@@ -187,16 +235,10 @@ class LayerModelHolder(ModelHolder):
                  store_config_in_layer: bool = True, auto_build_inputs: bool = True):
 
         # Store layer and world information
-        self.layer = layer
-        self.world = None
-        self.layer_type = layer.type
-        world_name = 'Unknown'
+        self._layer = layer
+        self._world = None
         if 'world' in layer.__dict__:
             self.world = layer.world
-            world_name = self.world.name
-
-        # Update pyname
-        self.pyname += '_' + self.layer_type
 
         # The layer's type is used to pull out default parameter information
         self.default_config_key = self.layer_type
@@ -208,12 +250,11 @@ class LayerModelHolder(ModelHolder):
         try:
             config = nested_get(self.layer.config, self.model_config_key, raiseon_nolocate=True)
         except KeyError:
-            log(f"User provided no model information for [layer: {self.layer.name} in world: {world_name}]'s "
-                f"{self.__class__.__name__}, using defaults instead.", level='debug')
+            log.debug(f"User provided no model information for {self} ({self.layer}); using defaults instead.")
 
         if config is None and self.default_config is None:
-            raise ParameterMissingError(f"Config was not provided for [layer: {self.layer.name} in world: {world_name}]'s "
-                                        f"{self.__class__.__name__} and no defaults are set.")
+            log.error(f"Config not provided for {self} ({self.layer}); and no defaults are set.")
+            raise ParameterMissingError(f"Config not provided for {self} ({self.layer}); and no defaults are set.")
 
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
         super().__init__(model_name=model_name, replacement_config=config, auto_build_inputs=auto_build_inputs)
@@ -222,3 +263,32 @@ class LayerModelHolder(ModelHolder):
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then
             #    store the new config in the layer's config, overwriting any previous parameters.
             nested_place(self.config, self.layer.config, self.model_config_key, make_copy=False, retain_old_value=True)
+
+    # State properties
+    @property
+    def layer(self):
+        return self._layer
+
+    @layer.setter
+    def layer(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def world(self):
+        return self._world
+
+    @world.setter
+    def world(self, value):
+        raise ImproperPropertyHandling
+
+    # Outer-scope Properties
+    @property
+    def layer_type(self):
+        return self.layer.type
+
+    @layer_type.setter
+    def layer_type(self, value):
+        raise OuterscopePropertySetError
+
+    def __str__(self):
+        return f'{self.__class__.__name__} ({self.layer})'

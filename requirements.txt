@@ -6,8 +6,7 @@ pytest>=5.2.2
 scipy>=1.2.1
 matplotlib>=2.0.0
 json5>=0.7.0
-# TODO: Once numba v 0.44 is released on anaconda then it should be switched to that as we will want to use the dict() support
-numba>=0.43.0
+numba>=0.44.0
 send2trash>=1.5.0
 pathos
 git+git://github.com/geodynamics/burnman.git@master#egg=burnman

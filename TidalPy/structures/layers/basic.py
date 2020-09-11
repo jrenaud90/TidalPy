@@ -4,14 +4,16 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
-from TidalPy.utilities.types import NoneType
 from .defaults import layer_defaults
 from ..physical import PhysicalObjSpherical
-from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError, MissingArgumentError
+from ... import log
+from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError, MissingArgumentError, \
+    ConfigPropertyChangeError
+from ...utilities.types import NoneType
 
 if TYPE_CHECKING:
     from ..worlds import LayeredWorld
-    from . import LayerTypes
+    from . import LayerType
 
 
 class LayerBase(PhysicalObjSpherical):
@@ -29,45 +31,48 @@ class LayerBase(PhysicalObjSpherical):
         self.type = layer_config['type']
         self.default_config = self.default_config[self.type]
 
+        # Key Attributes
+        self.name = layer_name
+        self._layer_index = layer_index
+        self._world = world
+
         # Setup Physical Layer Geometry
         super().__init__(layer_config)
 
         # State properties
-        self._layer_index = layer_index
-        self._world = world
         self._gravity = None
         self._density = None
         self._pressure = None
         self._temperature = None
+        self._is_top_layer = None
 
         # Set up a pressure that will persist if the layer's state is cleared
         #    It is None in the case of the base layer class
         self._persistent_pressure = None
 
         # Other attributes
-        self.name = layer_name
         self.material_name = self.config['material']
         self.tidal_scale = 1.
         self.heat_sources = None
 
         # Flags
-        self.is_top_layer = False
-        self.is_tidal = False
+        self._is_tidal = None
+        self._use_tidal_vol_frac = None
 
+        log.debug(f'Creating: {self}.')
         if initialize:
             self.reinit(initial_init=True)
 
     def reinit(self, initial_init: bool = False):
 
-        super().reinit()
+        super().reinit(initial_init=initial_init)
 
         if not initial_init:
             self.clear_state()
 
         # Load in configurations
-        if self.config['use_tvf']:
-            self.tidal_scale = self.volume / self.world.volume
-        self.is_tidal = self.config['is_tidally_active']
+        self._is_tidal = self.config['is_tidally_active']
+        self._use_tidal_vol_frac = self.config['use_tidal_vol_frac']
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.):
 
@@ -78,12 +83,19 @@ class LayerBase(PhysicalObjSpherical):
             else:
                 raise MissingArgumentError
 
-        if self.layer_below is not None:
+        if self.layer_below is None:
+            layer_below_mass = 0.
+        else:
             layer_below_mass = self.layer_below.mass
 
         super().set_geometry(radius, mass, thickness, mass_below=layer_below_mass)
 
+        if self.use_tidal_vol_frac:
+            self.tidal_scale = self.volume / self.world.volume
+
     def clear_state(self, clear_pressure: bool = False):
+
+        log.debug(f'Clear state called for {self}. Clear pressure = {clear_pressure}.')
 
         super().clear_state()
 
@@ -114,7 +126,7 @@ class LayerBase(PhysicalObjSpherical):
         raise ImproperPropertyHandling('Layer index can not be changed after planet has been initialized.')
 
     @property
-    def world(self) -> 'GeometricWorld':
+    def world(self) -> 'LayeredWorld':
         return self._world
 
     @world.setter
@@ -136,27 +148,50 @@ class LayerBase(PhysicalObjSpherical):
     @pressure.setter
     def pressure(self, value):
         self.set_pressure(value)
+    @property
+    def is_top_layer(self) -> bool:
+        return self._is_top_layer
 
+    @is_top_layer.setter
+    def is_top_layer(self, value):
+        raise ImproperPropertyHandling
+
+    # Configuration Properties
+    @property
+    def is_tidal(self) -> bool:
+        return self._is_tidal
+
+    @is_tidal.setter
+    def is_tidal(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def use_tidal_vol_frac(self) -> bool:
+        return self._use_tidal_vol_frac
+
+    @use_tidal_vol_frac.setter
+    def use_tidal_vol_frac(self, value):
+        raise ConfigPropertyChangeError
 
     # Outer-scope properties
     # # World Class
     @property
-    def layer_below(self) -> Union['LayerTypes', NoneType]:
+    def layer_below(self) -> Union['LayerType', NoneType]:
         if self.layer_index == 0:
             return None
         else:
-            return self.world.layers_by_index[self.layer_index - 1]
+            return self.world.layers[self.layer_index - 1]
 
     @layer_below.setter
     def layer_below(self, value):
         raise OuterscopePropertySetError
 
     @property
-    def layer_above(self) -> Union['LayerTypes', NoneType]:
+    def layer_above(self) -> Union['LayerType', NoneType]:
         if self.layer_index == self.world.num_layers - 1:
             return None
         else:
-            return self.world.layers_by_index[self.layer_index + 1]
+            return self.world.layers[self.layer_index + 1]
 
     @layer_above.setter
     def layer_above(self, value):
@@ -175,9 +210,9 @@ class LayerBase(PhysicalObjSpherical):
     def __str__(self):
 
         if self.world is None:
-            text = f'[Layer {self.name.title()}:{self.type.title()} no world]'
+            text = f'[Layer {self.name} ({self.type}) no world]'
         else:
-            text = f'[Layer {self.name.title()}:{self.type.title()} in {self.world}]'
+            text = f'[Layer {self.name} ({self.type}) in {self.world} (loc={self.layer_index})]'
         return text
 
     def __repr__(self):

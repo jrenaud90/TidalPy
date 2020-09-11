@@ -88,7 +88,7 @@ def convection(delta_temp: float,
     """ Calculates cooling by a parameterized convection model via the Rayleigh number - NonArrays Only
 
     !TPY_args live: self.viscosity, self.thermal_conductivity, self.thermal_diffusivity, self.thermal_expansion, self.thickness, self.gravity, self.density_bulk
-    !TPY_args const: gravity, density, convection_alpha, convection_beta, critical_rayleigh
+    !TPY_args const: convection_alpha, convection_beta, critical_rayleigh
 
     Parameters
     ----------
@@ -168,7 +168,7 @@ def convection_array(delta_temp: np.ndarray,
     """ Calculates cooling by a parameterized convection model via the Rayleigh number - Arrays Only
 
     !TPY_args live: self.viscosity, self.thermal_conductivity, self.thermal_diffusivity, self.thermal_expansion, self.thickness, self.gravity, self.density_bulk
-    !TPY_args const: gravity, density, convection_alpha, convection_beta, critical_rayleigh
+    !TPY_args const: convection_alpha, convection_beta, critical_rayleigh
 
     Parameters
     ----------
@@ -241,7 +241,6 @@ def conduction(delta_temp: float,
         the surface temperature.
 
     !TPY_args live: self.thermal_conductivity, self.thickness
-    !TPY_args const: gravity, density, convection_alpha, convection_beta, critical_rayleigh
 
     Parameters
     ----------
@@ -284,7 +283,6 @@ def conduction_array(delta_temp: np.ndarray,
         the surface temperature.
 
     !TPY_args live: self.thermal_conductivity, self.thickness
-    !TPY_args const: gravity, density, convection_alpha, convection_beta, critical_rayleigh
 
     Parameters
     ----------

@@ -29,7 +29,7 @@ def test_eccentricity_func():
 
     for trunc_lvl, funcs_by_orderl in eccentricity_truncations.items():
 
-        # As of 0.2, the max l = 7
+        # As of TidalPy v0.2.1, the max l = 7
         for order_l in (2, 3, 6):
 
             # Get the eccentricity function at this order l

@@ -3,8 +3,8 @@ from types import ModuleType
 from typing import Callable, Tuple, Dict, Union, Any
 from warnings import warn
 
-from .functional_utils import is_function, parse_model_docstring
-from ..config.dictionary_utils import nested_get
+from .functionalUtils import is_function, parse_model_docstring
+from ..config.dictionaryUtils import nested_get
 
 
 def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()) -> \

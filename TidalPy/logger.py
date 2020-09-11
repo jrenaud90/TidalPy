@@ -1,12 +1,10 @@
+import logging
 import os
 import sys
-from . import __version__
 from datetime import datetime
-from typing import Union
-import logging
 
 from TidalPy import config
-from .exceptions import IncorrectArgumentType
+from . import __version__
 
 LOGGING_LEVELS = {
     # Critical: A serious error, indicating that the program itself may be unable to continue running.

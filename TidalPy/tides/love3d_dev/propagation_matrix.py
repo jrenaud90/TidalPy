@@ -1,5 +1,5 @@
-from scipy.constants import G, pi
 import numpy as np
+from scipy.constants import G, pi
 
 
 #@njit

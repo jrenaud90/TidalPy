@@ -42,11 +42,11 @@ class Rheology(LayerConfigHolder):
             ComplexCompliance(self.layer, self, store_config_in_layer=self.store_config_in_layer)
 
         # Report information about the models loaded
-        log(f"Rheology loaded into {self.layer}:\n"
-            f"    Solid Viscosity:    {self.viscosity_model.model}\n"
-            f"    Liquid Viscosity:   {self.liquid_viscosity_model.model}\n"
-            f"    Partial Melting:    {self.partial_melting_model.model}\n"
-            f"    Complex Compliance: {self.complex_compliance_model.model}", level='info')
+        log.debug(f"Rheology loaded into {self.layer}:\n"
+                  f"\tSolid Viscosity:     {self.viscosity_model.model}\n"
+                  f"\tLiquid Viscosity:    {self.liquid_viscosity_model.model}\n"
+                  f"\tPartial Melting:     {self.partial_melting_model.model}\n"
+                  f"\tComplex Compliance:  {self.complex_compliance_model.model}")
 
     def clear_state(self):
 

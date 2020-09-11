@@ -1,11 +1,11 @@
 from typing import Union
 
 from .basic import BaseWorld
+from .burnman import BurnManWorld
 from .gas import GasGiantWorld
+from .layered import LayeredWorld
 from .stellar import StarWorld
 from .tidal import TidalWorld
-from .layered import LayeredWorld
-from .burnman import BurnManWorld
 
 GasStarWorldType = Union[GasGiantWorld, StarWorld]
 BurnManType = BurnManWorld

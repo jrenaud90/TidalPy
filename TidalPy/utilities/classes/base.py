@@ -6,6 +6,3 @@ class TidalPyClass:
     """
 
     tidalpy_version = version
-
-    def __init__(self):
-        self.pyname = f'{self.__class__.__name__}'

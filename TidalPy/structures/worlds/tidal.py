@@ -3,7 +3,7 @@ from typing import Union
 from .basic import BaseWorld
 from ...exceptions import IncorrectAttributeType, ConfigPropertyChangeError, OuterscopePropertySetError
 from ...rheology.complexCompliance.compliance_models import fixed_q, fixed_q_array
-from ...tides.tides import SimpleTides
+from ...tides import SimpleTides
 from ...utilities.types import NoneType
 
 
@@ -40,9 +40,9 @@ class TidalWorld(BaseWorld):
         if initialize:
             self.reinit(initial_init=True, setup_simple_tides=True)
 
-    def reinit(self, initial_init: bool = False, setup_simple_tides: bool = True):
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = True):
 
-        super().reinit(initial_init)
+        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry)
 
         # Load in configurations
         self._is_spin_sync = self.config['force_spin_sync']

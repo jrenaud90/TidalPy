@@ -174,6 +174,9 @@ class UnknownWorld(TidalPyWorldError):
 class UnknownWorldType(TidalPyWorldError):
     default_message = 'A world type was encountered that is either unknown, contains a typo, or is not yet implemented.'
 
+class TidalPyLayerError(TidalPyException):
+    default_message = 'There was a problem related to the functionality or building of a TidalPy layer.'
+
 # TidalPy Integration Error
 class TidalPyIntegrationException(TidalPyException):
     default_message = 'An issue arose during time integration.'
