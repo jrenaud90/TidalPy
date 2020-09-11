@@ -5,9 +5,6 @@ from typing import TYPE_CHECKING, Dict, Tuple
 
 import numpy as np
 
-from exceptions import (AttributeNotSetError, ImproperPropertyHandling, OuterscopePropertySetError,
-                        ConfigPropertyChangeError, FailedForcedStateUpdate,
-                        ImplementedBySubclassError, IncompatibleModelError)
 from .defaults import tide_defaults
 from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from ..eccentricityFuncs import EccenOutput
@@ -15,6 +12,9 @@ from ..inclinationFuncs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
 from ... import log
+from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, OuterscopePropertySetError,
+                           ConfigPropertyChangeError, FailedForcedStateUpdate,
+                           ImplementedBySubclassError, IncompatibleModelError)
 from ...utilities.classes.config.config import WorldConfigHolder
 from ...utilities.types import FloatArray, ComplexArray
 
