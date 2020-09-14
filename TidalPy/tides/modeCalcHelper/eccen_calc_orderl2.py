@@ -234,3 +234,26 @@ def eccentricity_truncation_20_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
     }
 
     return result_by_orderl
+
+@njit(cacheable=True)
+def eccentricity_truncation_22_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+    """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
+
+    Truncation level = 22
+    Max Supported l = 2
+
+    Parameters
+    ----------
+    eccentricity : FloatArray
+        Orbital Eccentricity
+    Returns
+    -------
+    result_by_orderl : Dict[int, EccenOutput]
+        Eccentricity function G^2_lpq truncated. Stored by order-l.
+    """
+
+    result_by_orderl = {
+        2: orderl2.eccentricity_funcs_trunc22(eccentricity)
+    }
+
+    return result_by_orderl

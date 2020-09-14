@@ -17,11 +17,16 @@ def calc_bessel_beta(eccentricity, cutoff_power):
 
 @lru_cache(maxsize=500)
 def hansen_bessel(a, b, c, eccentricity, cutoff_power, loud=True, use_floats=False):
-
+    
     beta = calc_bessel_beta(eccentricity, cutoff_power)
+    if use_floats:
+        beta = beta.evalf()
 
-
-    outer_sum = 0
+    
+    if use_floats:
+        outer_sum = 0.
+    else:
+        outer_sum = 0
     p = 0
     terms = 0
     if loud:
@@ -35,20 +40,21 @@ def hansen_bessel(a, b, c, eccentricity, cutoff_power, loud=True, use_floats=Fal
 
         inner_sum = 0
         for h in range(0, p + 1):
-            coeff_1 = binomial_coeff(a + b + 1, p - h)
-            coeff_2 = binomial_coeff(a - b + 1, h)
-            bess = besselj_func(c - b + p - 2 * h, c * eccentricity, cutoff_power)
+            coeff_1 = binomial_coeff(a + b + 1, p - h, use_floats=use_floats)
+            coeff_2 = binomial_coeff(a - b + 1, h, use_floats=use_floats)
+            bess = besselj_func(c - b + p - 2 * h, c * eccentricity, cutoff_power, use_floats=use_floats)
             inner_sum += coeff_1 * coeff_2 * bess
             terms += 1
 
-        if use_floats:
-            inner_sum = inner_sum.evalf()
         outer_sum += inner_sum * (-beta)**p
+        if use_floats:
+            outer_sum = outer_sum.evalf()
 
         # If all of the terms are simply added then sympy has a real hard time taylor expanding at the end
         #    (very heavy computation time as cutoff_power > 10). To help with this, let us pick some interval where we
         #    stop the calculation and perform an early taylor expansion so that the number of terms does not grow so
         #    large for the final taylor series.
+        print(outer_sum)
         outer_sum = taylor(outer_sum, eccentricity, cutoff_power)
         if loud:
             num_left = ((cutoff_power + 1) - p) / progbar_max

@@ -14,6 +14,7 @@ from .orderl2 import eccentricity_funcs_trunc14 as eccentricity_funcs_l2_trunc14
 from .orderl2 import eccentricity_funcs_trunc16 as eccentricity_funcs_l2_trunc16
 from .orderl2 import eccentricity_funcs_trunc18 as eccentricity_funcs_l2_trunc18
 from .orderl2 import eccentricity_funcs_trunc20 as eccentricity_funcs_l2_trunc20
+from .orderl2 import eccentricity_funcs_trunc22 as eccentricity_funcs_l2_trunc22
 
 from .orderl3 import eccentricity_funcs_trunc2 as eccentricity_funcs_l3_trunc2
 from .orderl3 import eccentricity_funcs_trunc4 as eccentricity_funcs_l3_trunc4

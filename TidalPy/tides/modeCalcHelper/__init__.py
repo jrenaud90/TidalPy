@@ -83,6 +83,9 @@ eccentricity_functions_lookup = {
         5: eccen_calc_orderl5.eccentricity_truncation_20_maxl_5,
         6: eccen_calc_orderl6.eccentricity_truncation_20_maxl_6,
         7: eccen_calc_orderl7.eccentricity_truncation_20_maxl_7
+    },
+    22: {
+        2: eccen_calc_orderl2.eccentricity_truncation_22_maxl_2
     }
 }
 

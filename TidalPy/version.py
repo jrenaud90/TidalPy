@@ -24,7 +24,7 @@ with open(os.path.join(tidalpy_loc, 'version.txt'), 'r') as version_file:
             version = line.split('version =')[-1].strip()
             break
 
-_vers_major, _vers_minor, _vers_hotfix = version.split('.')
+_vers_major, _vers_minor, _vers_hotfix, _vers_dev_cycle = version.split('.')
 compatibility_signature = _vers_major + _vers_minor
 
 def is_compatible(test_version: str):

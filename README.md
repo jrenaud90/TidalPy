@@ -48,13 +48,11 @@ The current version of TidalPy is in Alpha state and will receive many updates o
         * Since TidalPy is in early development, it is recommended you check for updates regularly. Updates will **not** download automatically. Making a backup of the TidalPy install directory is a good idea in case your studies break with the new version.
 * TidalPy source code should now be in your directory but Python does not know this, so using `import TidalPy` will only work if performed from a terminal that has been navigated to this directory.
 * To install TidalPy so it can be accessed from the terminal:
-    * Using a terminal, navigate to the TidalPy directory that contains `setup.py`.
-    * Run `pip install -r requirements.txt`
-        * This will ensure that your python installation (Anaconda or regular) has the required third party packages that TidalPy requires.
-        * **Before you run this:** You might consider starting a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
-    * After the third party packages install successfully, you can now install TidalPy as an editable package.
-    * Ensure you are still navigated to the same directory and then run `pip install -e .`.
+    * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then run `pip install -v -e .`.
         * That trailing period is important, don't leave it out!
+        * The `-v` is optional but recommended: this allows TidalPy to show the user messages during installation.
+        * **Before you run this:** You might consider starting a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
+        * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages that TidalPy requires.
 * Test your install
     * Navigate to the TidalPy directory that contains `setup.py` in a terminal.
     * Ensure you have `pytest` package installed (`conda install pytest` or `pip install pytest`).

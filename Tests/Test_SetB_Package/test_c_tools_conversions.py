@@ -4,6 +4,8 @@ import math
 import numpy as np
 from scipy.constants import G
 
+print(G)
+
 from TidalPy.exceptions import BadValueError
 from TidalPy.tools.conversions import sec2myr, \
     myr2sec, m2Au, Au2m, days2rads, orbital_motion2semi_a, semi_a2orbital_motion, rads2days
@@ -102,9 +104,9 @@ def test_semi_a2orbital_motion():
 
     # Build Arrays for testing
     earth_distance = 1.49597887e11  # meters
-    earth_orb_motion = 1.9909661055869662e-07  # radians second-1
     earth_mass = 5.972e24  # kg
     sun_mass = 1.988435e30  # kg
+    earth_orb_motion = (G * (earth_mass + sun_mass) / earth_distance**3)**(1/2)  # radians second-1
 
     zero_array = np.zeros(10, dtype=np.float)
     distance_array = earth_distance * np.ones(10, dtype=np.float)
@@ -113,7 +115,7 @@ def test_semi_a2orbital_motion():
     # Test semi_a2orbital_motion - Floats
     with pytest.raises(ZeroDivisionError) as e_info:
         _ = semi_a2orbital_motion(0., sun_mass, earth_mass)
-    assert semi_a2orbital_motion(earth_distance, sun_mass, earth_mass) == earth_orb_motion
+    np.testing.assert_almost_equal(semi_a2orbital_motion(earth_distance, sun_mass, earth_mass), earth_orb_motion)
     assert math.isnan(semi_a2orbital_motion(-earth_distance, sun_mass, earth_mass))
 
     # Test semi_a2orbital_motion - Arrays
@@ -124,8 +126,8 @@ def test_semi_a2orbital_motion():
     # Test orbital_motion2semi_a - Floats
     with pytest.raises(ZeroDivisionError) as e_info:
         _ = orbital_motion2semi_a(0., sun_mass, earth_mass)
-    assert round(1.e3 * orbital_motion2semi_a(earth_orb_motion, sun_mass, earth_mass)) / 1.e3 == earth_distance
-    assert round(1.e3 * orbital_motion2semi_a(-earth_orb_motion, sun_mass, earth_mass)) / 1.e3 == earth_distance
+    np.testing.assert_almost_equal(round(orbital_motion2semi_a(earth_orb_motion, sun_mass, earth_mass) * 1.e3) / 1.e3, earth_distance)
+    np.testing.assert_almost_equal(round(orbital_motion2semi_a(-earth_orb_motion, sun_mass, earth_mass) * 1.e3) / 1.e3, earth_distance)
 
     # Test orbital_motion2semi_a - Arrays
     assert np.all(np.isinf(orbital_motion2semi_a(zero_array, sun_mass, earth_mass)))

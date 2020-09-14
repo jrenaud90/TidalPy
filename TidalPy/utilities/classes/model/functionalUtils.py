@@ -2,8 +2,13 @@ from inspect import isfunction
 from typing import List, Tuple, Callable
 
 from numba import njit as real_njit
-from numba.array_analysis import MAP_TYPES
-from numba.targets.registry import CPUTarget, CPUDispatcher
+try:
+    from numba.array_analysis import MAP_TYPES
+    from numba.targets.registry import CPUTarget, CPUDispatcher
+except (AttributeError, ImportError, ModuleNotFoundError):
+    # At some point after numba v0.45 numba experienced a big refactoring
+    from numba.parfors.array_analysis import MAP_TYPES
+    from numba.core.registry import CPUTarget, CPUDispatcher
 
 from ...performance.numba import njit as tpy_njit
 from ....exceptions import ModelException
