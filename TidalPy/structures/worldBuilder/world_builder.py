@@ -6,7 +6,7 @@ import json5
 from .config_handler import get_world_configs, WORLD_CONFIG_LOC, clean_world_config
 from ..worlds import world_types, BurnManWorld
 from ... import log
-from ...burnman_interface.build import build_planet as build_bm_planet
+from ...burnman_interface.build import build_burnman_world
 from ...exceptions import UnknownWorld, UnknownWorldType, TidalPyWorldError, NotYetImplementedError, \
     MissingArgumentError
 
@@ -84,7 +84,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
                   f'Now attempting to build the BurnMan class for the world.')
 
         # Build BurnMan world first
-        burnman_layers, burnman_world = build_bm_planet(world_config)
+        burnman_world, burnman_layers = build_burnman_world(world_config)
         log.debug(f'Burnman world building completed!')
         world = WorldClass(world_config, world_name, burnman_world, burnman_layers)
 

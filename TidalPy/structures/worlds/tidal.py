@@ -40,9 +40,26 @@ class TidalWorld(BaseWorld):
         if initialize:
             self.reinit(initial_init=True, setup_simple_tides=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = True):
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
+               setup_simple_tides: bool = True):
+        """ Initialize or Reinitialize the world based on changes to its configurations.
 
-        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry)
+        This must be called at least once before an instance can be used. The constructor will automatically make an
+            initial call to reinit unless told to not to.
+
+        Parameters
+        ----------
+        initial_init : bool = False
+            Must be set to `True` if this is the first time this function has been called.
+        reinit_geometry : bool = True
+            If `True`, the initializer will automatically call the `set_geometry()` method.
+        set_by_burnman : bool = False
+            Set to `True` if called from a burnman world.
+        setup_simple_tides : bool = True
+            Set to `True` if a global CPL/CTL tidal calculation is desired.
+        """
+
+        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry, set_by_burnman=set_by_burnman)
 
         # Load in configurations
         self._is_spin_sync = self.config['force_spin_sync']
@@ -75,7 +92,6 @@ class TidalWorld(BaseWorld):
     @is_spin_sync.setter
     def is_spin_sync(self, value: bool):
         raise ConfigPropertyChangeError
-
 
     # State properties
     @property

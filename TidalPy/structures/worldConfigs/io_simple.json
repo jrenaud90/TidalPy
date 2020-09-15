@@ -1,0 +1,25 @@
+{
+    "name": "Io_Simple",
+    "type": "layered",
+    "radius": 1821.49e3,
+    "orbital_period": 1.769,
+    "eccentricity": 0.0041,
+    "spin_period": 1.769,
+    "albedo": 0.63,
+    "force_spin_sync": true,
+    "layers": {
+        "Core": {
+            "type": "iron",
+            "is_tidal": false,
+            "radius": 810.0e3,
+            "density": 5200.0
+        },
+        "Mantle": {
+            "type": "rock",
+            "is_tidal": true,
+            "radius": 1821.49e3,
+            "surface_temperature": 100.0,
+            "density": 3200.0
+        }
+    }
+}

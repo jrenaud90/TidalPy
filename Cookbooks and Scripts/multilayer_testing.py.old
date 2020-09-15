@@ -2,14 +2,14 @@ import numpy as np
 from scipy.constants import G
 import matplotlib.pyplot as plt
 
-# from TidalPy.planets import build_planet
+# from TidalPy.planets import build_burnman_world
 
 # Computation number
 N = 10
 
 # Eventually we can just build the planets with real materials from BurnMan...
-# triton = build_planet('Triton')
-# neptune = build_planet('Neptune')
+# triton = build_burnman_world('Triton')
+# neptune = build_burnman_world('Neptune')
 
 # ...But, for testing, lets keep it simple and build the planet inside this script...
 

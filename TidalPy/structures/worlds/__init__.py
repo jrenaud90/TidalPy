@@ -2,20 +2,23 @@ from typing import Union
 
 from .basic import BaseWorld
 from .burnman import BurnManWorld
-from .gas import GasGiantWorld
+from .gas import GasGiantWorld, GasGiantLayeredWorld
 from .layered import LayeredWorld
 from .stellar import StarWorld
 from .tidal import TidalWorld
 
 GasStarWorldType = Union[GasGiantWorld, StarWorld]
-BurnManType = BurnManWorld
-TidalWorldType = Union[GasStarWorldType, BurnManType, TidalWorld, LayeredWorld]
+BurnmanWorldType = BurnManWorld
+LayeredWorldType = Union[BurnManWorld, LayeredWorld, GasGiantLayeredWorld]
+TidalWorldType = Union[GasStarWorldType, BurnmanWorldType, TidalWorld, LayeredWorld]
 
-# FIXME: Add all world types here:
 world_types = {
     'star': StarWorld,
     'gas': GasGiantWorld,
     'gas_giant': GasGiantWorld,
+    'gas_layered': GasGiantLayeredWorld,
+    'layered_gas_giant': GasGiantLayeredWorld,
+    'layered_ice_giant': GasGiantLayeredWorld,
     'ice_giant': GasGiantWorld,
     'simple_tide': TidalWorld,
     'layered': LayeredWorld,

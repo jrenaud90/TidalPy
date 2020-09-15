@@ -1,14 +1,16 @@
 world_defaults = {
-    'base'    : {
+    'base'        : {
         'name'                        : 'unknown_world_base_type',
         'store_tides_config_in_world' : True,
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',  # Options are no_eccentricity, williams, or mendez
         'emissivity'                  : 0.9,
         'albedo'                      : 0.3,
-        'use_real_moi'                : True
+        'use_real_moi'                : True,
+        'surface_pressure'            : 0.,
+        'slices'                      : 40,
     },
-    'simple_tidal'   : {
+    'simple_tidal': {
         'name'                        : 'unknown_world_simple_tide_type',
         'store_tides_config_in_world' : True,
         'force_spin_sync'             : True,
@@ -20,9 +22,11 @@ world_defaults = {
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
         'use_real_moi'                : True,
-        'tides_on'                    : True
+        'tides_on'                    : True,
+        'surface_pressure'            : 0.,
+        'slices'                      : 40,
     },
-    'gas_giant': {
+    'gas_giant'   : {
         'name'                        : 'unknown_world_gas_giant_type',
         'store_tides_config_in_world' : True,
         'force_spin_sync'             : True,
@@ -34,9 +38,11 @@ world_defaults = {
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
         'use_real_moi'                : True,
-        'tides_on'                    : True
+        'tides_on'                    : True,
+        'surface_pressure'            : 0.,
+        'slices'                      : 40,
     },
-    'star'    : {
+    'star'        : {
         'name'                        : 'unknown_world_star_type',
         'store_tides_config_in_world' : True,
         'force_spin_sync'             : True,
@@ -48,10 +54,12 @@ world_defaults = {
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
         'use_real_moi'                : True,
-        'tides_on'                    : False
+        'tides_on'                    : False,
+        'surface_pressure'            : 0.,
+        'slices'                      : 40,
     },
-    'layered'   : {
-        'name'                        : 'unknown_world_thermal_type',
+    'layered'     : {
+        'name'                        : 'unknown_world_layered_type',
         'store_tides_config_in_world' : True,
         'force_spin_sync'             : True,
         'equilibrium_insolation_model': 'williams',
@@ -62,6 +70,24 @@ world_defaults = {
         'orbital_truncation_level'    : 2,
         'tidal_order_l'               : 2,
         'use_real_moi'                : True,
-        'tides_on'                    : False
+        'tides_on'                    : False,
+        'surface_pressure'            : 0.,
+        'slices'                      : None
+    },
+    'burnman'     : {
+        'name'                        : 'unknown_world_burnman_type',
+        'store_tides_config_in_world' : True,
+        'force_spin_sync'             : True,
+        'equilibrium_insolation_model': 'williams',
+        'emissivity'                  : 0.9,
+        'albedo'                      : 0.3,
+        'quality_factor'              : 10.,
+        'fixed_time_lag'              : 1.,
+        'orbital_truncation_level'    : 2,
+        'tidal_order_l'               : 2,
+        'use_real_moi'                : True,
+        'tides_on'                    : False,
+        'surface_pressure'            : 0.,
+        'slices'                      : None
     }
 }

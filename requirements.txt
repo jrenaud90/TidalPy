@@ -1,12 +1,11 @@
 setuptools>=40.9.0
-pip>=19.0.3
+pip>=20.2.2
 numpy>=1.16.3
-dill>=0.2.9
+dill>=0.3.2
 pytest>=5.2.2
 scipy>=1.2.1
 matplotlib>=2.0.0
 json5>=0.7.0
 numba>=0.44.0
-send2trash>=1.5.0
 pathos
 git+git://github.com/geodynamics/burnman.git@master#egg=burnman

@@ -1,9 +1,9 @@
 partial_melt_defaults = {
-    'ice': {
-        'model'                 : 'off',
-        'solidus'               : 270.,
-        'liquidus'              : 273.15,
-        'liquid_shear'          : 1.e-5
+    'ice' : {
+        'model'       : 'off',
+        'solidus'     : 270.,
+        'liquidus'    : 273.15,
+        'liquid_shear': 1.e-5
     },
     'rock': {
         'model'                 : 'henning',
@@ -23,10 +23,9 @@ partial_melt_defaults = {
         'hn_shear_falloff_slope': 700.0
     },
     'iron': {
-        'model'                 : 'off',
-        'solidus'               : 4000.,
-        'liquidus'              : 5000.,
-        'liquid_shear'          : 1.e-5
+        'model'       : 'off',
+        'solidus'     : 4000.,
+        'liquidus'    : 5000.,
+        'liquid_shear': 1.e-5
     }
 }
-

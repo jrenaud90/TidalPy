@@ -90,6 +90,11 @@ class ImproperPropertyHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
 
 
+class ImproperGeometryPropertyHandling(ImproperPropertyHandling):
+    default_message = 'The attribute you are attempting to set must be set by the set_geometry method ' \
+                      'or in the configurations.'
+
+
 class ConfigPropertyChangeError(ImproperPropertyHandling):
     default_message = 'Attempted to change a configuration attribute. These must be changed in the planet ' \
                       'configuration followed by a call to reinit.'

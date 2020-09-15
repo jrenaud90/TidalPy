@@ -16,10 +16,10 @@ volume = (4. / 3.) * np.pi * cancri_star_config['radius']**3
 surf_area = 4. * np.pi * cancri_star_config['radius']**2
 surf_gravity = G * cancri_star_config['mass'] / cancri_star_config['radius']**2
 
-def value_check(built_world, non_numerical: bool = False):
+def value_check(built_world, check_numerical: bool = True):
 
     assert built_world.name == '55-Cancri'
-    if not non_numerical:
+    if check_numerical:
         np.testing.assert_approx_equal(built_world.mass, cancri_star_config['mass'])
         np.testing.assert_approx_equal(built_world.radius, cancri_star_config['radius'])
         np.testing.assert_approx_equal(built_world.volume, volume)
@@ -62,11 +62,17 @@ def test_build_star_from_file_loaded_config():
     # Test that its attributes match expectations
     assert value_check(cancri_star)
 
-def test_build_star_from_prebuilt():
+def test_build_star_from_prebuilt_config():
 
     # Test loading a star from a pre-built configuration file
     cancri_star = TidalPy.build_world('55-Cancri')
 
     # The pre-built config may not have the same values as the ones used in this file so we will only perform
     #    non-numerical checks.
-    assert value_check(cancri_star, non_numerical=True)
+    assert value_check(cancri_star, check_numerical=False)
+
+def test_paint_star():
+
+    # This will test the slicing features of the worlds, as well as the painting graphics tool
+    cancri_star = TidalPy.build_world('55-Cancri')
+    assert cancri_star.paint(auto_show=False)

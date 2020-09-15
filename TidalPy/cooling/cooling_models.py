@@ -40,7 +40,7 @@ def off(delta_temp: float, layer_thickness: float) -> CoolingOutputTypeFloat:
 
     # Values to mimic convection that is turned off
     rayleigh = 0.
-    nusselt = 0.
+    nusselt = 1.
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
@@ -76,7 +76,7 @@ def off_array(delta_temp: np.ndarray, layer_thickness: float) -> CoolingOutputTy
 
     # Values to mimic convection that is turned off
     rayleigh = np.zeros_like(cooling_flux)
-    nusselt = np.zeros_like(cooling_flux)
+    nusselt = np.ones_like(cooling_flux)
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
@@ -270,7 +270,7 @@ def conduction(delta_temp: float,
 
     # Values to mimic convection that is turned off
     rayleigh = 0.
-    nusselt = 0.
+    nusselt = 1.
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
@@ -312,7 +312,7 @@ def conduction_array(delta_temp: np.ndarray,
 
     # Values to mimic convection that is turned off
     rayleigh = np.zeros_like(cooling_flux)
-    nusselt = np.zeros_like(cooling_flux)
+    nusselt = np.ones_like(cooling_flux)
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 

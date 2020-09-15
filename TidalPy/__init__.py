@@ -2,7 +2,7 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import logger
+    pass
 
 # Initial Runtime
 init_time = time.time()
@@ -38,7 +38,7 @@ reinit()
 #    Performance / Basic functionality
 from .utilities.performance import clear_cache
 #    Graphics
-from .graphics import cmaps
+from .utilities.graphics import cmaps
 #    Physics
 
 #    OOP

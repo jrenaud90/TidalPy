@@ -1,8 +1,12 @@
+import os
 import warnings
 import subprocess
 
 from setuptools import setup
 
+import pathlib
+
+SETUP_FILE_PATH = pathlib.Path(__file__).parent.absolute()
 
 CLASSIFIERS = """\
 Development Status :: 0 - Alpha
@@ -19,6 +23,13 @@ Topic :: Software Development
 Topic :: Scientific/Engineering
 Operating System :: Microsoft :: Windows
 """
+
+version = None
+with open('version.txt', 'r') as version_file:
+    for line in version_file:
+        if 'version =' in line:
+            version = line.split('version =')[-1].strip()
+            break
 
 # TODO: Check TidalPy's ability to run on other operating systems. Add the following to the above if things go well.
 #    Operating System :: POSIX
@@ -51,52 +62,71 @@ def get_requirements(remove_links=True):
                 requirements_.remove(requirement)
     return requirements_
 
+def install_git():
 
-requirements = get_requirements(remove_links=True)
-requirements.append('burnman>0.9.0')
-# TODO: With changes to pip 19, I can't find a way to have setup install the correct version of burnman.
-#    Instead you must call pip install -r requirements.txt before running the regular setup.
+    # The released version of BurnMan on PyPi is seemingly broken (version 0.9). For now we need to pull directly from
+    #    github and install BurnMan that way.
+    # TODO: What if the user does not have pip? Add a sys.arg to main installer that allows user to do these extra steps if they have pip?
+    print('Installing third party packages that must come from git...')
+    git_require_txt = os.path.join(SETUP_FILE_PATH, 'git_requirements.txt')
+    res = subprocess.run(f'pip install -r git_requirements.txt')
+    print('Done!')
 
-version = None
-with open('version.txt', 'r') as version_file:
-    for line in version_file:
-        if 'version =' in line:
-            version = line.split('version =')[-1].strip()
-            break
+    return True
+
+def install_other(force_conda: bool = False):
+
+    all_install = False
+    try:
+        print('Installing third party packages using Conda...')
+        conda_require_txt = os.path.join(SETUP_FILE_PATH, 'conda_requirements.txt')
+        res = subprocess.run(f'conda install --file {conda_require_txt}')
+    except Exception as e:
+        print('Conda install failed.')
+        if force_conda:
+            raise e
+        print('Will try to install both conda and non-conda packages using pip...')
+        all_require_txt = os.path.join(SETUP_FILE_PATH, 'requirements.txt')
+        res = subprocess.run(f'pip install -r {all_require_txt}')
+        all_install = True
+
+    return all_install
 
 def setup_tidalpy(force_conda: bool = False):
 
     print('Installing TidalPy!')
     continue_with_setup = True
 
-    ## The below commented out section was the previous installation pipeline. It looks like it is no longer required.
-    ##    But, I want to look into how conda install works for non-conda packages.
+    # The below commented out section was the previous installation pipeline. It looks like it is no longer required.
+    #    But, I want to look into how conda install works for non-conda packages.
     # Install third party requirements
-    # print('Installing third party packages using Conda...')
-    # try:
-    #     subprocess.run('conda install --file conda_requirements.txt')
-    # except Exception as e:
-    #     print('Conda install failed.')
-    #     if force_conda:
-    #         raise e
-    #     print('Will try to install both conda and non-conda packages using pip...')
-    #
-    # print('Installing non-Conda packages via pip...')
-    # subprocess.run('pip install -r requirements.txt')
-    # print('Third party packages installed!')
 
     # The released version of BurnMan on PyPi is seemingly broken (version 0.9). For now we need to pull directly from
     #    github and install BurnMan that way.
-    print('Installing third party packages that must come from git...')
-    subprocess.run('pip install -r git_requirements.txt')
-    print('Done!')
+    git_installed = install_git()
+    if not git_installed:
+        raise Exception('Could not install git requirements.')
+
+    other_installed = install_other(force_conda=force_conda)
+    if not other_installed:
+        raise Exception('Could not install other packages.')
+
+    # Get long description
+    with open('README.md', 'r') as readme:
+        long_desc = readme.read()
 
     if continue_with_setup:
         print('Running main TidalPy setup.')
+
+        requirements = get_requirements(remove_links=True)
+        # FIXME: Even though burnman is installed above, leaving the line below uncommented causes an installation crash...
+        # requirements.append('burnman>0.9.0')
+
         setup(
                 name='TidalPy',
                 version=version,
                 description='Planetary Thermal and Tidal Evolution Software for Python',
+                long_description=long_desc,
                 url='http://github.com/jrenaud90/TidalPy',
                 download_url='http://github.com/jrenaud90/TidalPy',
                 project_urls={
@@ -126,4 +156,5 @@ def setup_tidalpy(force_conda: bool = False):
     return True
 
 if __name__ == '__main__':
+
     setup_tidalpy()

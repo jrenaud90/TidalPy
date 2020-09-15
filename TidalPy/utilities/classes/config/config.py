@@ -54,7 +54,6 @@ class ConfigHolder(TidalPyClass):
     def clear_state(self):
         """ Clear all state properties to None.
 
-
         Purposefully avoid clearing things set during initialization: This should not clear configurations, methods,
             or loaded functions. Instead it will reset properties like
             temperature, pressure, orbital frequency, etc.

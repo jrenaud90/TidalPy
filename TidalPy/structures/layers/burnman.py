@@ -15,20 +15,45 @@ if TYPE_CHECKING:
     from ..worlds import BurnManWorld
 
 
-class BurnManLayer(PhysicsLayer):
-    """
+class BurnmanLayer(PhysicsLayer):
 
+    """ BurnmanLayer
+    Layer object to store parameters calculated by the Burnman software. Additionally it contains properties and
+        functionality that matches the TidalPy `PhysicsLayer`.
+
+
+    See Also
+    --------
+    TidalPy.structures.layers.PhysicsLayer
     """
 
     layer_class = 'burnman'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'BurnManWorld', burnman_layer: burnman.Layer,
-                 layer_config: dict, initialize: bool = True):
+    def __init__(self, layer_name: str, layer_index: int, world: 'BurnManWorld', layer_config: dict,
+                 is_top_layer: bool, initialize: bool = True):
+        """ Burnman layer constructor
 
-        super().__init__(layer_name, layer_index, world, layer_config, initialize)
+        Parameters
+        ----------
+        layer_name : str
+            User-friendly name of layer.
+        layer_index : int
+            Location of layer within a world (0 indicates center-most).
+        world : LayeredWorldType
+            World instance where layer was initialized in.
+        layer_config : dict
+            Layer's user-provided configurations.
+        is_top_layer : bool
+            If `True`, this layer is the top-most layer.
+        initialize : bool = True
+            If `True`, then the Layer's reinit is called at the end of the constructor.
+        """
 
-        # BurnManLayer is built on the BurnMan API and layer system.
+        super().__init__(layer_name, layer_index, world, layer_config, is_top_layer, initialize=False)
+
+        # BurnmanLayer is built on the BurnMan API and layer system.
         #    Pull out BurnMan parameters
+        burnman_layer = self.world.bm_layers[layer_index]
         self._bm_layer = burnman_layer
         self._bm_material = burnman_layer.material
 
@@ -42,61 +67,38 @@ class BurnManLayer(PhysicsLayer):
                                                     configurations['burnman_interpolation_N'])
         self._interp_prop_data_lookup = dict()
 
-        # Build lookup tables
-        self._build_material_property_interpolation()
+        if initialize:
+            self.reinit(initial_init=initialize)
 
+            # Build lookup tables
+            self._build_material_property_interpolation()
 
-    def reinit(self, initial_init: bool = False, called_from_bm_layer: bool = True):
+    def reinit(self, initial_init: bool = False, set_by_burnman: bool = True, initialize_geometry: bool = False):
+        """ Reinitialize the physical object by pulling in any potentially new configurations
+
+        Parameters
+        ----------
+        initial_init : bool = False
+            Set to `True` for the first time an instance is created.
+        set_by_burnman : bool = False
+            Set to `True` if a Burnman layer/world constructor is calling reinit
+        initialize_geometry : bool = False
+            Set to `True` if the set_geometry method should be called from within reinit
+        """
 
         if initial_init:
-            # Setup layer's physical properties and geometry based on the BurnMan results
-            bm_radius = np.max(self.bm_layer.radii)
-            bm_thickness = bm_radius - np.min(self.bm_layer.radii)
-            bm_mass = self.bm_layer.mass
-            self.set_geometry(radius=bm_radius, mass=bm_mass, thickness=bm_thickness)
+            # Find how many slices
+            self._num_slices = len(self.bm_layer.radii)
 
             # Find which slice index is nearest to the middle of the layer (as determined by the radius/thickness)
-            self._bm_mid_index = find_nearest(self.bm_layer.radii, self.radius - (self.thickness / 2.))
+            thickness = self.bm_layer.thickness
+            self._bm_mid_index = find_nearest(self.bm_layer.radii, self.bm_layer.radii - (thickness / 2.))
 
-            # For BurnManLayer, assume everything is calculated by BurnMan.
-            #     Override some of the items set by the set_geometry method.
-            if configurations['burnman_interpolation_method'] == 'mid':
-                self._pressure = self.bm_layer.pressures[self._bm_mid_index]
-                self._density = self.bm_layer.density[self._bm_mid_index]
-                self._gravity = self.bm_layer.gravity[self._bm_mid_index]
-                self.interp_func = lambda array: array[self._bm_mid_index]
-            elif configurations['burnman_interpolation_method'] == 'avg':
-                self._pressure = np.average(self.bm_layer.pressures)
-                self._density = np.average(self.bm_layer.density)
-                self._gravity = np.average(self.bm_layer.gravity)
-                self.interp_func = np.average
-            elif configurations['burnman_interpolation_method'] == 'median':
-                self._pressure = np.median(self.bm_layer.pressures)
-                self._density = np.median(self.bm_layer.density)
-                self._gravity = np.median(self.bm_layer.gravity)
-                self.interp_func = np.median
-            else:
-                raise UnknownTidalPyConfigValue
-
-            # Set up a pressure that will persist if the layer's state is cleared
-            self._persistent_pressure = self.pressure
-
-            # Update state properties
-            #    Note: these are not actually accessible without using the protected getter.
-            #    Instead, the regular getter method pulls from the BurnMan layer directly (they have been inner-scoped)
-            #    These definitions below are set just so that the protected properties still hold a value.
-            self._temperature_outer = self.bm_layer.temperatures[-1]
-            self._temperature_inner = self.bm_layer.temperatures[0]
-            self._density_outer = self.bm_layer.density[-1]
-            self._density_inner = self.bm_layer.density[0]
-            self._gravity_outer = self.bm_layer.gravity[-1]
-            self._gravity_inner = self.bm_layer.gravity[0]
-            self._pressure_outer = self.bm_layer.pressures[-1]
-            self._pressure_inner = self.bm_layer.pressures[0]
+            # Setup geometry
+            self.set_geometry(radius=self.bm_layer.outer_radius, mass=self.bm_layer.mass, thickness=thickness)
 
         # Call the standard reinit for the physics layer
-        del called_from_bm_layer
-        super().reinit(initial_init, called_from_bm_layer=True)
+        super().reinit(initial_init, set_by_burnman=True, initialize_geometry=False)
 
     def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None,
                   force_update_strength: bool = True):
@@ -132,6 +134,133 @@ class BurnManLayer(PhysicsLayer):
             # Temperature and pressure will change the strength of the layer and all of its dependencies
             self.update_strength()
 
+    def set_geometry(self, radius: float = None, mass: float = None, thickness: float = None,
+                     mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True):
+        """ Calculates and sets the layer's physical parameters based on user provided input.
+
+        For a BurnmanLayer almost all of the geometry is set by the results of the burnman evaluation.
+
+        Assumptions
+        -----------
+        Spherical Geometry
+
+        Parameters
+        ----------
+        radius : float = None
+            Outer radius of object [m]
+        mass : float = None
+            Mass of object [kg]
+        thickness : float = None
+            Thickness of the object [m]
+        mass_below : float = 0.
+            Mass below this object (only applicable for shell-like structures)
+            Used in gravity and pressure calculations
+        update_state_geometry : bool = True
+            Update the class' state geometry
+        build_slices : bool = True
+            If True, method will attempt to calculate gravities, densities, etc. for each slice.
+
+        """
+
+        # Set the physical properties
+        self._radius = self.bm_layer.outer_radius
+        self._thickness = self.bm_layer.thickness
+        self._radius_middle = self.radius - (self.thickness / 2.)
+        self._radius_inner = self.radius - self.thickness
+        self._volume = (4. / 3.) * np.pi * (self.radius**3 - self.radius_inner**3)
+        self._surface_area_outer = 4. * np.pi * self.radius**2
+        self._surface_area_middle = 4. * np.pi * self.radius_middle**2
+        self._surface_area_inner = 4. * np.pi * self.radius_inner**2
+
+        # Set slice physical properties
+        self._radii = self.bm_layer.radii
+        self._depths = self.radius - self._radii
+        dx_per_slice = self.radii[1] - self.radii[0]
+        inner_radii = self.radii - dx_per_slice
+        self._volume_slices = (4. / 3.) * np.pi * (self.radii**3 - inner_radii**3)
+
+        # Set the mass properties
+        self._mass = self.bm_layer.mass
+        self._density_bulk = self.mass / self.volume
+        if self.layer_below is None:
+            layer_below_mass = 0.
+        else:
+            layer_below_mass = self.layer_below.mass
+        self._mass_below = layer_below_mass
+
+        # Set slice mass properties
+        self._density_slices = self.bm_layer.density
+        self._gravity_slices = self.bm_layer.gravity
+        self._pressure_slices = self.bm_layer.pressures
+        self._mass_slices = self.density_slices * self.volume_slices
+        # Mass below each slice is equal to slice masses + and mass below this physical object
+        self._mass_below_slices = np.asarray(
+                [self.mass_below + sum(self.mass_slices[:i + 1]) for i in range(self.num_slices)]
+        )
+
+        # For BurnmanLayer, assume everything is calculated by BurnMan.
+        #     Override some of the items set by the set_geometry method.
+        if configurations['burnman_interpolation_method'] == 'mid':
+            self._pressure = self.bm_layer.pressures[self._bm_mid_index]
+            self._density = self.bm_layer.density[self._bm_mid_index]
+            self._gravity = self.bm_layer.gravity[self._bm_mid_index]
+            self.interp_func = lambda array: array[self._bm_mid_index]
+        elif configurations['burnman_interpolation_method'] == 'avg':
+            self._pressure = np.average(self.bm_layer.pressures)
+            self._density = np.average(self.bm_layer.density)
+            self._gravity = np.average(self.bm_layer.gravity)
+            self.interp_func = np.average
+        elif configurations['burnman_interpolation_method'] == 'median':
+            self._pressure = np.median(self.bm_layer.pressures)
+            self._density = np.median(self.bm_layer.density)
+            self._gravity = np.median(self.bm_layer.gravity)
+            self.interp_func = np.median
+        else:
+            raise UnknownTidalPyConfigValue
+
+        # Set up a pressure that will persist if the layer's state is cleared
+        self._persistent_pressure = np.copy(self.pressure)
+
+        # Update state properties
+        #    Note: these are not actually accessible without using the protected getter.
+        #    Instead, the regular getter method pulls from the BurnMan layer directly (they have been inner-scoped)
+        #    These definitions below are set just so that the protected properties still hold a value.
+        self._temperature_outer = self.bm_layer.temperatures[-1]
+        self._temperature_inner = self.bm_layer.temperatures[0]
+        self._density_outer = self.bm_layer.density[-1]
+        self._density_middle = self.bm_layer.density[self._bm_mid_index]
+        self._density_inner = self.bm_layer.density[0]
+        self._gravity_outer = self.bm_layer.gravity[-1]
+        self._gravity_middle = self.bm_layer.gravity[self._bm_mid_index]
+        self._gravity_inner = self.bm_layer.gravity[0]
+        self._pressure_outer = self.bm_layer.pressures[-1]
+        self._pressure_middle = self.bm_layer.pressures[self._bm_mid_index]
+        self._pressure_inner = self.bm_layer.pressures[0]
+
+        # Make a call to the parent classes set_geometry method, but update_state_geometry=False will prevent them from
+        #    changing the geometry that was set above.
+        super().set_geometry(self.radius, self.mass, self.thickness, mass_below=layer_below_mass,
+                             update_state_geometry=False, build_slices=False)
+
+    def set_static_pressure(self, pressure_above: float = None, build_slices: bool = True,
+                            called_from_burnman: bool = True):
+        """ Sets the static pressure for the physical structure.
+
+        `Static` here indicates that this is not a dynamic pressure used in many calculations. The static pressure can
+            be used in place of the dynamic pressure, but that is not always the case.
+
+        Parameters
+        ----------
+        pressure_above : float = None
+            Pressure above this structure. If this is a layer, then it is the pressure at the base of the overlying
+                layer. If it is the upper-most layer or a world, then it may be the surface pressure.
+        build_slices : bool = True
+            If `True`, method will find the pressure at each slice of the physical object.
+        called_from_burnman : bool = False
+            Set to `True` if called from a burnman layer/world.
+        """
+        super().set_static_pressure(pressure_above, build_slices, called_from_burnman)
+
     def geotherm(self, avg_temperature: float = None):
         """ Calculates layer's geotherm based on an average temperature (or layer's current temperature)
 
@@ -144,7 +273,8 @@ class BurnManLayer(PhysicsLayer):
         if avg_temperature is None:
             avg_temperature = self.temperature
 
-        temperature_profile = burnman.geotherm.adiabatic(self.pressure_slices, avg_temperature, self.bm_material)
+        temperature_profile = \
+            burnman.geotherm.adiabatic(self.bm_layer.pressures, avg_temperature, self.bm_layer.material)
 
         return temperature_profile
 
@@ -309,6 +439,14 @@ class BurnManLayer(PhysicsLayer):
 
     @radii.setter
     def radii(self, value):
+        raise ImproperPropertyHandling
+
+    @property
+    def depths(self) -> np.ndarray:
+        return self.radius - self.radii
+
+    @depths.setter
+    def depths(self, value):
         raise ImproperPropertyHandling
 
     # TODO: make a "slice" inner class that handles this stuff an 3d Love calculation?

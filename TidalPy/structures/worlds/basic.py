@@ -12,6 +12,7 @@ from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            IncorrectAttributeType, AttributeNotSetError, AttributeException,
                            IOException)
 from ...stellar.stellar import (equilibrium_insolation_functions, equilibrium_temperature)
+from ...utilities.graphics import geotherm_plot
 from ...utilities.numpyHelper import reshape_help
 from ...utilities.types import FloatArray
 
@@ -26,18 +27,45 @@ FREQ_TO_DAY = (2. * np.pi ) / 86400.
 class BaseWorld(PhysicalObjSpherical):
 
     """ WorldBase Class - Base class used to build other world classes.
+
+
+    See Also
+    --------
+    Parent Class:
+        TidalPy.structures.PhysicalObjSpherical
+    Child Classes:
+        TidalPy.structures.world.TidalWorld
+        TidalPy.structures.world.GasGiantWorld
+        TidalPy.structures.world.StarWorld
+        TidalPy.structures.world.LayeredWorld
+        TidalPy.structures.world.GasGiantLayeredWorld
+        TidalPy.structures.world.BurnManWorld
     """
 
     default_config = world_defaults
     world_class = 'base'
 
     def __init__(self, world_config: dict, name: str = None, initialize: bool = True):
+        """ BaseWorld constructor (child of PhysicalObjSpherical)
+
+        Parameters
+        ----------
+        world_config : dict
+            Configuration file used to build the world. User provided configs override default configurations that
+                TidalPy assumes.
+            Please see files stored in <TidalPy directory>/structures/worldConfigs for example configuration dict.
+        name : str = None
+            Name of the world. If None, will use name provided in world_config.
+        initialize : bool = True
+            Determines if initial setup should be performed on the world (loading in data from world_config).
+        """
 
         # Load in defaults
         self.default_config = self.default_config[self.world_class]
 
         # Key Attributes
         self.name = name
+        log.debug(f'Setting up new world: {self.name}; class type = {self.world_class}.')
 
         super().__init__(config=world_config)
 
@@ -70,18 +98,26 @@ class BaseWorld(PhysicalObjSpherical):
         # Models to be initialized later
         self.equilibrium_insolation_func = None
 
-        log.debug(f'Setting up new world: {self.name}; class type = {self.world_class}.')
-
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True):
-        """ Re-initialize the basic world based on changed to its configuration."""
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False):
+        """ Initialize or Reinitialize the world based on changes to its configurations.
 
-        super().reinit(initial_init=initial_init)
+        This must be called at least once before an instance can be used. The constructor will automatically make an
+            initial call to reinit unless told to not to.
 
-        if not initial_init:
-            self.clear_state()
+        Parameters
+        ----------
+        initial_init : bool = False
+            Must be set to `True` if this is the first time this function has been called.
+        reinit_geometry : bool = True
+            If `True`, the initializer will automatically call the `set_geometry()` method.
+        set_by_burnman : bool = False
+            Set to `True` if called from a burnman world.
+        """
+
+        super().reinit(initial_init=initial_init, set_by_burnman=set_by_burnman)
 
         # Pull out some basic information from the config
         if self.name is None and 'name' in self.config:
@@ -89,10 +125,12 @@ class BaseWorld(PhysicalObjSpherical):
         self._albedo = self.config['albedo']
         self._emissivity = self.config['emissivity']
         self._is_spin_sync = self.config['force_spin_sync']
+        self._pressure_above = self.config['surface_pressure']
 
         # Setup geometry
         if reinit_geometry:
             self.set_geometry(self.config['radius'], self.config['mass'])
+            self.set_static_pressure(pressure_above=self.pressure_above, build_slices=True)
 
         if self.orbit is not None:
             self.update_orbit()
@@ -110,30 +148,50 @@ class BaseWorld(PhysicalObjSpherical):
         self._surf_temperature = None
         self._int2surface_heating = None
 
-        if not preserve_orbit and self.orbit is not None:
-            # Purge orbital properties for this world from the Orbit class.
-            self.orbit.set_orbit(self, purge_data=True)
-
         # Clear the global shape now that all state data has been cleared
         #     (probably the reason this function was called in the first place)
         self._global_shape = None
 
-    def config_update(self):
-        """ Config update changes various state parameters of an object based on the self.config
-        """
-        super().config_update()
-
-        # Call reinit as some configurations may have changed
-        self.reinit()
-
         # Setup functions and models
         self.equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.):
+        # TODO:
+        # Reset any orbits this world is connected to
+        if not preserve_orbit and self.orbit is not None:
+            # Purge orbital properties for this world from the Orbit class.
+            self.orbit.set_orbit(self, purge_data=True)
+
+
+    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
+                     update_state_geometry: bool = True, build_slices: bool = True):
+        """ Calculates and sets the world's physical parameters based on user provided input.
+
+        Assumptions
+        -----------
+        Spherical Geometry
+
+        Parameters
+        ----------
+        radius : float
+            Outer radius of object [m]
+        mass : float
+            Mass of object [kg]
+        thickness : float = None
+            Thickness of the object [m]
+        mass_below : float = 0.
+            Mass below this object (only applicable for shell-like structures)
+            Used in gravity and pressure calculations
+        update_state_geometry : bool = True
+            Update the class' state geometry
+        build_slices : bool = True
+            If True, method will attempt to calculate gravities, densities, etc. for each slice.
+
+        """
 
         # Thickness of a world will always be equal to its radius.
         del thickness
-        super().set_geometry(radius, mass, thickness=radius, mass_below=0.)
+        super().set_geometry(radius, mass, thickness=radius, mass_below=0.,
+                             update_state_geometry=update_state_geometry, build_slices=build_slices)
 
     def change_shape(self, new_shape: Tuple[int, ...], force_override: bool = False):
         """ Update the global shape parameter
@@ -257,6 +315,25 @@ class BaseWorld(PhysicalObjSpherical):
             if update_tides_flag:
                 self.update_tides()
 
+    def paint(self, depth_plot: bool = False, auto_show: bool = True):
+        """ Create a geotherm or depth plot of the planet's gravity, pressure, and density
+        Parameters
+        ----------
+        depth_plot : bool = False
+            If true the plot will be versus depth rather than radius.
+        auto_show : bool = False
+            Calls plt.show() if true.
+        Returns
+        -------
+        figure: matplotlib.pyplot.figure
+        """
+
+        figure = geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
+                               bulk_density=self.density_bulk, planet_name=self.name,
+                               planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
+
+        return figure
+
     def save_world(self, save_dir: str = None, no_cwd: bool = False, save_to_tidalpy_dir: bool = False):
         """ Save the world's configuration file to a specified directory.
 
@@ -327,6 +404,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def time(self) -> np.ndarray:
+        """ The time of either the Orbit or the object (used for radiogenic calculations) [Myr] """
         if self.orbit is None:
             return self._time
         else:
@@ -341,6 +419,7 @@ class BaseWorld(PhysicalObjSpherical):
         new_time : FloatArray
             Time [Myr]
         """
+
         if self.orbit is None:
             new_shape, new_time = reshape_help(new_time, self.global_shape, call_locale=f'{self}.time.setter')
             if new_shape:
@@ -357,17 +436,19 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def spin_freq(self) -> np.ndarray:
+        """ Spin (Sidereal Rotation) Frequency of the World [rad s-1] """
         return self._spin_freq
 
     @spin_freq.setter
     def spin_freq(self, new_spin_frequency: np.ndarray):
-        """ Update spin frequency of a world
+        """ Update Spin (Sidereal Rotation) Frequency of the World
 
         Parameters
         ----------
         new_spin_frequency: np.ndarray
             New spin frequency (inverse of period) [rads s-1]
         """
+
         new_shape, new_spin_frequency = reshape_help(new_spin_frequency, self.global_shape,
                                                      call_locale=f'{self}.spin_freq.setter')
         if new_shape:
@@ -385,6 +466,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def albedo(self) -> float:
+        """ World's Albedo """
         return self._albedo
 
     @albedo.setter
@@ -402,6 +484,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def emissivity(self) -> float:
+        """ World's Emissivity """
         return self._emissivity
 
     @emissivity.setter
@@ -419,7 +502,8 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def surface_temperature(self) -> np.ndarray:
-
+        """ World's Surface Temperature [K] """
+        # TODO: Alias this with PhysicalObject's self.temperature_outer?
         return self._surf_temperature
 
     @surface_temperature.setter
@@ -428,6 +512,18 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def obliquity(self) -> np.ndarray:
+        """ World's Obliquity [rad]
+
+        This obliquity must be relative to the orbital plane defined by the tidal target and tidal host [1]_.
+            If the star is neither the host nor target, then it should not be used as a reference object.
+
+        References
+        ----------
+        .. [1] J. P. Renaud et al, "Tidal Dissipation in Dual-Body, Highly Eccentric, and
+           Non-synchronously Rotating Systems: Applications to Pluto-Charon and the Exoplanet TRAPPIST-1e"
+           The Planetary Science Journal, vol. 22, pp. TBA, 2020.
+        """
+
         return self._obliquity
 
     @obliquity.setter
@@ -454,6 +550,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def orbit(self) -> Orbit:
+        """ The Orbit Class Associated with this World """
         return self._orbit
 
     @orbit.setter
@@ -469,6 +566,7 @@ class BaseWorld(PhysicalObjSpherical):
     # # Orbit Class
     @property
     def semi_major_axis(self):
+        """ World's Semi-Major Axis (stored in the world's Orbit class) [m] """
         return self.orbit.get_semi_major_axis(self.orbit_location)
 
     @semi_major_axis.setter
@@ -487,6 +585,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def orbital_frequency(self):
+        """ World's Orbital Frequency (inverse of orbital period; stored in the world's Orbit class) [rad s-1]"""
         return self.orbit.get_orbital_freq(self.orbit_location)
 
     @orbital_frequency.setter
@@ -505,6 +604,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def eccentricity(self):
+        """ World's Orbital Eccentricity (inverse of orbital period; stored in the world's Orbit class) """
         return self.orbit.get_eccentricity(self.orbit_location)
 
     @eccentricity.setter
@@ -523,7 +623,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def insolation_heating(self):
-
+        """ World's Surface Heating due to Stellar Insolation [W] """
         if self.orbit is not None:
             return self.orbit.get_insolation(self)
         return None
@@ -533,9 +633,10 @@ class BaseWorld(PhysicalObjSpherical):
         raise ImproperPropertyHandling
 
 
-    # Aliased properties
+    # # Aliased properties
     @property
     def orbital_freq(self):
+        """ Alias of BaseWorld.orbital_frequency """
         return self.orbital_frequency
 
     @orbital_freq.setter
@@ -544,6 +645,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def n(self):
+        """ Alias of BaseWorld.orbital_frequency """
         return self.orbital_frequency
 
     @n.setter
@@ -552,6 +654,7 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def orbital_motion(self):
+        """ Alias of BaseWorld.orbital_frequency """
         return self.orbital_frequency
 
     @orbital_motion.setter
@@ -560,6 +663,11 @@ class BaseWorld(PhysicalObjSpherical):
 
     @property
     def orbital_period(self):
+        """ Calculated from BaseWorld.orbital_frequency [days]
+
+        .. math:: ( 2 \pi  / 86400 ) / n
+        """
+
         return FREQ_TO_DAY / self.orbital_frequency
 
     @orbital_period.setter

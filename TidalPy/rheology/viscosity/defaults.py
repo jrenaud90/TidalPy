@@ -1,5 +1,5 @@
 solid_viscosity_defaults = {
-    'ice':{
+    'ice' : {
         'model'                     : 'arrhenius',
         # Matching Moore2006 for Volume Diffusion
         'arrhenius_coeff'           : 9.06e-8**(-1),
@@ -27,7 +27,7 @@ solid_viscosity_defaults = {
 }
 
 liquid_viscosity_defaults = {
-    'ice': {
+    'ice' : {
         'model'                  : 'reference',
         'reference_viscosity'    : 0.89e-3,
         'reference_temperature'  : 25.0 + 273.15,

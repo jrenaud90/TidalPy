@@ -11,11 +11,11 @@ Note: TidalPy version of "0.2.0" was never made publicly available. This is the 
     * OOP classes can be used in the solvers but must be wrapped by njit-capable functions.
         * For example: Using a planet core's mass that was calculated via Burnman can be used like:
 ~~~~
-from TidalPy.planets import build_planet
+from TidalPy.planets import build_burnman_world
 from TidalPy.integration.multi_rheo_integration import multi_rheo_integration
 from numba import njit
 
-planet = build_planet('charon')
+planet = build_burnman_world('charon')
 core_mass = planet.core.mass
 
 @njit
@@ -46,6 +46,7 @@ def my_custom_diffeq(time, dependent_variables):
 * Minor Changes
     * Removed ".pyname" from classes.
     * Utilities package has been reorganized.
+    * Changed the setup pipeline to only require one command.
     
 * QOL Improvements
     * Many new docstrings, type hints, and overall clean up of functions and classes. All docstrings now follow the numpy format.

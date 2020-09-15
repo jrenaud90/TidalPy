@@ -45,8 +45,6 @@ io_config = {
     }
 }
 
-Io = build_world('Io')
-
 
 def planet_asserts(planet):
     assert planet.name == 'Io'
@@ -58,13 +56,14 @@ def planet_asserts(planet):
     return True
 
 
-def test_build_planet_from_dict():
+def test_build_burnman_world_from_dict():
+    # Try
     result = build_world('Io', world_config=io_config)
 
     assert planet_asserts(result)
 
 
-def test_build_planet_from_json():
+def test_build_burnman_world_from_json():
     with open('temp_io.json', 'w') as planet_file:
         json.dump(io_config, planet_file)
 
@@ -76,17 +75,12 @@ def test_build_planet_from_json():
     assert planet_asserts(result)
 
 
-def test_build_planet_from_tidalpy():
+def test_build_burnman_world_from_prebuilt():
     result = build_world('Io')
 
     assert planet_asserts(result)
 
-
-def test_change_parameter():
-
-    Io.config['layers']['Mantle']['rheology']['solid_viscosity']['molar_activation_volume'] = 100.
-    Io.config['layers']['Mantle']['cooling']['convection_beta'] = -3.
-    Io.reinit()
-
-    assert Io.mantle.viscosity_inputs[3] == 100.
-    assert Io.mantle.cooling.inputs[3] == -3.
+def test_paint_burnman():
+    # This will test the slicing features of the worlds, as well as the painting graphics tool
+    io = build_world('Io')
+    assert io.paint(auto_show=False)

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 from .basic import LayerBase
-from ... import log
 from ...cooling import CoolingModel
 from ...exceptions import (ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError)
 from ...radiogenics.radiogenics import Radiogenics
@@ -18,28 +17,44 @@ if TYPE_CHECKING:
 
 
 class PhysicsLayer(LayerBase):
-    """ Layer Class: Tidal Planets are made up of various Layers of different compositions.
 
-    *Not* to be used for a BurnMan initialized world (see 'BurnManLayer')
+    """ PhysicsLayer
+    Layer object to store parameters geometric and physical properties calculated by TidalPy based on a user-provided
+        configuration dictionary. PhysicsLayer contains additional properties and methods used to perform various
+        thermal and tidal calculations.
 
-    The PhysicsLayer class acts as the holder for:
-        - Material properties (initially set by configurations or BurnMan data)
-        - Rheology Class
-            * ComplexCompliance Class
-            * Viscosity Class
-            * PartialMelting Class
-        - Cooling Class
-        - Radiogenic Class
+    Notes:
+    .. Should not be used with Burnman calculated layers (see BurnmanLayer instead)
 
+    See Also
+    --------
+    TidalPy.structures.layers.BurnmanLayer
     """
 
     layer_class = 'physics'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorldType',
-                 layer_config: dict, initialize: bool = True):
+    def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorldType', layer_config: dict,
+                 is_top_layer: bool, initialize: bool = True):
+        """ Physics layer constructor
+
+        Parameters
+        ----------
+        layer_name : str
+            User-friendly name of layer.
+        layer_index : int
+            Location of layer within a world (0 indicates center-most).
+        world : LayeredWorldType
+            World instance where layer was initialized in.
+        layer_config : dict
+            Layer's user-provided configurations.
+        is_top_layer : bool
+            If `True`, this layer is the top-most layer.
+        initialize : bool = True
+            If `True`, then the Layer's reinit is called at the end of the constructor.
+        """
 
         # Setup Physical Layer Geometry
-        super().__init__(layer_name, layer_index, world, layer_config, initialize=False)
+        super().__init__(layer_name, layer_index, world, layer_config, is_top_layer, initialize=False)
 
         # State Derivatives
         self._deriv_temperature = None
@@ -53,10 +68,11 @@ class PhysicsLayer(LayerBase):
         self.radiogenics = None    # type: Union['Radiogenics', NoneType]
 
         # Set up a pressure that will persist if the layer's state is cleared
+        # TODO: should this be reinit?
         self._persistent_pressure = self.pressure
 
         # Material Properties
-        #     These are calculated by BurnMan in the BurnManLayer version, can be set by user/config here.
+        #     These are calculated by BurnMan in the BurnmanLayer version, can be set by user/config here.
         self.bulk_modulus = None
         self.thermal_expansion = None
         self.specific_heat = None
@@ -71,85 +87,24 @@ class PhysicsLayer(LayerBase):
         self.stefan = None
 
         if initialize:
-            self.reinit(initial_init=True)
+            self.reinit(initial_init=initialize)
 
-    def reinit(self, initial_init: bool = False, called_from_bm_layer: bool = False):
+    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False, initialize_geometry: bool = True):
+        """ Reinitialize the physical object by pulling in any potentially new configurations
 
-        if initial_init and not called_from_bm_layer:
-            # Physical and geometric properties set up on initial call.
-            radius = self.config.get('radius', None)
-            mass = self.config.get('mass', None)
-            thickness = self.config.get('thickness', None)
-            density = self.config.get('density', None)
-            if density is None:
-                density = self.config.get('density_bulk', None)
-            mass_frac = self.config.get('mass_frac', None)
-
-            # Try to determine the layer's physical geometry
-            geo_fail = False
-            if radius is None:
-                if thickness is None:
-                    if self.is_top_layer:
-                        if self.layer_below.radius is None:
-                            geo_fail = True
-                        else:
-                            radius = self.world.radius
-                            thickness = radius - self.layer_below.radius
-                    else:
-                        geo_fail = True
-                else:
-                    if self.layer_index == 0:
-                        radius = thickness
-                    else:
-                        if self.layer_below.radius is None:
-                            geo_fail = True
-                        else:
-                            radius = self.layer_below.radius + thickness
-            else:
-                if thickness is None:
-                    if self.layer_index == 0:
-                        thickness = radius
-                    else:
-                        if self.layer_below.radius is None:
-                            geo_fail = True
-                        else:
-                            thickness = radius - self.layer_below.radius
-            if geo_fail:
-                log.error(f'Not enough information provided to determine geometry for {self}.')
-                raise ParameterMissingError(f'Not enough information provided to determine geometry for {self}.')
-            volume = (4. / 3.) * np.pi * (radius**3 - (radius - thickness)**3)
-
-            # Try to determine the layer's mass
-            mass_fail = False
-            if mass is None:
-                if density is None:
-                    if mass_frac is None:
-                        mass_fail = True
-                    else:
-                        # Mass fraction provided.
-                        if self.world.mass is None:
-                            mass_fail = True
-                        else:
-                            mass = self.world.mass * mass_frac
-                else:
-                    mass = density * volume
-            if mass_fail:
-                log.error(f'Not enough information provided to calculate mass for {self}.')
-                raise ParameterMissingError(f'Not enough information provided to calculate mass for layer {self}.')
-
-            # Set the layer's geometry
-            #     OPT: some of set_geometry will end up redoing some of the above calculations, but they are not
-            #         expensive calculations and it should only be preformed a handful of times.
-            #         But perhaps an area for future optimization.
-            self.set_geometry(radius=radius, mass=mass, thickness=thickness)
+        Parameters
+        ----------
+        initial_init : bool = False
+            Set to `True` for the first time an instance is created.
+        set_by_burnman : bool = False
+            Set to `True` if a Burnman layer/world constructor is calling reinit
+        initialize_geometry : bool = False
+            Set to `True` if the set_geometry method should be called from within reinit
+        """
 
         # Base class's reinit is called *after* the geometry is set (so that tidal volume fraction is set correctly)
-        super().reinit(initial_init=initial_init)
-
-        if self.config['use_surf_gravity']:
-            # Use surface gravity for layer instead of the gravity set by interpolating burnman data (mid/avg/etc)
-            # This primarily affects convection calculation
-            self.gravity = self.gravity_surf
+        super().reinit(initial_init=initial_init, set_by_burnman=set_by_burnman,
+                       initialize_geometry=initialize_geometry)
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
@@ -444,6 +399,7 @@ class PhysicsLayer(LayerBase):
     # State properties
     @property
     def deriv_temperature(self) -> np.ndarray:
+        """ Time Derivative of Temperature [T s-1] """
         return self._deriv_temperature
 
     @deriv_temperature.setter
@@ -455,6 +411,10 @@ class PhysicsLayer(LayerBase):
     # # Rheology Class
     @property
     def viscosity(self):
+        """ Solid Viscosity of the Layer [Pa s]
+
+        Wrapper for `<layer>.rheology.postmelt_viscosity` """
+
         return self.rheology.postmelt_viscosity
 
     @viscosity.setter
@@ -463,6 +423,10 @@ class PhysicsLayer(LayerBase):
 
     @property
     def liquid_viscosity(self):
+        """ Liquid Viscosity of the Layer [Pa s]
+
+        Wrapper for `<layer>.rheology.liquid_viscosity` """
+
         return self.rheology.liquid_viscosity
 
     @liquid_viscosity.setter
@@ -471,6 +435,10 @@ class PhysicsLayer(LayerBase):
 
     @property
     def shear_modulus(self):
+        """ Shear Modulus (Shear Rigidity) of the Layer [Pa]
+
+        Wrapper for `<layer>.rheology.postmelt_shear_modulus` """
+
         return self.rheology.postmelt_shear_modulus
 
     @shear_modulus.setter
@@ -479,6 +447,10 @@ class PhysicsLayer(LayerBase):
 
     @property
     def compliance(self):
+        """ Shear Compliance (Inverse of Shear Rigidity) of the Layer [Pa-1]
+
+        Wrapper for `<layer>.rheology.postmelt_compliance` """
+
         return self.rheology.postmelt_compliance
 
     @compliance.setter
@@ -487,6 +459,12 @@ class PhysicsLayer(LayerBase):
 
     @property
     def complex_compliances(self):
+        """ Complex Shear Compliance of the Layer [Pa-1]
+
+        This is a complex number which includes information on the layer's ability to dissipate shear energy.
+
+        Wrapper for `<layer>.rheology.complex_compliances` """
+
         return self.rheology.complex_compliances
 
     @complex_compliances.setter
@@ -495,6 +473,10 @@ class PhysicsLayer(LayerBase):
 
     @property
     def melt_fraction(self):
+        """ Melt Fraction of the Layer
+
+        Wrapper for `<layer>.rheology.melt_fraction` """
+
         return self.rheology.melt_fraction
 
     @melt_fraction.setter
@@ -504,6 +486,14 @@ class PhysicsLayer(LayerBase):
     # # Radiogenics Class
     @property
     def radiogenic_heating(self):
+        """ Radiogenic Heating Rate [W]
+
+        Wrapper for `<layer>.radiogenics.heating`
+
+        Notes:
+        Calculated at the <world>.time (or, equivalently, <layer>.time)
+        """
+
         return self.radiogenics.heating
 
     @radiogenic_heating.setter
@@ -513,6 +503,15 @@ class PhysicsLayer(LayerBase):
     # # Cooling Class
     @property
     def cooling(self):
+        """ Layer Cooling Rate [W]
+
+        Wrapper for `<layer>.cooling_model.cooling`
+
+        Notes
+        -----
+        Cooling module determines if the layer is convecting or conduction (depending on user-provided configurations).
+        """
+
         return self.cooling_model.cooling
 
     @cooling.setter
@@ -521,6 +520,15 @@ class PhysicsLayer(LayerBase):
 
     @property
     def cooling_flux(self):
+        """ Layer Cooling Flux [W m-2]
+
+        Wrapper for `<layer>.cooling_model.cooling_flux`
+
+        Notes
+        -----
+        Cooling module determines if the layer is convecting or conduction (depending on user-provided configurations).
+        """
+
         return self.cooling_model.cooling_flux
 
     @cooling_flux.setter
@@ -529,6 +537,16 @@ class PhysicsLayer(LayerBase):
 
     @property
     def boundary_layer_thickness(self):
+        """ Layer's Thermal Boundary Layer Thickness [m]
+
+        Wrapper for `<layer>.cooling_model.boundary_layer_thickness`
+
+        Notes
+        -----
+        Cooling module determines if the layer is convecting or conduction (depending on user-provided configurations).
+        If the layer is set to only conduct, then the boundary layer thickness = 0.5 layer thickness.
+        """
+
         return self.cooling_model.boundary_layer_thickness
 
     @boundary_layer_thickness.setter
@@ -537,6 +555,16 @@ class PhysicsLayer(LayerBase):
 
     @property
     def rayleigh(self):
+        """ Layer's Thermal Rayleigh Number
+
+        Wrapper for `<layer>.cooling_model.rayleigh`
+
+        Notes
+        -----
+        Cooling module determines if the layer is convecting or conduction (depending on user-provided configurations).
+        If the layer is not convecting then the Rayleigh number will be 0
+        """
+
         return self.cooling_model.rayleigh
 
     @rayleigh.setter
@@ -545,6 +573,16 @@ class PhysicsLayer(LayerBase):
 
     @property
     def nusselt(self) -> np.ndarray:
+        """ Layer's Thermal Nusselt Number
+
+        Wrapper for `<layer>.cooling_model.nusselt`
+
+        Notes
+        -----
+        Cooling module determines if the layer is convecting or conduction (depending on user-provided configurations).
+        If the layer is not convecting then the Nusselt number will be 1
+        """
+
         return self.cooling_model.nusselt
 
     @nusselt.setter
@@ -556,6 +594,11 @@ class PhysicsLayer(LayerBase):
     # # Tides Class
     @property
     def tidal_heating(self):
+        """ Layer's Tidal Heating
+
+        Wrapper for `<layer>.<world>.tides.tidal_heating_by_layer[self]`
+        """
+
         return self.world.tides.tidal_heating_by_layer[self]
 
     @tidal_heating.setter
@@ -565,15 +608,8 @@ class PhysicsLayer(LayerBase):
 
     # Aliased properties
     @property
-    def gravity_surf(self):
-        return self.gravity_outer
-
-    @gravity_surf.setter
-    def gravity_surf(self, value):
-        self.gravity_outer = value
-
-    @property
     def blt(self):
+        """ Alias for PhysicsLayer.boundary_layer_thickness """
         return self.boundary_layer_thickness
 
     @blt.setter
