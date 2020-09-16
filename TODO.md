@@ -1,3 +1,4 @@
+* Add tests for build_from_world, and scale_from_world
 * Make collaboration guide with notes on TODO, FIXME, OPT
 * Make known issues somewhere; mention numba.errors.TypingError and the flatten() workaround
 * Once TidalPy is live on Github look into making a community on https://gitter.im/home/explore#
@@ -22,3 +23,6 @@
         res_f[res_f<2.] = 2.
         res_f = np.reshape(res_f, s)
     ``` 
+  
+* Before major release:
+    * Change default logging level to info

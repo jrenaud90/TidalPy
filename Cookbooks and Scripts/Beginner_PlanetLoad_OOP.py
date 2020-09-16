@@ -1,8 +1,8 @@
 import copy
-from TidalPy.planets import build_planet
+from TidalPy import build_world
 
 # Build the Earth
-earth = build_planet('earth')
+earth = build_world('earth')
 earth.paint()
 
 # We are going to need a second copy for later
@@ -11,13 +11,13 @@ earth_2 = copy.deepcopy(earth)
 # Setup the orbit
 #  In this example we will consider two orbits: Heliocentric and Geocentric
 from TidalPy.orbit import Orbit
-sun = build_planet('sol')
+sun = build_world('sol')
 # The Sun is entered into the orbit twice because, for this orbit, we are calculating heliocentric tides
 #  instead of lunar tides.
 helio_orbit = Orbit(sun, sun, [earth])
 
 # For the geocentric orbit we are actually going to set it up so that the moon is the 'host'.
-moon = build_planet('luna')
+moon = build_world('luna')
 moon.paint()
 geo_orbit = Orbit(sun, moon, [earth_2], use_host_orbit=True)
 

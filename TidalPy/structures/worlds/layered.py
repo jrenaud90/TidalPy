@@ -106,7 +106,6 @@ class LayeredWorld(TidalWorld):
         if set_by_burnman:
             radius = self.radius
             mass = self.mass
-            volume = self.volume
             update_state_geometry = False
         else:
             # Pull out planet configurations
@@ -139,7 +138,6 @@ class LayeredWorld(TidalWorld):
             self.tidal_scale = running_tidal_fraction
 
             # Pull out densities and pressures and convert them into constant value slices
-            num_slices = tuple([layer.config['slices'] for layer in self])
             # Store some layer information at the world-level
             radii = tuple([layer.radii for layer in self])
             volume_slices = tuple([layer.volume_slices for layer in self])

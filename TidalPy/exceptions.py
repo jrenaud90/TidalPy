@@ -168,7 +168,7 @@ class UnknownTidalPyConfigValue(ConfigurationException):
     default_message = 'A configuration set in TidalPy.configurations is not know or has not yet been implemented.'
 
 # World Errors
-class TidalPyWorldError(TidalPyException):
+class TidalPyWorldError(ClassException):
     default_message = 'There was a problem related to the functionality or building of a TidalPy world.'
 
 
@@ -181,6 +181,20 @@ class UnknownWorldType(TidalPyWorldError):
 
 class TidalPyLayerError(TidalPyException):
     default_message = 'There was a problem related to the functionality or building of a TidalPy layer.'
+
+
+# Orbit Errors
+class TidalPyOrbitError(ClassException):
+    default_message = 'There was a problem related to the functionality or building of a TidalPy orbit.'
+
+
+class BadWorldSignature(TidalPyOrbitError):
+    default_message = 'A bad world signature was provided to an orbit class.'
+
+
+class BadWorldSignatureType(BadWorldSignature):
+    default_message = 'An unexpected type was encountered for a world signature provided to an orbit class.'
+
 
 # TidalPy Integration Error
 class TidalPyIntegrationException(TidalPyException):

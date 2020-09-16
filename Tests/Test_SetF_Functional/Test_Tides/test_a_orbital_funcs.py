@@ -29,8 +29,8 @@ def test_eccentricity_func():
 
     for trunc_lvl, funcs_by_orderl in eccentricity_truncations.items():
 
-        # As of TidalPy v0.2.1, the max l = 7
-        for order_l in (2, 3, 6):
+        # As of TidalPy v0.2.1, the max l = 7; These tests can take a long time to run. so limiting to only l=2,3
+        for order_l in (2, 3):
 
             # Get the eccentricity function at this order l
             e_func = funcs_by_orderl[order_l]

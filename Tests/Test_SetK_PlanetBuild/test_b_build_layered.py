@@ -2,7 +2,7 @@ import numpy as np
 
 import TidalPy
 
-io_dict = {
+io_config = {
     "name": "Io",
     "type": "layered",
     "radius": 1821.49e3,
@@ -28,9 +28,11 @@ io_dict = {
     }
 }
 
-def value_check(world, config_to_compare: dict):
+def value_check(world, config_to_compare: dict, check_name: bool = True):
+    """ This is a helper function to test the values of a LayeredWorld. Used in LayeredWorld builder tests. """
 
-    assert world.name == config_to_compare['name']
+    if check_name:
+        assert world.name == config_to_compare['name']
     assert world.num_layers == 2
     assert len(world.layers) == 2
     # Note: <world>.layers_by_name will usually contain more than the expected number of layers due to allowing both
@@ -58,16 +60,19 @@ def value_check(world, config_to_compare: dict):
 
 
 def test_build_layered_from_manual_config():
+    """ This will test loading a LayeredWorld from a user-provided configuration dictionary. """
 
     # Test loading a star from a user-provided configuration dictionary
-    io = TidalPy.build_world('Io', io_dict)
+    io = TidalPy.build_world('Io', io_config)
 
     # Test that its attributes match expectations
-    assert value_check(io, io_dict)
+    assert value_check(io, io_config)
+    return True
 
 
 def test_build_layered_from_prebuilt_config():
-    # Test loading a star from a pre-built configuration file
+    """ This will test loading a LayeredWorld from a pre-built configuration file. """
+
     #    Note: the "Io_Simple" config that comes with TidalPy is not designed for BurnMan whereas "Io" is. For this
     #        test we want the former.
     io = TidalPy.build_world('Io_Simple')
@@ -75,9 +80,60 @@ def test_build_layered_from_prebuilt_config():
     # The pre-built config may not have the same values as the ones used in this file so we will only perform
     #    non-numerical checks.
     assert value_check(io, io.config)
+    return True
 
 
 def test_paint_layered():
-    # This will test the slicing features of the worlds, as well as the painting graphics tool
+    """ This will test the slicing features of a LayeredWorld, as well as the painting graphics tool. """
+
     io = TidalPy.build_world('Io_Simple')
     assert io.paint(auto_show=False)
+    return True
+
+def test_build_from_layered_world():
+    """ This will test building a secondary LayeredWorld from an already built one. """
+
+    # Build a regular layered Io first.
+    io = TidalPy.build_world('Io_Simple')
+
+    # Now build a second version that only has a name and eccentricity change.
+    new_config = {'name': 'Io_Simple_2', 'eccentricity': 0.5}
+    io_2 = TidalPy.build_from_world(io, new_config)
+
+    # io_2 should be almost identical to the original io, so the regular value check should pass
+    assert value_check(io_2, io_config, check_name=False)
+    assert io.name == 'Io_Simple'
+    assert io_2.name == 'Io_Simple_2'
+    assert io.config['eccentricity'] == 0.0041
+    assert io_2.config['eccentricity'] == 0.5
+    return True
+
+def test_build_from_layered_world_scale_radius():
+    """ This will test building a secondary LayeredWorld from an already built one using a radius scaling technique. """
+
+    # TODO: Add tests to the burnman version that checks the scaling on it.
+
+    # Build a regular layered Io first.
+    io = TidalPy.build_world('Io_Simple')
+
+    # Now build a second version that only has a name and eccentricity change.
+    io_2 = TidalPy.scale_from_world(io, new_name = 'small_io', radius_scale=0.5)
+
+    # Check name
+    assert io_2.name == 'small_io'
+
+    # Check values
+    np.testing.assert_approx_equal(io_2.radius, io.radius / 2.)
+    for layer, layer_2 in zip(io, io_2):
+        np.testing.assert_approx_equal(layer_2.radius, layer.radius / 2.)
+
+    # Check for scaling a larger radius
+    io_3 = TidalPy.scale_from_world(io, new_name='large_io', radius_scale=2.)
+
+    # Check name
+    assert io_3.name == 'large_io'
+
+    # Check values
+    np.testing.assert_approx_equal(io_3.radius, io.radius * 2.)
+    for layer, layer_3 in zip(io, io_3):
+        np.testing.assert_approx_equal(layer_3.radius, layer.radius * 2.)

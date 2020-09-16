@@ -1,10 +1,10 @@
-from TidalPy.planets import build_planet
+from TidalPy import build_world
 from TidalPy.orbit import Orbit
 from TidalPy.tools.conversions import sec2myr, myr2sec
 from TidalPy.utilities.io.progress import progress_bar
 
-sol = build_planet('sol')
-earth = build_planet('earth')
+sol = build_world('sol')
+earth = build_world('earth')
 orbit = Orbit(sol, None, earth)
 
 # Domain and initial conditions

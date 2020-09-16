@@ -181,7 +181,7 @@ def build_from_world(old_world, new_config: dict, new_name: str = None):
 
     return new_world
 
-def scale_from_world(old_world, mass_scale: float = None, radius_scale: float = None, new_name: str = None):
+def scale_from_world(old_world, new_name: str = None, mass_scale: float = None, radius_scale: float = None):
     """ Constructs a new planet that is a scaled up/down version of an old planet
 
     The old_planet should not be too different from your goal planet in terms of mass, radius, layer structure, and
@@ -200,14 +200,14 @@ def scale_from_world(old_world, mass_scale: float = None, radius_scale: float = 
     ----------
     old_world :
         World to base the scale off of. This should be an already initialized TidalPy world object
-    mass_scale : FloatNone
+    new_name : str = None
+        New name to call the planet
+    mass_scale : FloatNone = None
         Providing this will treat mass fractions of the planet's layer's as constants.
         Radii will be estimated from density
-    radius_scale : FloatNone
+    radius_scale : FloatNone = None
         Providing this will treat volume fractions of the planet's layer's as constants.
         Masses will be calculated from EOS
-    new_name : str
-        New name to call the planet
 
     Returns
     -------
@@ -233,17 +233,17 @@ def scale_from_world(old_world, mass_scale: float = None, radius_scale: float = 
     scaled_config['radius'] = radius_scale * old_world.config['radius']
     prev_layer_radius = 0.
     for layer_name, layer_dict in old_world.config['layers'].items():
-        old_radius = layer_dict['radius_upper']
-        scaled_config['layers'][layer_name]['radius_upper'] = radius_scale * old_radius
-        scaled_config['layers'][layer_name]['radius_lower'] = prev_layer_radius
+
+        old_radius = layer_dict['radius']
+        scaled_config['layers'][layer_name]['radius'] = radius_scale * old_radius
+        scaled_config['layers'][layer_name]['radius_inner'] = prev_layer_radius
 
         # Use this layer's upper radius as the next layer's lower radius
-        prev_layer_radius = scaled_config['layers'][layer_name]['radius_upper']
+        prev_layer_radius = scaled_config['layers'][layer_name]['radius']
 
         # Update other items
-        scaled_config['layers'][layer_name]['radius'] = scaled_config['layers'][layer_name]['radius_upper']
-        scaled_config['layers'][layer_name]['thickness'] = scaled_config['layers'][layer_name]['radius_upper'] - \
-            scaled_config['layers'][layer_name]['radius_lower']
+        scaled_config['layers'][layer_name]['thickness'] = scaled_config['layers'][layer_name]['radius'] - \
+            scaled_config['layers'][layer_name]['radius_inner']
 
     # Give it an identifiable name
     if new_name is None:

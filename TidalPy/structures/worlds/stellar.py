@@ -20,9 +20,27 @@ class StarWorld(TidalWorld):
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = True):
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
+               setup_simple_tides: bool = True):
+        """ Initialize or Reinitialize the star based on changes to its configurations.
 
-        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry)
+        This must be called at least once before an instance can be used. The constructor will automatically make an
+            initial call to reinit unless told to not to.
+
+        Parameters
+        ----------
+        initial_init : bool = False
+            Must be set to `True` if this is the first time this function has been called.
+        reinit_geometry : bool = True
+            If `True`, the initializer will automatically call the `set_geometry()` method.
+        set_by_burnman : bool = False
+            Set to `True` if called from a burnman world.
+        setup_simple_tides : bool = True
+            Set to `True` if a global CPL/CTL tidal calculation is desired.
+        """
+
+        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry,
+                       set_by_burnman=set_by_burnman, setup_simple_tides=setup_simple_tides)
 
         self.luminosity = self.config.get('luminosity', None)
         self.effective_temperature = self.config.get('effective_temperature', None)

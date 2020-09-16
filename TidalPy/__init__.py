@@ -43,3 +43,6 @@ from .utilities.graphics import cmaps
 
 #    OOP
 from .structures import build_world, build_from_world, scale_from_world
+
+# TODO: Change this to the physics orbit once that is done
+from .orbit import OrbitBase

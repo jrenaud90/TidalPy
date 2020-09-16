@@ -7,6 +7,8 @@ from .layered import LayeredWorld
 from .stellar import StarWorld
 from .tidal import TidalWorld
 
+AllWorldType = Union[BaseWorld, TidalWorld, GasGiantWorld, StarWorld, LayeredWorld, GasGiantLayeredWorld, BurnManWorld]
+all_world_types = (BaseWorld, TidalWorld, GasGiantWorld, StarWorld, LayeredWorld, GasGiantLayeredWorld, BurnManWorld)
 GasStarWorldType = Union[GasGiantWorld, StarWorld]
 BurnmanWorldType = BurnManWorld
 LayeredWorldType = Union[BurnManWorld, LayeredWorld, GasGiantLayeredWorld]

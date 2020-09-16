@@ -11,12 +11,11 @@ def test_eccentricity_multi_l_calc():
 
     from TidalPy.tides.modeCalcHelper import eccentricity_functions_lookup
 
-    # Test a few truncation levels
+    # Test a few truncation levels; these tests can take a long time to run so only doing a spot check on e^2 and e^10
     eccen_trunc_funcset_2 = eccentricity_functions_lookup[2]
     eccen_trunc_funcset_10 = eccentricity_functions_lookup[10]
-    eccen_trunc_funcset_20 = eccentricity_functions_lookup[20]
 
-    for eccen_funcset in [eccen_trunc_funcset_2, eccen_trunc_funcset_10, eccen_trunc_funcset_20]:
+    for eccen_funcset in [eccen_trunc_funcset_2, eccen_trunc_funcset_10]:
         for tidal_order_l, eccen_func in eccen_funcset.items():
 
             # Perform float calculation
@@ -91,7 +90,8 @@ def test_calculate_and_collapse_modes():
     from TidalPy.tides.mode_manipulation import calculate_terms, collapse_modes
     from TidalPy.tides.modeCalcHelper import inclination_functions_lookup, eccentricity_functions_lookup
 
-    for order_l in [2, 3, 5]:
+    # These tests can take a long time to run, so only doing a spot check on l=2,3 and e^2, e^10
+    for order_l in [2, 3]:
         for truncation_level in [2, 10]:
 
             # Calculate eccentricity results

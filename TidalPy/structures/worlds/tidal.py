@@ -75,6 +75,12 @@ class TidalWorld(BaseWorld):
             else:
                 self.tides = None
 
+    def clear_state(self, preserve_orbit: bool = False):
+
+        super().clear_state(preserve_orbit)
+
+        self.tides.clear_state()
+
 
     # Configuration properties
     @property
@@ -231,7 +237,7 @@ class TidalWorld(BaseWorld):
         if self.orbit is None:
             return None
         else:
-            return self.tidal_hosts[self]
+            return self.orbit.tidal_host
 
     @tidal_host.setter
     def tidal_host(self, value):
