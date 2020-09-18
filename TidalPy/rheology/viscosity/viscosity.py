@@ -1,26 +1,64 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from . import known_model_live_args, known_model_const_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-from ...exceptions import ImproperPropertyHandling
+from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty, OuterscopePropertySetError
 from ...utilities.classes.model import LayerModelHolder
+from ...utilities.types import FloatArray
+
+if TYPE_CHECKING:
+    from ..rheology import Rheology
+    from ...structures.layers import PhysicalLayerType
 
 
-class ViscosityClass(LayerModelHolder):
-    """ Common Viscosity class for liquid and solid viscosity model holders.
+class ViscosityParentClass(LayerModelHolder):
+    """ ViscosityParentClass
+
+    Common Viscosity class for liquid and solid viscosity models.
+
+    See Also
+    --------
+    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.rheology.Rheology
+    TidalPy.rheology.viscosity.LiquidViscosityParent
+    TidalPy.rheology.viscosity.SolidViscosityParent
     """
 
     is_liquid = False
 
-    def __init__(self, layer, rheology_class, model_name: str = None,
-                 store_config_in_layer: bool = True):
+    def __init__(self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
+                 store_config_in_layer: bool = True, initialize: bool = True):
+        """ Constructor for Parent Viscosity class
 
-        super().__init__(layer, model_name, store_config_in_layer)
+        Common Viscosity class for liquid and solid viscosity models.
 
-        self.rheology_class = rheology_class
+        Parameters
+        ----------
+        layer : PhysicalLayerType
+            The layer instance which the complex compliance should perform calculations on.
+        rheology_class : Rheology
+            Rheology class instance where the complex compliance model is stored.
+        model_name : str = None
+            The user-provided complex compliance name.
+        store_config_in_layer: bool = True
+            Flag that determines if the final complex compliance model's configuration dictionary should be copied
+                into the `layer.config` dictionary.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the model (loading in data from its `self.config`).
+        """
+
+        super().__init__(layer, model_name, store_config_in_layer, initialize=False)
+
+        # Initialized properties
+        self._rheology_class = rheology_class
 
         # State properties
         self._viscosity = None
+
+        if initialize:
+            self.reinit(initial_init=True)
 
     def clear_state(self):
 
@@ -28,57 +66,83 @@ class ViscosityClass(LayerModelHolder):
 
         self._viscosity = None
 
-    def _calculate(self) -> np.ndarray:
+    def _calculate(self) -> FloatArray:
         """ Wrapper for the viscosity calculator
 
         Returns
         -------
-        viscosity : np.ndarray
+        viscosity : FloatArray
             Viscosity of the layer [Pa s]
         """
 
-        viscosity = self.func_array(*self.live_inputs, *self.inputs)
+        if type(self.temperature) == np.ndarray:
+            viscosity = self.func_array(*self.live_inputs, *self.inputs)
+        else:
+            viscosity = self.func(*self.live_inputs, *self.inputs)
+
         self._viscosity = viscosity
 
         return viscosity
 
-    # State properties
+
+    # # Initialized properties
     @property
-    def viscosity(self) -> np.ndarray:
+    def rheology_class(self) -> 'Rheology':
+        """ The rheology class instance where the complex compliance model is stored """
+        return self._rheology_class
+
+    @rheology_class.setter
+    def rheology_class(self, value):
+        raise InitiatedPropertyChangeError
+
+
+    # # State properties
+    @property
+    def viscosity(self) -> FloatArray:
+        """ Viscosity (Solid or Liquid depending on the class type) no partial melting effects have been applied """
         return self._viscosity
 
     @viscosity.setter
     def viscosity(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
-    # Outerscope references
+
+    # # Outer-scope references
     @property
     def temperature(self):
+        """ Outer-scope wrapper for layer.temperature """
         return self.layer.temperature
 
     @temperature.setter
     def temperature(self, value):
-        raise ImproperPropertyHandling
+        raise OuterscopePropertySetError
 
     @property
-    def pressure(self):
+    def pressure(self) -> FloatArray:
+        """ Outer-scope wrapper for layer.pressure """
         # Pressure is often turned off in various model runs, so it may not be set. If that is the case let's make sure
         #    that zeros are provided.
         _pressure = self.layer.pressure
         if _pressure is None or not self.layer.use_pressure_in_strength_calc:
-            _pressure = np.asarray(0., dtype=self.temperature.dtype)
+            _pressure = np.zeros_like(self.temperature)
 
         return _pressure
 
     @pressure.setter
     def pressure(self, value):
-        raise ImproperPropertyHandling
+        raise OuterscopePropertySetError
 
 
-class LiquidViscosity(ViscosityClass):
+class LiquidViscosity(ViscosityParentClass):
 
-    """ Liquid Viscosity model holder
+    """ LiquidViscosity
+    Model for calculating viscosity of a liquid.
 
+    See Also
+    --------
+    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.rheology.Rheology
+    TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
     default_config = liquid_viscosity_defaults
@@ -89,10 +153,17 @@ class LiquidViscosity(ViscosityClass):
     is_liquid = True
 
 
-class SolidViscosity(ViscosityClass):
+class SolidViscosity(ViscosityParentClass):
 
-    """ Solid Viscosity model holder
+    """ SolidViscosity
+    Model for calculating viscosity of a solid.
 
+
+    See Also
+    --------
+    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.rheology.Rheology
+    TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
     default_config = solid_viscosity_defaults

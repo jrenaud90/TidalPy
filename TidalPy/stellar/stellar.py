@@ -186,10 +186,3 @@ def luminosity_from_mass(stellar_mass: float):
     if mass_ratio < 20.:
         return luminosity_solar * 1.4 * mass_ratio**3.5
     return luminosity_solar * 3.2e4 * mass_ratio
-
-
-equilibrium_insolation_functions = {
-    'no_eccentricity': equilibrium_insolation_no_eccentricity,
-    'williams'       : equilibrium_insolation_williams,
-    'mendez'         : equilibrium_insolation_mendez
-}

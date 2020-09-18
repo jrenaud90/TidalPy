@@ -5,20 +5,42 @@ import numpy as np
 from .tidal import TidalWorld
 from ..layers import PhysicsLayer, layers_class_by_world_class, LayerType, GasLayer, BurnmanLayer
 from ... import log
-from ...exceptions import ImproperPropertyHandling, ParameterMissingError, TidalPyWorldError, MissingArgumentError
+from ...exceptions import ParameterMissingError, TidalPyWorldError, MissingArgumentError, \
+    InitiatedPropertyChangeError
 from ...utilities.numpyHelper import find_nearest
 
 BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^', '&', '(', ')', '~', '`')
 
 class LayeredWorld(TidalWorld):
 
-    """ LayeredWorld - Construct worlds that have layers within them.
+    """ LayeredWorld - Construct tidal worlds that have layers.
 
+
+    See Also
+    --------
+    Parent Class:
+        TidalPy.structures.worlds.TidalWorld
+    Child Classes:
+        TidalPy.structures.world.GasGiantLayeredWorld
+        TidalPy.structures.world.BurnManWorld
     """
 
     world_class = 'layered'
 
     def __init__(self, world_config: dict, name: str = None, initialize: bool = True):
+        """ LayeredWorld constructor
+
+        Parameters
+        ----------
+        world_config : dict
+            Configuration file used to build the world. User provided configs override default configurations that
+                TidalPy assumes.
+            Please see files stored in <TidalPy directory>/structures/worldConfigs for example configuration dict.
+        name : str = None
+            Name of the world. If None, will use name provided in world_config.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the world (loading in data from world_config).
+        """
 
         if 'layers' not in world_config:
             log.error("Layered world's configurations do not contain layer information. "
@@ -27,7 +49,7 @@ class LayeredWorld(TidalWorld):
 
         super().__init__(world_config, name, initialize=False)
 
-        # Basic Configurations
+        # Basic layer reinit
         LayerClass = layers_class_by_world_class[self.world_class]
         self._layers_class = LayerClass.layer_class
         self._num_layers = len(self.config['layers'])
@@ -174,6 +196,13 @@ class LayeredWorld(TidalWorld):
             self.set_geometry(radius, mass, thickness=None, mass_below=0., update_state_geometry=update_state_geometry,
                               build_slices=False)
 
+        # Clean up config:
+        if 'radii' in self.config:
+            del self._config['radii']
+        for layer_name, layer_config in self._config['layers'].items():
+            if 'radii' in layer_config:
+                del layer_config['radii']
+
     def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
                      update_state_geometry: bool = True, build_slices: bool = False):
         """ Calculates and sets world's physical parameters based on user provided input.
@@ -313,8 +342,36 @@ class LayeredWorld(TidalWorld):
                 return layer
         raise LookupError()
 
+    def update_time(self):
+        """ Update any attributes or methods that rely on the current time.
 
-    # State properties
+        This can be called by a Orbit class if one is set.
+        """
+
+        super().update_time()
+
+        # Tell each layer that the time has been updated.
+        for layer in self:
+            layer.update_time()
+
+    def update_orbit_spin(self, frequency_change: bool = True):
+        """ Performs state updates whenever the planet's orbital parameters are changed
+
+        Parameters
+        ----------
+        frequency_change : bool = True
+            If the orbit or spin rate changed then additional calculations must take place.
+        """
+
+        if frequency_change:
+            # A change to the orbital or spin frequency will cause a change to the forcing frequency(ies) which will
+            #    change the complex compliances
+            for layer in self:
+                layer.rheology.update_frequency(called_from_world=True)
+
+        super().update_orbit_spin(frequency_change=frequency_change)
+
+    # # Initiated properties
     @property
     def layers_class(self) -> str:
         """ Name of the python class used to construct this world's layers """
@@ -322,7 +379,7 @@ class LayeredWorld(TidalWorld):
 
     @layers_class.setter
     def layers_class(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
     @property
     def layers_by_name(self) -> Dict[str, LayerType]:
@@ -331,7 +388,7 @@ class LayeredWorld(TidalWorld):
 
     @layers_by_name.setter
     def layers_by_name(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
     @property
     def layers(self) -> Tuple[LayerType, ...]:
@@ -340,7 +397,7 @@ class LayeredWorld(TidalWorld):
 
     @layers.setter
     def layers(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
     @property
     def layer_types(self) -> Tuple[str, ...]:
@@ -349,7 +406,7 @@ class LayeredWorld(TidalWorld):
 
     @layer_types.setter
     def layer_types(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
     @property
     def num_layers(self) -> int:
@@ -358,7 +415,8 @@ class LayeredWorld(TidalWorld):
 
     @num_layers.setter
     def num_layers(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
+
 
     # # Aliased properties
     @property
@@ -384,6 +442,7 @@ class LayeredWorld(TidalWorld):
     @pressures.setter
     def pressures(self, value):
         self.pressure_slices = value
+
 
     # Dunder properties
     def __iter__(self) -> Iterator[Union[PhysicsLayer, GasLayer, BurnmanLayer]]:

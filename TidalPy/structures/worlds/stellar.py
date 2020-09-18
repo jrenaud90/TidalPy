@@ -1,5 +1,6 @@
 from .tidal import TidalWorld
 from ... import log
+from ...exceptions import ConfigPropertyChangeError
 from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, luminosity_from_efftemp
 
 
@@ -7,15 +8,26 @@ from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, lu
 
 class StarWorld(TidalWorld):
 
+    """ StarWorld
+    Stars can dissipate tidal energy through the CPL/CTL method (or not at all) and have methods to calculate
+        insolation heating.
+
+
+    See Also
+    --------
+    Parent Class:
+        TidalPy.structures.worlds.TidalWorld
+    """
+
     world_class = 'star'
 
     def __init__(self, star_config: dict, name: str = None, initialize: bool = True):
 
         super().__init__(star_config, name=name, initialize=False)
 
-        # StarWorld-specific attributes
-        self.luminosity = None
-        self.effective_temperature = None
+        # Configuration properties
+        self._luminosity = None
+        self._effective_temperature = None
 
         if initialize:
             self.reinit(initial_init=True)
@@ -42,19 +54,39 @@ class StarWorld(TidalWorld):
         super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry,
                        set_by_burnman=set_by_burnman, setup_simple_tides=setup_simple_tides)
 
-        self.luminosity = self.config.get('luminosity', None)
-        self.effective_temperature = self.config.get('effective_temperature', None)
+        self._luminosity = self.config.get('luminosity', None)
+        self._effective_temperature = self.config.get('effective_temperature', None)
 
         if self.luminosity is None:
             # If no luminosity provided: Try to convert effective surface temperature
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
-                log.info('Luminosity and effective temperature of {self.name} was not provided. '
-                         'Estimating from stellar mass.')
-                self.luminosity = luminosity_from_mass(self.mass)
-                self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
+                log.info(f'Luminosity and effective temperature of {self} was not provided. '
+                         'Estimating these values from the stellar mass.')
+                self._luminosity = luminosity_from_mass(self.mass)
+                self._effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
             else:
-                self.luminosity = luminosity_from_efftemp(self.effective_temperature, self.radius)
+                self._luminosity = luminosity_from_efftemp(self.effective_temperature, self.radius)
         else:
-            if self.effective_temperature is None:
-                self.effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
+            if self._effective_temperature is None:
+                self._effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
+
+
+    # # Configuration properties
+    @property
+    def luminosity(self) -> float:
+        """ Stars luminosity [W] """
+        return self._luminosity
+
+    @luminosity.setter
+    def luminosity(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def effective_temperature(self) -> float:
+        """ Star's effective surface temperature [K] """
+        return self._effective_temperature
+
+    @effective_temperature.setter
+    def effective_temperature(self, value):
+        raise ConfigPropertyChangeError

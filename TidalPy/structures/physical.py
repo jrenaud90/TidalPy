@@ -95,7 +95,7 @@ class PhysicalObjSpherical(ConfigHolder):
             #    If user provided real moment of inertia, pull that out and calculate moi factor
             self.moi = self.config.get('moi', None)
 
-        # Other reinit steps are setup by child classes
+        # Other reinit steps are reinit by child classes
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None,
                      mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True):

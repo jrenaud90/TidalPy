@@ -1,17 +1,18 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, List
 
 import numpy as np
 
 from . import known_models, known_model_const_args, known_model_live_args
 from .defaults import known_isotope_data, radiogenics_defaults
-from .. import debug_mode, log
-from ..exceptions import (ImproperPropertyHandling, ParameterMissingError, UnknownModelError, AttributeNotSetError,
-                          IncorrectAttributeType, OuterscopePropertySetError)
+from .. import log
+from ..exceptions import (ParameterMissingError, UnknownModelError, AttributeNotSetError,
+                          IncorrectAttributeType, OuterscopePropertySetError, IncorrectMethodToSetStateProperty,
+                          ConfigPropertyChangeError)
 from ..utilities.classes.model import LayerModelHolder
-from ..utilities.types import float_like
+from ..utilities.types import FloatArray, NoneType
 
 if TYPE_CHECKING:
-    from ..structures import PhysicsLayer
+    from ..structures.layers import PhysicalLayerType
 
 
 class Radiogenics(LayerModelHolder):
@@ -28,33 +29,76 @@ class Radiogenics(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = 'radiogenics'
 
-    def __init__(self, layer: 'PhysicsLayer', model_name: str = None, store_config_in_layer: bool = True):
+    def __init__(self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
+                 initialize: bool = True):
+        """ Constructor for the Radiogenics model
 
-        # Set auto_build_inputs to False so that the functions can be built at the end of this __init__ once a few
+        Parameters
+        ----------
+        layer : PhysicalLayerType
+            The layer instance which radiogenics are calculated.
+        model_name : str = None
+            The user-provided radiogenic model name.
+        store_config_in_layer: bool = True
+            Flag that determines if the final radiogenic configuration dictionary should be copied into the
+            `layer.config` dictionary.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the model (loading in data from its `self.config`).
+        """
+
+        # Set initialize to False so that the functions can be built at the end of this __init__ once a few
         #    more parameters are loaded into the class's config.
-        super().__init__(layer, model_name, store_config_in_layer, auto_build_inputs=False)
+        super().__init__(layer, model_name, store_config_in_layer, initialize=False)
 
-        # State attributes
+        # State properties
         self._heating = None
 
-        log.debug(f'Loading Radiogenics ({self.model}) into {self.layer}.')
+        # Configuration properties
+        self._isos_name = None
+        self._isos_hpr = None
+        self._isos_halflife = None
+        self._isos_massfrac = None
+        self._isos_concentration = None
+        self._radiogenic_layer_mass_frac = None
 
-        # Convert isotope information into list[tuple] format
+        if initialize:
+            self.reinit(initial_init=True)
+
+    def reinit(self, initial_init: bool = False):
+        """ Reinitialization for the Radiogenic model
+        Model will look at the user-provided configurations and pull out model information including constants
+
+        Parameters
+        ----------
+        initial_init : bool = False
+            Must be set to `True` if this is the first time this method has been called (additional steps may be
+                preformed during the first reinit call).
+        """
+
+        # The model builder only looks for 'ref_time' if the user provided the reference time as 'reference_time'
+        #    add the 'ref_time' key pointing to the same value.
         if 'ref_time' not in self.config:
             if 'reference_time' in self.config:
                 self.config['ref_time'] = self.config['reference_time']
             else:
                 self.config['ref_time'] = None
 
+        # User can reduce the amount of the layer's mass used for radiogenic calculations if they have a reason to
+        #   think that a portion of the layer contains no radiogenics (like a molten portion).
+        # TODO: It would be nice to have this as a dynamic variable so that if a layer is melting it may be
+        #    concentrating radiogenics into a specific portion of the layer
+        self._radiogenic_layer_mass_frac = self.config['radiogenic_layer_mass_fraction']
+
         if self.model == 'isotope':
-            self.isos_name = list()
-            self.isos_hpr = list()
-            self.isos_halflife = list()
-            self.isos_massfrac = list()
-            self.isos_concentration = list()
+            # Reset the isotope lists back to empty
+            self._isos_name = list()
+            self._isos_hpr = list()
+            self._isos_halflife = list()
+            self._isos_massfrac = list()
+            self._isos_concentration = list()
 
             # Isotopes may be given as a dictionary of individual isotopes or as a string pointing to one of the
-            #  pre-built isotope lists.
+            #  pre-built TidalPy isotope lists.
             isotopes = self.config['isotopes']
             if type(isotopes) == str:
                 if isotopes.lower() not in known_isotope_data:
@@ -63,19 +107,25 @@ class Radiogenics(LayerModelHolder):
             else:
                 iso_datas = isotopes
 
-            # Different Isotope data sources may have their own reference time - extract that information
+            # Different Isotope data sources may have their own reference time - extract that information and
+            #    store it in the model's main configuration dictionary.
             new_ref_time = None
             if 'ref_time' in iso_datas:
                 new_ref_time = iso_datas['ref_time']
             elif 'reference_time' in iso_datas:
                 new_ref_time = iso_datas['reference_time']
-            elif self.config['ref_time'] is None:
-                log('\tNo reference time provided for radiogenics, using ref_time = 0.', level='debug')
-                self.config['ref_time'] = 0.
 
-            if new_ref_time is not None:
-                if self.config['ref_time'] is not None:
-                    log('\tRadiogenic reference time overwritten by isotope reference time.', level='debug')
+            # If no reference time was found use the model config's
+            if new_ref_time is None:
+                new_ref_time = self.config['ref_time']
+            else:
+                log.debug(f'Overriding default reference time with value provided by isotope data in {self}.')
+
+            if new_ref_time is None:
+                # If there is still no reference time then fall back on a default, but warn the user.
+                log.warning(f'No reference time provided for radiogenics, using ref_time = 0 Myr in {self}.')
+                self.config['ref_time'] = 0.
+            else:
                 self.config['ref_time'] = new_ref_time
 
             # Build isotope inputs and store them in radiogenics.config - these will end up in the self.inputs used in
@@ -86,46 +136,39 @@ class Radiogenics(LayerModelHolder):
                     continue
 
                 # For each isotope, extract the needed info
-                self.isos_name.append(isotope)
+                self._isos_name.append(isotope)
                 try:
-                    if debug_mode:
-                        for param_name in ['hpr', 'half_life', 'iso_mass_fraction', 'element_concentration']:
-                            assert type(iso_data[param_name]) in float_like
-                    self.isos_hpr.append(iso_data['hpr'])
-                    self.isos_halflife.append(iso_data['half_life'])
-                    self.isos_massfrac.append(iso_data['element_concentration'])
-                    self.isos_concentration.append(iso_data['iso_mass_fraction'])
+                    self._isos_hpr.append(iso_data['hpr'])
+                    self._isos_halflife.append(iso_data['half_life'])
+                    self._isos_massfrac.append(iso_data['element_concentration'])
+                    self._isos_concentration.append(iso_data['iso_mass_fraction'])
                 except KeyError:
-                    raise ParameterMissingError(f'One or more parameters are missing for isotope {isotope}.')
+                    log.error(f'One or more parameters are missing for isotope {isotope} in {self}.')
+                    raise ParameterMissingError(f'One or more parameters are missing for isotope {isotope} in {self}.')
 
-            # Once isotopes are loaded they are set and can not be appended or changed to later.
-            #    This allows the use of numba.njit.
-            #    To emphasize this we will convert these lists into tuples for final storage.
-            self.isos_name = tuple(self.isos_name)
-            self.isos_hpr = tuple(self.isos_hpr)
-            self.isos_halflife = tuple(self.isos_halflife)
-            self.isos_massfrac = tuple(self.isos_massfrac)
-            self.isos_concentration = tuple(self.isos_concentration)
+            # Add the isotope data to the config so that the argument builder can find them
             self.config['iso_massfracs_of_isotope'] = self.isos_massfrac
             self.config['iso_element_concentrations'] = self.isos_concentration
             self.config['iso_halflives'] = self.isos_halflife
             self.config['iso_heat_production'] = self.isos_hpr
 
-        # Finish loading the model functions and inputs
-        self.build_inputs()
+
+        # Call the parent's reinit right away
+        super().reinit(initial_init)
 
     def clear_state(self):
+        """ Clear the Radiogenic model's state. """
 
         super().clear_state()
 
         self._heating = None
 
-    def _calculate(self) -> np.ndarray:
+    def _calculate(self) -> FloatArray:
         """ Calculates the radiogenic heating of layer in which the radiogenic class is installed.
 
         Returns
         -------
-        radiogenic_heating : np.ndarray
+        radiogenic_heating : FloatArray
             Radiogenic heating [W]
         """
 
@@ -164,21 +207,101 @@ class Radiogenics(LayerModelHolder):
 
         return radiogenic_heating
 
-
-    # State properties
+    # # Configuration properties
     @property
-    def heating(self) -> np.ndarray:
+    def isos_name(self) -> Union[NoneType, List[str]]:
+        """ List of isotope names used in radiogenic calculations (for isotope model only) """
+        return self._isos_name
+
+    @isos_name.setter
+    def isos_name(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def isos_hpr(self) -> Union[NoneType, List[float]]:
+        """ List of isotope heat production rates [W kg-1] (for isotope model only) """
+        return self._isos_hpr
+
+    @isos_hpr.setter
+    def isos_hpr(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def isos_halflife(self) -> Union[NoneType, List[float]]:
+        """ List of isotope half lives [Myr] (for isotope model only) """
+        return self._isos_halflife
+
+    @isos_halflife.setter
+    def isos_halflife(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def isos_massfrac(self) -> Union[NoneType, List[float]]:
+        """ List of isotope mass fractions [kg kg-1] (for isotope model only)
+
+        Notes
+        -----
+        .. This is the mass fraction of the specific radiogenic isotope in a block of all isotopes of the particular
+            element.
+
+        See Also
+        --------
+        Radiogenics.isos_massfrac
+        """
+        return self._isos_massfrac
+
+    @isos_massfrac.setter
+    def isos_massfrac(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def isos_concentration(self) -> Union[NoneType, List[float]]:
+        """ List of element concentration [kg kg-1] (for isotope model only)
+
+        Notes
+        -----
+        .. This is the mass concentration of the isotope's element (e.g., Uranium) in a block of generic layer
+            material. aka: how many kg of uranium is in a kg of silicate rock. This is not the amount of the specific
+            radiogenic isotope (see isos_massfrac).
+
+        See Also
+        --------
+        Radiogenics.isos_massfrac
+        """
+        return self._isos_concentration
+
+    @isos_concentration.setter
+    def isos_concentration(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def radiogenic_layer_mass_frac(self) -> float:
+        """ Fraction of the layer's mass where radiogenic isotopes are concentrated (defaults to 1) """
+        return self._radiogenic_layer_mass_frac
+
+    @radiogenic_layer_mass_frac.setter
+    def radiogenic_layer_mass_frac(self, value):
+        raise ConfigPropertyChangeError
+
+
+    # # State properties
+    @property
+    def heating(self) -> FloatArray:
+        """ Radiogenic heating rate [W] """
         return self._heating
 
     @heating.setter
     def heating(self, value):
-        raise ImproperPropertyHandling
+        # TODO We could have the user set the radiogenic heating and then this setter could call the layer's
+        #  thermal update.
+        raise IncorrectMethodToSetStateProperty
 
 
-    # Outer-scope properties
+    # # Outer-scope properties
     @property
     def time(self):
-        return self.layer.world.time
+        """ Outer-scope Wrapper for world.time """
+        return self.world.time
 
     @time.setter
     def time(self, value):
@@ -186,7 +309,8 @@ class Radiogenics(LayerModelHolder):
 
     @property
     def mass(self):
-        return self.layer.radiogenic_mass
+        """ Outer-scope Wrapper for layer.mass including a scale for the radiogenic mass frac """
+        return self.layer.mass * self.radiogenic_layer_mass_frac
 
     @mass.setter
     def mass(self, value):

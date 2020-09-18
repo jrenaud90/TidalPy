@@ -13,6 +13,7 @@ GasStarWorldType = Union[GasGiantWorld, StarWorld]
 BurnmanWorldType = BurnManWorld
 LayeredWorldType = Union[BurnManWorld, LayeredWorld, GasGiantLayeredWorld]
 TidalWorldType = Union[GasStarWorldType, BurnmanWorldType, TidalWorld, LayeredWorld]
+all_tidal_world_types = (GasGiantWorld, StarWorld, TidalWorld, LayeredWorld, BurnmanWorldType, GasGiantLayeredWorld)
 
 world_types = {
     'star': StarWorld,

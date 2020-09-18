@@ -7,10 +7,16 @@ if TYPE_CHECKING:
 
 class GasLayer(LayerBase):
 
-    """ GasLayer class used to store properties and methods for gaseous (and plasma) layers.
+    """" GasLayer
+    Layer object used to construct gas giant or ice giant planets that contain a significant gas layer. Currently,
+        these layers do not do anything over the base layer class but allow for future functionality.
 
-    Currently this is unused as tidal heating within gas planets is handled at the world.tides level (since most
-        studies assume a global CPL/CTL model for these worlds). This class is a placeholder for future development.
+    Notes:
+    .. Does not provide any functionality to perform tidal calculations (see PhysicsLayer instead)
+
+    See Also
+    --------
+    TidalPy.structures.layers.LayerBase
     """
 
     layer_class = 'gas'

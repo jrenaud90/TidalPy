@@ -35,7 +35,7 @@ HEADER_TEXT = (
 )
 HEADER_TEXT = '\n'.join(HEADER_TEXT)
 
-def log_setup(write_to_disk: bool = False, write_locale: str = None):
+def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_jupyter: bool = False):
     """ Setup Python's logging module based on user provided information as well as built-in TidalPy settings
 
     Look at TidalPy.config or the /configurations.py file for switches that control the logging level and if the log
@@ -48,6 +48,8 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None):
     write_locale : str = None
         Location that the logger will attempt to save to.
         If set to None, the logger will save to the current working directory.
+    running_in_jupyter : bool = False
+        If `True`, then the logger will not get a console handler (no logs printed to console)
 
     Returns
     -------
@@ -80,8 +82,14 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None):
             regular_log_file.write(HEADER_TEXT)
 
     # Setup handlers
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(stream_formatter)
+    #    Console printer
+    if not running_in_jupyter:
+        # We do not want to print to console when we are running in a jupyter notebook
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(stream_formatter)
+        tidalpy_log.addHandler(stream_handler)
+
+    #    File printer
     regular_file_handler = None
     error_file_handler = None
     if write_to_disk:
@@ -93,7 +101,6 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None):
         error_file_handler.setLevel(config['error_logfile_level'])
 
     # Add handlers
-    tidalpy_log.addHandler(stream_handler)
     if write_to_disk:
         tidalpy_log.addHandler(regular_file_handler)
         tidalpy_log.addHandler(error_file_handler)

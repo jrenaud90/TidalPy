@@ -165,16 +165,16 @@ def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_visco
 
 @njit
 def henning(melt_fraction: float, temperature: float,
-            premelt_viscosity: float, liquid_viscosity: float, premelt_shear: float,
+            premelt_viscosity: float, liquid_viscosity: float, premelt_shear: float, solidus: float, liquidus: float,
             liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
-            hn_visc_slope_1: float = 13.5, hn_visc_slope_2: float = 370., hn_shear_param_1: float = 40000.,
+            hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,
             hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.) -> Tuple[float, float]:
     """ Viscosity and Shear Modulus Partial Melting Model: henning - NonArrays Only
 
     Henning (2009, 2010) Partial-Melt Viscosity Function
     See also Moore's work and Renaud and Henning (2018)
 
-    !TPY_args live: self.temperature, self.premelt_viscosity, self.liquid_viscosity, self.premelt_shear
+    !TPY_args live: self.temperature, self.premelt_viscosity, self.liquid_viscosity, self.premelt_shear, self.solidus, self.liquidus
     !TPY_args const: liquid_shear, crit_melt_frac, crit_melt_frac_width, hn_visc_slope_1, hn_visc_slope_2, hn_shear_param_1, hn_shear_param_2, hn_shear_falloff_slope
 
     Parameters
@@ -187,6 +187,10 @@ def henning(melt_fraction: float, temperature: float,
         Layer/Material viscosity before partial melting is considered [Pa s]
     premelt_shear : float
         Layer/Material shear modulus before partial melting is considered [Pa]
+    solidus : float
+        Layer/Material solidus temperature
+    liquidus : float
+        Layer/Material liquidus temperature
     liquid_viscosity : float
         Layer/Material viscosity if it were completely molten at this temperature [Pa s]
     liquid_shear : float
@@ -199,7 +203,7 @@ def henning(melt_fraction: float, temperature: float,
             liquid-like responses.
     hn_visc_slope_1 : float
         Henning, pre-breakdown, viscosity exponent multiplier parameter
-    hn_visc_slope_2 : float
+    hn_visc_falloff_slope : float
         Henning, breakdown, viscosity exponent multiplier parameter
     hn_shear_param_1 : float
         Henning, pre-breakdown, shear modulus exponent multiplier parameter 1 [K]
@@ -217,31 +221,35 @@ def henning(melt_fraction: float, temperature: float,
     """
 
     crit_melt_frac_plus_width = crit_melt_frac + crit_melt_frac_width
+    break_down_temp = solidus + crit_melt_frac * (liquidus - solidus)
 
     # Initialize post-melt with pre-melt values (if there is no melt fraction then these values will be returned.
     postmelt_viscosity = premelt_viscosity
     postmelt_shear_modulus = premelt_shear
 
     # Calculate viscosity and shear modulus in the three domains
-    if melt_fraction < 0:
+    if melt_fraction <= 0.:
         # No partial melt.
         pass
     else:
         # Partial melting
-        if crit_melt_frac > melt_fraction:
-            # Partial melting before critical break-down
+        if melt_fraction < crit_melt_frac:
+            # Partial melting before critical break-down.
             postmelt_viscosity *= np.exp(-hn_visc_slope_1 * melt_fraction)
             postmelt_shear_modulus *= np.exp((hn_shear_param_1/temperature) - hn_shear_param_2)
         elif crit_melt_frac <= melt_fraction <= crit_melt_frac_plus_width:
-            # Critical breakdown occurring
-            postmelt_viscosity *= np.exp(-hn_visc_slope_2 * (melt_fraction - crit_melt_frac))
+            # Get the maximum pre-melt effect
+            postmelt_viscosity *= np.exp(-hn_visc_slope_1 * crit_melt_frac)
+            postmelt_shear_modulus *= np.exp((hn_shear_param_1/break_down_temp) - hn_shear_param_2)
+            # Then apply critical breakdown occurring.
+            postmelt_viscosity *= np.exp(-hn_visc_falloff_slope * (melt_fraction - crit_melt_frac))
             postmelt_shear_modulus *= np.exp(-hn_shear_falloff_slope * (melt_fraction - crit_melt_frac))
         elif melt_fraction > crit_melt_frac_plus_width:
-            # Past critical breakdown threshold. The material now behaves like a fluid
+            # Past critical breakdown threshold. The material now behaves like a fluid.
             postmelt_viscosity = liquid_viscosity
             postmelt_shear_modulus = liquid_shear
 
-    # Perform sanity checks
+    # Perform sanity corrections
     if postmelt_viscosity < liquid_viscosity:
         postmelt_viscosity = liquid_viscosity
     if postmelt_shear_modulus < liquid_shear:
@@ -251,9 +259,10 @@ def henning(melt_fraction: float, temperature: float,
 
 @njit
 def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
-                  premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray, premelt_shear: float,
+                  premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
+                  premelt_shear: float, solidus: float, liquidus: float,
                   liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
-                  hn_visc_slope_1: float = 13.5, hn_visc_slope_2: float = 370., hn_shear_param_1: float = 40000.,
+                  hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,
                   hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.) -> Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: henning
 
@@ -273,6 +282,10 @@ def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
         Layer/Material viscosity before partial melting is considered [Pa s]
     premelt_shear : np.ndarray
         Layer/Material shear modulus before partial melting is considered [Pa]
+    solidus : float
+        Layer/Material solidus temperature
+    liquidus : float
+        Layer/Material liquidus temperature
     liquid_viscosity : np.ndarray
         Layer/Material viscosity if it were completely molten at this temperature [Pa s]
     liquid_shear : float
@@ -285,7 +298,7 @@ def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
             liquid-like responses.
     hn_visc_slope_1 : float
         Henning, pre-breakdown, viscosity exponent multiplier parameter
-    hn_visc_slope_2 : float
+    hn_visc_falloff_slope : float
         Henning, breakdown, viscosity exponent multiplier parameter
     hn_shear_param_1 : float
         Henning, pre-breakdown, shear modulus exponent multiplier parameter 1 [K]
@@ -303,21 +316,28 @@ def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
     """
 
     crit_melt_frac_plus_width = crit_melt_frac + crit_melt_frac_width
+    break_down_temp = solidus + crit_melt_frac * (liquidus - solidus)
 
     # Calculate ndarray indices that define the three domains
-    pre_breakdown_index = np.logical_and(crit_melt_frac > melt_fraction, melt_fraction > 0)
-    breakdown_index = np.logical_and(melt_fraction >= crit_melt_frac, crit_melt_frac_plus_width >= melt_fraction)
+    pre_breakdown_index = np.logical_and(melt_fraction < crit_melt_frac, melt_fraction > 0)
+    breakdown_index = np.logical_and(melt_fraction >= crit_melt_frac, melt_fraction <= crit_melt_frac_plus_width)
     molten_index = melt_fraction > crit_melt_frac_plus_width
 
     # Calculate viscosity in the three domains
     postmelt_viscosity = premelt_viscosity
     postmelt_viscosity[pre_breakdown_index] *= np.exp(-hn_visc_slope_1 * melt_fraction[pre_breakdown_index])
-    postmelt_viscosity[breakdown_index] *= np.exp(-hn_visc_slope_2 * (melt_fraction[breakdown_index] - crit_melt_frac))
+    # For breakdown_index, apply maximum from the pre-critical domain
+    postmelt_viscosity[breakdown_index] *= np.exp(-hn_visc_slope_1 * crit_melt_frac)
+    # Then apply the breakdown effects
+    postmelt_viscosity[breakdown_index] *= np.exp(-hn_visc_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac))
     postmelt_viscosity[molten_index] = liquid_viscosity[molten_index]
 
     # Calculate shear modulus in the three domains
     postmelt_shear_modulus = premelt_shear * np.ones_like(temperature)
     postmelt_shear_modulus[pre_breakdown_index] *= np.exp((hn_shear_param_1 / temperature[pre_breakdown_index]) - hn_shear_param_2)
+    # For breakdown_index, apply maximum from the pre-critical domain
+    postmelt_shear_modulus[breakdown_index] *= np.exp((hn_shear_param_1 / break_down_temp) - hn_shear_param_2)
+    # Then apply the breakdown effects
     postmelt_shear_modulus[breakdown_index] *= np.exp(-hn_shear_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac))
     postmelt_shear_modulus[molten_index] = liquid_shear
 

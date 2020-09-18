@@ -81,16 +81,21 @@ known_isotope_data = {
 
 radiogenics_defaults = {
     'ice' : {
-        'model'   : 'off'
+        'model'                              : 'off',
+        'use_full_layer_mass_for_radiogenics': True,
+        'radiogenic_layer_mass_fraction'     : 1.
     },
     'rock': {
-        'model'   : 'isotope',
+        'model'                         : 'isotope',
         # isotopes can either be a string that references one of the pre-defined sets above,
         #  or a custom set (use the above format).
-        'isotopes': 'modern_day_chondritic'
+        'isotopes'                      : 'modern_day_chondritic',
+        'radiogenic_layer_mass_fraction': 1.
     },
     'iron': {
-        'model'   : 'off'
+        'model'                              : 'off',
+        'use_full_layer_mass_for_radiogenics': True,
+        'radiogenic_layer_mass_fraction'     : 1.
     }
 }
 

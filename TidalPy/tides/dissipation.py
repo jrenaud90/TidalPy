@@ -1,11 +1,11 @@
 import numpy as np
-from numba import njit
 from scipy.constants import G
 
+from ..utilities.performance import njit
 from ..utilities.types import FloatArray
 
 
-@njit
+@njit(cacheable=True)
 def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
     """ Calculate the tidal susceptibility for a given target radius, host mass, and their separation.
 
@@ -28,7 +28,7 @@ def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major
 
     return tidal_susceptibility
 
-@njit
+@njit(cacheable=True)
 def calc_tidal_susceptibility_reduced(host_mass: float, target_radius: float) -> float:
     """ Calculate the tidal susceptibility (reduced) for a given target radius and host mass.
 

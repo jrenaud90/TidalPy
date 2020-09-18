@@ -10,8 +10,8 @@ def test_eccentricity_func_load():
 
     from TidalPy.tides.eccentricityFuncs import eccentricity_truncations
 
-    # As of version 0.2, TidalPy should contain truncations up to e^20 (only even truncations)
-    assert len(eccentricity_truncations) == 10
+    # As of version 0.2.1, TidalPy should contain truncations up to e^22 (only even truncations)
+    assert len(eccentricity_truncations) == 11
 
     # As of version 0.2, each truncation level should contain l = 2 ... 7 harmonics
     for trunc_lvl, funcs_by_orderl in eccentricity_truncations.items():

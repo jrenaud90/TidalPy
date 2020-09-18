@@ -6,7 +6,8 @@ import numpy as np
 
 from .basic import LayerBase
 from ...cooling import CoolingModel
-from ...exceptions import (ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError)
+from ...exceptions import (ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError,
+                           ConfigPropertyChangeError)
 from ...radiogenics.radiogenics import Radiogenics
 from ...rheology import Rheology
 from ...utilities.numpyHelper.array_shape import reshape_help
@@ -28,6 +29,7 @@ class PhysicsLayer(LayerBase):
 
     See Also
     --------
+    TidalPy.structures.layers.LayerBase
     TidalPy.structures.layers.BurnmanLayer
     """
 
@@ -59,20 +61,18 @@ class PhysicsLayer(LayerBase):
         # State Derivatives
         self._deriv_temperature = None
 
-        # Other attributes
-        self.use_pressure_in_strength_calc = True
+        # Configuration properties
+        self._use_pressure_in_strength_calc = False
+        # Model holders - reinit in reinit()
+        self._rheology = None       # type: Union['Rheology', NoneType]
+        self._cooling_model = None  # type: Union['CoolingModel', NoneType]
+        self._radiogenics = None    # type: Union['Radiogenics', NoneType]
 
-        # Model holders - setup in reinit()
-        self.rheology = None       # type: Union['Rheology', NoneType]
-        self.cooling_model = None  # type: Union['CoolingModel', NoneType]
-        self.radiogenics = None    # type: Union['Radiogenics', NoneType]
-
-        # Set up a pressure that will persist if the layer's state is cleared
-        # TODO: should this be reinit?
-        self._persistent_pressure = self.pressure
+        self.heat_sources = list()
 
         # Material Properties
-        #     These are calculated by BurnMan in the BurnmanLayer version, can be set by user/config here.
+        # TODO: Should all of these be private properties with a dedicated setter that makes a call to update_thermal()?
+        # These are calculated by BurnMan in the BurnmanLayer version, can be set by user/config here.
         self.bulk_modulus = None
         self.thermal_expansion = None
         self.specific_heat = None
@@ -114,16 +114,16 @@ class PhysicsLayer(LayerBase):
         self.stefan = self.config['stefan']
 
         # Setup Models
-        self.rheology = Rheology(self, store_config_in_layer=True)
-        self.radiogenics = Radiogenics(self, store_config_in_layer=True)
-        self.cooling_model = CoolingModel(self, store_config_in_layer=True)
+        self._rheology = Rheology(self, store_config_in_layer=True)
+        self._radiogenics = Radiogenics(self, store_config_in_layer=True)
+        self._cooling_model = CoolingModel(self, store_config_in_layer=True)
 
         # Find all heating sources
         self.heat_sources = list()
         if 'off' not in self.radiogenics.model:
             self.heat_sources.append(lambda : self.radiogenic_heating)
         if self.is_tidal:
-            self.heat_sources.append(lambda: self.tidal_heating)
+            self.heat_sources.append(lambda : self.tidal_heating)
 
     def clear_state(self, clear_pressure: bool = False):
 
@@ -135,70 +135,6 @@ class PhysicsLayer(LayerBase):
         # Clear the state of all inner-scope classes
         for model in [self.rheology, self.radiogenics, self.cooling_model]:
             model.clear_state()
-
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None,
-                  force_update_strength: bool = True):
-        """ Set the layer's temperature and update all related properties.
-
-        Parameters
-        ----------
-        temperature : FloatArray = None
-            Temperature of layer [K]
-        pressure : FloatArray = None
-            Pressure of layer [Pa]
-        force_update_strength : bool = True
-            If True, <layer>.update_strength() will be called
-
-        """
-
-        if temperature is not None:
-            new_shape, temperature = reshape_help(temperature, self.world.global_shape,
-                                                  call_locale=f'{self}.set_state.temperature')
-            if new_shape:
-                self.world.change_shape(new_shape)
-
-            self._temperature = temperature
-
-        if pressure is not None:
-            new_shape, pressure = reshape_help(pressure, self.world.global_shape,
-                                               call_locale=f'{self}.set_state.pressure')
-            if new_shape:
-                self.world.change_shape(new_shape)
-            self._pressure = pressure
-
-        if force_update_strength:
-            # Temperature and pressure will change the strength of the layer and all of its dependencies
-            self.update_strength()
-
-    def set_temperature(self, temperature: FloatArray):
-        """ Wrapper for PhysicsLayer.set_state
-
-        Parameters
-        ----------
-        temperature : FloatArray
-            Temperature of layer [K]
-
-        See Also
-        --------
-        TidalPy.structures.layers.layers.PhysicsLayer.set_state
-        """
-
-        self.set_state(temperature=temperature, pressure=None)
-
-    def set_pressure(self, pressure: FloatArray):
-        """ Wrapper for PhysicsLayer.set_state
-
-        Parameters
-        ----------
-        pressure : FloatArray
-            Pressure of layer [Pa]
-
-        See Also
-        --------
-        TidalPy.structures.layers.layers.PhysicsLayer.set_state
-        """
-
-        self.set_state(temperature=None, pressure=pressure)
 
     def set_strength(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None):
         """ Manual set the viscosity and shear modulus of the layer, independent of temperature.
@@ -224,30 +160,25 @@ class PhysicsLayer(LayerBase):
 
         self.update_strength(already_called_rheology=True)
 
-    def update_radiogenics(self, force_calculation: bool = False) -> np.ndarray:
-        """ Calculate the radiogenic heating rate within this layer, requires the world.time to be set.
+    def update_thermal(self):
+        """ Update various classes and methods when any thermal parameters change. """
 
-        Parameters
-        ----------
-        force_calculation : bool = False
-            Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
+        if self.rheology is not None:
+            self.rheology.update_thermal(called_from_layer=True)
 
-        Returns
-        -------
-        radiogenic_heating : np.ndarray
-            Radiogenic heating rate in [Watts]
+    def update_time(self):
+        """ Whenever the time property is changed we need to make sure the radiogenics model gets that update and
+            recalculates.
+
         """
 
-        try:
-            self.radiogenics.calculate()
-        except ParameterMissingError as error:
-            if force_calculation:
-                raise error
+        if self.radiogenics is not None:
+            if self.radiogenics.model != 'off':
+                self.radiogenics.calculate()
 
-        # New radiogenic heating will change the temperature derivative
-        self.calc_temperature_derivative(force_calculation=False)
-
-        return self.radiogenic_heating
+                if self.cooling_model is not None:
+                    # New radiogenic heating will change the temperature derivative
+                    self.calc_temperature_derivative()
 
     def update_cooling(self, force_calculation: bool = False, call_deriv_calc: bool = True):
         """ Calculate parameters related to cooling of the layer, be it convection or conduction
@@ -331,7 +262,7 @@ class PhysicsLayer(LayerBase):
 
         if not already_called_rheology:
             # Tell rheology class to update strength (calculation of effective viscosity, shear, and complex compliance)
-            self.rheology.update_strength(called_from_layer=True)
+            self.rheology.update_thermal(called_from_layer=True)
 
         # Changing the strength will change the cooling properties. Don't have it call derivative calculation yet.
         self.update_cooling(call_deriv_calc=False)
@@ -356,10 +287,10 @@ class PhysicsLayer(LayerBase):
         # Initialize total heating based on if there is a layer warming this one from below
         if self.layer_below is None:
             total_heating = np.zeros_like(self.temperature)
-        elif self.layer_below.heat_flux is None:
+        elif self.layer_below.cooling_flux is None:
             total_heating = np.zeros_like(self.temperature)
         else:
-            total_heating = self.layer_below.heat_flux * self.surface_area_inner
+            total_heating = self.layer_below.cooling_flux * self.surface_area_inner
 
         try:
             # Heat sources are added in the reinit() method.
@@ -375,6 +306,9 @@ class PhysicsLayer(LayerBase):
             self._deriv_temperature = (total_heating - total_cooling) / \
                                      (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
         except ParameterMissingError as error:
+            if force_calculation:
+                raise error
+        except ValueError as error:
             if force_calculation:
                 raise error
 
@@ -396,7 +330,7 @@ class PhysicsLayer(LayerBase):
 
         return temperature_profile
 
-    # State properties
+    # # State properties
     @property
     def deriv_temperature(self) -> np.ndarray:
         """ Time Derivative of Temperature [T s-1] """
@@ -405,6 +339,54 @@ class PhysicsLayer(LayerBase):
     @deriv_temperature.setter
     def deriv_temperature(self, value):
         raise ImproperPropertyHandling
+
+    # # Configuration properties
+    @property
+    def use_pressure_in_strength_calc(self) -> bool:
+        """ Flag for if pressure is used in viscosity and rigidity calculations """
+        return self._use_pressure_in_strength_calc
+
+    @use_pressure_in_strength_calc.setter
+    def use_pressure_in_strength_calc(self, value):
+        raise ConfigPropertyChangeError
+
+    # Model storage
+    @property
+    def rheology(self) -> 'Rheology':
+        """ Rheology class instance, used to calculate viscosity, rigidity, partial melting, and complex compliance """
+        return self._rheology
+
+    @rheology.setter
+    def rheology(self, new_rheology: 'Rheology'):
+
+        # Set rheology and then call updates
+        self._rheology = new_rheology
+        self.update_thermal()
+        self.update_tides()
+
+    @property
+    def cooling_model(self) -> 'CoolingModel':
+        """ Cooling class instance, used to calculate cooling rates """
+        return self._cooling_model
+
+    @cooling_model.setter
+    def cooling_model(self, new_cooling_model: 'CoolingModel'):
+
+        # Set cooling model and then call thermal update
+        self._cooling_model = new_cooling_model
+        self.update_thermal()
+
+    @property
+    def radiogenics(self) -> 'Radiogenics':
+        """ Radiogenics class instance, used to calculate radiogenic heating based on the current time """
+        return self._radiogenics
+
+    @radiogenics.setter
+    def radiogenics(self, new_radiogenics: 'Radiogenics'):
+
+        # Set radiogenics model and then call time update
+        self._radiogenics = new_radiogenics
+        self.update_time()
 
 
     # Inner-scope properties
@@ -599,7 +581,10 @@ class PhysicsLayer(LayerBase):
         Wrapper for `<layer>.<world>.tides.tidal_heating_by_layer[self]`
         """
 
-        return self.world.tides.tidal_heating_by_layer[self]
+        if self.world.tides is None:
+            return None
+        else:
+            return self.world.tides.tidal_heating_by_layer[self]
 
     @tidal_heating.setter
     def tidal_heating(self, value):

@@ -12,9 +12,9 @@ from ..inclinationFuncs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..mode_manipulation import find_mode_manipulators, FreqSig, DissipTermsArray
 from ... import log
-from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, OuterscopePropertySetError,
+from ...exceptions import (AttributeNotSetError, OuterscopePropertySetError,
                            ConfigPropertyChangeError, FailedForcedStateUpdate,
-                           ImplementedBySubclassError, IncompatibleModelError)
+                           ImplementedBySubclassError, IncompatibleModelError, IncorrectMethodToSetStateProperty)
 from ...utilities.classes.config.config import WorldConfigHolder
 from ...utilities.types import FloatArray, ComplexArray
 
@@ -26,7 +26,8 @@ if TYPE_CHECKING:
 
 class TidesBase(WorldConfigHolder):
 
-    """ TidesBase Class - Holder for all tidal heating and tidal potential calculations
+    """ TidesBase
+    Holder for all tidal heating and tidal potential calculations
 
     Tides class stores model parameters and methods for calculating tidal heating and tidal potential derivatives
         which are general functions of (T, P, melt_frac, w, e, obliquity)
@@ -58,7 +59,19 @@ class TidesBase(WorldConfigHolder):
     default_config = tide_defaults['base']
     world_config_key = 'tides'
 
-    def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, auto_compile_funcs: bool = True):
+    def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, initialize: bool = True):
+        """ Constructor for TidesBase class
+
+        Parameters
+        ----------
+        world : TidalWorldType
+            The world where tides are being calculated.
+        store_config_in_world : bool = True
+            Flag that determines if the final model's configuration dictionary should be copied into the
+            `world.config` dictionary.
+        initialize : bool = True
+            If `True`, then an initial call to the tide's reinit method will be made at the end of construction.
+        """
 
         super().__init__(world, store_config_in_world=store_config_in_world)
 
@@ -79,12 +92,12 @@ class TidesBase(WorldConfigHolder):
         self._tidal_polar_torque = None
         self._spin_rate_derivative = None
 
-        # Model configurations that will be set in setup
+        # Model configurations that will be set in reinit
         self._eccentricity_truncation_lvl = None
         self._max_tidal_order_lvl = None
         self._use_obliquity_tides = None
 
-        # Functions to be initialized in self.setup
+        # Functions to be initialized in self.reinit
         self._eccentricity_results = None
         self._obliquity_results = None
         self.eccentricity_func = None
@@ -95,15 +108,26 @@ class TidesBase(WorldConfigHolder):
         # TidalPy logging and debug info
         log.debug(f'Building {self.model} tides class for {self.world.name}.')
 
-        # Call setup for initialization
-        self.setup(auto_compile_funcs=auto_compile_funcs)
+        # Call reinit for initialization
+        if initialize:
+            self.reinit(initial_init=True)
 
-    def setup(self, overload_tidal_l: int = None, overload_eccentricity_truncation: int = None,
-              auto_compile_funcs: bool = False):
+    def reinit(self, initial_init: bool = False, overload_tidal_l: int = None,
+               overload_eccentricity_truncation: int = None):
         """ Load configurations into the Tides class and import any config-dependent functions.
 
-        This setup process is separate from the __init__ method because the Orbit class may need to overload some
+        This reinit process is separate from the __init__ method because the Orbit class may need to overload some
             configurations after class initialization.
+
+        Parameters
+        ----------
+        self
+        initial_init : bool = False
+            This should be set to True the first time reinit is called.
+        overload_tidal_l : int = None
+
+        overload_eccentricity_truncation : int = None
+
         """
 
         # Load in configurations
@@ -128,6 +152,7 @@ class TidesBase(WorldConfigHolder):
         self.clear_state()
 
     def clear_state(self):
+        """ Clear the tides instance state properties """
 
         super().clear_state()
 
@@ -146,8 +171,7 @@ class TidesBase(WorldConfigHolder):
         self._spin_rate_derivative = None
 
     def initialize_tides(self):
-        """ Initialize various tidal parameters once a tidal host is connected to the target body.
-        """
+        """ Initialize various tidal parameters once a tidal host is connected to the target body. """
 
         if self.tidal_host is None:
             raise AttributeNotSetError('Tidal host must be connected to target body in order to initialize tides.')
@@ -309,8 +333,8 @@ class TidesBase(WorldConfigHolder):
         return spin_rate_derivative
 
     @staticmethod
-    def calculate_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) \
-            -> FloatArray:
+    def calculate_tidal_susceptibility(host_mass: float, target_radius: float,
+                                       semi_major_axis: FloatArray) -> FloatArray:
         """ Calculate the tidal susceptibility for a target object orbiting
 
         Wrapper for dissipation.py/calc_tidal_susceptibility
@@ -389,19 +413,21 @@ class TidesBase(WorldConfigHolder):
         return complex_love_number
 
 
-    # Configuration properties
+    # # Configuration properties
     @property
     def eccentricity_truncation_lvl(self) -> int:
+        """ Maximum eccentricity truncation level to include in tidal calculations """
         return self._eccentricity_truncation_lvl
 
     @eccentricity_truncation_lvl.setter
     def eccentricity_truncation_lvl(self, value):
-        # TODO: Think about if you want the user to update these. These setters could make a call to self.setup()
+        # TODO: Think about if you want the user to update these. These setters could make a call to self.reinit()
         #    which the user could make on their own. So it may make sense to allow the setter.
         raise ConfigPropertyChangeError
 
     @property
     def max_tidal_order_lvl(self) -> int:
+        """ Maximum tidal order to include in tidal calculations """
         return self._max_tidal_order_lvl
 
     @max_tidal_order_lvl.setter
@@ -410,6 +436,14 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def use_obliquity_tides(self) -> bool:
+        """ Flag for if obliquity tides should be calculated
+
+        Notes
+        -----
+        .. Setting this to False leads to more efficient calculations than if the obliquity of a world is simply set to
+            zero.
+        """
+
         return self._use_obliquity_tides
 
     @use_obliquity_tides.setter
@@ -417,131 +451,146 @@ class TidesBase(WorldConfigHolder):
         raise ConfigPropertyChangeError
 
 
-    # State properties
+    # # State properties
     @property
     def thermal_set(self) -> bool:
         return self._thermal_set
 
     @thermal_set.setter
     def thermal_set(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def orbit_set(self) -> bool:
+        """ Flag for if an orbit has been set on the tide's host world """
         return self._orbit_set
 
     @orbit_set.setter
     def orbit_set(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def eccentricity_results(self) -> Dict[int, InclinOutput]:
+    def eccentricity_results(self) -> Dict[int, EccenOutput]:
+        """ Eccentricity function results (squared) stored by order_l """
         return self._eccentricity_results
 
     @eccentricity_results.setter
     def eccentricity_results(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def obliquity_results(self) -> Dict[int, EccenOutput]:
+    def obliquity_results(self) -> Dict[Tuple[int, int], InclinOutput]:
+        """ Obliquity/Inclination function results (squared) stored by integers (m, p) """
         return self._obliquity_results
 
     @obliquity_results.setter
     def obliquity_results(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_susceptibility_reduced(self) -> np.ndarray:
+    def tidal_susceptibility_reduced(self) -> FloatArray:
+        """ Tidal susceptibility (reduced, no semi-major axis dependence) [N m7] """
         return self._tidal_susceptibility_reduced
 
     @tidal_susceptibility_reduced.setter
     def tidal_susceptibility_reduced(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def tidal_susceptibility(self) -> np.ndarray:
+        """ Tidal susceptibility [N m] """
         return self._tidal_susceptibility
 
     @tidal_susceptibility.setter
     def tidal_susceptibility(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def unique_tidal_frequencies(self) -> Dict[FreqSig, np.ndarray]:
+    def unique_tidal_frequencies(self) -> Dict[FreqSig, FloatArray]:
+        """ Unique tidal frequencies (abs(tidal modes)) stored by frequency signature """
         return self._unique_tidal_frequencies
 
     @unique_tidal_frequencies.setter
     def unique_tidal_frequencies(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def tidal_terms_by_frequency(self) -> Dict[FreqSig, Dict[int, DissipTermsArray]]:
+        """ Tidal terms stored by frequency signature """
         return self._tidal_terms_by_frequency
 
     @tidal_terms_by_frequency.setter
     def tidal_terms_by_frequency(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_heating_global(self) -> np.ndarray:
+    def tidal_heating_global(self) -> FloatArray:
+        """ Global tidal heating rate [W] """
         return self._tidal_heating_global
 
     @tidal_heating_global.setter
     def tidal_heating_global(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def negative_imk_global(self) -> np.ndarray:
+    def negative_imk_global(self) -> FloatArray:
+        """ Global -Im[k2] """
         return self._negative_imk_global
 
     @negative_imk_global.setter
     def negative_imk_global(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def dUdM(self) -> np.ndarray:
+        """ Global partial derivative of the tidal potential with respect to the mean anomaly """
         return self._dUdM
 
     @dUdM.setter
     def dUdM(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def dUdw(self) -> np.ndarray:
+    def dUdw(self) -> FloatArray:
+        """ Global partial derivative of the tidal potential with respect to the argument of pericentre """
         return self._dUdw
 
     @dUdw.setter
     def dUdw(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def dUdO(self) -> np.ndarray:
+    def dUdO(self) -> FloatArray:
+        """ Global partial derivative of the tidal potential with respect to the argument of node """
         return self._dUdO
 
     @dUdO.setter
     def dUdO(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_polar_torque(self) -> np.ndarray:
+    def tidal_polar_torque(self) -> FloatArray:
+        """ Polar torque due to tides [N m] """
         return self._tidal_polar_torque
 
     @tidal_polar_torque.setter
     def tidal_polar_torque(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def spin_rate_derivative(self) -> np.ndarray:
+    def spin_rate_derivative(self) -> FloatArray:
+        """ Time derivative of the rotation rate [rad s-2] """
         return self._spin_rate_derivative
 
     @spin_rate_derivative.setter
     def spin_rate_derivative(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
 
-    # Outer-scope Properties
+    # # Outer-scope Properties
     @property
     def semi_major_axis(self):
+        """ Outer-scope wrapper for world.semi_major_axis """
         return self.world.semi_major_axis
 
     @semi_major_axis.setter
@@ -550,6 +599,7 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def orbital_frequency(self):
+        """ Outer-scope wrapper for world.orbital_frequency """
         return self.world.orbital_frequency
 
     @orbital_frequency.setter
@@ -558,6 +608,7 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def spin_frequency(self):
+        """ Outer-scope wrapper for world.spin_frequency """
         return self.world.spin_frequency
 
     @spin_frequency.setter
@@ -566,6 +617,7 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def eccentricity(self):
+        """ Outer-scope wrapper for world.eccentricity """
         return self.world.eccentricity
 
     @eccentricity.setter
@@ -574,10 +626,8 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def obliquity(self):
-        if self.use_obliquity_tides:
-            return self.world.obliquity
-        else:
-            return np.zeros_like(self.eccentricity)
+        """ Outer-scope wrapper for world.obliquity """
+        return self.world.obliquity
 
     @obliquity.setter
     def obliquity(self, value):
@@ -585,6 +635,7 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def tidal_host(self):
+        """ Outer-scope wrapper for world.orbit.tidal_host """
         return self.world.tidal_host
 
     @tidal_host.setter
@@ -593,6 +644,7 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def radius(self):
+        """ Outer-scope wrapper for world.radius """
         return self.world.radius
 
     @radius.setter
@@ -601,9 +653,19 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def moi(self):
+        """ Outer-scope wrapper for world.moi """
         return self.world.moi
 
     @moi.setter
     def moi(self, value):
         raise OuterscopePropertySetError
+
+
+    # # Dunder methods
+    def __str__(self):
+        str_ = f'{__class__.__name__}'
+        if self.world is not None:
+            str_ += f' {self.world}'
+
+        return str_
 

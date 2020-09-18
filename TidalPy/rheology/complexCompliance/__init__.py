@@ -9,4 +9,4 @@ known_models, known_model_const_args, known_model_live_args = \
 def get_complex_comp_model_default_inputs(layer_type: str):
     return build_model_default_inputs(known_model_const_args, complex_compliance_defaults, inner_keys=layer_type)
 
-from .complexcompliance import ComplexCompliance
+from .complex_compliance import ComplexCompliance

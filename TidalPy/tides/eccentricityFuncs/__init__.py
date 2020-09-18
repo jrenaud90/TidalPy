@@ -162,5 +162,16 @@ eccentricity_truncations = {
         5: eccentricity_funcs_l5_trunc20,
         6: eccentricity_funcs_l6_trunc20,
         7: eccentricity_funcs_l7_trunc20
+    },
+    22: # Truncation Level 22
+    # FIXME: This is not right! Only the l=2 has been implemented so far but njit won't compile the dict unless all
+    #    these dicts have the same signature. Putting them all for l=2 for now...
+    {
+        2: eccentricity_funcs_l2_trunc22,
+        3: eccentricity_funcs_l2_trunc22,
+        4: eccentricity_funcs_l2_trunc22,
+        5: eccentricity_funcs_l2_trunc22,
+        6: eccentricity_funcs_l2_trunc22,
+        7: eccentricity_funcs_l2_trunc22
     }
 }

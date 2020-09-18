@@ -3,14 +3,35 @@ from .tidal import TidalWorld
 from ...exceptions import NotYetImplementedError
 
 
-# TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
-
 class GasGiantWorld(TidalWorld):
+
+    """ GasGiantWorld
+    Worlds that are simple gas giants and dissipate tidal energy through the CPL/CTL method (or not at all).
+
+
+    See Also
+    --------
+    Parent Class:
+        TidalPy.structures.worlds.TidalWorld
+    """
 
     world_class = 'gas_giant'
 
 
 class GasGiantLayeredWorld(LayeredWorld):
+
+    """ GasGiantLayeredWorld
+    Worlds that are gas or ice giants and dissipate tidal energy through either the CPL/CTL method or a more complex
+        rheology.
+
+    These world types are not implemented as of at lease v0.2.1
+
+
+    See Also
+    --------
+    Parent Class:
+        TidalPy.structures.worlds.LayeredWorld
+    """
 
     world_class = 'gas_giant_layered'
 

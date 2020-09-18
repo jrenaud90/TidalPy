@@ -832,3 +832,5 @@ def eccentricity_funcs_trunc22(eccentricity: FloatArray) -> EccenOutput:
     eccentricity_results_bymode[2][9] = eccentricity_results_bymode[0][-9]
     eccentricity_results_bymode[2][10] = eccentricity_results_bymode[0][-10]
     eccentricity_results_bymode[2][11] = eccentricity_results_bymode[0][-11]
+
+    return eccentricity_results_bymode

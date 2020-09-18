@@ -9,6 +9,7 @@ from ... import log
 from ...burnman_interface.build import build_burnman_world
 from ...exceptions import UnknownWorld, UnknownWorldType, TidalPyWorldError, NotYetImplementedError, \
     MissingArgumentError
+from ...utilities.classes.config.dictionaryUtils import nested_replace
 
 
 def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
@@ -86,7 +87,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         # Build BurnMan world first
         burnman_world, burnman_layers = build_burnman_world(world_config)
         log.debug(f'Burnman world building completed!')
-        world = WorldClass(world_config, world_name, burnman_world, burnman_layers)
+        world = WorldClass(world_config, burnman_world, burnman_layers, name=world_name)
 
     else:
         log.debug(f'{WorldClass.world_class} world type detected.')
@@ -140,7 +141,7 @@ def build_from_world(old_world, new_config: dict, new_name: str = None):
     old_config_copy = clean_world_config(old_config, make_copy=True)
 
     # Combine new and old dictionaries allowing the new dict to over write the old
-    combo_dict = {**old_config_copy, **new_config}
+    combo_dict = nested_replace(old_config_copy, new_config, make_copies=True)
 
     # Make any additional changes to the configs before planet build
     variant = False

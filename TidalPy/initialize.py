@@ -1,4 +1,4 @@
-""" Functions used to setup TidalPy for a new run.
+""" Functions used to reinit TidalPy for a new run.
 """
 import os
 import sys
@@ -77,7 +77,7 @@ def initialize_tidalpy():
             json5.dump(TidalPy.config, config_file, indent=4)
 
     # Initialize the loggers
-    tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc)
+    tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc, running_in_jupyter=running_in_jupyter)
     TidalPy.log = tidalpy_log
 
     # Finish initialization

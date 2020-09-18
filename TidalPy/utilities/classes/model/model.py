@@ -1,17 +1,22 @@
 import operator
-from typing import Tuple, Callable
+from typing import Tuple, Callable, Union, TYPE_CHECKING
 
 from ..config.config import ConfigHolder
 from ..config.dictionaryUtils import nested_get, nested_place
+from ...types import NoneType
 from .... import debug_mode, log
-from ....exceptions import (ImplementedBySubclassError, MissingArgumentError, ParameterMissingError,
-                            UnknownModelError, AttributeNotSetError, ImproperPropertyHandling,
-                            OuterscopePropertySetError)
+from ....exceptions import (MissingArgumentError, ParameterMissingError,
+                            UnknownModelError, AttributeNotSetError, OuterscopePropertySetError,
+                            ConfigPropertyChangeError, InitiatedPropertyChangeError)
 
+if TYPE_CHECKING:
+    from ....structures.layers import PhysicalLayerType
+    from ....structures.worlds import LayeredWorldType
 
 class ModelHolder(ConfigHolder):
 
-    """ Parent class for physics models
+    """ ModelHolder
+    This class serves as a parent for most physics models (e.g., Radiogenics, Rheology, etc.)
 
     Provides basic functionality to load in default model inputs and run calculations using those inputs.
     """
@@ -20,7 +25,18 @@ class ModelHolder(ConfigHolder):
     known_model_const_args = None
     known_model_live_args = None
 
-    def __init__(self, model_name: str = None, replacement_config: dict = None, auto_build_inputs: bool = True):
+    def __init__(self, model_name: str = None, replacement_config: dict = None, initialize: bool = True):
+        """ Constructor for ModelHolder class
+
+        Parameters
+        ----------
+        model_name : str = None
+            The user-provided model name.
+        replacement_config : dict = None
+            Optional dictionary that will replace TidalPy's default configurations for a particular model.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the model (loading in data from its `self.config`).
+        """
 
         # Setup parent class
         super().__init__(replacement_config=replacement_config)
@@ -29,47 +45,63 @@ class ModelHolder(ConfigHolder):
         if model_name is None and 'model' in self.config:
             model_name = self.config['model']
 
-        # Store model name information
+        # Configuration properties
         self._model = model_name
-
-        # Attempt to find the model's function information
         self._func = None
         # Some functions can support arrays and floats interchangeably. Others require separate functions.
         #    These functions should be stored separately.
         self._func_array = None
         # If a separately defined function was defined then set this flag to True.
         self._func_array_defined = False
-
-        # Functions may have separately inputs. These are stored as inputs or live inputs:
-        #    inputs: tuple of constants passed to the self.func
-        #    live_inputs: tuple of inputs that may change after TidalPy is loaded (e.g., the viscosity of a layer)
+        # Functions may have separate inputs. These are stored as either:
+        #    `inputs`: tuple of constants passed to the self.func or self.func_array
+        #    `live_inputs`: tuple of dynamic inputs that may change after TidalPy is loaded
+        #       (e.g., the viscosity of a layer)
         self.get_live_args = None
-        self.live_inputs = None
-        self.inputs = None
+        self._live_inputs = None
+        self._inputs = None
         self._constant_arg_names = None
         self._live_arg_names = None
+        # Calculation properties and methods
+        self._debug_mode_on = False
+        self._calc_to_use = None  # type: Callable
 
-        # Build constant and live inputs, and setup self.func
-        if auto_build_inputs:
-            self.build_inputs()
+        if initialize:
+            self.reinit(initial_init=True)
 
-        # Switch between calculate and calculate debug. Generally, _calculate_debug is a much slower function that
-        #    includes additional checks
-        self._calc = self._calculate
-        if '_calculate_debug' in self.__dict__:
-            # If a debug function is available use it as the primary calculator in debug mode.
-            # Give this function the same documentation as the regular calculate but with prepended text stating
-            #     that it is a debug version
-            self._calculate_debug.__doc__ = 'DEBUG MODE ENABLED\n'
-            if self._calculate.__doc__ not in [None, '']:
-                self._calculate_debug.__doc__ += self._calculate.__doc__
+    def reinit(self, initial_init: bool = False):
+        """ Model will look at the user-provided configurations and pull out model information including constants
 
-            if debug_mode:
-                self._calc = self._calculate_debug
+        Parameters
+        ----------
+        initial_init : bool = False
+            Must be set to `True` if this is the first time this method has been called (additional steps may be
+                preformed during the first reinit call).
+        """
+
+        if initial_init:
+            log.debug(f'Initializing {self}.')
         else:
-            if debug_mode:
-                log.debug(f'Debug mode is on, but it appears that no debug calculation method has been implemented '
-                          f'for {self.__class__.__name__}. Using regular calculate method.')
+            log.debug(f'Reinit called for {self}.')
+
+        # Build constant and live inputs, and reinit self.func
+        self.build_inputs()
+
+        # Switch between calculate and calculate debug.
+        #    Generally speaking, _calculate_debug is a much slower function that includes additional sanity checks.
+        if debug_mode:
+            if '_calculate_debug' in self.__dict__:
+                self._calc_to_use = getattr(self, '_calculate_debug')
+                self._debug_mode_on = True
+            else:
+                log.debug(f"TidalPy's debug mode is on, but no debug calculation method found for {self}. "
+                          f"Using Regular.")
+                self._calc_to_use = getattr(self, '_calculate')
+        else:
+            self._calc_to_use = getattr(self, '_calculate')
+
+        if self._calc_to_use is None:
+            raise AttributeNotSetError
 
         # TODO: The below breaks when calculate is a method. Not sure if there is a solution:
         #    Error: AttributeError: attribute '__doc__' of 'method' objects is not writable
@@ -77,26 +109,45 @@ class ModelHolder(ConfigHolder):
         # if self._calc.__doc__ not in [None, '']:
         #     self.calculate.__doc__ = self._calc.__doc__
 
+    def calculate(self, *args, **kwargs):
+        """ Main calculation point for the model """
+
+        if self._calc_to_use is None:
+            raise AttributeNotSetError
+
+        # Some models have inputs that need to be updated at each call
+        if self.get_live_args is not None:
+            try:
+                self._live_inputs = self.get_live_args()
+            except AttributeError:
+                raise AttributeNotSetError('One or more live arguments are not set or their references were not found.')
+
+        return self._calc_to_use(*args, **kwargs)
+
     def build_inputs(self):
-        """ Builds the live and constant input tuples for the model's calculate function.
+        """ Build a list of the live and constant inputs for the model's calculate function.
         """
 
         # Try to find the provided model and load in its main function
-        try:
-            self._func = self.known_models[self.model]
-        except KeyError:
-            try:
-                self._func = self.known_models[self.model.lower()]
-            except KeyError:
-                log.error(f'Unknown model: "{self.model}" for {self.__class__.__name__}')
-                raise UnknownModelError(f'Unknown model: {self.model} for {self.__class__.__name__}')
-            else:
-                # Model has capitalization that does not match TidalPy
-                log.warning(f'Model "{self.model}" for {self.__class__.__name__} does not match TidalPy capitalization. '
-                            f'Changing to {self.model.lower()}.')
-                self._model = self.model.lower()
+        test_names = [self.model, self.model.lower(), self.model.title()]
+        model_found = False
+        model_name = None
+        for test_name in test_names:
+            if test_name in self.known_models:
+                self._func = self.known_models[test_name]
+                model_found = True
+                model_name = test_name
+                break
 
-        # Load in other related functionality
+        if not model_found:
+            log.error(f'Unknown model: "{self.model}" for {self}')
+            raise UnknownModelError(f'Unknown model encountered {self}.')
+        elif model_name != self.model:
+            log.warning(f'Model "{self.model}" for {self} does not match TidalPy capitalization. '
+                        f'Changing to {model_name}.')
+            self._model = model_name
+
+        # Load the model's functions
         if self.model + '_array' in self.known_models:
             self._func_array = self.known_models[self.model + '_array']
             self._func_array_defined = True
@@ -104,36 +155,121 @@ class ModelHolder(ConfigHolder):
             # No separate array function found. Try to use the regular float version
             self._func_array = self.func
             self._func_array_defined = False
+
+        # Determine what (if any) constant and live arguments exist for this model's functions
         self._constant_arg_names = self.known_model_const_args[self.model]
         self._live_arg_names = self.known_model_live_args[self.model]
 
         # Pull out constant arguments
-        self.inputs = self.build_args(self._constant_arg_names, parameter_dict=self.config, is_live_args=False)
+        self._inputs = self.build_args(self._constant_arg_names, parameter_dict=self.config, is_live_args=False)
 
         # Build live argument functions and calls
-        self.live_inputs = None
+        self._live_inputs = None
         if len(self._live_arg_names) == 0:
             self.get_live_args = None
         else:
             live_funcs = self.build_args(self._live_arg_names, is_live_args=True)
+            # The live_funcs is a list of python operator.attrgetter functions that will pull a property from whatever
+            #    is called to them. For example the func for 'time' when you do `func(self)` will pull `self.time`
             self.get_live_args = lambda: tuple([live_func(self) for live_func in live_funcs])
 
-    def calculate(self, *args, **kwargs):
+    # # Configuration properties
+    @property
+    def model(self) -> str:
+        """ Model name """
+        return self._model
 
-        # Some models have inputs that need to be updated at each call
-        if self.get_live_args is not None:
-            try:
-                self.live_inputs = self.get_live_args()
-            except AttributeError:
-                raise AttributeNotSetError('One or more live arguments are not set or their references were not found.')
+    @model.setter
+    def model(self, value):
+        raise ConfigPropertyChangeError
 
-        return self._calc(*args, **kwargs)
+    @property
+    def func(self) -> Callable:
+        """ Callable function based on the user-provided model.
 
-    def _calculate(self, *args, **kwargs):
-        raise ImplementedBySubclassError
+        See Also
+        --------
+        ModelHolder.func_array
+        """
 
-    # def _calculate_debug(self, *args, other_inputs: tuple = tuple(), **kwargs):
-    #     raise ImplementedBySubclassError
+        return self._func
+
+    @func.setter
+    def func(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def func_array(self) -> Callable:
+        """ Callable function based on the user-provided model.
+
+         Notes
+         -----
+         .. If `func_array_defined` is True this this will be a different callable from `self.func` designed to
+            specifically work with numpy arrays. Otherwise, the `func` and `func_array` are identical.
+
+        See Also
+        --------
+        ModelHolder.func
+        """
+
+        return self._func_array
+
+    @func_array.setter
+    def func_array(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def func_array_defined(self) -> bool:
+        """ Flag for if the `func_array` property is set or not """
+        return self._func_array_defined
+
+    @func_array_defined.setter
+    def func_array_defined(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def inputs(self) -> Union[NoneType, Tuple[float, ...]]:
+        """ Some models may require additional constants to be passed to the `self.func` or `self.func_array`.
+            These are stored in this tuple if applicable.
+        """
+
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def live_inputs(self) -> Union[NoneType, Tuple[float, ...]]:
+        """ Similar to `self.inputs` but these are dynamic parameters that can change after initialization
+            (e.g., the viscosity of a layer).
+        """
+
+        return self._live_inputs
+
+    @live_inputs.setter
+    def live_inputs(self, value):
+        raise ConfigPropertyChangeError
+
+    # Calculation properties
+    @property
+    def debug_mode_on(self) -> bool:
+        """ Flag for if the model's debug function is being used """
+        return self._debug_mode_on
+
+    @debug_mode_on.setter
+    def debug_mode_on(self, value):
+        raise ConfigPropertyChangeError
+
+
+    # # Dunder properties
+    def __str__(self):
+        name_str = f'{self.__class__.__name__}'
+        if '_model' in self.__dict__:
+            if self.model is not None:
+                name_str += ' ({self.model})'
+        return name_str
+
 
     @staticmethod
     def build_args(arg_names: Tuple[str, ...], parameter_dict: dict = None, is_live_args: bool = False):
@@ -177,111 +313,109 @@ class ModelHolder(ConfigHolder):
                     live_arg_signature = live_arg_signature.split('self.')[1]
 
                 getter_func = operator.attrgetter(live_arg_signature)
+                # The getter_func is a python operator.attrgetter function that will pull a property from whatever
+                #    is called to them. For example the func for 'time' when you do `func(self)` will pull `self.time`
                 args.append(getter_func)
 
         return tuple(args)
 
-    # State properties
-    @property
-    def model(self) -> str:
-        return self._model
-
-    @model.setter
-    def model(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def func(self) -> Callable:
-        return self._func
-
-    @func.setter
-    def func(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def func_array(self) -> Callable:
-        return self._func_array
-
-    @func_array.setter
-    def func_array(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def func_array_defined(self) -> bool:
-        return self._func_array_defined
-
-    @func_array_defined.setter
-    def func_array_defined(self, value):
-        raise ImproperPropertyHandling
-
 
 class LayerModelHolder(ModelHolder):
 
-    """ Parent class for physics models that are stored within a planet's layer
+    """ LayerModelHolder
+    Parent class for physics models that are stored within a world's layer
 
     Provides basic functionality to load in default model inputs and run calculations using those inputs and the layer's
         current state properties (e.g., temperature).
 
     See Also
     --------
-    cooling/
-    radiogenics/
-    rheology/
+    TidalPy.cooling
+    TidalPy.radiogenics
+    TidalPy.rheology
     """
 
     model_config_key = None
 
-    def __init__(self, layer, model_name: str = None,
-                 store_config_in_layer: bool = True, auto_build_inputs: bool = True):
+    def __init__(self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
+                 initialize: bool = True):
+        """ Constructor for LayerModelHolder class
 
+        Parameters
+        ----------
+        layer : PhysicalLayerType
+            The layer instance which the model should perform calculations on.
+        model_name : str = None
+            The user-provided model name.
+        store_config_in_layer: bool = True
+            Flag that determines if the final model's configuration dictionary should be copied into the
+            `layer.config` dictionary.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the model (loading in data from its `self.config`).
+        """
+
+        # Initialized properties
         # Store layer and world information
         self._layer = layer
-        self._world = None
-        if 'world' in layer.__dict__:
-            self.world = layer.world
+        self._world = layer.world
+        # Record if model config should be stored back into layer's config
+        self._store_config_in_layer = store_config_in_layer
+
+        # Find the model's new configurations which the user is expected to have stored in the layer's configuration
+        #    dictionary.
 
         # The layer's type is used to pull out default parameter information
         self.default_config_key = self.layer_type
-
-        # Record if model config should be stored back into layer's config
-        self.store_config_in_layer = store_config_in_layer
 
         config = None
         try:
             config = nested_get(self.layer.config, self.model_config_key, raiseon_nolocate=True)
         except KeyError:
-            log.debug(f"User provided no model information for {self} ({self.layer}); using defaults instead.")
+            log.debug(f"User provided no model information for {self}; using defaults instead.")
 
         if config is None and self.default_config is None:
-            log.error(f"Config not provided for {self} ({self.layer}); and no defaults are set.")
-            raise ParameterMissingError(f"Config not provided for {self} ({self.layer}); and no defaults are set.")
+            log.error(f"Config not provided for {self}; and no defaults are set.")
+            raise ParameterMissingError(f"Config not provided for {self}; and no defaults are set.")
 
         # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
-        super().__init__(model_name=model_name, replacement_config=config, auto_build_inputs=auto_build_inputs)
+        super().__init__(model_name=model_name, replacement_config=config, initialize=initialize)
 
         if self.store_config_in_layer:
             # Once the configuration file is constructed (with defaults and any user-provided replacements) then
             #    store the new config in the layer's config, overwriting any previous parameters.
             nested_place(self.config, self.layer.config, self.model_config_key, make_copy=False, retain_old_value=True)
 
-    # State properties
+
+    # # Initialized properties
     @property
-    def layer(self):
+    def layer(self) -> 'PhysicalLayerType':
+        """ Layer instance which the model performs calculations on """
         return self._layer
 
     @layer.setter
     def layer(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
     @property
-    def world(self):
+    def world(self) -> 'LayeredWorldType':
+        """ Layered world where the `self.layer` is stored """
         return self._world
 
     @world.setter
     def world(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
-    # Outer-scope Properties
+    @property
+    def store_config_in_layer(self) -> bool:
+        """ Flag to store model's configuration dictionary in the `layer.config` dictionary """
+        return self._store_config_in_layer
+
+    @store_config_in_layer.setter
+    def store_config_in_layer(self, value):
+        raise InitiatedPropertyChangeError
+
+
+    # # Outer-scope Properties
     @property
     def layer_type(self):
         return self.layer.type
@@ -290,5 +424,21 @@ class LayerModelHolder(ModelHolder):
     def layer_type(self, value):
         raise OuterscopePropertySetError
 
+
+    # # Dunder properties
     def __str__(self):
-        return f'{self.__class__.__name__} ({self.layer})'
+        name_str = f'{self.__class__.__name__}'
+        if '_model' in self.__dict__:
+            if self.model is not None:
+                name_str += ' ({self.model}'
+        if '_layer' in self.__dict__:
+            if self.layer is not None:
+                if '(' in name_str:
+                    name_str += f', in {self.layer.name})'
+                else:
+                    name_str += f'(L={self.layer.name})'
+
+        if '(' in name_str and ')' not in name_str:
+            name_str += ')'
+
+        return name_str

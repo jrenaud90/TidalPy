@@ -8,8 +8,8 @@ from .defaults import layer_defaults
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
 from ... import log
-from ...exceptions import ImproperPropertyHandling, OuterscopePropertySetError, MissingArgumentError, \
-    ConfigPropertyChangeError, ParameterMissingError
+from ...exceptions import OuterscopePropertySetError, MissingArgumentError, \
+    ConfigPropertyChangeError, ParameterMissingError, InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
 from ...utilities.types import NoneType, FloatArray
 
 if TYPE_CHECKING:
@@ -30,6 +30,7 @@ class LayerBase(PhysicalObjSpherical):
     --------
     TidalPy.structures.layers.PhysicsLayer
     TidalPy.structures.layers.BurnmanLayer
+    TidalPy.structures.layers.GasLayer
     """
 
     default_config = layer_defaults
@@ -59,8 +60,8 @@ class LayerBase(PhysicalObjSpherical):
         self.type = layer_config['type']
         self.default_config = self.default_config[self.type]
 
-        # Key Attributes
-        self.name = layer_name
+        # Initiated Attributes
+        self._name = layer_name
         self._layer_index = layer_index
         self._world = world
         self._is_top_layer = is_top_layer
@@ -131,6 +132,10 @@ class LayerBase(PhysicalObjSpherical):
             self.set_geometry(radius=radius, mass=mass, thickness=thickness, update_state_geometry=True,
                               build_slices=True)
 
+        # Clean up config:
+        if 'radii' in self.config:
+            del self._config['radii']
+
     def set_geometry(self, radius: float, mass: float, thickness: float = None,
                      mass_below: float = None, update_state_geometry: bool = True, build_slices: bool = True):
         """ Calculates and sets the layer's physical parameters based on user provided input.
@@ -169,18 +174,33 @@ class LayerBase(PhysicalObjSpherical):
                 raise MissingArgumentError
 
         # Gravity (and therefore pressure) will depend on the mass contained below this layer
-        if self.layer_below is None:
-            layer_below_mass = 0.
+        if self.layer_index == 0 :
+            # Bottom-most layer - nothing below it.
+            mass_below = 0.
         else:
-            layer_below_mass = self.layer_below.mass
+            mass_below = sum([self.world.layers[i].mass for i in range(0, self.layer_index)])
 
         # Setup Layer Geometry
-        super().set_geometry(radius, mass, thickness, mass_below=layer_below_mass,
+        super().set_geometry(radius, mass, thickness, mass_below=mass_below,
                              update_state_geometry=update_state_geometry, build_slices=build_slices)
 
         # Setup Tidal Volume Fraction
         if self.use_tidal_vol_frac:
             self.tidal_scale = self.volume / self.world.volume
+
+    def update_thermal(self):
+        """ Update various classes and methods when any thermal parameters change. """
+
+        log.debug(f'Update thermals called for {self}.')
+
+        # Thermal updates are done by child classes
+
+    def update_time(self):
+        """ Update various classes and methods when the time of the world changes. """
+
+        log.debug(f'Update time called for {self}')
+
+        # Time updates are done by child classes
 
     def clear_state(self, clear_pressure: bool = False):
 
@@ -191,37 +211,77 @@ class LayerBase(PhysicalObjSpherical):
         self._temperature = None
         if clear_pressure:
             self._pressure = None
-        else:
-            # Keep the old pressure so it does not have to be reinterpolated (only applicable in children classes)
-            self._pressure = self._persistent_pressure
 
-    def set_temperature(self, new_temperature : FloatArray):
+    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None, call_updates: bool = True):
+        """ Set the layer's state properties
+
+        Parameters
+        ----------
+        temperature : FloatArray
+            New dynamic temperature for the layer.
+        pressure :
+            New dynamic pressure for the layer.
+        call_updates : bool = True
+            If `True`, method will call the update thermals method.
+
+        """
+
+        # Check if temperature or pressure were provided, call the respective methods but hold off on updating until
+        #    the end (increase to performance).
+
+        if temperature is not None:
+            self.set_temperature(temperature, call_updates=False)
+
+        if pressure is not None:
+            self.set_pressure(pressure, call_updates=False)
+
+        if call_updates:
+            self.update_thermal()
+
+    def set_temperature(self, temperature : FloatArray, call_updates: bool = True):
         """ Set the layer's dynamic temperature
 
         Parameters
         ----------
-        new_temperature : FloatArray
+        temperature : FloatArray
             New dynamic temperature for the layer.
+        call_updates : bool = True
+            If `True`, method will call the update thermals method.
+
         """
 
-        # The basic class implements a very simple setter. This function is mostly here to be overridden by children
-        #    classes.
-        self._temperature = new_temperature
+        self._temperature = temperature
 
-    def set_pressure(self, new_pressure: FloatArray):
+        if call_updates:
+            self.update_thermal()
+
+    def set_pressure(self, pressure: FloatArray, call_updates: bool = True):
         """ Set the layer's dynamic pressure
 
         Parameters
         ----------
-        new_pressure : FloatArray
+        pressure : FloatArray
             New dynamic pressure for the layer.
+        call_updates : bool = True
+            If `True`, method will call the update thermals method.
         """
 
-        # The basic class implements a very simple setter. This function is mostly here to be overridden by children
-        #    classes.
-        self._pressure = new_pressure
+        self._pressure = pressure
 
-    # State properties
+        if call_updates:
+            self.update_thermal()
+
+
+    # # Initialized properties
+    @property
+    def name(self) -> str:
+        """ Name of the layer """
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        raise InitiatedPropertyChangeError
+
     @property
     def layer_index(self) -> int:
         """ Index of where the layer is inside of `<layer>.world` """
@@ -229,7 +289,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @layer_index.setter
     def layer_index(self, value):
-        raise ImproperPropertyHandling('Layer index can not be changed after planet has been initialized.')
+        raise InitiatedPropertyChangeError
 
     @property
     def world(self) -> 'LayeredWorldType':
@@ -238,7 +298,7 @@ class LayerBase(PhysicalObjSpherical):
 
     @world.setter
     def world(self, value):
-        raise ImproperPropertyHandling('Can not change world association after a layer has been initialized.')
+        raise InitiatedPropertyChangeError
 
     @property
     def is_top_layer(self) -> bool:
@@ -247,10 +307,12 @@ class LayerBase(PhysicalObjSpherical):
 
     @is_top_layer.setter
     def is_top_layer(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
+
+    # # State properties
     @property
-    def temperature(self) -> np.ndarray:
+    def temperature(self) -> FloatArray:
         """ Dynamic layer temperature (taken to be at the interpolation point) [K] """
         return self._temperature
 
@@ -259,7 +321,7 @@ class LayerBase(PhysicalObjSpherical):
         self.set_temperature(value)
 
     @property
-    def pressure(self) -> np.ndarray:
+    def pressure(self) -> FloatArray:
         """ Dynamic layer pressure (taken to be at the interpolation point) [Pa] """
         return self._pressure
 
@@ -267,7 +329,27 @@ class LayerBase(PhysicalObjSpherical):
     def pressure(self, value):
         self.set_pressure(value)
 
-    # Configuration Properties
+    # TODO: How do we want to handle these?
+    @property
+    def gravity(self) -> float:
+        """ State gravity of the layer """
+        return self._gravity
+
+    @gravity.setter
+    def gravity(self, value):
+        raise IncorrectMethodToSetStateProperty
+
+    @property
+    def density(self) -> float:
+        """ State density of the layer """
+        return self._density
+
+    @density.setter
+    def density(self, value):
+        raise IncorrectMethodToSetStateProperty
+
+
+    # # Configuration Properties
     @property
     def is_tidal(self) -> bool:
         """ Flag if layer is tidally active """
@@ -287,8 +369,8 @@ class LayerBase(PhysicalObjSpherical):
         raise ConfigPropertyChangeError
 
 
-    # Outer-scope properties
-    # # World Class
+    # # Outer-scope properties
+    #    World Class
     @property
     def layer_below(self) -> Union['LayerType', NoneType]:
         """ The layer instance below this one in a world """
@@ -326,8 +408,33 @@ class LayerBase(PhysicalObjSpherical):
     def time(self, value):
         raise OuterscopePropertySetError
 
+    @property
+    def temperature_surf(self):
+        """ The temperature at the top of this layer """
+        if self.is_top_layer:
+            # Return the world's surface temperature
+            return self.world.surface_temperature
+        else:
+            # Return the dynamic temperature of the layer above it
+            return self.layer_above.temperature
 
-    # Dunder methods
+    @temperature_surf.setter
+    def temperature_surf(self, value):
+        raise OuterscopePropertySetError
+
+
+    # # Aliased properties
+    @property
+    def surface_temperature(self):
+        """ Alias for self.temperature_surf """
+        return self.temperature_surf
+
+    @surface_temperature.setter
+    def surface_temperature(self, value):
+        self.temperature_surf = value
+
+
+    # # Dunder methods
     def __str__(self):
 
         if self.world is None:

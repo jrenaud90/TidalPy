@@ -10,25 +10,40 @@ INNER_EDGE_TEMP_4 = INNER_EDGE_TEMP**4
 OUTER_EDGE_TEMP_4 = OUTER_EDGE_TEMP**4
 
 
-@njit
-def equilibrium_temperature(insolation_heating: FloatArray, radius: float, internal_heating: FloatArray = None,
-                            emissivity: float = 1., internal_frac: float = .5):
+@njit(cacheable=True)
+def calc_equilibrium_temperature(insolation_heating: FloatArray, radius: float, internal_heating: FloatArray = None,
+                                 emissivity: float = 1., internal_to_surf_frac: float = 1.0):
     """ Calculates the surface equilibrium temperature of a planet that is heated by stellar and internal heating
 
-    Based on Henning habitability preprint
+    References
+    ----------
+    .. Henning et al. (2020) Exoplanet Habitable Zone Modifications
 
-    :param insolation_heating: <FloatArray> Heat received from a host star [Watts]
-    :param radius:             <float> Planet's radius [m]
-    :param internal_heating:   <FloatArray> Heat leaving the interior [Watts]
-    :param emissivity:         <float> Planet's greybody emissivity
-    :param internal_frac:      <float> Fraction of the internal heat making it to the surface
-    :return:                   <float> Planet's surface equilibrium temperature [K]
+    Parameters
+    ----------
+    insolation_heating : FloatArray
+        Heat received from a host star [W]
+    radius : float
+        Radius of the world [m]
+    internal_heating : FloatArray = None
+        Heat received from the interior of the world [W]
+    emissivity : float = 1.0
+        Planet's grey-body emissivity
+    internal_to_surf_frac: float = 1.0
+        Fraction of the internal heat that reaches the surface (scales the internal heating rate)
+
+    Returns
+    -------
+    equilibrium_temperature : FloatArray
+        World's surface equilibrium temperature [K]
+
     """
 
     heating = insolation_heating
-    if insolation_heating is not None:
-        heating += insolation_heating
+    if internal_heating is not None:
+        heating += internal_heating * internal_to_surf_frac
 
-    coeff = 4. * np.pi * radius**2 * emissivity * sbc / 2
+    coeff = 4. * np.pi * radius**2 * emissivity * sbc / 2.
+    equilibrium_temperature = (heating / coeff)**(1 / 4)
 
-    return (heating / coeff)**(1 / 4)
+    return equilibrium_temperature

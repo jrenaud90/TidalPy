@@ -7,9 +7,9 @@ from .defaults import rheology_defaults
 from .partialMelt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .. import debug_mode, log
-from ..exceptions import MissingArgumentError, ArgumentException, OuterscopePropertySetError, UnusualRealValueError
+from ..exceptions import MissingArgumentError, OuterscopePropertySetError, UnusualRealValueError, \
+    InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
 from ..utilities.classes import LayerConfigHolder
-from ..utilities.numpyHelper import reshape_help
 from ..utilities.types import FloatArray
 
 if TYPE_CHECKING:
@@ -18,27 +18,46 @@ if TYPE_CHECKING:
 
 class Rheology(LayerConfigHolder):
 
-    """ Rheology class - Holder for all strength-related physics
+    """ Rheology
+    A class for methods and attributes used to calculate a layer's strength-related physics.
 
     Rheology class stores model parameters and methods for viscosity(P, T, melt_frac), shear_modulus(P, T, melt_frac)
         and complex_compliance(viscosity, shear_modulus, forcing frequency).
+
+    See Also
+    --------
+    TidalPy.utilities.classes.LayerConfigHolder
+    TidalPy.rheology.complexCompliance.ComplexCompliance
+    TidalPy.rheology.partialMelt.PartialMelt
+    TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
     default_config = rheology_defaults
     layer_config_key = 'rheology'
 
     def __init__(self, layer: 'PhysicsLayer', store_config_in_layer: bool = True):
+        """ Constructor for Rheology class
+
+        Parameters
+        ----------
+        layer : PhysicalLayerType
+            The layer instance which the model should perform calculations on.
+        store_config_in_layer: bool = True
+            Flag that determines if the final model's configuration dictionary should be copied into the
+            `layer.config` dictionary.
+        """
 
         super().__init__(layer, store_config_in_layer)
 
-        # Load in sub-modules
-        self.viscosity_model = \
+        # Initialized properties
+        # Load in sub-models
+        self._viscosity_model = \
             SolidViscosity(self.layer, self, store_config_in_layer=self.store_config_in_layer)
-        self.liquid_viscosity_model = \
+        self._liquid_viscosity_model = \
             LiquidViscosity(self.layer, self, store_config_in_layer=self.store_config_in_layer)
-        self.partial_melting_model = \
+        self._partial_melting_model = \
             PartialMelt(self.layer, self, store_config_in_layer=self.store_config_in_layer)
-        self.complex_compliance_model = \
+        self._complex_compliance_model = \
             ComplexCompliance(self.layer, self, store_config_in_layer=self.store_config_in_layer)
 
         # Report information about the models loaded
@@ -49,6 +68,7 @@ class Rheology(LayerConfigHolder):
                   f"\tComplex Compliance:  {self.complex_compliance_model.model}")
 
     def clear_state(self):
+        """ Clear the state of all rheological parameters (all sub models' `clear_state` method will be called) """
 
         super().clear_state()
 
@@ -56,7 +76,6 @@ class Rheology(LayerConfigHolder):
         for model in [self.viscosity_model, self.liquid_viscosity_model,
                       self.partial_melting_model, self.complex_compliance_model]:
             model.clear_state()
-
 
     def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None, called_by_layer: bool = False):
         """ Set the rheology state and recalculate any parameters that may be affected.
@@ -70,33 +89,25 @@ class Rheology(LayerConfigHolder):
         shear_modulus : FloatArray
             Layer/Material shear modulus [Pa]
         called_by_layer : bool = False
-            Should be False unless this function is called by the layer.set_strength method
+            Should be `False` unless this function is called by the layer.set_strength method
 
         See Also
         --------
-        TidalPy.structures.layers.layers.PhysicsLayer.set_strength
+        TidalPy.structures.layers.PhysicsLayer.set_strength
         """
 
         # Now set the relevant parameters
         if viscosity is None and shear_modulus is None:
-            ArgumentException('Function call has no effect.')
+            log.debug('Rheology set_state called but no arguments were provided.')
+
+        # It is fine to only pass one state property, but we need the other to perform calculations. The method will
+        #    check if the other property is already set, but if it isn't then an exception will be raised.
         if viscosity is None and self.viscosity is None:
+            log.error('Rheology set_state called and viscosity is not set and was not provided.')
             raise MissingArgumentError('Viscosity was not provided and is not already set.')
         if shear_modulus is None and self.shear_modulus is None:
+            log.error('Rheology set_state called and shear modulus is not set and was not provided.')
             raise MissingArgumentError('Shear Modulus was not provided and is not already set.')
-
-        # The shape of the viscosity and shear modulus must match the planet's global shape parameter (visco/shear.shape
-        #    for each layer).
-        if viscosity is not None:
-            new_shape, viscosity = reshape_help(viscosity, self.world.global_shape,
-                                                f'{self}.set_state.viscosity')
-            if new_shape:
-                self.world.change_shape(new_shape)
-        if shear_modulus is not None:
-            new_shape, shear_modulus = reshape_help(shear_modulus, self.world.global_shape,
-                                                    f'{self}.set_state.shear_modulus')
-            if new_shape:
-                self.world.change_shape(new_shape)
 
         # Check for unusual values
         if debug_mode:
@@ -106,12 +117,13 @@ class Rheology(LayerConfigHolder):
                 if np.any(value > 1.0e35) or np.any(value < 1.0e-10):
                     raise UnusualRealValueError
 
-        # The premelt viscosity are no longer applicable as these new values would override them. To ensure they are
+        # The premelt strength is no longer applicable as these new values would override them. To ensure they are
         #    not used let's set them to null
-        self.liquid_viscosity_model._viscosity = None
-        self.viscosity_model._viscosity = None
+        if viscosity is not None:
+            self.liquid_viscosity_model._viscosity = None
+            self.viscosity_model._viscosity = None
 
-        # Now override the state variables
+        # Now override the state properties
         if viscosity is not None:
             self.partial_melting_model._postmelt_viscosity = viscosity
         if shear_modulus is not None:
@@ -123,24 +135,38 @@ class Rheology(LayerConfigHolder):
         if not called_by_layer:
             self.world.update_tides()
 
-    def update_strength(self, called_from_layer: bool = False) -> Tuple[np.ndarray, np.ndarray]:
-        """ Calculates the strength of a layer/material based on temperature and pressure.
+    def update_frequency(self, called_from_world: bool = False):
+        """ Performs rheological calculations when the tidal forcing frequency has changed
 
-        Strength, in this context, refers to the layer's viscosity and shear modulus.
+        Parameters
+        ----------
+        called_from_world : bool = False
+            If not called from the world class then this method will attempt to update the tides class.
+        """
 
-        Depending upon the model, partial melt fraction is also calculated and used to further modify the final
-            strength.
+        if self.layer.is_tidal:
+            if self.unique_tidal_frequencies is not None:
+                self.complex_compliance_model.calculate()
+
+                if not called_from_world:
+                    self.world.update_tides()
+
+    def update_thermal(self, called_from_layer: bool = False) -> Tuple[FloatArray, FloatArray]:
+        """ Calculates the strength of a layer/material based on change to temperature and/or pressure.
+
+        Strength, in this context, refers to the layer's viscosity and shear modulus. Depending upon the model,
+            partial melt fraction is also calculated and used to further modify the final strength.
 
         Parameters
         ----------
         called_from_layer: bool = False
-            Should be false unless this method is being called from its host layer.
+            Should be `False` unless this method is being called from its host layer.
 
         Returns
         -------
-        postmelt_viscosity : np.ndarray
+        postmelt_viscosity : FloatArray
             Final viscosity [Pa s]
-        postmelt_shear_modulus : np.ndarray
+        postmelt_shear_modulus : FloatArray
             Final shear modulus [Pa]
         """
 
@@ -159,78 +185,127 @@ class Rheology(LayerConfigHolder):
 
         # A change to the viscosity or shear modulus will change the complex compliance so anything that depends on
         #     that will need to be updated as well.
-        if not called_from_layer and self.layer.is_tidal:
-            self.world.update_tides()
+        if not called_from_layer:
+            if self.layer.cooling_model is not None:
+                self.layer.cooling_model.update_thermal()
+
+            if self.layer.is_tidal:
+                self.world.update_tides()
 
         return self.viscosity, self.shear_modulus
+
+    # # Initialized properties
+    @property
+    def viscosity_model(self) -> SolidViscosity:
+        """ Viscosity model instance used to calculate layer's solid viscosity (no partial melt) """
+        return self._viscosity_model
+
+    @viscosity_model.setter
+    def viscosity_model(self, value):
+        raise InitiatedPropertyChangeError
+
+    @property
+    def liquid_viscosity_model(self) -> LiquidViscosity:
+        """ Viscosity model instance used to calculate layer's liquid viscosity (no partial melt) """
+        return self._liquid_viscosity_model
+
+    @liquid_viscosity_model.setter
+    def liquid_viscosity_model(self, value):
+        raise InitiatedPropertyChangeError
+
+    @property
+    def partial_melting_model(self) -> PartialMelt:
+        """ Partial melting model instance used to modify the solid & liquid viscosities based on the melt fraction """
+        return self._partial_melting_model
+
+    @partial_melting_model.setter
+    def partial_melting_model(self, value):
+        raise InitiatedPropertyChangeError
+
+    @property
+    def complex_compliance_model(self) -> ComplexCompliance:
+        """ Complex compliance model instance used to calculate the layers complex compliance """
+        return self._complex_compliance_model
+
+    @complex_compliance_model.setter
+    def complex_compliance_model(self, value):
+        raise InitiatedPropertyChangeError
 
 
     # Inner-scope reference properties
     # # Viscosity Class
     @property
     def premelt_viscosity(self):
+        """ Inner-scope wrapper for sold_viscosity_model.viscosity """
         return self.viscosity_model.viscosity
 
     @premelt_viscosity.setter
     def premelt_viscosity(self, value):
-        self.viscosity_model.viscosity = value
+        raise IncorrectMethodToSetStateProperty
 
     # # Liquid Viscosity Class
     @property
     def liquid_viscosity(self):
+        """ Inner-scope wrapper for liquid_viscosity_model.viscosity """
         return self.liquid_viscosity_model.viscosity
 
     @liquid_viscosity.setter
     def liquid_viscosity(self, value):
-        self.liquid_viscosity.liquid_viscosity = value
+        raise IncorrectMethodToSetStateProperty
 
     # # Partial Melting Class
     @property
     def melt_fraction(self):
+        """ Inner-scope wrapper for partial_melting_model.melt_fraction """
         return self.partial_melting_model.melt_fraction
 
     @melt_fraction.setter
     def melt_fraction(self, value):
-        self.partial_melting_model.melt_fraction = value
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def postmelt_viscosity(self):
+        """ Inner-scope wrapper for partial_melting_model.postmelt_viscosity """
         return self.partial_melting_model.postmelt_viscosity
 
     @postmelt_viscosity.setter
-    def postmelt_viscosity(self, value):
-        self.partial_melting_model.postmelt_viscosity = value
+    def postmelt_viscosity(self, postmelt_viscosity: FloatArray):
+        self.set_state(viscosity=postmelt_viscosity)
 
     @property
     def postmelt_shear_modulus(self):
+        """ Inner-scope wrapper for partial_melting_model.postmelt_shear_modulus """
         return self.partial_melting_model.postmelt_shear_modulus
 
     @postmelt_shear_modulus.setter
-    def postmelt_shear_modulus(self, value):
-        self.partial_melting_model.postmelt_shear_modulus = value
+    def postmelt_shear_modulus(self, postmelt_shear_modulus: FloatArray):
+        self.set_state(shear_modulus=postmelt_shear_modulus)
 
     @property
     def postmelt_compliance(self):
+        """ Inner-scope wrapper for partial_melting_model.postmelt_compliance """
         return self.partial_melting_model.postmelt_compliance
 
     @postmelt_compliance.setter
-    def postmelt_compliance(self, value):
-        self.partial_melting_model.postmelt_compliance = value
+    def postmelt_compliance(self, postmelt_compliance: FloatArray):
+        self.set_state(shear_modulus=postmelt_compliance**(-1))
 
     # # Complex Compliance Class
     @property
     def complex_compliances(self):
+        """ Inner-scope wrapper for complex_compliance_model.complex_compliances """
         return self.complex_compliance_model.complex_compliances
 
     @complex_compliances.setter
     def complex_compliances(self, value):
-        self.complex_compliance_model.complex_compliances = value
+        raise IncorrectMethodToSetStateProperty
 
 
     # Outer-scope reference properties
     # # Layer Class
     @property
     def premelt_shear(self):
+        """ Outer-scope wrapper for layer.static_shear_modulus """
         return self.layer.static_shear_modulus
 
     @premelt_shear.setter
@@ -239,6 +314,7 @@ class Rheology(LayerConfigHolder):
 
     @property
     def quality_factor(self):
+        """ Outer-scope wrapper for layer.quality_factor """
         return self.layer.quality_factor
 
     @quality_factor.setter
@@ -247,6 +323,7 @@ class Rheology(LayerConfigHolder):
 
     @property
     def beta(self):
+        """ Outer-scope wrapper for layer.beta """
         return self.layer.beta
 
     @beta.setter
@@ -256,7 +333,8 @@ class Rheology(LayerConfigHolder):
     # # Tides Class
     @property
     def tides(self):
-        return self.world.tides
+        """ Outer-scope wrapper for world.tides """
+        return self.layer.world.tides
 
     @tides.setter
     def tides(self, value):
@@ -264,7 +342,11 @@ class Rheology(LayerConfigHolder):
 
     @property
     def unique_tidal_frequencies(self):
-        return self.world.tides.unique_tidal_frequencies
+        """ Outer-scope wrapper for world.unique_tidal_frequencies """
+        if self.tides is None:
+            return None
+        else:
+            return self.tides.unique_tidal_frequencies
 
     @unique_tidal_frequencies.setter
     def unique_tidal_frequencies(self, value):
@@ -274,6 +356,7 @@ class Rheology(LayerConfigHolder):
     # Alias properties
     @property
     def viscosity(self):
+        """ Alias for self.postmelt_viscosity """
         return self.postmelt_viscosity
 
     @viscosity.setter
@@ -282,6 +365,7 @@ class Rheology(LayerConfigHolder):
 
     @property
     def shear_modulus(self):
+        """ Alias for self.postmelt_shear_modulus """
         return self.postmelt_shear_modulus
 
     @shear_modulus.setter
@@ -290,6 +374,7 @@ class Rheology(LayerConfigHolder):
 
     @property
     def shear(self):
+        """ Alias for self.postmelt_shear_modulus """
         return self.postmelt_shear_modulus
 
     @shear.setter
@@ -298,6 +383,7 @@ class Rheology(LayerConfigHolder):
 
     @property
     def compliance(self):
+        """ Alias for self.postmelt_compliance """
         return self.postmelt_compliance
 
     @compliance.setter

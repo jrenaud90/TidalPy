@@ -36,9 +36,6 @@ class IncorrectArgumentType(ArgumentException):
 class MissingArgumentError(ArgumentException):
     default_message = 'One or more required argument(s) and/or key-word argument(s) were not provided.'
 
-class ArgumentOverloadError(ArgumentException):
-    default_message = 'Too many arguments were supplied to a function or method.'
-
 
 # TidalPy Value Error
 class TidalPyValueException(TidalPyException):
@@ -59,19 +56,19 @@ class UnusualRealValueError(TidalPyValueException):
 
 
 # Class / OOP Error
-class ClassException(TidalPyException):
+class TidalPyOOPException(TidalPyException):
     default_message = 'There was an error with a TidalPy class or OOP process.'
 
 
-class ImplementedBySubclassError(ClassException):
+class ImplementedBySubclassError(TidalPyOOPException):
     default_message = 'Trying to access sub-class functionality from a base class.'
 
 
-class FailedForcedStateUpdate(ClassException):
+class FailedForcedStateUpdate(TidalPyOOPException):
     default_message = 'The state of a class was forced to update but was unable to do so.'
 
 
-class ReinitError(ClassException):
+class ReinitError(TidalPyOOPException):
     default_message = 'One or more critical parameters have changed since planet was made. ' \
                       'Construct new planet instead.'
 
@@ -82,31 +79,40 @@ class ReinitNotAllowedError(ReinitError):
 
 
 # Attribute/Property or Method Error
-class AttributeException(ClassException):
+class AttributeException(TidalPyOOPException):
     default_message = 'There was a problem with one or more class attributes or methods.'
 
-
+# # Property Handling
 class ImproperPropertyHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
 
 
-class ImproperGeometryPropertyHandling(ImproperPropertyHandling):
+class IncorrectMethodToSetStateProperty(ImproperPropertyHandling):
+    default_message = "This particular state property is set by a different method than the one attempted. It may be " \
+                      "set by a different object entirely."
+
+class InitiatedPropertyChangeError(ImproperPropertyHandling):
+    default_message = "Attempted to change an initiated class property. These are set when an instance is created and " \
+                      "can only be changed by that object's methods (or not at all). Try to make a new instance or " \
+                      "use the object's methods instead of changing its initiated properties."
+
+class ConfigPropertyChangeError(ImproperPropertyHandling):
+    default_message = "Attempted to change a configuration class property. These must be changed in the " \
+                      "world/layer's configuration (`<instance>.config`) followed by a call to its `reinit` method."
+
+class ImproperGeometryPropertyHandling(ConfigPropertyChangeError):
     default_message = 'The attribute you are attempting to set must be set by the set_geometry method ' \
                       'or in the configurations.'
 
-
-class ConfigPropertyChangeError(ImproperPropertyHandling):
-    default_message = 'Attempted to change a configuration attribute. These must be changed in the planet ' \
-                      'configuration followed by a call to reinit.'
-
 class OuterscopePropertySetError(ImproperPropertyHandling):
-    default_message = 'Attempted to set an outerscope attribute from an inner class/model.'
+    default_message = "Attempted to set a property of an object from a separate object that is inside the scope of " \
+                      "the first. Try to set this property to the outer object."
 
+class InnerscopePropertySetError(ImproperPropertyHandling):
+    default_message = "Attempted to set a property of an object that is inside the scope of the object where the " \
+                      "setter was called from. Try to set this property to the object of interest."
 
-class PropertyChangeRequiresReINIT(ImproperPropertyHandling):
-    default_message = 'The attribute(s) you are trying to change require the object to be reinitialized.'
-
-
+# # Attribute Issues
 class MissingAttributeError(AttributeException):
     default_message = 'The attribute you are attempting to access has not been set.'
 
@@ -130,10 +136,6 @@ class ConfigurationException(TidalPyException):
 
 class ModelException(ConfigurationException):
     default_message = 'An error was encountered when handling a model.'
-
-
-class IncorrectModelInitialized(ModelException):
-    default_message = 'The currently set model does not support the functionality that you are attempting to use.'
 
 
 class UnknownModelError(ModelException):
@@ -167,8 +169,9 @@ class IncompatibleModelConfigError(ConfigurationException):
 class UnknownTidalPyConfigValue(ConfigurationException):
     default_message = 'A configuration set in TidalPy.configurations is not know or has not yet been implemented.'
 
+
 # World Errors
-class TidalPyWorldError(ClassException):
+class TidalPyWorldError(TidalPyOOPException):
     default_message = 'There was a problem related to the functionality or building of a TidalPy world.'
 
 
@@ -179,12 +182,13 @@ class UnknownWorld(TidalPyWorldError):
 class UnknownWorldType(TidalPyWorldError):
     default_message = 'A world type was encountered that is either unknown, contains a typo, or is not yet implemented.'
 
+
 class TidalPyLayerError(TidalPyException):
     default_message = 'There was a problem related to the functionality or building of a TidalPy layer.'
 
 
 # Orbit Errors
-class TidalPyOrbitError(ClassException):
+class TidalPyOrbitError(TidalPyOOPException):
     default_message = 'There was a problem related to the functionality or building of a TidalPy orbit.'
 
 

@@ -1,8 +1,5 @@
-from typing import Union
-
 from .base import OrbitBase
+from .physics import PhysicsOrbit
 
-# TODO
-# from .physics import PhysicsOrbit as Orbit
-# OrbitType = Union[OrbitBase, Orbit]
-OrbitType = OrbitBase
+# User will almost always want the Physics version of the orbit, so it is aliased as just `Orbit` here
+Orbit = PhysicsOrbit

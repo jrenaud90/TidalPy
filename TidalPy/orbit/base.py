@@ -1,6 +1,6 @@
 from typing import Union, Dict, List
 
-from .helper import pull_out_orbit_from_config
+from ..helpers.orbit_help import pull_out_orbit_from_config
 from .. import log
 from ..exceptions import ImproperPropertyHandling, BadWorldSignature, BadWorldSignatureType, TidalPyOrbitError
 from ..structures.worlds import AllWorldType, StarWorld, all_world_types
@@ -74,6 +74,7 @@ class OrbitBase(TidalPyClass):
         self._semi_major_axes = list()
         self._orbital_frequencies = list()
         self._orbital_periods = list()
+        self._universal_time = None
 
         # Construct anything we can
         run_update = False
@@ -212,6 +213,7 @@ class OrbitBase(TidalPyClass):
         run_update : bool = True
             If `True`, the orbit's `update_orbit` method will be called after the world has been added.
         """
+
         log.info(f'Adding {tidal_world} to orbit: {self}.')
 
         if not isinstance(tidal_world, all_world_types):
@@ -287,6 +289,13 @@ class OrbitBase(TidalPyClass):
         if tidal_world.orbit is not None:
             log.warning(f'Trying to add orbit: {self} to {tidal_world} but orbit is already present. Replacing...')
         tidal_world.orbit = self
+
+        # Add reference to the tidal host
+        if is_tidal_host:
+            if self.host_tide_raiser is not None:
+                tidal_world.tidal_host = self.host_tide_raiser
+        else:
+            tidal_world.tidal_host = self.tidal_host
 
         # Make storage locations for this world's orbital parameters
         storage_warn = False
@@ -419,6 +428,9 @@ class OrbitBase(TidalPyClass):
         # Get the instance of the tide raiser and store it
         tide_raiser_instance = self.tidal_objects[tide_raiser_index]
         self._host_tide_raiser = tide_raiser_instance
+
+        # Now switch the "tidal host" on the tidal_host (tides are weird!)
+        self.tidal_host.tidal_host = self.host_tide_raiser
 
     def set_state(self, world_signature: WorldSignatureType,
                   new_eccentricity: FloatArray = None,
@@ -574,6 +586,11 @@ class OrbitBase(TidalPyClass):
 
         # Update its orbital frequency
         self._orbital_frequencies[world_index] = new_orbital_frequency
+
+        # Worlds that are forced to be in synchronous rotation will need to have their spin-rates changed to match
+        #    the new orbital frequency.
+        if self.tidal_objects[world_index].force_spin_sync:
+            self.tidal_objects[world_index].set_spin_frequency(new_orbital_frequency, call_updates=False)
 
         # Make sure changes are propagated everywhere they need to be
         if not called_from_orbit:
@@ -834,7 +851,7 @@ class OrbitBase(TidalPyClass):
     # # Initialized properties
     @property
     def all_objects(self) -> List[AllWorldType]:
-        """ An iterable list of all world-like instances setup in this Orbit class. """
+        """ An iterable list of all world-like instances reinit in this Orbit class. """
         return self._all_objects
 
     @all_objects.setter
@@ -861,7 +878,7 @@ class OrbitBase(TidalPyClass):
 
     @property
     def tidal_objects(self) -> List[AllWorldType]:
-        """ An iterable list of all tidal world instances setup in this Orbit class.
+        """ An iterable list of all tidal world instances reinit in this Orbit class.
 
         This differs from Orbit.all_objects in that it excludes the star (unless the star is the tidal host)
         """
@@ -945,6 +962,31 @@ class OrbitBase(TidalPyClass):
     @host_tide_raiser.setter
     def host_tide_raiser(self, value):
         self.set_host_tide_raiser(value)
+
+    @property
+    def universal_time(self) -> FloatArray:
+        """ Time used in integration studies as well as for calculating radiogenic heating in all tidal worlds. """
+        return self._universal_time
+
+    @universal_time.setter
+    def universal_time(self, value: FloatArray):
+
+        self._universal_time = value
+
+        # Need to tell all worlds that the time has been updated.
+        for world in self.tidal_objects:
+            world.update_time()
+
+    # # Aliased properties
+    @property
+    def time(self):
+        """ Wrapper for OrbitBase.universal_time """
+        return self.universal_time
+
+    @time.setter
+    def time(self, value):
+        self.universal_time = value
+
 
     # # Dunder properties
     def __iter__(self):

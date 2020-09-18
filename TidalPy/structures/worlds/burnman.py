@@ -3,15 +3,43 @@ from typing import Tuple
 import burnman
 
 from .layered import LayeredWorld
-from ...exceptions import ImproperPropertyHandling
+from ...exceptions import InitiatedPropertyChangeError
 
 
 class BurnManWorld(LayeredWorld):
 
+    """ BurnManWorld
+    Tidal worlds that have layers whose state properties are initialized by user-provided equations of state. These
+        calculations are done by the Burnman package.
+
+
+    See Also
+    --------
+    Parent Class:
+        TidalPy.structures.worlds.LayeredWorld
+    """
+
     world_class = 'burnman'
 
-    def __init__(self, world_config: dict, name: str, burnman_world: burnman.Planet,
-                 burnman_layers: Tuple[burnman.Layer, ...], initialize: bool = True):
+    def __init__(self, world_config: dict, burnman_world: burnman.Planet, burnman_layers: Tuple[burnman.Layer, ...],
+                 name: str = None, initialize: bool = True):
+        """ BurnManWorld constructor
+
+        Parameters
+        ----------
+        world_config : dict
+            Configuration file used to build the world. User provided configs override default configurations that
+                TidalPy assumes.
+            Please see files stored in <TidalPy directory>/structures/worldConfigs for example configuration dict.
+        burnman_world : burnman.Planet
+            An initialized burnman planet object.
+        burnman_layers : Tuple[burnman.Layer, ...]
+            List of initialized burnman layer objects.
+        name : str = None
+            Name of the world. If None, will use name provided in world_config.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the world (loading in data from world_config).
+        """
 
         # Store BurnMan information in state properties
         self._bm_world = burnman_world
@@ -58,13 +86,14 @@ class BurnManWorld(LayeredWorld):
         super().reinit(initial_init, reinit_geometry, setup_simple_tides, set_by_burnman, reinit_layers)
 
 
+    # # Initiated properties
     @property
     def bm_world(self):
         return self._bm_world
 
     @bm_world.setter
     def bm_world(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError
 
     @property
     def bm_layers(self):
@@ -72,4 +101,4 @@ class BurnManWorld(LayeredWorld):
 
     @bm_layers.setter
     def bm_layers(self, value):
-        raise ImproperPropertyHandling
+        raise InitiatedPropertyChangeError

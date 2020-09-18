@@ -1,19 +1,29 @@
 import numpy as np
+from typing import TYPE_CHECKING
 
 from . import known_models, known_model_live_args, known_model_const_args
 from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
 from .. import log
-from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError
+from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError, \
+    IncorrectMethodToSetStateProperty
 from ..utilities.classes.model import LayerModelHolder
+from ..utilities.types import FloatArray
+
+if TYPE_CHECKING:
+    from ..structures.layers import PhysicalLayerType
 
 
 class CoolingModel(LayerModelHolder):
 
-    """ Cooling Model Class - Child of LayerModelHolder Class
+    """ CoolingModel
 
     Cooling model provides the functionality to calculate a layer's cooling efficiency based on user provided
         parameters related to convection and conduction.
+
+    See Also
+    --------
+    TidalPy.utilities.classes.model.LayerModelHolder
     """
 
     default_config = cooling_defaults
@@ -22,9 +32,26 @@ class CoolingModel(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = 'cooling'
 
-    def __init__(self, layer, model_name: str = None, store_config_in_layer: bool = True):
+    def __init__(self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
+                 initialize: bool = True):
+        """ Constructor for CoolingModel class
 
-        super().__init__(layer, model_name, store_config_in_layer)
+        Parameters
+        ----------
+        layer : PhysicalLayerType
+            The layer instance which the model should perform calculations on.
+        model_name : str = None
+            The user-provided model name.
+        store_config_in_layer: bool = True
+            Flag that determines if the final model's configuration dictionary should be copied into the
+            `layer.config` dictionary.
+        initialize : bool = True
+            Determines if initial reinit should be performed on the model (loading in data from its `self.config`).
+        """
+
+        super().__init__(layer, model_name, store_config_in_layer, initialize=False)
+
+        log.debug(f'Loading cooling model ({self.model}) into {self.layer}.')
 
         # State properties
         self._cooling = None
@@ -33,8 +60,8 @@ class CoolingModel(LayerModelHolder):
         self._rayleigh = None
         self._nusselt = None
 
-        # Report model building
-        log.debug(f'Loading cooling model ({self.model}) into {self.layer}.')
+        if initialize:
+            self.reinit(initial_init=True)
 
     def clear_state(self):
 
@@ -61,10 +88,16 @@ class CoolingModel(LayerModelHolder):
             Nusselt number (only != 1 for convection)
         """
 
-        surface_temp = self.layer.temperature_surf
-        temp = self.layer.temperature
+        if self.temperature is None:
+            raise MissingAttributeError(f"Can not calculate cooling until layer's temperature ({self.layer.name}) "
+                                        f"has been set")
 
-        delta_temp = temp - surface_temp
+        if self.temperature_surf is None:
+            raise MissingAttributeError(f"Can not calculate cooling until layer's surface "
+                                        f"temperature ({self.layer.name}) has been set. Set the layer above its "
+                                        f"dynamic temperature, or (if top layer) set the world's surface temperature.")
+
+        delta_temp = self.temperature - self.temperature_surf
 
         cooling_flux, boundary_layer_thickness, rayleigh, nusselt = \
             self.func_array(delta_temp, *self.live_inputs, *self.inputs)
@@ -73,7 +106,7 @@ class CoolingModel(LayerModelHolder):
         self._boundary_layer_thickness = boundary_layer_thickness
         self._rayleigh = rayleigh
         self._nusselt = nusselt
-        self._cooling = self._cooling_flux * self.layer.surface_area_outer
+        self._cooling = self._cooling_flux * self.surface_area
 
         return self.cooling_flux, self.boundary_layer_thickness, self.rayleigh, self.nusselt
 
@@ -86,51 +119,85 @@ class CoolingModel(LayerModelHolder):
 
         return self._calculate()
 
-    # State properties
+
+    # # State properties
     @property
-    def cooling(self) -> np.ndarray:
+    def cooling(self) -> FloatArray:
+        """ This layer's cooling [W] """
         return self._cooling
 
     @cooling.setter
     def cooling(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def cooling_flux(self) -> np.ndarray:
+    def cooling_flux(self) -> FloatArray:
+        """ This layer's cooling flux [W m-2] """
         return self._cooling_flux
 
     @cooling_flux.setter
     def cooling_flux(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def boundary_layer_thickness(self) -> np.ndarray:
+    def boundary_layer_thickness(self) -> FloatArray:
+        """ This layer's thermal boundary layer thickness [m] """
         return self._boundary_layer_thickness
 
     @boundary_layer_thickness.setter
     def boundary_layer_thickness(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def rayleigh(self) -> np.ndarray:
+    def rayleigh(self) -> FloatArray:
+        """ This layer's rayleigh number """
         return self._rayleigh
 
     @rayleigh.setter
     def rayleigh(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def nusselt(self) -> np.ndarray:
+    def nusselt(self) -> FloatArray:
+        """ This layer's nusselt number """
         return self._nusselt
 
     @nusselt.setter
     def nusselt(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
 
-    # Outer-scope properties
+    # # Outer-scope properties
+    @property
+    def temperature(self):
+        """ Outer-scope wrapper for layer.temperature """
+        return self.layer.temperature
+
+    @temperature.setter
+    def temperature(self, value):
+        raise OuterscopePropertySetError
+
+    @property
+    def temperature_surf(self):
+        """ Outer-scope wrapper for layer.temperature_surf """
+        return self.layer.temperature_surf
+
+    @temperature_surf.setter
+    def temperature_surf(self, value):
+        raise OuterscopePropertySetError
+
+    @property
+    def surface_area(self):
+        """ Outer-scope wrapper for layer.surface_area_outer """
+        return self.layer.surface_area_outer
+
+    @surface_area.setter
+    def surface_area(self, value):
+        raise OuterscopePropertySetError
+
     @property
     def viscosity(self):
+        """ Outer-scope wrapper for layer.viscosity """
         return self.layer.viscosity
 
     @viscosity.setter
@@ -139,6 +206,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def thermal_conductivity(self):
+        """ Outer-scope wrapper for layer.thermal_conductivity """
         return self.layer.thermal_conductivity
 
     @thermal_conductivity.setter
@@ -147,6 +215,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def thermal_diffusivity(self):
+        """ Outer-scope wrapper for layer.thermal_diffusivity """
         return self.layer.thermal_diffusivity
 
     @thermal_diffusivity.setter
@@ -155,6 +224,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def thermal_expansion(self):
+        """ Outer-scope wrapper for layer.thermal_expansion """
         return self.layer.thermal_expansion
 
     @thermal_expansion.setter
@@ -163,6 +233,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def thickness(self):
+        """ Outer-scope wrapper for layer.thickness """
         return self.layer.thickness
 
     @thickness.setter
@@ -171,6 +242,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def gravity(self):
+        """ Outer-scope wrapper for layer.gravity """
         return self.layer.gravity
 
     @gravity.setter
@@ -179,6 +251,7 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def density_bulk(self):
+        """ Outer-scope wrapper for layer.density_bulk """
         return self.layer.density_bulk
 
     @density_bulk.setter
@@ -186,9 +259,10 @@ class CoolingModel(LayerModelHolder):
         raise OuterscopePropertySetError
 
 
-    # Alias properties
+    # # Aliased properties
     @property
     def blt(self):
+        """ Alias for self.boundary_layer_thickness [m] """
         return self.boundary_layer_thickness
 
     @blt.setter

@@ -141,3 +141,47 @@ def nested_place(replacement_value: Any, dict_to_overwrite: dict,
                 dict_ref = dict_ref[key]
 
     return dict_to_overwrite
+
+def nested_replace(old_dict: dict, new_dict: dict, make_copies: bool = True) -> dict:
+    """ Replaces values in an old dict with values in a new dict, but does not overwrite nested dicts. Instead it
+        will perform the same type of replacement on each nested dict.
+
+    Parameters
+    ----------
+    old_dict : dict
+        Old dictionary that will have some values replaced.
+    new_dict : dict
+        New dictionary whose values will override any values in old_dict.
+    make_copies : bool = True
+        If `True`, then copies will be made of all dictionaries so that later mutations don't propagate to the combined
+            dict.
+
+    Returns
+    -------
+    combo_dict : dict
+        Dictionary made from combining old and new dicts.
+    """
+
+    # Make copy of the old dictionary
+    if make_copies:
+        combo_dict = copy.deepcopy(old_dict)
+    else:
+        combo_dict = old_dict
+
+    # Go through each key of the new dict and make replacements
+    for key, value in new_dict.items():
+        if key not in old_dict:
+            # Simple assignment if it is not present
+            combo_dict[key] = value
+        else:
+            # Replacement required. Check if the value is itself a dict which would require further parsing.
+            if type(value) == dict:
+                old_value_dict = old_dict[key]
+                if type(old_value_dict) != dict:
+                    raise Exception('How did that happen? Old value was not a dict.')
+                combo_dict[key] = nested_replace(old_dict=old_value_dict, new_dict=value, make_copies=True)
+            else:
+                # Other kind of value, just replace old value
+                combo_dict[key] = value
+
+    return combo_dict

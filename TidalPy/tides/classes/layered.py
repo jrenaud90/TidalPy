@@ -8,9 +8,10 @@ import numpy as np
 from .base import TidesBase
 from .defaults import tide_defaults
 from ..mode_manipulation import DissipTermsArray
-from ...exceptions import (NotYetImplementedError, ImproperPropertyHandling, ParameterValueError,
+from ...exceptions import (NotYetImplementedError, ParameterValueError,
                            FailedForcedStateUpdate,
-                           BadAttributeValueError)
+                           BadAttributeValueError, IncorrectMethodToSetStateProperty)
+from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
     from ...structures.worlds import LayeredWorld
@@ -18,17 +19,34 @@ if TYPE_CHECKING:
 
 
 class LayeredTides(TidesBase):
-    """ LayeredTides class - Used for layered planets (icy or rocky worlds)
+    """ LayeredTides
+    Class used for layered planets (icy or rocky worlds)
 
     Tides class stores model parameters and methods for heating and torque which are functions of
         (T, P, melt_frac, w, e, theata)
+
+    See Also
+    --------
+    TidalPy.tides.classes.TidesBase
     """
 
     default_config = tide_defaults['layered']
 
-    def __init__(self, world: 'LayeredWorld', store_config_in_world: bool = True):
+    def __init__(self, world: 'LayeredWorld', store_config_in_world: bool = True, initialize: bool = True):
+        """ Constructor for TidesBase class
 
-        super().__init__(world, store_config_in_world=store_config_in_world)
+        Parameters
+        ----------
+        world : TidalWorldType
+            The world where tides are being calculated.
+        store_config_in_world : bool = True
+            Flag that determines if the final model's configuration dictionary should be copied into the
+            `world.config` dictionary.
+        initialize : bool = True
+            If `True`, then an initial call to the tide's reinit method will be made at the end of construction.
+        """
+
+        super().__init__(world, store_config_in_world=store_config_in_world, initialize=initialize)
 
         # State properties
         self._tidal_heating_by_layer = {layer: None for layer in self.world}
@@ -42,8 +60,12 @@ class LayeredTides(TidesBase):
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
         if self.eccentricity_truncation_lvl not in (2, 4, 6, 8, 10, 12, 14, 16, 18, 20):
-            raise NotYetImplementedError(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
-                                          f'been implemented yet.')
+            if self.max_tidal_order_lvl == 2 and self.eccentricity_truncation_lvl == 22:
+                # This was implemented in v0.2.1
+                pass
+            else:
+                raise NotYetImplementedError(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
+                                              f'been implemented yet.')
 
         # Pull out information from the planet's layers
         self._tidal_inputs_by_layer = dict()
@@ -76,6 +98,7 @@ class LayeredTides(TidesBase):
             self._planet_tidal_inputs = (planet_radius, planet_density, planet_gravity)
 
     def clear_state(self):
+        """ Clear the state properties for the layered tides model """
 
         super().clear_state()
 
@@ -221,18 +244,21 @@ class LayeredTides(TidesBase):
             if force_update:
                 raise FailedForcedStateUpdate
 
+    # # State properties
     @property
-    def tidal_heating_by_layer(self) -> Dict['PhysicsLayer', np.ndarray]:
+    def tidal_heating_by_layer(self) -> Dict['PhysicsLayer', FloatArray]:
+        """ Tidal heating stored by layer instance [W] """
         return self._tidal_heating_by_layer
 
     @tidal_heating_by_layer.setter
     def tidal_heating_by_layer(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
-    def negative_imk_by_layer(self) -> Dict['PhysicsLayer', np.ndarray]:
+    def negative_imk_by_layer(self) -> Dict['PhysicsLayer', FloatArray]:
+        """ -Im[k2] stored by layer instance """
         return self._negative_imk_by_layer
 
     @negative_imk_by_layer.setter
     def negative_imk_by_layer(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty

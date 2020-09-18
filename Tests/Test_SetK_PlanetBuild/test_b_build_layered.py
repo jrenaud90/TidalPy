@@ -137,3 +137,10 @@ def test_build_from_layered_world_scale_radius():
     np.testing.assert_approx_equal(io_3.radius, io.radius * 2.)
     for layer, layer_3 in zip(io, io_3):
         np.testing.assert_approx_equal(layer_3.radius, layer.radius * 2.)
+
+def test_build_complex_layered_world():
+    """ For this test we will build a world with more than two layers. """
+    earth_simple = TidalPy.build_world('earth_simple')
+
+    # Make sure that there are four layers in the world
+    assert len(earth_simple.layers) == 4

@@ -9,26 +9,44 @@ from .base import TidesBase
 from .defaults import tide_defaults
 from ..eccentricityFuncs import EccenOutput
 from ..mode_manipulation import FreqSig, DissipTermsArray
-from ...exceptions import (NotYetImplementedError, ImproperPropertyHandling, ParameterValueError,
-                           OuterscopePropertySetError, FailedForcedStateUpdate)
+from ...exceptions import (NotYetImplementedError, ParameterValueError,
+                           OuterscopePropertySetError, FailedForcedStateUpdate, IncorrectMethodToSetStateProperty)
+from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
     from ...structures.worlds import TidalWorldType
 
 
 class SimpleTides(TidesBase):
-    """ SimpleTides Class - Used for non-layered planets (Gas Giants, Stars, Very simple homogeneous planets)
+    """ SimpleTides
+    Class used for non-layered planets (Gas Giants, Stars, Very simple homogeneous planets)
 
     Tides class stores model parameters and methods for heating and torque which are functions of
         (T, P, melt_frac, w, e, theata)
+
+    See Also
+    --------
+    TidalPy.tides.classes.TidesBase
     """
 
     model = 'simple'
     default_config = tide_defaults['simple']
 
-    def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True):
+    def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, initialize: bool = True):
+        """ Constructor for TidesBase class
 
-        super().__init__(world, store_config_in_world)
+        Parameters
+        ----------
+        world : TidalWorldType
+            The world where tides are being calculated.
+        store_config_in_world : bool = True
+            Flag that determines if the final model's configuration dictionary should be copied into the
+            `world.config` dictionary.
+        initialize : bool = True
+            If `True`, then an initial call to the tide's reinit method will be made at the end of construction.
+        """
+
+        super().__init__(world, store_config_in_world, initialize=initialize)
 
         # Ensure the tidal order and orbital truncation levels make sense
         # TODO: For the simple tidal world, how to allow for higher order l? User provides k_3, k_4, ...
@@ -40,13 +58,15 @@ class SimpleTides(TidesBase):
         if self.eccentricity_truncation_lvl <= 2:
             raise ParameterValueError('Orbital truncation level must be greater than or equal to 2.')
         if self.eccentricity_truncation_lvl not in (2, 4, 6, 8, 10, 12, 14, 16, 18, 20):
-            raise NotYetImplementedError(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
-                                          f'been implemented yet.')
-
-        # Calculated state properties
-        self._tidal_inputs = (self.world.tidal_scale, self.radius, self.world.density_bulk, self.world.gravity_surface)
+            if self.max_tidal_order_lvl == 2 and self.eccentricity_truncation_lvl == 22:
+                # This was implemented in v0.2.1
+                pass
+            else:
+                raise NotYetImplementedError(f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
+                                              f'been implemented yet.')
 
         # State properties
+        self._tidal_inputs = None
         self._neg_imk_ctl_by_unique_freq = None
         self._neg_imk_cpl_by_unique_freq = None
 
@@ -54,8 +74,8 @@ class SimpleTides(TidesBase):
         self.use_ctl = self.config['use_ctl']
         self._thermal_set = True  # Simple Tide class does not care about thermal state
 
-
     def clear_state(self):
+        """ Clear the state for the simple tides model """
 
         super().clear_state()
 
@@ -65,7 +85,44 @@ class SimpleTides(TidesBase):
     def update_orbit_spin(self, force_update: bool = True, eccentricity_change: bool = True,
                           obliquity_change: bool = True, frequency_change: bool = True,
                           eccentricity_results: Dict[int, EccenOutput] = None) -> \
-            Tuple[Dict[FreqSig, np.ndarray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
+            Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
+        """ Calculate tidal heating and potential derivative terms based on the current orbital state.
+
+        This will also calculate new unique tidal frequencies which must then be digested by the rheological model
+            at each planetary layer.
+
+
+        Parameters
+        ----------
+        force_update : bool = True
+            If True, will raise an error if the update does not successful complete.
+            Failed completions are usually a result of a missing state property(ies).
+        eccentricity_change : bool = True
+            If there was no change in eccentricity (or if the orbit set the eccentricity) set this to False for a
+            performance boost. If False, eccentricity functions won't be called.
+        obliquity_change : bool = True
+            If there was no change in obliquity set this to False for a performance boost.
+            If False, obliquity functions won't be called.
+        frequency_change : bool = True
+            If there was no change in orbital or rotation frequency set this to False for a performance boost.
+            If False, calculate_terms won't be called.
+        eccentricity_results : Dict[int, EccenOutput] = None
+            Eccentricity functions can be calculated by the Orbit class (or by the user). Pass a pre-caclualted result
+            for a performance boost.
+
+        Returns
+        -------
+        unique_tidal_frequencies : Dict[FreqSig, np.ndarray]
+            Each unique frequency stored as a signature (orbital motion and spin-rate coeffs), and the calculated frequency
+                (combo of orbital motion and spin-rate) [rad s-1]
+        tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTermsArray]]
+            Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
+                unique frequency.
+
+        See Also
+        --------
+        TidalPy.tides.dissipation.mode_collapse
+        """
 
         # If the CTL method is used then the dissipation efficiency will change with frequency.
         #    In CPL: Dissipation ~ k_2 / Q
@@ -171,35 +228,37 @@ class SimpleTides(TidesBase):
                 raise FailedForcedStateUpdate
 
 
-    # Configuration properties
+    # # State properties
     @property
-    def tidal_inputs(self):
-        return self._tidal_inputs
+    def tidal_inputs(self) -> Tuple[float, float, float, float]:
+        """ The inputs required to calculate tides - these could change dynamically so they need to be pulled live """
+        return self.world.tidal_scale, self.radius, self.world.density_bulk, self.world.gravity_surface
 
     @tidal_inputs.setter
     def tidal_inputs(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
-
-    # State properties
     @property
     def neg_imk_ctl_by_unique_freq(self) -> Dict[FreqSig, np.ndarray]:
+        """ -Im[k2] stored by unique frequency signature. Used for the CTL method """
         return self._neg_imk_ctl_by_unique_freq
 
     @neg_imk_ctl_by_unique_freq.setter
     def neg_imk_ctl_by_unique_freq(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def neg_imk_cpl_by_unique_freq(self) -> Dict[FreqSig, np.ndarray]:
+        """ -Im[k2] stored by unique frequency signature. Used for the CPL method """
         return self._neg_imk_cpl_by_unique_freq
 
     @neg_imk_cpl_by_unique_freq.setter
     def neg_imk_cpl_by_unique_freq(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
     @property
     def neg_imk_by_unique_freq(self):
+        """ -Im[k2] stored by unique frequency signature. Chooses between CPL and CTL """
         if self.use_ctl:
             return self.neg_imk_ctl_by_unique_freq
         else:
@@ -207,12 +266,13 @@ class SimpleTides(TidesBase):
 
     @neg_imk_by_unique_freq.setter
     def neg_imk_by_unique_freq(self, value):
-        raise ImproperPropertyHandling
+        raise IncorrectMethodToSetStateProperty
 
 
-    # Outer-scope properties
+    # # Outer-scope properties
     @property
     def fixed_k2(self) -> float:
+        """ Outer-scope wrapper for world.static_love """
         return self.world.static_love
 
     @fixed_k2.setter
@@ -221,6 +281,7 @@ class SimpleTides(TidesBase):
 
     @property
     def fixed_q(self) -> float:
+        """ Outer-scope wrapper for world.fixed_q """
         return self.world.fixed_q
 
     @fixed_q.setter
@@ -229,6 +290,7 @@ class SimpleTides(TidesBase):
 
     @property
     def fixed_dt(self):
+        """ Outer-scope wrapper for world.fixed_dt """
         return self.world.fixed_dt
 
     @fixed_dt.setter

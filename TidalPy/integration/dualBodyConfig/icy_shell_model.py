@@ -857,7 +857,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         if use_julia:
             print('\tUsing Julia Diffeq...')
 
-            # Import Julia's Diffeqpy and setup the problem
+            # Import Julia's Diffeqpy and reinit the problem
             from diffeqpy import de
             min_interval = MIN_INTERVAL_SCALE * time_interval
             problem = de.ODEProblem(diffeq_to_use, initial_conditions, time_span)
