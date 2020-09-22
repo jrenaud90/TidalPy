@@ -1,5 +1,6 @@
 import copy
 import os
+from pprint import pprint
 from typing import Any, Tuple
 
 from .jsonUtils import save_dict_to_json
@@ -17,9 +18,11 @@ class ConfigHolder(TidalPyClass):
     default_config = None
     default_config_key = None
 
-    def __init__(self, replacement_config: dict = None):
+    def __init__(self, replacement_config: dict = None, store_py_info: bool = False):
 
         super().__init__()
+
+        self.store_py_info = store_py_info
 
         if debug_mode:
             assert type(replacement_config) in [dict, type(None)]
@@ -34,7 +37,7 @@ class ConfigHolder(TidalPyClass):
             self.default_config = copy.deepcopy(self.default_config[self.default_config_key])
 
         # Add class information to the default dictionary
-        if self.default_config is not None:
+        if self.default_config is not None and self.store_py_info:
             self.default_config['pyclass'] = self.__class__.__name__
             self.default_config['pyname'] = f'{self}'
             self.default_config['TidalPy_Vers'] = version
@@ -159,7 +162,7 @@ class ConfigHolder(TidalPyClass):
         else:
             self._config = {**default_config, **replacement_config}
 
-        if self.config is not None:
+        if self.config is not None and self.store_py_info:
             # Add class information to the config if it was not already present
             if 'pyclass' not in self.config:
                 self._config['pyclass'] = self.__class__.__name__
@@ -171,6 +174,12 @@ class ConfigHolder(TidalPyClass):
         self.config_constructed = True
 
         return self.config
+
+    def print_config(self):
+        """ Print the object's configuration dictionary in an easy to read way usng the pprint package. """
+
+        if self.config is not None:
+            pprint(self.config)
 
     def save_config(self, class_name: str = None,
                     save_to_run_dir: bool = True, additional_save_dirs: list = None,
@@ -188,7 +197,7 @@ class ConfigHolder(TidalPyClass):
             List of any additional directories that configs will be saved to.
             This must be a list of proper, os-compliant path strings
         save_default : bool = False
-            If true then the classes default configurations will also be saved.
+            If true then the methods default configurations will also be saved.
         save_old_config : bool = False
             If true then any overwritten config (saved to the class' .old_config) will also be saved.
         overwrite : bool = False
@@ -284,12 +293,11 @@ class LayerConfigHolder(ConfigHolder):
 
         # Store layer and world information
         self._layer = layer
-        self._world = None
-        world_name = 'Unknown'
-        if 'world' in layer.__dict__:
-            if layer.world is not None:
-                self._world = layer.world
-                world_name = self.world.name
+        self._world = layer.world
+        if self.world is None:
+            world_name = 'Unknown'
+        else:
+            world_name = self.world.name
 
         # Record if model config should be stored back into layer's config
         self.store_config_in_layer = store_config_in_layer
@@ -304,7 +312,7 @@ class LayerConfigHolder(ConfigHolder):
             raise ParameterMissingError(f"Config was not provided for [layer: {self.layer.name} in world: {world_name}]'s "
                                         f"{self.__class__.__name__} and no defaults are set.")
 
-        # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
+        # Setup ModelHolder and ConfigHolder methods. Using the layer's config file as the replacement config.
         super().__init__(replacement_config=config)
 
         if store_config_in_layer:
@@ -375,7 +383,7 @@ class WorldConfigHolder(ConfigHolder):
             raise ParameterMissingError(f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
                                         f"{self.__class__.__name__} and no defaults are set.")
 
-        # Setup ModelHolder and ConfigHolder classes. Using the world's config file as the replacement config.
+        # Setup ModelHolder and ConfigHolder methods. Using the world's config file as the replacement config.
         super().__init__(replacement_config=config)
 
         if store_config_in_world:

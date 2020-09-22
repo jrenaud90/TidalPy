@@ -20,7 +20,7 @@ class ViscosityParentClass(LayerModelHolder):
 
     See Also
     --------
-    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.utilities.methods.model.LayerModelHolder
     TidalPy.rheology.Rheology
     TidalPy.rheology.viscosity.LiquidViscosityParent
     TidalPy.rheology.viscosity.SolidViscosityParent
@@ -140,7 +140,7 @@ class LiquidViscosity(ViscosityParentClass):
 
     See Also
     --------
-    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.utilities.methods.model.LayerModelHolder
     TidalPy.rheology.Rheology
     TidalPy.rheology.viscosity.ViscosityParentClass
     """
@@ -161,7 +161,7 @@ class SolidViscosity(ViscosityParentClass):
 
     See Also
     --------
-    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.utilities.methods.model.LayerModelHolder
     TidalPy.rheology.Rheology
     TidalPy.rheology.viscosity.ViscosityParentClass
     """

@@ -1,10 +1,10 @@
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .complexCompliance import ComplexCompliance
+from .complex_compliance import ComplexCompliance
 from .defaults import rheology_defaults
-from .partialMelt import PartialMelt
+from .partial_melt import PartialMelt
 from .viscosity import SolidViscosity, LiquidViscosity
 from .. import debug_mode, log
 from ..exceptions import MissingArgumentError, OuterscopePropertySetError, UnusualRealValueError, \
@@ -26,9 +26,9 @@ class Rheology(LayerConfigHolder):
 
     See Also
     --------
-    TidalPy.utilities.classes.LayerConfigHolder
-    TidalPy.rheology.complexCompliance.ComplexCompliance
-    TidalPy.rheology.partialMelt.PartialMelt
+    TidalPy.utilities.methods.LayerConfigHolder
+    TidalPy.rheology.complex_compliance.ComplexCompliance
+    TidalPy.rheology.partial_melt.PartialMelt
     TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
@@ -46,6 +46,8 @@ class Rheology(LayerConfigHolder):
             Flag that determines if the final model's configuration dictionary should be copied into the
             `layer.config` dictionary.
         """
+
+        self.default_config = rheology_defaults[layer.type]
 
         super().__init__(layer, store_config_in_layer)
 
@@ -67,6 +69,67 @@ class Rheology(LayerConfigHolder):
                   f"\tPartial Melting:     {self.partial_melting_model.model}\n"
                   f"\tComplex Compliance:  {self.complex_compliance_model.model}")
 
+    def tidal_frequencies_changed(self):
+        """ The tidal frequencies have changed. Make any necessary updates. """
+
+        log.debug(f'Tidal frequencies changed called for {self}.')
+
+        if self.layer.is_tidal:
+            if self.unique_tidal_frequencies is not None:
+                # Calculate new complex compliances
+                self.complex_compliance_model.calculate()
+
+                # Tell the rheology class that the complex compliances have changed.
+                self.complex_compliances_changed()
+
+    def complex_compliances_changed(self):
+        """ The complex compliances have changed. Make any necessary updates. """
+
+        log.debug(f'Complex compliances changed called for {self}.')
+
+        if self.complex_compliances is not None:
+            self.layer.complex_compliances_changed()
+
+    def temperature_pressure_changed(self):
+        """ The layer's temperature and/or pressure has changed. Make any necessary updates. """
+
+        log.debug(f'Temperature change called for {self}.')
+
+        if self.layer.temperature is not None:
+
+            strength_changed = False
+            # Update pre-partial melt solid viscosity
+            if self.viscosity_model is not None:
+                self.viscosity_model.calculate()
+                strength_changed = True
+
+            # Update liquid viscosity
+            if self.liquid_viscosity_model is not None:
+                self.liquid_viscosity_model.calculate()
+                strength_changed = True
+
+            # Update partial melting
+            if self.partial_melting_model is not None:
+                self.partial_melting_model.calculate()
+                strength_changed = True
+
+            if strength_changed:
+                # Tell rheology that the strength has changed.
+                self.strength_changed()
+
+    def strength_changed(self):
+        """ The layer's viscosity and/or shear modulus has changed. Make any necessary updates. """
+
+        log.debug(f'Strength changed called for {self}.')
+
+        if self.viscosity is not None and self.shear_modulus is not None:
+            if self.complex_compliance_model is not None:
+                # Calculate new complex compliances
+                self.complex_compliance_model.calculate()
+
+                # Tell the rheology class that the complex compliances have changed.
+                self.complex_compliances_changed()
+
     def clear_state(self):
         """ Clear the state of all rheological parameters (all sub models' `clear_state` method will be called) """
 
@@ -77,7 +140,7 @@ class Rheology(LayerConfigHolder):
                       self.partial_melting_model, self.complex_compliance_model]:
             model.clear_state()
 
-    def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None, called_by_layer: bool = False):
+    def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None):
         """ Set the rheology state and recalculate any parameters that may be affected.
 
         Setting the state manually overrides the functionality of the viscosity, shear, and partial melting functions.
@@ -88,13 +151,13 @@ class Rheology(LayerConfigHolder):
             Layer/Material viscosity [Pa s]
         shear_modulus : FloatArray
             Layer/Material shear modulus [Pa]
-        called_by_layer : bool = False
-            Should be `False` unless this function is called by the layer.set_strength method
 
         See Also
         --------
         TidalPy.structures.layers.PhysicsLayer.set_strength
         """
+
+        strength_changed = False
 
         # Now set the relevant parameters
         if viscosity is None and shear_modulus is None:
@@ -126,73 +189,16 @@ class Rheology(LayerConfigHolder):
         # Now override the state properties
         if viscosity is not None:
             self.partial_melting_model._postmelt_viscosity = viscosity
+            strength_changed = True
         if shear_modulus is not None:
             self.partial_melting_model._postmelt_shear_modulus = shear_modulus
             self.partial_melting_model._postmelt_compliance = 1. / shear_modulus
+            strength_changed = True
 
-        # A change to the viscosity or shear modulus will change the complex compliance so anything that depends on
-        #     that will need to be updated as well.
-        if not called_by_layer:
-            self.world.update_tides()
+        if strength_changed:
+            # Tell rheology that the strength has changed.
+            self.strength_changed()
 
-    def update_frequency(self, called_from_world: bool = False):
-        """ Performs rheological calculations when the tidal forcing frequency has changed
-
-        Parameters
-        ----------
-        called_from_world : bool = False
-            If not called from the world class then this method will attempt to update the tides class.
-        """
-
-        if self.layer.is_tidal:
-            if self.unique_tidal_frequencies is not None:
-                self.complex_compliance_model.calculate()
-
-                if not called_from_world:
-                    self.world.update_tides()
-
-    def update_thermal(self, called_from_layer: bool = False) -> Tuple[FloatArray, FloatArray]:
-        """ Calculates the strength of a layer/material based on change to temperature and/or pressure.
-
-        Strength, in this context, refers to the layer's viscosity and shear modulus. Depending upon the model,
-            partial melt fraction is also calculated and used to further modify the final strength.
-
-        Parameters
-        ----------
-        called_from_layer: bool = False
-            Should be `False` unless this method is being called from its host layer.
-
-        Returns
-        -------
-        postmelt_viscosity : FloatArray
-            Final viscosity [Pa s]
-        postmelt_shear_modulus : FloatArray
-            Final shear modulus [Pa]
-        """
-
-        # Calculate the pre-melting viscosities
-        self.viscosity_model.calculate()
-        self.liquid_viscosity_model.calculate()
-
-        # Add in the effects of partial melting
-        self.partial_melting_model.calculate()
-
-        # Now that there is a new viscosity and shear modulus, update complex compliance as well.
-        #    Complex compliances depend upon forcing frequencies, which may or may not be set when this is called.
-        if self.layer.is_tidal:
-            if self.unique_tidal_frequencies is not None:
-                self.complex_compliance_model.calculate()
-
-        # A change to the viscosity or shear modulus will change the complex compliance so anything that depends on
-        #     that will need to be updated as well.
-        if not called_from_layer:
-            if self.layer.cooling_model is not None:
-                self.layer.cooling_model.update_thermal()
-
-            if self.layer.is_tidal:
-                self.world.update_tides()
-
-        return self.viscosity, self.shear_modulus
 
     # # Initialized properties
     @property
@@ -330,30 +336,18 @@ class Rheology(LayerConfigHolder):
     def beta(self, value):
         raise OuterscopePropertySetError
 
-    # # Tides Class
-    @property
-    def tides(self):
-        """ Outer-scope wrapper for world.tides """
-        return self.layer.world.tides
-
-    @tides.setter
-    def tides(self, value):
-        raise OuterscopePropertySetError
-
+    # World Class
     @property
     def unique_tidal_frequencies(self):
         """ Outer-scope wrapper for world.unique_tidal_frequencies """
-        if self.tides is None:
-            return None
-        else:
-            return self.tides.unique_tidal_frequencies
+        return self.world.unique_tidal_frequencies
 
     @unique_tidal_frequencies.setter
     def unique_tidal_frequencies(self, value):
         raise OuterscopePropertySetError
 
 
-    # Alias properties
+    # # Aliased properties
     @property
     def viscosity(self):
         """ Alias for self.postmelt_viscosity """

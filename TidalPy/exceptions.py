@@ -9,7 +9,7 @@ class TidalPyException(Exception):
         # If no input is provided then the base exception will look at the class attribute 'default_message'
         #   and send that to sys.stderr
         if args or kwargs:
-            super().__init__(*args, **kwargs)
+            super().__init__(*args)
         else:
             super().__init__(self.default_message)
 

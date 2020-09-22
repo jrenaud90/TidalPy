@@ -87,6 +87,7 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         # We do not want to print to console when we are running in a jupyter notebook
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(stream_formatter)
+        stream_handler.setLevel(config['stream_level'])
         tidalpy_log.addHandler(stream_handler)
 
     #    File printer

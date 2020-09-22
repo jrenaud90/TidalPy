@@ -1,8 +1,8 @@
 # Complex Compliance Imports
-from .complexCompliance import ComplexCompliance, known_model_const_args as complex_compliance_const_args, \
+from .complex_compliance import ComplexCompliance, known_model_const_args as complex_compliance_const_args, \
     known_model_live_args as complex_compliance_live_args, known_models as complex_compliance_models
 # Partial Melting Imports
-from .partialMelt import PartialMelt, known_model_const_args as partial_melting_const_args, \
+from .partial_melt import PartialMelt, known_model_const_args as partial_melting_const_args, \
     known_model_live_args as partial_melting_live_args, known_models as partial_melting_models
 # Rheology Imports
 from .rheology import Rheology

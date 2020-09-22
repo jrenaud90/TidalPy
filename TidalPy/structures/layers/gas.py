@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from .basic import LayerBase
 
 if TYPE_CHECKING:
-    from ..worlds import GasGiantLayeredWorld
+    from ..world_types import GasGiantLayeredWorld
 
 class GasLayer(LayerBase):
 

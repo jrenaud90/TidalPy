@@ -12,8 +12,11 @@ if use_numba:
     def njit(*args, **kwargs):
         if 'cacheable' in kwargs:
             if kwargs['cacheable'] and cache_numba:
-                del kwargs['cacheable']
-                return numba.njit(*args, cache=True, **kwargs)
+                kwargs['cache'] = True
+            else:
+                kwargs['cache'] = False
+            del kwargs['cacheable']
+            return numba.njit(*args, **kwargs)
         return numba.njit(*args, **kwargs)
 
     vectorize = numba.vectorize

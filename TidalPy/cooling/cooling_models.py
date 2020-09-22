@@ -9,7 +9,8 @@ MIN_THICKNESS = 50.
 CoolingOutputTypeArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 CoolingOutputTypeFloat = Tuple[float, float, float, float]
 
-@njit
+
+@njit(cacheable=True)
 def off(delta_temp: float, layer_thickness: float) -> CoolingOutputTypeFloat:
     """ No cooling - Max boundary layer thickness - NonArrays Only
 
@@ -44,7 +45,7 @@ def off(delta_temp: float, layer_thickness: float) -> CoolingOutputTypeFloat:
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
-@njit
+@njit(cacheable=True)
 def off_array(delta_temp: np.ndarray, layer_thickness: float) -> CoolingOutputTypeArray:
     """ No cooling - Max boundary layer thickness - Arrays Only
 
@@ -80,7 +81,7 @@ def off_array(delta_temp: np.ndarray, layer_thickness: float) -> CoolingOutputTy
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
-@njit
+@njit(cacheable=True)
 def convection(delta_temp: float,
                viscosity: float, thermal_conductivity: float, thermal_diffusivity: float, thermal_expansion: float,
                layer_thickness: float, gravity: float, density: float,
@@ -159,7 +160,7 @@ def convection(delta_temp: float,
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
-@njit
+@njit(cacheable=True)
 def convection_array(delta_temp: np.ndarray,
                      viscosity: np.ndarray, thermal_conductivity: float, thermal_diffusivity: float, thermal_expansion: float,
                      layer_thickness: float, gravity: float, density: float,
@@ -232,7 +233,7 @@ def convection_array(delta_temp: np.ndarray,
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
-@njit
+@njit(cacheable=True)
 def conduction(delta_temp: float,
                thermal_conductivity: float, layer_thickness: float) -> CoolingOutputTypeFloat:
     """ Calculates cooling by conduction through a sub-layer half the thickness of the layer - NonArrays Only
@@ -274,7 +275,7 @@ def conduction(delta_temp: float,
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
-@njit
+@njit(cacheable=True)
 def conduction_array(delta_temp: np.ndarray,
                      thermal_conductivity: float, layer_thickness: float) -> CoolingOutputTypeArray:
     """ Calculates cooling by conduction through a sub-layer half the thickness of the layer - Arrays Only

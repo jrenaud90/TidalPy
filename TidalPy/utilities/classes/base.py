@@ -2,7 +2,7 @@ from ...version import version
 
 
 class TidalPyClass:
-    """ All functional classes used in TidalPy inherit from this base class.
+    """ All functional methods used in TidalPy inherit from this base class.
 
     Class Attributes
     ----------------

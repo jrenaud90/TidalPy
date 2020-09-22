@@ -42,7 +42,7 @@ def value_check(world, config_to_compare: dict, check_name: bool = True):
     for layer, layer_name_expected in zip(world, config_to_compare['layers']):
         layer_dict = config_to_compare['layers'][layer_name_expected]
 
-        # Check that layer is in the worlds dict
+        # Check that layer is in the world_types dict
         assert layer_name_expected in world.__dict__
         assert layer_name_expected.title() in world.__dict__
         assert layer_name_expected in world.layers_by_name
@@ -54,7 +54,7 @@ def value_check(world, config_to_compare: dict, check_name: bool = True):
 
         layer_mass_combined += layer.mass
 
-    # Check that the sum of layer's mass is the same as the worlds.
+    # Check that the sum of layer's mass is the same as the world_types.
     np.testing.assert_approx_equal(world.mass, layer_mass_combined)
     return True
 

@@ -1,7 +1,7 @@
 import numpy as np
 import numba
 
-from TidalPy.rheology.complexCompliance import known_models
+from TidalPy.rheology.complex_compliance import known_models
 
 def test_all_models():
 

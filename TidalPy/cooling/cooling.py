@@ -1,11 +1,12 @@
-import numpy as np
 from typing import TYPE_CHECKING
+
+import numpy as np
 
 from . import known_models, known_model_live_args, known_model_const_args
 from .cooling_models import CoolingOutputTypeArray
 from .defaults import cooling_defaults
 from .. import log
-from ..exceptions import MissingAttributeError, ImproperPropertyHandling, OuterscopePropertySetError, \
+from ..exceptions import MissingAttributeError, OuterscopePropertySetError, \
     IncorrectMethodToSetStateProperty
 from ..utilities.classes.model import LayerModelHolder
 from ..utilities.types import FloatArray
@@ -23,7 +24,7 @@ class CoolingModel(LayerModelHolder):
 
     See Also
     --------
-    TidalPy.utilities.classes.model.LayerModelHolder
+    TidalPy.utilities.methods.model.LayerModelHolder
     """
 
     default_config = cooling_defaults
@@ -99,8 +100,23 @@ class CoolingModel(LayerModelHolder):
 
         delta_temp = self.temperature - self.temperature_surf
 
+        # Check if we need to use the float or array version of the complex compliance calculator
+        # OPT: Put this check in the setter for the live args / freqs?
+        use_float = True
+        for input_ in self.live_inputs:
+            if type(input_) == np.ndarray:
+                use_float = False
+                break
+        if use_float:
+            if type(delta_temp) == np.ndarray:
+                use_float = False
+        if use_float:
+            cooling_func = self.func
+        else:
+            cooling_func = self.func_array
+
         cooling_flux, boundary_layer_thickness, rayleigh, nusselt = \
-            self.func_array(delta_temp, *self.live_inputs, *self.inputs)
+            cooling_func(delta_temp, *self.live_inputs, *self.inputs)
 
         self._cooling_flux = cooling_flux
         self._boundary_layer_thickness = boundary_layer_thickness
@@ -112,7 +128,7 @@ class CoolingModel(LayerModelHolder):
 
     def _calculate_debug(self) -> CoolingOutputTypeArray:
 
-        if self.layer.temperature_surf is None:
+        if self.layer.surface_temperature is None:
             raise MissingAttributeError(f"Layer {self.layer.name}'s surface temperature has not been set yet.")
         if self.layer.temperature is None:
             raise MissingAttributeError(f"Layer {self.layer.name}'s average/central temperature has not been set yet.")
@@ -179,8 +195,8 @@ class CoolingModel(LayerModelHolder):
 
     @property
     def temperature_surf(self):
-        """ Outer-scope wrapper for layer.temperature_surf """
-        return self.layer.temperature_surf
+        """ Outer-scope wrapper for layer.surface_temperature """
+        return self.layer.surface_temperature
 
     @temperature_surf.setter
     def temperature_surf(self, value):

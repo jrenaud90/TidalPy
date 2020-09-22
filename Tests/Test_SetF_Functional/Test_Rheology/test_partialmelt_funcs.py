@@ -22,7 +22,7 @@ spohn_input = (liquid_shear, fs_visc_power_slope, fs_visc_power_phase, fs_shear_
 
 def test_melt_fraction():
 
-    from TidalPy.rheology.partialMelt import calculate_melt_fraction, calculate_melt_fraction_array
+    from TidalPy.rheology.partial_melt import calculate_melt_fraction, calculate_melt_fraction_array
 
     # Test float version
     mf = calculate_melt_fraction(1600., 1600., 2000.)
@@ -42,7 +42,7 @@ def test_melt_fraction():
 
 def test_reverse_melt_fraction():
 
-    from TidalPy.rheology.partialMelt import calculate_temperature_frommelt_array, calculate_temperature_frommelt
+    from TidalPy.rheology.partial_melt import calculate_temperature_frommelt_array, calculate_temperature_frommelt
 
     # Test float version
     temp = calculate_temperature_frommelt(0., 1600., 2000.)
@@ -63,12 +63,12 @@ def test_reverse_melt_fraction():
 def test_all_models():
 
     # TODO: Currently this does not have a nice programic-way to test `all` models (pull in their inputs, etc.)
-    #    This should be possible using the partialMelt module's get_partial_melt_model_default_inputs()
+    #    This should be possible using the partial_melt module's get_partial_melt_model_default_inputs()
 
     print('Partial Melting Model Testing...')
 
     # Test float versions
-    from TidalPy.rheology.partialMelt.melting_models import off, spohn, henning
+    from TidalPy.rheology.partial_melt.melting_models import off, spohn, henning
     melt_fraction = 0.5
     temperature = 1800.
     premelt_viscosity = 1.e20
@@ -95,7 +95,7 @@ def test_all_models():
 
 
     # Test Array versions
-    from TidalPy.rheology.partialMelt.melting_models import off_array, spohn_array, henning_array
+    from TidalPy.rheology.partial_melt.melting_models import off_array, spohn_array, henning_array
     melt_fraction = 0.5 * np.ones(10)
     temperature = 1800. * np.ones(10)
     premelt_viscosity = 1.e20 * np.ones(10)

@@ -28,7 +28,7 @@ big_io_config = {
 
 def test_basic_orbit_construction():
 
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     # Construct orbit with no members
     orbit = OrbitBase()
@@ -40,7 +40,7 @@ def test_orbit_construction_with_star():
     """ This will test building an orbit with just a star. """
 
     from TidalPy import build_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     star_2 = copy.deepcopy(star)
@@ -64,7 +64,7 @@ def test_orbit_construction_with_star_and_host():
     """ This will test building an orbit with just a star and tidal host. """
 
     from TidalPy import build_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     host = build_world('io_simple')
@@ -86,7 +86,7 @@ def test_orbit_construction_with_star_and_host_and_tidalbody():
     """ This will test building an orbit with one tidal world. """
 
     from TidalPy import build_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     big_io = build_world('BigIo', world_config=big_io_config)
@@ -136,16 +136,46 @@ def test_orbit_construction_with_star_and_host_and_tidalbody():
     assert orbit_2.tidal_objects[0] is big_io_2
     assert orbit_2.tidal_objects[1] is io_2
 
+def test_orbit_construction_with_no_star_and_host_and_tidalbody():
+    """ This will test building an orbit with one tidal world, but no star. """
+
+    from TidalPy import build_world
+    from TidalPy.orbit import OrbitBase
+
+    big_io = build_world('BigIo', world_config=big_io_config)
+    io = build_world('io_simple')
+
+    # Simple check to see if star, host, and tidal body are loaded in correctly.
+    orbit = OrbitBase(tidal_host=big_io, tidal_bodies=io)
+    assert orbit.tidal_host is big_io
+    assert orbit.all_objects[0] is big_io
+    assert orbit.all_objects[1] is io
+    assert big_io.orbit is orbit
+    assert io.orbit is orbit
+
+    # Tidal host should be the first tidal body followed by other tidal bodies
+    assert len(orbit.tidal_objects) == 2
+    assert orbit.tidal_objects[0] is big_io
+    assert orbit.tidal_objects[1] is io
+
+    # Check that signatures are working as intended. (the tidal host should return the tidal body's orbit index)
+    assert orbit.world_signature_to_index(big_io) == 1
+    assert orbit.world_signature_to_index(big_io.name) == 1
+    assert orbit.world_signature_to_index(0) == 1
+    assert orbit.world_signature_to_index(io) == 1
+    assert orbit.world_signature_to_index(io.name) == 1
+    assert orbit.world_signature_to_index(1) == 1
+
 def test_orbit_construction_with_star_and_host_and_multi_tidalbodies():
-    """ This will test building an orbit with multiple tidal worlds. """
+    """ This will test building an orbit with multiple tidal world_types. """
 
     from TidalPy import build_world, scale_from_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     big_io = build_world('BigIo', world_config=big_io_config)
     io = build_world('io_simple')
-    # Build some additional worlds to use as tidal bodies
+    # Build some additional world_types to use as tidal bodies
     small_io = scale_from_world(io, new_name='small_io', radius_scale=0.5)
     tiny_io = scale_from_world(io, new_name='tiny_io', radius_scale=0.1)
 

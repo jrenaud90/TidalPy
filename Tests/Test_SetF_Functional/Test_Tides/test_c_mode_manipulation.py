@@ -9,7 +9,7 @@ use_numba = TidalPy.configurations['use_numba']
 
 def test_eccentricity_multi_l_calc():
 
-    from TidalPy.tides.modeCalcHelper import eccentricity_functions_lookup
+    from TidalPy.tides.mode_calc_helper import eccentricity_functions_lookup
 
     # Test a few truncation levels; these tests can take a long time to run so only doing a spot check on e^2 and e^10
     eccen_trunc_funcset_2 = eccentricity_functions_lookup[2]
@@ -37,7 +37,7 @@ def test_eccentricity_multi_l_calc():
 
 def test_inclination_multi_l_calc():
 
-    from TidalPy.tides.modeCalcHelper import inclination_functions_lookup
+    from TidalPy.tides.mode_calc_helper import inclination_functions_lookup
 
     # Test a few truncation levels
     inclination_funcset_on = inclination_functions_lookup[True]
@@ -87,8 +87,9 @@ tidal_susceptibility_array = tidal_susceptibility * np.ones_like(orbital_frequen
 
 def test_calculate_and_collapse_modes():
 
+    from TidalPy.utilities.performance import njit
     from TidalPy.tides.mode_manipulation import calculate_terms, collapse_modes
-    from TidalPy.tides.modeCalcHelper import inclination_functions_lookup, eccentricity_functions_lookup
+    from TidalPy.tides.mode_calc_helper import inclination_functions_lookup, eccentricity_functions_lookup
 
     # These tests can take a long time to run, so only doing a spot check on l=2,3 and e^2, e^10
     for order_l in [2, 3]:
@@ -123,10 +124,22 @@ def test_calculate_and_collapse_modes():
                 calculate_terms(spin_frequency_array, orbital_frequency_array, semi_major_axis_array, radius,
                                 eccentricity_results_array, obliquity_results_array)
 
-            complex_comp_float = \
-                tuple([static_complex_compliance for _ in unique_freq_float])
-            complex_comp_array = \
-                tuple([static_complex_compliance * np.ones_like(spin_frequency_array) for _ in unique_freq_array])
+            @njit
+            def build_numba_dict(freq_dict, static_comp):
+
+                fake_index = list(freq_dict.keys())[0]
+                fake_freq = freq_dict[fake_index]
+                complex_comp_dict = {(-100, -100): fake_freq * (1. + 1.j)}
+
+                for freq_sig in freq_dict:
+                    complex_comp_dict[freq_sig] = static_comp
+
+                del complex_comp_dict[(-100, -100)]
+                return complex_comp_dict
+
+            complex_comp_float = build_numba_dict(unique_freq_float, static_complex_compliance)
+            complex_comp_array = build_numba_dict(unique_freq_array,
+                                                  static_complex_compliance * np.ones_like(spin_frequency_array))
 
             if use_numba:
                 assert isinstance(unique_freq_float, numba.typed.typeddict.Dict)
@@ -141,25 +154,41 @@ def test_calculate_and_collapse_modes():
                                tidal_susceptibility, complex_comp_float, tidal_results_float, order_l,
                                cpl_ctl_method=False)
 
-            tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = result_float
+            tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
+                result_float
 
             assert type(tidal_heating) is float
             assert type(dUdM) is float
             assert type(dUdw) is float
             assert type(dUdO) is float
-            assert type(love_number) is complex
-            assert type(negative_imk) is float
+            assert type(love_number_by_orderl) in [dict, numba.typed.typeddict.Dict]
+            assert len(love_number_by_orderl) == order_l - 2 + 1
+            assert type(love_number_by_orderl[2]) is complex
+            assert type(negative_imk_by_orderl) in [dict, numba.typed.typeddict.Dict]
+            assert len(negative_imk_by_orderl) == order_l - 2 + 1
+            assert type(negative_imk_by_orderl[2]) is float
+            assert type(effective_q_by_orderl) in [dict, numba.typed.typeddict.Dict]
+            assert len(effective_q_by_orderl) == order_l - 2 + 1
+            assert type(effective_q_by_orderl[2]) is float
 
             result_array = \
                 collapse_modes(gravity, radius, density, shear_modulus, tidal_scale, tidal_host_mass,
                                tidal_susceptibility_array, complex_comp_array, tidal_results_array, order_l,
                                cpl_ctl_method=False)
 
-            tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = result_array
+            tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
+                result_array
 
             assert type(tidal_heating) is np.ndarray
             assert type(dUdM) is np.ndarray
             assert type(dUdw) is np.ndarray
             assert type(dUdO) is np.ndarray
-            assert type(love_number) is np.ndarray
-            assert type(negative_imk) is np.ndarray
+            assert type(love_number_by_orderl) in [dict, numba.typed.typeddict.Dict]
+            assert len(love_number_by_orderl) == order_l - 2 + 1
+            assert type(love_number_by_orderl[2]) is np.ndarray
+            assert type(negative_imk_by_orderl) in [dict, numba.typed.typeddict.Dict]
+            assert len(negative_imk_by_orderl) == order_l - 2 + 1
+            assert type(negative_imk_by_orderl[2]) is np.ndarray
+            assert type(effective_q_by_orderl) in [dict, numba.typed.typeddict.Dict]
+            assert len(effective_q_by_orderl) == order_l - 2 + 1
+            assert type(effective_q_by_orderl[2]) is np.ndarray

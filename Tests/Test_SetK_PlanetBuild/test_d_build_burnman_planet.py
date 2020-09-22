@@ -81,6 +81,6 @@ def test_build_burnman_world_from_prebuilt():
     assert planet_asserts(result)
 
 def test_paint_burnman():
-    # This will test the slicing features of the worlds, as well as the painting graphics tool
+    # This will test the slicing features of the world_types, as well as the painting graphics tool
     io = build_world('Io')
     assert io.paint(auto_show=False)

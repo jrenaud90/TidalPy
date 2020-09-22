@@ -32,60 +32,62 @@ Note: Installation has only been tested on Windows 10 and Ubuntu operating syste
 
 Pre-Install Requirements:
 * Python version 3.7+ must be installed on your machine.
-    * It is highly recommended you use the [Anaconda](https://www.anaconda.com/distribution/) distribution of Python. This has pre-compiled binaries for several packages that TidalPy uses and will generally negate a lot of potential installation headaches. If you don't want to use Anaconda you can find the regular Python distribution [here](https://www.python.org/).
+    * It is highly recommended that you use the [Anaconda](https://www.anaconda.com/distribution/) distribution of Python. This has pre-compiled binaries for several packages that TidalPy uses and will generally negate a lot of potential installation headaches. If you don't want to use Anaconda you can find the regular Python distribution [here](https://www.python.org/).
     * Make sure that your Python (Anaconda or regular) is 64-bit if you are on a 64-bit machine.
-* Working internet connection (for the initial installation only)
+* Working internet connection (for the initial installation only).
 
 ### Install
-The current version of TidalPy is in Alpha state and will receive many updates on a relatively fast schedule. It is therefore recommended that you run it from an IDE (more on that below) and/or install it as an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs).
+The current version of TidalPy is in Alpha and will receive many updates on a relatively fast schedule. It is, therefore, recommended that you run it from an IDE (more on that below) and/or install it as an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs).
 
 #### Install as an editable package
-* Git clone the latest version from Github
+* Get the the latest version from Github
     * Ensure you have [git](https://git-scm.com/downloads) or [github](https://desktop.github.com/) installed on your machine.
     * Open a terminal and navigate to an easy-to-access directory where you would like to install TidalPy.
-    * Clone the tidalpy git using `git clone https://github.com/jrenaud90/TidalPy.git`.
+    * Clone the TidalPy git using `git clone https://github.com/jrenaud90/TidalPy.git`.
         * Whenever you want to update TidalPy simply navigate to this directory and use `git pull` (to pull from the master branch; other branches are not recommended).
-        * Since TidalPy is in early development, it is recommended you check for updates regularly. Updates will **not** download automatically. Making a backup of the TidalPy install directory is a good idea in case your studies break with the new version.
-* TidalPy source code should now be in your directory but Python does not know this, so using `import TidalPy` will only work if performed from a terminal that has been navigated to this directory.
-* To install TidalPy so it can be accessed from the terminal:
-    * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then run `pip install -v -e .`.
+        * Since TidalPy is in early development, it is recommended you check for updates regularly. Updates will **not** download automatically. 
+        * Always make a backup of the TidalPy installation directory in case new versions break whatever you were working on.
+* TidalPy source code should now be in your directory but Python does not know this, so using `import TidalPy` will only work if performed from a terminal that is navigated to this directory.
+* To install TidalPy so it can be accessed from the terminal anywhere:
+    * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then run `pip install -e .`.
         * That trailing period is important, don't leave it out!
-        * The `-v` is optional but recommended: this allows TidalPy to show the user messages during installation.
-        * **Before you run this:** You might consider starting a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
+        * Optionally, you may add the `-v` flag (before `-e`) to see more installation information --- but this tends to be too much info.
         * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages that TidalPy requires.
-* Test your install
+        * **Before you run this:** You might consider using a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
+* Test your install:
     * Navigate to the TidalPy directory that contains `setup.py` in a terminal.
     * Ensure you have `pytest` package installed (`conda install pytest` or `pip install pytest`).
-    * Run pytest by simply using the command `pytest` from your terminal.
+    * Run pytest by simply using the command `pytest` from your terminal:
+        * Running all the tests can take some time, if all you are interested in is checking that TidalPy installed correctly then you can let pytest check the first dozen or so if they are passing then you can quit the test suite early.
         * If no errors show up (warnings are okay and expected) then the first check is good.
     * Open a new terminal *not in the TidalPy directory* (you can use the desktop for instance).
-        * Run `python` and then try to `import TidalPy` if you do not get any import errors then TidalPy was successfully installed.
+        * Run `python` and then try to `import TidalPy`; if that works try the command `TidalPy.__version__` if you do not get any import errors, and the version number is as you expect, then TidalPy was successfully installed.
 
 #### Using TidalPy from an IDE
-A good Integrated Development Environment can automatically set paths to TidalPy and allows you to use TidalPy without actually installing it. If you are comfortable with IDEs then this may be an easier way to get and use TidalPy.
+A good Integrated Development Environment can automatically set paths to TidalPy and allows you to use TidalPy without actually "installing" it. If you are comfortable with IDEs then this may be an easier way to use TidalPy, especially during its alpha phase.
 
 ## How to Use
-Coming Soon! For now, check out the `Cookbooks and Scripts` and `Documentation` directories.
+Coming Soon! For now, check out the `Cookbooks and Scripts` and `Documentation` directories. There are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
 
-Eventually there will be getting more "started information" in the `Documentation/Getting Started.md`.
+Eventually there will be more "getting started information" in the `Documentation/Getting Started.md`.
 
 ## Using TidalPy for Science
 TidalPy has been used in several studies already and we encourage you to use it in yours. We would appreciate you include a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers below (if you utilized a specific package). We also would love to see where TidalPy is being used! Please feel free to send us an email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy.
-Anyone is welcome to make forks or copies of TidalPy as long as their work references back to this page. License information can be found here: 
+Anyone is welcome to make forks or copies of TidalPy as long as their work references back to this page. License information can be found at the end of this file.
 
 ### TidalPy's Science
 The science used in TidalPy is described in the following papers (and references therein):
-* Rheological Modeling Package
+* Rheological Modeling Package:
     * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
     * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
 * Non-synchronous Rotation Evolution and High Eccentricity Truncation Packages:
     * Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System (*in review*).
-* Third Party Software
+* Third Party Software:
     * [BurnMan](https://github.com/geodynamics/burnman)
     * [diffeqpy](https://github.com/SciML/diffeqpy)
 
 ## Contribute
-TidalPy is in very early alpha and needs lots of work and help! If you are interested in helping out, please check out the following.
+TidalPy is in early alpha and needs lots of improvements and help! If you are interested in helping out, please check out the following.
 
 **Found a bug or have an idea for a new feature?**
 * Go to TidalPy's [Github page](https://github.com/jrenaud90/TidalPy) and click the "Issues" tab then make a new report.
@@ -94,11 +96,11 @@ TidalPy is in very early alpha and needs lots of work and help! If you are inter
 
 **Want to contribute directly?**
 
-TidalPy is an open-source project and depends upon new contributions from the community. If you would like to contribute, please follow these steps:
+TidalPy is an open-source project and improves with each new contribution from the community. If you would like to contribute, please follow these steps:
 * Find an issue or new feature you want to tackle (a good place to start is to look in the **Issues tab** for the label "Beginner").
-* Fork the latest version of the Master branch into a new branch on your Github account.
-* Work on making the code corrections that fix the issue or implement the new feature.
-    * If you are implementing a new feature, please try to build test cases in the /Tests/ directory so that future bugs can be quickly spotted.
+* Fork a new branch off of the latest version of the `Master` branch on your Github account or local machine.
+* Work on making the code corrections that fix the issue or implement a new feature.
+    * If you are implementing a new feature, please try to build test cases in the /Tests/ directory so that future bugs can be quickly squashed.
 * [Rebase](https://www.atlassian.com/git/tutorials/merging-vs-rebasing) from the master branch (to ensure your code works with any recent changes to TidalPy since you preformed your initial fork).
 * Run TidalPy's tests (see below) to ensure your changes did not negatively impact other parts of the code.
 * Assuming all tests pass, make a new [Pull Request](https://help.github.com/en/articles/creating-a-pull-request-from-a-fork) at github.com/jrenaud90/TidalPy

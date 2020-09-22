@@ -17,7 +17,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     def __init__(self, config: dict):
 
-        super().__init__(replacement_config=config)
+        super().__init__(replacement_config=config, store_py_info=True)
 
         # Configuration properties
         self._num_slices = None
@@ -95,7 +95,7 @@ class PhysicalObjSpherical(ConfigHolder):
             #    If user provided real moment of inertia, pull that out and calculate moi factor
             self.moi = self.config.get('moi', None)
 
-        # Other reinit steps are reinit by child classes
+        # Other reinit steps are set by child class' reinit methods.
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None,
                      mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True):
@@ -192,7 +192,7 @@ class PhysicalObjSpherical(ConfigHolder):
                 # Calculate gravity at the top of each slice
                 self._gravity_slices = G * self.mass_below_slices / self.radii**2
 
-        # Other properties that should be set for all physical classes
+        # Other properties that should be set for all physical methods
         self._beta_outer = self.gravity_outer * self.radius * self.density_outer
         self._beta_middle = self.gravity_middle * self.radius_middle * self.density_middle
         self._beta_inner = self.gravity_inner * self.radius_inner * self.density_inner
@@ -692,7 +692,7 @@ class PhysicalObjSpherical(ConfigHolder):
     def gravity_slices(self, value):
         raise ImproperGeometryPropertyHandling
 
-    #    State properties set by user or other classes
+    #    State properties set by user or other methods
     @property
     def moi(self) -> float:
         """ Physical Object's Moment of Inertia [kg m^2]

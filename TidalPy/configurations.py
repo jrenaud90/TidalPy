@@ -51,8 +51,8 @@ configurations = {
     #    Determines if log will be printed to console or saved to drive when TidalPy is being used in a Jupyter Notebook
     'print_log_in_jupyter':                  False,
     'write_log_in_jupyter':                  True,
-    #    Logging levels
-    'stream_level':                          'ERROR',
+    #    Logging levels (set to 'DEBUG' during development)
+    'stream_level':                          'DEBUG',
     'error_logfile_level':                   'WARNING',
     'regular_logfile_level':                 'INFO'
 }

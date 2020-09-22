@@ -11,8 +11,8 @@ from ...tides.mode_manipulation import find_mode_manipulators
 from ...tides.dissipation import calc_tidal_susceptibility
 from ...cooling.cooling_models import conduction, convection
 from ...rheology.viscosity import known_models as known_viscosity_models
-from ...rheology.complexCompliance import known_models as known_complex_compliance_models
-from ...rheology.partialMelt import known_models as known_partial_melt_models
+from ...rheology.complex_compliance import known_models as known_complex_compliance_models
+from ...rheology.partial_melt import known_models as known_partial_melt_models
 from ...dynamics import spin_rate_derivative, semia_eccen_derivatives_dual
 from ...radiogenics import known_models as known_radiogenic_models
 

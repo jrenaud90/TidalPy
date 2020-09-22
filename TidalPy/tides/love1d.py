@@ -26,7 +26,7 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
     return cmplx_love
 
 
-@njit
+@njit(cacheable=True)
 def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
                          order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order complex Love number
@@ -54,7 +54,7 @@ def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArr
     return cmplx_love
 
 
-@njit
+@njit(cacheable=True)
 def static_love(eff_rigidity: FloatArray) -> FloatArray:
     """ Calculate the static (non-complex) 2nd order Love number
 
@@ -72,7 +72,7 @@ def static_love(eff_rigidity: FloatArray) -> FloatArray:
     static_love_ = (3. / 2.) * (1. / (1. + eff_rigidity))
     return static_love_
 
-@njit
+@njit(cacheable=True)
 def static_love_general(eff_rigidity_general: FloatArray, order_l: int = 2) -> FloatArray:
     """ Calculate the static (non-complex) tidal Love number k.
 
@@ -92,7 +92,7 @@ def static_love_general(eff_rigidity_general: FloatArray, order_l: int = 2) -> F
     static_love = (3. / (2. * (order_l - 1))) * (1. / (1. + eff_rigidity_general))
     return static_love
 
-@njit
+@njit(cacheable=True)
 def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float) -> FloatArray:
     """ Calculates the 2nd order effective rigidity
 
@@ -118,7 +118,7 @@ def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float,
     return eff_rigid
 
 
-@njit
+@njit(cacheable=True)
 def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius: float, density: float,
                                order_l: int = 2) -> FloatArray:
     """ Calculates the l-th order effective rigidity

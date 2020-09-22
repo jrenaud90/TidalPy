@@ -53,7 +53,7 @@ def test_build_star_from_manual_config():
 def test_build_star_from_file_loaded_config():
 
     # Test loading a star from a user-provided configuration file
-    worlds_dir = TidalPy.structures.worldConfigs.WORLD_CONFIG_LOC
+    worlds_dir = TidalPy.structures.WORLD_CONFIG_LOC
     cancri_filepath = os.path.join(worlds_dir, '55cnc.json')
     with open(cancri_filepath, 'r') as cancri_config_file:
 
@@ -73,6 +73,6 @@ def test_build_star_from_prebuilt_config():
 
 def test_paint_star():
 
-    # This will test the slicing features of the worlds, as well as the painting graphics tool
+    # This will test the slicing features of the world_types, as well as the painting graphics tool
     cancri_star = TidalPy.build_world('55-Cancri')
-    assert cancri_star.paint(auto_show=False)
+    assert cancri_star.paint(auto_show=False, return_fig=True)

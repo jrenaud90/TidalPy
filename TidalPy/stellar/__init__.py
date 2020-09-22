@@ -1,8 +1,7 @@
 from typing import Union
 
-from .habitable import calc_equilibrium_temperature
-from .stellar import equilibrium_insolation_mendez, equilibrium_insolation_no_eccentricity, \
-    equilibrium_insolation_williams
+from .insolation import equilibrium_insolation_mendez, equilibrium_insolation_no_eccentricity, \
+    equilibrium_insolation_williams, calc_equilibrium_temperature
 
 EquilibFuncType = Union[type(equilibrium_insolation_mendez), type(equilibrium_insolation_no_eccentricity),
                         type(equilibrium_insolation_williams)]

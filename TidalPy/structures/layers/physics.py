@@ -5,16 +5,16 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 from .basic import LayerBase
+from ... import log
 from ...cooling import CoolingModel
-from ...exceptions import (ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError,
-                           ConfigPropertyChangeError)
+from ...exceptions import (ImproperPropertyHandling, OuterscopePropertySetError,
+                           ConfigPropertyChangeError, AttributeNotSetError, MissingAttributeError)
 from ...radiogenics.radiogenics import Radiogenics
 from ...rheology import Rheology
-from ...utilities.numpyHelper.array_shape import reshape_help
 from ...utilities.types import NoneType, FloatArray
 
 if TYPE_CHECKING:
-    from ..worlds import TidalWorldType
+    from ..world_types import TidalWorldType
 
 
 class PhysicsLayer(LayerBase):
@@ -59,7 +59,7 @@ class PhysicsLayer(LayerBase):
         super().__init__(layer_name, layer_index, world, layer_config, is_top_layer, initialize=False)
 
         # State Derivatives
-        self._deriv_temperature = None
+        self._temperature_time_derivative = None
 
         # Configuration properties
         self._use_pressure_in_strength_calc = False
@@ -110,6 +110,8 @@ class PhysicsLayer(LayerBase):
         self.static_shear_modulus = self.config['shear_modulus']
         self.heat_fusion = self.config['heat_fusion']
         self.thermal_conductivity = self.config['thermal_conductivity']
+        self.thermal_diffusivity = self.config['thermal_diffusivity']
+        self.thermal_expansion = self.config['thermal_expansion']
         self.temp_ratio = self.config['boundary_temperature_ratio']
         self.stefan = self.config['stefan']
 
@@ -125,14 +127,117 @@ class PhysicsLayer(LayerBase):
         if self.is_tidal:
             self.heat_sources.append(lambda : self.tidal_heating)
 
+    def update_cooling(self, force_update: bool = False):
+        """ Calculate parameters related to cooling of the layer, be it convection or conduction
+
+        Using the self.cooling class and the current temperature and viscosity, this method will calculate convection
+            parameters. Some of these may be zeros if convection is forced off in the planet's configuration.
+
+        By default this method will ignore parameter missing errors to avoid initialization errors. This behaviour
+            can be altered by the force_calculation flag.
+
+        Parameters:
+        force_update : bool = False
+            If `False`, then any (expected) errors are raised during the cooling calculation will be ignored.
+
+        """
+
+        # Update the layer's cooling
+        cooling_calculated = False
+        try:
+            self.cooling_model.calculate()
+            cooling_calculated = True
+        except MissingAttributeError as e:
+            if force_update:
+                raise e
+
+        # If the layer's cooling changed, update the thermal equilibrium
+        if self._cooling_model.model.lower() != 'off' and cooling_calculated:
+            self.internal_thermal_equilibrium_changed(called_from_cooling=True)
+
+    def time_changed(self):
+        """ The time has changed. Make any necessary updates. """
+
+        super().time_changed()
+
+        self.radiogenics.calculate()
+
+        if self.radiogenics.model.lower() != 'off':
+            # Tell the layer that its internal thermal equilibrium has changed.
+            self.internal_thermal_equilibrium_changed()
+
+    def temperature_pressure_changed(self):
+        """ The temperature and/or pressure of the layer has changed. Make any necessary updates. """
+
+        super().temperature_pressure_changed()
+
+        # Tell the rheology class that the temperature and/or pressure has changed.
+        self.rheology.temperature_pressure_changed()
+
+    def strength_changed(self):
+        """ The viscosity and/or shear modulus of the layer has changed. Make any necessary updates. """
+
+        super().strength_changed()
+
+        # Tell the rheology class that the viscosity and/or rigidity has changed.
+        self.rheology.strength_changed()
+
+    def internal_thermal_equilibrium_changed(self, called_from_cooling: bool = False):
+        """ The internal heating / cooling of the layer has changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        called_from_cooling : bool = False
+            Flag to avoid recursive loops between surface temperature and cooling.
+        """
+
+        super().internal_thermal_equilibrium_changed()
+
+        if self.is_top_layer:
+            # Tell the world that the surface temperature needs to update
+            self.world.update_surface_temperature(called_from_cooling=called_from_cooling)
+
+        if self.cooling is not None:
+            # Calculate the temperature derivative of the layer
+            self.calc_temperature_derivative()
+
+    def surface_temperature_changed(self, called_from_cooling: bool = False):
+        """ Surface temperature has changed - Perform any calculations that may have also changed.
+
+        Parameters
+        ----------
+        called_from_cooling : bool = False
+            Flag to avoid recursive loops between surface temperature and cooling.
+        """
+
+        super().surface_temperature_changed()
+
+        # Update cooling model based on new surface temperature.
+        if not called_from_cooling:
+            self.update_cooling()
+
+    def tidal_frequencies_changed(self):
+        """ The tidal frequencies have changed. Make any necessary updates. """
+
+        super().tidal_frequencies_changed()
+
+        # Tell the rheology to update its complex compliances if applicable.
+        self.rheology.tidal_frequencies_changed()
+
+    def complex_compliances_changed(self):
+        """ The complex compliances have changed. Make any necessary updates. """
+
+        # This is called from bottom-to-top starting in the ComplexCompliances class inside Rheology.
+        self.world.complex_compliances_changed()
+
     def clear_state(self, clear_pressure: bool = False):
 
         super().clear_state(clear_pressure=clear_pressure)
 
         # State Derivatives
-        self._deriv_temperature = None
+        self._temperature_time_derivative = None
 
-        # Clear the state of all inner-scope classes
+        # Clear the state of all inner-scope methods
         for model in [self.rheology, self.radiogenics, self.cooling_model]:
             model.clear_state()
 
@@ -156,135 +261,63 @@ class PhysicsLayer(LayerBase):
         """
 
         # Pass the new strength to the rheology class
-        self.rheology.set_state(viscosity, shear_modulus, called_by_layer=True)
+        self.rheology.set_state(viscosity, shear_modulus)
 
-        self.update_strength(already_called_rheology=True)
-
-    def update_thermal(self):
-        """ Update various classes and methods when any thermal parameters change. """
-
-        if self.rheology is not None:
-            self.rheology.update_thermal(called_from_layer=True)
-
-    def update_time(self):
-        """ Whenever the time property is changed we need to make sure the radiogenics model gets that update and
-            recalculates.
-
-        """
-
-        if self.radiogenics is not None:
-            if self.radiogenics.model != 'off':
-                self.radiogenics.calculate()
-
-                if self.cooling_model is not None:
-                    # New radiogenic heating will change the temperature derivative
-                    self.calc_temperature_derivative()
-
-    def update_cooling(self, force_calculation: bool = False, call_deriv_calc: bool = True):
-        """ Calculate parameters related to cooling of the layer, be it convection or conduction
-
-        Using the self.cooling class and the current temperature and viscosity, this method will calculate convection
-            parameters. Some of these may be zeros if convection is forced off in the planet's configuration.
-
-        By default this method will ignore parameter missing errors to avoid initialization errors. This behaviour
-            can be altered by the force_calculation flag.
+    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
+                  shear_modulus: FloatArray = None):
+        """ Set the layer's state properties
 
         Parameters
         ----------
-        force_calculation : bool = False
-            Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
-        call_deriv_calc : bool = True
-            If True, then this method will attempt to call self.calc_temperature_derivative
-        """
-
-        try:
-            self.cooling_model.calculate()
-        except ParameterMissingError as error:
-            if force_calculation:
-                raise error
-
-        if self.is_top_layer and self.world.orbit is not None:
-            # TODO: Add some sort of convergence here?
-            # Tell the planet that there is a new surface flux and thus a new surface temperature
-            self.world.update_surface_temperature()
-
-        if call_deriv_calc:
-            # New cooling will change the temperature derivative
-            self.calc_temperature_derivative(force_calculation=False)
-
-    def update_tides(self, force_calculation: bool = False, call_deriv_calc: bool = True):
-        """ Calculate, and update the layer's state variables with tidal heating and torques based on its current state
-
-        Using the self.tides class and the layer's current temperature, viscosity, shear modulus, and frequencies;
-            the layer will attempt to calculate a new effective rigidity, complex compliance, and complex love number,
-            ultimately it will find tidal heating and torque then inform the planet that it should update its own
-            global calculations.
-
-        Viscosity, Shear Modulus, and Orbital Freq are required inputs to most rheological models. If the planet is not
-            forced into spin-sync, then Spin Freq is also required. If a missing parameter is raised then the method
-            will exit unless force_calculation is set to True.
-
-        Parameters
-        ----------
-        force_calculation : bool = False
-            Flag that will direct the method to re-raise any missing parameter errors that may otherwise be ignored.
-        call_deriv_calc : bool = True
-            If True, then this method will attempt to call self.calc_temperature_derivative
+        temperature : FloatArray = None
+            New dynamic temperature for the layer [K].
+        pressure : FloatArray = None
+            New dynamic pressure for the layer [Pa].
+        viscosity : FloatArray = None
+            The new viscosity of the layer in [Pa s]
+        shear_modulus : FloatArray = None
+            The new shear modulus of the layer in [Pa]
 
         """
 
-        if self.is_tidal:
-            try:
-                self.world.update_tides()
-            except ParameterMissingError as error:
-                if force_calculation:
-                    raise error
+        # Check if too much information was set.
+        temperature_change = temperature is not None
+        pressure_change = pressure is not None
+        viscosity_change = viscosity is not None
+        shear_modulus_change = shear_modulus is not None
 
-        if call_deriv_calc:
-            self.calc_temperature_derivative(force_calculation=False)
+        if (temperature_change or pressure_change) and (viscosity_change or shear_modulus_change):
+            log.warning(f'Trying to set TP and strength at the same time for layer {self}. '
+                        f'Only setting the strength changes.')
+            temperature_change = False
+            pressure_change = False
 
-    def update_strength(self, already_called_rheology: bool = False):
-        """ Calculate viscosity and shear modulus and update the layer's state with new values.
+        # Update the temperature and pressure state using the parent classes method.
+        if temperature_change or pressure_change:
+            super().set_state(temperature=temperature, pressure=pressure)
 
-        Rheology class handles the change in pre-melt shear modulus and viscosity as well as the impact of partial
-            melting. It will then calculate the complex compliances which will impact the global tides.
+        # If the strength is being changed, use this layer classe's set_strength method.
+        if viscosity_change or shear_modulus_change:
+            self.set_strength(viscosity=viscosity, shear_modulus=shear_modulus)
 
-        The pressure of the layer will be used, if present, in the calculations (assuming that the viscosity and shear
-            functions actually depend upon pressure). Otherwise, a pressure of zero will be assumed.
-
-        Parameters
-        ----------
-        already_called_rheology : bool = False
-            Some other methods of this class may call this method and may have already performed some of the tasks
-                that this method would normally perform.
-
-        """
-
-        if not already_called_rheology:
-            # Tell rheology class to update strength (calculation of effective viscosity, shear, and complex compliance)
-            self.rheology.update_thermal(called_from_layer=True)
-
-        # Changing the strength will change the cooling properties. Don't have it call derivative calculation yet.
-        self.update_cooling(call_deriv_calc=False)
-
-        # Changing the strength will change tides
-        self.update_tides(call_deriv_calc=False)
-
-        # The above changes will impact the temperature derivative calculation. So let's call that now.
-        self.calc_temperature_derivative(force_calculation=False)
-
-    def calc_temperature_derivative(self, force_calculation: bool = False) -> np.ndarray:
+    def calc_temperature_derivative(self, force_calculation: bool = False) -> FloatArray:
         """ Calculate the change in temperature within this layer over time.
 
-        dT/dt = (heating_in - cooling_out) / (M * c_p * (St + 1) * Tr)
+        .. math:: dT / dt = (Q_{ \text{In} } - Q_{ \text{Out} }) / (M * c_{ \text{p} } * (\text{St} + 1)  * T_{r}
+
+        Parameters
+        ----------
+        force_calculation : bool = False
+            If `True`, then the method will raise any errors encountered. Otherwise method will ignore errors
+                but the temperature_time_derivative will likely not be set.
 
         Returns
         -------
-        dT/dt : np.ndarray
-            The derivative of temperature with respect to time.
+        dT/dt : FloatArray
+            The derivative of temperature with respect to time [K s-1].
         """
 
-        # Initialize total heating based on if there is a layer warming this one from below
+        # Initialize the total heating rate of this layer based on if there is a layer warming this one from below.
         if self.layer_below is None:
             total_heating = np.zeros_like(self.temperature)
         elif self.layer_below.cooling_flux is None:
@@ -292,27 +325,34 @@ class PhysicsLayer(LayerBase):
         else:
             total_heating = self.layer_below.cooling_flux * self.surface_area_inner
 
+        # Add additional heat sources that are setup in this layer.
         try:
             # Heat sources are added in the reinit() method.
             for heat_source_func in self.heat_sources:
                 heat_source = heat_source_func()
                 if heat_source is None:
-                    raise ParameterMissingError
+                    log.error(f'One or more heat sources were not set for layer {self}.')
+                    raise AttributeNotSetError(f'One or more heat sources were not set for layer {self}.')
                 total_heating += heat_source
 
             # Cooling is calculated by the cooling_model class
+            if self.cooling is None:
+                log.error(f'Cooling was not set for layer {self}.')
+                raise AttributeNotSetError(f'Cooling was not set for layer {self}.')
             total_cooling = self.cooling
 
-            self._deriv_temperature = (total_heating - total_cooling) / \
-                                     (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
-        except ParameterMissingError as error:
+            self._temperature_time_derivative = (total_heating - total_cooling) / \
+                                                (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
+        except AttributeNotSetError as error:
+            self._temperature_time_derivative = None
             if force_calculation:
                 raise error
         except ValueError as error:
+            self._temperature_time_derivative = None
             if force_calculation:
                 raise error
 
-        return self.deriv_temperature
+        return self.temperature_time_derivative
 
     def geotherm(self, avg_temperature: float = None):
         """ Calculates layer's geotherm based on an average temperature (or layer's current temperature)
@@ -324,7 +364,10 @@ class PhysicsLayer(LayerBase):
         """
 
         if avg_temperature is None:
-            avg_temperature = self.temperature
+            if type(self.temperature) == np.ndarray:
+                avg_temperature = np.mean(self.temperature)
+            else:
+                avg_temperature = self.temperature
 
         temperature_profile = avg_temperature
 
@@ -332,12 +375,12 @@ class PhysicsLayer(LayerBase):
 
     # # State properties
     @property
-    def deriv_temperature(self) -> np.ndarray:
-        """ Time Derivative of Temperature [T s-1] """
-        return self._deriv_temperature
+    def temperature_time_derivative(self) -> FloatArray:
+        """ Time Derivative of Temperature [K s-1] """
+        return self._temperature_time_derivative
 
-    @deriv_temperature.setter
-    def deriv_temperature(self, value):
+    @temperature_time_derivative.setter
+    def temperature_time_derivative(self, value):
         raise ImproperPropertyHandling
 
     # # Configuration properties
@@ -400,8 +443,8 @@ class PhysicsLayer(LayerBase):
         return self.rheology.postmelt_viscosity
 
     @viscosity.setter
-    def viscosity(self, value):
-        self.rheology.postmelt_viscosity = value
+    def viscosity(self, new_viscosity: FloatArray):
+        self.set_strength(viscosity=new_viscosity)
 
     @property
     def liquid_viscosity(self):
@@ -424,8 +467,8 @@ class PhysicsLayer(LayerBase):
         return self.rheology.postmelt_shear_modulus
 
     @shear_modulus.setter
-    def shear_modulus(self, value):
-        self.rheology.postmelt_shear_modulus = value
+    def shear_modulus(self, new_shear_modulus: FloatArray):
+        self.set_strength(shear_modulus=new_shear_modulus)
 
     @property
     def compliance(self):
@@ -436,8 +479,8 @@ class PhysicsLayer(LayerBase):
         return self.rheology.postmelt_compliance
 
     @compliance.setter
-    def compliance(self, value):
-        self.rheology.postmelt_compliance = value
+    def compliance(self, new_compliance: FloatArray):
+        self.set_strength(shear_modulus=new_compliance**(-1))
 
     @property
     def complex_compliances(self):

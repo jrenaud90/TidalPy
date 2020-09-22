@@ -27,10 +27,10 @@ io_config = {
 }
 
 def test_get_orbital_parameters():
-    """ Make sure that orbital parameters set in a worlds configuration are accessible as expected. """
+    """ Make sure that orbital parameters set in a world_types configuration are accessible as expected. """
 
     from TidalPy import build_world, scale_from_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
     from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a
 
     # Build system
@@ -55,7 +55,7 @@ def test_set_orbital_parameters():
     """ Make sure that orbital parameters can be set as expected. """
 
     from TidalPy import build_world, scale_from_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
     from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a
 
     # Build system
@@ -80,7 +80,7 @@ def test_set_orbital_parameters():
     orbital_period = 10.
     expected_orbtial_freq = days2rads(orbital_period)
     expected_semi_a = orbital_motion2semi_a(expected_orbtial_freq, io.mass, small_io.mass)
-    orbit.set_state(small_io, new_eccentricity=eccentricity, new_orbital_period=orbital_period)
+    orbit.set_state(small_io, eccentricity=eccentricity, orbital_period=orbital_period)
     assert orbit.get_eccentricity(small_io) == eccentricity
     assert small_io.eccentricity == eccentricity
     assert orbit.get_orbital_period(small_io) == orbital_period
@@ -95,7 +95,7 @@ def test_set_orbital_parameters():
     orbital_period = np.linspace(5., 10., 10)
     expected_orbtial_freq = days2rads(orbital_period)
     expected_semi_a = orbital_motion2semi_a(expected_orbtial_freq, io.mass, small_io.mass)
-    orbit.set_state(small_io, new_eccentricity=eccentricity, new_orbital_period=orbital_period)
+    orbit.set_state(small_io, eccentricity=eccentricity, orbital_period=orbital_period)
     assert orbit.get_eccentricity(small_io) is eccentricity
     assert small_io.eccentricity is eccentricity
     assert orbit.get_orbital_period(small_io) is orbital_period
@@ -114,11 +114,11 @@ def test_get_tidal_host_orbital_parameters_host_is_star():
     """
 
     from TidalPy import build_world, scale_from_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     io = build_world('io', world_config=io_config)
-    # Build some additional worlds to use as tidal bodies
+    # Build some additional world_types to use as tidal bodies
     small_io = scale_from_world(io, new_name='small_io', radius_scale=0.5)
     tiny_io = scale_from_world(io, new_name='tiny_io', radius_scale=0.1)
 
@@ -155,11 +155,11 @@ def test_get_tidal_host_orbital_parameters_host_is_world():
     """
 
     from TidalPy import build_world, scale_from_world
-    from TidalPy import OrbitBase
+    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     io = build_world('io', world_config=io_config)
-    # Build some additional worlds to use as tidal bodies
+    # Build some additional world_types to use as tidal bodies
     small_io = scale_from_world(io, new_name='small_io', radius_scale=0.5)
     tiny_io = scale_from_world(io, new_name='tiny_io', radius_scale=0.1)
     micro_io = scale_from_world(io, new_name='micro_io', radius_scale=0.1)
@@ -187,3 +187,31 @@ def test_get_tidal_host_orbital_parameters_host_is_world():
     orbit.set_eccentricity(micro_io, eccentricities)
     assert orbit.get_eccentricity(io) is eccentricities
     assert io.eccentricity is eccentricities
+
+    # Check that the stellar distances make sense
+    orbit.set_orbital_period(io, 100., set_stellar_orbit=True)
+    orbit.set_orbital_period(small_io, 1., set_stellar_orbit=True)
+    orbit.set_orbital_period(tiny_io, 2., set_stellar_orbit=True)
+    orbit.set_orbital_period(micro_io, 3., set_stellar_orbit=True)
+    #    Stellar distances should match the tidal host's
+    assert orbit.get_stellar_distance(small_io) == orbit.get_stellar_distance(io)
+    assert orbit.get_stellar_distance(tiny_io) == orbit.get_stellar_distance(io)
+    assert orbit.get_stellar_distance(micro_io) == orbit.get_stellar_distance(io)
+    #    They should not match the tidal world's semi-major axis
+    assert orbit.get_stellar_distance(small_io) != orbit.get_semi_major_axis(small_io)
+    assert orbit.get_stellar_distance(tiny_io) != orbit.get_semi_major_axis(tiny_io)
+    assert orbit.get_stellar_distance(micro_io) != orbit.get_semi_major_axis(micro_io)
+
+    # Check that the stellar eccentricities make sense
+    orbit.set_eccentricity(io, .1, set_stellar_orbit=True)
+    orbit.set_eccentricity(small_io, 0.01)
+    orbit.set_eccentricity(tiny_io, 0.02)
+    orbit.set_eccentricity(micro_io, 0.03)
+    #    Stellar eccentricities should match the tidal host's
+    assert orbit.get_stellar_eccentricity(small_io) == orbit.get_stellar_eccentricity(io)
+    assert orbit.get_stellar_eccentricity(tiny_io) == orbit.get_stellar_eccentricity(io)
+    assert orbit.get_stellar_eccentricity(micro_io) == orbit.get_stellar_eccentricity(io)
+    #    They should not match the tidal world's eccentricity
+    assert orbit.get_stellar_eccentricity(small_io) != orbit.get_eccentricity(small_io)
+    assert orbit.get_stellar_eccentricity(tiny_io) != orbit.get_eccentricity(tiny_io)
+    assert orbit.get_stellar_eccentricity(micro_io) != orbit.get_eccentricity(micro_io)

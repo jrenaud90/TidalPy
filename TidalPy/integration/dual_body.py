@@ -14,7 +14,7 @@
 #     @njit
 #     def diffeq(time, variables):
 #
-#         # TODO: orbital variation wil lbe first few variabkles
+#         # TODO: orbital variation wil lbe first few variables
 #         temperature_obj1 = variables[0:num_layers_obj1+1]
 #         temperature_obj2 = variables[num_layers_obj1 + 1:num_layers_obj2 + 1]
 #

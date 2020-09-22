@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-import numpy as np
-
 from .defaults import layer_defaults
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
@@ -13,7 +11,7 @@ from ...exceptions import OuterscopePropertySetError, MissingArgumentError, \
 from ...utilities.types import NoneType, FloatArray
 
 if TYPE_CHECKING:
-    from ..worlds import LayeredWorldType
+    from ..world_types import LayeredWorldType
     from . import LayerType
 
 
@@ -70,8 +68,6 @@ class LayerBase(PhysicalObjSpherical):
         super().__init__(layer_config)
 
         # State properties
-        self._gravity = None
-        self._density = None
         self._pressure = None
         self._temperature = None
 
@@ -80,9 +76,11 @@ class LayerBase(PhysicalObjSpherical):
         self.tidal_scale = 1.
         self.heat_sources = None
 
-        # Flags
+        # Configuration properties
         self._is_tidal = None
         self._use_tidal_vol_frac = None
+        self._use_surf_gravity = None
+        self._use_bulk_density = None
 
         log.debug(f'Creating: {self}.')
         if initialize:
@@ -106,11 +104,8 @@ class LayerBase(PhysicalObjSpherical):
         # Load in configurations
         self._is_tidal = self.config['is_tidally_active']
         self._use_tidal_vol_frac = self.config['use_tidal_vol_frac']
-
-        if self.config['use_surf_gravity']:
-            # Use surface gravity for layer instead of the gravity set by interpolating burnman data (mid/avg/etc)
-            # This primarily affects convection calculation
-            self._gravity = lambda: self.gravity_surf
+        self._use_surf_gravity = self.config['use_surface_gravity']
+        self._use_bulk_density = self.config['use_bulk_density']
 
         if not set_by_burnman and initialize_geometry:
             try:
@@ -135,6 +130,89 @@ class LayerBase(PhysicalObjSpherical):
         # Clean up config:
         if 'radii' in self.config:
             del self._config['radii']
+
+    def time_changed(self):
+        """ The time has changed. Make any necessary updates. """
+
+        log.debug(f'Time changed called for {self}.')
+
+        # Updated set by child methods
+
+    def internal_thermal_equilibrium_changed(self):
+        """ The internal heating / cooling of the layer has changed. Make any necessary updates. """
+
+        log.debug(f'Internal thermal equilibrium change called for {self}.')
+
+    def surface_temperature_changed(self, called_from_cooling: bool = False):
+        """ Surface temperature has changed - Perform any calculations that may have also changed.
+
+        Parameters
+        ----------
+        called_from_cooling : bool = False
+            Flag to avoid recursive loops between surface temperature and cooling.
+        """
+
+        log.debug(f'Surface temperature changed called for {self}.')
+
+        # Updates set by child methods.
+
+    def tidal_frequencies_changed(self):
+        """ The tidal frequencies have changed. Make any necessary updates. """
+
+        log.debug(f'Tidal frequencies changed for {self}.')
+
+        # Updates set by child methods.
+
+    def temperature_pressure_changed(self):
+        """ The temperature and/or pressure of the layer has changed. Make any necessary updates. """
+
+        log.debug(f'Temperature and/or pressure changed for {self}.')
+
+        # Updates set by child methods.
+
+    def strength_changed(self):
+        """ The viscosity and/or shear modulus of the layer has changed. Make any necessary updates. """
+
+        log.debug(f'Strength changed for {self}.')
+
+        # Updates set by child methods.
+
+    def clear_state(self, clear_pressure: bool = False):
+
+        log.debug(f'Clear state called for {self}. Clear pressure = {clear_pressure}.')
+
+        super().clear_state()
+
+        self._temperature = None
+        if clear_pressure:
+            self._pressure = None
+
+    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None):
+        """ Set the layer's state properties
+
+        Parameters
+        ----------
+        temperature : FloatArray = None
+            New dynamic temperature for the layer [K].
+        pressure : FloatArray = None
+            New dynamic pressure for the layer [Pa].
+
+        """
+
+        # Check if temperature or pressure were provided, call the respective methods but hold off on updating until
+        #    the end (increase to performance).
+        temp_or_press_changed = False
+
+        if temperature is not None:
+            self.set_temperature(temperature, call_updates=False)
+            temp_or_press_changed = True
+
+        if pressure is not None:
+            self.set_pressure(pressure, call_updates=False)
+            temp_or_press_changed = True
+
+        if temp_or_press_changed:
+            self.temperature_pressure_changed()
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None,
                      mass_below: float = None, update_state_geometry: bool = True, build_slices: bool = True):
@@ -188,56 +266,6 @@ class LayerBase(PhysicalObjSpherical):
         if self.use_tidal_vol_frac:
             self.tidal_scale = self.volume / self.world.volume
 
-    def update_thermal(self):
-        """ Update various classes and methods when any thermal parameters change. """
-
-        log.debug(f'Update thermals called for {self}.')
-
-        # Thermal updates are done by child classes
-
-    def update_time(self):
-        """ Update various classes and methods when the time of the world changes. """
-
-        log.debug(f'Update time called for {self}')
-
-        # Time updates are done by child classes
-
-    def clear_state(self, clear_pressure: bool = False):
-
-        log.debug(f'Clear state called for {self}. Clear pressure = {clear_pressure}.')
-
-        super().clear_state()
-
-        self._temperature = None
-        if clear_pressure:
-            self._pressure = None
-
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None, call_updates: bool = True):
-        """ Set the layer's state properties
-
-        Parameters
-        ----------
-        temperature : FloatArray
-            New dynamic temperature for the layer.
-        pressure :
-            New dynamic pressure for the layer.
-        call_updates : bool = True
-            If `True`, method will call the update thermals method.
-
-        """
-
-        # Check if temperature or pressure were provided, call the respective methods but hold off on updating until
-        #    the end (increase to performance).
-
-        if temperature is not None:
-            self.set_temperature(temperature, call_updates=False)
-
-        if pressure is not None:
-            self.set_pressure(pressure, call_updates=False)
-
-        if call_updates:
-            self.update_thermal()
-
     def set_temperature(self, temperature : FloatArray, call_updates: bool = True):
         """ Set the layer's dynamic temperature
 
@@ -253,7 +281,7 @@ class LayerBase(PhysicalObjSpherical):
         self._temperature = temperature
 
         if call_updates:
-            self.update_thermal()
+            self.temperature_pressure_changed()
 
     def set_pressure(self, pressure: FloatArray, call_updates: bool = True):
         """ Set the layer's dynamic pressure
@@ -269,7 +297,7 @@ class LayerBase(PhysicalObjSpherical):
         self._pressure = pressure
 
         if call_updates:
-            self.update_thermal()
+            self.temperature_pressure_changed()
 
 
     # # Initialized properties
@@ -329,11 +357,13 @@ class LayerBase(PhysicalObjSpherical):
     def pressure(self, value):
         self.set_pressure(value)
 
-    # TODO: How do we want to handle these?
     @property
     def gravity(self) -> float:
         """ State gravity of the layer """
-        return self._gravity
+        if self._use_surf_gravity:
+            return self.gravity_outer
+        else:
+            return self.gravity_middle
 
     @gravity.setter
     def gravity(self, value):
@@ -342,7 +372,10 @@ class LayerBase(PhysicalObjSpherical):
     @property
     def density(self) -> float:
         """ State density of the layer """
-        return self._density
+        if self.use_bulk_density:
+            return self.density_bulk
+        else:
+            return self.density_middle
 
     @density.setter
     def density(self, value):
@@ -368,6 +401,23 @@ class LayerBase(PhysicalObjSpherical):
     def use_tidal_vol_frac(self, value):
         raise ConfigPropertyChangeError
 
+    @property
+    def use_surf_gravity(self) -> bool:
+        """ Flag if layer uses the surface or central gravity for calculations """
+        return self._use_surf_gravity
+
+    @use_surf_gravity.setter
+    def use_surf_gravity(self, value):
+        raise ConfigPropertyChangeError
+
+    @property
+    def use_bulk_density(self) -> bool:
+        """ Flag if layer uses the bulk or central density for calculations (only matters for burnman layers) """
+        return self._use_bulk_density
+
+    @use_bulk_density.setter
+    def use_bulk_density(self, value):
+        raise ConfigPropertyChangeError
 
     # # Outer-scope properties
     #    World Class
@@ -409,7 +459,7 @@ class LayerBase(PhysicalObjSpherical):
         raise OuterscopePropertySetError
 
     @property
-    def temperature_surf(self):
+    def surface_temperature(self):
         """ The temperature at the top of this layer """
         if self.is_top_layer:
             # Return the world's surface temperature
@@ -418,29 +468,18 @@ class LayerBase(PhysicalObjSpherical):
             # Return the dynamic temperature of the layer above it
             return self.layer_above.temperature
 
-    @temperature_surf.setter
-    def temperature_surf(self, value):
-        raise OuterscopePropertySetError
-
-
-    # # Aliased properties
-    @property
-    def surface_temperature(self):
-        """ Alias for self.temperature_surf """
-        return self.temperature_surf
-
     @surface_temperature.setter
     def surface_temperature(self, value):
-        self.temperature_surf = value
+        raise OuterscopePropertySetError
 
 
     # # Dunder methods
     def __str__(self):
 
         if self.world is None:
-            text = f'[Layer {self.name} ({self.type}) no world]'
+            text = f'Layer {self.name} ({self.type} no world)'
         else:
-            text = f'[Layer {self.name} ({self.type}) in {self.world} (loc={self.layer_index})]'
+            text = f'Layer {self.name} ({self.type} in {self.world}; loc={self.layer_index})'
         return text
 
     def __repr__(self):

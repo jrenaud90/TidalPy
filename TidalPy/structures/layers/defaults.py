@@ -4,7 +4,8 @@ layer_defaults = {
         'type'                         : 'ice',
 
         # Switches
-        'use_surf_gravity'             : True,
+        'use_surface_gravity'          : True,
+        'use_bulk_density'             : True,
         'use_tvf'                      : True,
         'is_tidally_active'            : True,
         'use_pressure_in_strength_calc': False,
@@ -32,7 +33,8 @@ layer_defaults = {
         'type'                         : 'rock',
 
         # Switches
-        'use_surf_gravity'             : True,
+        'use_surface_gravity'          : True,
+        'use_bulk_density'             : True,
         'use_tidal_vol_frac'           : True,
         'is_tidally_active'            : True,
         'use_pressure_in_strength_calc': False,
@@ -57,7 +59,8 @@ layer_defaults = {
         'type'                         : 'iron',
 
         # Switches
-        'use_surf_gravity'             : True,
+        'use_surface_gravity'          : True,
+        'use_bulk_density'             : True,
         'use_tidal_vol_frac'           : True,
         'is_tidally_active'            : False,
         'use_pressure_in_strength_calc': False,

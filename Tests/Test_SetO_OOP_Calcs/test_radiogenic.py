@@ -18,7 +18,7 @@ def test_radiogenic_calc_fixed_in_layered_world():
 
     # Set the time and make sure that the radiogenic heating is set as expected
     io_off.set_state(time=0.)
-    assert io_off.Mantle.radiogenics.heating is None
+    assert io_off.Mantle.radiogenics.heating == 0.
 
     # Test a model where the radiogenics are on but fixed
     radio_dict = {'layers': {'Mantle': {'is_tidal': False, 'radiogenics': {

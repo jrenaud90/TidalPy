@@ -1,9 +1,9 @@
 from typing import Union, Dict, List
 
-from ..helpers.orbit_help import pull_out_orbit_from_config
 from .. import log
 from ..exceptions import ImproperPropertyHandling, BadWorldSignature, BadWorldSignatureType, TidalPyOrbitError
-from ..structures.worlds import AllWorldType, StarWorld, all_world_types
+from ..helpers.orbit_config import pull_out_orbit_from_config
+from ..structures.world_types import AllWorldType, StarWorld, all_world_types
 from ..tools.conversions import rads2days, days2rads, semi_a2orbital_motion, orbital_motion2semi_a
 from ..utilities.classes.base import TidalPyClass
 from ..utilities.types import FloatArray
@@ -13,9 +13,9 @@ WorldSignatureType = Union[str, int, AllWorldType]
 class OrbitBase(TidalPyClass):
 
     """ OrbitBase class
-    Contains attributes and methods to track the orbit of multiple TidalPy worlds.
+    Contains attributes and methods to track the orbit of multiple TidalPy world_types.
 
-    Orbits allow TidalPy worlds to communicate with one another and for tides to be calculated.
+    Orbits allow TidalPy world_types to communicate with one another and for tides to be calculated.
 
     Assumptions
     -----------
@@ -34,11 +34,11 @@ class OrbitBase(TidalPyClass):
                  host_tide_raiser: AllWorldType = None, initialize: bool = True):
         """ OrbitBase constructor
 
-        Orbits allow TidalPy worlds to communicate with one another and for tides to be calculated.
+        Orbits allow TidalPy world_types to communicate with one another and for tides to be calculated.
 
         Notes
         -----
-        .. Orbit instances can be made without any TidalPy worlds initially. Worlds can be later added with the
+        .. Orbit instances can be made without any TidalPy world_types initially. Worlds can be later added with the
             `add_tidal_world` and `add_star` methods.
 
         Parameters
@@ -53,7 +53,7 @@ class OrbitBase(TidalPyClass):
         star_host : bool = False
             If `True`, then the star will act as the tidal host in addition to being the orbit's star.
         host_tide_raiser : AllWorldType = None
-            The tidal host experiences tides from all worlds. This pointer is used to set which tidal body is currently
+            The tidal host experiences tides from all world_types. This pointer is used to set which tidal body is currently
                 being used as the host body's tide raiser.
         initialize : bool = True
             If `True`, then the constructor will make the first call to the orbit's `reinit()` method.
@@ -94,8 +94,12 @@ class OrbitBase(TidalPyClass):
             self.add_star(star, is_tidal_host=star_host, run_update=False)
 
         if tidal_host is not None:
-            self.add_tidal_host(tidal_host, run_update=False)
-            run_update = True
+            if tidal_host is self.star:
+                # Already added. Skip.
+                pass
+            else:
+                self.add_tidal_host(tidal_host, run_update=False)
+                run_update = True
 
         if tidal_bodies is not None:
             run_update = True
@@ -136,18 +140,30 @@ class OrbitBase(TidalPyClass):
             for world in self.all_objects:
                 world.reinit()
 
-        if not initial_init:
+        if initial_init:
+            if run_update:
+                # Go through each tidal world and see if orbit_changed needs to be called.
+                log.debug(f'Updating orbit based on any config-set orbital properties: {self}.')
+                for world in self.tidal_objects:
+                    if world is self.tidal_host and self.host_tide_raiser is None:
+                        continue
+                    orbital_freq_changed = False
+                    eccentricity_changed = False
+                    if self.get_orbital_frequency(world) is not None:
+                        orbital_freq_changed = True
+                    if self.get_eccentricity(world) is not None:
+                        eccentricity_changed = True
+                    self.orbit_changed(world, orbital_freq_changed=orbital_freq_changed,
+                                       eccentricity_changed=eccentricity_changed)
+        else:
             self.clear_state()
 
-            # Go through tidal worlds and make sure the orbit has the default orbital parameters
+            # Go through tidal world_types and make sure the orbit has the default orbital parameters
             for tidal_world in self.tidal_objects:
                 orbital_freq, semi_major_axis, eccentricity = pull_out_orbit_from_config(tidal_world.config)
-                self.set_state(tidal_world, new_eccentricity=eccentricity,
-                               new_orbital_frequency=orbital_freq, new_semi_major_axis=semi_major_axis,
-                               called_from_orbit=True)
-
-        if run_update:
-            self.update_orbit()
+                self.set_state(tidal_world, eccentricity=eccentricity,
+                               orbital_frequency=orbital_freq, semi_major_axis=semi_major_axis,
+                               call_orbit_change=run_update)
 
     def add_star(self, star_world: StarWorld, is_tidal_host: bool = False, run_update: bool = True):
         """ Add a star to the orbit. This star may or may not be the tidal host.
@@ -163,6 +179,8 @@ class OrbitBase(TidalPyClass):
         run_update : bool = True
             If `True`, the orbit's `update_orbit` method will be called after the world has been added.
         """
+
+        log.info(f'Adding {star_world} to orbit ({self}) as star.')
 
         # Check that the star is an instance of the expected class
         if not isinstance(star_world, StarWorld):
@@ -183,7 +201,7 @@ class OrbitBase(TidalPyClass):
         if is_tidal_host:
             log.debug(f'Star, {star_world}, is the tidal host, adding it to orbit as such.')
             self._star_host = True
-            self.add_tidal_world(star_world, is_tidal_host=True, run_update=False)
+            self.add_tidal_world(star_world, is_tidal_host=True, run_update=run_update)
         else:
             # Perform some initialization that will have been skipped by not calling `add_tidal_world`
             if star_world in self.all_objects:
@@ -196,10 +214,6 @@ class OrbitBase(TidalPyClass):
             if star_world.orbit is not None:
                 log.warning(f'Trying to add orbit: {self} to {star_world} but orbit is already present. Replacing...')
             star_world.orbit = self
-
-        # Update orbit, if needed.
-        if run_update:
-            self.update_orbit()
 
     def add_tidal_world(self, tidal_world: AllWorldType, is_tidal_host: bool = False, run_update: bool = True):
         """ Add a new tidal world to the orbit, in order from closest to host to farthest away.
@@ -214,7 +228,10 @@ class OrbitBase(TidalPyClass):
             If `True`, the orbit's `update_orbit` method will be called after the world has been added.
         """
 
-        log.info(f'Adding {tidal_world} to orbit: {self}.')
+        if is_tidal_host:
+            log.info(f'Adding {tidal_world} to orbit ({self}) as tidal world and host.')
+        else:
+            log.info(f'Adding {tidal_world} to orbit ({self}) as tidal world.')
 
         if not isinstance(tidal_world, all_world_types):
             log.error(f'Tidal world is being added to orbit: {self}, but is of type {type(tidal_world)}. '
@@ -242,7 +259,7 @@ class OrbitBase(TidalPyClass):
                 if self.tidal_host is not None:
                     raise TidalPyOrbitError('How did this happen?')
 
-                log.warning(f'Trying to add tidal worlds to orbit: {self} when no tidal host has been set. '
+                log.warning(f'Trying to add tidal world_types to orbit: {self} when no tidal host has been set. '
                             f'It is better to set the tidal host first. Proceeding...')
                 # Have to append a None so that the first spot is reserved for the tidal host.
                 self._tidal_objects.append(None)
@@ -290,13 +307,6 @@ class OrbitBase(TidalPyClass):
             log.warning(f'Trying to add orbit: {self} to {tidal_world} but orbit is already present. Replacing...')
         tidal_world.orbit = self
 
-        # Add reference to the tidal host
-        if is_tidal_host:
-            if self.host_tide_raiser is not None:
-                tidal_world.tidal_host = self.host_tide_raiser
-        else:
-            tidal_world.tidal_host = self.tidal_host
-
         # Make storage locations for this world's orbital parameters
         storage_warn = False
         for storage_list in [self._eccentricities, self._semi_major_axes, self._orbital_frequencies,
@@ -314,21 +324,36 @@ class OrbitBase(TidalPyClass):
                 # Append with None.
                 storage_list.append(None)
 
-        if not is_tidal_host:
+        if is_tidal_host:
+            if not self.star_host:
+                # Store the tidal host's orbital information. Assume it is the heliocentric orbit (used for insolation
+                #    calculations)
+                orbital_freq, semi_major_axis, eccentricity = pull_out_orbit_from_config(tidal_world.config)
+                self.set_state(tidal_world, eccentricity=eccentricity,
+                               orbital_frequency=orbital_freq, semi_major_axis=semi_major_axis,
+                               call_orbit_change=False, set_stellar_orbit=True)
+            else:
+                # Don't run update for a star host.
+                run_update = False
+        else:
             # Check the world's config and pull out any user-provided orbit information (not done for tidal host)
             orbital_freq, semi_major_axis, eccentricity = pull_out_orbit_from_config(tidal_world.config)
-            self.set_state(tidal_world, new_eccentricity=eccentricity,
-                           new_orbital_frequency=orbital_freq, new_semi_major_axis=semi_major_axis,
-                           called_from_orbit=True)
+            self.set_state(tidal_world, eccentricity=eccentricity,
+                           orbital_frequency=orbital_freq, semi_major_axis=semi_major_axis,
+                           call_orbit_change=False)
+
+            enough_orbit_info_is_known = ((orbital_freq is not None) or (semi_major_axis is not None)) and \
+                                         eccentricity is not None
+            run_update = run_update and enough_orbit_info_is_known
 
             # If the tidal host tide raiser pointer is None, we can set it to the first tidal world added.
             if self.host_tide_raiser is None:
-                log.debug(f'Host tide raiser pointer is not set in {self}. Setting to first tidal body.')
+                log.debug(f'Host tide raiser pointer is not set in {self}. Setting to first tidal body: {tidal_world}.')
                 self.set_host_tide_raiser(tidal_world)
 
         # Update orbit if needed
         if run_update:
-            self.update_orbit()
+            self.orbit_changed(tidal_world, orbital_freq_changed=True, eccentricity_changed=True)
 
     def add_tidal_host(self, tidal_host: AllWorldType, run_update: bool = True):
         """ Add a new tidal host to the orbit, in order from closest to host to farthest away.
@@ -345,19 +370,27 @@ class OrbitBase(TidalPyClass):
 
         self.add_tidal_world(tidal_host, is_tidal_host=True, run_update=run_update)
 
-    def update_orbit(self):
-        """ Method that updates anything that depends upon the state orbital properties of the tidal worlds.
+    def orbit_changed(self, specific_world: WorldSignatureType = None, orbital_freq_changed: bool = False,
+                      eccentricity_changed: bool = False):
+        """ The orbit of a specific world has changed. Make any necessary updates.
 
-        Should be called whenever there is a change to one or more orbital properties.
+        Parameters
+        ----------
+        specific_world : WorldSignatureType
+            The signature of the world who's spin and/or orbit changed.
+        orbital_freq_changed : bool = False
+            If `True`, then the world's orbital frequency changed.
+        eccentricity_changed : bool = False
+            If `True`, then the world_types' eccentricity changed.
         """
 
-        log.debug(f'Update orbit called for: {self}')
+        log.debug(f'Spin and/or orbit changed for world: {specific_world} in orbit: {self}.')
 
         # This method's functionality is largely set by child classes.
 
     def clear_state(self, clear_all: bool = True, clear_specific: WorldSignatureType = None,
                     clear_world_state: bool = False):
-        """ Clears the orbital information for a world or all worlds without destroying the orbit instance.
+        """ Clears the orbital information for a world or all world_types without destroying the orbit instance.
 
         Parameters
         ----------
@@ -429,15 +462,13 @@ class OrbitBase(TidalPyClass):
         tide_raiser_instance = self.tidal_objects[tide_raiser_index]
         self._host_tide_raiser = tide_raiser_instance
 
-        # Now switch the "tidal host" on the tidal_host (tides are weird!)
-        self.tidal_host.tidal_host = self.host_tide_raiser
-
     def set_state(self, world_signature: WorldSignatureType,
-                  new_eccentricity: FloatArray = None,
-                  new_semi_major_axis: FloatArray = None,
-                  new_orbital_frequency: FloatArray = None,
-                  new_orbital_period: FloatArray = None,
-                  called_from_orbit: bool = False):
+                  eccentricity: FloatArray = None,
+                  semi_major_axis: FloatArray = None,
+                  orbital_frequency: FloatArray = None,
+                  orbital_period: FloatArray = None,
+                  call_orbit_change: bool = True, set_stellar_orbit: bool = False,
+                  set_by_world: bool = False):
         """ Set the orbital state for a world with the provided signature.
 
         This largely wraps the other orbit setter methods.
@@ -447,23 +478,29 @@ class OrbitBase(TidalPyClass):
         world_signature : WorldSignatureType
             A signature used to distinguish one tidal world from another. This could be its name,
                 orbital location index, or the instance of an initialized TidalPy world.
-        new_eccentricity : FloatArray
+        eccentricity : FloatArray
             New orbital eccentricity for this world.
-        new_semi_major_axis : FloatArray
+        semi_major_axis : FloatArray
             New orbital semi-major axis for this world [m].
-        new_orbital_frequency : FloatArray
+        orbital_frequency : FloatArray
             New orbital frequency for this world [rad s-1].
-        new_orbital_period : FloatArray
+        orbital_period : FloatArray
             New mean orbital period for this world [days].
-        called_from_orbit : bool = False
-            Flag for if this method was called from an OrbitBase method. This avoids repeated calls to the
-                OrbitBase.update_orbit() method.
+        call_orbit_change : bool = True
+            Flag for if this method should call the orbit_changed() method.
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                dont). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
+        set_by_world : bool = False
+            If `False`, then orbit will call the world_types orbit_spin_changed() method.
         """
 
         # Figure out what orbital separation information was provided.
-        orbital_freq_provided = new_orbital_frequency is not None
-        orbital_period_provided = new_orbital_period is not None
-        orbital_semi_a_provided = new_semi_major_axis is not None
+        orbital_freq_provided = orbital_frequency is not None
+        orbital_period_provided = orbital_period is not None
+        orbital_semi_a_provided = semi_major_axis is not None
+        orbital_freq_changed = orbital_freq_provided or orbital_period_provided or orbital_semi_a_provided
 
         # To avoid issues duplicate array pointers - just raise an error if too much information was provided.
         if orbital_freq_provided and orbital_period_provided and orbital_semi_a_provided:
@@ -480,34 +517,60 @@ class OrbitBase(TidalPyClass):
                 f'Two of: orbital motion, orbital period, and semi-major axis were provided to {self}. '
                 f'Please provide only one.')
 
-        # Calculate the orbital conversions
-        if orbital_freq_provided:
-            new_orbital_period = rads2days(new_orbital_frequency)
-            new_semi_major_axis = self.orbital_motion2semi_a(world_signature, new_orbital_frequency)
-        elif orbital_period_provided:
-            new_orbital_frequency = days2rads(new_orbital_period)
-            new_semi_major_axis = self.orbital_motion2semi_a(world_signature, new_orbital_frequency)
-        elif new_semi_major_axis:
-            new_orbital_frequency = self.semi_a2orbital_motion(world_signature, new_semi_major_axis)
-            new_orbital_period = rads2days(new_orbital_frequency)
+        # Tell the world that changes were made to its orbit
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
+        world = self.tidal_objects[world_index]
 
-        # Set state properties
-        if orbital_freq_provided or orbital_period_provided or orbital_semi_a_provided:
-            self.set_semi_major_axis(world_signature, new_semi_major_axis, called_from_orbit=True)
-            self.set_orbital_frequency(world_signature, new_orbital_frequency, called_from_orbit=True)
-            self.set_orbital_period(world_signature, new_orbital_period, called_from_orbit=True)
+        if set_stellar_orbit and self.star is None:
+            # If doing a stellar orbit update, but there is no Star, then don't bother loading anything in for the
+            #    world.
+            log.warning(f'Set state called for {self} included a stellar orbit change but no star set. Skipping.')
 
-        # Now deal with eccentricity
-        eccentricity_provided = new_eccentricity is not None
-        if eccentricity_provided:
-            self.set_eccentricity(world_signature, new_eccentricity, called_from_orbit=True)
+        else:
+            # Calculate the orbital conversions
+            if orbital_freq_provided:
+                orbital_period = rads2days(orbital_frequency)
+                semi_major_axis = self.orbital_motion2semi_a(world_signature, orbital_frequency,
+                                                             set_stellar_orbit=set_stellar_orbit)
+            elif orbital_period_provided:
+                orbital_frequency = days2rads(orbital_period)
+                semi_major_axis = self.orbital_motion2semi_a(world_signature, orbital_frequency,
+                                                             set_stellar_orbit=set_stellar_orbit)
+            elif semi_major_axis:
+                orbital_frequency = self.semi_a2orbital_motion(world_signature, semi_major_axis,
+                                                               set_stellar_orbit=set_stellar_orbit)
+                orbital_period = rads2days(orbital_frequency)
 
-        # Finally, make a single call to the update_orbit method
-        if not called_from_orbit:
-            self.update_orbit()
+            # Set state properties
+            if orbital_freq_changed:
+                self.set_semi_major_axis(world_signature, semi_major_axis, called_from_orbit=True,
+                                         set_stellar_orbit=set_stellar_orbit)
+                self.set_orbital_frequency(world_signature, orbital_frequency, called_from_orbit=True,
+                                           set_stellar_orbit=set_stellar_orbit)
+                self.set_orbital_period(world_signature, orbital_period, called_from_orbit=True,
+                                        set_stellar_orbit=set_stellar_orbit)
 
-    def set_eccentricity(self, world_signature: WorldSignatureType, new_eccentricity: FloatArray,
-                        called_from_orbit: bool = False):
+                # Worlds that are forced to be in synchronous rotation will need to have their spin-rates changed to
+                #    match the new orbital frequency.
+                world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
+                world_instance = self.tidal_objects[world_index]
+                if world_instance.force_spin_sync:
+                    log.debug(f'World, {world_instance}, orbital frequency changed but it is forced into synchronous'
+                              f'rotation; changing spin-rate to match new orbital frequency.')
+                    world_instance.set_spin_frequency(orbital_frequency, call_updates=False)
+
+            # Now deal with eccentricity
+            eccentricity_provided = eccentricity is not None
+            if eccentricity_provided:
+                self.set_eccentricity(world_signature, eccentricity, called_from_orbit=True,
+                                      set_stellar_orbit=set_stellar_orbit)
+
+            if not set_by_world and call_orbit_change:
+                self.orbit_changed(world, orbital_freq_changed=orbital_freq_changed,
+                                   eccentricity_changed=eccentricity_provided)
+
+    def set_eccentricity(self, world_signature: WorldSignatureType, eccentricity: FloatArray,
+                         called_from_orbit: bool = False, set_stellar_orbit: bool = False):
         """ Set the eccentricity for a world with the provided signature.
 
         Parameters
@@ -515,25 +578,30 @@ class OrbitBase(TidalPyClass):
         world_signature : WorldSignatureType
             A signature used to distinguish one tidal world from another. This could be its name,
                 orbital location index, or the instance of an initialized TidalPy world.
-        new_eccentricity : FloatArray
+        eccentricity : FloatArray
             New orbital eccentricity for this world.
         called_from_orbit : bool = False
             Flag for if this method was called from an OrbitBase method. This avoids repeated calls to the
                 OrbitBase.update_orbit() method.
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                done). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
         """
 
         # Get world's index
-        world_index = self.world_signature_to_index(world_signature)
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
 
         # Update its eccentricity
-        self._eccentricities[world_index] = new_eccentricity
+        self._eccentricities[world_index] = eccentricity
 
         # Make sure changes are propagated everywhere they need to be
         if not called_from_orbit:
-            self.update_orbit()
+            # Tell the orbit and the world that changes were made
+            self.orbit_changed(world_signature, eccentricity_changed=True)
 
-    def set_semi_major_axis(self, world_signature: WorldSignatureType, new_semi_major_axis: FloatArray,
-                            called_from_orbit: bool = False):
+    def set_semi_major_axis(self, world_signature: WorldSignatureType, semi_major_axis: FloatArray,
+                            called_from_orbit: bool = False, set_stellar_orbit: bool = False):
         """ Set the semi-major axis for a world with the provided signature.
 
         Parameters
@@ -541,32 +609,44 @@ class OrbitBase(TidalPyClass):
         world_signature : WorldSignatureType
             A signature used to distinguish one tidal world from another. This could be its name,
                 orbital location index, or the instance of an initialized TidalPy world.
-        new_semi_major_axis : FloatArray
+        semi_major_axis : FloatArray
             New orbital semi-major axis for this world [m].
         called_from_orbit : bool = False
             Flag for if this method was called from an OrbitBase method. This avoids repeated calls to the
                 OrbitBase.update_orbit() method.
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                done). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
         """
 
         # Get world's index
-        world_index = self.world_signature_to_index(world_signature)
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
 
         # Update its semi-major axis
-        self._semi_major_axes[world_index] = new_semi_major_axis
+        self._semi_major_axes[world_index] = semi_major_axis
 
         # Make sure changes are propagated everywhere they need to be
         if not called_from_orbit:
             # Changing the semi-major axis will change the orbital motion (and orbital period)
-            new_orbital_frequency = self.semi_a2orbital_motion(world_index, new_semi_major_axis)
+            new_orbital_frequency = self.semi_a2orbital_motion(world_index, semi_major_axis,
+                                                               set_stellar_orbit=set_stellar_orbit)
             new_orbital_period = rads2days(new_orbital_frequency)
-            self.set_orbital_frequency(world_index, new_orbital_frequency, called_from_orbit=True)
-            self.set_orbital_period(world_index, new_orbital_period, called_from_orbit=True)
+            self.set_orbital_frequency(world_index, new_orbital_frequency, called_from_orbit=True,
+                                       set_stellar_orbit=set_stellar_orbit)
+            self.set_orbital_period(world_index, new_orbital_period, called_from_orbit=True,
+                                    set_stellar_orbit=set_stellar_orbit)
 
-            # Now we can update the orbit
-            self.update_orbit()
+            # Worlds that are forced to be in synchronous rotation will need to have their spin-rates changed to match
+            #    the new orbital frequency.
+            if self.tidal_objects[world_index].force_spin_sync:
+                self.tidal_objects[world_index].set_spin_frequency(new_orbital_frequency, call_updates=False)
 
-    def set_orbital_frequency(self, world_signature: WorldSignatureType, new_orbital_frequency: FloatArray,
-                              called_from_orbit: bool = False):
+            # Tell the world and orbit that changes were made.
+            self.orbit_changed(world_signature, orbital_freq_changed=True)
+
+    def set_orbital_frequency(self, world_signature: WorldSignatureType, orbital_frequency: FloatArray,
+                              called_from_orbit: bool = False, set_stellar_orbit: bool = False):
         """ Set the mean orbital motion for a world with the provided signature.
 
         Parameters
@@ -574,37 +654,44 @@ class OrbitBase(TidalPyClass):
         world_signature : WorldSignatureType
             A signature used to distinguish one tidal world from another. This could be its name,
                 orbital location index, or the instance of an initialized TidalPy world.
-        new_orbital_frequency : FloatArray
+        orbital_frequency : FloatArray
             New orbital frequency for this world [rad s-1].
         called_from_orbit : bool = False
             Flag for if this method was called from an OrbitBase method. This avoids repeated calls to the
                 OrbitBase.update_orbit() method.
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                done). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
         """
 
         # Get world's index
-        world_index = self.world_signature_to_index(world_signature)
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
 
         # Update its orbital frequency
-        self._orbital_frequencies[world_index] = new_orbital_frequency
-
-        # Worlds that are forced to be in synchronous rotation will need to have their spin-rates changed to match
-        #    the new orbital frequency.
-        if self.tidal_objects[world_index].force_spin_sync:
-            self.tidal_objects[world_index].set_spin_frequency(new_orbital_frequency, call_updates=False)
+        self._orbital_frequencies[world_index] = orbital_frequency
 
         # Make sure changes are propagated everywhere they need to be
         if not called_from_orbit:
             # Changing the orbital motion will change the semi-major axis and orbital period
-            new_semi_major_axis = self.orbital_motion2semi_a(world_index, new_orbital_frequency)
-            new_orbital_period = rads2days(new_orbital_frequency)
-            self.set_semi_major_axis(world_index, new_semi_major_axis, called_from_orbit=True)
-            self.set_orbital_period(world_index, new_orbital_period, called_from_orbit=True)
+            new_semi_major_axis = self.orbital_motion2semi_a(world_index, orbital_frequency,
+                                                             set_stellar_orbit=set_stellar_orbit)
+            new_orbital_period = rads2days(orbital_frequency)
+            self.set_semi_major_axis(world_index, new_semi_major_axis, called_from_orbit=True,
+                                     set_stellar_orbit=set_stellar_orbit)
+            self.set_orbital_period(world_index, new_orbital_period, called_from_orbit=True,
+                                    set_stellar_orbit=set_stellar_orbit)
 
-            # Now we can update the orbit
-            self.update_orbit()
+            # Worlds that are forced to be in synchronous rotation will need to have their spin-rates changed to match
+            #    the new orbital frequency.
+            if self.tidal_objects[world_index].force_spin_sync:
+                self.tidal_objects[world_index].set_spin_frequency(orbital_frequency, call_updates=False)
 
-    def set_orbital_period(self, world_signature: WorldSignatureType, new_orbital_period: FloatArray,
-                           called_from_orbit: bool = False):
+            # Tell the world and orbit that changes were made.
+            self.orbit_changed(world_signature, orbital_freq_changed=True)
+
+    def set_orbital_period(self, world_signature: WorldSignatureType, orbital_period: FloatArray,
+                           called_from_orbit: bool = False, set_stellar_orbit: bool = False):
         """ Set the mean orbital period for a world with the provided signature.
 
         Parameters
@@ -612,31 +699,263 @@ class OrbitBase(TidalPyClass):
         world_signature : WorldSignatureType
             A signature used to distinguish one tidal world from another. This could be its name,
                 orbital location index, or the instance of an initialized TidalPy world.
-        new_orbital_period : FloatArray
+        orbital_period : FloatArray
             New mean orbital period for this world [days].
         called_from_orbit : bool = False
             Flag for if this method was called from an OrbitBase method. This avoids repeated calls to the
                 OrbitBase.update_orbit() method.
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                done). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
         """
 
         # Get world's index
-        world_index = self.world_signature_to_index(world_signature)
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
 
         # Update its orbital period
-        self._orbital_periods[world_index] = new_orbital_period
+        self._orbital_periods[world_index] = orbital_period
 
         # Make sure changes are propagated everywhere they need to be
         if not called_from_orbit:
             # Changing the orbital period will change the orbital motion and the semi-major axis
-            new_orbital_frequency = days2rads(new_orbital_period)
-            new_semi_major_axis = self.orbital_motion2semi_a(world_index, new_orbital_frequency)
-            self.set_semi_major_axis(world_index, new_semi_major_axis, called_from_orbit=True)
-            self.set_orbital_frequency(world_index, new_orbital_frequency, called_from_orbit=True)
+            new_orbital_frequency = days2rads(orbital_period)
+            new_semi_major_axis = self.orbital_motion2semi_a(world_index, new_orbital_frequency,
+                                                             set_stellar_orbit=set_stellar_orbit)
+            self.set_semi_major_axis(world_index, new_semi_major_axis, called_from_orbit=True,
+                                     set_stellar_orbit=set_stellar_orbit)
+            self.set_orbital_frequency(world_index, new_orbital_frequency, called_from_orbit=True,
+                                       set_stellar_orbit=set_stellar_orbit)
 
-            # Now we can update the orbit
-            self.update_orbit()
+            # Worlds that are forced to be in synchronous rotation will need to have their spin-rates changed to match
+            #    the new orbital frequency.
+            if self.tidal_objects[world_index].force_spin_sync:
+                self.tidal_objects[world_index].set_spin_frequency(new_orbital_frequency, call_updates=False)
 
-    def world_signature_to_index(self, world_signature: WorldSignatureType):
+            # Tell the world and orbit that changes were made.
+            self.orbit_changed(world_signature, orbital_freq_changed=True)
+
+    def set_stellar_distance(self, world_signature: WorldSignatureType, distance: FloatArray):
+        """ Set the orbital distance between a world of interest and the star (used for insolation calculations)
+
+        If the tidal host is a star then this will simply wrap the world's semi-major axis setter. For a non-star host,
+            then we assume that the world will share its stellar distance with its tidal host. For example, Io's
+            solar flux is largely determined by Jupiter's orbit, not Io's orbit around Jupiter.
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        distance : FloatArray
+            New stellar distance from the desired world to the host star [m].
+
+        """
+
+        if self.star_host:
+            self.set_semi_major_axis(world_signature, distance, set_stellar_orbit=True)
+        else:
+            # Change the orbital distance of the tidal host.
+            if self.world_signature_to_index(world_signature, for_stellar_orbit=True) != 0:
+                log.warning('A tidal world is setting the stellar distance for the tidal host.')
+            self.set_semi_major_axis(world_signature, distance, set_stellar_orbit=True)
+
+    def set_stellar_eccentricity(self, world_signature: WorldSignatureType, eccentricity: FloatArray):
+        """ Set the orbital eccentricity between a world of interest and the star (used for insolation calculations)
+
+        If the tidal host is a star then this will simply wrap the world's eccentricity setter. For a non-star host,
+            then we assume that the world will share its stellar distance with its tidal host. For example, Io's
+            solar flux is largely determined by Jupiter's orbit, not Io's orbit around Jupiter.
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        eccentricity : FloatArray
+            New stellar eccentricity between the desired world to the host star [m].
+
+        """
+
+        if self.star_host:
+            self.set_eccentricity(world_signature, eccentricity, set_stellar_orbit=True)
+        else:
+            # Change the orbital distance of the tidal host.
+            if self.world_signature_to_index(world_signature, for_stellar_orbit=True) != 0:
+                log.warning('A tidal world is setting the stellar eccentricity for the tidal host.')
+            self.set_eccentricity(world_signature, eccentricity, set_stellar_orbit=True)
+
+    # # Tidal World Getters
+    def get_eccentricity(self, world_signature: WorldSignatureType, for_stellar_orbit: bool = False) -> FloatArray:
+        """ Provided a world's signature, this method will retrieve its orbital eccentricity.
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        for_stellar_orbit : bool = False
+            If `True`, then the tidal host's orbital parameters will be returned. Generally this is not desired as tides
+                only care about the tide raiser's orbit (think of the Moon's orbit around the Earth). However,
+                calculations like insolation heating require the stellar distance which, for a non star_host orbit,
+                require the tidal host orbital parameters.
+
+        Returns
+        -------
+        eccentricity : FloatArray
+            Orbital eccentricity relative to the tidal host.
+        """
+
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=for_stellar_orbit)
+
+        return self.eccentricities[world_index]
+
+    def get_semi_major_axis(self, world_signature: WorldSignatureType,
+                            for_stellar_orbit: bool = False) -> FloatArray:
+        """ Provided a world's signature, this method will retrieve its orbital semi_major_axis [m].
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        for_stellar_orbit : bool = False
+            If `True`, then the tidal host's orbital parameters will be returned. Generally this is not desired as tides
+                only care about the tide raiser's orbit (think of the Moon's orbit around the Earth). However,
+                calculations like insolation heating require the stellar distance which, for a non star_host orbit,
+                require the tidal host orbital parameters.
+
+        Returns
+        -------
+        semi_major_axis : FloatArray
+            Orbital semi-major axis relative to the tidal host [m].
+        """
+
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=for_stellar_orbit)
+
+        return self.semi_major_axes[world_index]
+
+    def get_orbital_frequency(self, world_signature: WorldSignatureType,
+                              for_stellar_orbit: bool = False) -> FloatArray:
+        """ Provided a world's signature, this method will retrieve its orbital frequency [rad s-1].
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        for_stellar_orbit : bool = False
+            If `True`, then the tidal host's orbital parameters will be returned. Generally this is not desired as tides
+                only care about the tide raiser's orbit (think of the Moon's orbit around the Earth). However,
+                calculations like insolation heating require the stellar distance which, for a non star_host orbit,
+                require the tidal host orbital parameters.
+
+        Returns
+        -------
+        orbital_motion : FloatArray
+            Orbital mean motion relative to the tidal host [rad s-1].
+        """
+
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=for_stellar_orbit)
+
+        return self.orbital_frequencies[world_index]
+
+    def get_orbital_period(self, world_signature: WorldSignatureType, for_stellar_orbit: bool = False) -> FloatArray:
+        """ Provided a world's signature, this method will retrieve its orbital eccentricity [days].
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        for_stellar_orbit : bool = False
+            If `True`, then the tidal host's orbital parameters will be returned. Generally this is not desired as tides
+                only care about the tide raiser's orbit (think of the Moon's orbit around the Earth). However,
+                calculations like insolation heating require the stellar distance which, for a non star_host orbit,
+                require the tidal host orbital parameters.
+
+        Returns
+        -------
+        orbital_period : FloatArray
+            Orbital period relative to the tidal host [days].
+        """
+
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=for_stellar_orbit)
+
+        return self.orbital_periods[world_index]
+
+    def get_stellar_distance(self, world_signature: WorldSignatureType) -> FloatArray:
+        """ Get the orbital distance between a world of interest and the star (used for insolation calculations)
+
+        If the tidal host is a star then this will simply wrap the world's semi-major axis getter. For a non-star host,
+            then we assume that the world will share its stellar distance with its tidal host. For example, Io's
+            solar flux is largely determined by Jupiter's orbit, not Io's orbit around Jupiter.
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+
+        Returns
+        -------
+        stellar_distance : FloatArray
+            Distance between desired world and the star [m]
+        """
+
+        if self.star_host:
+            return self.get_semi_major_axis(world_signature)
+        else:
+            # Return the semi-major axis of the tidal host.
+            return self.get_semi_major_axis(self.tidal_host, for_stellar_orbit=True)
+
+    def get_stellar_eccentricity(self, world_signature: WorldSignatureType) -> FloatArray:
+        """ Get the orbital eccentricity relative between a world of interest and the star
+            (used for insolation calculations)
+
+        If the tidal host is a star then this will simply wrap the world's eccentricity getter. For a non-star host,
+            then we assume that the world will share its stellar orbit with its tidal host. For example, Io's
+            solar flux is largely determined by Jupiter's orbit, not Io's orbit around Jupiter.
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+
+        Returns
+        -------
+        stellar_eccentricity : FloatArray
+            Eccentricity of the orbit between the desired world and the star
+        """
+
+        if self.star_host:
+            return self.get_eccentricity(world_signature)
+        else:
+            # Return the semi-major axis of the tidal host.
+            return self.get_eccentricity(self.tidal_host, for_stellar_orbit=True)
+
+    def get_tidal_host(self, world_signature: WorldSignatureType):
+        """ Get the tidal host of a tidal world.
+
+        If this is called for the tidal host, it will return whatever has been set as the host_tide_raiser.
+
+        Parameters
+        ----------
+        world_signature : WorldSignatureType
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        """
+
+        # By setting for_stellar_orbit to True, we will 0 if the tidal host was passed to this method
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=True)
+        if world_index == 0:
+            # Return which ever object is currently raising tides on the host.
+            return self.host_tide_raiser
+        else:
+            return self.tidal_host
+
+    def world_signature_to_index(self, world_signature: WorldSignatureType, for_stellar_orbit: bool = False):
         """ Convert's a world's signature to the orbital index which is used for tracking various parameters.
 
         Parameters
@@ -644,6 +963,11 @@ class OrbitBase(TidalPyClass):
         world_signature : WorldSignatureType
             A signature used to distinguish one tidal world from another. This could be its name,
                 orbital location index, or the instance of an initialized TidalPy world.
+        for_stellar_orbit : bool = False
+            If `True`, then the tidal host's orbital parameters will be returned. Generally this is not desired as tides
+                only care about the tide raiser's orbit (think of the Moon's orbit around the Earth). However,
+                calculations like insolation heating require the stellar distance which, for a non star_host orbit,
+                require the tidal host orbital parameters.
 
         Returns
         -------
@@ -680,7 +1004,7 @@ class OrbitBase(TidalPyClass):
                 world_signature = world_signature.title()
             else:
                 log.error(f'World signature provided as str, {world_signature}, but does not match any known tidal '
-                          f'worlds stored in orbit.')
+                          f'world_types stored in orbit.')
                 raise BadWorldSignature
             if world_signature in [self.tidal_host.name, self.tidal_host.name.lower(), self.tidal_host.name.title()]:
                 # This is the name of the tidal host
@@ -697,101 +1021,35 @@ class OrbitBase(TidalPyClass):
                 return world_index
             else:
                 log.error(f'World signature provided as instance, {world_signature}, but does not match any known tidal '
-                          f'worlds stored in orbit.')
+                          f'world_types stored in orbit.')
                 raise BadWorldSignature
 
         if return_host_tide_raiser:
-            # Recall this method, but to get the tide raiser's index.
-            if self.host_tide_raiser is None:
-                log.error("Trying to access tidal host parameters but the host's tide raiser has not been set.")
-                raise TidalPyOrbitError("Trying to access tidal host parameters but the host's tide raiser has not "
-                                        "been set.")
-            return self.world_signature_to_index(self.host_tide_raiser)
+
+            if for_stellar_orbit:
+                # Only time the tidal host's actual orbital properties should be returned.
+                if self.star_host:
+                    log.error(f'Trying to get/set the stellar distance of the tidal host, but tidal host is the star '
+                              f'in: {self}')
+                    raise TidalPyOrbitError(f'Trying to set the stellar distance of the tidal host, but tidal host is '
+                                            f'the star in: {self}')
+                else:
+                    return 0
+            else:
+                # Recall this method, but to get the tide raiser's index.
+                if self.host_tide_raiser is None:
+                    log.error("Trying to access tidal host parameters but the host's tide raiser has not been set.")
+                    raise TidalPyOrbitError("Trying to access tidal host parameters but the host's tide raiser has not "
+                                            "been set.")
+                return self.world_signature_to_index(self.host_tide_raiser)
 
         # No idea what type the world signature is...
         log.error(f'World signature provided as an unexpected type: {type(world_signature)}.')
         raise BadWorldSignatureType
 
-
-    # # Tidal World Getters
-    def get_eccentricity(self, world_signature: WorldSignatureType) -> FloatArray:
-        """ Provided a world's signature, this method will retrieve its orbital eccentricity.
-
-        Parameters
-        ----------
-        world_signature : WorldSignatureType
-            A signature used to distinguish one tidal world from another. This could be its name,
-                orbital location index, or the instance of an initialized TidalPy world.
-
-        Returns
-        -------
-        eccentricity : FloatArray
-            Orbital eccentricity relative to the tidal host.
-        """
-
-        world_index = self.world_signature_to_index(world_signature)
-
-        return self.eccentricities[world_index]
-
-    def get_semi_major_axis(self, world_signature: WorldSignatureType) -> FloatArray:
-        """ Provided a world's signature, this method will retrieve its orbital semi_major_axis [m].
-
-        Parameters
-        ----------
-        world_signature : WorldSignatureType
-            A signature used to distinguish one tidal world from another. This could be its name,
-                orbital location index, or the instance of an initialized TidalPy world.
-
-        Returns
-        -------
-        semi_major_axis : FloatArray
-            Orbital semi-major axis relative to the tidal host [m].
-        """
-
-        world_index = self.world_signature_to_index(world_signature)
-
-        return self.semi_major_axes[world_index]
-
-    def get_orbital_frequency(self, world_signature: WorldSignatureType) -> FloatArray:
-        """ Provided a world's signature, this method will retrieve its orbital frequency [rad s-1].
-
-        Parameters
-        ----------
-        world_signature : WorldSignatureType
-            A signature used to distinguish one tidal world from another. This could be its name,
-                orbital location index, or the instance of an initialized TidalPy world.
-
-        Returns
-        -------
-        orbital_motion : FloatArray
-            Orbital mean motion relative to the tidal host [rad s-1].
-        """
-
-        world_index = self.world_signature_to_index(world_signature)
-
-        return self.orbital_frequencies[world_index]
-
-    def get_orbital_period(self, world_signature: WorldSignatureType) -> FloatArray:
-        """ Provided a world's signature, this method will retrieve its orbital eccentricity [days].
-
-        Parameters
-        ----------
-        world_signature : WorldSignatureType
-            A signature used to distinguish one tidal world from another. This could be its name,
-                orbital location index, or the instance of an initialized TidalPy world.
-
-        Returns
-        -------
-        orbital_period : FloatArray
-            Orbital period relative to the tidal host [days].
-        """
-
-        world_index = self.world_signature_to_index(world_signature)
-
-        return self.orbital_periods[world_index]
-
     # # Conversions
-    def semi_a2orbital_motion(self, world_signature: WorldSignatureType, semi_major_axis: FloatArray) -> FloatArray:
+    def semi_a2orbital_motion(self, world_signature: WorldSignatureType, semi_major_axis: FloatArray,
+                              set_stellar_orbit: bool = False) -> FloatArray:
         """ Providing a world's signature and a semi-major axis, this method will calculate the world's orbital motion.
 
         This is largely a convenience wrapper around TidalPy.tools.conversions.semi_a2orbital_motion.
@@ -803,6 +1061,10 @@ class OrbitBase(TidalPyClass):
                 orbital location index, or the instance of an initialized TidalPy world.
         semi_major_axis : FloatArray
             The world's orbital semi-major axis relative to the tidal host [m].
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                dont). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
 
         Returns
         -------
@@ -810,16 +1072,20 @@ class OrbitBase(TidalPyClass):
             The world's orbital mean motion relative to the tidal host [rad s-1].
         """
 
-        world_index = self.world_signature_to_index(world_signature)
-        if world_index == 0:
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
+        if world_index == 0 and not set_stellar_orbit:
             log.warning('Trying to calculate orbital motion for the tidal host relative to itself.')
 
         world_mass = self.tidal_objects[world_index].mass
-        orbital_motion = semi_a2orbital_motion(semi_major_axis, self.tidal_host.mass, world_mass)
+        host_mass = self.tidal_host.mass
+        if set_stellar_orbit:
+            host_mass = self.star.mass
+        orbital_motion = semi_a2orbital_motion(semi_major_axis, host_mass, world_mass)
 
         return orbital_motion
 
-    def orbital_motion2semi_a(self, world_signature: WorldSignatureType, orbital_motion: FloatArray) -> FloatArray:
+    def orbital_motion2semi_a(self, world_signature: WorldSignatureType, orbital_motion: FloatArray,
+                              set_stellar_orbit: bool = False) -> FloatArray:
         """ Providing a world's signature and a orbital motion, this method will calculate the world's semi-major axis.
 
         This is largely a convenience wrapper around TidalPy.tools.conversions.orbital_motion2semi_a.
@@ -831,6 +1097,10 @@ class OrbitBase(TidalPyClass):
                 orbital location index, or the instance of an initialized TidalPy world.
         orbital_motion : FloatArray
             The world's orbital mean motion relative to the tidal host [rad s-1].
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                dont). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
 
         Returns
         -------
@@ -838,12 +1108,15 @@ class OrbitBase(TidalPyClass):
             The world's orbital semi-major axis relative to the tidal host [m].
         """
 
-        world_index = self.world_signature_to_index(world_signature)
-        if world_index == 0:
+        world_index = self.world_signature_to_index(world_signature, for_stellar_orbit=set_stellar_orbit)
+        if world_index == 0 and not set_stellar_orbit:
             log.warning('Trying to calculate semi-major axis for the tidal host relative to itself.')
 
         world_mass = self.tidal_objects[world_index].mass
-        semi_major_axis = orbital_motion2semi_a(orbital_motion, self.tidal_host.mass, world_mass)
+        host_mass = self.tidal_host.mass
+        if set_stellar_orbit:
+            host_mass = self.star.mass
+        semi_major_axis = orbital_motion2semi_a(orbital_motion, host_mass, world_mass)
 
         return semi_major_axis
 
@@ -965,7 +1238,7 @@ class OrbitBase(TidalPyClass):
 
     @property
     def universal_time(self) -> FloatArray:
-        """ Time used in integration studies as well as for calculating radiogenic heating in all tidal worlds. """
+        """ Time used in integration studies as well as for calculating radiogenic heating in all tidal world_types. """
         return self._universal_time
 
     @universal_time.setter
@@ -973,9 +1246,9 @@ class OrbitBase(TidalPyClass):
 
         self._universal_time = value
 
-        # Need to tell all worlds that the time has been updated.
+        # Need to tell all world_types that the time has been updated.
         for world in self.tidal_objects:
-            world.update_time()
+            world.time_changed()
 
     # # Aliased properties
     @property
@@ -993,17 +1266,17 @@ class OrbitBase(TidalPyClass):
         return iter(self.tidal_objects)
 
     def __str__(self):
-        orbit_name = f'Orbit ({self.class_name}'
+        orbit_name = f'Orbit ({self.__class__.__name__}'
 
         if self.tidal_host is not None:
-            orbit_name += f', H={self.tidal_host.name}'
+            orbit_name += f', Host: {self.tidal_host.name}'
 
         if self.star is not None:
-            orbit_name += f', S={self.star.name}'
+            orbit_name += f', Star: {self.star.name}'
 
         num_tidal_worlds = len(self.tidal_objects)
         if num_tidal_worlds > 1:
-            orbit_name += f', TW={num_tidal_worlds}'
+            orbit_name += f', #TidalWorlds={num_tidal_worlds}'
 
         orbit_name += ')'
         return orbit_name

@@ -8,7 +8,7 @@ use_numba = TidalPy.configurations['use_numba']
 
 def test_eccentricity_func_load():
 
-    from TidalPy.tides.eccentricityFuncs import eccentricity_truncations
+    from TidalPy.tides.eccentricity_funcs import eccentricity_truncations
 
     # As of version 0.2.1, TidalPy should contain truncations up to e^22 (only even truncations)
     assert len(eccentricity_truncations) == 11
@@ -21,7 +21,7 @@ def test_eccentricity_func_load():
 
 def test_eccentricity_func():
 
-    from TidalPy.tides.eccentricityFuncs import eccentricity_truncations
+    from TidalPy.tides.eccentricity_funcs import eccentricity_truncations
 
     print('Testing Eccentricity Functions. Compile times for njit may take a long time the first time.')
     # Each eccentricity function should return a nested dictionary setup like:
@@ -52,7 +52,7 @@ def test_eccentricity_func():
 
 def test_inclination_func_load():
 
-    from TidalPy.tides.inclinationFuncs import inclination_functions, inclination_functions_on,\
+    from TidalPy.tides.inclination_funcs import inclination_functions, inclination_functions_on,\
         inclination_functions_off
 
     # inclination_functions should contain two options: one for obliquity tides on and one for them being off.
@@ -67,7 +67,7 @@ def test_inclination_func_load():
 
 def test_inclination_func():
 
-    from TidalPy.tides.inclinationFuncs import inclination_functions_on, inclination_functions_off
+    from TidalPy.tides.inclination_funcs import inclination_functions_on, inclination_functions_off
 
     # Each inclination function should return a dictionary setup like:
     #   {(p_0, m_0): <result>, (p_0, m_1): <result>, ... (p_1, m_0): <result>, ...}

@@ -11,7 +11,7 @@ from ....exceptions import (MissingArgumentError, ParameterMissingError,
 
 if TYPE_CHECKING:
     from ....structures.layers import PhysicalLayerType
-    from ....structures.worlds import LayeredWorldType
+    from ....structures.world_types import LayeredWorldType
 
 class ModelHolder(ConfigHolder):
 
@@ -377,7 +377,7 @@ class LayerModelHolder(ModelHolder):
             log.error(f"Config not provided for {self}; and no defaults are set.")
             raise ParameterMissingError(f"Config not provided for {self}; and no defaults are set.")
 
-        # Setup ModelHolder and ConfigHolder classes. Using the layer's config file as the replacement config.
+        # Setup ModelHolder and ConfigHolder methods. Using the layer's config file as the replacement config.
         super().__init__(model_name=model_name, replacement_config=config, initialize=initialize)
 
         if self.store_config_in_layer:
@@ -430,13 +430,13 @@ class LayerModelHolder(ModelHolder):
         name_str = f'{self.__class__.__name__}'
         if '_model' in self.__dict__:
             if self.model is not None:
-                name_str += ' ({self.model}'
+                name_str += f' ({self.model}'
         if '_layer' in self.__dict__:
             if self.layer is not None:
                 if '(' in name_str:
-                    name_str += f', in {self.layer.name})'
+                    name_str += f' in {self.layer.name})'
                 else:
-                    name_str += f'(L={self.layer.name})'
+                    name_str += f' (Layer: {self.layer.name})'
 
         if '(' in name_str and ')' not in name_str:
             name_str += ')'
