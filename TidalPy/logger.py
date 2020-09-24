@@ -3,9 +3,6 @@ import os
 import sys
 from datetime import datetime
 
-from TidalPy import config
-from . import __version__
-
 LOGGING_LEVELS = {
     # Critical: A serious error, indicating that the program itself may be unable to continue running.
     'CRITICAL': logging.CRITICAL,
@@ -20,20 +17,20 @@ LOGGING_LEVELS = {
     'DEBUG': logging.DEBUG
 }
 
-now = datetime.now()
-now_str = now.strftime('%x at %X')
 
-HEADER_TEXT = (
-    f'----------------------------------------------------------------------------------',
-    f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
-    f'Version: {__version__}',
-    f'Primary Development by Joe Renaud, ca. 2016--2020',
-    f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
-    f'----------------------------------------------------------------------------------',
-    f'Run made on {now_str}.',
-    f'Using Python {sys.version} on {sys.platform}.\n##\n\n'
-)
-HEADER_TEXT = '\n'.join(HEADER_TEXT)
+class LevelFilter(logging.Filter):
+    def __init__(self, low, high):
+        self._low = low
+        self._high = high
+        super().__init__()
+    def filter(self, record):
+        normal_filter = super().filter(record)
+        if normal_filter:
+            # Normal filter is okay, how about logging levels...
+            if self._low <= record.levelno < self._high:
+                return True
+        return False
+
 
 def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_jupyter: bool = False):
     """ Setup Python's logging module based on user provided information as well as built-in TidalPy settings
@@ -56,10 +53,28 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
     log : logging.logger
         Global logger to be used throughout the TidalPy package.
     """
+    from TidalPy import config
+    from . import __version__
+
+    # Build header text
+    now = datetime.now()
+    now_str = now.strftime('%x at %X')
+    HEADER_TEXT = (
+        f'----------------------------------------------------------------------------------',
+        f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
+        f'Version: {__version__}',
+        f'Primary Development by Joe Renaud, ca. 2016--2020',
+        f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
+        f'----------------------------------------------------------------------------------',
+        f'Run made on {now_str}.',
+        f'Using Python {sys.version} on {sys.platform}.\n##\n\n'
+    )
+    HEADER_TEXT = '\n'.join(HEADER_TEXT)
 
     # Setup a global logger
     tidalpy_log = logging.getLogger('tidalpy')
     tidalpy_log.setLevel(LOGGING_LEVELS['DEBUG'])
+    tidalpy_log.handlers = list()
 
     # Setup the log's format
     #    How the saved file looks...
@@ -85,14 +100,18 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
     #    Console printer
     if not running_in_jupyter:
         # We do not want to print to console when we are running in a jupyter notebook
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(stream_formatter)
-        stream_handler.setLevel(config['stream_level'])
-        tidalpy_log.addHandler(stream_handler)
+        reg_stream_handler = logging.StreamHandler(stream=sys.stdout)
+        reg_stream_handler.setFormatter(stream_formatter)
+        reg_stream_handler.addFilter(LevelFilter(LOGGING_LEVELS[config['stream_level']],
+                                                 LOGGING_LEVELS[config['stream_err_level']]))
+        tidalpy_log.addHandler(reg_stream_handler)
+
+        err_stream_handler = logging.StreamHandler(stream=sys.stderr)
+        err_stream_handler.setFormatter(stream_formatter)
+        err_stream_handler.setLevel(config['stream_err_level'])
+        tidalpy_log.addHandler(err_stream_handler)
 
     #    File printer
-    regular_file_handler = None
-    error_file_handler = None
     if write_to_disk:
         regular_file_handler = logging.FileHandler(regular_log_filepath)
         regular_file_handler.setFormatter(file_formatter)
@@ -101,8 +120,7 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         error_file_handler.setFormatter(file_formatter)
         error_file_handler.setLevel(config['error_logfile_level'])
 
-    # Add handlers
-    if write_to_disk:
+        # Add handlers to log
         tidalpy_log.addHandler(regular_file_handler)
         tidalpy_log.addHandler(error_file_handler)
 

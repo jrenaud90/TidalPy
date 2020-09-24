@@ -351,6 +351,10 @@ class PhysicsLayer(LayerBase):
             self._temperature_time_derivative = None
             if force_calculation:
                 raise error
+        except TypeError as error:
+            self._temperature_time_derivative = None
+            if force_calculation:
+                raise error
 
         return self.temperature_time_derivative
 

@@ -41,7 +41,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     """
 
 
-    log.info(f'Preparing to build world: {world_name}')
+    log.info(f'Preparing to build world: {world_name}.')
 
     # If world_config is a file then load it through json and get a dict
     if world_config is not None:

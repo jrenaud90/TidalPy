@@ -3,14 +3,9 @@
 import os
 import sys
 
-import numpy as np
 import json5
+import numpy as np
 
-import TidalPy
-
-from .logger import log_setup
-from .version import version
-from .io_helper import timestamped_str, unique_path
 
 def initialize_tidalpy():
     """ Initialize TidalPy based on information stored in TidalPy.config
@@ -18,6 +13,11 @@ def initialize_tidalpy():
     Items in TidalPy.config are identical to those in configurations.py unless the user changed them and called
         TidalPy.reinit()
     """
+    import TidalPy
+
+    from .logger import log_setup
+    from .version import version
+    from .io_helper import timestamped_str, unique_path
 
     # Are we in a Jupyter Notebook?
     running_in_jupyter = False
@@ -79,6 +79,7 @@ def initialize_tidalpy():
     # Initialize the loggers
     tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc, running_in_jupyter=running_in_jupyter)
     TidalPy.log = tidalpy_log
+
 
     # Finish initialization
     TidalPy._tidalpy_init = True
