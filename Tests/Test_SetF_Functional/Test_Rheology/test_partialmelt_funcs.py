@@ -1,5 +1,10 @@
 import numpy as np
 
+import TidalPy
+
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.reinit()
+
 solidus = 1600.
 liquidus = 2000.
 liquid_shear = 1.0e-5

@@ -216,19 +216,31 @@ class PhysicsLayer(LayerBase):
         if not called_from_cooling:
             self.update_cooling()
 
-    def tidal_frequencies_changed(self):
-        """ The tidal frequencies have changed. Make any necessary updates. """
+    def tidal_frequencies_changed(self, collapse_tidal_modes: bool = True):
+        """ The tidal frequencies have changed. Make any necessary updates.
 
-        super().tidal_frequencies_changed()
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
+
+        super().tidal_frequencies_changed(collapse_tidal_modes=collapse_tidal_modes)
 
         # Tell the rheology to update its complex compliances if applicable.
-        self.rheology.tidal_frequencies_changed()
+        self.rheology.tidal_frequencies_changed(collapse_tidal_modes=collapse_tidal_modes)
 
-    def complex_compliances_changed(self):
-        """ The complex compliances have changed. Make any necessary updates. """
+    def complex_compliances_changed(self, collapse_tidal_modes: bool = True):
+        """ The complex compliances have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         # This is called from bottom-to-top starting in the ComplexCompliances class inside Rheology.
-        self.world.complex_compliances_changed()
+        self.world.complex_compliances_changed(collapse_tidal_modes=collapse_tidal_modes)
 
     def clear_state(self, clear_pressure: bool = False):
 
@@ -331,18 +343,20 @@ class PhysicsLayer(LayerBase):
             for heat_source_func in self.heat_sources:
                 heat_source = heat_source_func()
                 if heat_source is None:
-                    log.error(f'One or more heat sources were not set for layer {self}.')
-                    raise AttributeNotSetError(f'One or more heat sources were not set for layer {self}.')
-                total_heating += heat_source
+                    log.warning(f'One or more heat sources were not set for layer {self}.')
+                else:
+                    total_heating += heat_source
 
             # Cooling is calculated by the cooling_model class
             if self.cooling is None:
-                log.error(f'Cooling was not set for layer {self}.')
-                raise AttributeNotSetError(f'Cooling was not set for layer {self}.')
-            total_cooling = self.cooling
+                log.warning(f'Cooling was not set for layer {self}.')
+                self._temperature_time_derivative = None
+            else:
+                total_cooling = self.cooling
+                self._temperature_time_derivative = \
+                    (total_heating - total_cooling) / \
+                    (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
 
-            self._temperature_time_derivative = (total_heating - total_cooling) / \
-                                                (self.mass * self.specific_heat * (self.stefan + 1.) * self.temp_ratio)
         except AttributeNotSetError as error:
             self._temperature_time_derivative = None
             if force_calculation:
@@ -404,12 +418,8 @@ class PhysicsLayer(LayerBase):
         return self._rheology
 
     @rheology.setter
-    def rheology(self, new_rheology: 'Rheology'):
-
-        # Set rheology and then call updates
-        self._rheology = new_rheology
-        self.update_thermal()
-        self.update_tides()
+    def rheology(self, value):
+        raise ConfigPropertyChangeError
 
     @property
     def cooling_model(self) -> 'CoolingModel':
@@ -418,10 +428,7 @@ class PhysicsLayer(LayerBase):
 
     @cooling_model.setter
     def cooling_model(self, new_cooling_model: 'CoolingModel'):
-
-        # Set cooling model and then call thermal update
-        self._cooling_model = new_cooling_model
-        self.update_thermal()
+        raise ConfigPropertyChangeError
 
     @property
     def radiogenics(self) -> 'Radiogenics':
@@ -430,10 +437,7 @@ class PhysicsLayer(LayerBase):
 
     @radiogenics.setter
     def radiogenics(self, new_radiogenics: 'Radiogenics'):
-
-        # Set radiogenics model and then call time update
-        self._radiogenics = new_radiogenics
-        self.update_time()
+        raise ConfigPropertyChangeError
 
 
     # Inner-scope properties

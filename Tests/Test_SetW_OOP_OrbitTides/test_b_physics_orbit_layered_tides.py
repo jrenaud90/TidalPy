@@ -1,8 +1,13 @@
 import numpy as np
 
+import TidalPy
+
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.use_disk = False
+TidalPy.reinit()
+
 from TidalPy import build_world, build_from_world
 from TidalPy.orbit import PhysicsOrbit
-from TidalPy.tools.conversions import rads2days, days2rads, semi_a2orbital_motion
 
 star = build_world('55cnc')
 world = build_world('io')
@@ -43,8 +48,6 @@ def test_layered_tide_model_maxwell_rheology():
     assert type(world_tidal.mantle.viscosity) == float
     assert type(world_tidal.mantle.shear_modulus) == float
 
-    world_tidal.mantle.print_config()
-
     # Test Floats
     # Set orbital frequency and eccentricity - check that spin locking worked.
     world_tidal.set_state(orbital_period=50., eccentricity=0.2, obliquity=np.radians(10.),
@@ -63,9 +66,6 @@ def test_layered_tide_model_maxwell_rheology():
     assert type(world_tidal.dUdO) == float
     assert type(world_tidal.dUdw) == float
     assert type(world_tidal.tidal_heating_global) == float
-
-    import pprint
-    pprint.pprint(world_tidal.tides.__dict__)
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.

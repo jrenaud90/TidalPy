@@ -3,7 +3,10 @@ from scipy.special import gamma
 import numpy as np
 
 import TidalPy
+
+TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.use_disk = False
+TidalPy.reinit()
 
 def test_find_factorial():
 

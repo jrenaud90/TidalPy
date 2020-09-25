@@ -1,5 +1,11 @@
 import copy
 
+import TidalPy
+
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.use_disk = False
+TidalPy.reinit()
+
 big_io_config = {
     "name": "BigIo",
     "type": "layered",

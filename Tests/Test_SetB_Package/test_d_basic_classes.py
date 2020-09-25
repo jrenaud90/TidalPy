@@ -1,5 +1,10 @@
 import pytest
 
+import TidalPy
+
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.reinit()
+
 from TidalPy import version
 from TidalPy.exceptions import ParameterMissingError
 from TidalPy.utilities.classes import TidalPyClass, ConfigHolder

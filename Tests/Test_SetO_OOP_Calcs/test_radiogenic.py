@@ -1,5 +1,10 @@
 import numpy as np
 
+import TidalPy
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.use_disk = False
+TidalPy.reinit()
+
 from TidalPy import build_world, build_from_world
 
 # Build basic layered io

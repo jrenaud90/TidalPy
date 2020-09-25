@@ -10,9 +10,9 @@ from .defaults import tide_defaults
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
 from ..mode_manipulation import FreqSig, DissipTermsArray
 from ... import log
-from ...utilities.performance import njit
 from ...exceptions import (NotYetImplementedError, IncorrectMethodToSetStateProperty,
                            ConfigPropertyChangeError, UnknownModelError)
+from ...utilities.performance import njit
 from ...utilities.types import FloatArray, ComplexArray
 
 if TYPE_CHECKING:
@@ -196,7 +196,7 @@ class GlobalApproxTides(TidesBase):
 
     def orbit_spin_changed(self, eccentricity_change: bool = True, obliquity_change: bool = True,
                            orbital_freq_changed: bool = True, spin_freq_changed: bool = True,
-                           call_world_compliance_calc: bool = False, call_collapse_modes: bool = True) -> \
+                           call_world_frequency_changed: bool = False, call_collapse_modes: bool = True) -> \
             Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
@@ -216,7 +216,7 @@ class GlobalApproxTides(TidesBase):
             If there was no change in the orbital frequency set this to False for a performance boost.
         spin_freq_changed : bool = True
             If there was no change in the spin frequency set this to False.
-        call_world_compliance_calc : bool = True
+        call_world_frequency_changed : bool = True
             If `True`, then the method will call the world's complex compliance calculator.
             This flag is set to False for the CPL method.
         call_collapse_modes : bool = True
@@ -240,7 +240,7 @@ class GlobalApproxTides(TidesBase):
         #   calculator.
         super().orbit_spin_changed(eccentricity_change=eccentricity_change, obliquity_change=obliquity_change,
                                    orbital_freq_changed=orbital_freq_changed, spin_freq_changed=spin_freq_changed,
-                                   call_world_compliance_calc=False, call_collapse_modes=False)
+                                   call_world_frequency_changed=False, call_collapse_modes=False)
 
         # See if we need to update the CTL/CPL method results
         tidal_freqs_changed = orbital_freq_changed or spin_freq_changed
@@ -318,14 +318,8 @@ class GlobalApproxTides(TidesBase):
         TidalPy.tides.Tides.orbit_spin_changed
         """
 
-        # Check to see if all the needed state properties are present
-        all_values_present = True
-
-        # Check to see if tidal terms have been loaded.
-        if self.tidal_terms_by_frequency is None:
-            all_values_present = False
-
-        if all_values_present:
+        # Check to see if all the needed state properties are present and then begin calculations
+        if self.tidal_terms_by_frequency is not None:
             tidal_scale, radius, bulk_density, gravity_surf = self.tidal_inputs
 
             # Shear modulus is not used in the CTL/CPL scheme. However, it needs to be provided as a number to the
@@ -351,8 +345,8 @@ class GlobalApproxTides(TidesBase):
             self._global_negative_imk_by_orderl = negative_imk_by_orderl
             self._effective_q_by_orderl = effective_q_by_orderl
 
-        # Tell the parent class to update the world's dissipation flag.
-        super().collapse_modes()
+            # Tell the parent class to update the world's dissipation flag.
+            super().collapse_modes()
 
         # Return tidal heating and derivatives
         return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO

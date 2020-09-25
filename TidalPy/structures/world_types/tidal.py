@@ -110,14 +110,22 @@ class TidalWorld(BaseWorld):
 
         # Tell the tides model that the orbit and/or spin has changed.
         if self.tides is not None:
-            self.tides.orbit_spin_changed(eccentricity_change=eccentricity_changed, obliquity_change=obliquity_changed,
-                                          orbital_freq_changed=orbital_freq_changed, spin_freq_changed=spin_freq_changed)
+            self.tides.orbit_spin_changed(eccentricity_change=eccentricity_changed,
+                                          obliquity_change=obliquity_changed,
+                                          orbital_freq_changed=orbital_freq_changed,
+                                          spin_freq_changed=spin_freq_changed)
 
-        if call_orbit_dissipation:
-            self.orbit.dissipation_changed(self)
+            if call_orbit_dissipation:
+                self.orbit.dissipation_changed(self)
 
-    def tidal_frequencies_changed(self):
-        """ The tidal frequencies have changed. Make any necessary updates. """
+    def tidal_frequencies_changed(self, collapse_tidal_modes: bool = True):
+        """ The tidal frequencies have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         log.debug(f'Tidal frequencies changed for {self}.')
 

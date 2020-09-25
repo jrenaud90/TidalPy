@@ -28,22 +28,25 @@ def clean_world_config(world_config: dict, make_copy: bool = True):
     else:
         cleaned_dict = world_config
 
+    # Remove any old tidalpy version in case this was loaded from a pickled save.
+    if 'TidalPy_version' in world_config:
+        del cleaned_dict['TidalPy_version']
+
     # Determine if this is a BurnMan world type
     is_burnman = world_config['type'] == 'burnman'
 
-    if 'TidalPy_version' in world_config:
-        del cleaned_dict['TidalPy_version']
-    for layer_name, layer_dict in world_config['layers'].items():
+    # If there are layers, then clean the layer dicts
+    if 'layers' in world_config:
+        for layer_name, layer_dict in world_config['layers'].items():
+            if 'radii' in layer_dict:
+                del cleaned_dict['layers'][layer_name]['radii']
 
-        if 'radii' in layer_dict:
-            del cleaned_dict['layers'][layer_name]['radii']
-
-        if is_burnman:
-            # Burnman world's will have some material properties set by the EOS. Delete any that are in the config.
-            for thermal_param in ['thermal_conductivity', 'thermal_diffusivity', 'thermal_expansion', 'stefan',
-                                  'shear_modulus']:
-                if thermal_param in layer_dict:
-                    del cleaned_dict['layers'][layer_name][thermal_param]
+            if is_burnman:
+                # Burnman world's will have some material properties set by the EOS. Delete any that are in the config.
+                for thermal_param in ['thermal_conductivity', 'thermal_diffusivity', 'thermal_expansion', 'stefan',
+                                      'shear_modulus']:
+                    if thermal_param in layer_dict:
+                        del cleaned_dict['layers'][layer_name][thermal_param]
 
     return cleaned_dict
 

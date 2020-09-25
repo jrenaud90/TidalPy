@@ -112,7 +112,7 @@ After you have installed TidalPy and have made some changes, you should run test
 * Open a terminal/shell and navigate to the TidalPy directory.
 * Ensure you have pytest installed (`pip install pytest`).
 * Simply type `pytest` and hit enter. Pytest will automatically look for all test cases in the `/Tests/` directory and run them.
-    * Note that multiple warnings for `invalid escape sequence` for the `burnman` package may show up. You can ignore these or tell pytest to ignore them using the flag: `pytest -W ignore::DeprecationWarning`
+    * Note that multiple warnings may show while you are running tests. These are likely normal warnings and are expected. TidalPy will try to raise an `Exception` (which `pytest` should catch automatically) when there is a serious problem.
 
 ## License Information
 You are welcome to make a copy/fork of TidalPy and make modifications assuming the following conditions are met:

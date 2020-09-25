@@ -69,8 +69,14 @@ class Rheology(LayerConfigHolder):
                   f"\tPartial Melting:     {self.partial_melting_model.model}\n"
                   f"\tComplex Compliance:  {self.complex_compliance_model.model}")
 
-    def tidal_frequencies_changed(self):
-        """ The tidal frequencies have changed. Make any necessary updates. """
+    def tidal_frequencies_changed(self, collapse_tidal_modes: bool = True):
+        """ The tidal frequencies have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         log.debug(f'Tidal frequencies changed called for {self}.')
 
@@ -80,15 +86,21 @@ class Rheology(LayerConfigHolder):
                 self.complex_compliance_model.calculate()
 
                 # Tell the rheology class that the complex compliances have changed.
-                self.complex_compliances_changed()
+                self.complex_compliances_changed(collapse_tidal_modes=collapse_tidal_modes)
 
-    def complex_compliances_changed(self):
-        """ The complex compliances have changed. Make any necessary updates. """
+    def complex_compliances_changed(self, collapse_tidal_modes: bool = True):
+        """ The complex compliances have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         log.debug(f'Complex compliances changed called for {self}.')
 
         if self.complex_compliances is not None:
-            self.layer.complex_compliances_changed()
+            self.layer.complex_compliances_changed(collapse_tidal_modes=collapse_tidal_modes)
 
     def temperature_pressure_changed(self):
         """ The layer's temperature and/or pressure has changed. Make any necessary updates. """

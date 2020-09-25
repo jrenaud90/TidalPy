@@ -102,11 +102,19 @@ class LayeredTides(TidesBase):
             world_gravity = lambda: self.world.gravity_surface
             self._world_tidal_input_getters = (world_radius, world_density, world_gravity)
 
-    def complex_compliances_changed(self):
-        """ The complex compliances have changed. Make any necessary updates. """
+    def complex_compliances_changed(self, collapse_tidal_modes: bool = True):
+        """ The complex compliances have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         # This is called from bottom-to-top starting in the ComplexCompliances class inside Rheology.
-        self.collapse_modes()
+
+        if collapse_tidal_modes:
+            self.collapse_modes()
 
     def clear_state(self):
         """ Clear the state properties for the layered tides model """
@@ -143,14 +151,8 @@ class LayeredTides(TidesBase):
         TidalPy.tides.Tides.orbit_spin_changed
         """
 
-        # Check to see if all the needed state properties are present
-        all_values_present = True
-
-        # Check to see if tidal terms have been loaded.
-        if self.tidal_terms_by_frequency is None:
-            all_values_present = False
-
-        if all_values_present:
+        # Check to see if all the needed state properties are present and then begin calculations
+        if self.tidal_terms_by_frequency is not None:
             nonNone_love_number = list()
             nonNone_neg_imk = list()
             nonNone_effective_q = list()
@@ -247,7 +249,6 @@ class LayeredTides(TidesBase):
                 for order_l in range(2, self.max_tidal_order_lvl+1):
 
                     # TODO: Should all of these simply be sums of each layer's contribution?
-
                     self._effective_q_by_orderl[order_l] = \
                         sum([nonNone_effective_q_for_layer[order_l] for nonNone_effective_q_for_layer
                              in nonNone_effective_q])
@@ -261,14 +262,8 @@ class LayeredTides(TidesBase):
                 # Now tell other methods to update now that derivatives and heating has been altered
                 super().collapse_modes()
 
-                # Return tidal heating and derivatives
-                return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
-
-            else:
-                return None, None, None, None
-
-        else:
-            return None, None, None, None
+        # Return tidal heating and derivatives
+        return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
 
 
     # # State properties

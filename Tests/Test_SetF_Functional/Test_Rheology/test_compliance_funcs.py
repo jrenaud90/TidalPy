@@ -1,6 +1,10 @@
 import numpy as np
 import numba
 
+import TidalPy
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.reinit()
+
 from TidalPy.rheology.complex_compliance import known_models
 
 def test_all_models():

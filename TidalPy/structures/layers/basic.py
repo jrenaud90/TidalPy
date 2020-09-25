@@ -156,8 +156,14 @@ class LayerBase(PhysicalObjSpherical):
 
         # Updates set by child methods.
 
-    def tidal_frequencies_changed(self):
-        """ The tidal frequencies have changed. Make any necessary updates. """
+    def tidal_frequencies_changed(self, collapse_tidal_modes: bool = True):
+        """ The tidal frequencies have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         log.debug(f'Tidal frequencies changed for {self}.')
 

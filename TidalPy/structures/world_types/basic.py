@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Union
 import numpy as np
 
 from .defaults import world_defaults
-from ...tools.conversions import days2rads, rads2days
 from .. import PhysicalObjSpherical
 from ... import debug_mode, use_disk, tidalpy_loc, configurations, log
 from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
@@ -15,6 +14,7 @@ from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            OuterscopePropertySetError)
 from ...helpers.orbit_config import pull_out_orbit_from_config
 from ...stellar import calc_equilibrium_temperature, equilibrium_insolation_functions, EquilibFuncType
+from ...tools.conversions import days2rads, rads2days
 from ...utilities.graphics import geotherm_plot
 from ...utilities.types import FloatArray, NoneType
 
@@ -277,8 +277,6 @@ class BaseWorld(PhysicalObjSpherical):
         new_semi_major_axis = semi_major_axis is not None
         new_eccentricity = eccentricity is not None
 
-        new_orbital_freq = new_orbital_period or new_orbital_frequency or new_semi_major_axis
-
         # Check for time changes
         if new_time:
             self.set_time(time, call_updates=False)
@@ -288,9 +286,10 @@ class BaseWorld(PhysicalObjSpherical):
             if new_spin_period:
                 log.warning(f'Both a new spin frequency and a spin period or provided to {self}. Using spin frequency.')
             self.set_spin_frequency(spin_frequency, call_updates=False)
-
-        if new_spin_period:
+        elif new_spin_period:
             self.set_spin_period(spin_period, call_updates=False)
+            # A change to the spin period will also change the spin frequency
+            new_spin_frequency = True
 
         if new_obliquity:
             self.set_obliquity(obliquity, call_updates=False)
@@ -302,16 +301,28 @@ class BaseWorld(PhysicalObjSpherical):
                                  orbital_frequency=orbital_frequency, orbital_period=orbital_period,
                                  set_by_world=True)
 
+            if new_orbital_period and not new_orbital_frequency:
+                # A change to the orbital period will also change the spin frequency
+                new_orbital_frequency = True
+            if new_semi_major_axis and not new_orbital_frequency:
+                # A change to the orbital semi-major axis will also change the spin frequency
+                new_orbital_frequency = True
+
         if not set_by_world:
+
+            if new_orbital_frequency and self.force_spin_sync:
+                # If the orbital frequency changes and the world is forced into synchronous rotation then its spin
+                #    frequency needs to be updated.
+                self.set_spin_frequency(self.orbital_frequency, call_updates=False)
+
             if new_time:
                 self.time_changed()
 
-            if any((new_spin_frequency, new_orbital_freq, new_obliquity, new_eccentricity)):
+            if any((new_spin_frequency, new_spin_period, new_orbital_frequency, new_obliquity, new_eccentricity)):
                 self.orbit_spin_changed(spin_freq_changed=new_spin_frequency,
-                                        orbital_freq_changed=new_orbital_freq,
+                                        orbital_freq_changed=new_orbital_frequency,
                                         obliquity_changed=new_obliquity,
                                         eccentricity_changed=new_eccentricity)
-
 
     def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
                      update_state_geometry: bool = True, build_slices: bool = True):
@@ -357,7 +368,8 @@ class BaseWorld(PhysicalObjSpherical):
 
         if self.orbit is None:
             self._time = time
-            self.time_changed()
+            if call_updates:
+                self.time_changed()
         else:
             raise ImproperPropertyHandling('Time must be set at the Orbit-level once an orbit is applied.')
 
@@ -777,6 +789,38 @@ class BaseWorld(PhysicalObjSpherical):
                                        f'to {self}.')
         self.orbit.set_stellar_distance(self, new_distance)
 
+    @property
+    def eccentricity_time_derivative(self) -> Union[NoneType, FloatArray]:
+        """ Derivative of eccentricity with respect to time (only effects due to tides are considered) """
+        if self.orbit is None:
+            return None
+        else:
+            return self.orbit.get_eccentricity_time_derivative(self)
+
+    @eccentricity_time_derivative.setter
+    def eccentricity_time_derivative(self, value):
+        raise IncorrectMethodToSetStateProperty
+
+    @property
+    def semi_major_axis_time_derivative(self) -> Union[NoneType, FloatArray]:
+        """ Derivative of the semi-major axis with respect to time (only effects due to tides are considered) """
+        if self.orbit is None:
+            return None
+        else:
+            return self.orbit.get_semi_major_axis_time_derivative(self)
+
+    @semi_major_axis_time_derivative.setter
+    def semi_major_axis_time_derivative(self, value):
+        raise IncorrectMethodToSetStateProperty
+
+    @property
+    def orbital_motion_time_derivative(self) -> Union[NoneType, FloatArray]:
+        """ Derivative of the orbital mean motion with respect to time (only effects due to tides are considered) """
+        if self.orbit is None:
+            return None
+        else:
+            return self.orbit.get_orbital_motion_time_derivative(self)
+
 
     # # Aliased properties
     @property
@@ -826,10 +870,3 @@ class BaseWorld(PhysicalObjSpherical):
         str_ = f'{name} ({self.__class__.__name__})'
 
         return str_
-
-    def __repr__(self):
-
-        if 'name' in self.__dict__:
-            if self.name is not None:
-                return f'{self.name}, {self.__class__} object at {hex(id(self))}'
-        return f'Unknown World, {self.__class__} object at {hex(id(self))}'

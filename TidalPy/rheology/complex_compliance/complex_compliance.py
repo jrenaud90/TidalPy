@@ -7,8 +7,8 @@ from .defaults import complex_compliance_defaults
 from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty, OuterscopePropertySetError
 from ...tides.mode_manipulation import FreqSig
 from ...utilities.classes.model import LayerModelHolder
-from ...utilities.types import FloatArray, ComplexArray
 from ...utilities.performance import njit
+from ...utilities.types import FloatArray, ComplexArray
 
 if TYPE_CHECKING:
     from ..rheology import Rheology

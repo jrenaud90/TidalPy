@@ -3,12 +3,11 @@ from typing import TYPE_CHECKING
 import burnman
 import numpy as np
 
-from ... import log
 from .physics import PhysicsLayer
+from ... import log
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import configurations
-from ...exceptions import (UnknownTidalPyConfigValue, AttributeNotSetError, ImproperPropertyHandling,
-                           IncorrectAttributeType, IncorrectMethodToSetStateProperty)
+from ...exceptions import (UnknownTidalPyConfigValue, AttributeNotSetError, ImproperPropertyHandling)
 from ...utilities.numpy_helper.array_other import find_nearest
 from ...utilities.types import FloatArray
 

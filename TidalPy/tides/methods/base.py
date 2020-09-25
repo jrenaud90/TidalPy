@@ -176,7 +176,7 @@ class TidesBase(WorldConfigHolder):
 
     def orbit_spin_changed(self, eccentricity_change: bool = True, obliquity_change: bool = True,
                            orbital_freq_changed: bool = True, spin_freq_changed: bool = True,
-                           call_world_compliance_calc: bool = True,
+                           call_world_frequency_changed: bool = True,
                            call_collapse_modes: bool = True) -> \
             Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
@@ -197,7 +197,7 @@ class TidesBase(WorldConfigHolder):
             If there was no change in the orbital frequency set this to False for a performance boost.
         spin_freq_changed : bool = True
             If there was no change in the spin frequency set this to False.
-        call_world_compliance_calc : bool = True
+        call_world_frequency_changed : bool = True
             If `True`, then the method will call the world's complex compliance calculator.
             This flag is set to False for the CPL method.
         call_collapse_modes : bool = True
@@ -220,55 +220,50 @@ class TidesBase(WorldConfigHolder):
         need_to_collapse_modes = False
         new_tidal_frequencies = False
 
-        # Check to see if all the needed state properties are present
-        all_values_present = True
-        for param in [self.orbital_frequency, self.spin_frequency, self.eccentricity, self.semi_major_axis]:
-            if param is None:
-                all_values_present = False
-                break
+        if orbital_freq_changed:
+            # Orbital changes may have changed the tidal susceptibility
+            self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
+                                                                   self.semi_major_axis)
 
-        if all_values_present:
-            # Check if we need to calculate new eccentricity results
-            if eccentricity_change:
+        # Check if we need to calculate new eccentricity results
+        if self.eccentricity is not None:
+            if eccentricity_change or self.eccentricity_results is None:
                 self._eccentricity_results = self.eccentricity_func(self.eccentricity)
                 need_to_collapse_modes = True
 
-            if obliquity_change:
+        if obliquity_change or self.obliquity_results is None:
+            if self.obliquity is None:
+                # TODO: This is pretty messy way to do things.
+                # OPT: See above
+                self._obliquity_results = self.obliquity_func(np.zeros_like(self.eccentricity))
+                need_to_collapse_modes = True
+            else:
                 self._obliquity_results = self.obliquity_func(self.obliquity)
                 need_to_collapse_modes = True
 
-            if self.eccentricity_results is not None and self.obliquity_results is None:
-                # TODO This is pretty messy way to do things.
-                self._obliquity_results = self.obliquity_func(np.zeros_like(self.eccentricity))
+        if self.obliquity_results is not None and self.eccentricity_results is not None:
+            # Check that obliquity and eccentricity results have the same length (same max_l used).
+            if len(self.obliquity_results) != len(self.eccentricity_results):
+                raise IncompatibleModelError('Obliquity and Eccentricity results do not have the same length.'
+                                             'max_tidal_l may not have been set the same for the functions.')
 
-            if self.obliquity_results is not None and self.eccentricity_results is not None:
-                # Check that obliquity and eccentricity results have the same length (same max_l used).
-                if len(self.obliquity_results) != len(self.eccentricity_results):
-                    raise IncompatibleModelError('Obliquity and Eccentricity results do not have the same length.'
-                                                 'max_tidal_l may not have been set the same for the functions.')
-
-            if spin_freq_changed or orbital_freq_changed:
+        if spin_freq_changed or orbital_freq_changed:
+            if self.eccentricity_results is not None and self.obliquity_results is not None and \
+                    self.spin_frequency is not None and self.orbital_frequency is not None:
                 self._unique_tidal_frequencies, self._tidal_terms_by_frequency = \
                     self.calculate_modes_func(self.spin_frequency, self.orbital_frequency, self.semi_major_axis,
                                               self.radius, self.eccentricity_results, self.obliquity_results,
                                               self.multiply_modes_by_sign)
-
                 # Now that there are new frequencies, tell the world so that new complex compliances can be calculated.
                 new_tidal_frequencies = True
                 need_to_collapse_modes = True
 
-            if orbital_freq_changed:
-                # Orbital changes may have changed the tidal susceptibility
-                self._tidal_susceptibility = calc_tidal_susceptibility(self.tidal_host.mass, self.world.radius,
-                                                                       self.semi_major_axis)
+        if new_tidal_frequencies and call_world_frequency_changed:
+            # Updating the tidal frequencies will automatically call the tide's collapse_modes method. The
+            #    collapse_tidal_modes flag prevents that method from being called more than once.
+            self.world.tidal_frequencies_changed(collapse_tidal_modes=False)
 
-        if new_tidal_frequencies and call_world_compliance_calc:
-            self.world.tidal_frequencies_changed()
-            # Updating the tidal frequencies will automatically call the tide's collapse_modes method. This flag
-            #    prevents that method from being called twice.
-            mode_collapse_already_called = True
-
-        if call_collapse_modes and need_to_collapse_modes and not mode_collapse_already_called:
+        if call_collapse_modes and need_to_collapse_modes:
             self.collapse_modes()
 
         # Return frequencies and tidal terms
@@ -339,7 +334,7 @@ class TidesBase(WorldConfigHolder):
         if run_updates:
             self.fixed_q_dt_changed()
 
-    def collapse_modes(self) -> DissipTermsArray:
+    def collapse_modes(self):
         """ Calculate Global Love number based on current thermal state.
 
         Requires a prior orbit_spin_changed() call as unique frequencies are used to calculate the complex compliances

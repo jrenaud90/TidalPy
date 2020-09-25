@@ -237,19 +237,31 @@ class LayeredWorld(TidalWorld):
         # New surface temperature will change the cooling for the top-most layer.
         self.layers[-1].surface_temperature_changed(called_from_cooling=called_from_cooling)
 
-    def tidal_frequencies_changed(self):
-        """ The tidal frequencies have changed. Make any necessary updates. """
+    def tidal_frequencies_changed(self, collapse_tidal_modes: bool = True):
+        """ The tidal frequencies have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         super().tidal_frequencies_changed()
 
         for layer in self:
-            layer.tidal_frequencies_changed()
+            layer.tidal_frequencies_changed(collapse_tidal_modes=collapse_tidal_modes)
 
-    def complex_compliances_changed(self):
-        """ The complex compliances have changed. Make any necessary updates. """
+    def complex_compliances_changed(self, collapse_tidal_modes: bool = True):
+        """ The complex compliances have changed. Make any necessary updates.
+
+        Parameters
+        ----------
+        collapse_tidal_modes : bool = True
+            If `True`, then the world will tell its tides model to collapse tidal modes.
+        """
 
         # This is called from bottom-to-top starting in the ComplexCompliances class inside Rheology.
-        self.tides.complex_compliances_changed()
+        self.tides.complex_compliances_changed(collapse_tidal_modes=collapse_tidal_modes)
 
     def dissipation_changed(self):
         """ Tidal dissipation has changed. Make any necessary updates. """

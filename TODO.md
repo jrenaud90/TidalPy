@@ -1,6 +1,5 @@
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()
 * Add looking into Cython or fortran for speed-up before 1.0 release to github issues
-* Make 3 different types of setter/getter types "initialized" for ones that can not be changed; "configurized" for ones that can be changed with a reinit(), and "state" which can be changed any time but probably should have a dedicated setter method.
 * Add tests for build_from_world, and scale_from_world
 * Make collaboration guide with notes on TODO, FIXME, OPT
 * Make known issues somewhere; mention numba.errors.TypingError and the flatten() workaround

@@ -1,10 +1,13 @@
-import pytest
 import math
 
 import numpy as np
+import pytest
 from scipy.constants import G
 
-print(G)
+import TidalPy
+
+TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.reinit()
 
 from TidalPy.exceptions import BadValueError
 from TidalPy.tools.conversions import sec2myr, \

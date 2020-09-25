@@ -5,7 +5,9 @@ import numpy as np
 from scipy.constants import G
 
 import TidalPy
+TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.use_disk = False
+TidalPy.reinit()
 
 earth_radius = 6.37101e6
 sun_mass = 1.988435e30

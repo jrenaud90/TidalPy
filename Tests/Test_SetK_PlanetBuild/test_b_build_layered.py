@@ -111,8 +111,6 @@ def test_build_from_layered_world():
 def test_build_from_layered_world_scale_radius():
     """ This will test building a secondary LayeredWorld from an already built one using a radius scaling technique. """
 
-    # TODO: Add tests to the burnman version that checks the scaling on it.
-
     # Build a regular layered Io first.
     io = TidalPy.build_world('Io_Simple')
 
