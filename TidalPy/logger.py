@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import warnings
 from datetime import datetime
 
 LOGGING_LEVELS = {
@@ -110,6 +111,11 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         err_stream_handler.setFormatter(stream_formatter)
         err_stream_handler.setLevel(config['stream_err_level'])
         tidalpy_log.addHandler(err_stream_handler)
+    else:
+        # Suppress warnings to console
+        warnings.filterwarnings("ignore")
+        tidalpy_log.propagate = False
+        tidalpy_log.disabled = True
 
     #    File printer
     if write_to_disk:

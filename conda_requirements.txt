@@ -7,3 +7,4 @@ scipy>=1.2.1
 matplotlib>=2.0.0
 json5>=0.7.0
 numba>=0.44.0
+ipywidgets>=7.5.1

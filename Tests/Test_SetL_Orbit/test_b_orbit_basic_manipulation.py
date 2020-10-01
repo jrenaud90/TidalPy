@@ -5,6 +5,10 @@ TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
+from TidalPy import build_world, scale_from_world
+from TidalPy.structures.orbit import OrbitBase
+from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a
+
 io_config = {
     "name": "Io",
     "type": "layered",
@@ -34,10 +38,6 @@ io_config = {
 def test_get_orbital_parameters():
     """ Make sure that orbital parameters set in a world_types configuration are accessible as expected. """
 
-    from TidalPy import build_world, scale_from_world
-    from TidalPy.orbit import OrbitBase
-    from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a
-
     # Build system
     star = build_world('55Cnc')
     io = build_world('io', world_config=io_config)
@@ -58,10 +58,6 @@ def test_get_orbital_parameters():
 
 def test_set_orbital_parameters():
     """ Make sure that orbital parameters can be set as expected. """
-
-    from TidalPy import build_world, scale_from_world
-    from TidalPy.orbit import OrbitBase
-    from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a
 
     # Build system
     star = build_world('55Cnc')
@@ -118,9 +114,6 @@ def test_get_tidal_host_orbital_parameters_host_is_star():
     For this test, the tidal host is the central star.
     """
 
-    from TidalPy import build_world, scale_from_world
-    from TidalPy.orbit import OrbitBase
-
     star = build_world('55Cnc')
     io = build_world('io', world_config=io_config)
     # Build some additional world_types to use as tidal bodies
@@ -158,9 +151,6 @@ def test_get_tidal_host_orbital_parameters_host_is_world():
 
     For this test, the tidal host is a LayeredWorld.
     """
-
-    from TidalPy import build_world, scale_from_world
-    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     io = build_world('io', world_config=io_config)

@@ -121,10 +121,17 @@ class PerformanceTrackBase:
             note = ''
         if array_N is None:
             array_N = pd.NA
+
+        # Get the function name
+        try:
+            func_name = func.__name__
+        except AttributeError:
+            func_name = 'Unknown Func Name (might be Partial)'
+
         new_data = {
             'Date': [today_str],
             'Test Name': [name],
-            'Func Name': [func.__name__],
+            'Func Name': [func_name],
             'Min Time (python - ms)': [float(f'{min_time_py*1000:0.6f}')],
             'Median Time (python - ms)': [float(f'{median_time_py*1000:0.6f}')],
             'Number (timeit)': [number],

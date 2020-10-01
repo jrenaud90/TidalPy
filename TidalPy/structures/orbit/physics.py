@@ -3,12 +3,12 @@ from typing import Union, List
 import numpy as np
 
 from .base import OrbitBase, WorldSignatureType
-from .. import log
-from ..dynamics import semia_eccen_derivatives_array_dual, semia_eccen_derivatives_dual, \
+from ..world_types import AllWorldType, StarWorld, all_tidal_world_types, TidalWorldType
+from ... import log
+from ...dynamics import semia_eccen_derivatives_array_dual, semia_eccen_derivatives_dual, \
     semia_eccen_derivatives_array, semia_eccen_derivatives
-from ..exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
-from ..structures.world_types import AllWorldType, StarWorld, all_tidal_world_types, TidalWorldType
-from ..utilities.types import FloatArray
+from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
+from ...utilities.types import FloatArray
 
 
 class PhysicsOrbit(OrbitBase):

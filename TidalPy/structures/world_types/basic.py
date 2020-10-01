@@ -7,12 +7,12 @@ import numpy as np
 
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
+from ..helpers.orbit_config import pull_out_orbit_from_config
 from ... import debug_mode, use_disk, tidalpy_loc, configurations, log
 from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            AttributeNotSetError, IOException, ConfigPropertyChangeError,
                            IncorrectMethodToSetStateProperty, UnknownModelError, InitiatedPropertyChangeError,
                            OuterscopePropertySetError)
-from ...helpers.orbit_config import pull_out_orbit_from_config
 from ...stellar import calc_equilibrium_temperature, equilibrium_insolation_functions, EquilibFuncType
 from ...tools.conversions import days2rads, rads2days
 from ...utilities.graphics import geotherm_plot
@@ -22,7 +22,7 @@ planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 
 if TYPE_CHECKING:
     from . import AllWorldType
-    from ...orbit import Orbit
+    from ..orbit import Orbit
 
 
 class BaseWorld(PhysicalObjSpherical):
@@ -224,7 +224,7 @@ class BaseWorld(PhysicalObjSpherical):
         self._surface_temperature = None
 
         # Setup functions and models
-        self.equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
+        self._equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
 
         # Reset any orbits this world is connected to
         if not preserve_orbit and self.orbit is not None:

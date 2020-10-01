@@ -1,12 +1,12 @@
 from typing import Union, Dict, List
 
-from .. import log
-from ..exceptions import ImproperPropertyHandling, BadWorldSignature, BadWorldSignatureType, TidalPyOrbitError
 from ..helpers.orbit_config import pull_out_orbit_from_config
-from ..structures.world_types import AllWorldType, StarWorld, all_world_types
-from ..tools.conversions import rads2days, days2rads, semi_a2orbital_motion, orbital_motion2semi_a
-from ..utilities.classes.base import TidalPyClass
-from ..utilities.types import FloatArray
+from ..world_types import AllWorldType, StarWorld, all_world_types
+from ... import log
+from ...exceptions import ImproperPropertyHandling, BadWorldSignature, BadWorldSignatureType, TidalPyOrbitError
+from ...tools.conversions import rads2days, days2rads, semi_a2orbital_motion, orbital_motion2semi_a
+from ...utilities.classes.base import TidalPyClass
+from ...utilities.types import FloatArray
 
 WorldSignatureType = Union[str, int, AllWorldType]
 
@@ -619,6 +619,74 @@ class OrbitBase(TidalPyClass):
                                                            eccentricity_changed=eccentricity_provided,
                                                            obliquity_changed=False,
                                                            call_orbit_dissipation=False)
+
+    def set_states(self, world_signatures: List[WorldSignatureType],
+                  eccentricities: List[FloatArray] = None,
+                  semi_major_axes: List[FloatArray] = None,
+                  orbital_frequencies: List[FloatArray] = None,
+                  orbital_periods: List[FloatArray] = None,
+                  call_orbit_change: bool = True, set_stellar_orbit: bool = False,
+                  set_by_world: bool = False):
+        """ Set the orbital state for multiple worlds (provided as a list of signatures).
+
+        This largely wraps the other orbit setter methods.
+
+        Parameters
+        ----------
+        world_signatures : List[WorldSignatureType]
+            A signature used to distinguish one tidal world from another. This could be its name,
+                orbital location index, or the instance of an initialized TidalPy world.
+        eccentricities : List[FloatArray]
+            New orbital eccentricity for this world.
+        semi_major_axes : List[FloatArray]
+            New orbital semi-major axis for this world [m].
+        orbital_frequencies : List[FloatArray]
+            New orbital frequency for this world [rad s-1].
+        orbital_periods : List[FloatArray]
+            New mean orbital period for this world [days].
+        call_orbit_change : bool = True
+            Flag for if this method should call the orbit_changed() method.
+        set_stellar_orbit : bool = False
+            If `True`, the set method will allow orbital information to be stored for the tidal host (generally not
+                dont). The star's mass will be used for orbital distance / frequency calculations. `self.star_host`
+                must be set to `False`.
+        set_by_world : bool = False
+            If `False`, then orbit will call the world_types orbit_spin_changed() method.
+        """
+
+        # OPT: In its current implementation this method just makes multiple calls to the orbit's set_state method.
+        #    It could be optimized by telling the set_state method to not call_orbit_change and only make one of those
+        #    calls at the end of this method.
+
+        for world_index, world_sig in enumerate(world_signatures):
+            if eccentricities is None:
+                eccentricity = None
+            else:
+                eccentricity = eccentricities[world_index]
+
+            if semi_major_axes is None:
+                semi_major_axis = None
+            else:
+                semi_major_axis = semi_major_axes[world_index]
+
+            if orbital_frequencies is None:
+                orbital_frequency = None
+            else:
+                orbital_frequency = orbital_frequencies[world_index]
+
+            if orbital_periods is None:
+                orbital_period = None
+            else:
+                orbital_period = orbital_periods[world_index]
+
+            self.set_state(world_sig,
+                           eccentricity=eccentricity,
+                           semi_major_axis=semi_major_axis,
+                           orbital_frequency=orbital_frequency,
+                           orbital_period=orbital_period,
+                           call_orbit_change=call_orbit_change,
+                           set_stellar_orbit=set_stellar_orbit,
+                           set_by_world=set_by_world)
 
     def set_eccentricity(self, world_signature: WorldSignatureType, eccentricity: FloatArray,
                          called_from_orbit: bool = False, set_stellar_orbit: bool = False):

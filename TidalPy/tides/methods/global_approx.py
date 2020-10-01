@@ -376,6 +376,10 @@ class GlobalApproxTides(TidesBase):
         """ Functions used to find the inputs for the ctl_calc_method """
         return self._ctl_calc_input_getters
 
+    @ctl_calc_input_getters.setter
+    def ctl_calc_input_getters(self, value):
+        raise ConfigPropertyChangeError
+
     # # State properties
     @property
     def tidal_inputs(self) -> Tuple[float, float, float, float]:
@@ -395,5 +399,5 @@ class GlobalApproxTides(TidesBase):
             return self._cpl_complex_love_by_unique_freq
 
     @complex_love_by_unique_freq.setter
-    def love_by_unique_freq(self, value):
+    def complex_love_by_unique_freq(self, value):
         raise IncorrectMethodToSetStateProperty

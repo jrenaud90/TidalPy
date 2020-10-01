@@ -10,7 +10,7 @@ earth_2 = copy.deepcopy(earth)
 
 # Setup the orbit
 #  In this example we will consider two orbits: Heliocentric and Geocentric
-from TidalPy.orbit import Orbit
+from structures.orbit import Orbit
 sun = build_world('sol')
 # The Sun is entered into the orbit twice because, for this orbit, we are calculating heliocentric tides
 #  instead of lunar tides.

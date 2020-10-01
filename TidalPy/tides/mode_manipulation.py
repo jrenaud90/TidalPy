@@ -292,13 +292,12 @@ def collapse_modes(gravity: float, radius: float, density: float,
         #    Right now it is using the effective rigidity. If it only needs the static then this could be done outside
         #    this function.
         if cpl_ctl_method:
+            if shear_modulus is None:
+                # Numba does not support specific exception methods.
+                raise Exception('Shear modulus is still required for CTL/CPL models. Set it to a fake float e.g., 1.')
             effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
                                                             order_l=2)
         else:
-            if shear_modulus is None:
-                # Numba does not support specific exception methods.
-                raise Exception('Shear modulus is required for non-CTL/CPL models. Set it to a fake float e.g., 1.')
-
             effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
                                                             order_l=tidal_order_l)
 

@@ -42,5 +42,4 @@ from .utilities.graphics import cmaps
 #    Physics
 
 #    OOP
-from .structures import build_world, build_from_world, scale_from_world
-from .orbit import Orbit
+from .structures import build_world, build_from_world, scale_from_world, Orbit

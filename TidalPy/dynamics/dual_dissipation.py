@@ -148,7 +148,7 @@ def eccentricity_derivative_array(semi_major_axis: FloatArray, orbital_motion: F
     de_dt = (e_term1 / denom) * (e_term1 * dR_dM - (dR_dw_1 + dR_dw_2))
 
     # Correct for zero eccentricity
-    de_dt[np.abs(denom) <= float_eps] = 0.
+    de_dt[np.abs(denom * dR_dM) <= float_eps] = 0.
 
     return de_dt
 
@@ -267,7 +267,7 @@ def semia_eccen_derivatives_array(semi_major_axis: np.ndarray, orbital_motion: n
     de_dt = (e_term1 / denom) * (e_term1 * dR_dM - (dR_dw_1 + dR_dw_2))
 
     # Correct for zero eccentricity
-    de_dt[np.abs(denom) <= float_eps] = 0.
+    de_dt[np.abs(denom * dR_dM) <= float_eps] = 0.
 
     return da_dt, de_dt
 

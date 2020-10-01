@@ -7,7 +7,7 @@ TidalPy.use_disk = False
 TidalPy.reinit()
 
 from TidalPy import build_world, build_from_world
-from TidalPy.orbit import PhysicsOrbit
+from TidalPy.structures.orbit import PhysicsOrbit
 
 star = build_world('55cnc')
 world = build_world('io')

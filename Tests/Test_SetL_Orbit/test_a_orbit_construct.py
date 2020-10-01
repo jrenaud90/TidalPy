@@ -6,6 +6,9 @@ TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
+from TidalPy import build_world, scale_from_world
+from TidalPy.structures.orbit import OrbitBase
+
 big_io_config = {
     "name": "BigIo",
     "type": "layered",
@@ -34,8 +37,6 @@ big_io_config = {
 
 def test_basic_orbit_construction():
 
-    from TidalPy.orbit import OrbitBase
-
     # Construct orbit with no members
     orbit = OrbitBase()
 
@@ -44,9 +45,6 @@ def test_basic_orbit_construction():
 
 def test_orbit_construction_with_star():
     """ This will test building an orbit with just a star. """
-
-    from TidalPy import build_world
-    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     star_2 = copy.deepcopy(star)
@@ -69,9 +67,6 @@ def test_orbit_construction_with_star():
 def test_orbit_construction_with_star_and_host():
     """ This will test building an orbit with just a star and tidal host. """
 
-    from TidalPy import build_world
-    from TidalPy.orbit import OrbitBase
-
     star = build_world('55Cnc')
     host = build_world('io_simple')
 
@@ -90,9 +85,6 @@ def test_orbit_construction_with_star_and_host():
 
 def test_orbit_construction_with_star_and_host_and_tidalbody():
     """ This will test building an orbit with one tidal world. """
-
-    from TidalPy import build_world
-    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     big_io = build_world('BigIo', world_config=big_io_config)
@@ -145,9 +137,6 @@ def test_orbit_construction_with_star_and_host_and_tidalbody():
 def test_orbit_construction_with_no_star_and_host_and_tidalbody():
     """ This will test building an orbit with one tidal world, but no star. """
 
-    from TidalPy import build_world
-    from TidalPy.orbit import OrbitBase
-
     big_io = build_world('BigIo', world_config=big_io_config)
     io = build_world('io_simple')
 
@@ -174,9 +163,6 @@ def test_orbit_construction_with_no_star_and_host_and_tidalbody():
 
 def test_orbit_construction_with_star_and_host_and_multi_tidalbodies():
     """ This will test building an orbit with multiple tidal world_types. """
-
-    from TidalPy import build_world, scale_from_world
-    from TidalPy.orbit import OrbitBase
 
     star = build_world('55Cnc')
     big_io = build_world('BigIo', world_config=big_io_config)

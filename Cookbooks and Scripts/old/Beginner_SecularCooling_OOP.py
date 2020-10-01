@@ -1,5 +1,5 @@
 from TidalPy import build_world
-from TidalPy.orbit import Orbit
+from structures.orbit import Orbit
 from TidalPy.tools.conversions import sec2myr, myr2sec
 from TidalPy.utilities.io.progress import progress_bar
 
