@@ -8,12 +8,12 @@ integration_config = {
     'use_visco_volume_for_tidal_scale': True,
     'use_julia': True,
     'lock_at_1to1': True,
-    'time_span': (0., myr2sec(100.))
+    'time_span': (0., myr2sec(10.))
 }
 
 orbital_config = {
     'eccentricity_truncation': 20,
-    'max_tidal_order_l': 3,
+    'max_tidal_order_l': 2,
     'use_obliquity': True
 }
 
@@ -29,8 +29,8 @@ modern_orbital_motion = semi_a2orbital_motion(modern_semi_major_axis, pluto['mas
 initial_semi_a = 6. * pluto['radius']
 initial_orbital_motion = semi_a2orbital_motion(initial_semi_a, pluto['mass'], charon['mass'])
 initial_pluto_spin = 10. * initial_orbital_motion
-initial_charon_spin = 20. * initial_orbital_motion
-initial_eccentricity = 0.4
+initial_charon_spin = 10. * initial_orbital_motion
+initial_eccentricity = 0.5
 
 initial_conditions = [
     # Pluto

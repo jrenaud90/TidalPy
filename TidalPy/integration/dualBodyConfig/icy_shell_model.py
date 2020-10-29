@@ -15,6 +15,7 @@ from ...rheology.complex_compliance import known_models as known_complex_complia
 from ...rheology.partial_melt import known_models as known_partial_melt_models
 from ...dynamics import spin_rate_derivative, semia_eccen_derivatives_dual
 from ...radiogenics import known_models as known_radiogenic_models
+from ...rheology.complex_compliance.complex_compliance import compliance_dict_helper
 
 plt.rcParams.update({'font.size': 14})
 
@@ -538,11 +539,11 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                     # Convective cooling for viscoelastic layer
                     viscoelastic_temperature_delta = viscoelastic_temperature - visco_top_temp
                     viscoelastic_cooling_flux, viscoelastic_boundary_layer_thickness, viscoelastic_rayleigh, \
-                    viscoelastic_nusselt = \
-                        convection(viscoelastic_temperature_delta, viscosity, thermal_conductivity,
-                                   thermal_diffusivity, thermal_expansion,
-                                   viscoelastic_thickness, viscoelastic_gravity, material_density, alpha_conv,
-                                   beta_conv, critical_rayleigh)
+                        viscoelastic_nusselt = \
+                            convection(viscoelastic_temperature_delta, viscosity, thermal_conductivity,
+                                       thermal_diffusivity, thermal_expansion,
+                                       viscoelastic_thickness, viscoelastic_gravity, material_density, alpha_conv,
+                                       beta_conv, critical_rayleigh)
                     viscoelastic_cooling = viscoelastic_surf_area * viscoelastic_cooling_flux
 
 
@@ -552,18 +553,17 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
                     if not calculate_tides:
                         tidal_heating = 0.
-                        dUdM, dUdw, dUdO = 0., 0., 0.
+                        dUdM, dUdw, dUdO = 0., 0., 0.0
                         love_number, negative_imk = 0. + 0.j, 0.
                     else:
                         # Calculate tides!
                         complex_compliance_func = complex_compliance_funcs[object_i][layer_i]
                         rheology_input = rheology_inputs[object_i][layer_i]
                         # Calculate complex compliance based on layer's strength and the unique tidal forcing frequencies
-                        unique_complex_compliances = []
-                        for freq_sig, freq in unique_frequencies.items():
-                            unique_complex_compliances.append(
-                                    complex_compliance_func(freq, compliance, viscosity, *rheology_input)
-                            )
+
+                        unique_complex_compliances = \
+                            compliance_dict_helper(unique_frequencies, complex_compliance_func,
+                                                   (compliance, viscosity), rheology_input)
 
                         # Calculate tidal dissipation
                         if use_planetary_params_for_tide_calc:
@@ -574,12 +574,13 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                             _radius = viscoelastic_radius_upper
                             _gravity = viscoelastic_gravity
                             _density = viscoelastic_mass / viscoelastic_volume
-                        tidal_heating, dUdM, dUdw, dUdO, love_number, negative_imk = \
-                            collapse_modes(_gravity, _radius, _density, shear_modulus, layer_tidal_scale,
-                                           tidal_host_mass, tidal_susceptibility,
-                                           unique_complex_compliances,
-                                           tidal_results_by_frequency,
-                                           max_tidal_order_l, cpl_ctl_method=False)
+                        tidal_heating, dUdM, dUdw, dUdO, love_number_by_order_l, negative_imk_by_order_l, \
+                            effective_q_by_order_l = \
+                                collapse_modes(_gravity, _radius, _density, shear_modulus, layer_tidal_scale,
+                                               tidal_host_mass, tidal_susceptibility,
+                                               unique_complex_compliances,
+                                               tidal_results_by_frequency,
+                                               max_tidal_order_l, cpl_ctl_method=False)
 
                 else:
                     # No viscoelastic layer present. No tides or convection
@@ -703,8 +704,6 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         if obj1_dUdM == 0. and obj1_dUdw == 0. and obj2_dUdM == 0. and obj2_dUdw == 0.:
             # No tides. No change.
             eccentricity_change = 0.
-            de_dt = 0.
-            da_dt = 0.
             orbital_motion_change = 0.
         else:
             da_dt, de_dt = \
@@ -713,6 +712,9 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
                                              object_masses[1], obj2_dUdM, obj2_dUdw)
             eccentricity_change = de_dt
             orbital_motion_change = (-3. / 2.) * (orbital_motion / semi_major_axis) * da_dt
+
+        if eccentricity < 0.:
+            eccentricity_change = 0.
 
         derivative_storage.append(orbital_motion_change)
         derivative_storage.append(eccentricity_change)
@@ -762,6 +764,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         for ax in [ax_semia, ax_spin]:
             ax.set(xscale=x_scale, xlabel=x_label)
         ax_eccen = ax_semia.twinx()
+        ax_eccen.set(xscale=x_scale, xlabel=x_label)
 
         if semi_major_scale is None:
             ax_semia.set(ylabel='Semi-major Axis [km]')
@@ -830,7 +833,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
         ax_spin.legend(loc='best')
         orbspin_fig.savefig(os.path.join(save_locale, f'{run_save_name}_OrbitalSpin.pdf'))
 
-        plt.show()
+        # plt.show()
 
         return orbspin_fig, planet_figures
 
@@ -943,8 +946,9 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
         if auto_plot:
             print('Calling Plotter...')
-            plotter(result_dict, time_domain, save_locale=save_locale, **plotter_kwargs)
+            _plot = plotter(result_dict, time_domain, save_locale=save_locale, **plotter_kwargs)
             print('Plotter Finished.')
+            del _plot
 
 
     return diffeq, integrator, plotter

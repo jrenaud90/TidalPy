@@ -1,6 +1,8 @@
 * Docstrings for quick calcs. 
 * Tests for the new quick calc funcs.
 
+* Look into https://mybinder.org/ for when git goes unprivate.
+
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()
 * Add looking into Cython or fortran for speed-up before 1.0 release to github issues
 * Make collaboration guide with notes on TODO, FIXME, OPT
