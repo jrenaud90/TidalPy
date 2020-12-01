@@ -6,7 +6,7 @@ layer_defaults = {
         # Switches
         'use_surface_gravity'          : True,
         'use_bulk_density'             : True,
-        'use_tvf'                      : True,
+        'use_tidal_vol_frac'           : True,
         'is_tidally_active'            : True,
         'use_pressure_in_strength_calc': False,
 

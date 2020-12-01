@@ -173,7 +173,7 @@ def build_fundamental_matrix(radius_array: np.ndarray, shear_array: np.ndarray,
     return Y, Yinv, Y_reduced_shifted
 
 #@njit
-def find_propagator_matrix(Y_reduced_shifted: np.ndarray, seed_core: np.ndarray) -> np.ndarray:
+def calculate_compound_matrix(Y, Y_inv, seed_core: np.ndarray) -> np.ndarray:
     """ Build the propagator matrix out of the fundamental matrix and the seed matrix at the core
 
     See appendix of Henning & Hurford 2014
@@ -195,21 +195,43 @@ def find_propagator_matrix(Y_reduced_shifted: np.ndarray, seed_core: np.ndarray)
     # We are trying to solve for B where B_i = Y_i Y_(i-1)^(-1) B_(i-1)
 
     # The shape of Y should be 6 x 6 x number_of_layers
-    num_shells = Y_reduced_shifted.shape[2]  # This should be the same for B_core
+    num_shells = Y.shape[2]  # This should be the same for B_core
     seed_shape = seed_core.shape
 
-    B = np.zeros((seed_shape[0], seed_shape[1], num_shells), dtype=np.complex)
+    B = np.zeros((6, 6, num_shells), dtype=np.complex)
+
+    # Load in the seed matrix into B
+    B[:, :, 0] = seed_core
 
     # TODO: is there a more efficient way to do this with out the nested for-loops?
     #    I think it may be better to invert the matrix and solve it that way - but initial tests lead to lots of Singular Matrices when inverting
-    for row_i in range(seed_shape[0]):
-        for col_i in range(seed_shape[1]):
-            for shell_i in range(num_shells):
+    for shell_i in range(1, num_shells):
 
-                if shell_i == 0:
-                    B[row_i, col_i, 0] = seed_core[row_i, col_i]
-                else:
-                    # Recursive otherwise
-                    B[row_i, col_i, shell_i] = Y_reduced_shifted[row_i, col_i, shell_i] * B[row_i, col_i, shell_i-1]
+        B_temp = np.zeros((6, 6), dtype=np.complex)
+
+        for row_i in range(6):
+            for col_i in range(6):
+                for k in range(6):
+                    B_temp[row_i, col_i] = B_temp[row_i, col_i] + Y_inv[row_i, k, shell_i-1] * B[k, col_i, shell_i-1]
+
+        for row_i in range(6):
+            for col_i in range(6):
+                for k in range(6):
+                    B[row_i, col_i, shell_i] = B[row_i, col_i, shell_i] + Y[row_i, k, shell_i] * B_temp[k, col_i]
+
+    # for row_i in range(seed_shape[0]):
+    #     for col_i in range(seed_shape[1]):
+    #
+    #         B_temp = 0. + 0.j
+    #         for shell_i in range(num_shells):
+    #
+    #             if shell_i == 0:
+    #                 # Load in central boundary condition
+    #                 B[row_i, col_i, 0] = seed_core[row_i, col_i]
+    #             else:
+    #                 # Recursively build the temporary value
+    #
+    #
+    #                 B[row_i, col_i, shell_i] = Y_reduced_shifted[row_i, col_i, shell_i] * B[row_i, col_i, shell_i-1]
 
     return B

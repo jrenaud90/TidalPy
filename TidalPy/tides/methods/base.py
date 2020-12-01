@@ -648,7 +648,7 @@ class TidesBase(WorldConfigHolder):
     @property
     def fixed_dt(self) -> float:
         """ Fixed tidal dissipation frequency dependency (used in CTL tidal calculation method) """
-        return self._fixed_q
+        return self._fixed_dt
 
     @fixed_dt.setter
     def fixed_dt(self, new_fixed_dt: float):

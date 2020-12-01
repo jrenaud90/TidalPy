@@ -245,9 +245,9 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     @njit
     def diffeq_scipy(time, variables):
 
-        # Progress bar
-        percent_done = round(100000. * (time / time_interval)) / 100000.
-        print('Percent Done:', 100. * percent_done, '%')
+        # # Progress bar
+        # percent_done = round(100000. * (time / time_interval)) / 100000.
+        # print('Percent Done:', 100. * percent_done, '%')
         # print('\rPercent Done: {:0>5.2f}%'.format(100. * percent_done), flush=True, end='')
 
         # Pull out independent variables

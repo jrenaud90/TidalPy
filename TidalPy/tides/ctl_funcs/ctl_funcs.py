@@ -15,13 +15,13 @@ def linear_dt(frequency: FloatArray, fixed_dt: float):
 
     Returns
     -------
-    neg_imk : FloatArray
-        -Im[k], Imaginary portion of the Love number
+    effective_q : FloatArray
+        The effective Q for the world
     """
 
-    neg_imk = frequency * fixed_dt
+    effective_q = frequency * fixed_dt
 
-    return neg_imk
+    return effective_q
 
 @njit(cacheable=True)
 def linear_dt_with_q(frequency: FloatArray, fixed_dt: float, fixed_q: float):
@@ -39,10 +39,10 @@ def linear_dt_with_q(frequency: FloatArray, fixed_dt: float, fixed_q: float):
 
     Returns
     -------
-    neg_imk : FloatArray
-        -Im[k], Imaginary portion of the Love number
+    effective_q : FloatArray
+        The effective Q for the world
     """
 
-    neg_imk = frequency * fixed_dt / fixed_q
+    effective_q = frequency * fixed_dt / fixed_q
 
-    return neg_imk
+    return effective_q

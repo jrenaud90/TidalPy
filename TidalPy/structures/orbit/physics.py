@@ -34,7 +34,7 @@ class PhysicsOrbit(OrbitBase):
 
     def __init__(self, star: StarWorld = None, tidal_host: AllWorldType = None,
                  tidal_bodies: Union[AllWorldType, List[AllWorldType]] = None, star_host: bool = False,
-                 host_tide_raiser: AllWorldType = None, initialize: bool = True):
+                 host_tide_raiser: AllWorldType = None, make_copies: Union[bool, str] = False, initialize: bool = True):
         """ PhysicsOrbit constructor
 
         Orbits allow TidalPy world_types to communicate with one another and for tides to be calculated.
@@ -58,6 +58,14 @@ class PhysicsOrbit(OrbitBase):
         host_tide_raiser : AllWorldType = None
             The tidal host experiences tides from all world_types. This pointer is used to set which tidal body is currently
                 being used as the host body's tide raiser.
+        make_copies : Union[bool, str] = False
+            If True, then the class will make a deep copy of the worlds to avoid issues accessing a world's instance.
+            Options:
+                'all'
+                'star'
+                'host'
+                'star and host'
+                'tidal'
         initialize : bool = True
             If `True`, then the constructor will make the first call to the orbit's `reinit()` method.
 
@@ -73,7 +81,8 @@ class PhysicsOrbit(OrbitBase):
         self._orbital_motion_time_derivatives = list()
 
         super().__init__(star, tidal_host, tidal_bodies,
-                         star_host=star_host, host_tide_raiser=host_tide_raiser, initialize=False)
+                         star_host=star_host, host_tide_raiser=host_tide_raiser,
+                         make_copies=make_copies, initialize=False)
 
         # Helper flags useful for debugging
         self._last_calc_used_dual_body = None

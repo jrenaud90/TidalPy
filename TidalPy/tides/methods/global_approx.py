@@ -1,6 +1,5 @@
 """ Simple Tides Module
 """
-
 from typing import TYPE_CHECKING, Dict, Tuple, Callable
 
 import numpy as np
@@ -49,9 +48,9 @@ def ctl_neg_imk_helper_func(tidal_frequencies: Dict[FreqSig, FloatArray], fixed_
     # Real calculation
     for freq_sig, freq in tidal_frequencies.items():
         try:
-            ctl_dissipation = ctl_method(freq, *ctl_inputs)
+            effective_q = ctl_method(freq, *ctl_inputs)
             # The 0 * fake_freq is to ensure the correct array size is used.
-            neg_imk_by_unique_freq[freq_sig] = fixed_k2 * (1. - (1.j * ctl_dissipation)) + (0. * fake_freq)
+            neg_imk_by_unique_freq[freq_sig] = fixed_k2 * (1. - (1.j * effective_q)) + (0. * fake_freq)
         except:
             # Assume that the exception was a divide by zero error due to frequency = 0.
             neg_imk_by_unique_freq[freq_sig] = fixed_k2 * (1. - 0.j) + (0. * fake_freq)
@@ -135,7 +134,7 @@ class GlobalApproxTides(TidesBase):
         # Configuration properties
         self._use_ctl = None
         self._ctl_calc_method = None
-        self._ctl_calc_input_getters = None
+        self._ctl_calc_input_getter = None
 
         # Call reinit for initialization
         if initialize:
@@ -181,14 +180,18 @@ class GlobalApproxTides(TidesBase):
 
             # Build the inputs for this methods
             ctl_calc_input_signatures = ctl_method_input_getters[ctl_calc_method]
-            ctl_calc_input_getters = list()
-            for (class_name, property_name) in ctl_calc_input_signatures:
-                if class_name in ['tides', 'self']:
-                    ctl_calc_input_getters.append(lambda : getattr(self, property_name))
-                else:
-                    ctl_calc_input_getters.append(lambda : getattr(getattr(self, class_name), property_name))
 
-            self._ctl_calc_input_getters = tuple(ctl_calc_input_getters)
+            def getter():
+                _inputs = list()
+                for (class_name, property_name) in ctl_calc_input_signatures:
+                    if class_name in ['tides', 'self']:
+                        _input = getattr(self, property_name)
+                    else:
+                        _input = getattr(getattr(self, class_name), property_name)
+                    _inputs.append(_input)
+                return tuple(_inputs)
+
+            self._ctl_calc_input_getter = getter
 
         # TODO: For the simple tidal world, how to allow for higher order l? User provides k_3, k_4, ...
         if self.max_tidal_order_lvl > 2:
@@ -259,7 +262,7 @@ class GlobalApproxTides(TidesBase):
                 # Get CTL inputs
                 # OPT: These getters could be replaced by a set_fixed_q or set_fixed_dt since they really won't change
                 #   often. It is a waste of resources to keep calling these getters.
-                ctl_inputs = tuple([getter() for getter in self.ctl_calc_input_getters])
+                ctl_inputs = self.ctl_calc_input_getter()
 
                 # Calculate new values
                 self._ctl_complex_love_by_unique_freq = \
@@ -372,12 +375,12 @@ class GlobalApproxTides(TidesBase):
         raise ConfigPropertyChangeError
 
     @property
-    def ctl_calc_input_getters(self) -> Tuple[Callable, ...]:
+    def ctl_calc_input_getter(self) -> Callable:
         """ Functions used to find the inputs for the ctl_calc_method """
-        return self._ctl_calc_input_getters
+        return self._ctl_calc_input_getter
 
-    @ctl_calc_input_getters.setter
-    def ctl_calc_input_getters(self, value):
+    @ctl_calc_input_getter.setter
+    def ctl_calc_input_getter(self, value):
         raise ConfigPropertyChangeError
 
     # # State properties

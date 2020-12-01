@@ -1,0 +1,42 @@
+{
+    "name": "Triton",
+    "type": "burnman",
+    "radius": 1353.0e3,
+    "semi_major_axis": 354760.0e3,
+    "semi_major_axis_in_au": false,
+    "eccentricity": 0.000016,
+    "spin_period": 5.876854,
+    "albedo": 0.55,
+    "force_spin_sync": false,
+    "layers": {
+        "Core": {
+            "type": "rock",
+            "is_tidal": true,
+            "radius": 1064.0e3,
+            "material": "forsterite",
+            "material_source": "SLB_2011",
+            "temperature_mode": "adiabatic",
+            "temperature_top": 273.15,
+            "rheology": {
+                "complex_compliance": {
+                    "model": "sundberg"
+                }
+            }
+        },
+        "Crust": {
+            "type": "ice",
+            "is_tidal": true,
+            "radius": 1353.0e3,
+            "material": "IceIh_Fu2010",
+            "material_source": "TidalPy",
+            "temperature_mode": "user-defined",
+            "surface_temperature": 35.0,
+            "temperature_fixed": 35.0,
+            "rheology": {
+                "complex_compliance": {
+                    "model": "sundberg"
+                }
+            }
+        }
+    }
+}

@@ -5,7 +5,9 @@ import os
 import copy
 import sys
 import numpy as np
+import gc
 import traceback
+import time
 from functools import wraps
 from pathos.multiprocessing import ProcessingPool as Pool
 
@@ -40,12 +42,16 @@ initial_eccentricity_array = np.linspace(0.05, 0.7, 100)
 internal_temp_array = np.linspace(500., 1000., 100)
 
 def builder_and_runner(input_tuple):
-    pluto_, charon_, orbital_config_, integration_config_, initial_conditions_, modern_semi_major_axis_, save_locale = input_tuple
+    run_i, pluto_, charon_, orbital_config_, integration_config_, initial_conditions_, modern_semi_major_axis_, save_locale = input_tuple
     diffeq, integrator, plotter = build_2layer_icy_shell_diffeq(pluto_, charon_, orbital_config_, integration_config_)
 
+    t_i = time.time()
+    print('Working on run:', run_i)
     integrator(initial_conditions_, integration_rtol=1.e-5, save_locale=save_locale, save_data=True,
                semi_major_scale=modern_semi_major_axis_, logtime=True, auto_plot=True)
+    print('Finished Run:', run_i, '. Took:', f'{time.time() - t_i:0.3f} sec.')
 
+    gc.collect()
     return True
 
 
@@ -105,7 +111,7 @@ def run():
 
         np.savetxt(os.path.join(run_dir, "initial_conditions.csv"), np.asarray(ini_cond_to_save), delimiter=",")
 
-        mp_run_input = (copy.deepcopy(pluto), copy.deepcopy(charon), copy.deepcopy(orbital_config),
+        mp_run_input = (i, copy.deepcopy(pluto), copy.deepcopy(charon), copy.deepcopy(orbital_config),
                         copy.deepcopy(integration_config),
                         initial_conditions, modern_semi_major_axis, run_dir)
 

@@ -93,7 +93,8 @@ class PhysicalObjSpherical(ConfigHolder):
             #    Pull out densities and pressures and convert them into constant value slices
             self._num_slices = self.config.get('slices', None)
             #    If user provided real moment of inertia, pull that out and calculate moi factor
-            self.moi = self.config.get('moi', None)
+            if self.config.get('moi', None) is not None:
+                self.moi = self.config.get('moi', None)
 
         # Other reinit steps are set by child class' reinit methods.
 

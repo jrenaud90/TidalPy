@@ -1,3 +1,4 @@
+import copy
 from typing import Union, Dict, List
 
 from ..helpers.orbit_config import pull_out_orbit_from_config
@@ -31,7 +32,7 @@ class OrbitBase(TidalPyClass):
 
     def __init__(self, star: StarWorld = None, tidal_host: AllWorldType = None,
                  tidal_bodies: Union[AllWorldType, List[AllWorldType]] = None, star_host: bool = False,
-                 host_tide_raiser: AllWorldType = None, initialize: bool = True):
+                 host_tide_raiser: AllWorldType = None, make_copies: Union[bool, str] = False, initialize: bool = True):
         """ OrbitBase constructor
 
         Orbits allow TidalPy world_types to communicate with one another and for tides to be calculated.
@@ -55,6 +56,14 @@ class OrbitBase(TidalPyClass):
         host_tide_raiser : AllWorldType = None
             The tidal host experiences tides from all world_types. This pointer is used to set which tidal body is currently
                 being used as the host body's tide raiser.
+        make_copies : Union[bool, str] = False
+            If True, then the class will make a deep copy of the worlds to avoid issues accessing a world's instance.
+            Options:
+                'all'
+                'star'
+                'host'
+                'star and host'
+                'tidal'
         initialize : bool = True
             If `True`, then the constructor will make the first call to the orbit's `reinit()` method.
         """
@@ -77,6 +86,31 @@ class OrbitBase(TidalPyClass):
         self._universal_time = None
 
         # Construct anything we can
+        copy_star = False
+        copy_host = False
+        copy_tidals = False
+        if make_copies:
+            if make_copies is True:
+                # Make copies of all instances
+                copy_star = True
+                copy_host = True
+                copy_tidals = True
+            else:
+                if make_copies.lower in ['all']:
+                    # Make copies of all instances
+                    copy_star = True
+                    copy_host = True
+                    copy_tidals = True
+                elif make_copies.lower in ['star']:
+                    copy_star = True
+                elif make_copies.lower in ['host']:
+                    copy_host = True
+                elif make_copies.lower in ['star and host']:
+                    copy_star = True
+                    copy_host = True
+                elif make_copies.lower in ['tidal']:
+                    copy_tidals = True
+
         run_update = False
         if star is not None and tidal_host is not None:
             # Check is the star is the tidal host or not, regardless of what the user provided for star_host
@@ -91,6 +125,8 @@ class OrbitBase(TidalPyClass):
                     raise TidalPyOrbitError('Tidal and Star not same instance for star_host')
 
         if star is not None:
+            if copy_star:
+                star = copy.deepcopy(star)
             self.add_star(star, is_tidal_host=star_host, run_update=False)
 
         if tidal_host is not None:
@@ -98,6 +134,8 @@ class OrbitBase(TidalPyClass):
                 # Already added. Skip.
                 pass
             else:
+                if copy_host:
+                    tidal_host = copy.deepcopy(tidal_host)
                 self.add_tidal_host(tidal_host, run_update=False)
                 run_update = True
 
@@ -106,8 +144,12 @@ class OrbitBase(TidalPyClass):
             # Check if it is a list of bodies or a single body
             if type(tidal_bodies) in [list, tuple]:
                 for tidal_body in tidal_bodies:
+                    if copy_tidals:
+                        tidal_body = copy.deepcopy(tidal_body)
                     self.add_tidal_world(tidal_body, is_tidal_host=False, run_update=False)
             else:
+                if copy_tidals:
+                    tidal_bodies = copy.deepcopy(tidal_bodies)
                 self.add_tidal_world(tidal_bodies, is_tidal_host=False, run_update=False)
 
         # Set the host body's tide raiser
