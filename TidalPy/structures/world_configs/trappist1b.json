@@ -1,0 +1,24 @@
+{
+    // Radius: Delrez et al., (2018) corrected by Kane et al., (2018)
+    // Masses:: Grimm et al., (2018)
+    // Gravity: g*mass/(R2)
+    // Flux: Delrez et al., (2018) corrected by Kane et al., (2018)
+    // Density (Jontof-Hutter et al., 2014): radii: Delrez et al., (2018) + masses: Grimm e al (2018) corrected by Kane et al., (2018)
+    // Updated using the analysis done by Agol+2020 and references therein. Eccentricities are from Grimm+2018
+    "name": "TRAPPIST-1b",
+    "type": "simple_tidal",
+    "radius": 7.119e6,
+    "radius_error_pos": 0.087e6,
+    "radius_error_neg": 0.077e6,
+    "mass": 8.311e24,
+    "mass_error_pos": 0.412e24,
+    "mass_error_neg": 0.412e24,
+    "semi_major_axis": 1.726e9,
+    "semi_major_axis_error_pos": 0.015e9,
+    "semi_major_axis_error_neg": 0.015e9,
+    "semi_major_axis_in_au": false,
+    "eccentricity": 0.00216,
+    "eccentricity_error_pos": 0.00001,
+    "eccentricity_error_neg": 0.00001,
+    "force_spin_sync": true
+}

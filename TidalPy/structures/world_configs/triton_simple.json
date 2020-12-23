@@ -12,7 +12,7 @@
     "tides": {
         "use_ctl": false,
         "ctl_calc_method": "linear_simple_with_q",
-        "fixed_q": 10.0,
+        "fixed_q": 100.0,
         "static_k2": 0.1,
         "fixed_dt": 507800.0
     }
