@@ -1,13 +1,12 @@
 import numpy as np
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'WARNING'
-TidalPy.use_disk = False
-TidalPy.reinit()
-
 from TidalPy import build_world, build_from_world
 from TidalPy.structures.orbit import PhysicsOrbit
+
+TidalPy.config['stream_level'] = 'ERROR'
+TidalPy.use_disk = False
+TidalPy.reinit()
 
 star_config_ = {
     'tides_on': False,
@@ -47,9 +46,6 @@ def test_single_body_derivative_calc():
     star_to_use = build_from_world(star_base, new_config=star_config_)
     world_to_use = build_from_world(io_base, new_config=config_, new_name='io_world')
 
-    print('TEST STARTING')
-    print('TEST STARTING')
-    print('TEST STARTING')
     orbit = PhysicsOrbit(star_to_use, tidal_host=star_to_use, tidal_bodies=world_to_use)
 
     # Test loading in layer temperature and performing necessary steps to eventually calculate the complex compliance

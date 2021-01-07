@@ -1,5 +1,5 @@
 import TidalPy
-TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 

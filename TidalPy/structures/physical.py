@@ -28,6 +28,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self._thickness = None
         self._mid_slice_index = None
         self.geometry_init = False
+        self.moi_is_ideal = False
 
         # Properties that are calculated using the above parameters
         self._radius_inner = None
@@ -706,7 +707,16 @@ class PhysicalObjSpherical(ConfigHolder):
         PhysicalObjSpherical.moi_ideal
         PhysicalObjSpherical.moi_factor
         """
-        return self._moi
+
+        if self._moi is None:
+            if self.moi_ideal is not None:
+                self.moi_is_ideal = False
+                return self.moi_ideal
+            else:
+                return None
+        else:
+            self.moi_is_ideal = True
+            return self._moi
 
     @moi.setter
     def moi(self, value):

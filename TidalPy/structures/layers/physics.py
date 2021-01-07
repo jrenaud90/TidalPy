@@ -343,7 +343,7 @@ class PhysicsLayer(LayerBase):
             for heat_source_func in self.heat_sources:
                 heat_source = heat_source_func()
                 if heat_source is None:
-                    log.warning(f'One or more heat sources were not set for layer {self}.')
+                    log.warning(f'One or more heat sources were not set for {self}.')
                 else:
                     total_heating += heat_source
 

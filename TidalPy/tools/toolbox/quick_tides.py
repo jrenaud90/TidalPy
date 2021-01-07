@@ -1,3 +1,22 @@
+"""quick_tides.py module.
+
+Purpose
+-------
+The primary purpose of this module is to quickly and easily provide the user with tidal dissipation calculation
+    functions (heating and orbit-spin derivatives) for homogeneous worlds without requiring the user to manually
+    pull together several different TidalPy functions.
+
+Limitations
+-----------
+These functions may have an impact to performance and certainly to flexibility. For example, there are various
+    checks performed in each that a user may want to skip. It is recommended to only use this function as a starting
+    point and then develop a custom function or script to suite your specific needs.
+
+These are intended to be used for homogeneous worlds with one layer. Dissipation for multi-layer worlds can be done
+    with TidalPy's OOP approach or a custom script.
+
+"""
+
 import copy
 from typing import Tuple, Dict, TYPE_CHECKING, Union
 
@@ -6,7 +25,7 @@ import numpy as np
 from ..conversions import days2rads, orbital_motion2semi_a
 from ...dynamics import semia_eccen_derivatives_dual, semia_eccen_derivatives_array_dual, semia_eccen_derivatives, \
     semia_eccen_derivatives_array, spin_rate_derivative
-from ...exceptions import MissingArgumentError, ArgumentException, IncorrectArgumentType
+from ...exceptions import MissingArgumentError, ArgumentException, IncorrectArgumentType, MissingAttributeError
 from ...rheology.complex_compliance import known_models as known_compliance_models
 from ...rheology.complex_compliance.complex_compliance import compliance_dict_helper
 from ...tides.ctl_funcs import linear_dt
@@ -24,7 +43,7 @@ NoneInt = Union[NoneType, int]
 SingleBodyResultType = Dict[str, Union[FloatArray, Dict[int, Union[ComplexArray, FloatArray]]]]
 
 def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass: float,
-    target_gravity: float, target_density: float,
+    target_gravity: float, target_density: float, target_moi: float,
     viscosity: FloatArray = None, shear_modulus: FloatArray = None, rheology: str = 'Maxwell',
     complex_compliance_inputs: Tuple[float, ...] = None,
     eccentricity: FloatArray = None, obliquity: FloatArray = None,
@@ -35,11 +54,16 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
     use_obliquity: Union[bool, NoneType] = True,
     tidal_scale: float = 1., fixed_k2: float = 0.3, fixed_q: float = 100.,
     fixed_dt: float = None,
-    precalculated_mode_results: dict = None) -> SingleBodyResultType:
-    """ Calculate tidal dissipation for a target world orbiting its tidal host.
+    dspin_dt_scale: float = 1., de_dt_scale: float = 1., da_dt_scale: float = 1.,
+    precalculated_mode_results: dict = None, calculate_orbit_spin_derivatives: bool = False) -> SingleBodyResultType:
+    """ Calculate the single body tidal dissipation for a target world orbiting its tidal host.
+
+    Assumes the host's dissipation is zero (no contribution to the orbital evolution derivatives).
 
     This function pulls together several TidalPy packages to offer an easy to use interface to calculate tidal
-        dissipation.
+        dissipation. However it may come with an impact to performance and flexibility. For example, there are various
+        checks performed that may want to skip. It is recommended to only use this function as a starting point and
+        then develop a custom function or script to suite your specific needs.
 
     Parameters
     ----------
@@ -48,6 +72,7 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
     target_mass : float
     target_gravity : float
     target_density : float
+    target_moi : float
     viscosity : FloatArray
     shear_modulus : FloatArray
     rheology : str
@@ -66,8 +91,14 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
     fixed_q : float = 100.
     fixed_dt : float = None
         If `None`, a fixed_dt will be calculated as 1 / (Q * n)
+    dspin_dt_scale : float = 1.
+    de_dt_scale : float = 1.
+    da_dt_scale : float = 1.
     precalculated_mode_results : dict = None
         Several things can be pre-calculated to save on performance if doing, for example, dual body analysis
+    calculate_orbit_spin_derivatives: bool = False
+        If `True`, then the function will calculate the spin and orbital derivatives assuming the
+            host is non-dissipative.
 
     Returns
     -------
@@ -213,6 +244,7 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
     # Store results
     dissipation_results = {
         'tidal_heating': tidal_heating,
+        'tidal_torque': host_mass * dUdO,
         'dUdM': dUdM,
         'dUdw': dUdw,
         'dUdO': dUdO,
@@ -224,6 +256,20 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
         'orbital_frequency': orbital_frequency
     }
 
+    if calculate_orbit_spin_derivatives:
+        # Calculate orbit-spin derivatives
+        dspin_dt = spin_rate_derivative(dUdO, target_moi, host_mass)
+        if use_array:
+            da_dt, de_dt = semia_eccen_derivatives_array(semi_major_axis, orbital_frequency, eccentricity,
+                                                         target_mass, dUdM, dUdw, host_mass)
+        else:
+            da_dt, de_dt = semia_eccen_derivatives(semi_major_axis, orbital_frequency, eccentricity,
+                                                   target_mass, dUdM, dUdw, host_mass)
+        # Store results
+        dissipation_results['spin_rate_derivative'] = dspin_dt * dspin_dt_scale
+        dissipation_results['eccentricity_derivative'] = de_dt * de_dt_scale
+        dissipation_results['semi_major_axis_derivative'] = da_dt * da_dt_scale
+
     return dissipation_results
 
 def quick_dual_body_tidal_dissipation(
@@ -231,7 +277,7 @@ def quick_dual_body_tidal_dissipation(
     gravities: Tuple[float, float], densities: Tuple[float, float], mois: Tuple[float, float],
     viscosities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
     shear_moduli: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    rheologies: Tuple[str, str] = 'Maxwell',
+    rheologies: Union[str, Tuple[str, str]] = 'Maxwell',
     complex_compliance_inputs: Union[NoneType, Tuple[Tuple[float, ...], Tuple[float, ...]]] = None,
     obliquities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
     spin_frequencies: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
@@ -244,6 +290,48 @@ def quick_dual_body_tidal_dissipation(
     use_obliquity: Union[bool, NoneType] = True,
     da_dt_scale: float = 1., de_dt_scale: float = 1.,
     dspin_dt_scale: float = 1.) -> Dict[str, Union[FloatArray, SingleBodyResultType]]:
+    """ Calculate the dual-body tidal dissipation for a target world orbiting its tidal host.
+
+    This function pulls together several TidalPy packages to offer an easy to use interface to calculate tidal
+        dissipation. However it may come with an impact to performance and flexibility. For example, there are various
+        checks performed that may want to skip. It is recommended to only use this function as a starting point and
+        then develop a custom function or script to suite your specific needs.
+
+    Parameters
+    ----------
+    radii : Tuple[float, float]
+    masses : Tuple[float, float]
+    gravities : Tuple[float, float]
+    densities : Tuple[float, float]
+    mois : Tuple[float, float]
+    viscosities : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    shear_moduli : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    rheologies : Union[str, Tuple[str, str]] = 'Maxwell'
+    complex_compliance_inputs : Union[NoneType, Tuple[Tuple[float, ...], Tuple[float, ...]]] = None
+    obliquities : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    spin_frequencies : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    spin_periods : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    tidal_scales : Tuple[float, float] = (1., 1.)
+    fixed_k2s : Tuple[float, float] = (.3, .3)
+    fixed_qs : Tuple[float, float] = (100., 100.)
+    fixed_dts : Tuple[NoneFloat, NoneFloat] = (None, None)
+        If any are `None`, a fixed_dt will be calculated as 1 / (Q * n)
+    eccentricity: NoneFloatArray = None
+    orbital_frequency : NoneFloatArray = None
+    orbital_period : NoneFloatArray = None
+    max_tidal_order_l : NoneInt = 2
+    eccentricity_truncation_lvl : NoneInt = 2
+    use_obliquity : Union[bool, NoneType] = True
+    da_dt_scale : float = 1.
+    de_dt_scale : float = 1.
+    dspin_dt_scale : float = 1.
+
+    Returns
+    -------
+    dissipation_results: Dict[str, Union[FloatArray, SingleBodyResultType]]
+        Tidal dissipation results stored for both the `host` and `secondary`.
+
+    """
 
     # Check for issues
     if type(radii) not in [list, tuple]:
@@ -296,8 +384,19 @@ def quick_dual_body_tidal_dissipation(
         shear_moduli = (None, None)
     if rheologies is None:
         rheologies = ('Maxwell', 'Maxwell')
+    elif type(rheologies) is str:
+        # User may have only provided one string indicating they want the same rheology for both planets.
+        rheologies = (rheologies, rheologies)
+
     if complex_compliance_inputs is None:
         complex_compliance_inputs = (tuple(), tuple())
+    elif type(complex_compliance_inputs) is tuple:
+        if type(complex_compliance_inputs[0]) is tuple:
+            pass
+        else:
+            # User may have only provided one rheology input if they intend for the same rheology for both planets.
+            complex_compliance_inputs = (complex_compliance_inputs, complex_compliance_inputs)
+
     if spin_frequencies is None:
         spin_frequencies = (None, None)
     if spin_periods is None:
@@ -352,6 +451,7 @@ def quick_dual_body_tidal_dissipation(
         dissipation_results_for_world = \
             quick_tidal_dissipation(host_mass, target_radius=radii[world_i], target_mass=masses[world_i],
                 target_gravity=gravities[world_i], target_density=densities[world_i],
+                target_moi=mois[world_i],
                 viscosity=viscosities[world_i], shear_modulus=shear_moduli[world_i],
                 rheology=rheologies[world_i],
                 complex_compliance_inputs=complex_compliance_inputs[world_i],
@@ -362,7 +462,8 @@ def quick_dual_body_tidal_dissipation(
                 use_obliquity=use_obliquity_flags[world_i],
                 tidal_scale=tidal_scales[world_i],
                 fixed_k2=fixed_k2s[world_i], fixed_q=fixed_qs[world_i], fixed_dt=fixed_dts[world_i],
-                precalculated_mode_results=precalculated_mode_results)
+                precalculated_mode_results=precalculated_mode_results,
+                calculate_orbit_spin_derivatives=False)
 
         # Calculate spin-rate derivatives
         dissipation_results_for_world['spin_rate_derivative'] = \
@@ -415,6 +516,41 @@ def single_dissipation_from_dict_or_world_instance(
     fixed_dt: float = None,
     da_dt_scale: float = 1., de_dt_scale: float = 1.,
     dspin_dt_scale: float = 1.) -> SingleBodyResultType:
+    """ By providing a dictionaries or TidalPy world objects, this function will pull out the necessary
+        planetary parameters and calculate the single body tidal dissipation.
+        It is assumed that the host world does not participate in the tidal dissipation.
+
+    Parameters
+    ----------
+    host : Union[dict, 'all_tidal_world_types']
+    secondary : Union[dict, 'all_tidal_world_types']
+    viscosity : NoneFloatArray = None
+    shear_modulus : NoneFloatArray = None
+    rheology: str = 'Maxwell'
+    complex_compliance_inputs : Union[NoneType, Tuple[float, ...]] = None
+    eccentricity : NoneFloatArray = None
+    obliquity : NoneFloatArray = None
+    orbital_frequency : NoneFloatArray = None
+    orbital_period : NoneFloatArray = None
+    spin_frequency : NoneFloatArray = None
+    spin_period : NoneFloatArray = None
+    max_tidal_order_l : NoneInt = 2
+    eccentricity_truncation_lvl : NoneInt = 2
+    use_obliquity : Union[bool, NoneType] = True
+    tidal_scale : float = 1.
+    fixed_k2 : float = 0.3
+    fixed_q : float = 100.
+    fixed_dt : float = None
+    da_dt_scale : float = 1.
+    de_dt_scale : float = 1.
+    dspin_dt_scale : float = 1.
+
+    Returns
+    -------
+    dissipation_results : SingleBodyResultType
+        Tidal dissipation results for single body dissipation.
+
+    """
 
     # If the user provided a world instance, convert it to a dict.
     if type(host) == dict:
@@ -423,8 +559,10 @@ def single_dissipation_from_dict_or_world_instance(
         host_dict = copy.deepcopy(host.config)
         # Pull out items that may have been calculated in the planet instance
         for param_name in ['mass']:
-            if param_name in host.__dict__:
+            if param_name in dir(host):
                 host_dict[param_name] = getattr(host, param_name)
+            else:
+                raise MissingAttributeError
     host_mass = host_dict['mass']
 
     if type(secondary) == dict:
@@ -433,8 +571,10 @@ def single_dissipation_from_dict_or_world_instance(
         secondary_dict = copy.deepcopy(secondary.config)
         # Pull out items that may have been calculated in the planet instance
         for param_name in ['radius', 'mass', 'gravity_surface', 'density_bulk', 'moi']:
-            if param_name in secondary.__dict__:
+            if param_name in dir(secondary):
                 secondary_dict[param_name] = getattr(secondary, param_name)
+            else:
+                raise MissingAttributeError
 
     # Determine eccentricity and obliquity types
     if obliquity is None:
@@ -458,6 +598,7 @@ def single_dissipation_from_dict_or_world_instance(
     single_body_response = quick_tidal_dissipation(
         host_mass=host_mass, target_radius=secondary_dict['radius'], target_mass=secondary_dict['mass'],
         target_gravity=secondary_dict['gravity_surface'], target_density=secondary_dict['density_bulk'],
+        target_moi=secondary_dict['moi'],
         viscosity=viscosity, shear_modulus=shear_modulus, rheology=rheology,
         complex_compliance_inputs=complex_compliance_inputs,
         eccentricity=eccentricity, obliquity=obliquity,
@@ -465,39 +606,17 @@ def single_dissipation_from_dict_or_world_instance(
         spin_frequency=spin_frequency, spin_period=spin_period,
         max_tidal_order_l=max_tidal_order_l,
         eccentricity_truncation_lvl=eccentricity_truncation_lvl, use_obliquity=use_obliquity,
-        tidal_scale=tidal_scale, fixed_k2=fixed_k2, fixed_q=fixed_q, fixed_dt=fixed_dt)
+        tidal_scale=tidal_scale, fixed_k2=fixed_k2, fixed_q=fixed_q, fixed_dt=fixed_dt,
+        dspin_dt_scale=dspin_dt_scale, da_dt_scale=da_dt_scale, de_dt_scale=de_dt_scale,
+        calculate_orbit_spin_derivatives=True)
 
-    # Now that we have the single body dissipation, we can calculate the orbital evolution.
-    use_array = single_body_response['use_array']
-    semi_major_axis = single_body_response['semi_major_axis']
-    orbital_frequency = single_body_response['orbital_frequency']
-
-    dspin_dt = spin_rate_derivative(single_body_response['dUdO'], secondary_dict['moi'], host_mass)
-    if use_array:
-        da_dt, de_dt = semia_eccen_derivatives_array(semi_major_axis, orbital_frequency, eccentricity,
-                                                     secondary_dict['mass'],
-                                                     single_body_response['dUdM'],
-                                                     single_body_response['dUdw'],
-                                                     host_mass)
-    else:
-        da_dt, de_dt = semia_eccen_derivatives(semi_major_axis, orbital_frequency, eccentricity,
-                                               secondary_dict['mass'],
-                                               single_body_response['dUdM'],
-                                               single_body_response['dUdw'],
-                                               host_mass)
-    # Store results
-    single_body_response['spin_rate_derivative'] = dspin_dt * dspin_dt_scale
-    dissipation_results = dict(target=single_body_response)
-    dissipation_results['eccentricity_derivative'] = de_dt * de_dt_scale
-    dissipation_results['semi_major_axis_derivative'] = da_dt * da_dt_scale
-
-    return dissipation_results
+    return single_body_response
 
 def dual_dissipation_from_dict_or_world_instance(
     host: Union[dict, 'all_tidal_world_types'], secondary: Union[dict, 'all_tidal_world_types'],
     viscosities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
     shear_moduli: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    rheologies: Tuple[str, str] = ('Maxwell', 'Maxwell'),
+    rheologies: Union[str, Tuple[str, str]] = 'Maxwell',
     complex_compliance_inputs: Union[NoneType, Tuple[Tuple[float, ...], Tuple[float, ...]]] = None,
     obliquities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
     spin_frequencies: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
@@ -513,6 +632,41 @@ def dual_dissipation_from_dict_or_world_instance(
     use_obliquity: Union[bool, NoneType] = True,
     da_dt_scale: float = 1., de_dt_scale: float = 1.,
     dspin_dt_scale: float = 1.) -> Dict[str, Union[FloatArray, SingleBodyResultType]]:
+    """ By providing a dictionaries or TidalPy world objects, this function will pull out the necessary
+        planetary parameters and calculate the single body tidal dissipation.
+        It is assumed that both the host and the secondary participate in tidal dissipation.
+
+    Parameters
+    ----------
+    host : Union[dict, 'all_tidal_world_types']
+    secondary : Union[dict, 'all_tidal_world_types']
+    viscosities : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    shear_moduli : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    rheologies : Union[str, Tuple[str, str]] = 'Maxwell'
+    complex_compliance_inputs : Union[NoneType, Tuple[Tuple[float, ...], Tuple[float, ...]]] = None
+    obliquities : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    spin_frequencies : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    spin_periods : Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None
+    tidal_scales : Tuple[float, float] = (1., 1.)
+    fixed_k2s : Tuple[float, float] = (0.3, 0.3)
+    fixed_qs : Tuple[float, float] = (100., 100.)
+    fixed_dts : Tuple[NoneFloat, NoneFloat] = (None, None)
+    eccentricity : NoneFloatArray = None
+    orbital_frequency : NoneFloatArray = None
+    orbital_period : NoneFloatArray = None
+    max_tidal_order_l : NoneInt = 2
+    eccentricity_truncation_lvl : NoneInt = 2
+    use_obliquity : Union[bool, NoneType] = True
+    da_dt_scale : float = 1.
+    de_dt_scale : float = 1.
+    dspin_dt_scale : float = 1.
+
+    Returns
+    -------
+    dissipation_results : Dict[str, Union[FloatArray, SingleBodyResultType]]
+        A dictionary of the dissipation results for both the `host` and `secondary` tidal world.
+
+    """
 
     # If the user provided a world instance, convert it to a dict.
     if type(host) == dict:
@@ -521,8 +675,10 @@ def dual_dissipation_from_dict_or_world_instance(
         host_dict = copy.deepcopy(host.config)
         # Pull out items that may have been calculated in the planet instance
         for param_name in ['radius', 'mass', 'gravity_surface', 'density_bulk', 'moi']:
-            if param_name in host.__dict__:
+            if param_name in dir(host):
                 host_dict[param_name] = getattr(host, param_name)
+            else:
+                raise MissingAttributeError
 
     if type(secondary) == dict:
         secondary_dict = secondary
@@ -530,8 +686,10 @@ def dual_dissipation_from_dict_or_world_instance(
         secondary_dict = copy.deepcopy(secondary.config)
         # Pull out items that may have been calculated in the planet instance
         for param_name in ['radius', 'mass', 'gravity_surface', 'density_bulk', 'moi']:
-            if param_name in secondary.__dict__:
+            if param_name in dir(secondary):
                 secondary_dict[param_name] = getattr(secondary, param_name)
+            else:
+                raise MissingAttributeError
 
     # Call the quick dual body tidal dissipation calculator
     dissipation_results = \

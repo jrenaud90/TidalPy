@@ -3,8 +3,8 @@ import pytest
 import TidalPy
 from TidalPy.exceptions import ModelException
 from TidalPy.utilities.classes.model.functionalUtils import parse_model_docstring, is_function
-
-TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.config['stream_level'] = 'ERROR'
+TidalPy.use_disk = False
 TidalPy.reinit()
 
 def test_parse_model_docstring():

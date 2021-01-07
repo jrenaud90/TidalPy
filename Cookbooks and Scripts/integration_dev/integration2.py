@@ -60,14 +60,14 @@ MP_N = 2000
 def run():
 
     # Create suite directory
-    if not os.path.exists('StatTNORun'):
-        os.makedirs('StatTNORun')
+    if not os.path.exists('../StatTNORun'):
+        os.makedirs('../StatTNORun')
 
     runs = dict()
     mp_run_inputs = list()
     for i in range(MP_N):
 
-        run_dir = os.path.join('StatTNORun', f'Run_3_{i}')
+        run_dir = os.path.join('../StatTNORun', f'Run_3_{i}')
         if not os.path.exists(run_dir):
             os.makedirs(run_dir)
 

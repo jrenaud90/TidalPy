@@ -5,14 +5,13 @@ import pytest
 from scipy.constants import G
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'WARNING'
-TidalPy.reinit()
-
 from TidalPy.exceptions import BadValueError
 from TidalPy.tools.conversions import sec2myr, \
     myr2sec, m2Au, Au2m, days2rads, orbital_motion2semi_a, semi_a2orbital_motion, rads2days
 
+TidalPy.config['stream_level'] = 'ERROR'
+TidalPy.use_disk = False
+TidalPy.reinit()
 
 def test_sec2myr():
 

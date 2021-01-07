@@ -2,7 +2,8 @@ import TidalPy
 from TidalPy import config
 from TidalPy.configurations import configurations
 
-TidalPy.config['stream_level'] = 'WARNING'
+TidalPy.config['stream_level'] = 'ERROR'
+TidalPy.use_disk = False
 TidalPy.reinit()
 
 def test_load_configs():
