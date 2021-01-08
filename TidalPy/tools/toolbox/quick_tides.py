@@ -391,8 +391,13 @@ def quick_dual_body_tidal_dissipation(
     if complex_compliance_inputs is None:
         complex_compliance_inputs = (tuple(), tuple())
     elif type(complex_compliance_inputs) is tuple:
-        if type(complex_compliance_inputs[0]) is tuple:
-            pass
+        if type(complex_compliance_inputs[0]) is tuple or type(complex_compliance_inputs[1]) is tuple:
+            if complex_compliance_inputs[0] is None:
+                complex_compliance_inputs = (tuple(), complex_compliance_inputs[1])
+            elif complex_compliance_inputs[1] is None:
+                complex_compliance_inputs = (complex_compliance_inputs[0], tuple())
+        elif complex_compliance_inputs[0] is None and complex_compliance_inputs[1] is None:
+            complex_compliance_inputs = (None, None)
         else:
             # User may have only provided one rheology input if they intend for the same rheology for both planets.
             complex_compliance_inputs = (complex_compliance_inputs, complex_compliance_inputs)
