@@ -115,7 +115,7 @@ def setup_tidalpy(force_conda: bool = False):
                 platforms = ["Windows", "MacOS"],
                 packages=find_packages(),
                 include_package_data=True,
-                python_requires='>=3.7,<3.9',
+                python_requires='>=3.8,<3.9',
                 install_requires=requirements,
                 zip_safe=False,
         )
