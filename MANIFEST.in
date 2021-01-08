@@ -1,2 +1,4 @@
 # MANIFEST.in
-include *.csv
+include README.md
+include TidalPy/*.txt
+include TidalPy/structures/world_configs/*.json

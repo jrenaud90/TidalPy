@@ -17,7 +17,7 @@ version = 0.2.1.dev8
 
 import os
 
-tidalpy_loc = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
+tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
 
 version = None
 with open(os.path.join(tidalpy_loc, 'version.txt'), 'r') as version_file:

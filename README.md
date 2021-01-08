@@ -49,6 +49,7 @@ The current version of TidalPy is in Alpha and will receive many updates on a re
         * Always make a backup of the TidalPy installation directory in case new versions break whatever you were working on.
 * TidalPy source code should now be in your directory but Python does not know this, so using `import TidalPy` will only work if performed from a terminal that is navigated to this directory.
 * To install TidalPy so it can be accessed from the terminal anywhere:
+    * Ensure that the `setuptools` package is installed in your environment (`pip install setuptools` or, if you are using Anaconda, `conda install setuptools`).
     * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then run `pip install -e .`.
         * That trailing period is important, don't leave it out!
         * Optionally, you may add the `-v` flag (before `-e`) to see more installation information --- but this tends to be too much info.

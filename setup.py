@@ -1,17 +1,23 @@
-import os
 import warnings
+import os
 import subprocess
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import pathlib
 
 SETUP_FILE_PATH = pathlib.Path(__file__).parent.absolute()
 
 CLASSIFIERS = """\
-Development Status :: 0 - Alpha
+Development Status :: 3 - Alpha
+Operating System :: Microsoft :: Windows :: Windows 10
+Operating System :: MacOS :: MacOS X
+Operating System :: Unix
 Intended Audience :: Science/Research
 Intended Audience :: Developers
+Topic :: Software Development
+Topic :: Scientific/Engineering
+Natural Language :: English
 License :: CC BY-NC-SA 4.0
 Programming Language :: Python
 Programming Language :: Python :: 3
@@ -21,11 +27,10 @@ Programming Language :: Python :: 3 :: Only
 Programming Language :: Python :: Implementation :: CPython
 Topic :: Software Development
 Topic :: Scientific/Engineering
-Operating System :: Microsoft :: Windows
 """
 
 version = None
-with open('version.txt', 'r') as version_file:
+with open(os.path.join('TidalPy', 'version.txt'), 'r') as version_file:
     for line in version_file:
         if 'version =' in line:
             version = line.split('version =')[-1].strip()
@@ -71,14 +76,23 @@ def setup_tidalpy(force_conda: bool = False):
     with open('README.md', 'r') as readme:
         long_desc = readme.read()
 
+    print('Installing Required Packages (attempting with Conda)...')
+    # Try to install via conda...
+    process = subprocess.run(['conda', 'install', '--file', './conda_requirements.txt'], shell=True)
+    if process.returncode != 0:
+        print('Conda install failed. Attempting with pip...')
+        # If that fails (perhaps conda is not being used), install via pip
+        process = subprocess.run(['pip', 'install', '-r', './requirements.txt'], shell=True)
+    else:
+        # We still need to install the latest version (unreleased, don't use 0.9.x) of Burnman
+        print('Installing Burnman from Github...')
+        process = subprocess.run(['pip', 'install',
+                                  'git+https://github.com/geodynamics/burnman.git@master#egg=burnman'], shell=True)
+
     if continue_with_setup:
         print('Running main TidalPy setup.')
 
         requirements = get_requirements(remove_links=True)
-
-        # TODO: Burnman version 0.9.0 has huge performance problems. But, for now, they have not released a version
-        #    beyon 0.9.0 so we have to git from the source.
-        requirements.append('burnman @ git+https://github.com/geodynamics/burnman@master#egg=burnman')
 
         setup(
                 name='TidalPy',
@@ -97,20 +111,21 @@ def setup_tidalpy(force_conda: bool = False):
                 maintainer_email='TidalPy@gmail.com',
                 license='CC BY-NC-SA 4.0',
                 classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-                platforms = ["Windows"],
-                packages=['TidalPy'],
-                python_requires='>=3.7',
+                platforms = ["Windows", "MacOS"],
+                packages=find_packages(),
+                include_package_data=True,
+                python_requires='>=3.7,<3.9',
                 install_requires=requirements,
                 zip_safe=False,
         )
 
-    print('TidalPy install complete!')
-    print('-------------------------')
+    print('\n\nTidalPy install complete!')
+    print('-------------------------------------------------------------')
     print('\tGetting Started: TBA')
     print('\tBug Report: https://github.com/jrenaud90/TidalPy/issues')
     print('\tQuestions: TidalPy@gmail.com')
-    print('-------------------------')
-    print('Enjoy!')
+    print('-------------------------------------------------------------')
+    print('Enjoy!\n\n')
     return True
 
 
