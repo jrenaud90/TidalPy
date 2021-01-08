@@ -4,7 +4,7 @@
 ## Purpose
 TidalPy is an open-source software suite designed to assist researchers in the semi-analytic calculation of tidal dissipation and subsequent orbit-spin evolution for rocky and icy worlds.
 
-** TidalPy is intended to be a...**
+**TidalPy is intended to be a...**
 * Black Box (referred to as "*OOP* scheme" for `Object-Oriented Programming` throughout the documentation)
     * TidalPy serves as simple to install (cross-platform) and, hopefully, simple to use package that non-experts (to tides and planetary interiors) can pick up and use quickly.
     * The OOP scheme performs many calculations with very little input from the user. The major drawbacks are peformance (in some situations) and that assumptions have been made that are opaque to the user without some digging. 
