@@ -89,10 +89,11 @@ The science used in TidalPy is described in the following papers (and references
     * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
     * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
 * Non-synchronous Rotation Evolution and High Eccentricity Truncation Packages:
-    * Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System (*in review*).
+    * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2020arXiv201011801R/abstract)
 * Third Party Software:
     * [BurnMan](https://github.com/geodynamics/burnman)
     * [diffeqpy](https://github.com/SciML/diffeqpy)
+    * [Geodynamic Color Maps](https://doi.org/10.5194/gmd-11-2541-2018)
 
 ## Contribute
 TidalPy is in early alpha and needs lots of improvements and help! If you are interested in helping out, please check out the information in `Documentation\Contribute.md`.
