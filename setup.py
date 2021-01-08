@@ -121,11 +121,11 @@ def setup_tidalpy(force_conda: bool = False):
         )
 
     print('\n\nTidalPy install complete!')
-    print('-------------------------------------------------------------')
-    print('\tGetting Started: TBA')
+    print('-----------------------------------------------------------------------------')
+    print('\tGetting Started: https://github.com/jrenaud90/TidalPy/blob/master/README.md')
     print('\tBug Report: https://github.com/jrenaud90/TidalPy/issues')
     print('\tQuestions: TidalPy@gmail.com')
-    print('-------------------------------------------------------------')
+    print('-----------------------------------------------------------------------------')
     print('Enjoy!\n\n')
     return True
 

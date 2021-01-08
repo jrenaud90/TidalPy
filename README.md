@@ -1,7 +1,7 @@
 # TidalPy - v0.2 Alpha
 ![Travis-ci](https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master) 
 ## Purpose
-TidalPy is an open-source software suite designed to assist researchers in the semi-analytic calculation of tidal dissipation and evolution for rocky and icy worlds.
+TidalPy is an open-source software suite designed to assist researchers in the semi-analytic calculation of tidal dissipation and subsequent orbit-spin evolution for rocky and icy worlds.
 
 **TidalPy is intended to be good as a...**
 * Black Box (referred to as "*OOP* scheme" for `Object-Oriented Programming` throughout the documentation)
@@ -12,11 +12,18 @@ TidalPy is an open-source software suite designed to assist researchers in the s
         * In general, the functional scheme will have much higher performance, flexibility, and extensibility than OOP.
         * Once you are comfortable with `TidalPy`, it is usually a good idea to mix the two schemes: take some aspects of OOP that you don't want to deal with and build off of them with some of `TidalPy`'s or your own functions and code.
 
+**Limitations**
+
+The major limitations of the current version of TidalPy are...
+* Interior of planets are treated as 0-dimensional layers. Multiple layers are allowed, but a multi-shell dissipation approach has not been implemented.
+* Effects caused by compressibility are not considered.
+* Chemical and phase changes within a planet's layers have not yet been implemented.
+
 **Related Software**
 
 Below is a list of (non-exhaustive) publicly available software that is similar to `TidalPy`.
 
-* Are you more interested in the orbital evolution of multiple planets with each planet influencing one another? Consider a N-body approach like...
+* Are you more interested in the orbital evolution of multiple planets with each planet influencing one another? Consider an N-body approach like...
     * [VPLanet](https://github.com/VirtualPlanetaryLaboratory/vplanet)
     * [Posidonius (formerly Mercury-T)](https://github.com/marblestation/posidonius)
     * [ReboundX](https://github.com/dtamayo/reboundx)
@@ -40,7 +47,7 @@ Pre-Install Requirements:
 The current version of TidalPy is in Alpha and will receive many updates on a relatively fast schedule. It is, therefore, recommended that you run it from an IDE (more on that below) and/or install it as an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs).
 
 #### Install as an editable package
-* Get the the latest version from Github
+* Get the latest version from Github
     * Ensure you have [git](https://git-scm.com/downloads) or [github](https://desktop.github.com/) installed on your machine.
     * Open a terminal and navigate to an easy-to-access directory where you would like to install TidalPy.
     * Clone the TidalPy git using `git clone https://github.com/jrenaud90/TidalPy.git`.
@@ -55,7 +62,7 @@ The current version of TidalPy is in Alpha and will receive many updates on a re
         * Optionally, you may add the `-v` flag (before `-e`) to see more installation information --- but this tends to be too much info.
         * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages that TidalPy requires.
         * **Before you run this:** You might consider using a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
-* Test your install:
+* Test your installation:
     * Navigate to the TidalPy directory that contains `setup.py` in a terminal.
     * Ensure you have `pytest` package installed (`conda install pytest` or `pip install pytest`).
     * Run pytest by simply using the command `pytest` from your terminal:
@@ -73,7 +80,7 @@ Coming Soon! For now, check out the `Cookbooks and Scripts` and `Documentation` 
 Eventually there will be more "getting started information" in the `Documentation/Getting Started.md`.
 
 ## Using TidalPy for Science
-TidalPy has been used in several studies already and we encourage you to use it in yours. We would appreciate you include a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers below (if you utilized a specific package). We also would love to see where TidalPy is being used! Please feel free to send us an email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy.
+TidalPy has been used in several studies already, and we encourage you to use it in yours. We would appreciate you include a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers below (if you utilized a specific package). We also would love to see where TidalPy is being used! Please feel free to send us an email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy.
 Anyone is welcome to make forks or copies of TidalPy as long as their work references back to this page. License information can be found at the end of this file.
 
 ### TidalPy's Science
