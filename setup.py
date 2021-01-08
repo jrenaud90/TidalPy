@@ -78,16 +78,16 @@ def setup_tidalpy(force_conda: bool = False):
 
     print('Installing Required Packages (attempting with Conda)...')
     # Try to install via conda...
-    process = subprocess.run(['conda', 'install', '--file', './conda_requirements.txt'], shell=True)
+    process = subprocess.run('conda install --file ./conda_requirements.txt', shell=True)
     if process.returncode != 0:
         print('Conda install failed. Attempting with pip...')
         # If that fails (perhaps conda is not being used), install via pip
-        process = subprocess.run(['pip', 'install', '-r', './requirements.txt'], shell=True)
+        process = subprocess.run('pip install -r ./requirements.txt', shell=True)
     else:
         # We still need to install the latest version (unreleased, don't use 0.9.x) of Burnman
         print('Installing Burnman from Github...')
-        process = subprocess.run(['pip', 'install',
-                                  'git+https://github.com/geodynamics/burnman.git@master#egg=burnman'], shell=True)
+        process = subprocess.run('pip install git+https://github.com/geodynamics/burnman.git@master#egg=burnman',
+                                 shell=True)
 
     if continue_with_setup:
         print('Running main TidalPy setup.')
@@ -107,6 +107,7 @@ def setup_tidalpy(force_conda: bool = False):
                     "Source Code": "https://github.com/jrenaud90/TidalPy",
                 },
                 author='Joe P. Renaud',
+                author_email='joe.p.renaud@gmail.com',
                 maintainer='Joe P. Renaud',
                 maintainer_email='TidalPy@gmail.com',
                 license='CC BY-NC-SA 4.0',
