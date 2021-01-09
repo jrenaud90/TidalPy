@@ -1,9 +1,10 @@
-<p align="center">
-# TidalPy
-**v0.2 Alpha** 
+<h1 align="center">TidalPy</h1>
+<h3 align="center">v0.2 Alpha</h3>
 
-![Travis-ci](https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master) 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/jrenaud90/TidalPy/HEAD)
+<p align="center">
+    <a href="https://travis-ci.com/jrenaud90/TidalPy"><img src="https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master" /></a> <br />
+    <a href="https://mybinder.org/v2/gh/jrenaud90/TidalPy/master?filepath=%2FCookbooks%2F"><img src="https://mybinder.org/badge_logo.svg" /></a>
+    <a href="https://gitter.im/TidalPy/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/TidalPy/community.svg" /></a>
 </p>
 
 ## Purpose

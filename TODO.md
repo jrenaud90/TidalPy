@@ -1,9 +1,4 @@
-
-* Look into https://mybinder.org/ for when git goes unprivate.
-
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()
-* Add looking into Cython or fortran for speed-up before 1.0 release to github issues
-* Make known issues somewhere; mention numba.errors.TypingError and the flatten() workaround
 * Once TidalPy is live on Github look into making a community on https://gitter.im/home/explore#
 * Make a "build_from_planet" function to take an already built planet and then provide some global changes that builds a new planet with, for example, a larger mass/radius
     * Make it so if only mass, or only radius, is provided an approx (M-R) of the other is used?
