@@ -2,9 +2,8 @@ import copy
 
 import json5
 
-from ..world_configs import WORLD_CONFIG_LOC
-from ... import log
-from ...utilities.io.pathing import get_all_files_of_type
+from ... import log, world_config_loc
+from ...utilities.io.pathing import get_all_files_of_type\
 
 
 def clean_world_config(world_config: dict, make_copy: bool = True):
@@ -76,7 +75,7 @@ def check_for_duplicate_worlds(world_configs: dict):
 
 # Find all planet configurations and import their config files
 # Locate all planet configurations
-known_worlds_files = get_all_files_of_type(WORLD_CONFIG_LOC, ['cfg', 'json', 'json5'])
+known_worlds_files = get_all_files_of_type(world_config_loc, ['cfg', 'json', 'json5'])
 known_worlds_cfg = dict()
 check_for_duplicate_worlds(known_worlds_cfg)
 _configs_loaded = False

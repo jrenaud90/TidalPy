@@ -1,4 +1,5 @@
 import time
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,6 +34,17 @@ from .initialize import initialize_tidalpy as reinitialize
 #    Alias the function
 reinit = reinitialize
 reinit()
+
+# Try and find the world configurations data folder (if it has not been removed)
+world_config_folder_found = False
+world_config_loc = os.path.join(tidalpy_loc, 'WorldConfigs')
+if os.path.isdir(world_config_loc):
+    world_config_folder_found = True
+else:
+    # Make a new directory
+    world_config_loc = os.path.join(tidalpy_loc, 'WorldConfigs-in_place')
+    if not os.path.exists(world_config_loc):
+        os.makedirs(world_config_loc)
 
 # Bring up various functionality to top-level
 #    Performance / Basic functionality

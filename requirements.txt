@@ -11,4 +11,4 @@ ipython>=7.19
 ipywidgets>=7.6.0
 jupyter>=1.0
 pathos
-git+https://github.com/geodynamics/burnman.git@master#egg=burnman
+burnman>=0.10.0-pre

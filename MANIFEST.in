@@ -1,4 +1,9 @@
 # MANIFEST.in
+include setup.py
 include README.md
+include CHANGES.md
+include LICENSE.txt
 include TidalPy/*.txt
-include TidalPy/structures/world_configs/*.json
+include TidalPy/WorldConfigs/*.json5
+include TidalPy/WorldConfigs/*.json
+include TidalPy/WorldConfigs/*.cfg

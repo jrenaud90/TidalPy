@@ -58,20 +58,27 @@ Pre-Install Requirements:
 * Unless you plan to download the source code from github directly, make sure you have [git](https://git-scm.com/downloads) or [github](https://desktop.github.com/) installed on your machine.
 
 ### Install
-The current version of TidalPy is in Alpha and will receive many updates on a relatively fast schedule. It is, therefore, recommended that you run it from an IDE (more on that below) and/or install it as an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs).
+The current version of TidalPy is in Alpha and will receive many updates on a relatively fast schedule. It is, therefore, recommended that you run it from an IDE (more on that below) and/or install it as an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs). If you do not wish to install as an editable package then please remove all `-e` flags used below.
 
-#### Install as an editable package
 * Get the latest version of TidalPy from Github
     * Open a terminal and navigate to an easy-to-access directory where you would like to install TidalPy.
     * Clone the TidalPy git using `git clone https://github.com/jrenaud90/TidalPy.git`.
         * Whenever you want to update TidalPy simply navigate to this directory and use `git pull` (to pull from the master branch; other branches are not recommended).
         * Since TidalPy is in early development, it is recommended you check for updates regularly. Updates will **not** download automatically. 
         * Always make a backup of the TidalPy installation directory in case new versions break whatever you were working on.
-* TidalPy source code should now be in your directory but Python does not know this, so using `import TidalPy` inside of Python will only work if performed from a terminal that is navigated to this directory.
-* To install TidalPy so that it can be accessed from the terminal anywhere:
-    * **Before continuing:** You might consider using a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
-    * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then run `pip install -e .` *(That trailing period is important, don't leave it out!)*
-    * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages that TidalPy requires.
+
+**Before continuing:** You might consider using a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
+* Install Burnman:
+    * The latest released version of [Burnman](https://github.com/geodynamics/burnman) has several issues that will prevent TidalPy from running. However, the latest update on its github is working.
+        * Install from github: `python -m pip install git+https://github.com/geodynamics/burnman.git`
+    
+* Install TidalPy:
+    * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then:
+        * For Anaconda Python:
+            * Run `conda install --file conda_requirements.txt; pip install -e .` *(That trailing period is important, don't leave it out!)*
+        * For non-Anaconda Python:
+            * Run `pip install -e .` *(That trailing period is important, don't leave it out!)*
+    * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages.
 * Test your installation:
     * Navigate to the TidalPy directory that contains `setup.py` in a terminal.
     * Ensure you have `pytest` package installed (`conda install pytest` or `pip install pytest`).

@@ -10,8 +10,7 @@ python:
 
 # command to install dependencies
 
-install:
-  - pip install -e .
+install: python -m pip install git+https://github.com/geodynamics/burnman.git; pip install .
 
 # command to run tests
 script:

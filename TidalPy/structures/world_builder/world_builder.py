@@ -3,7 +3,7 @@ from typing import Union, TextIO
 
 import json5
 
-from .config_handler import get_world_configs, WORLD_CONFIG_LOC, clean_world_config
+from .config_handler import get_world_configs, world_config_loc, clean_world_config
 from ..world_types import world_types, BurnManWorld
 from ... import log
 from ...burnman_interface.build import build_burnman_world

@@ -1,6 +1,6 @@
 from TidalPy.tools.conversions import myr2sec, semi_a2orbital_motion
-from TidalPy.integration.dualBodyConfig.icy_shell_model import build_2layer_icy_shell_diffeq
-from TidalPy.integration.dualBodyConfig.integrationConfigs.PlutoCharon import pluto, charon
+from TidalPy.integration_dev.dualBodyConfig.icy_shell_model import build_2layer_icy_shell_diffeq
+from TidalPy.integration_dev.dualBodyConfig.integrationConfigs.PlutoCharon import pluto, charon
 
 integration_config = {
     'use_planetary_params_for_tides': True,
