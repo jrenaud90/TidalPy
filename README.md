@@ -1,5 +1,10 @@
+<p align="center">
 # TidalPy
-**v0.2 Alpha**  ![Travis-ci](https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master) 
+**v0.2 Alpha** 
+
+![Travis-ci](https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master) 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/jrenaud90/TidalPy/HEAD)
+</p>
 
 ## Purpose
 TidalPy is an open-source software suite designed to assist researchers in the semi-analytic calculation of tidal dissipation and subsequent orbit-spin evolution for rocky and icy worlds.
