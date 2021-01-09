@@ -56,7 +56,7 @@ def test_build_star_from_manual_config():
 def test_build_star_from_file_loaded_config():
 
     # Test loading a star from a user-provided configuration file
-    worlds_dir = TidalPy.structures.WORLD_CONFIG_LOC
+    worlds_dir = TidalPy.structures.world_builder.world_config_loc
     cancri_filepath = os.path.join(worlds_dir, '55cnc.json')
     with open(cancri_filepath, 'r') as cancri_config_file:
 
