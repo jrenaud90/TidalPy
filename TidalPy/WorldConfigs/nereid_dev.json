@@ -1,0 +1,25 @@
+{
+    "name": "Nereid",
+    "type": "layered",
+    "radius": 180.0e3,
+    "mass": 3.1e19,
+    "semi_major_axis": 5513940.0e3,
+    "semi_major_axis_in_au": false,
+    "eccentricity": 0.7417482,
+    "spin_period": 0.48308333333,
+    "albedo": 0.24,
+    "force_spin_sync": false,
+    "layers": {
+        "Core": {
+            "type": "rock",
+            "is_tidal": true,
+            "density_bulk": 1500.0,
+            "radius": 180.0e3,
+            "rheology": {
+                "complex_compliance": {
+                    "model": "sundberg"
+                }
+            }
+        }
+    }
+}
