@@ -59,7 +59,7 @@ def test_calc_fundamental_order2():
     # Check that the inverse is correct
     for i in range(10):
         identity = F[:, :, i] @ F_inv[:, :, i]
-        assert np.allclose(identity, np.identity(6))
+        assert np.allclose(identity, np.identity(6), atol=1.e-6)
 
 def test_calc_fundamental_orderl_l2():
 

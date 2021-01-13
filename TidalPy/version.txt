@@ -10,4 +10,4 @@
 # 1.2.0rc1    # Release Candidate (All features are in place; no changes should be made unless essential; few bugs)
 # 1.2.X        # Final Release (X are bug fixes and patches that do not fall on the regular release cycle)
 
-version = 0.2.2a0
+version = 0.2.2a1
