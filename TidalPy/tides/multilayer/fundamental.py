@@ -2,10 +2,14 @@
 
 Two versions are defined, one for a generic order-l and one for order-l=2 (for performance).
 
+Assumptions
+-----------
+These matrices assume an incompressible body.
+
 References
 ----------
 SVC16 : Sabadini, Vermeerson, & Cambiotti (2016, DOI: 10.1007/978-94-017-7552-6)
-HH14  : Henning & Hurdord (2014, DOI: 10.1088/0004-637X/789/1/30)
+HH14  : Henning & Hurford (2014, DOI: 10.1088/0004-637X/789/1/30)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
 """
 
