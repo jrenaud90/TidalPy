@@ -52,7 +52,7 @@ def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, gravity_array: np.n
 
     # Shortcuts
     radius = radius_array[-1]
-    y1 = tidal_y[0, :]
+    y1 = tidal_y[1, :]
     y2 = tidal_y[1, :]
     y3 = tidal_y[2, :]
     y4 = tidal_y[3, :]
