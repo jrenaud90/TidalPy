@@ -1,4 +1,4 @@
-""" Tests for propagating the multilayer dissipation model using the fundamental matrix and its inverse
+""" Tests for extracting useful information out of a multilayer tidal propagation
 """
 
 import numpy as np
@@ -6,6 +6,7 @@ import numpy as np
 import TidalPy
 from TidalPy.tides.multilayer.fundamental import fundamental_matrix_generic, fundamental_matrix_orderl2
 from TidalPy.tides.multilayer.propagate import propagate
+from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.constants import G
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -39,13 +40,18 @@ def test_calc_fundamental_order2():
     # Find tidal solution
     tidal_y = propagate(F, F_inv, core_condition, world_radius=radius_array[-1], order_l=2)
 
-    # See if shape matches expectations
-    assert tidal_y.shape[0] == 6
-    assert tidal_y.shape[1] == 10
+    # Decompose the results
+    sensitivity_to_shear, (k, h, l) = decompose(tidal_y, radius_array[1:], gravity_array[-1],
+                                                shear_array[1:], bulk_modulus=200.0e9, order_l=2)
 
-    # See if the types make sense
-    for i in range(6):
-        assert type(tidal_y[i, 0]) in [np.complex128, np.complex, complex]
+    # Check shapes
+    assert sensitivity_to_shear.shape == (10 - 1,)
+
+    # Check types
+    assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
+    assert type(k) in [np.complex128, np.complex, complex]
+    assert type(h) in [np.complex128, np.complex, complex]
+    assert type(l) in [np.complex128, np.complex, complex]
 
 def test_calc_fundamental_order3():
 
@@ -64,11 +70,15 @@ def test_calc_fundamental_order3():
     # Find tidal solution
     tidal_y = propagate(F, F_inv, core_condition, world_radius=radius_array[-1], order_l=3)
 
-    # See if shape matches expectations
-    assert tidal_y.shape[0] == 6
-    assert tidal_y.shape[1] == 10
+    # Decompose the results
+    sensitivity_to_shear, (k, h, l) = decompose(tidal_y, radius_array[1:], gravity_array[-1],
+                                                shear_array[1:], bulk_modulus=200.0e9, order_l=3)
 
-    # See if the types make sense
-    for i in range(6):
-        assert type(tidal_y[i, 0]) in [np.complex128, np.complex, complex]
+    # Check shapes
+    assert sensitivity_to_shear.shape == (10 - 1,)
 
+    # Check types
+    assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
+    assert type(k) in [np.complex128, np.complex, complex]
+    assert type(h) in [np.complex128, np.complex, complex]
+    assert type(l) in [np.complex128, np.complex, complex]

@@ -56,6 +56,10 @@ def test_calc_fundamental_order2():
     assert F_inv.shape[1] == 6
     assert F_inv.shape[2] == 10
 
+    # See if the types make sense
+    assert type(F[0, 0, 0]) in [np.complex128, np.complex, complex]
+    assert type(F_inv[0, 0, 0]) in [np.complex128, np.complex, complex]
+
     # Check that the inverse is correct
     for i in range(10):
         identity = F[:, :, i] @ F_inv[:, :, i]
@@ -76,6 +80,10 @@ def test_calc_fundamental_orderl_l2():
     assert F_inv.shape[0] == 6
     assert F_inv.shape[1] == 6
     assert F_inv.shape[2] == 10
+
+    # See if the types make sense
+    assert type(F[0, 0, 0]) in [np.complex128, np.complex, complex]
+    assert type(F_inv[0, 0, 0]) in [np.complex128, np.complex, complex]
 
     # Check that the inverse is correct
     for i in range(10):

@@ -36,7 +36,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
         Density at each radii [kg m-3]
     gravity_array : np.ndarray
         Acceleration due to gravity at each radii [m s-2]
-    order_l : int
+    order_l : int = 2
         Tidal Harmonic Degree Index
 
     Returns
@@ -82,7 +82,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
     ## Column 1
     fundamental_mtx[0, 0, :] = order_l * rlp1 / (2. * dlp3)
     fundamental_mtx[1, 0, :] = lp3 * rlp1 / (2. * dlp3 * lp1)
-    fundamental_mtx[2, 0, :] = (order_l * rgp + 2. * l2mlm3 * shear_array) * rl / (2. * dlp3)
+    fundamental_mtx[2, 0, :] = (order_l * rgp + 2. * l2mlm3 * shear_array) * rl / (2. * dlp3)  # Believe there is a typo in HH14, they have the r^l only on one term instead of both.
     fundamental_mtx[3, 0, :] = order_l * lp2 * shear_array * rl / (dlp3 * lp1)
     # fundamental_mtx[4, 0, :] = np.zeros(num_shells)
     fundamental_mtx[5, 0, :] = 2. * pi * G * density_array * order_l * rlp1 / dlp3
