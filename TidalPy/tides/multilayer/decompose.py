@@ -14,8 +14,8 @@ from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
 
-@njit(cacheable=True)
-def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, surface_gravity: float,
+# @njit(cacheable=True)
+def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
               complex_shear_modulus: np.ndarray, bulk_modulus: FloatArray, order_l: int = 2):
     """ Decomposes the tidal solution (y) into useful properties.
 
@@ -32,8 +32,8 @@ def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, surface_gravity: fl
         Tidal propagation solution (6 x N) found via the propagation technique.
     radius_array : np.ndarray
         Radii of the world (N) [m]
-    surface_gravity : float
-        Acceleration due to gravity at the surface of the world [m s-2].
+    gravity_array : np.ndarray
+        Acceleration due to gravity at the top of each shell within the world [m s-2].
     complex_shear_modulus : np.ndarray
         The complex shear modulus as found by the world or layer's rheology (N-1) [Pa].
     bulk_modulus : FloatArray
@@ -86,8 +86,8 @@ def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, surface_gravity: fl
     # Notes from ID (TODO: Look into which is correct):
     #    Note Im(k2) = -Im(y5) (Henning & Hurford 2014 eq. A9), opposite convention of Tobie et al. (2005, eqs. 9 & 36)
     #    And k2 = |-y5-1| (Roberts & Nimmo 2008 equation A8), not 1-y5 as in Henning & Hurford (2014) equation A9
-    k_number = y5[-1] - 1.
-    h_number = y1[-1] * surface_gravity
-    l_number = y3[-1] * surface_gravity
+    k_numbers = -y5 + 1.
+    h_numbers = y1 * gravity_array
+    l_numbers = y3 * gravity_array
 
-    return radial_sensitivity_to_shear, (k_number, h_number, l_number)
+    return radial_sensitivity_to_shear, (k_numbers, h_numbers, l_numbers)

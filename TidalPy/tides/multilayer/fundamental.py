@@ -20,7 +20,7 @@ from ...utilities.performance import njit
 
 
 @njit(cacheable=True)
-def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray,
+def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np.ndarray,
                                density_array: np.ndarray, gravity_array: np.ndarray, order_l: int = 2):
     """ Construct the fundamental matrix and its inverse for a generic order-l
 
@@ -30,8 +30,8 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
     ----------
     radius_array : np.ndarray
         Radius array of the planet [m]
-    shear_array : np.ndarray
-        Shear modulus at each radii [Pa]
+    complex_shear_array : np.ndarray
+        Complex Shear modulus at each radii [Pa]
     density_array : np.ndarray
         Density at each radii [kg m-3]
     gravity_array : np.ndarray
@@ -73,8 +73,8 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
     dlp3 = (2. * order_l + 3.)
     
     rgp = radius_array * gravity_array * density_array
-    rgp_s = rgp / shear_array
-    r_s = radius_array / shear_array
+    rgp_s = rgp / complex_shear_array
+    r_s = radius_array / complex_shear_array
     pr_s = density_array * r_s
 
     # Build Fundamental Matrix (zeros do not need to be specifically stated as they were put in at initialization)
@@ -82,16 +82,16 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
     ## Column 1
     fundamental_mtx[0, 0, :] = order_l * rlp1 / (2. * dlp3)
     fundamental_mtx[1, 0, :] = lp3 * rlp1 / (2. * dlp3 * lp1)
-    fundamental_mtx[2, 0, :] = (order_l * rgp + 2. * l2mlm3 * shear_array) * rl / (2. * dlp3)  # Believe there is a typo in HH14, they have the r^l only on one term instead of both.
-    fundamental_mtx[3, 0, :] = order_l * lp2 * shear_array * rl / (dlp3 * lp1)
+    fundamental_mtx[2, 0, :] = (order_l * rgp + 2. * l2mlm3 * complex_shear_array) * rl / (2. * dlp3)  # Believe there is a typo in HH14, they have the r^l only on one term instead of both.
+    fundamental_mtx[3, 0, :] = order_l * lp2 * complex_shear_array * rl / (dlp3 * lp1)
     # fundamental_mtx[4, 0, :] = np.zeros(num_shells)
     fundamental_mtx[5, 0, :] = 2. * pi * G * density_array * order_l * rlp1 / dlp3
 
     ## Column 2
     fundamental_mtx[0, 1, :] = rlm1
     fundamental_mtx[1, 1, :] = rlm1 / order_l
-    fundamental_mtx[2, 1, :] = (rgp + 2. * (order_l - 1.) * shear_array) * radius_array**(order_l - 2.)
-    fundamental_mtx[3, 1, :] = 2 * (order_l - 1.) * shear_array * radius_array**(order_l - 2.) / order_l
+    fundamental_mtx[2, 1, :] = (rgp + 2. * (order_l - 1.) * complex_shear_array) * radius_array**(order_l - 2.)
+    fundamental_mtx[3, 1, :] = 2 * (order_l - 1.) * complex_shear_array * radius_array**(order_l - 2.) / order_l
     # fundamental_mtx[4, 1, :] = np.zeros(num_shells)
     fundamental_mtx[5, 1, :] = 4. * pi * G * density_array * rlm1
 
@@ -106,16 +106,16 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
     ## Column 4
     fundamental_mtx[0, 3, :] = lp1 * rnl / (2. * dlm1)
     fundamental_mtx[1, 3, :] = (2. - order_l) * rnl / (2. * order_l * dlm1)
-    fundamental_mtx[2, 3, :] = (lp1 * rgp - 2. * l2p3lm1 * shear_array) / (2. * dlm1 * rlp1)
-    fundamental_mtx[3, 3, :] = l2m1 * shear_array / (order_l * dlm1 * rlp1)
+    fundamental_mtx[2, 3, :] = (lp1 * rgp - 2. * l2p3lm1 * complex_shear_array) / (2. * dlm1 * rlp1)
+    fundamental_mtx[3, 3, :] = l2m1 * complex_shear_array / (order_l * dlm1 * rlp1)
     # fundamental_mtx[4, 3, :] = np.zeros(num_shells)
     fundamental_mtx[5, 3, :] = 2 * pi * G * density_array * lp1 / (dlm1 * rl)
 
     ## Column 5
     fundamental_mtx[0, 4, :] = rnlm2
     fundamental_mtx[1, 4, :] = -rnlm2 / lp1
-    fundamental_mtx[2, 4, :] = (rgp - 2. * lp2 * shear_array) / rlp3
-    fundamental_mtx[3, 4, :] = 2. * lp2 * shear_array / (lp1 * rlp3)
+    fundamental_mtx[2, 4, :] = (rgp - 2. * lp2 * complex_shear_array) / rlp3
+    fundamental_mtx[3, 4, :] = 2. * lp2 * complex_shear_array / (lp1 * rlp3)
     # fundamental_mtx[4, 4, :] = np.zeros(num_shells)
     fundamental_mtx[5, 4, :] = 4. * pi * G * density_array / rlp2
 
@@ -198,7 +198,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, shear_array: np.ndarray
     return fundamental_mtx, inverse_fundamental_mtx
 
 @njit(cacheable=True)
-def fundamental_matrix_orderl2(radius_array: np.ndarray, shear_array: np.ndarray,
+def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np.ndarray,
                                density_array: np.ndarray, gravity_array: np.ndarray):
     """ Construct the fundamental matrix and its inverse for a order-l = 2
 
@@ -213,8 +213,8 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, shear_array: np.ndarray
     ----------
     radius_array : np.ndarray
         Radius array of the planet [m]
-    shear_array : np.ndarray
-        Shear modulus at each radii [Pa]
+    complex_shear_array : np.ndarray
+        Complex Shear modulus at each radii [Pa]
     density_array : np.ndarray
         Density at each radii [kg m-3]
     gravity_array : np.ndarray
@@ -241,8 +241,8 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, shear_array: np.ndarray
 
     # Optimizations
     rgp = radius_array * gravity_array * density_array
-    rgp_s = rgp / shear_array
-    r_s = radius_array / shear_array
+    rgp_s = rgp / complex_shear_array
+    r_s = radius_array / complex_shear_array
     pr_s = density_array * r_s
     r2 = radius_array * radius_array
     r3 = radius_array * r2
@@ -254,16 +254,16 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, shear_array: np.ndarray
     ## Column 1
     fundamental_mtx[0, 0, :] = r3 / 7.
     fundamental_mtx[1, 0, :] = 5. * r3 / 42.
-    fundamental_mtx[2, 0, :] = (rgp - shear_array) * r2 / 7.
-    fundamental_mtx[3, 0, :] = 8. * shear_array * r2 / 21.
+    fundamental_mtx[2, 0, :] = (rgp - complex_shear_array) * r2 / 7.
+    fundamental_mtx[3, 0, :] = 8. * complex_shear_array * r2 / 21.
     # fundamental_mtx[4, 0, :] = np.zeros(num_shells)
     fundamental_mtx[5, 0, :] = 4. * pi * G * density_array * r3 / 7.
 
     ## Column 2
     fundamental_mtx[0, 1, :] = radius_array
     fundamental_mtx[1, 1, :] = radius_array / 2.
-    fundamental_mtx[2, 1, :] = rgp + 2. * shear_array
-    fundamental_mtx[3, 1, :] = shear_array
+    fundamental_mtx[2, 1, :] = rgp + 2. * complex_shear_array
+    fundamental_mtx[3, 1, :] = complex_shear_array
     # fundamental_mtx[4, 1, :] = np.zeros(num_shells)
     fundamental_mtx[5, 1, :] = 4. * pi * G * density_array * radius_array
 
@@ -278,16 +278,16 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, shear_array: np.ndarray
     ## Column 4
     fundamental_mtx[0, 3, :] = 1. / (2. * r2)
     # fundamental_mtx[1, 3, :] = np.zeros(num_shells)
-    fundamental_mtx[2, 3, :] = (rgp - 6. * shear_array) / (2. * r3)
-    fundamental_mtx[3, 3, :] = shear_array / (2. * r3)
+    fundamental_mtx[2, 3, :] = (rgp - 6. * complex_shear_array) / (2. * r3)
+    fundamental_mtx[3, 3, :] = complex_shear_array / (2. * r3)
     # fundamental_mtx[4, 3, :] = np.zeros(num_shells)
     fundamental_mtx[5, 3, :] = 2. * pi * G * density_array / r2
 
     ## Column 5
     fundamental_mtx[0, 4, :] = 1. / r4
     fundamental_mtx[1, 4, :] = -1. / (3. * r4)
-    fundamental_mtx[2, 4, :] = (rgp - 8. * shear_array) / r5
-    fundamental_mtx[3, 4, :] = 8. * shear_array / (3. * r5)
+    fundamental_mtx[2, 4, :] = (rgp - 8. * complex_shear_array) / r5
+    fundamental_mtx[3, 4, :] = 8. * complex_shear_array / (3. * r5)
     # fundamental_mtx[4, 4, :] = np.zeros(num_shells)
     fundamental_mtx[5, 4, :] = 4. * pi * G * density_array / r4
 
