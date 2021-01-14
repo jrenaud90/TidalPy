@@ -41,14 +41,14 @@ def test_calc_fundamental_order2():
     tidal_y = propagate(F, F_inv, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(tidal_y, radius_array[1:], gravity_array[1:],
+    sensitivity_to_shear, (k, h, l) = decompose(tidal_y, radius_array[1:], gravity_array,
                                                 shear_array[1:], bulk_modulus=200.0e9, order_l=2)
 
     # Check shapes
     assert sensitivity_to_shear.shape == (10 - 1,)
-    assert k.shape == (10 - 1,)
-    assert h.shape == (10 - 1,)
-    assert l.shape == (10 - 1,)
+    assert k.shape == (10,)
+    assert h.shape == (10,)
+    assert l.shape == (10,)
 
     # Check types
     assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
@@ -74,14 +74,17 @@ def test_calc_fundamental_order3():
     tidal_y = propagate(F, F_inv, core_condition, world_radius=radius_array[-1], order_l=3)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(tidal_y, radius_array[1:], gravity_array[-1],
+    sensitivity_to_shear, (k, h, l) = decompose(tidal_y, radius_array[1:], gravity_array,
                                                 shear_array[1:], bulk_modulus=200.0e9, order_l=3)
 
     # Check shapes
     assert sensitivity_to_shear.shape == (10 - 1,)
+    assert k.shape == (10,)
+    assert h.shape == (10,)
+    assert l.shape == (10,)
 
     # Check types
     assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
-    assert type(k) in [np.complex128, np.complex, complex]
-    assert type(h) in [np.complex128, np.complex, complex]
-    assert type(l) in [np.complex128, np.complex, complex]
+    assert type(k[0]) in [np.complex128, np.complex, complex]
+    assert type(h[0]) in [np.complex128, np.complex, complex]
+    assert type(l[0]) in [np.complex128, np.complex, complex]

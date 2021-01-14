@@ -14,7 +14,7 @@ from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
 
-# @njit(cacheable=True)
+@njit(cacheable=True)
 def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
               complex_shear_modulus: np.ndarray, bulk_modulus: FloatArray, order_l: int = 2):
     """ Decomposes the tidal solution (y) into useful properties.
