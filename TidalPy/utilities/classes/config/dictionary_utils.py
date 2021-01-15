@@ -99,7 +99,7 @@ def nested_place(replacement_value: Any, dict_to_overwrite: dict,
         if retain_old_value:
             i = 0
             while True:
-                if i > 50:
+                if i > 500:
                     raise StopIteration('A large number of retained key values found during nested placement.')
                 if i == 0:
                     retain_key_attempt = f'{_key}_OLD'
