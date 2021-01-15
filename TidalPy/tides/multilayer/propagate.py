@@ -71,8 +71,8 @@ def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.nda
     surface_matrix = np.vstack( (aggregate_matrix[2, :, -1], aggregate_matrix[3, :, -1], aggregate_matrix[5, :, -1]) )
 
     # The surface boundary conditions are (always?) static and only based on the radius and order-l
-    surface_bc = np.zeros((3,), dtype=np.complex128)
-    surface_bc[2] = -1. * (2. * order_l + 1) * world_radius
+    surface_bc = np.zeros((3,), dtype=np.float64)
+    surface_bc[2] = -1. * (2. * order_l + 1.) / world_radius
 
     # Invert the surface matrix and solve using the surface boundary condition
     surface_matrix_inv = np.linalg.inv(surface_matrix)

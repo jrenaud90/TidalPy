@@ -86,7 +86,7 @@ def decompose(tidal_y: np.ndarray, radius_array: np.ndarray, gravity_array: np.n
     # Notes from ID (TODO: Look into which is correct):
     #    Note Im(k2) = -Im(y5) (Henning & Hurford 2014 eq. A9), opposite convention of Tobie et al. (2005, eqs. 9 & 36)
     #    And k2 = |-y5-1| (Roberts & Nimmo 2008 equation A8), not 1-y5 as in Henning & Hurford (2014) equation A9
-    k_numbers = -y5 + 1.
+    k_numbers = -y5 - 1.
     h_numbers = y1 * gravity_array
     l_numbers = y3 * gravity_array
 
