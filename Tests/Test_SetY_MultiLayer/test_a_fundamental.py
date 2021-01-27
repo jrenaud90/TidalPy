@@ -44,8 +44,8 @@ shear_array = 5.e10 * np.ones(10, dtype=np.complex)
 # plt.show()
 
 def test_calc_fundamental_order2():
-    F, F_inv = fundamental_matrix_orderl2(radius_array[1:], shear_array,
-                                          density_array, gravity_array)
+    F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array,
+                                                     density_array, gravity_array)
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -56,9 +56,14 @@ def test_calc_fundamental_order2():
     assert F_inv.shape[1] == 6
     assert F_inv.shape[2] == 10
 
+    assert deriv_mtx.shape[0] == 6
+    assert deriv_mtx.shape[1] == 6
+    assert deriv_mtx.shape[2] == 10
+
     # See if the types make sense
     assert type(F[0, 0, 0]) in [np.complex128, np.complex, complex]
     assert type(F_inv[0, 0, 0]) in [np.complex128, np.complex, complex]
+    assert type(deriv_mtx[0, 0, 0]) in [np.complex128, np.complex, complex]
 
     # Check that the inverse is correct
     for i in range(10):
@@ -67,10 +72,10 @@ def test_calc_fundamental_order2():
 
 def test_calc_fundamental_orderl_l2():
 
-    F2, F2_inv = fundamental_matrix_orderl2(radius_array[1:], shear_array,
-                                            density_array, gravity_array)
-    F, F_inv = fundamental_matrix_generic(radius_array[1:], shear_array,
-                                          density_array, gravity_array, order_l=2)
+    F2, F2_inv, deriv_mtx2 = fundamental_matrix_orderl2(radius_array[1:], shear_array,
+                                                        density_array, gravity_array)
+    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array,
+                                                     density_array, gravity_array, order_l=2)
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -81,9 +86,14 @@ def test_calc_fundamental_orderl_l2():
     assert F_inv.shape[1] == 6
     assert F_inv.shape[2] == 10
 
+    assert deriv_mtx2.shape[0] == 6
+    assert deriv_mtx2.shape[1] == 6
+    assert deriv_mtx2.shape[2] == 10
+
     # See if the types make sense
     assert type(F[0, 0, 0]) in [np.complex128, np.complex, complex]
     assert type(F_inv[0, 0, 0]) in [np.complex128, np.complex, complex]
+    assert type(deriv_mtx2[0, 0, 0]) in [np.complex128, np.complex, complex]
 
     # Check that the inverse is correct
     for i in range(10):
@@ -97,8 +107,8 @@ def test_calc_fundamental_orderl_l2():
         assert np.allclose(F_inv[:, :, i], F2_inv[:, :, i])
 
 def test_calc_fundamental_orderl_l3():
-    F, F_inv = fundamental_matrix_generic(radius_array[1:], shear_array,
-                                          density_array, gravity_array, order_l=3)
+    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array,
+                                                     density_array, gravity_array, order_l=3)
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -108,6 +118,10 @@ def test_calc_fundamental_orderl_l3():
     assert F_inv.shape[0] == 6
     assert F_inv.shape[1] == 6
     assert F_inv.shape[2] == 10
+
+    assert deriv_mtx.shape[0] == 6
+    assert deriv_mtx.shape[1] == 6
+    assert deriv_mtx.shape[2] == 10
 
     # Check that the inverse is correct
     for i in range(10):

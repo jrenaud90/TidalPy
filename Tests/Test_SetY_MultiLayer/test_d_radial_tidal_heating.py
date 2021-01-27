@@ -7,7 +7,9 @@ import TidalPy
 from TidalPy.tides.multilayer.fundamental import fundamental_matrix_generic, fundamental_matrix_orderl2
 from TidalPy.tides.multilayer.propagate import propagate
 from TidalPy.tides.multilayer.decompose import decompose
+from TidalPy.tides.multilayer.heating import calc_radial_tidal_heating
 from TidalPy.constants import G
+from TidalPy.tools.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -22,6 +24,10 @@ planet_mass = sum(mass_array)
 mass_below = np.asarray([np.sum(mass_array[:i+1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
 shear_array = 5.e10 * np.ones(10, dtype=np.complex)
+host_mass = 10. * planet_mass
+orbital_freq = (2. * np.pi / (86400. * 6.))
+semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
+eccentricity = 0.01
 
 def test_calc_fundamental_order2():
 
@@ -43,23 +49,22 @@ def test_calc_fundamental_order2():
     sensitivity_to_shear, (k, h, l) = decompose(tidal_y, tidal_y_deriv, radius_array[1:], gravity_array,
                                                 shear_array, bulk_modulus=200.0e9, order_l=2)
 
+    # Calculate tidal heating as a function of radius
+    radial_tidal_heating = calc_radial_tidal_heating(eccentricity, orbital_freq, semi_major_axis, host_mass,
+                                                     radius_array[1:], sensitivity_to_shear, shear_array,
+                                                     order_l=2)
+
     # Check shapes
-    assert sensitivity_to_shear.shape == (10,)
-    assert k.shape == (10,)
-    assert h.shape == (10,)
-    assert l.shape == (10,)
+    assert radial_tidal_heating.shape == (10,)
 
     # Check types
-    assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
-    assert type(k[0]) in [np.complex128, np.complex, complex]
-    assert type(h[0]) in [np.complex128, np.complex, complex]
-    assert type(l[0]) in [np.complex128, np.complex, complex]
+    assert type(radial_tidal_heating[0]) in [np.float, np.float64, float]
 
 def test_calc_fundamental_order3():
 
     # Calculate the fundamental matrix and its inverse
-    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array, density_array, gravity_array,
-                                                     order_l=3)
+    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array,
+                                                     density_array, gravity_array, order_l=3)
 
     # Central boundary condition
     ## From IcyDwarf: "They are inconsequential on the rest of the solution, so false assumptions are OK."
@@ -76,14 +81,13 @@ def test_calc_fundamental_order3():
     sensitivity_to_shear, (k, h, l) = decompose(tidal_y, tidal_y_deriv, radius_array[1:], gravity_array,
                                                 shear_array, bulk_modulus=200.0e9, order_l=3)
 
+    # Calculate tidal heating as a function of radius
+    radial_tidal_heating = calc_radial_tidal_heating(eccentricity, orbital_freq, semi_major_axis, host_mass,
+                                                     radius_array[1:], sensitivity_to_shear, shear_array,
+                                                     order_l=3)
+
     # Check shapes
-    assert sensitivity_to_shear.shape == (10,)
-    assert k.shape == (10,)
-    assert h.shape == (10,)
-    assert l.shape == (10,)
+    assert radial_tidal_heating.shape == (10,)
 
     # Check types
-    assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
-    assert type(k[0]) in [np.complex128, np.complex, complex]
-    assert type(h[0]) in [np.complex128, np.complex, complex]
-    assert type(l[0]) in [np.complex128, np.complex, complex]
+    assert type(radial_tidal_heating[0]) in [np.float, np.float64, float]

@@ -25,7 +25,11 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     """ Construct the fundamental matrix and its inverse for a generic order-l
 
     See Eq. 2.42 of SVC16
-    
+
+    Assumptions
+    -----------
+    - These matrices assume an incompressible body.
+
     Parameters
     ----------
     radius_array : np.ndarray
@@ -45,6 +49,8 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
         Fundamental matrix used in the propagation technique
     fundamental_matrix_inverse : np.ndarray
         The inverse of the fundamental matrix used in the propagation technique
+    derivative_mtx : np.ndarray
+        The matrix, A, that satisfies the equation dy/dr = A * y
 
     """
     
@@ -55,6 +61,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     fundamental_mtx = np.zeros((6, 6, num_shells), dtype=np.complex128)
 
     # Optimizations
+    r_inv = 1. / radius_array
     rl = radius_array**order_l
     rlp1 = radius_array**(order_l + 1)
     rlp2 = radius_array**(order_l + 2)
@@ -195,7 +202,63 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     # inverse_fundamental_mtx[4, 5, :] = np.zeros(num_shells)
     inverse_fundamental_mtx[5, 5, :] = d_coeff_6 * (-radius_array)
 
-    return fundamental_mtx, inverse_fundamental_mtx
+    # Build derivative matrix
+    # Defined in SV04 -- Only valid for the incompressible case.
+    # See SVC16 Eq. 1.95
+    #    Note: the lambda in SVC16 is defined as bulk_mod - (2. / 3.) * shear (Eq. 1.77; 2nd Lame parameter),
+    #    for the incompressible assumption we will assume the ratio that SVC16 use (lambda / beta) -> 1 as K -> inf
+    #    See SVC16 Eq. 1.95 for a compressible version. Take limit as K->inf to find below.
+    derivative_mtx = np.zeros((6, 6, num_shells), dtype=np.complex128)
+    ## Column 1
+    derivative_mtx[0, 0, :] = -2. * r_inv
+    derivative_mtx[1, 0, :] = -1. * r_inv
+    derivative_mtx[2, 0, :] = (4. * r_inv) * (3. * complex_shear_array * r_inv - density_array * gravity_array)
+    derivative_mtx[3, 0, :] = (-1. * r_inv) * (6. * complex_shear_array * r_inv - density_array * gravity_array)
+    derivative_mtx[4, 0, :] = -4. * np.pi * G * density_array
+    derivative_mtx[5, 0, :] = -4. * np.pi * G * density_array * (order_l + 1) * r_inv
+
+    ## Column 2
+    derivative_mtx[0, 1, :] = order_l * lp1 * r_inv
+    derivative_mtx[1, 1, :] = r_inv
+    derivative_mtx[2, 1, :] = -order_l * lp1 * r_inv * (6. * complex_shear_array * r_inv -
+                                                                  density_array * gravity_array)
+    derivative_mtx[3, 1, :] = 2. * (2. * order_l**2 + 2. * order_l - 1.) * complex_shear_array * (r_inv**2)
+    # derivative_mtx[4, 1, :] = np.zeros(num_shells)
+    derivative_mtx[5, 1, :] = 4. * np.pi * G * density_array * order_l * lp1 * r_inv
+
+    ## Column 3
+    # derivative_mtx[0, 2, :] = np.zeros(num_shells)
+    # derivative_mtx[1, 2, :] = np.zeros(num_shells)
+    # derivative_mtx[2, 2, :] = np.zeros(num_shells)
+    derivative_mtx[3, 2, :] = -r_inv
+    # derivative_mtx[4, 2, :] = np.zeros(num_shells)
+    # derivative_mtx[5, 2, :] = np.zeros(num_shells)
+
+    ## Column 4
+    # derivative_mtx[0, 3, :] = np.zeros(num_shells)
+    derivative_mtx[1, 3, :] = 1. / complex_shear_array
+    derivative_mtx[2, 3, :] = order_l * lp1 * r_inv
+    derivative_mtx[3, 3, :] = -3. * r_inv
+    # derivative_mtx[4, 3, :]= np.zeros(num_shells)
+    # derivative_mtx[5, 3, :] = np.zeros(num_shells)
+
+    ## Column 5
+    # derivative_mtx[0, 4, :] = np.zeros(num_shells)
+    # derivative_mtx[1, 4, :] = np.zeros(num_shells)
+    derivative_mtx[2, 4, :] = -density_array * lp1 * r_inv
+    derivative_mtx[3, 4, :] = density_array * r_inv
+    derivative_mtx[4, 4, :] = -lp1 * r_inv
+    # derivative_mtx[5, 4, :] = np.zeros(num_shells)
+
+    ## Column 6
+    # derivative_mtx[0, 5, :] = np.zeros(num_shells)
+    # derivative_mtx[1, 5, :] = np.zeros(num_shells)
+    derivative_mtx[2, 5, :] = density_array
+    # derivative_mtx[3, 5, :] = np.zeros(num_shells)
+    derivative_mtx[4, 5, :] = np.ones(num_shells)
+    derivative_mtx[5, 5, :] = (order_l - 1.) * r_inv
+
+    return fundamental_mtx, inverse_fundamental_mtx, derivative_mtx
 
 @njit(cacheable=True)
 def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np.ndarray,
@@ -208,6 +271,11 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np
     See Eq. 2.42 of SVC16
 
     Compare fundamental matrix to Eq. A4 of HH14 and ID variable "Ypropmtx"
+
+    Assumptions
+    -----------
+    - These matrices assume an incompressible body.
+    - This function is restricted to order-l = 2
 
     Parameters
     ----------
@@ -226,6 +294,8 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np
         Fundamental matrix used in the propagation technique
     fundamental_matrix_inverse : np.ndarray
         The inverse of the fundamental matrix used in the propagation technique
+    derivative_mtx : np.ndarray
+        The matrix, A, that satisfies the equation dy/dr = A * y
 
     See Also
     --------
@@ -240,6 +310,7 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np
     fundamental_mtx = np.zeros((6, 6, num_shells), dtype=np.complex128)
 
     # Optimizations
+    r_inv = 1. / radius_array
     rgp = radius_array * gravity_array * density_array
     rgp_s = rgp / complex_shear_array
     r_s = radius_array / complex_shear_array
@@ -366,4 +437,59 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np
     # inverse_fundamental_mtx[4, 5, :] = np.zeros(num_shells)
     inverse_fundamental_mtx[5, 5, :] = d_coeff_6 * (-radius_array)
 
-    return fundamental_mtx, inverse_fundamental_mtx
+    # Build derivative matrix
+    # Defined in SV04 -- Only valid for the incompressible case.
+    # See SVC16 Eq. 1.95
+    #    Note: the lambda in SVC16 is defined as bulk_mod - (2. / 3.) * shear (Eq. 1.77; 2nd Lame parameter),
+    #    for the incompressible assumption we will assume the ratio that SVC16 use (lambda / beta) -> 1 as K -> inf
+    #    See SVC16 Eq. 1.95 for a compressible version. Take limit as K->inf to find below.
+    derivative_mtx = np.zeros((6, 6, num_shells), dtype=np.complex128)
+    ## Column 1
+    derivative_mtx[0, 0, :] = -2. * r_inv
+    derivative_mtx[1, 0, :] = -1. * r_inv
+    derivative_mtx[2, 0, :] = (4. * r_inv) * (3. * complex_shear_array * r_inv - density_array * gravity_array)
+    derivative_mtx[3, 0, :] = (-1. * r_inv) * (6. * complex_shear_array * r_inv - density_array * gravity_array)
+    derivative_mtx[4, 0, :] = -4. * np.pi * G * density_array
+    derivative_mtx[5, 0, :] = -12. * np.pi * G * density_array * r_inv
+
+    ## Column 2
+    derivative_mtx[0, 1, :] = 6. * r_inv
+    derivative_mtx[1, 1, :] = r_inv
+    derivative_mtx[2, 1, :] = -6. * r_inv * (6. * complex_shear_array * r_inv - density_array * gravity_array)
+    derivative_mtx[3, 1, :] = 22. * complex_shear_array * (r_inv**2)
+    # derivative_mtx[4, 1, :] = np.zeros(num_shells)
+    derivative_mtx[5, 1, :] = 24. * np.pi * G * density_array * r_inv
+
+    ## Column 3
+    # derivative_mtx[0, 2, :] = np.zeros(num_shells)
+    # derivative_mtx[1, 2, :] = np.zeros(num_shells)
+    # derivative_mtx[2, 2, :] = np.zeros(num_shells)
+    derivative_mtx[3, 2, :] = -r_inv
+    # derivative_mtx[4, 2, :] = np.zeros(num_shells)
+    # derivative_mtx[5, 2, :] = np.zeros(num_shells)
+
+    ## Column 4
+    # derivative_mtx[0, 3, :] = np.zeros(num_shells)
+    derivative_mtx[1, 3, :] = 1. / complex_shear_array
+    derivative_mtx[2, 3, :] = 6. * r_inv
+    derivative_mtx[3, 3, :] = -3. * r_inv
+    # derivative_mtx[4, 3, :]= np.zeros(num_shells)
+    # derivative_mtx[5, 3, :] = np.zeros(num_shells)
+
+    ## Column 5
+    # derivative_mtx[0, 4, :] = np.zeros(num_shells)
+    # derivative_mtx[1, 4, :] = np.zeros(num_shells)
+    derivative_mtx[2, 4, :] = -3. * density_array * r_inv
+    derivative_mtx[3, 4, :] = density_array * r_inv
+    derivative_mtx[4, 4, :] = -3. * r_inv
+    # derivative_mtx[5, 4, :] = np.zeros(num_shells)
+
+    ## Column 6
+    # derivative_mtx[0, 5, :] = np.zeros(num_shells)
+    # derivative_mtx[1, 5, :] = np.zeros(num_shells)
+    derivative_mtx[2, 5, :] = density_array
+    # derivative_mtx[3, 5, :] = np.zeros(num_shells)
+    derivative_mtx[4, 5, :] = np.ones(num_shells)
+    derivative_mtx[5, 5, :] = r_inv
+
+    return fundamental_mtx, inverse_fundamental_mtx, derivative_mtx

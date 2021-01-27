@@ -5,6 +5,7 @@ References
 SVC16 : Sabadini, Vermeerson, & Cambiotti (2016, DOI: 10.1007/978-94-017-7552-6)
 HH14  : Henning & Hurford (2014, DOI: 10.1088/0004-637X/789/1/30)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
+B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 """
 
 import numpy as np
@@ -13,7 +14,7 @@ from ...utilities.performance import njit
 
 
 @njit(cacheable=True)
-def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray,
+def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray, derivative_matrix: np.ndarray,
               central_boundary_condition: np.ndarray, world_radius: float,
               order_l: int = 2):
     """ This function will propagate the incompressible tidal equations, via the fundamental matrix, through a world's
@@ -29,6 +30,8 @@ def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.nda
         Fundamental (incompressible) Matrix (6 x 6 x N); See fundamental.py
     fundamental_matrix_inverse : np.ndarray
         Inverse of the fundamental (incompressible) Matrix (6 x 6 x N); See fundamental.py
+    derivative_matrix : np.ndarray
+        Derivative matrix, A, defined by the function dy/dr = A dot y
     central_boundary_condition : np.ndarray
         Boundary conditions (In (6 x 3) Matrix) of the tidal problem at the inner surface.
     world_radius : float
@@ -40,6 +43,8 @@ def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.nda
     -------
     tidal_y : np.ndarray
         Matrix [6 x N] of tidal solutions. See decompression.py on how useful information is extracted.
+    tidal_y_derivative : np.ndarray
+        Matrix [6 x N] of the derivative of the tidal solutions with respect to radius.
 
     """
     num_shells = fundamental_matrix.shape[2]
@@ -79,8 +84,32 @@ def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.nda
     surface_solution = surface_matrix_inv @ surface_bc
 
     # Using the aggregate matrix, solve for the tidal "y"s
-    tidal_y = np.zeros((6, num_shells), dtype=np.complex128)
+    tidal_y_sv = np.zeros((6, num_shells), dtype=np.complex128)
+    tidal_y_derivative_sv = np.zeros((6, num_shells), dtype=np.complex128)
     for i in range(num_shells):
-        tidal_y[:, i] = aggregate_matrix[:, :, i] @ surface_solution
+        tidal_y_sv[:, i] = aggregate_matrix[:, :, i] @ surface_solution
 
-    return tidal_y
+        # Calculate the derivatives of the tidal solution with radius
+        tidal_y_derivative_sv[:, i] = derivative_matrix[:, :, i] @ tidal_y_sv[:, i]
+
+    # As discussed in B13 (discussed near their equation 7), SVC16 (and the earlier 2004 book) use a different
+    #    convention for tidal_y than is used by Takeuchi and Saito (1972). Since a good chunk of the field follows the
+    #    latter, we will do the same. Below are the conversions from SVC16 to TS72
+    tidal_y = np.zeros_like(tidal_y_sv)
+    tidal_y[0, :] = tidal_y_sv[0, :]
+    tidal_y[1, :] = tidal_y_sv[2, :]
+    tidal_y[2, :] = tidal_y_sv[1, :]
+    tidal_y[3, :] = tidal_y_sv[3, :]
+    tidal_y[4, :] = -tidal_y_sv[4, :]
+    tidal_y[5, :] = -tidal_y_sv[5, :]
+
+    # Likewise, take convert the derivatives to match the TS72 format
+    tidal_y_derivative = np.zeros_like(tidal_y_derivative_sv)
+    tidal_y_derivative[0, :] = tidal_y_derivative_sv[0, :]
+    tidal_y_derivative[1, :] = tidal_y_derivative_sv[2, :]
+    tidal_y_derivative[2, :] = tidal_y_derivative_sv[1, :]
+    tidal_y_derivative[3, :] = tidal_y_derivative_sv[3, :]
+    tidal_y_derivative[4, :] = -tidal_y_derivative_sv[4, :]
+    tidal_y_derivative[5, :] = -tidal_y_derivative_sv[5, :]
+
+    return tidal_y, tidal_y_derivative

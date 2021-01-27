@@ -25,8 +25,8 @@ shear_array = 5.e10 * np.ones(10, dtype=np.complex)
 def test_calc_fundamental_order2():
 
     # Calculate the fundamental matrix and its inverse
-    F, F_inv = fundamental_matrix_orderl2(radius_array[1:], shear_array,
-                                          density_array, gravity_array)
+    F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array,
+                                                     density_array, gravity_array)
 
     # Central boundary condition
     ## From IcyDwarf: "They are inconsequential on the rest of the solution, so false assumptions are OK."
@@ -37,20 +37,24 @@ def test_calc_fundamental_order2():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, core_condition, world_radius=radius_array[-1], order_l=2)
+    tidal_y, tidal_y_derivative = \
+        propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # See if shape matches expectations
     assert tidal_y.shape[0] == 6
     assert tidal_y.shape[1] == 10
+    assert tidal_y_derivative.shape[0] == 6
+    assert tidal_y_derivative.shape[1] == 10
 
     # See if the types make sense
     for i in range(6):
         assert type(tidal_y[i, 0]) in [np.complex128, np.complex, complex]
+        assert type(tidal_y_derivative[i, 0]) in [np.complex128, np.complex, complex]
 
 def test_calc_fundamental_order3():
 
     # Calculate the fundamental matrix and its inverse
-    F, F_inv = fundamental_matrix_generic(radius_array[1:], shear_array,
+    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array,
                                           density_array, gravity_array, order_l=3)
 
     # Central boundary condition
@@ -62,13 +66,17 @@ def test_calc_fundamental_order3():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, core_condition, world_radius=radius_array[-1], order_l=3)
+    tidal_y, tidal_y_derivative = \
+        propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=3)
 
     # See if shape matches expectations
     assert tidal_y.shape[0] == 6
     assert tidal_y.shape[1] == 10
+    assert tidal_y_derivative.shape[0] == 6
+    assert tidal_y_derivative.shape[1] == 10
 
     # See if the types make sense
     for i in range(6):
         assert type(tidal_y[i, 0]) in [np.complex128, np.complex, complex]
+        assert type(tidal_y_derivative[i, 0]) in [np.complex128, np.complex, complex]
 

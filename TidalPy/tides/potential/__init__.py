@@ -1,0 +1,1 @@
+from .synchronous_low_e import tidal_potential as tidal_potential_simple
