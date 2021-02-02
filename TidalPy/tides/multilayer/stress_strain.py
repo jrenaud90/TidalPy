@@ -105,6 +105,7 @@ def calculate_strain(tidal_potential: FloatArray,
     # TB05 Eq. 10; B13 Eq. 8 & 9 TODO: Missing the sum over l and m used in TB05
     strain_tensor_by_r = list()
 
+    # TODO: Missing r dependence in the tidal potential
     for ri, radius in enumerate(radius_array):
         # Shortcuts
         dy1_dr = tidal_solution_y_derivative[0, ri]
@@ -119,9 +120,9 @@ def calculate_strain(tidal_potential: FloatArray,
         e_rph = y4 * tidal_potential_partial_phi / (shear * sin_theta)
 
         e_thth = r_inv * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
-        e_phph = r_inv * ((y3 / sin_theta**2) * (tidal_potential_partial2_phi2 +
-                                                 cos_theta * sin_theta * tidal_potential_partial_theta)
-                          + y1 * tidal_potential_partial_theta)
+        e_phph = r_inv * (y1 * tidal_potential +
+                          (y3 / sin_theta**2) * (tidal_potential_partial2_phi2 +
+                                                 cos_theta * sin_theta * tidal_potential_partial_theta) )
         e_thph = (2. * r_inv * y3 / sin_theta) * (tidal_potential_partial2_theta_phi -
                                                   cot_theta * tidal_potential_partial_phi)
 

@@ -43,12 +43,13 @@ def tidal_potential(radius: float, longitude: FloatArray, colatitude: FloatArray
         2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
     """
 
-    # Associated Legendre Functions
+    # Associated Legendre Functions and their derivatives
     p_02 = (1. / 2.) * (3. * np.cos(colatitude)**2 - 1.)
-    p_22 = 3. * np.sin(colatitude)**2
     dp_02_dtheta = -3. * np.cos(colatitude) * np.sin(colatitude)
-    dp_22_dtheta = 6. * np.cos(colatitude) * np.sin(colatitude)
     dp2_02_dtheta2 = 3. * (np.sin(colatitude)**2 - np.cos(colatitude)**2)
+
+    p_22 = 3. * (1. - np.cos(colatitude)**2)
+    dp_22_dtheta = 6. * np.cos(colatitude) * np.sin(colatitude)
     dp2_22_dtheta2 = 6. * (-np.sin(colatitude)**2 + np.cos(colatitude)**2)
 
     # Calculate tidal potential
