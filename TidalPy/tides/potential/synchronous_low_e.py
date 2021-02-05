@@ -8,14 +8,14 @@ from ...utilities.types import FloatArray
 from ...utilities.performance import njit
 
 @njit(cacheable=True)
-def tidal_potential(radius: float, longitude: FloatArray, colatitude: FloatArray,
+def tidal_potential(radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
                     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray):
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
     Parameters
     ----------
-    radius : float
-        Radius of the world [m] (TODO: is this always the surface radius?)
+    radius : FloatArray
+        Radius of the world [m]
     longitude : FloatArray
         Longitude [radians]
     colatitude : FloatArray
@@ -81,13 +81,15 @@ def tidal_potential(radius: float, longitude: FloatArray, colatitude: FloatArray
 
     potential_partial2_phi2 = r2n2e * \
         ((1. / 4.) * p_22 *
-         (-12. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
+         (-12. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +    # I believe there is an error in Henning code where this (-12) is a (+12) which I believe is wrong.
           -16. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
 
     potential_partial2_theta_phi = r2n2e * \
         ((1. / 4.) * dp_22_dtheta *
          (-6. * np.cos(orbital_frequency * time) * np.sin(2. * longitude) +
           8. * np.sin(orbital_frequency * time) * np.cos(2. * longitude)))
+
+
 
     return potential, potential_partial_theta, potential_partial_phi,\
            potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi

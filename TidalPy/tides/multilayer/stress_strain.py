@@ -13,6 +13,7 @@ import numpy as np
 from ...utilities.types import FloatArray
 from ...utilities.performance import njit
 
+#TODO: njit?
 def calculate_displacements(tidal_potential: FloatArray,
                             tidal_potential_partial_theta: FloatArray, tidal_potential_partial_phi: FloatArray,
                             tidal_solution_y: np.ndarray, colatitude: FloatArray):
@@ -108,23 +109,41 @@ def calculate_strain(tidal_potential: FloatArray,
     # TODO: Missing r dependence in the tidal potential
     for ri, radius in enumerate(radius_array):
         # Shortcuts
+        # Method 1 - Definition:
         dy1_dr = tidal_solution_y_derivative[0, ri]
+        # Method 2 - Euler method
+        # if ri == 0:
+        #     dy1_dr = tidal_solution_y[0, ri] / radius
+        # else:
+        #     dy1_dr = (tidal_solution_y[0, ri] - tidal_solution_y[0, ri-1]) / (radius_array[ri] - radius_array[ri-1])
+
         y1 = tidal_solution_y[0, ri]
         y3 = tidal_solution_y[2, ri]
         y4 = tidal_solution_y[3, ri]
         r_inv  = r_inv_array[ri]
         shear = shear_moduli[ri]
 
-        e_rr = dy1_dr * tidal_potential
-        e_rth = y4 * tidal_potential_partial_theta / shear
-        e_rph = y4 * tidal_potential_partial_phi / (shear * sin_theta)
+        # From B13
+        e_rr = dy1_dr * tidal_potential[ri]
+        e_rth = y4 * tidal_potential_partial_theta[ri] / shear
+        e_rph = y4 * tidal_potential_partial_phi[ri] / (shear * sin_theta)
 
-        e_thth = r_inv * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
-        e_phph = r_inv * (y1 * tidal_potential +
-                          (y3 / sin_theta**2) * (tidal_potential_partial2_phi2 +
-                                                 cos_theta * sin_theta * tidal_potential_partial_theta) )
-        e_thph = (2. * r_inv * y3 / sin_theta) * (tidal_potential_partial2_theta_phi -
-                                                  cot_theta * tidal_potential_partial_phi)
+        e_thth = r_inv * (y3 * tidal_potential_partial2_theta2[ri] + y1 * tidal_potential[ri])
+        e_phph = r_inv * (y1 * tidal_potential[ri] +
+                          (y3 / sin_theta**2) * (tidal_potential_partial2_phi2[ri] +
+                                                 cos_theta * sin_theta * tidal_potential_partial_theta[ri]) )
+        e_thph = (2. * r_inv * y3 / sin_theta) * (tidal_potential_partial2_theta_phi[ri] -
+                                                  cot_theta * tidal_potential_partial_phi[ri])
+
+        # # From HH14
+        # e_rr = dy1_dr * tidal_potential
+        # e_rth = y4 * tidal_potential_partial_phi / shear
+        # e_rph = y4 * tidal_potential_partial_phi / (shear * sin_theta)
+        #
+        # e_thth = r_inv * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
+        # e_phph = r_inv * (y1 * (1. + 0. * tidal_potential) - 6. * y3 * tidal_potential) - y3 * tidal_potential_partial2_theta2
+        # e_thph = (2. * r_inv * y3 / sin_theta) * (tidal_potential_partial2_theta_phi -
+        #                                           cot_theta * tidal_potential_partial_phi)
 
         # Off-diagonal terms are divided by 2 in the strain tensor.
         strain_tensor = [

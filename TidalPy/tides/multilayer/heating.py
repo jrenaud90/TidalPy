@@ -77,3 +77,4 @@ def calc_radial_tidal_heating(eccentricity: FloatArray, orbital_frequency: Float
     radial_tidal_heating[radial_tidal_heating < 0.] = 0.
 
     return radial_tidal_heating
+
