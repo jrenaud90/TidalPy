@@ -91,19 +91,19 @@ def test_calc_strains():
     # Calculate tidal potential and its partial derivatives
     potential, potential_partial_theta, potential_partial_phi, \
     potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
-        tidal_potential_simple(radius_array[-1], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
+        tidal_potential_simple(radius_array[1:], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
                                eccentricity=eccentricity, time=1000.)
 
     # Calculate strain tensor
-    strain_tensor = \
+    e_rr, e_thth, e_phph, e_rth, e_rph, e_thph = \
         calculate_strain(potential, potential_partial_theta, potential_partial_phi,
                          potential_partial2_theta2, potential_partial2_phi2,
                          potential_partial2_theta_phi, tidal_y, tidal_y_deriv,
-                         colatitude=0.1, radius_array=radius_array[1:], shear_moduli=shear_array)
+                         colatitude=0.1, radius=radius_array[1:], shear_moduli=shear_array)
 
+    for strain_component in [e_rr, e_thth, e_phph, e_rth, e_rph, e_thph]:
+        # Check shape
+        assert strain_component.shape == (10,)
 
-    # Check shape - Note, strain tensor flips the radius position (radius comes first)
-    assert strain_tensor.shape == (10, 3, 3)
-
-    # Check type
-    assert type(strain_tensor[0, 0, 0]) in [np.complex128, np.complex, complex]
+        # Check type
+        assert type(strain_component[0]) in [np.complex128, np.complex, complex]

@@ -13,7 +13,7 @@ import numpy as np
 from ...utilities.performance import njit
 
 
-# @njit(cacheable=True)
+@njit(cacheable=True)
 def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray, derivative_matrix: np.ndarray,
               inner_boundary_condition: np.ndarray, world_radius: float,
               order_l: int = 2):
@@ -94,8 +94,8 @@ def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.nda
     #    latter, we will do the same. Below are the conversions from SVC16 to TS72
     tidal_y = np.zeros_like(tidal_y_sv)
     tidal_y[0, :] = tidal_y_sv[0, :]
-    tidal_y[1, :] = tidal_y_sv[2, :]
-    tidal_y[2, :] = tidal_y_sv[1, :]
+    tidal_y[1, :] = tidal_y_sv[2, :]  # Flip y3 and y2
+    tidal_y[2, :] = tidal_y_sv[1, :]  # Flip y3 and y2
     tidal_y[3, :] = tidal_y_sv[3, :]
     tidal_y[4, :] = tidal_y_sv[4, :] * -1.
     tidal_y[5, :] = tidal_y_sv[5, :] * -1.

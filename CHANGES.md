@@ -1,5 +1,15 @@
 # TidalPy Major Change Log
 
+## Version 0.3.0 Alpha (Winter 2020)
+*Scripts based on 0.2.x should work with this version*
+ 
+* Major Changes
+    * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for addtional physics.
+    * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI. 
+* Minor Changes
+    * New cookbook to showcase the multilayer calculations.
+    * Improved various docstrings.
+
 ## Version 0.2.1 Alpha (Fall 2020)
 *Will break studies based on previous versions*
 
@@ -48,4 +58,4 @@ Note: TidalPy version of "0.2.0" was never made publicly available. This is the 
         * The beginning of an integration module was added. This is still very early and not particularly useful. Users are still recommended to build their own integration tools that wrap TidalPy functions.
 
 ## Version 0.1.0 Alpha (July 2019)
-Main Release - Changes not tracked
+*Initial Release - Changes not tracked*

@@ -1,5 +1,5 @@
 <h1 align="center">TidalPy</h1>
-<h3 align="center">v0.2 Alpha</h3>
+<h3 align="center">v0.3 Alpha</h3>
 
 <p align="center">
     <a href="https://travis-ci.com/jrenaud90/TidalPy"><img src="https://travis-ci.com/jrenaud90/TidalPy.svg?token=hTmV5nwCsy8qF9GmqKXP&branch=master" /></a> <br />
