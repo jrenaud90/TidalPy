@@ -197,7 +197,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     ## Column 6
     # inverse_fundamental_mtx[0, 5, :] = np.zeros(num_shells)
     # inverse_fundamental_mtx[1, 5, :] = np.zeros(num_shells)
-    inverse_fundamental_mtx[2, 5, :] =  d_coeff_3 * (-np.ones(num_shells))
+    inverse_fundamental_mtx[2, 5, :] =  d_coeff_3 * (-np.ones(num_shells, dtype=np.complex128))
     # inverse_fundamental_mtx[3, 5, :] = np.zeros(num_shells)
     # inverse_fundamental_mtx[4, 5, :] = np.zeros(num_shells)
     inverse_fundamental_mtx[5, 5, :] = d_coeff_6 * (-radius_array)
@@ -255,7 +255,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     # derivative_mtx[1, 5, :] = np.zeros(num_shells)
     derivative_mtx[2, 5, :] = density_array
     # derivative_mtx[3, 5, :] = np.zeros(num_shells)
-    derivative_mtx[4, 5, :] = np.ones(num_shells)
+    derivative_mtx[4, 5, :] = np.ones(num_shells, dtype=np.complex128)
     derivative_mtx[5, 5, :] = (order_l - 1.) * r_inv
 
     return fundamental_mtx, inverse_fundamental_mtx, derivative_mtx
@@ -432,7 +432,7 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np
     ## Column 6
     # inverse_fundamental_mtx[0, 5, :] = np.zeros(num_shells)
     # inverse_fundamental_mtx[1, 5, :] = np.zeros(num_shells)
-    inverse_fundamental_mtx[2, 5, :] = d_coeff_3 * (-np.ones(num_shells))
+    inverse_fundamental_mtx[2, 5, :] = d_coeff_3 * (-np.ones(num_shells, dtype=np.complex128))
     # inverse_fundamental_mtx[3, 5, :] = np.zeros(num_shells)
     # inverse_fundamental_mtx[4, 5, :] = np.zeros(num_shells)
     inverse_fundamental_mtx[5, 5, :] = d_coeff_6 * (-radius_array)
@@ -489,7 +489,7 @@ def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np
     # derivative_mtx[1, 5, :] = np.zeros(num_shells)
     derivative_mtx[2, 5, :] = density_array
     # derivative_mtx[3, 5, :] = np.zeros(num_shells)
-    derivative_mtx[4, 5, :] = np.ones(num_shells)
+    derivative_mtx[4, 5, :] = np.ones(num_shells, dtype=np.complex128)
     derivative_mtx[5, 5, :] = r_inv
 
     return fundamental_mtx, inverse_fundamental_mtx, derivative_mtx
