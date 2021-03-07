@@ -1,3 +1,11 @@
+""" physical.py - Physical object base class
+
+This module contains the base python class for physical objects (layers, planets, stars, etc.).
+
+"""
+
+from typing import Union
+
 import numpy as np
 
 from .. import debug_mode, log
@@ -5,14 +13,19 @@ from ..constants import G
 from ..exceptions import (BadAttributeValueError, ImproperPropertyHandling, IncorrectAttributeType,
                           UnusualRealValueError, MissingArgumentError, ImproperGeometryPropertyHandling)
 from ..utilities.classes import ConfigHolder
-from ..utilities.types import float_eps, float_like
+from ..utilities.types import float_eps, float_like, NoneType
 
+
+FloatNone = Union[NoneType, float]
 
 class PhysicalObjSpherical(ConfigHolder):
-    """ PhysicalObj Class contains attributes and functionality used for objects such as planets or
-        spherical-shell layers
+    """ PhysicalObjSpherical Class contains attributes and functionality used for objects such as planets or layers
+    that are spherical shell.
 
-    Assumes spherical geometry
+    Assumptions
+    -----------
+    Assumes spherical geometry.
+
     """
 
     def __init__(self, config: dict):
@@ -82,6 +95,7 @@ class PhysicalObjSpherical(ConfigHolder):
         set_by_burnman : bool = False
             Set to `True` if a Burnman layer/world constructor is calling reinit
         """
+
         if initial_init:
             log.debug(f'First initialization called for {self}.')
         else:
@@ -340,12 +354,7 @@ class PhysicalObjSpherical(ConfigHolder):
     #    Geometry properties
     @property
     def volume(self) -> float:
-        """ Physical Object's Volume [m^3]
-
-        Assumptions
-        -----------
-        Spherical Geometry
-        """
+        """ Physical Object's Volume [m^3] """
 
         return self._volume
 
@@ -377,12 +386,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def surface_area_outer(self) -> float:
-        """ Physical Object's Outer Surface Area [m-2]
-
-        Assumptions
-        -----------
-        Spherical Geometry
-        """
+        """ Physical Object's Outer Surface Area [m-2] """
 
         return self._surface_area_outer
 
@@ -395,10 +399,6 @@ class PhysicalObjSpherical(ConfigHolder):
         """ Physical Object's Middle Surface Area [m-2]
 
         "middle" is defined by the object's thickness / 2
-
-        Assumptions
-        -----------
-        Spherical Geometry
         """
 
         return self._surface_area_middle
@@ -409,12 +409,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def surface_area_inner(self) -> float:
-        """ Physical Object's Inner Surface Area [m-2]
-
-        Assumptions
-        -----------
-        Spherical Geometry
-        """
+        """ Physical Object's Inner Surface Area [m-2] """
 
         return self._surface_area_inner
 
@@ -424,12 +419,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def density_bulk(self) -> float:
-        """ Physical Object's Bulk Density [kg m-3]
-
-        Assumptions
-        -----------
-        Spherical Geometry
-        """
+        """ Physical Object's Bulk Density [kg m-3] """
 
         return self._density_bulk
 
@@ -694,9 +684,9 @@ class PhysicalObjSpherical(ConfigHolder):
     def gravity_slices(self, value):
         raise ImproperGeometryPropertyHandling
 
-    #    State properties set by user or other methods
+    # # State properties set by user or other methods
     @property
-    def moi(self) -> float:
+    def moi(self) -> FloatNone:
         """ Physical Object's Moment of Inertia [kg m^2]
 
         This may either be a measured moment of inertia, or one that is calculate using a more rigorous

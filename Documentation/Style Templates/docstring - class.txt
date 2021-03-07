@@ -1,7 +1,7 @@
 
 The class docstring need only include descriptions of attributes and methods that are most likely to be used or ones
     that may lead to confusion with the user. Other methods and attributes that are well described elsewhere
-    (and/or self-explanitory) can be left out of the class docstring.
+    (and/or self-explanatory) can be left out of the class docstring.
 
 """
 Array with associated photographic information.

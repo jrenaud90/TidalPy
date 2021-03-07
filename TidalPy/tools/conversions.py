@@ -6,7 +6,7 @@ from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray
 
 
-@njit
+@njit(cacheable=True)
 def m2Au(meters: FloatArray) -> FloatArray:
     """ Convert Meters to Astronomical Units
 
@@ -26,7 +26,7 @@ def m2Au(meters: FloatArray) -> FloatArray:
     return astronomical_units
 
 
-@njit
+@njit(cacheable=True)
 def Au2m(astronomical_units: FloatArray) -> FloatArray:
     """ Convert Meters to Astronomical Units
 
@@ -46,7 +46,7 @@ def Au2m(astronomical_units: FloatArray) -> FloatArray:
     return meters
 
 
-@njit
+@njit(cacheable=True)
 def rads2days(radians_per_second: FloatArray) -> FloatArray:
     """ Convert from frequency [rads s-1] to period [days]
 
@@ -66,7 +66,7 @@ def rads2days(radians_per_second: FloatArray) -> FloatArray:
     return days
 
 
-@njit
+@njit(cacheable=True)
 def days2rads(days: FloatArray) -> FloatArray:
     """ Convert from period [days] to frequency [rads s-1]
 
@@ -85,7 +85,7 @@ def days2rads(days: FloatArray) -> FloatArray:
 
     return radians_per_second
 
-@njit
+@njit(cacheable=True)
 def sec2myr(seconds: FloatArray) -> FloatArray:
     """ Convert time from seconds to millions of years
 
@@ -103,7 +103,7 @@ def sec2myr(seconds: FloatArray) -> FloatArray:
     return seconds / 3.154e13
 
 
-@njit
+@njit(cacheable=True)
 def myr2sec(myrs: FloatArray) -> FloatArray:
     """ Convert time from millions of years to seconds
 
@@ -120,7 +120,7 @@ def myr2sec(myrs: FloatArray) -> FloatArray:
 
     return myrs * 3.154e13
 
-@njit
+@njit(cacheable=True)
 def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
     """ Convert orbital mean motion to semi-major axis (Kepler's 3rd law)
 
@@ -149,7 +149,7 @@ def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_m
     return semi_major_axis
 
 
-@njit
+@njit(cacheable=True)
 def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
     """ Convert semi-major axis to mean orbital motion (Kepler's 3rd law)
 

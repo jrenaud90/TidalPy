@@ -3,7 +3,7 @@ from typing import Tuple
 from ..utilities.performance.numba import njit
 
 
-@njit
+@njit(cacheable=True)
 def convert_to_hms(seconds: float) -> Tuple[int, int, int, float]:
     """ Convert seconds to a tuple of days, hours, minutes, seconds
 
