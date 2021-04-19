@@ -15,8 +15,8 @@ ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/
 
 import numpy as np
 
-from ...constants import pi, G
-from ...utilities.performance import njit
+from ....constants import pi, G
+from ....utilities.performance import njit
 
 
 @njit(cacheable=True)

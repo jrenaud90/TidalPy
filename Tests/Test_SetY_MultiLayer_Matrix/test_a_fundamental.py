@@ -4,7 +4,7 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tides.multilayer.fundamental import fundamental_matrix_generic, fundamental_matrix_orderl2
+from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_generic, fundamental_matrix_orderl2
 from TidalPy.constants import G
 
 TidalPy.config['stream_level'] = 'ERROR'

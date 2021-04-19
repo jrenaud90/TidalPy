@@ -4,8 +4,8 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tides.multilayer.fundamental import fundamental_matrix_orderl2
-from TidalPy.tides.multilayer.propagate import propagate
+from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_orderl2
+from TidalPy.tides.multilayer.matrix.propagate import propagate
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.potential import tidal_potential_simple
 from TidalPy.tides.multilayer.stress_strain import calculate_strain, calculate_displacements

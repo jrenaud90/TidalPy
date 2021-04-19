@@ -614,6 +614,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
                 # Determine Heating
                 total_incoming_heating = tidal_heating + radiogenic_heating
+                print(layer_i, tidal_heating/1e12)
                 if not bottom_layer:
                     total_incoming_heating += layer_coolings[layer_i - 1]
 

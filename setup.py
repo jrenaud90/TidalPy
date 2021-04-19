@@ -98,7 +98,7 @@ setup(
         extras_require={
             'dev': ['sympy']
         },
-        python_requires='>=3.8, <3.9',
+        python_requires='>=3.8',
         install_requires=requirements,
 )
 

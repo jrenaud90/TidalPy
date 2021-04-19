@@ -10,10 +10,10 @@ B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 
 import numpy as np
 
-from ...utilities.performance import njit
+from ....utilities.performance import njit
 
 
-@njit(cacheable=True)
+# @njit(cacheable=True)
 def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray, derivative_matrix: np.ndarray,
               inner_boundary_condition: np.ndarray, world_radius: float,
               order_l: int = 2):
