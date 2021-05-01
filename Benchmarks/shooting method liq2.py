@@ -10,7 +10,7 @@ from TidalPy.rheology.complex_compliance.compliance_models import maxwell_array,
 from TidalPy.tides.potential.synchronous_low_e import tidal_potential
 from TidalPy.tides.multilayer.heating import calc_radial_tidal_heating
 from TidalPy.utilities.graphics.multilayer.yplot import yplot
-from tides.multilayer.numerical_int.radial_functions_solid import radial_func_derivatives_general, radial_func_derivatives_general_liq
+from tides.multilayer.numerical_int.DEL_radial_functions_solid import radial_func_derivatives_general, radial_func_derivatives_general_liq
 
 full_domain = True
 

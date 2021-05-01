@@ -11,7 +11,7 @@ from TidalPy.tides.multilayer import fundamental_matrix_orderl2, propagate, deco
 from TidalPy.tides.potential.synchronous_low_e import tidal_potential
 from TidalPy.tides.multilayer.heating import calc_radial_tidal_heating
 from TidalPy.tides.multilayer.stress_strain import calculate_strain
-from tides.multilayer.numerical_int.radial_functions_solid import radial_func_derivatives_general
+from tides.multilayer.numerical_int.DEL_radial_functions_solid import radial_func_derivatives_general
 
 full_domain = True
 

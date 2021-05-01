@@ -73,3 +73,38 @@ def solid_solutions(radius, bulk_modulus, shear_modulus, density, gravity, frequ
     tidaly_s3 = np.vstack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
 
     return (tidaly_s1, tidaly_s2, tidaly_s3)
+
+def liquid_solutions(radius, bulk_modulus, shear_modulus, density, gravity, frequency, order_l: int = 2):
+
+    # Convert compressibility parameters
+    poisson = (3. * bulk_modulus - 2. * shear_modulus) / (6. * bulk_modulus + 2. * shear_modulus)
+    poisson_frac = (1. + poisson) / (1. - poisson)
+    compressibility = (1. - 2. * poisson) / (1. - poisson)
+    lame_1 = bulk_modulus - (2. / 3.) * shear_modulus
+    laplace_eigenvalue = (order_l - 1.) * (order_l + 2.)
+
+    # Constants
+    gamma = (4. * pi * G * density / 3.)
+    w2 = frequency**2
+    alpha_2 = lame_1 / density
+    k2 = (1 / alpha_2) * (w2 + 4. * gamma - (order_l * (order_l + 1) * gamma**2 / w2))
+    f = -w2 / gamma
+    h = f - (order_l + 1)
+
+    # Appendix B, Kamata+2015
+    y1_s1 = -(f / radius) * z_calc(k2 * radius**2, order_l=order_l)
+    y1_s2 = order_l / radius
+
+    y2_s1 = -density * (f * (w2 + 4 * gamma) + order_l * (order_l + 1) * gamma)
+    y2_s2 = 0. * radius
+
+    y5_s1 = 3. * gamma * f - h * (order_l * gamma - w2)
+    y5_s2 = order_l * gamma - w2
+
+    y6_s1 = (2 * order_l + 1) * y5_s1 / radius
+    y6_s2 = ((2 * order_l + 1) * y5_s2 / radius) - ((3. * order_l * gamma) / radius)
+
+    tidaly_s1 = np.vstack((y1_s1, y2_s1, y5_s1, y6_s1))
+    tidaly_s2 = np.vstack((y1_s2, y2_s2, y5_s2, y6_s2))
+
+    return (tidaly_s1, tidaly_s2)

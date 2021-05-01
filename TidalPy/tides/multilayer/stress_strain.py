@@ -52,7 +52,7 @@ def calculate_displacements(tidal_potential: np.ndarray,
     return radial_displacement, polar_displacement, azimuthal_displacement
 
 
-@njit(cacheable=True)
+# @njit(cacheable=True)
 def calculate_strain(tidal_potential: np.ndarray,
                      tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
                      tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,

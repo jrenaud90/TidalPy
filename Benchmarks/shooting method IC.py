@@ -7,7 +7,7 @@ from TidalPy.tools.conversions import orbital_motion2semi_a
 from TidalPy.utilities.numpy_helper import find_nearest
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell_array, sundberg_array
 # Load TidalPy's multilayer functions
-from tides.multilayer.numerical_int.radial_functions_solid import radial_func_derivatives_general
+from tides.multilayer.numerical_int.DEL_radial_functions_solid import radial_func_derivatives_general
 
 full_domain = True
 

@@ -6,11 +6,15 @@ from matplotlib.pyplot import cm
 
 from ....exceptions import MissingArgumentError, IncorrectArgumentType
 
+prop_cycle = plt.rcParams['axes.prop_cycle']
+mp_colors = prop_cycle.by_key()['color']
+
 def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
           radius : Union[List[np.ndarray], np.ndarray],
           depth_plot: bool = False, planet_radius: float = None,
           colors: List[str] = None, labels: List[str] = None,
-          show_plot: bool = True):
+          show_plot: bool = True, use_tobie_limits: bool = False,
+          plot_tobie: bool = False, plot_roberts: bool = False):
     """ Plot the six tidal y's in a six panel figure
 
     Parameters
@@ -29,6 +33,8 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         Optional list of legend labels, one for each tidal_y solution.
     show_plot : bool = True
         If True, plt.show() will be called.
+    use_tobie_limits : bool = False
+        If True, then plot will be made using Tobie2005 axis limits.
 
     Returns
     -------
@@ -70,7 +76,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
 
     # Setup labels and colors
     if colors is None:
-        colors = cm.get_cmap('jet')(np.linspace(0, 1, len(tidal_ys)))
+        colors = mp_colors
 
     if labels is None:
         labels = [f'y-{i}' for i in range(len(tidal_ys))]
@@ -96,6 +102,50 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
 
     if multiple_y:
         ax_y6.legend(loc='best')
+
+    if use_tobie_limits:
+        ax_y1.set(xlim=(0.0, 0.15))
+        ax_y2.set(xlim=(-2100, 4500))
+        ax_y3.set(xlim=(-0.04, 0.04))
+        ax_y4.set(xlim=(0, 2000))
+
+    if plot_roberts:
+        RN08_C = 'b'
+        RN08_data = np.loadtxt('RN08-Data.csv', skiprows=1, delimiter=',', dtype=str)
+        RN08_data[RN08_data == ''] = np.nan
+        RN08_data = RN08_data.astype(np.float)
+        ax_y1.scatter(RN08_data[:, 0], RN08_data[:, 1] / 1000., label='RN08-HG', c=RN08_C, marker='.', s=20)
+        ax_y1.scatter(RN08_data[:, 2], RN08_data[:, 3] / 1000., label='RN08-LC0', c=RN08_C, marker='+', s=20)
+
+        ax_y3.scatter(RN08_data[:, 4], RN08_data[:, 5] / 1000., label='RN08-HG', c=RN08_C, marker='.', s=20)
+        ax_y3.scatter(RN08_data[:, 6], RN08_data[:, 7] / 1000., label='RN08-LC0', c=RN08_C, marker='+', s=20)
+
+        ax_y2.scatter(RN08_data[:, 8], RN08_data[:, 9] / 1000., label='RN08-HG', c=RN08_C, marker='.', s=20)
+        ax_y2.scatter(RN08_data[:, 10], RN08_data[:, 11] / 1000., label='RN08-LC0', c=RN08_C, marker='+', s=20)
+
+        ax_y4.scatter(RN08_data[:, 12], RN08_data[:, 13] / 1000., label='RN08-HG', c=RN08_C, marker='.', s=20)
+        ax_y4.scatter(RN08_data[:, 14], RN08_data[:, 15] / 1000., label='RN08-LC0', c=RN08_C, marker='+', s=20)
+
+    if plot_tobie:
+        T05_C = 'r'
+        T05_data = np.loadtxt('T05-Data.csv', skiprows=1, delimiter=',', dtype=str)
+        T05_data[T05_data == ''] = np.nan
+        T05_data = T05_data.astype(np.float)
+        ax_y1.scatter(T05_data[:, 0], T05_data[:, 1] / 1000., label='T05-HG', c=T05_C, marker='.', s=20)
+        ax_y1.scatter(T05_data[:, 2], T05_data[:, 3] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
+        ax_y1.scatter(T05_data[:, 4], T05_data[:, 5] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)
+
+        ax_y3.scatter(T05_data[:, 6], T05_data[:, 7] / 1000., label='T05-HG', c=T05_C, marker='.', s=20)
+        ax_y3.scatter(T05_data[:, 8], T05_data[:, 9] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
+        ax_y3.scatter(T05_data[:, 10], T05_data[:, 11] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)
+
+        ax_y2.scatter(T05_data[:, 12], T05_data[:, 13] / 1000., label='T05-HG', c=T05_C, marker='.', s=20)
+        ax_y2.scatter(T05_data[:, 14], T05_data[:, 15] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
+        ax_y2.scatter(T05_data[:, 16], T05_data[:, 17] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)
+
+        ax_y4.scatter(T05_data[:, 18], T05_data[:, 19] / 1000., label='T05-HG', c=T05_C, marker='.', s=20)
+        ax_y4.scatter(T05_data[:, 20], T05_data[:, 21] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
+        ax_y4.scatter(T05_data[:, 22], T05_data[:, 23] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)
 
     if show_plot:
         plt.show()
