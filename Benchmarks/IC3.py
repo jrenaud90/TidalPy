@@ -14,7 +14,7 @@ from scipy.integrate import solve_ivp
 from TidalPy.utilities.numpy_helper import find_nearest
 
 # Switches and Integration Variables
-use_ts72_initial = False
+use_ts72_initial = True
 use_incompressibility = False # To compare to RN08
 static_core = True
 integration_tol = 1.e-8
@@ -212,9 +212,10 @@ for sn in OC_sn_range:
     # Boundary conditions are based on the inner core results.
     if sn == 0:
         if static_core:
+            density_to_use = density_array[R_IC_index+1]
             initial_value[0] = solution_ys_IC[0][4, -1]
-            initial_value[1] = solution_ys_IC[0][5, -1] + \
-                               (4. * np.pi * G / gravity_array[R_IC_index]) * solution_ys_IC[0][1, -1]
+            initial_value[1] = solution_ys_IC[0][5, -1] - \
+                               (4. * np.pi * G * density_to_use / gravity_array[R_IC_index]) * initial_value[0]
         else:
             sol1_frac = solution_ys_IC[0][3, -1] / solution_ys_IC[2][3, -1]
             initial_value[0] = solution_ys_IC[0][0, -1] - sol1_frac * solution_ys_IC[2][0, -1]
