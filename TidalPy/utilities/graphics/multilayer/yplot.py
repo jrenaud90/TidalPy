@@ -54,6 +54,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         multiple_y = True
 
     fig_tidal_y, axes_tidal_y = plt.subplots(ncols=3, nrows=2, figsize=(10, 10))
+    plt.subplots_adjust(wspace=0.5)
     ax_y1 = axes_tidal_y[0, 0]
     ax_y2 = axes_tidal_y[0, 1]
     ax_y3 = axes_tidal_y[0, 2]
@@ -63,7 +64,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
 
     # TODO: Check units
     ax_y1.set(ylabel=ylabel, xlabel='$y_{1}$ [m / (m/s)$^{2}$]', title='Radial Disp.')
-    ax_y2.set(ylabel=ylabel, xlabel='$y_{2}$ [kg / m$^{3}$', title='Radial Stress')
+    ax_y2.set(ylabel=ylabel, xlabel='$y_{2}$ [kg / m$^{3}$]', title='Radial Stress')
     ax_y3.set(ylabel=ylabel, xlabel='$y_{3}$ [m / (m/s)$^{2}$]', title='Tang. Disp.')
     ax_y4.set(ylabel=ylabel, xlabel='$y_{4}$ [kg / m$^{3}$]', title='Tang. Stress.')
     ax_y5.set(ylabel=ylabel, xlabel='$y_{5}$', title='Grav. Potential Perturb.')

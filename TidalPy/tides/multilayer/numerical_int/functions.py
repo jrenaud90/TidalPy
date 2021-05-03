@@ -17,6 +17,8 @@ for l in range(25):
 
 l2p1_double_factorials = tuple(l2p1_double_factorials)
 
+# OPT: This can not be njited because it depends on the non-njited spherical bessel functions.
+#    subsequent functions that depend on this must use the approximate `takeuchi_phi_psi`.
 def takeuchi_phi_psi_general(z : FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
     """ Calculate the two functions used to find initial conditions for shooting method.
 

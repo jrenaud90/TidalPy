@@ -17,7 +17,7 @@ from TidalPy.utilities.numpy_helper import find_nearest
 use_ts72_initial = False
 use_incompressibility = False # To compare to RN08
 static_core = True
-integration_tol = 1.e-14
+integration_tol = 1.e-8
 integration_method = 'RK45'
 plot_tobie = True
 plot_roberts = False
