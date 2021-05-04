@@ -14,7 +14,7 @@ from scipy.integrate import solve_ivp
 from TidalPy.utilities.numpy_helper import find_nearest
 
 # Switches and Integration Variables
-use_ts72_initial = True
+use_ts72_initial = False
 use_incompressibility = False # To compare to RN08
 static_core = True
 integration_tol = 1.e-8
@@ -51,7 +51,7 @@ orbital_freq_TB_match = 2. * np.pi / (86400. * .9)
 freq_europa = 2.04793e-05
 freq_titan = 4.55938e-06
 
-orbital_freq = orbital_freq_TB_match
+orbital_freq = 2. * np.pi / (86400. * .03)
 semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
 
 # Setup homogeneous domain
@@ -212,10 +212,36 @@ for sn in OC_sn_range:
     # Boundary conditions are based on the inner core results.
     if sn == 0:
         if static_core:
-            density_to_use = density_array[R_IC_index+1]
-            initial_value[0] = solution_ys_IC[0][4, -1]
-            initial_value[1] = solution_ys_IC[0][5, -1] - \
-                               (4. * np.pi * G * density_to_use / gravity_array[R_IC_index]) * initial_value[0]
+            liquid_density = density_array[R_IC_index + 1]
+            interface_gravity = gravity_array[R_IC_index]
+
+            # initial_value[0] = solution_ys_IC[0][4, -1]
+            # initial_value[1] = solution_ys_IC[0][5, -1] - \
+            #                    (4. * np.pi * G * liquid_density / interface_gravity) * initial_value[0]
+
+            y4_frac_1 = solution_ys_IC[0][3, -1] / solution_ys_IC[2][3, -1]
+            y4_frac_2 = solution_ys_IC[1][3, -1] / solution_ys_IC[2][3, -1]
+
+            # gamma_j = (y_2j - f_j y_23) - rho( g(y_1j - f_j y_13) - (y_5j - f_j y_53))
+            gamma_1 = (solution_ys_IC[0][1, -1] - y4_frac_1 * solution_ys_IC[2][1, -1]) - \
+                      liquid_density * (interface_gravity * (solution_ys_IC[0][0, -1] - y4_frac_1 * solution_ys_IC[2][0, -1]) -
+                                (solution_ys_IC[0][4, -1] - y4_frac_1 * solution_ys_IC[2][4, -1]))
+            gamma_2 = (solution_ys_IC[1][1, -1] - y4_frac_2 * solution_ys_IC[2][1, -1]) - \
+                      liquid_density * (interface_gravity * (solution_ys_IC[1][0, -1] - y4_frac_2 * solution_ys_IC[2][0, -1]) -
+                                (solution_ys_IC[1][4, -1] - y4_frac_2 * solution_ys_IC[2][4, -1]))
+
+            initial_value[0] = solution_ys_IC[0][4, -1] - (gamma_1 / gamma_2) * solution_ys_IC[1][4, -1] - \
+                               (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * solution_ys_IC[2][4, -1]
+
+            # initial_value[1] = solution_ys_IC[0][5, -1] - \
+            #                    (4. * np.pi * G * liquid_density / interface_gravity) * initial_value[0]
+
+            y_7_IC_0 = solution_ys_IC[0][5, -1] + (4. * np.pi * G / interface_gravity) * solution_ys_IC[0][1, -1]
+            y_7_IC_1 = solution_ys_IC[1][5, -1] + (4. * np.pi * G / interface_gravity) * solution_ys_IC[1][1, -1]
+            y_7_IC_2 = solution_ys_IC[2][5, -1] + (4. * np.pi * G / interface_gravity) * solution_ys_IC[2][1, -1]
+
+            initial_value[1] = y_7_IC_0 - (gamma_1 / gamma_2) * y_7_IC_1 - \
+                               (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * y_7_IC_2
         else:
             sol1_frac = solution_ys_IC[0][3, -1] / solution_ys_IC[2][3, -1]
             initial_value[0] = solution_ys_IC[0][0, -1] - sol1_frac * solution_ys_IC[2][0, -1]
@@ -252,12 +278,14 @@ for sn in range(3):
     # Boundary conditions are based on the outer core results.
     if static_core:
         # From Saito74
+        liquid_density = density_array[R_OC_index]
+        interface_gravity = gravity_array[R_OC_index]
         if sn == 0:
             initial_value[0] = 0.
-            initial_value[1] = -density_array[R_OC_index] * solution_ys_OC[0][0, -1]
+            initial_value[1] = -liquid_density * solution_ys_OC[0][0, -1]
             initial_value[4] = solution_ys_OC[0][0, -1]
             initial_value[5] = solution_ys_OC[0][1, -1] + \
-                               (4. * np.pi * G * density_array[R_OC_index] / gravity_array[R_OC_index]) * \
+                               (4. * np.pi * G * liquid_density / interface_gravity) * \
                                solution_ys_OC[0][0, -1]
 
             initial_value[2] = 0.
@@ -265,8 +293,8 @@ for sn in range(3):
 
         elif sn == 1:
             initial_value[0] = 1.
-            initial_value[1] = density_array[R_OC_index] * gravity_array[R_OC_index] * initial_value[0]
-            initial_value[5] = -4. * np.pi * G * density_array[R_OC_index] * initial_value[0]
+            initial_value[1] = liquid_density * interface_gravity * initial_value[0]
+            initial_value[5] = -4. * np.pi * G * liquid_density * initial_value[0]
 
             initial_value[2] = 0.
             initial_value[3] = 0.
@@ -337,24 +365,24 @@ if static_core:
 
     # Solve for inner core Qs
     Q_IC_vector = np.zeros(3, dtype=np.complex128)
-    Q_IC_vector[0] = Q_OC_vector[0]
 
     y4_frac_1 = solution_ys_IC[0][3, -1] / solution_ys_IC[2][3, -1]
     y4_frac_2 = solution_ys_IC[1][3, -1] / solution_ys_IC[2][3, -1]
 
-    g_IC = gravity_array[R_IC_index+1]
-    rho_IC = density_array[R_IC_index+1]
-    gamma_1 = solution_ys_IC[0][0, -1] - \
-              (1. / g_IC) * solution_ys_IC[0][4, -1] - \
-              (1. / (g_IC * rho_IC)) * solution_ys_IC[0][1, -1]
-    gamma_3 = solution_ys_IC[2][0, -1] - \
-              (1. / g_IC) * solution_ys_IC[2][4, -1] - \
-              (1. / (g_IC * rho_IC)) * solution_ys_IC[2][1, -1]
-    zeta_2 = -solution_ys_IC[1][0, -1] - \
-             (1. / g_IC) * solution_ys_IC[1][4, -1] + \
-             (1. / (g_IC * rho_IC)) * solution_ys_IC[1][1, -1]
+    g_IC = gravity_array[R_IC_index]      # Interface gravity
+    rho_IC = density_array[R_IC_index+1]  # Liquid density
+    print(g_IC, rho_IC)
 
-    Q_IC_vector[1] = Q_IC_vector[0] * (gamma_1 - y4_frac_1 * gamma_3) / (zeta_2 + y4_frac_2 * gamma_3)
+    # gamma_j = (y_2j - f_j y_23) - rho( g(y_1j - f_j y_13) - (y_5j - f_j y_53))
+    gamma_1 = (solution_ys_IC[0][1, -1] - y4_frac_1 * solution_ys_IC[2][1, -1]) - \
+              rho_IC * (g_IC * (solution_ys_IC[0][0, -1] - y4_frac_1 * solution_ys_IC[2][0, -1]) -
+                        (solution_ys_IC[0][4, -1] - y4_frac_1 * solution_ys_IC[2][4, -1]))
+    gamma_2 = (solution_ys_IC[1][1, -1] - y4_frac_2 * solution_ys_IC[2][1, -1]) - \
+              rho_IC * (g_IC * (solution_ys_IC[1][0, -1] - y4_frac_2 * solution_ys_IC[2][0, -1]) -
+                        (solution_ys_IC[1][4, -1] - y4_frac_2 * solution_ys_IC[2][4, -1]))
+
+    Q_IC_vector[0] = Q_OC_vector[0]
+    Q_IC_vector[1] = (-gamma_1 / gamma_2) * Q_IC_vector[0]
     Q_IC_vector[2] = -y4_frac_1 * Q_IC_vector[0] - y4_frac_2 * Q_IC_vector[1]
 
     # Solve for total planet y's
