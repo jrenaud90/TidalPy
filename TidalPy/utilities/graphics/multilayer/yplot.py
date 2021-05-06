@@ -54,7 +54,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         multiple_y = True
 
     fig_tidal_y, axes_tidal_y = plt.subplots(ncols=3, nrows=2, figsize=(10, 10))
-    plt.subplots_adjust(wspace=0.5)
+    plt.subplots_adjust(wspace=-1)
     ax_y1 = axes_tidal_y[0, 0]
     ax_y2 = axes_tidal_y[0, 1]
     ax_y3 = axes_tidal_y[0, 2]
@@ -82,6 +82,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
     if labels is None:
         labels = [f'y-{i}' for i in range(len(tidal_ys))]
 
+    num_y = 0
     for array_num, (radius_array, tidal_y_array) in enumerate(zip(radius, tidal_ys)):
         y1 = np.real(tidal_y_array[0, :])
         y2 = np.real(tidal_y_array[1, :])
@@ -100,9 +101,19 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         ax_y4.plot(y4, z / 1000., label=labels[array_num], c=colors[array_num])
         ax_y5.plot(y5, z / 1000., label=labels[array_num], c=colors[array_num])
         ax_y6.plot(y6, z / 1000., label=labels[array_num], c=colors[array_num])
+        num_y += 1
 
     if multiple_y:
-        ax_y6.legend(loc='best')
+        if num_y < 4:
+            ncols = 1
+        elif num_y < 6:
+            ncols = 2
+        else:
+            ncols = 3
+
+        plt.legend(ncol=ncols, fancybox=True, bbox_to_anchor=(1,0), loc="lower right",
+                   bbox_transform=fig_tidal_y.transFigure)
+
 
     if use_tobie_limits:
         ax_y1.set(xlim=(0.0, 0.15))
@@ -148,6 +159,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         ax_y4.scatter(T05_data[:, 20], T05_data[:, 21] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
         ax_y4.scatter(T05_data[:, 22], T05_data[:, 23] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)
 
+    fig_tidal_y.tight_layout()
     if show_plot:
         plt.show()
 

@@ -99,7 +99,8 @@ def test_static_liquid():
     assert type(liquid_guess) == np.ndarray
     assert type(liquid_guess) == np.ndarray
     # Since there is no shear (or bulk) dependence for static liquid tides, then the results will be real not complex.
-    assert liquid_guess.dtype == 'float64'
+    #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+    assert liquid_guess.dtype == 'complex128'
     # Static liquid solution should have 2 y values across the radius domain (10).
     assert liquid_guess.shape == (2, 10)
 
@@ -108,7 +109,8 @@ def test_static_liquid():
     assert type(liquid_guess) == np.ndarray
     assert type(liquid_guess) == np.ndarray
     # Since there is no shear (or bulk) dependence for static liquid tides, then the results will be real not complex.
-    assert liquid_guess.dtype == 'float64'
+    #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+    assert liquid_guess.dtype == 'complex128'
     # Static liquid solution should have 2 y values across the radius domain (10).
     assert liquid_guess.shape == (2, 10)
 
@@ -122,37 +124,40 @@ def test_dynamic_liquid():
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray
-        # Since there is no shear dependence for static liquid tides, then the results will be real not complex unless
+        # Since there is no shear dependence for dynamic liquid tides, then the results will be real not complex unless
         #    there is bulk dependence
-        assert liquid_guess[sn].dtype == bulk_array.dtype
+        #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+        assert liquid_guess[sn].dtype == 'complex128'
         # Dynamic liquid solution should have 4 y values across the radius domain (10).
         assert liquid_guess[sn].shape == (4, 10)
 
     # Test for order l = 3
-    solid_guess = liquid_dynamic_guess(radius_array_to_use, bulk_array, density_array, frequency, order_l=3)
-    assert type(solid_guess) == tuple
-    assert len(solid_guess) == 2
+    liquid_guess = liquid_dynamic_guess(radius_array_to_use, bulk_array, density_array, frequency, order_l=3)
+    assert type(liquid_guess) == tuple
+    assert len(liquid_guess) == 2
     for sn in range(2):
-        assert type(solid_guess[sn]) == np.ndarray
-        # Since there is no shear dependence for static liquid tides, then the results will be real not complex unless
+        assert type(liquid_guess[sn]) == np.ndarray
+        # Since there is no shear dependence for dynamic liquid tides, then the results will be real not complex unless
         #    there is bulk dependence
-        assert solid_guess[sn].dtype == bulk_array.dtype
+        #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+        assert liquid_guess[sn].dtype == 'complex128'
         # Dynamic liquid solution should have 4 y values across the radius domain (10).
-        assert solid_guess[sn].shape == (4, 10)
+        assert liquid_guess[sn].shape == (4, 10)
 
     # Test for an array in the frequency variable
     freq_domain = np.linspace(-1., 1., 20)
     rad_mtx, freq_mtx = np.meshgrid(radius_array_to_use, freq_domain)
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
-    solid_guess = liquid_dynamic_guess(rad_mtx, bulk_mtx, den_mtx, freq_mtx, order_l=2)
-    assert type(solid_guess) == tuple
-    assert len(solid_guess) == 2
+    liquid_guess = liquid_dynamic_guess(rad_mtx, bulk_mtx, den_mtx, freq_mtx, order_l=2)
+    assert type(liquid_guess) == tuple
+    assert len(liquid_guess) == 2
     for sn in range(2):
-        assert type(solid_guess[sn]) == np.ndarray
+        assert type(liquid_guess[sn]) == np.ndarray
         # Since there is no shear dependence for static liquid tides, then the results will be real not complex unless
         #    there is bulk dependence
-        assert solid_guess[sn].dtype == bulk_mtx.dtype
+        #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+        assert liquid_guess[sn].dtype == 'complex128'
         # Dynamic liquid solution should have 4 y values across the radius domain (10)
         #     and again across the new freq domain (20)
-        assert solid_guess[sn].shape == (4, 20, 10)
+        assert liquid_guess[sn].shape == (4, 20, 10)

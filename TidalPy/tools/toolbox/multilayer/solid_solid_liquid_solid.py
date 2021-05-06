@@ -87,7 +87,7 @@ def convergence_ssls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surfa
     C_layer0_vector[1] = C_layer1_vector[1]
     C_layer0_vector[2] = C_layer1_vector[1]
 
-    # Solve for layer 2's y's
+    # Solve for the liquid layer's y's
     tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0]
 
     layer2_ys = (
@@ -183,7 +183,7 @@ def convergence_ssls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surf
     C_layer0_vector[1] = C_layer1_vector[1]
     C_layer0_vector[2] = C_layer1_vector[1]
 
-    # Solve for layer 2's y's
+    # Solve for the liquid layer's y's
     tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0] + C_layer2_vector[1] * tidal_y_layer2[1]
 
     # Liquid layer is missing two y's, fix that now.
@@ -246,15 +246,19 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
     frequency : float
         Forcing frequency [rad s-1]
     interface_1_radius : float
-        Radius of the first (Solid-Liquid) radius [m]
+        Radius of the first (Solid-Solid) radius [m]
     interface_2_radius : float
+        Radius of the first (Solid-Liquid) radius [m]
+    interface_3_radius : float
         Radius of the first (Liquid-Solid) radius [m]
     layer_0_static : bool = False
         If True, layer 0 will be treated under the static tidal assumption (w=0).
-    layer_1_static : bool = True
+    layer_1_static : bool = False
         If True, layer 1 will be treated under the static tidal assumption (w=0).
-    layer_2_static : bool = False
+    layer_2_static : bool = True
         If True, layer 2 will be treated under the static tidal assumption (w=0).
+    layer_3_static : bool = False
+        If True, layer 3 will be treated under the static tidal assumption (w=0).
     surface_boundary_condition: np.ndarray = None
         The surface boundary condition, for tidal solutions y2, y4, y6, = (0, 0, (2l+1)/R)
             Tidal solution will be the default if `None` is provided.
@@ -382,7 +386,6 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
         if layer_i == 0:
             radial_span = radial_span_0
             radial_solve = radial_solve_0
-            # radial_solve = np.linspace(radial_span[0], radial_span[-1], len(radius[layer_0_indx]) + 1)
             derivatives = radial_derivative_layer_0
             initial_values_to_use = initial_value_tuple
         elif layer_i == 1:

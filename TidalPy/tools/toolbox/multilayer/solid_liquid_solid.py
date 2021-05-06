@@ -82,7 +82,7 @@ def convergence_sls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surfac
     C_layer0_vector[1] = (-gamma_1 / gamma_2) * C_layer0_vector[0]
     C_layer0_vector[2] = -y4_frac_1 * C_layer0_vector[0] - y4_frac_2 * C_layer0_vector[1]
 
-    # Solve for layer 1's y's
+    # Solve for the liquid layer's y's
     tidal_y_layer1 = C_layer1_vector[0] * tidal_y_layer1[0]
 
     layer1_ys = (
@@ -168,7 +168,7 @@ def convergence_sls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surfa
     y4_frac_2 = tidal_y_layer0[1][3, -1] / tidal_y_layer0[2][3, -1]
     C_layer0_vector[2] = -y4_frac_1 * C_layer0_vector[0] - y4_frac_2 * C_layer0_vector[1]
 
-    # Solve for layer 1's y's
+    # Solve for the liquid layer's y's
     tidal_y_layer1 = C_layer1_vector[0] * tidal_y_layer1[0] + C_layer1_vector[1] * tidal_y_layer1[1]
 
     # Outer core is missing two y's, fix that now.
@@ -347,7 +347,6 @@ def calculate_sls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: n
         if layer_i == 0:
             radial_span = radial_span_0
             radial_solve = radial_solve_0
-            # radial_solve = np.linspace(radial_span[0], radial_span[-1], len(radius[layer_0_indx]) + 1)
             derivatives = radial_derivative_layer_0
             initial_values_to_use = initial_value_tuple
         elif layer_i == 1:

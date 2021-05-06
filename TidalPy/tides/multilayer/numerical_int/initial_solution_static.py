@@ -122,26 +122,26 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
 
     # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
     #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
-    y1_s1 = np.asarray(y1_s1)
-    y2_s1 = np.asarray(y2_s1)
-    y3_s1 = np.asarray(y3_s1)
-    y4_s1 = np.asarray(y4_s1)
-    y5_s1 = np.asarray(y5_s1)
-    y6_s1 = np.asarray(y6_s1)
+    y1_s1 = np.asarray(y1_s1, dtype=np.complex128)
+    y2_s1 = np.asarray(y2_s1, dtype=np.complex128)
+    y3_s1 = np.asarray(y3_s1, dtype=np.complex128)
+    y4_s1 = np.asarray(y4_s1, dtype=np.complex128)
+    y5_s1 = np.asarray(y5_s1, dtype=np.complex128)
+    y6_s1 = np.asarray(y6_s1, dtype=np.complex128)
 
-    y1_s2 = np.asarray(y1_s2)
-    y2_s2 = np.asarray(y2_s2)
-    y3_s2 = np.asarray(y3_s2)
-    y4_s2 = np.asarray(y4_s2)
-    y5_s2 = np.asarray(y5_s2)
-    y6_s2 = np.asarray(y6_s2)
+    y1_s2 = np.asarray(y1_s2, dtype=np.complex128)
+    y2_s2 = np.asarray(y2_s2, dtype=np.complex128)
+    y3_s2 = np.asarray(y3_s2, dtype=np.complex128)
+    y4_s2 = np.asarray(y4_s2, dtype=np.complex128)
+    y5_s2 = np.asarray(y5_s2, dtype=np.complex128)
+    y6_s2 = np.asarray(y6_s2, dtype=np.complex128)
 
-    y1_s3 = np.asarray(y1_s3)
-    y2_s3 = np.asarray(y2_s3)
-    y3_s3 = np.asarray(y3_s3)
-    y4_s3 = np.asarray(y4_s3)
-    y5_s3 = np.asarray(y5_s3)
-    y6_s3 = np.asarray(y6_s3)
+    y1_s3 = np.asarray(y1_s3, dtype=np.complex128)
+    y2_s3 = np.asarray(y2_s3, dtype=np.complex128)
+    y3_s3 = np.asarray(y3_s3, dtype=np.complex128)
+    y4_s3 = np.asarray(y4_s3, dtype=np.complex128)
+    y5_s3 = np.asarray(y5_s3, dtype=np.complex128)
+    y6_s3 = np.asarray(y6_s3, dtype=np.complex128)
 
     # Combine the three solutions
     tidaly_s1 = np.stack((y1_s1, y2_s1, y3_s1, y4_s1, y5_s1, y6_s1))
@@ -274,26 +274,26 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
 
     # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
     #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
-    y1_s1 = np.asarray(y1_s1)
-    y2_s1 = np.asarray(y2_s1)
-    y3_s1 = np.asarray(y3_s1)
-    y4_s1 = np.asarray(y4_s1)
-    y5_s1 = np.asarray(y5_s1)
-    y6_s1 = np.asarray(y6_s1)
+    y1_s1 = np.asarray(y1_s1, dtype=np.complex128)
+    y2_s1 = np.asarray(y2_s1, dtype=np.complex128)
+    y3_s1 = np.asarray(y3_s1, dtype=np.complex128)
+    y4_s1 = np.asarray(y4_s1, dtype=np.complex128)
+    y5_s1 = np.asarray(y5_s1, dtype=np.complex128)
+    y6_s1 = np.asarray(y6_s1, dtype=np.complex128)
 
-    y1_s2 = np.asarray(y1_s2)
-    y2_s2 = np.asarray(y2_s2)
-    y3_s2 = np.asarray(y3_s2)
-    y4_s2 = np.asarray(y4_s2)
-    y5_s2 = np.asarray(y5_s2)
-    y6_s2 = np.asarray(y6_s2)
+    y1_s2 = np.asarray(y1_s2, dtype=np.complex128)
+    y2_s2 = np.asarray(y2_s2, dtype=np.complex128)
+    y3_s2 = np.asarray(y3_s2, dtype=np.complex128)
+    y4_s2 = np.asarray(y4_s2, dtype=np.complex128)
+    y5_s2 = np.asarray(y5_s2, dtype=np.complex128)
+    y6_s2 = np.asarray(y6_s2, dtype=np.complex128)
 
-    y1_s3 = np.asarray(y1_s3)
-    y2_s3 = np.asarray(y2_s3)
-    y3_s3 = np.asarray(y3_s3)
-    y4_s3 = np.asarray(y4_s3)
-    y5_s3 = np.asarray(y5_s3)
-    y6_s3 = np.asarray(y6_s3)
+    y1_s3 = np.asarray(y1_s3, dtype=np.complex128)
+    y2_s3 = np.asarray(y2_s3, dtype=np.complex128)
+    y3_s3 = np.asarray(y3_s3, dtype=np.complex128)
+    y4_s3 = np.asarray(y4_s3, dtype=np.complex128)
+    y5_s3 = np.asarray(y5_s3, dtype=np.complex128)
+    y6_s3 = np.asarray(y6_s3, dtype=np.complex128)
 
     # Combine the three solutions
     tidaly_s1 = np.stack((y1_s1, y2_s1, y3_s1, y4_s1, y5_s1, y6_s1))
@@ -343,8 +343,8 @@ def liquid_guess_saito(radius: FloatArray, order_l: int = 2) -> LiquidStaticGues
 
     # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
     #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
-    y5_s1 = np.asarray(y5_s1)
-    y7_s1 = np.asarray(y7_s1)
+    y5_s1 = np.asarray(y5_s1, dtype=np.complex128)
+    y7_s1 = np.asarray(y7_s1, dtype=np.complex128)
 
     # Combine the three solutions
     tidaly_s1 = np.stack((y5_s1, y7_s1))
