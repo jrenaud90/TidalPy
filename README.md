@@ -93,12 +93,29 @@ The current version of TidalPy is in Alpha and will receive many updates on a re
         * If no errors show up (warnings are okay and expected) then the first check is good.
     * Open a new terminal *not in the TidalPy directory* (e.g., your desktop).
         * Run `python` and then try to `import TidalPy`; if that works try the command `TidalPy.version` if you do not get any import errors, and the version number is as you expect, then TidalPy was successfully installed.
-
+    
 #### Using TidalPy from an IDE
 A good Integrated Development Environment can automatically set paths to TidalPy and allows you to use TidalPy without actually "installing" it. If you are comfortable with IDEs then this may be an easier way to use TidalPy, especially during its alpha phase.
 
+#### Installing `Julia` and `diffeqpy` (integration suite)
+By default TidalPy will utilize the `SciPy.integrate` package for solving differential equations. However, it may be more optimal to use the `Julia` language which has ODE integrators that can be called directly from Python. In order to use this functionality you will need to install `Julia` and the `diffeqpy` package.
+
+* Install the Julia language from [https://julialang.org/downloads/](https://julialang.org/downloads/)
+* Add Julia's directory and its `bin` subdirectory to your system's path.
+* Open an elevated ("as administrator") terminal, command prompt, or powershell.
+    * If you are using a virtual Python environment make sure it is active.
+    
+*As of TidalPy v0.3.0, the `diffeqpy` that is available from pypi is not up to date with the version found on the project's github page. TidalPy uses functionality that is only available from this new version. If you would like to use Julia with TidalPy you must close the github version. Keep in mind this is an unreleased version so more bugs are likely.*
+      
+* Create a new directory to clone the `diffeqpy` repository.
+    * Run `git clone https://github.com/SciML/diffeqpy`
+    * With your browser navigated to the directory that contains `setup.py`, run `pip install .` (the trailing period is important).
+* Open Python on your elevated terminal (the following steps may take a while to compile).
+    * Run `import diffeqpy; diffeqpy.install()`
+    * Run `import julia; julia.install()`
+
 ## How to Use
-TBA!
+Coming Soon&trade; !
 
 For now, check out the `Cookbooks` and `Documentation` directories. There are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
 

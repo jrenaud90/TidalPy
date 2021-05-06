@@ -28,6 +28,6 @@ known_initial_guess_funcs = {
     (False, False, False): liquid_static_guess
 }
 
-def find_initial_guess():
-    #solve for it too>?
-    pass# TODO Left off
+def find_initial_guess(is_kamata: bool, is_solid: bool, is_dynamic: bool):
+    # Solve the function too? No, for now...
+    return known_initial_guess_funcs[(is_kamata, is_solid, is_dynamic)]

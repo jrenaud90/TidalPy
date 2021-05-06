@@ -13,6 +13,7 @@ from TidalPy.tides.multilayer.numerical_int.initial_solution_static import liqui
 from TidalPy.utilities.graphics.multilayer.yplot import yplot
 from TidalPy.tides.multilayer.numerical_int.radial_derivatives_static import radial_derivatives_liquid_general as radial_derivatives_liquid_general_static
 from TidalPy.tides.multilayer.numerical_int.radial_derivatives_dynamic import radial_derivatives_solid_general, radial_derivatives_liquid_general
+from TidalPy.tools.toolbox.multilayer.homogen_solid import calculate_homogen_solid
 
 # Switches and Integration Variables
 use_ts72_initial = False
@@ -167,10 +168,7 @@ for model_name, (core_density, mantle_density) in models.items():
     if R_core is not None:
         if static_core:
             initial_solutions_liquid = \
-                liquid_solutions_static(
-                        radius_array[core_radii],
-                        bulk_array[core_radii],
-                        density_array[core_radii], order_l=2)
+                liquid_solutions_static(radius_array[core_radii], order_l=2)
             # make a list to match the dynamic solution type
             initial_solutions_liquid = (initial_solutions_liquid,)
         else:
@@ -388,6 +386,30 @@ for model_name, (core_density, mantle_density) in models.items():
     model_radii.append(radius_array)
     model_names.append(model_name)
     model_results.append(tidal_y)
+
+
+    if model_name == 'TB05-Homogen':
+        tidal_y_new = calculate_homogen_solid(radius_array, shear_array, bulk_array,
+                                              density_array, gravity_array, orbital_freq,
+                                              order_l=2, use_static=True, use_kamata=True,
+                                              use_julia=False, verbose=False,
+                                              int_rtol=1.0e-6, int_atol=1.0e-4, scipy_int_method='RK45',
+                                              julia_int_method='Tsit5')
+
+        sol_surf_mtx = np.asarray([
+            [tidal_y_new[0][1, -1], tidal_y_new[1][1, -1], tidal_y_new[2][1, -1]],
+            [tidal_y_new[0][3, -1], tidal_y_new[1][3, -1], tidal_y_new[2][3, -1]],
+            [tidal_y_new[0][5, -1], tidal_y_new[1][5, -1], tidal_y_new[2][5, -1]]
+        ])
+        sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
+        surf_bc = np.zeros(3, dtype=np.complex128)
+        surf_bc[2] = 5. / R_planet
+        Q_vector = sol_surf_mtx_inv @ surf_bc
+
+        tidal_y_sol = Q_vector[0] * tidal_y_new[0] + Q_vector[1] * tidal_y_new[1] + Q_vector[2] * tidal_y_new[2]
+        model_radii.append(radius_array)
+        model_names.append('NewMethod')
+        model_results.append(tidal_y_sol)
 
 yplot(model_results, model_radii, labels=model_names,
       use_tobie_limits=True, plot_tobie=plot_tobie, plot_roberts=plot_roberts)

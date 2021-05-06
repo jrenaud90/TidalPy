@@ -8,7 +8,7 @@ from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix
 from TidalPy.tides.multilayer.matrix.propagate import propagate
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.potential import tidal_potential_simple
-from TidalPy.tides.multilayer.stress_strain import calculate_strain, calculate_displacements
+from TidalPy.tides.multilayer.stress_strain import calculate_strain_stress_heating, calculate_displacements
 from TidalPy.tools.conversions import orbital_motion2semi_a
 from TidalPy.constants import G
 
@@ -25,6 +25,7 @@ planet_mass = sum(mass_array)
 mass_below = np.asarray([np.sum(mass_array[:i+1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
 shear_array = 5.e10 * np.ones(10, dtype=np.complex)
+bulk_array = 10.e10 * np.ones(10, dtype=np.complex)
 host_mass = 10. * planet_mass
 orbital_freq = (2. * np.pi / (86400. * 6.))
 semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
@@ -95,15 +96,27 @@ def test_calc_strains():
                                eccentricity=eccentricity, time=1000.)
 
     # Calculate strain tensor
-    e_rr, e_thth, e_phph, e_rth, e_rph, e_thph = \
-        calculate_strain(potential, potential_partial_theta, potential_partial_phi,
-                         potential_partial2_theta2, potential_partial2_phi2,
-                         potential_partial2_theta_phi, tidal_y, tidal_y_deriv,
-                         colatitude=0.1, radius=radius_array[1:], shear_moduli=shear_array)
+    strain_components, stress_components, vol_heating = \
+        calculate_strain_stress_heating(
+                potential, potential_partial_theta, potential_partial_phi,
+                potential_partial2_theta2, potential_partial2_phi2,
+                potential_partial2_theta_phi, tidal_y, tidal_y_deriv,
+                colatitude=0.1, radius=radius_array[1:], shear_moduli=shear_array,
+                bulk_moduli=bulk_array, frequency=orbital_freq)
 
-    for strain_component in [e_rr, e_thth, e_phph, e_rth, e_rph, e_thph]:
+    for strain_component in strain_components:
         # Check shape
         assert strain_component.shape == (10,)
 
         # Check type
-        assert type(strain_component[0]) in [np.complex128, np.complex, complex]
+        assert strain_component.dtype in [np.complex128, np.complex, complex]
+
+    for stress_component in stress_components:
+        # Check shape
+        assert stress_component.shape == (10,)
+
+        # Check type
+        assert stress_component.dtype in [np.complex128, np.complex, complex]
+    
+    assert vol_heating.shape == (10,)
+    assert vol_heating.dtype in [np.float64, np.float, float]

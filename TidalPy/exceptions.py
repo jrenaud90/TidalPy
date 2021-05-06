@@ -207,3 +207,8 @@ class TidalPyIntegrationException(TidalPyException):
 
 class IntegrationTimeOut(TidalPyIntegrationException):
     default_message = 'Integration was stopped due to long integration time'
+
+
+class IntegrationFailed(TidalPyIntegrationException):
+    default_message = 'Integration was not successful'
+

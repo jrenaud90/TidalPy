@@ -8,10 +8,15 @@ TB05  : Tobie et al. (2005, DOI: 10.1016/j.icarus.2005.04.006)
 B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 """
 
+from typing import Tuple
+
 import numpy as np
 
 from ...utilities.types import FloatArray
 from ...utilities.performance import njit
+
+StressType = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+StrainType = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
 @njit(cacheable=True)
@@ -52,14 +57,16 @@ def calculate_displacements(tidal_potential: np.ndarray,
     return radial_displacement, polar_displacement, azimuthal_displacement
 
 
-# @njit(cacheable=True)
-def calculate_strain(tidal_potential: np.ndarray,
-                     tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
-                     tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,
-                     tidal_potential_partial2_theta_phi: np.ndarray,
-                     tidal_solution_y: np.ndarray, tidal_solution_y_derivative: np.ndarray,
-                     colatitude: FloatArray,
-                     radius: np.ndarray, shear_moduli: np.ndarray):
+@njit(cacheable=True)
+def calculate_strain_stress_heating(
+        tidal_potential: np.ndarray,
+        tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
+        tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,
+        tidal_potential_partial2_theta_phi: np.ndarray,
+        tidal_solution_y: np.ndarray, tidal_solution_y_derivative: np.ndarray,
+        colatitude: FloatArray,
+        radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
+        frequency: FloatArray) -> Tuple[StressType, StrainType, np.ndarray]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.
 
@@ -87,21 +94,42 @@ def calculate_strain(tidal_potential: np.ndarray,
         Radius array [m]
     shear_moduli : np.ndarray
         Shear modulus as a function of radius [Pa]
+    bulk_moduli : np.ndarray
+        Bulk modulus as a function of radius [Pa]
+    frequency : FloatArray
+        Forcing frequency used to calculate tidal heating [rad s-1]
 
     Returns
     -------
-    e_rr : np.ndarray
-        Strain tensor component - radius radius
-    e_thth : np.ndarray
-        Strain tensor component - colatitude colatitude
-    e_phph : np.ndarray
-        Strain tensor component - longitude longitude
-    e_rth : np.ndarray
-        Strain tensor component - radius colatitude (appears twice in the symmetric tensor)
-    e_rph : np.ndarray
-        Strain tensor component - radius longitude (appears twice in the symmetric tensor)
-    e_thph : np.ndarray
-        Strain tensor component - colatitude longitude (appears twice in the symmetric tensor)
+    strains : StrainType
+        e_rr : np.ndarray
+            Strain tensor component - radius radius
+        e_thth : np.ndarray
+            Strain tensor component - colatitude colatitude
+        e_phph : np.ndarray
+            Strain tensor component - longitude longitude
+        e_rth : np.ndarray
+            Strain tensor component - radius colatitude (appears twice in the symmetric tensor)
+        e_rph : np.ndarray
+            Strain tensor component - radius longitude (appears twice in the symmetric tensor)
+        e_thph : np.ndarray
+            Strain tensor component - colatitude longitude (appears twice in the symmetric tensor)
+    stress : StrainType
+        s_rr : np.ndarray
+            Stress tensor component - radius radius
+        s_thth : np.ndarray
+            Stress tensor component - colatitude colatitude
+        s_phph : np.ndarray
+            Stress tensor component - longitude longitude
+        s_rth : np.ndarray
+            Stress tensor component - radius colatitude (appears twice in the symmetric tensor)
+        s_rph : np.ndarray
+            Stress tensor component - radius longitude (appears twice in the symmetric tensor)
+        s_thph : np.ndarray
+            Stress tensor component - colatitude longitude (appears twice in the symmetric tensor)
+    volumetric_heating : np.ndarray
+        Volumetric heating rate [W]
+
     """
 
     # Optimizations
@@ -146,4 +174,29 @@ def calculate_strain(tidal_potential: np.ndarray,
     #                             [e_rth / 2., e_thth, e_thph / 2.],
     #                             [e_rph / 2., e_thph / 2., e_phph]], dtype=np.complex128)
 
-    return e_rr, e_thth, e_phph, e_rth, e_rph, e_thph
+    # Calculate stress
+    trace = e_rr + e_thth + e_phph
+    kk_term = (bulk_moduli - (2. / 3.) * shear_moduli) * trace
+
+    s_rr = (2. * shear_moduli * e_rr) + kk_term
+    s_thth = (2. * shear_moduli * e_thth) + kk_term
+    s_phph = (2. * shear_moduli * e_phph) + kk_term
+    s_rth = 2. * shear_moduli * e_rth
+    s_rph = 2. * shear_moduli * e_rph
+    s_thph = 2. * shear_moduli * e_thph
+
+    # Calculate Tidal Heating, using two methods
+    volumetric_heating = (frequency / 2.) * (
+            np.imag(s_rr) * np.real(e_rr) - np.real(s_rr) * np.imag(e_rr) +
+            np.imag(s_thth) * np.real(e_thth) - np.real(s_thth) * np.imag(e_thth) +
+            np.imag(s_phph) * np.real(e_phph) - np.real(s_phph) * np.imag(e_phph) +
+            2. * (np.imag(s_rth) * np.real(e_rth) - np.real(s_rth) * np.imag(e_rth)) +
+            2. * (np.imag(s_rph) * np.real(e_rph) - np.real(s_rph) * np.imag(e_rph)) +
+            2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
+    )
+
+    # Compile results
+    strains = (e_rr, e_thth, e_phph, e_rth, e_rph, e_thph)
+    stresses = (s_rr, s_thth, s_phph, s_rth, s_rph, s_thph)
+
+    return strains, stresses, volumetric_heating

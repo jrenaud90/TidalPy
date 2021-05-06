@@ -131,8 +131,7 @@ def build_static_solid_solver(radii: np.ndarray, shear_moduli: np.ndarray, bulk_
     return solid_static_derivatives
 
 
-def build_static_liquid_solver(radii: np.ndarray, bulk_moduli: np.ndarray,
-                               densities: np.ndarray, gravities: np.ndarray,
+def build_static_liquid_solver(radii: np.ndarray, densities: np.ndarray, gravities: np.ndarray,
                                order_l: int = 2) -> callable:
     """ Build a njit-safe static radial derivative function for liquid layers.
 
@@ -140,8 +139,6 @@ def build_static_liquid_solver(radii: np.ndarray, bulk_moduli: np.ndarray,
     ----------
     radii : np.ndarray
         Array of radii for the interior of a planet or layer. The bottom most layer should not be equal to zero [m]
-    bulk_moduli : np.ndarray
-        Bulk modulus at each `radii` [Pa] (can be complex for bulk dissipation)
     densities : np.ndarray
         Density at each `radii` [kg m-3]
     gravities : np.ndarray
@@ -158,13 +155,13 @@ def build_static_liquid_solver(radii: np.ndarray, bulk_moduli: np.ndarray,
 
     @njit(cacheable=False)
     def liquid_static_derivatives(radius: float, y_vector: RadialFuncLiquidStaticType) -> RadialFuncLiquidStaticType:
-        bulk_modulus = np.interp(radius, radii, bulk_moduli)
         density = np.interp(radius, radii, densities)
         gravity = np.interp(radius, radii, gravities)
 
         y_derivatives = radial_derivatives_liquid_static(radius, y_vector,
-                                                         bulk_modulus, density, gravity,
+                                                         density, gravity,
                                                          order_l=order_l)
+
         return y_derivatives
 
     return liquid_static_derivatives
