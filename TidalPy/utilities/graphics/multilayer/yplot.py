@@ -1,13 +1,14 @@
 from typing import Union, List
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.pyplot import cm
 
 from ....exceptions import MissingArgumentError, IncorrectArgumentType
 
-prop_cycle = plt.rcParams['axes.prop_cycle']
-mp_colors = prop_cycle.by_key()['color']
+FILE_PATH = os.path.join(os.path.realpath(__file__), os.pardir)
+PROP_CYCLE = plt.rcParams['axes.prop_cycle']
+MP_COLORS = PROP_CYCLE.by_key()['color']
 
 def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
           radius : Union[List[np.ndarray], np.ndarray],
@@ -54,7 +55,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         multiple_y = True
 
     fig_tidal_y, axes_tidal_y = plt.subplots(ncols=3, nrows=2, figsize=(10, 10))
-    plt.subplots_adjust(wspace=-1)
+    # plt.subplots_adjust(wspace=-1)
     ax_y1 = axes_tidal_y[0, 0]
     ax_y2 = axes_tidal_y[0, 1]
     ax_y3 = axes_tidal_y[0, 2]
@@ -77,7 +78,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
 
     # Setup labels and colors
     if colors is None:
-        colors = mp_colors
+        colors = MP_COLORS
 
     if labels is None:
         labels = [f'y-{i}' for i in range(len(tidal_ys))]
@@ -123,7 +124,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
 
     if plot_roberts:
         RN08_C = 'b'
-        RN08_data = np.loadtxt('RN08-Data.csv', skiprows=1, delimiter=',', dtype=str)
+        RN08_data = np.loadtxt(os.path.join(FILE_PATH, 'RN08-Data.csv'), skiprows=1, delimiter=',', dtype=str)
         RN08_data[RN08_data == ''] = np.nan
         RN08_data = RN08_data.astype(np.float)
         ax_y1.scatter(RN08_data[:, 0], RN08_data[:, 1] / 1000., label='RN08-HG', c=RN08_C, marker='.', s=20)
@@ -140,7 +141,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
 
     if plot_tobie:
         T05_C = 'r'
-        T05_data = np.loadtxt('T05-Data.csv', skiprows=1, delimiter=',', dtype=str)
+        T05_data = np.loadtxt(os.path.join(FILE_PATH, 'T05-Data.csv'), skiprows=1, delimiter=',', dtype=str)
         T05_data[T05_data == ''] = np.nan
         T05_data = T05_data.astype(np.float)
         ax_y1.scatter(T05_data[:, 0], T05_data[:, 1] / 1000., label='T05-HG', c=T05_C, marker='.', s=20)

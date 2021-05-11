@@ -22,6 +22,7 @@ from .functions import takeuchi_phi_psi
 from ....constants import pi, G
 from ....utilities.performance import njit
 from ....utilities.types import FloatArray, ComplexArray
+from ....utilities.math.special import sqrt_neg
 
 CmplxFltArray = Union[FloatArray, ComplexArray]
 SolidStaticGuess = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray]
@@ -81,8 +82,8 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
     k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1) * gamma**2) / (alpha_2 * beta_2))
 
     # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
-    k2_pos = (1. / 2.) * (k2_quad_pos + np.sqrt(k2_quad))
-    k2_neg = (1. / 2.) * (k2_quad_pos - np.sqrt(k2_quad))
+    k2_pos = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
+    k2_neg = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
 
     f_k2_pos = beta_2 * k2_pos / gamma
     f_k2_neg = beta_2 * k2_neg / gamma
@@ -203,8 +204,8 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha_2 * beta_2))
 
     # TODO: TS74 has these flipped compared to KMN15. Going with TS74 for this func.
-    k2_pos = (1. / 2.) * (k2_quad_pos - np.sqrt(k2_quad))
-    k2_neg = (1. / 2.) * (k2_quad_pos + np.sqrt(k2_quad))
+    k2_pos = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
+    k2_neg = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
 
     f_k2_pos = (beta_2 * k2_pos) / gamma
     f_k2_neg = (beta_2 * k2_neg) / gamma
@@ -216,8 +217,8 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     # TODO: do we need to worry about the plus/minus on this sqrt?
     #    The approximate `takeuchi_phi_psi` used here now only needs z^2 so we do not need to worry about the additional
     #    squareroot and +/- ambiguity.
-    # z_k2_pos = np.sqrt(k2_pos) * radius
-    # z_k2_neg = np.sqrt(k2_neg) * radius
+    # z_k2_pos = sqrt_neg(k2_pos, is_real=False) * radius
+    # z_k2_neg = sqrt_neg(k2_neg, is_real=False) * radius
     z_k2_pos = k2_pos * radius**2
     z_k2_neg = k2_neg * radius**2
 

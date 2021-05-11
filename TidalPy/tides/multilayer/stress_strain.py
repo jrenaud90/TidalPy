@@ -170,9 +170,9 @@ def calculate_strain_stress_heating(
 
     # Build strain tensor matrix. Off-diagonal terms are divided by 2 in the strain tensor.
     # # TODO: Currently njit does not like the np.asarray() - perhaps in the future... (Remove 1/2 above)
-    # strain_tensor = np.asarray([[e_rr, e_rth / 2., e_rph / 2.],
-    #                             [e_rth / 2., e_thth, e_thph / 2.],
-    #                             [e_rph / 2., e_thph / 2., e_phph]], dtype=np.complex128)
+    # strain_tensor = np.asarray([[e_rr, e_rth, e_rph],
+    #                             [e_rth, e_thth, e_thph],
+    #                             [e_rph, e_thph , e_phph]], dtype=np.complex128)
 
     # Calculate stress
     trace = e_rr + e_thth + e_phph
