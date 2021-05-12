@@ -10,7 +10,7 @@ import numpy as np
 
 from TidalPy.constants import G
 from TidalPy.tools.conversions import orbital_motion2semi_a
-from TidalPy.rheology.complex_compliance.compliance_models import maxwell_array, sundberg_array
+from TidalPy.rheology.complex_compliance.compliance_models import maxwell, sundberg
 
 # Load TidalPy's multilayer functions
 from TidalPy.tools.toolbox.multilayer import calculate_homogen_solid, calculate_ls
@@ -113,7 +113,7 @@ for model_name, (core_density, mantle_density) in models.items():
         bulk_array[radius_array <= R_core] = bulk_core
 
     # Use the Maxwell rheology
-    complex_compliance_array = maxwell_array(orbital_freq, shear_array**(-1), viscosity_array)
+    complex_compliance_array = maxwell(orbital_freq, shear_array**(-1), viscosity_array)
     complex_shear_array = complex_compliance_array**(-1)
 
     # Solve for radial functions using a numerical shooting method

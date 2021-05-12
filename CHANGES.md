@@ -5,7 +5,9 @@
  
 * Major Changes
     * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for addtional physics.
-    * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI. 
+    * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI.
+    * Did away with all of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
+        * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **do** need to define array functions in the future: all the infrastructure is still in place. 
 * Minor Changes
     * New cookbook to showcase the multilayer calculations.
     * Improved various docstrings.

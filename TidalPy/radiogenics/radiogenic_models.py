@@ -92,8 +92,8 @@ def fixed(time: FloatArray, mass: float,
 
 
 @njit(cacheable=True)
-def off(time: float, mass: float) -> float:
-    """ Forces radiogenics to be off - Floats only
+def off(time: FloatArray, mass: float) -> FloatArray:
+    """ Forces radiogenics to be off
 
     !TPY_args live: self.time, self.mass
 
@@ -111,31 +111,10 @@ def off(time: float, mass: float) -> float:
 
     """
 
-    radiogenic_heating = 0.
+    shape = 0. * (time + mass)
+
+    # Radiogenic heating is zero. Use the shape as the actual value since it is all zeros
+    radiogenic_heating = shape
 
     return radiogenic_heating
 
-
-@njit(cacheable=True)
-def off_array(time: np.ndarray, mass: float) -> np.ndarray:
-    """ Forces radiogenics to be off - Arrays Only
-
-    !TPY_args live: self.time, self.mass
-
-    Parameters
-    ----------
-    time : FloatArray
-       Time at which to calculate radiogenic heating at [units must match average_half_life and ref_time]
-    mass : float
-        Total mass of radiogenic layer
-
-    Returns
-    -------
-    radiogenic_heating : FloatArray
-       Radiogenic heating set to zeros
-
-    """
-
-    radiogenic_heating = np.zeros_like(time)
-
-    return radiogenic_heating

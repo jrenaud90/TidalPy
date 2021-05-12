@@ -191,8 +191,6 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
 
         # Find complex compliance functions
         rheo_lookup_name = rheology.lower()
-        if use_array:
-            rheo_lookup_name += '_array'
         rheo_func = known_compliance_models[rheo_lookup_name]
 
     # Get mode functions

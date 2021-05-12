@@ -9,4 +9,4 @@ known_models, known_model_const_args, known_model_live_args = find_all_models(co
 def get_cooling_model_default_inputs(layer_type: str):
     return build_model_default_inputs(known_model_const_args, cooling_defaults, inner_keys=layer_type)
 
-from .cooling import CoolingModel, CoolingOutputTypeArray
+from .cooling import CoolingModel, CoolingOutputType
