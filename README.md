@@ -115,11 +115,8 @@ By default TidalPy will utilize the `SciPy.integrate` package for solving differ
     * Run `import julia; julia.install()`
 
 ## How to Use
-Coming Soon&trade; !
-
-For now, check out the `Cookbooks` and `Documentation` directories. There are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
-
-Eventually there will be more "getting started information" in the `Documentation/Getting Started.md`.
+Check out the `Documentation\Getting Started.md` file. This is pretty bare bones at the moment but offers some basic info about TidalPy.
+For now the best way to learn how to use TidalPy is by checking out the `Demos` directory. There are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
 
 ## Using TidalPy for Science
 TidalPy has been used in several studies already, and we encourage you to use it in yours. We would appreciate you include a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers below (if you utilized a specific package). We also would love to see where TidalPy is being used! Please feel free to send us an email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy.

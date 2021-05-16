@@ -74,6 +74,7 @@ class PhysicalObjSpherical(ConfigHolder):
         # Slice properties
         self._radii = None
         self._volume_slices = None
+        self._sa_slices = None
         self._depths = None
         self._mass_slices = None
         self._mass_below_slices = None
@@ -192,9 +193,11 @@ class PhysicalObjSpherical(ConfigHolder):
                 dx_per_slice = self.thickness / self.num_slices
                 starting_radius = self.radius_inner + dx_per_slice
                 self._radii = np.linspace(starting_radius, self.radius, self.num_slices, endpoint=True)
-                inner_radii = self.radii - dx_per_slice
                 self._depths = self.radius - self.radii
-                self._volume_slices = (4. / 3.) * np.pi * (self.radii**3 - inner_radii**3)
+                self._sa_slices = 4. * np.pi * self.radii**2
+                self._volume_slices = np.zeros_like(self._radii)
+                self._volume_slices[0] = (4. / 3.) * np.pi * (self.radii[0]**3 - self.radius_inner**3)
+                self._volume_slices[1:] = (4. / 3.) * np.pi * (self.radii[1:]**3 - self.radii[:-1]**3)
 
                 # Base models assume constant density throughout object
                 self._density_slices = self.density_bulk * np.ones_like(self.radii)
@@ -640,6 +643,15 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperGeometryPropertyHandling
 
     @property
+    def sa_slices(self) -> np.ndarray:
+        """ Physical Object's Surface Area Slices (bottom to top) [m2] """
+        return self._sa_slices
+
+    @sa_slices.setter
+    def sa_slices(self, value):
+        raise ImproperGeometryPropertyHandling
+
+    @property
     def mass_slices(self) -> np.ndarray:
         """ Mass of each Slice within the Physical Object [kg] """
         return self._mass_slices
@@ -745,7 +757,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def pressure_above(self) -> float:
-        """ Pressure above this structure (surface pressure, or pressure from overlying layers) """
+        """ Pressure above this structure (surface pressure, or pressure from overlying layers) [Pa] """
         return self._pressure_above
 
     @pressure_above.setter
@@ -758,7 +770,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def mass_below(self) -> float:
-        """ Pressure above this structure (surface pressure, or pressure from overlying layers) """
+        """ Mass below this structure (for worlds: this is zero; for layers: mass of the layer below) [kg] """
         return self._mass_below
 
     @mass_below.setter
@@ -785,6 +797,7 @@ class PhysicalObjSpherical(ConfigHolder):
         raise ImproperPropertyHandling('Number of slices must be set at initial construction.')
 
     # # Aliased properties
+    # Global properties
     @property
     def gravity_surf(self) -> float:
         """ Alias of PhysicalObjSpherical.gravity_outer """
@@ -814,7 +827,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def gravity_surface(self):
-        """ Alias of PhysicalObjSpherical.gravity_outer """
+        """ Alias of PhysicalObjSpherical.gravity_outer [m s-2] """
         return self.gravity_outer
 
     @gravity_surface.setter
@@ -823,7 +836,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def surface_area(self):
-        """ Alias of PhysicalObjSpherical.surface_area_outer """
+        """ Alias of PhysicalObjSpherical.surface_area_outer [m2] """
         return self.surface_area_outer
 
     @surface_area.setter
@@ -832,25 +845,53 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def radius_outer(self):
-        """ Alias of PhysicalObjSpherical.radius """
+        """ Alias of PhysicalObjSpherical.radius [m] """
         return self.radius
 
     @radius_outer.setter
     def radius_outer(self, value):
         self.radius = value
 
+    # Slice properties
+    @property
+    def volumes(self):
+        """ Alias of PhysicalObjSpherical.volume_slices [m3] """
+        return self.volume_slices
+
+    @volumes.setter
+    def volumes(self, value):
+        self.volume_slices = value
+
+    @property
+    def masses(self):
+        """ Alias of PhysicalObjSpherical.mass_slices [kg] """
+        return self.mass_slices
+
+    @masses.setter
+    def masses(self, value):
+        self.mass_slices = value
+
+    @property
+    def surface_areas(self):
+        """ Alias of PhysicalObjSpherical.sa_slices [m2] """
+        return self.sa_slices
+
+    @sa_slices.setter
+    def sa_slices(self, value):
+        self.sa_slices = value
+
     @property
     def densities(self):
+        """ Alias of PhysicalObjSpherical.density_slices [kg m-3] """
         return self.density_slices
 
     @densities.setter
     def densities(self, value):
-        """ Alias of PhysicalObjSpherical.density_slices """
         self.density_slices = value
 
     @property
     def gravities(self):
-        """ Alias of PhysicalObjSpherical.gravity_slices """
+        """ Alias of PhysicalObjSpherical.gravity_slices [m s-2]"""
         return self.gravity_slices
 
     @gravities.setter
@@ -859,7 +900,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def pressures(self):
-        """ Alias of PhysicalObjSpherical.pressure_slices """
+        """ Alias of PhysicalObjSpherical.pressure_slices [Pa] """
         return self.pressure_slices
 
     @pressures.setter
@@ -868,7 +909,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def M(self):
-        """ Alias of PhysicalObjSpherical.mass """
+        """ Alias of PhysicalObjSpherical.mass [kg] """
         return self.mass
 
     @M.setter
@@ -877,7 +918,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def V(self):
-        """ Alias of PhysicalObjSpherical.volume """
+        """ Alias of PhysicalObjSpherical.volume [m3] """
         return self.volume
 
     @V.setter
@@ -886,7 +927,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def R(self):
-        """ Alias of PhysicalObjSpherical.radius """
+        """ Alias of PhysicalObjSpherical.radius [m] """
         return self.radius
 
     @R.setter
@@ -895,7 +936,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def dx(self):
-        """ Alias of PhysicalObjSpherical.thickness """
+        """ Alias of PhysicalObjSpherical.thickness [m] """
         return self.thickness
 
     @dx.setter
@@ -904,7 +945,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @property
     def g(self):
-        """ Alias of PhysicalObjSpherical.gravity_outer """
+        """ Alias of PhysicalObjSpherical.gravity_outer [m s-2] """
         return self.gravity_outer
 
     @g.setter

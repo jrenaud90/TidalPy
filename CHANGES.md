@@ -1,16 +1,22 @@
 # TidalPy Major Change Log
 
-## Version 0.3.0 Alpha (Winter 2020)
-*Scripts based on 0.2.x should work with this version*
+## Version 0.3.0 Alpha (Spring 2021)
+*Scripts based on 0.2.x will likely break with this version!*
  
 * Major Changes
     * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for addtional physics.
     * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI.
     * Did away with all of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
-        * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **do** need to define array functions in the future: all the infrastructure is still in place. 
+        * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **do** need to define array functions in the future: all the infrastructure is still in place.
 * Minor Changes
     * New cookbook to showcase the multilayer calculations.
+    * Added surface area slices to base physical class.
+    * Fixed some issues with how radius slices are tracked within layers and worlds.
+        * `<world/layer>.radii[0]` is never the radius at the bottom of the object, it is always one dx up.
+        * An interpolation had to be added to Burnman layers since Burnman radii starts at 0.
     * Improved various docstrings.
+    * Refactored the `TidalPy.tools` to `TidalPy.toolbox`.
+    * Refactored `Cookbooks` to `Demos`.
 
 ## Version 0.2.1 Alpha (Fall 2020)
 *Will break studies based on previous versions*

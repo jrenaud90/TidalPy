@@ -13,21 +13,21 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple, Union
+from typing import Tuple
 
 from ....constants import pi, G
 from ....utilities.performance import njit
-from ....utilities.types import FloatArray, ComplexArray
+from ....utilities.types import FloatArray, NumArray
 
-CmplxFltArray = Union[FloatArray, ComplexArray]
-RadialFuncSolidStaticType = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray, CmplxFltArray, CmplxFltArray, ComplexArray]
-RadialFuncLiquidStaticType = Tuple[CmplxFltArray, CmplxFltArray]
+RadialFuncSolidStaticType = Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+RadialFuncLiquidStaticType = Tuple[NumArray, NumArray]
 
 
 @njit(cacheable=True)
-def radial_derivatives_solid_general(radius : FloatArray, radial_functions : RadialFuncSolidStaticType,
-                                     shear_modulus : CmplxFltArray, bulk_modulus : CmplxFltArray, density : FloatArray,
-                                     gravity : FloatArray, order_l: int = 2) -> RadialFuncSolidStaticType:
+def radial_derivatives_solid_general(radius: FloatArray, radial_functions: RadialFuncSolidStaticType,
+                                     shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
+                                     gravity: FloatArray,
+                                     order_l: int = 2, G_to_use: float = G) -> RadialFuncSolidStaticType:
     """ Calculates the derivatives of the radial functions using the static assumption - for solid layers.
 
     Allows for compressibility.
@@ -41,19 +41,22 @@ def radial_derivatives_solid_general(radius : FloatArray, radial_functions : Rad
     Parameters
     ----------
     radius : FloatArray
-        Radius where the radial functions are calculated. [m]
+        Radius where the radial functions are calculated. [m; or dimensionless]
     radial_functions : RadialFuncSolidStaticType
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : CmplxFltArray
-        Shear modulus (can be complex for dissipation) at `radius` [Pa]
+        Shear modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
     bulk_modulus : CmplxFltArray
-        Bulk modulus (can be complex for dissipation) at `radius` [Pa]
+        Bulk modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
     density : FloatArray
-        Density at  at `radius` [kg m-3]
+        Density at  at `radius` [kg m-3; or dimensionless]
     gravity : FloatArray
-        Acceleration due to gravity at `radius` [m s-2]
+        Acceleration due to gravity at `radius` [m s-2; or dimensionless]
     order_l : int = 2
-        Tidal harmonic
+        Tidal harmonic order.
+    G_to_use : float = G
+        Newton's gravitational constant. This can be provided as in its MKS units or dimensionless to match the other
+        inputs.
 
     Returns
     -------
@@ -72,7 +75,7 @@ def radial_derivatives_solid_general(radius : FloatArray, radial_functions : Rad
     r_inverse = 1. / radius
     r2_inverse = r_inverse * r_inverse
     llp1 = order_l * (order_l + 1.)
-    grav_term = 4. * pi * G * density
+    grav_term = 4. * pi * G_to_use * density
 
     # See Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
     # # dy2 and dy4 contain: viscoelastic, and gravitational terms.
@@ -114,10 +117,11 @@ def radial_derivatives_solid_general(radius : FloatArray, radial_functions : Rad
 
     return dy1, dy2, dy3, dy4, dy5, dy6
 
+
 @njit(cacheable=True)
 def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: RadialFuncLiquidStaticType,
                                       density: FloatArray, gravity: FloatArray,
-                                      order_l: int = 2) -> RadialFuncLiquidStaticType:
+                                      order_l: int = 2, G_to_use: float = G) -> RadialFuncLiquidStaticType:
     """ Calculates the derivatives of the radial functions using the static assumption - for liquid layers (mu = 0).
 
     Allows for compressibility (technically, but bulk mod is not used in this equations).
@@ -140,6 +144,9 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
         Acceleration due to gravity at `radius` [m s-2]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Newton's gravitational constant. This can be provided as in its MKS units or dimensionless to match the other
+        inputs.
 
     Returns
     -------
@@ -153,7 +160,7 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
 
     # Optimizations
     r_inverse = 1. / radius
-    grav_term = 4. * pi * G * density
+    grav_term = 4. * pi * G_to_use * density
 
     # See Eq. 18 in S75
     dy5 = \

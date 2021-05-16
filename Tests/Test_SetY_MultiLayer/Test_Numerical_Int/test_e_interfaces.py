@@ -4,9 +4,12 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tides.multilayer.numerical_int import liquid_dynamic_guess, liquid_static_guess, solid_static_guess, solid_dynamic_guess
-from TidalPy.tides.multilayer.numerical_int.interfaces import interface_LDy_LDy, interface_LSt_LSt, interface_SDy_SDy, interface_SSt_SSt, interface_SSt_SDy, interface_SDy_SSt, interface_LDy_SDy, interface_LDy_SSt, interface_LSt_SDy, interface_LSt_SSt, interface_SDy_LDy, interface_SDy_LSt, interface_SSt_LDy, interface_SSt_LSt
 from TidalPy.constants import G
+from TidalPy.tides.multilayer.numerical_int import liquid_dynamic_guess, liquid_static_guess, solid_static_guess, \
+    solid_dynamic_guess
+from TidalPy.tides.multilayer.numerical_int.interfaces import interface_LDy_LDy, interface_LSt_LSt, interface_SDy_SDy, \
+    interface_SSt_SSt, interface_SSt_SDy, interface_SDy_SSt, interface_LDy_SDy, interface_LDy_SSt, interface_LSt_SDy, \
+    interface_LSt_SSt, interface_SDy_LDy, interface_SDy_LSt, interface_SSt_LDy, interface_SSt_LSt
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False

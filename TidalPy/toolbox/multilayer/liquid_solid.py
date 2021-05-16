@@ -4,10 +4,12 @@ import numpy as np
 
 from .helper import build_static_solid_solver, build_dynamic_solid_solver, build_static_liquid_solver, \
     build_dynamic_liquid_solver
-from ....exceptions import IntegrationFailed
-from ....tides.multilayer.numerical_int import find_initial_guess
-from ....tides.multilayer.numerical_int.interfaces import find_interface_func
-from ....utilities.performance import njit
+from ...constants import G
+from ...exceptions import IntegrationFailed, AttributeNotSetError
+from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
+from ...tides.multilayer.numerical_int import find_initial_guess
+from ...tides.multilayer.numerical_int.interfaces import find_interface_func
+from ...utilities.performance import njit
 
 TidalYSolType = Tuple[Tuple[np.ndarray, np.ndarray, np.ndarray],
                       Tuple[np.ndarray, ...],
@@ -165,7 +167,9 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
                  order_l: int = 2, use_kamata: bool = True,
                  use_julia: bool = False, verbose: bool = False,
                  int_rtol: float = 1.0e-6, int_atol: float = 1.0e-6,
-                 scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5'):
+                 scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+                 non_dimensionalize: bool = False,
+                 planet_bulk_density: float = None) -> Tuple[np.ndarray, np.ndarray]:
     """ Calculate the radial solution for a planet that has a three layer structure: Liquid-Solid.
 
     Parameters
@@ -213,6 +217,11 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
         Integration method for the Julia integration scheme.
         See options here (note some do not work for complex numbers):
             `TidalPy.utilities.julia_helper.integration_methods.py`
+    non_dimensionalize : bool = False
+        If True, integration will use dimensionless variables. These will be converted back before output is given to
+        the user.
+    planet_bulk_density : float = None
+        Must be provided if non_dimensionalize is True. Bulk density of the planet.
 
     Returns
     -------
@@ -224,6 +233,20 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
     # Figure out the index of the boundaries and geometry of the problem
     layer_0_indx = radius <= interface_1_radius
     layer_1_indx = radius > interface_1_radius
+
+    # Non-dimensionalize inputs
+    planet_radius = radius[-1]
+    # planet_radius = radius[-1] / 10.
+    # planet_radius = radius[0]
+    if non_dimensionalize:
+        if planet_bulk_density is None:
+            raise AttributeNotSetError('Planet bulk modulus must be provided if non-dimensionalize is True.')
+
+        radius, gravity, density, shear_modulus, bulk_modulus, frequency, G_to_use = \
+            non_dimensionalize_physicals(radius, gravity, density, shear_modulus, bulk_modulus, frequency,
+                                         mean_radius=planet_radius, bulk_density=planet_bulk_density)
+    else:
+        G_to_use = G
 
     radial_span_0 = (radius[layer_0_indx][0], radius[layer_0_indx][-1])
     radial_span_1 = (radius[layer_1_indx][0], radius[layer_1_indx][-1])
@@ -240,33 +263,33 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
     # Initial (base) guess will be for a liquid layer
     initial_value_func = find_initial_guess(is_kamata=use_kamata, is_solid=False, is_dynamic=(not layer_0_static))
     if layer_0_static:
-        initial_value_tuple = initial_value_func(radius[0], order_l=order_l)
+        initial_value_tuple = initial_value_func(radius[0], order_l=order_l, G_to_use=G_to_use)
     else:
         initial_value_tuple = initial_value_func(radius[0], bulk_modulus[0], density[0],
-                                                 frequency, order_l=order_l)
+                                                 frequency, order_l=order_l, G_to_use=G_to_use)
 
     # Find the differential equation
     if layer_0_static:
         radial_derivative_layer_0 = \
             build_static_liquid_solver(radius[layer_0_indx],
                                        density[layer_0_indx], gravity[layer_0_indx],
-                                       order_l=order_l)
+                                       order_l=order_l, G_to_use=G_to_use)
     else:
         radial_derivative_layer_0 = \
             build_dynamic_liquid_solver(radius[layer_0_indx], bulk_modulus[layer_0_indx],
                                         density[layer_0_indx], gravity[layer_0_indx], frequency,
-                                        order_l=order_l)
+                                        order_l=order_l, G_to_use=G_to_use)
 
     if layer_1_static:
         radial_derivative_layer_1 = \
             build_static_solid_solver(radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
                                       density[layer_1_indx], gravity[layer_1_indx],
-                                      order_l=order_l)
+                                      order_l=order_l, G_to_use=G_to_use)
     else:
         radial_derivative_layer_1 = \
             build_dynamic_solid_solver(radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
                                        density[layer_1_indx], gravity[layer_1_indx], frequency,
-                                       order_l=order_l)
+                                       order_l=order_l, G_to_use=G_to_use)
 
     # Find interfaces
     interface_1_func = find_interface_func(lower_layer_is_solid=False, lower_layer_is_static=layer_0_static,
@@ -307,7 +330,7 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
                 return list(output)
 
             # Import Julia's Diffeqpy and reinit the problem
-            from ....utilities.julia_helper.integration_methods import get_julia_solver
+            from ...utilities.julia_helper.integration_methods import get_julia_solver
             ode, solver = get_julia_solver(julia_int_method)
 
             # Julia uses a different method to save the integration data. We need a delta_x instead of the specific x's.
@@ -365,4 +388,30 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
     if verbose:
         print('Done!')
 
-    return tidal_y
+    if non_dimensionalize:
+        if verbose:
+            print('Redimensionalizing Radial Functions.')
+        tidal_y = re_dimensionalize_radial_func(tidal_y, planet_radius, planet_bulk_density)
+
+    # Now that tidal_y has been found, we can find the radial derivatives which are used in some calculations.
+    tidal_y_derivative = np.zeros_like(tidal_y)
+    tidal_y_derivative[:, layer_1_indx] = \
+        np.stack(radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx]))
+    # Layer 1 is liquid so that complicates the calculation slightly
+    if layer_0_static:
+        # TODO: This is not correct, we could pull out dy_5/dr but it is not used in subsequent calculations,
+        #  so let's just leave all derivatives as zero (which is done in the initialization above).
+        pass
+    else:
+        tidal_y_liq = np.zeros((4, len(radius[layer_0_indx])), dtype=np.complex128)
+        tidal_y_liq[0, :] = tidal_y[0, layer_0_indx]
+        tidal_y_liq[1, :] = tidal_y[1, layer_0_indx]
+        tidal_y_liq[2, :] = tidal_y[4, layer_0_indx]
+        tidal_y_liq[3, :] = tidal_y[5, layer_0_indx]
+        liq_derivatives = np.stack(radial_derivative_layer_0(radius[layer_0_indx], tidal_y_liq))
+        tidal_y_derivative[0, layer_0_indx] = liq_derivatives[0, :]
+        tidal_y_derivative[1, layer_0_indx] = liq_derivatives[1, :]
+        tidal_y_derivative[4, layer_0_indx] = liq_derivatives[2, :]
+        tidal_y_derivative[5, layer_0_indx] = liq_derivatives[3, :]
+
+    return tidal_y, tidal_y_derivative

@@ -9,7 +9,7 @@ from TidalPy.tides.multilayer.matrix.propagate import propagate
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.multilayer.heating import calc_radial_tidal_heating
 from TidalPy.constants import G
-from TidalPy.tools.conversions import orbital_motion2semi_a
+from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False

@@ -17,12 +17,12 @@ from typing import Tuple, Union
 
 import numpy as np
 
-from .initial_solution_dynamic import z_calc
 from .functions import takeuchi_phi_psi
+from .initial_solution_dynamic import z_calc
 from ....constants import pi, G
+from ....utilities.math.special import sqrt_neg
 from ....utilities.performance import njit
 from ....utilities.types import FloatArray, ComplexArray
-from ....utilities.math.special import sqrt_neg
 
 CmplxFltArray = Union[FloatArray, ComplexArray]
 SolidStaticGuess = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray]
@@ -30,7 +30,7 @@ LiquidStaticGuess = CmplxFltArray
 
 @njit(cacheable=True)
 def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                       density: FloatArray, order_l: int = 2) -> SolidStaticGuess:
+                       density: FloatArray, order_l: int = 2, G_to_use: float = G) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
@@ -56,6 +56,8 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
         Density at  at `radius` [kg m-3]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -70,7 +72,7 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
     # Constants (See Eqs. B13-B16 of KMN15)
     alpha_2 = (lame + 2. * shear_modulus) / density
     beta_2 = shear_modulus / density
-    gamma = 4. * pi * G * density / 3.
+    gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
@@ -153,7 +155,7 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
 
 @njit(cacheable=True)
 def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                         density: FloatArray, order_l: int = 2) -> SolidStaticGuess:
+                         density: FloatArray, order_l: int = 2, G_to_use: float = G) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -179,6 +181,8 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
         Density at  at `radius` [kg m-3]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -193,7 +197,7 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     # Constants (See Eqs. B13-B16 of KMN15)
     alpha_2 = (lame + 2. * shear_modulus) / density
     beta_2 = shear_modulus / density
-    gamma = 4. * pi * G * density / 3.
+    gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
@@ -304,7 +308,7 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     return tidaly_s1, tidaly_s2, tidaly_s3
 
 @njit(cacheable=True)
-def liquid_guess_saito(radius: FloatArray, order_l: int = 2) -> LiquidStaticGuess:
+def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G) -> LiquidStaticGuess:
     """ Calculate the initial guess at the bottom of a liquid layer using the static assumption.
 
     This function uses the Saito 1974 equations (Eq. 19).
@@ -325,6 +329,8 @@ def liquid_guess_saito(radius: FloatArray, order_l: int = 2) -> LiquidStaticGues
         Radius where the radial functions are calculated. [m]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------

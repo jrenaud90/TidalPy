@@ -4,8 +4,8 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tools.toolbox.multilayer import calculate_sls, calculate_ssls, calculate_homogen_solid
 from TidalPy.constants import G
+from TidalPy.toolbox.multilayer import calculate_sls, calculate_ssls, calculate_homogen_solid
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -30,7 +30,7 @@ def test_calculate_homogen():
     """ Test the solution calculation for homogeneous planet """
 
     # Test static
-    tidal_y = calculate_homogen_solid(
+    tidal_y, tidal_y_derivative = calculate_homogen_solid(
         radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
         use_static=True,
         use_julia=False, verbose=False, int_rtol=1.0e-6, int_atol=1.0e-4, scipy_int_method='RK45',
@@ -38,9 +38,11 @@ def test_calculate_homogen():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test dynamic
-    tidal_y = calculate_homogen_solid(
+    tidal_y, tidal_y_derivative = calculate_homogen_solid(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             use_static=False,
             use_julia=False, verbose=False, int_rtol=1.0e-6, int_atol=1.0e-4, scipy_int_method='RK45',
@@ -48,12 +50,14 @@ def test_calculate_homogen():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
 def test_calculate_sls():
     """ Test the solution calculation for solid-liquid-solid planet structure """
 
     # Test all static
-    tidal_y = calculate_sls(
+    tidal_y, tidal_y_derivative = calculate_sls(
         radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
         interface_1_radius=(1. / 3.) * R, interface_2_radius=(2. / 3.) * R,
         layer_0_static=True, layer_1_static=True, layer_2_static=True, order_l=2, use_kamata=True,
@@ -62,9 +66,11 @@ def test_calculate_sls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test all dynamic
-    tidal_y = calculate_sls(
+    tidal_y, tidal_y_derivative = calculate_sls(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             interface_1_radius=(1. / 3.) * R, interface_2_radius=(2. / 3.) * R,
             layer_0_static=False, layer_1_static=False, layer_2_static=False, order_l=2, use_kamata=True,
@@ -73,9 +79,11 @@ def test_calculate_sls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test mix liq=Static
-    tidal_y = calculate_sls(
+    tidal_y, tidal_y_derivative = calculate_sls(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             interface_1_radius=(1. / 3.) * R, interface_2_radius=(2. / 3.) * R,
             layer_0_static=False, layer_1_static=True, layer_2_static=False, order_l=2, use_kamata=True,
@@ -84,9 +92,11 @@ def test_calculate_sls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test mix liq=Dynamic
-    tidal_y = calculate_sls(
+    tidal_y, tidal_y_derivative = calculate_sls(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             interface_1_radius=(1. / 3.) * R, interface_2_radius=(2. / 3.) * R,
             layer_0_static=True, layer_1_static=False, layer_2_static=True, order_l=2, use_kamata=True,
@@ -95,13 +105,15 @@ def test_calculate_sls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
 
 def test_calculate_ssls():
     """ Test the solution calculation for solid-solid-liquid-solid planet structure """
 
     # Test all static
-    tidal_y = calculate_ssls(
+    tidal_y, tidal_y_derivative = calculate_ssls(
         radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
         interface_1_radius=(1. / 4.) * R, interface_2_radius=(2. / 4.) * R, interface_3_radius=(3. / 4.) * R,
         layer_0_static=True, layer_1_static=True, layer_2_static=True, layer_3_static=True, order_l=2, use_kamata=True,
@@ -110,9 +122,11 @@ def test_calculate_ssls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test all dynamic
-    tidal_y = calculate_ssls(
+    tidal_y, tidal_y_derivative = calculate_ssls(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             interface_1_radius=(1. / 4.) * R, interface_2_radius=(2. / 4.) * R, interface_3_radius=(3. / 4.) * R,
             layer_0_static=False, layer_1_static=False, layer_2_static=False, layer_3_static=False, order_l=2,
@@ -122,9 +136,11 @@ def test_calculate_ssls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test mix liq=Static
-    tidal_y = calculate_ssls(
+    tidal_y, tidal_y_derivative = calculate_ssls(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             interface_1_radius=(1. / 4.) * R, interface_2_radius=(2. / 4.) * R, interface_3_radius=(3. / 4.) * R,
             layer_0_static=False, layer_1_static=False, layer_2_static=True, layer_3_static=False, order_l=2,
@@ -134,9 +150,11 @@ def test_calculate_ssls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]
 
     # Test mix liq=Dynamic
-    tidal_y = calculate_ssls(
+    tidal_y, tidal_y_derivative = calculate_ssls(
             radius_array_to_use, shear_array, bulk_array, density_array, gravity_array, frequency,
             interface_1_radius=(1. / 4.) * R, interface_2_radius=(2. / 4.) * R, interface_3_radius=(3. / 4.) * R,
             layer_0_static=True, layer_1_static=True, layer_2_static=False, layer_3_static=True, order_l=2,
@@ -146,3 +164,5 @@ def test_calculate_ssls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y_derivative.shape == (6, 10)
+    assert tidal_y_derivative.dtype in [np.complex, np.complex128, complex]

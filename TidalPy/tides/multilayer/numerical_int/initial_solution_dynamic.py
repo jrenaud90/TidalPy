@@ -18,15 +18,16 @@ from typing import Tuple, Union
 
 import numpy as np
 
+from .functions import takeuchi_phi_psi
 from ....constants import pi, G
+from ....utilities.math.special import sqrt_neg
 from ....utilities.performance import njit
 from ....utilities.types import FloatArray, ComplexArray
-from .functions import takeuchi_phi_psi
-from ....utilities.math.special import sqrt_neg
 
 CmplxFltArray = Union[FloatArray, ComplexArray]
 SolidDynamicGuess = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray]
 LiquidDynamicGuess = Tuple[CmplxFltArray, CmplxFltArray]
+
 
 @njit(cacheable=True)
 def z_calc(x_squared: CmplxFltArray, order_l: int = 2, init_l: int = 10):
@@ -41,6 +42,8 @@ def z_calc(x_squared: CmplxFltArray, order_l: int = 2, init_l: int = 10):
         Tidal harmonic order.
     init_l : int = 10
         Max integer to start the calculation from.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -57,9 +60,11 @@ def z_calc(x_squared: CmplxFltArray, order_l: int = 2, init_l: int = 10):
 
     return z
 
+
 @njit(cacheable=True)
 def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                       density: FloatArray, frequency: FloatArray, order_l: int = 2) -> SolidDynamicGuess:
+                       density: FloatArray, frequency: FloatArray,
+                       order_l: int = 2, G_to_use: float = G) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
@@ -87,6 +92,8 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -102,7 +109,7 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
     dynamic_term = frequency * frequency
     alpha_2 = (lame + 2. * shear_modulus) / density
     beta_2 = shear_modulus / density
-    gamma = 4. * pi * G * density / 3.
+    gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
@@ -186,7 +193,8 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
 
 @njit(cacheable=True)
 def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
-                        density: FloatArray, frequency: FloatArray, order_l: int = 2) -> LiquidDynamicGuess:
+                        density: FloatArray, frequency: FloatArray,
+                        order_l: int = 2, G_to_use: float = G) -> LiquidDynamicGuess:
     """  Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B29-B37).
@@ -212,6 +220,8 @@ def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -230,7 +240,7 @@ def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
     r2_inverse = r_inverse * r_inverse
 
     # Helper functions
-    gamma = (4. * pi * G * density / 3.)
+    gamma = (4. * pi * G_to_use * density / 3.)
     alpha_2 = lame / density
     k2 = (1. / alpha_2) * (dynamic_term + 4. * gamma - (order_l * (order_l + 1) * gamma**2 / dynamic_term))
     f = -dynamic_term / gamma
@@ -267,9 +277,11 @@ def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
 
     return tidaly_s1, tidaly_s2
 
+
 @njit(cacheable=True)
 def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                         density: FloatArray, frequency: FloatArray, order_l: int = 2) -> SolidDynamicGuess:
+                         density: FloatArray, frequency: FloatArray,
+                         order_l: int = 2, G_to_use: float = G) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -297,6 +309,8 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -312,7 +326,7 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     dynamic_term = frequency * frequency
     alpha_2 = (lame + 2. * shear_modulus) / density
     beta_2 = shear_modulus / density
-    gamma = 4. * pi * G * density / 3.
+    gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
@@ -354,7 +368,7 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
 
     # # y2 solutions
     y2_s1 = -(lame + 2. * shear_modulus) * radius**order_l * f_k2_pos * phi_k2_pos + \
-        (shear_modulus * radius**order_l / (2. * order_l + 3.)) * \
+            (shear_modulus * radius**order_l / (2. * order_l + 3.)) * \
             (-order_l * (order_l - 1.) * h_k2_pos * psi_k2_pos +
              2. * (2. * f_k2_pos + order_l * (order_l + 1.)) * phi_lp1_k2_pos)
     y2_s2 = -(lame + 2. * shear_modulus) * radius**order_l * f_k2_neg * phi_k2_neg + \
@@ -422,9 +436,11 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
 
     return tidaly_s1, tidaly_s2, tidaly_s3
 
+
 @njit(cacheable=True)
 def liquid_guess_takeuchi(radius: FloatArray, bulk_modulus: CmplxFltArray,
-                          density: FloatArray, frequency: FloatArray, order_l: int = 2) -> LiquidDynamicGuess:
+                          density: FloatArray, frequency: FloatArray,
+                          order_l: int = 2, G_to_use: float = G) -> LiquidDynamicGuess:
     """ Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -450,6 +466,8 @@ def liquid_guess_takeuchi(radius: FloatArray, bulk_modulus: CmplxFltArray,
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -464,7 +482,7 @@ def liquid_guess_takeuchi(radius: FloatArray, bulk_modulus: CmplxFltArray,
     # Constants (See Eqs. B13-B16 of KMN15)
     dynamic_term = frequency * frequency
     alpha_2 = lame / density
-    gamma = 4. * pi * G * density / 3.
+    gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius

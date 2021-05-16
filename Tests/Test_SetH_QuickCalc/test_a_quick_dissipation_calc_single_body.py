@@ -2,7 +2,7 @@ import numpy as np
 from numba.typed.typeddict import Dict
 
 import TidalPy
-from TidalPy.tools.toolbox.quick_tides import quick_tidal_dissipation, single_dissipation_from_dict_or_world_instance
+from TidalPy.toolbox.quick_tides import quick_tidal_dissipation, single_dissipation_from_dict_or_world_instance
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()

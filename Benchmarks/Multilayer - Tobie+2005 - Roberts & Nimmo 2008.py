@@ -9,21 +9,31 @@ TMS05 : Tobie+ (2005; Icarus; DOI: 10.1016/j.icarus.2005.04.006)
 import numpy as np
 
 from TidalPy.constants import G
-from TidalPy.tools.conversions import orbital_motion2semi_a
-from TidalPy.rheology.complex_compliance.compliance_models import maxwell, sundberg
+from TidalPy.toolbox.conversions import orbital_motion2semi_a
+from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 
 # Load TidalPy's multilayer functions
-from TidalPy.tools.toolbox.multilayer import calculate_homogen_solid, calculate_ls
+from TidalPy.toolbox.multilayer import calculate_homogen_solid, calculate_ls
 from TidalPy.tides.multilayer.matrix import fundamental_matrix_orderl2, propagate
 from TidalPy.utilities.graphics.multilayer import yplot
 
 # Switches
 show_shooting_method_technique = True
-show_propagation_matrix_technique = False
+show_propagation_matrix_technique = True
 use_static_liquid_core = False
-use_static_mantle = False          # Set to true for comparison to Roberts and Nimmo.
-use_incompressible_limit = False   # Set to true for comparison to Roberts and Nimmo.
 use_julia_integrator = False
+use_non_dimensional_solver = False
+use_kamata_starting_values = False
+# Set the following two switches to true for comparison to Roberts and Nimmo.
+use_static_mantle = False
+use_incompressible_limit = False
+
+# Integration properties
+scipy_integration_method = 'RK45'
+# scipy_integration_method = 'DOP853'
+julia_integration_method = 'Tsit5'
+r_tol = 1.0e-8
+a_tol = 1.0e-7
 
 # Plot switches
 plot_tobie = True
@@ -54,7 +64,7 @@ planet_mass = 1.08e20
 host_mass = 5.683e26
 eccentricity = 0.0045
 orbital_freq_HZ = 2. * np.pi * 5.308e-5  # This is reported in Hz in RN08. We will need to convert them to rad s-1
-orbital_freq_TB_match = 2. * np.pi / (86400. * .9)
+orbital_freq_TB_match = 2. * np.pi / (86400. * 1)
 freq_europa = 2.04793e-05
 freq_titan = 4.55938e-06
 
@@ -63,7 +73,7 @@ semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
 
 # Setup homogeneous domain
 N = 100
-radius_array = np.linspace(0., R_planet, N+1)[1:]
+radius_array = np.linspace(1., R_planet, N)
 volume_array = np.zeros_like(radius_array)
 volume_array[0] = (4. / 3.) * np.pi * radius_array[0]**3
 volume_array[1:] = (4. / 3.) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
@@ -121,23 +131,27 @@ for model_name, (core_density, mantle_density) in models.items():
         print('Solving with shooting method...')
         if R_core is None:
             # Use homogeneous method
-            tidal_y_shoot = \
+            tidal_y_shoot, _ = \
                 calculate_homogen_solid(radius_array, complex_shear_array, bulk_array, density_array, gravity_array,
                                         orbital_freq, order_l=2, use_static=use_static_mantle,
-                                        use_kamata=True, use_julia=use_julia_integrator, verbose=True,
-                                        int_rtol=1.0e-6, int_atol=1.0e-4,
-                                        scipy_int_method='RK45', julia_int_method='Tsit5')
+                                        use_kamata=use_kamata_starting_values, use_julia=use_julia_integrator,
+                                        verbose=True,
+                                        int_rtol=r_tol, int_atol=a_tol,
+                                        scipy_int_method=scipy_integration_method, julia_int_method='Tsit5',
+                                        non_dimensionalize=use_non_dimensional_solver, planet_bulk_density=bulk_density)
         else:
             # Use liquid-solid method
-            tidal_y_shoot = \
+            tidal_y_shoot, _ = \
                 calculate_ls(radius_array, complex_shear_array, bulk_array, density_array, gravity_array,
                              orbital_freq,
                              interface_1_radius=R_core,
                              layer_0_static=use_static_liquid_core, layer_1_static=use_static_mantle,
                              order_l=2,
-                             use_kamata=True, use_julia=use_julia_integrator, verbose=True,
-                             int_rtol=1.0e-6, int_atol=1.0e-4,
-                             scipy_int_method='RK45', julia_int_method='Tsit5')
+                             use_kamata=use_kamata_starting_values, use_julia=use_julia_integrator,
+                             verbose=True,
+                             int_rtol=r_tol, int_atol=a_tol,
+                             scipy_int_method=scipy_integration_method, julia_int_method='Tsit5',
+                             non_dimensionalize=use_non_dimensional_solver, planet_bulk_density=bulk_density)
 
         model_radii.append(radius_array)
         model_names.append(model_name + '-Shooting')

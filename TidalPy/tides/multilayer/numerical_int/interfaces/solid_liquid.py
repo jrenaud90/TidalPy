@@ -92,7 +92,7 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> LiquidDynamicGuess:
 
 @njit(cacheable=True)
 def dynamic_static(solid_layer_ys: SolidDynamicGuess,
-                   interface_gravity: float, liquid_density: float) -> LiquidStaticGuess:
+                   interface_gravity: float, liquid_density: float, G_to_use: float = G) -> LiquidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a liquid layer that is above a solid
     surface. Assumes dynamic tides in the lower solid layer and static tides in the liquid layer.
 
@@ -108,6 +108,8 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess,
         Acceleration due to gravity at the interface [m s-2]
     liquid_density : float
         The density at the base of the liquid layer [kg m-3]
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -131,21 +133,21 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess,
                                 (solid_layer_ys[1][4, -1] - y4_frac_2 * solid_layer_ys[2][4, -1]))
 
     base_liquid_ys[0] = solid_layer_ys[0][4, -1] - (gamma_1 / gamma_2) * solid_layer_ys[1][4, -1] - \
-                       (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * solid_layer_ys[2][4, -1]
+                        (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * solid_layer_ys[2][4, -1]
 
-    y_7_IC_0 = solid_layer_ys[0][5, -1] + (4. * np.pi * G / interface_gravity) * solid_layer_ys[0][1, -1]
-    y_7_IC_1 = solid_layer_ys[1][5, -1] + (4. * np.pi * G / interface_gravity) * solid_layer_ys[1][1, -1]
-    y_7_IC_2 = solid_layer_ys[2][5, -1] + (4. * np.pi * G / interface_gravity) * solid_layer_ys[2][1, -1]
+    y_7_IC_0 = solid_layer_ys[0][5, -1] + (4. * np.pi * G_to_use / interface_gravity) * solid_layer_ys[0][1, -1]
+    y_7_IC_1 = solid_layer_ys[1][5, -1] + (4. * np.pi * G_to_use / interface_gravity) * solid_layer_ys[1][1, -1]
+    y_7_IC_2 = solid_layer_ys[2][5, -1] + (4. * np.pi * G_to_use / interface_gravity) * solid_layer_ys[2][1, -1]
 
     base_liquid_ys[1] = y_7_IC_0 - (gamma_1 / gamma_2) * y_7_IC_1 - \
-                       (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * y_7_IC_2
+                        (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * y_7_IC_2
 
     return base_liquid_ys
 
 
 @njit(cacheable=True)
 def both_static(solid_layer_ys: SolidStaticGuess,
-                interface_gravity: float, liquid_density: float) -> LiquidStaticGuess:
+                interface_gravity: float, liquid_density: float, G_to_use: float = G) -> LiquidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a liquid layer that is above a solid
     surface. Assumes static tides in both the liquid and solid layers.
 
@@ -161,6 +163,8 @@ def both_static(solid_layer_ys: SolidStaticGuess,
         Acceleration due to gravity at the interface [m s-2]
     liquid_density : float
         The density at the base of the liquid layer [kg m-3]
+    G_to_use : float = G
+        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
@@ -170,4 +174,4 @@ def both_static(solid_layer_ys: SolidStaticGuess,
     """
 
     # As far as I am aware, this should work the same as the dynamic-static function.
-    return dynamic_static(solid_layer_ys, interface_gravity, liquid_density)
+    return dynamic_static(solid_layer_ys, interface_gravity, liquid_density, G_to_use=G_to_use)

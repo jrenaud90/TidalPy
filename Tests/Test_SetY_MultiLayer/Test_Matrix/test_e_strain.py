@@ -9,7 +9,7 @@ from TidalPy.tides.multilayer.matrix.propagate import propagate
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.potential import tidal_potential_simple
 from TidalPy.tides.multilayer.stress_strain import calculate_strain_stress_heating, calculate_displacements
-from TidalPy.tools.conversions import orbital_motion2semi_a
+from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.constants import G
 
 TidalPy.config['stream_level'] = 'ERROR'

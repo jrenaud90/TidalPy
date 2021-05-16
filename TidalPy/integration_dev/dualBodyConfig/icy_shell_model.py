@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ...constants import G
-from ...tools.conversions import orbital_motion2semi_a, sec2myr, semi_a2orbital_motion
+from ...toolbox.conversions import orbital_motion2semi_a, sec2myr, semi_a2orbital_motion
 from ...utilities.performance import njit
 from ...tides.mode_manipulation import find_mode_manipulators
 from ...tides.dissipation import calc_tidal_susceptibility

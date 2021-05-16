@@ -1,3 +1,4 @@
+* Probably worth refactoring `burnman_interface` into the `utilities` module to match other 3rd party packages.
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()
 * Once TidalPy is live on Github look into making a community on https://gitter.im/home/explore#
 * Make a "build_from_planet" function to take an already built planet and then provide some global changes that builds a new planet with, for example, a larger mass/radius

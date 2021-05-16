@@ -1,4 +1,4 @@
-from TidalPy.tools.conversions import myr2sec, semi_a2orbital_motion
+from TidalPy.toolbox.conversions import myr2sec, semi_a2orbital_motion
 from TidalPy.integration_dev.dualBodyConfig.icy_shell_model import build_2layer_icy_shell_diffeq
 from TidalPy.integration_dev.dualBodyConfig.integrationConfigs.PlutoCharon import pluto, charon
 

@@ -168,32 +168,25 @@ class LayeredWorld(TidalWorld):
             # Found an issue where duplicate shells were being added at layer interfaces.
             radii = list()
             volume_slices = list()
+            sa_slices = list()
             depths = list()
             mass_slices = list()
             mass_below_slices = list()
             density_slices = list()
             gravity_slices = list()
             for layer_i, layer in enumerate(self):
-                if layer_i == 0:
-                    radii.append(layer.radii)
-                    volume_slices.append(layer.volume_slices)
-                    depths.append(layer.depths)
-                    mass_slices.append(layer.mass_slices)
-                    mass_below_slices.append(layer.mass_below_slices)
-                    density_slices.append(layer.density_slices)
-                    gravity_slices.append(layer.gravity_slices)
-                else:
-                    # Skip the first item of the slice as it is included in the previous layer's slice
-                    radii.append(layer.radii[1:])
-                    volume_slices.append(layer.volume_slices[1:])
-                    depths.append(layer.depths[1:])
-                    mass_slices.append(layer.mass_slices[1:])
-                    mass_below_slices.append(layer.mass_below_slices[1:])
-                    density_slices.append(layer.density_slices[1:])
-                    gravity_slices.append(layer.gravity_slices[1:])
+                radii.append(layer.radii)
+                volume_slices.append(layer.volume_slices)
+                sa_slices.append(layer.sa_slices)
+                depths.append(layer.depths)
+                mass_slices.append(layer.mass_slices)
+                mass_below_slices.append(layer.mass_below_slices)
+                density_slices.append(layer.density_slices)
+                gravity_slices.append(layer.gravity_slices)
 
             self._radii = np.concatenate(radii)
             self._volume_slices = np.concatenate(volume_slices)
+            self._sa_slices = np.concatenate(sa_slices)
             self._depths = np.concatenate(depths)
             self._mass_slices = np.concatenate(mass_slices)
             self._mass_below_slices = np.concatenate(mass_below_slices)
@@ -382,11 +375,8 @@ class LayeredWorld(TidalWorld):
                 # Now pull out pressure slice data
                 pressure_slices = list()
                 for layer_i, layer in enumerate(self):
-                    if layer_i == 0:
-                        pressure_slices.append(layer.pressure_slices)
-                    else:
-                        # Skip the first item of the slice as it is included in the previous layer's slice
-                        pressure_slices.append(layer.pressure_slices[1:])
+                    pressure_slices.append(layer.pressure_slices)
+
                 self._pressure_slices = np.concatenate(pressure_slices)
 
                 # Find the median radius and use it to find the "middle" pressure
@@ -499,32 +489,6 @@ class LayeredWorld(TidalWorld):
     @num_layers.setter
     def num_layers(self, value):
         raise InitiatedPropertyChangeError
-
-
-    # # Aliased properties
-    @property
-    def densities(self):
-        return self.density_slices
-
-    @densities.setter
-    def densities(self, value):
-        self.density_slices = value
-
-    @property
-    def gravities(self):
-        return self.gravity_slices
-
-    @gravities.setter
-    def gravities(self, value):
-        self.gravity_slices = value
-
-    @property
-    def pressures(self):
-        return self.pressure_slices
-
-    @pressures.setter
-    def pressures(self, value):
-        self.pressure_slices = value
 
 
     # Dunder properties

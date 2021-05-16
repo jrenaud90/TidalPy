@@ -14,22 +14,21 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple, Union
+from typing import Tuple
 
 from ....constants import pi, G
 from ....utilities.performance import njit
-from ....utilities.types import FloatArray, ComplexArray
+from ....utilities.types import FloatArray, NumArray
 
-CmplxFltArray = Union[FloatArray, ComplexArray]
-RadialFuncSolidDynamicType = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray, CmplxFltArray, CmplxFltArray, CmplxFltArray]
-RadialFuncLiquidDynamicType = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray, CmplxFltArray]
+RadialFuncSolidDynamicType = Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+RadialFuncLiquidDynamicType = Tuple[NumArray, NumArray, NumArray, NumArray]
 
 
 @njit(cacheable=True)
-def radial_derivatives_solid_general(radius : FloatArray, radial_functions : RadialFuncSolidDynamicType,
-                                     shear_modulus : CmplxFltArray, bulk_modulus : CmplxFltArray, density : FloatArray,
-                                     gravity : FloatArray, frequency: FloatArray,
-                                     order_l: int = 2) -> RadialFuncSolidDynamicType:
+def radial_derivatives_solid_general(radius: FloatArray, radial_functions: RadialFuncSolidDynamicType,
+                                     shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
+                                     gravity: FloatArray, frequency: FloatArray,
+                                     order_l: int = 2, G_to_use: float = G) -> RadialFuncSolidDynamicType:
     """ Calculates the radial derivative of the radial functions in the most general form - for solid layers.
 
     Allows for compressibility and dynamic tides.
@@ -57,6 +56,9 @@ def radial_derivatives_solid_general(radius : FloatArray, radial_functions : Rad
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Newton's gravitational constant. This can be provided as in its MKS units or dimensionless to match the other
+        inputs.
 
     Returns
     -------
@@ -76,7 +78,7 @@ def radial_derivatives_solid_general(radius : FloatArray, radial_functions : Rad
     r_inverse = 1. / radius
     r2_inverse = r_inverse * r_inverse
     llp1 = order_l * (order_l + 1.)
-    grav_term = 4. * pi * G * density
+    grav_term = 4. * pi * G_to_use * density
 
     # See Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
     # # dy2 and dy4 contain all three of: dynamic, viscoelastic, and gravitational terms.
@@ -119,11 +121,12 @@ def radial_derivatives_solid_general(radius : FloatArray, radial_functions : Rad
 
     return dy1, dy2, dy3, dy4, dy5, dy6
 
+
 @njit(cacheable=True)
-def radial_derivatives_liquid_general(radius : FloatArray, radial_functions : RadialFuncLiquidDynamicType,
-                                      bulk_modulus : CmplxFltArray, density : FloatArray,
-                                      gravity : FloatArray, frequency: FloatArray,
-                                      order_l: int = 2) -> RadialFuncLiquidDynamicType:
+def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: RadialFuncLiquidDynamicType,
+                                      bulk_modulus: NumArray, density: FloatArray,
+                                      gravity: FloatArray, frequency: FloatArray,
+                                      order_l: int = 2, G_to_use: float = G) -> RadialFuncLiquidDynamicType:
     """ Calculates the radial derivative of the radial functions in the most general form - for liquid layers.
 
     Allows for compressibility and dynamic tides.
@@ -149,6 +152,9 @@ def radial_derivatives_liquid_general(radius : FloatArray, radial_functions : Ra
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
+    G_to_use : float = G
+        Newton's gravitational constant. This can be provided as in its MKS units or dimensionless to match the other
+        inputs.
 
     Returns
     -------
@@ -159,7 +165,6 @@ def radial_derivatives_liquid_general(radius : FloatArray, radial_functions : Ra
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
     y1, y2, y5, y6 = radial_functions
-
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     # For the liquid layer it is assumed that the shear modulus is zero so the lame parameter simply
@@ -173,8 +178,7 @@ def radial_derivatives_liquid_general(radius : FloatArray, radial_functions : Ra
     r2_inverse = r_inverse * r_inverse
     llp1 = order_l * (order_l + 1.)
     dynamic_grav = (1. - order_l * gravity * dynamic_term_inverse * r_inverse)
-    grav_term = 4. * pi * G * density
-
+    grav_term = 4. * pi * G_to_use * density
 
     # See Eqs. 11--14 in KMN15
     # # dy2 and dy4 contain all three of: dynamic, viscoelastic, and gravitational terms.

@@ -1,13 +1,16 @@
-from typing import Union
-
 from typing import Tuple
-from ....utilities.performance import njit
+
 import numpy as np
+
 from .helper import build_static_solid_solver, build_dynamic_solid_solver
-from ....tides.multilayer.numerical_int import find_initial_guess
-from ....exceptions import IntegrationFailed
-from numba import jit
+from ...constants import G
+from ...exceptions import IntegrationFailed, AttributeNotSetError
+from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
+from ...tides.multilayer.numerical_int import find_initial_guess
+from ...utilities.performance import njit
+
 MAX_DATA_SIZE = 2000
+
 
 @njit(cacheable=True)
 def convergence_solid(solid_solutions: Tuple[np.ndarray, np.ndarray, np.ndarray], surface_solution: np.ndarray):
@@ -41,7 +44,7 @@ def convergence_solid(solid_solutions: Tuple[np.ndarray, np.ndarray, np.ndarray]
 
     # Solve for total planet y's
     tidal_y = C_vector[0] * solid_solutions[0] + C_vector[1] * solid_solutions[1] + \
-                     C_vector[2] * solid_solutions[2]
+              C_vector[2] * solid_solutions[2]
 
     return tidal_y
 
@@ -52,7 +55,9 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
                             surface_boundary_condition: np.ndarray = None,
                             use_kamata: bool = True, use_julia: bool = False, verbose: bool = False,
                             int_rtol: float = 1.0e-6, int_atol: float = 1.0e-4, scipy_int_method: str = 'RK45',
-                            julia_int_method: str = 'Tsit5'):
+                            julia_int_method: str = 'Tsit5',
+                            non_dimensionalize: bool = False,
+                            planet_bulk_density: float = None) -> Tuple[np.ndarray, np.ndarray]:
     """ Calculate the radial solution for a homogeneous, solid planet.
 
     Parameters
@@ -96,6 +101,11 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
         Integration method for the Julia integration scheme.
         See options here (note some do not work for complex numbers):
             `TidalPy.utilities.julia_helper.integration_methods.py`
+    non_dimensionalize : bool = False
+        If True, integration will use dimensionless variables. These will be converted back before output is given to
+        the user.
+    planet_bulk_density : float = None
+        Must be provided if non_dimensionalize is True. Bulk density of the planet.
 
     Returns
     -------
@@ -103,6 +113,18 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
         The radial solution throughout the entire planet.
 
     """
+
+    # Non-dimensionalize inputs
+    planet_radius = radius[-1]
+    if non_dimensionalize:
+        if planet_bulk_density is None:
+            raise AttributeNotSetError('Planet bulk modulus must be provided if non-dimensionalize is True.')
+
+        radius, gravity, density, shear_modulus, bulk_modulus, frequency, G_to_use = \
+            non_dimensionalize_physicals(radius, gravity, density, shear_modulus, bulk_modulus, frequency,
+                                         mean_radius=planet_radius, bulk_density=planet_bulk_density)
+    else:
+        G_to_use = G
 
     # Determine Geometry
     radial_span = (radius[0], radius[-1])
@@ -118,20 +140,20 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
     initial_value_func = find_initial_guess(is_kamata=use_kamata, is_solid=True, is_dynamic=is_dynamic)
     if use_static:
         initial_value_tuple = initial_value_func(radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                                                  order_l=order_l)
+                                                 order_l=order_l, G_to_use=G_to_use)
     else:
         initial_value_tuple = initial_value_func(radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                                                 frequency, order_l=order_l)
+                                                 frequency, order_l=order_l, G_to_use=G_to_use)
 
     # Find the differential equation
     if use_static:
         radial_derivative = \
             build_static_solid_solver(radius, shear_modulus, bulk_modulus, density, gravity,
-                                      order_l=order_l)
+                                      order_l=order_l, G_to_use=G_to_use)
     else:
         radial_derivative = \
             build_dynamic_solid_solver(radius, shear_modulus, bulk_modulus, density, gravity, frequency,
-                                       order_l=order_l)
+                                       order_l=order_l, G_to_use=G_to_use)
 
     solutions = list()
     for solution_num, initial_values in enumerate(initial_value_tuple):
@@ -142,7 +164,7 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
                 return list(output)
 
             # Import Julia's Diffeqpy and reinit the problem
-            from ....utilities.julia_helper.integration_methods import get_julia_solver
+            from ...utilities.julia_helper.integration_methods import get_julia_solver
             ode, solver = get_julia_solver(julia_int_method)
 
             # Julia uses a different method to save the integration data. We need a delta_x instead of the specific x's.
@@ -168,8 +190,9 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
                                  method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
 
             if solution.status != 0:
-                raise IntegrationFailed(f'Integration Solution Failed for homogeneous model at solution #{solution_num}.'
-                                        f'\n\t{solution.message}')
+                raise IntegrationFailed(
+                    f'Integration Solution Failed for homogeneous model at solution #{solution_num}.'
+                    f'\n\t{solution.message}')
 
             if verbose:
                 print('\nIntegration Done!')
@@ -186,4 +209,12 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
     if verbose:
         print('Done!')
 
-    return tidal_y
+    if non_dimensionalize:
+        if verbose:
+            print('Redimensionalizing Radial Functions.')
+        tidal_y = re_dimensionalize_radial_func(tidal_y, planet_radius, planet_bulk_density)
+
+    # Now that tidal_y has been found, we can find the radial derivatives which are used in some calculations.
+    tidal_y_derivative = np.stack(radial_derivative(radius, tidal_y))
+
+    return tidal_y, tidal_y_derivative

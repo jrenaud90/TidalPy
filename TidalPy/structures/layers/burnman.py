@@ -184,13 +184,6 @@ class BurnmanLayer(PhysicsLayer):
         self._surface_area_middle = 4. * np.pi * self.radius_middle**2
         self._surface_area_inner = 4. * np.pi * self.radius_inner**2
 
-        # Set slice physical properties
-        self._radii = self.bm_layer.radii
-        self._depths = self.radius - self._radii
-        dx_per_slice = self.radii[1] - self.radii[0]
-        inner_radii = self.radii - dx_per_slice
-        self._volume_slices = (4. / 3.) * np.pi * (self.radii**3 - inner_radii**3)
-
         # Set the mass properties
         self._mass = self.bm_layer.mass
         self._density_bulk = self.mass / self.volume
@@ -200,11 +193,24 @@ class BurnmanLayer(PhysicsLayer):
             layer_below_mass = self.layer_below.mass
         self._mass_below = layer_below_mass
 
+        # Set slice physical properties
+        #    For Burnman layers we want to skip the first step, we will do this for all items pulled from BM.
+        #    But we want to keep the same number of shells. So we will perform an interpolation to expand from the
+        #    Burnman values
+        bm_radii = self.bm_layer.radii
+        self._radii = np.linspace(bm_radii[1], bm_radii[-1], self.num_slices)
+        self._depths = self.radius - self._radii
+        self._sa_slices = 4. * np.pi * self.radii**2
+        self._volume_slices = np.zeros_like(self._radii)
+        self._volume_slices[0] = (4. / 3.) * np.pi * (self.radii[0]**3 - self.radius_inner**3)
+        self._volume_slices[1:] = (4. / 3.) * np.pi * (self.radii[1:]**3 - self.radii[:-1]**3)
+
         # Set slice mass properties
-        self._density_slices = self.bm_layer.density
-        self._gravity_slices = self.bm_layer.gravity
-        self._pressure_slices = self.bm_layer.pressures
+        self._density_slices = np.interp(self.radii, bm_radii, self.bm_layer.density)
+        self._gravity_slices = np.interp(self.radii, bm_radii, self.bm_layer.gravity)
+        self._pressure_slices = np.interp(self.radii, bm_radii, self.bm_layer.pressures)
         self._mass_slices = self.density_slices * self.volume_slices
+
         # Mass below each slice is equal to slice masses + and mass below this physical object
         self._mass_below_slices = np.asarray(
                 [self.mass_below + sum(self.mass_slices[:i + 1]) for i in range(self.num_slices)]
@@ -285,6 +291,10 @@ class BurnmanLayer(PhysicsLayer):
         temperature_profile = \
             burnman.geotherm.adiabatic(self.bm_layer.pressures, avg_temperature, self.bm_layer.material)
 
+        # We again want to shrink the temperature domain to match the radii which only take [1:] of the Burnman version.
+        bm_radii = self.bm_layer.radii
+        temperature_profile = np.interp(self.radii, bm_radii, temperature_profile)
+
         return temperature_profile
 
     def _build_material_property_interpolation(self):
@@ -362,73 +372,3 @@ class BurnmanLayer(PhysicsLayer):
     @pressure.setter
     def pressure(self, new_pressure: FloatArray):
         self.set_pressure(new_pressure)
-
-
-    # Inner-scope properties
-    # # BurnMan Layer Class
-    @property
-    def radii(self) -> np.ndarray:
-        return self._bm_layer.radii
-
-    @radii.setter
-    def radii(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def depths(self) -> np.ndarray:
-        return self.radius - self.radii
-
-    @depths.setter
-    def depths(self, value):
-        raise ImproperPropertyHandling
-
-    # TODO: make a "slice" inner class that handles this stuff an 3d Love calculation?
-    @property
-    def pressure_slices(self) -> np.ndarray:
-        return self._bm_layer.pressures
-
-    @pressure_slices.setter
-    def pressure_slices(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def density_slices(self) -> np.ndarray:
-        return self._bm_layer.density
-
-    @density_slices.setter
-    def density_slices(self, value):
-        raise ImproperPropertyHandling
-
-    @property
-    def gravity_slices(self) -> np.ndarray:
-        return self._bm_layer.gravity
-
-    @gravity_slices.setter
-    def gravity_slices(self, value):
-        raise ImproperPropertyHandling
-
-
-    # Aliased properties
-    @property
-    def densities(self):
-        return self.density_slices
-
-    @densities.setter
-    def densities(self, value):
-        self.density_slices = value
-
-    @property
-    def gravities(self):
-        return self.gravity_slices
-
-    @gravities.setter
-    def gravities(self, value):
-        self.gravity_slices = value
-
-    @property
-    def pressures(self):
-        return self.pressure_slices
-
-    @pressures.setter
-    def pressures(self, value):
-        self.pressure_slices = value

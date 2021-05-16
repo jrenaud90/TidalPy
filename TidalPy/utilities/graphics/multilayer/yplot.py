@@ -54,8 +54,8 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
             IncorrectArgumentType('Radius must be provided as the same type as tidal_ys.')
         multiple_y = True
 
-    fig_tidal_y, axes_tidal_y = plt.subplots(ncols=3, nrows=2, figsize=(10, 10))
-    # plt.subplots_adjust(wspace=-1)
+    fig_tidal_y, axes_tidal_y = plt.subplots(ncols=3, nrows=2, figsize=(7.5, 7.5))
+
     ax_y1 = axes_tidal_y[0, 0]
     ax_y2 = axes_tidal_y[0, 1]
     ax_y3 = axes_tidal_y[0, 2]
@@ -64,12 +64,12 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
     ax_y6 = axes_tidal_y[1, 2]
 
     # TODO: Check units
-    ax_y1.set(ylabel=ylabel, xlabel='$y_{1}$ [m / (m/s)$^{2}$]', title='Radial Disp.')
+    ax_y1.set(ylabel=ylabel, xlabel='$y_{1}$ [s$^{2}$ / m]', title='Radial Disp.')
     ax_y2.set(ylabel=ylabel, xlabel='$y_{2}$ [kg / m$^{3}$]', title='Radial Stress')
-    ax_y3.set(ylabel=ylabel, xlabel='$y_{3}$ [m / (m/s)$^{2}$]', title='Tang. Disp.')
+    ax_y3.set(ylabel=ylabel, xlabel='$y_{3}$ [s$^{2}$ / m]', title='Tang. Disp.')
     ax_y4.set(ylabel=ylabel, xlabel='$y_{4}$ [kg / m$^{3}$]', title='Tang. Stress.')
-    ax_y5.set(ylabel=ylabel, xlabel='$y_{5}$', title='Grav. Potential Perturb.')
-    ax_y6.set(ylabel=ylabel, xlabel='$y_{6}$', title='Potential Stress')
+    ax_y5.set(ylabel=ylabel, xlabel='$y_{5}$ [unitless]', title='Grav. Potential Perturb.')
+    ax_y6.set(ylabel=ylabel, xlabel='$y_{6}$ [1 / m]', title='Potential Stress')
 
     if not multiple_y:
         # Just throw them into a list to decrease amount of code.
@@ -112,9 +112,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         else:
             ncols = 3
 
-        plt.legend(ncol=ncols, fancybox=True, bbox_to_anchor=(1,0), loc="lower right",
-                   bbox_transform=fig_tidal_y.transFigure)
-
+        ax_y5.legend(ncol=ncols, fancybox=True, bbox_to_anchor=(1,-0.6), loc="lower right")
 
     if use_tobie_limits:
         ax_y1.set(xlim=(0.0, 0.15))

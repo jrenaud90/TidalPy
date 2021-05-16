@@ -7,7 +7,7 @@ from performance_base import PerformanceTrackBase
 import TidalPy
 TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.reinit()
-from TidalPy.tools.toolbox.quick_tides import quick_tidal_dissipation
+from TidalPy.toolbox.quick_tides import quick_tidal_dissipation
 
 host_mass = 1.e27
 target_radius = 1.e6

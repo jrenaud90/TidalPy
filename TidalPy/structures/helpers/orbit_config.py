@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from ... import log
-from ...tools.conversions import Au2m, days2rads, rads2days
+from ...toolbox.conversions import Au2m, days2rads, rads2days
 
 
 def pull_out_orbit_from_config(world_config: dict) -> Tuple[float, float, float]:

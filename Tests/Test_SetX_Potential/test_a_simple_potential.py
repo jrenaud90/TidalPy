@@ -6,7 +6,7 @@ import numpy as np
 import TidalPy
 from TidalPy.tides.potential import tidal_potential_simple
 from TidalPy.constants import G
-from TidalPy.tools.conversions import orbital_motion2semi_a
+from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
