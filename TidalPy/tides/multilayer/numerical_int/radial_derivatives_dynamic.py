@@ -16,19 +16,18 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 from typing import Tuple
 
+import numpy as np
+
 from ....constants import pi, G
 from ....utilities.performance import njit
 from ....utilities.types import FloatArray, NumArray
 
-RadialFuncSolidDynamicType = Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
-RadialFuncLiquidDynamicType = Tuple[NumArray, NumArray, NumArray, NumArray]
-
 
 @njit(cacheable=True)
-def radial_derivatives_solid_general(radius: FloatArray, radial_functions: RadialFuncSolidDynamicType,
+def radial_derivatives_solid_general(radius: FloatArray, radial_functions: NumArray,
                                      shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
                                      gravity: FloatArray, frequency: FloatArray,
-                                     order_l: int = 2, G_to_use: float = G) -> RadialFuncSolidDynamicType:
+                                     order_l: int = 2, G_to_use: float = G) -> NumArray:
     """ Calculates the radial derivative of the radial functions in the most general form - for solid layers.
 
     Allows for compressibility and dynamic tides.
@@ -42,7 +41,7 @@ def radial_derivatives_solid_general(radius: FloatArray, radial_functions: Radia
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : RadialFuncSolidType
+    radial_functions : NumArray
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : CmplxFltArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
@@ -62,12 +61,14 @@ def radial_derivatives_solid_general(radius: FloatArray, radial_functions: Radia
 
     Returns
     -------
-    radial_derivatives : RadialFuncSolidType
+    radial_derivatives : NumArray
         The derivatives of the radial functions for a solid layer (dynamic assumption)
 
     """
 
-    y1, y2, y3, y4, y5, y6 = radial_functions
+    y1, y2, y3, y4, y5, y6 = \
+        radial_functions[0], radial_functions[1], radial_functions[2], radial_functions[3], radial_functions[4], \
+        radial_functions[5],
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     lame = (bulk_modulus - (2. / 3.) * shear_modulus)
@@ -119,14 +120,21 @@ def radial_derivatives_solid_general(radius: FloatArray, radial_functions: Radia
         y3 * grav_term * llp1 * r_inverse + \
         y6 * (order_l - 1.) * r_inverse
 
-    return dy1, dy2, dy3, dy4, dy5, dy6
+    dy1 = np.asarray(dy1)
+    dy2 = np.asarray(dy2)
+    dy3 = np.asarray(dy3)
+    dy4 = np.asarray(dy4)
+    dy5 = np.asarray(dy5)
+    dy6 = np.asarray(dy6)
+
+    return np.stack((dy1, dy2, dy3, dy4, dy5, dy6))
 
 
 @njit(cacheable=True)
-def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: RadialFuncLiquidDynamicType,
+def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: NumArray,
                                       bulk_modulus: NumArray, density: FloatArray,
                                       gravity: FloatArray, frequency: FloatArray,
-                                      order_l: int = 2, G_to_use: float = G) -> RadialFuncLiquidDynamicType:
+                                      order_l: int = 2, G_to_use: float = G) -> NumArray:
     """ Calculates the radial derivative of the radial functions in the most general form - for liquid layers.
 
     Allows for compressibility and dynamic tides.
@@ -140,7 +148,7 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : RadialFuncLiquidDynamicType
+    radial_functions : NumArray
         Tuple of radial functions for a solid layer (y1, y2, y5, y6)
     bulk_modulus : CmplxFltArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
@@ -158,13 +166,14 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
 
     Returns
     -------
-    radial_derivatives : RadialFuncLiquidDynamicType
+    radial_derivatives : NumArray
         The derivatives of the radial functions for a liquid layer (dynamic assumption)
 
     """
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
-    y1, y2, y5, y6 = radial_functions
+    y1, y2, y5, y6 = \
+        radial_functions[0], radial_functions[1], radial_functions[2], radial_functions[3]
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     # For the liquid layer it is assumed that the shear modulus is zero so the lame parameter simply
@@ -205,4 +214,9 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
         y5 * grav_term * llp1 * r2_inverse * dynamic_term_inverse + \
         y6 * (order_l - 1.) * r_inverse
 
-    return dy1, dy2, dy5, dy6
+    dy1 = np.asarray(dy1)
+    dy2 = np.asarray(dy2)
+    dy5 = np.asarray(dy5)
+    dy6 = np.asarray(dy6)
+
+    return np.stack((dy1, dy2, dy5, dy6))

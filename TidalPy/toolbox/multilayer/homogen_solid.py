@@ -2,11 +2,12 @@ from typing import Tuple
 
 import numpy as np
 
-from .helper import build_static_solid_solver, build_dynamic_solid_solver
+from .odes import static_solid_ode, dynamic_solid_ode
 from ...constants import G
 from ...exceptions import IntegrationFailed, AttributeNotSetError
 from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ...tides.multilayer.numerical_int import find_initial_guess
+from ...utilities.integration.integrate import rk_integrator
 from ...utilities.performance import njit
 
 MAX_DATA_SIZE = 2000
@@ -53,7 +54,9 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
                             density: np.ndarray, gravity: np.ndarray, frequency: float,
                             order_l: int = 2, use_static: bool = False,
                             surface_boundary_condition: np.ndarray = None,
-                            use_kamata: bool = True, use_julia: bool = False, verbose: bool = False,
+                            use_kamata: bool = True, use_julia: bool = False,
+                            use_numba_integrator: bool = False,
+                            verbose: bool = False,
                             int_rtol: float = 1.0e-6, int_atol: float = 1.0e-4, scipy_int_method: str = 'RK45',
                             julia_int_method: str = 'Tsit5',
                             non_dimensionalize: bool = False,
@@ -86,7 +89,10 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
     use_julia : bool = False
         If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` will be used.
+        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
+    use_numba_integrator : bool = False
+        If True, TidalPy's numba-safe RK-based integrator will be used.
+        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
     verbose : bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     int_rtol : float = 1.0e-6
@@ -147,19 +153,17 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
 
     # Find the differential equation
     if use_static:
-        radial_derivative = \
-            build_static_solid_solver(radius, shear_modulus, bulk_modulus, density, gravity,
-                                      order_l=order_l, G_to_use=G_to_use)
+        radial_derivative = static_solid_ode
+        derivative_inputs = (radius, shear_modulus, bulk_modulus, density, gravity, order_l, G_to_use)
     else:
-        radial_derivative = \
-            build_dynamic_solid_solver(radius, shear_modulus, bulk_modulus, density, gravity, frequency,
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative = dynamic_solid_ode
+        derivative_inputs = (radius, shear_modulus, bulk_modulus, density, gravity, frequency, order_l, G_to_use)
 
     solutions = list()
     for solution_num, initial_values in enumerate(initial_value_tuple):
         if use_julia:
             def diffeq_julia(u, p, r):
-                output = radial_derivative(r, u)
+                output = radial_derivative(r, u, *p)
 
                 return list(output)
 
@@ -170,15 +174,42 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
             # Julia uses a different method to save the integration data. We need a delta_x instead of the specific x's.
             save_at_interval = radius[1] - radius[0]
 
-            problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span)
+            problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span, derivative_inputs)
             if verbose:
                 print(f'Solving (with Julia, using {julia_int_method})...')
 
             solution = ode.solve(problem, solver(), saveat=save_at_interval, abstol=int_atol, reltol=int_rtol)
+            y = np.transpose(solution.u)
 
             if verbose:
                 print('\nIntegration Done!')
-            y = np.transpose(solution.u)
+
+        elif use_numba_integrator:
+
+            if scipy_int_method == 'RK23':
+                rk_method = 0
+            elif scipy_int_method == 'RK45':
+                rk_method = 1
+            else:
+                raise NotImplementedError
+
+            if verbose:
+                print(f"Solving solution {solution_num} (with TidalPy's Numba integrator, using {scipy_int_method})...")
+
+            ts, ys, status, message, success = \
+                rk_integrator(radial_derivative, radial_span, initial_values,
+                              args=derivative_inputs,
+                              rk_method=rk_method,
+                              t_eval_N=radius.size, t_eval_log=False, use_teval=True,
+                              rtol=int_rtol, atol=int_atol, verbose=False)
+
+            if status != 0:
+                raise IntegrationFailed(f'Integration Solution Failed for solution {solution_num}.'
+                                        f'\n\t{message}')
+            y = ys
+
+            if verbose:
+                print('\nIntegration Done!')
 
         else:
             from scipy.integrate import solve_ivp
@@ -186,17 +217,18 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
             if verbose:
                 print(f'Solving (with SciPy, using {scipy_int_method})...')
 
-            solution = solve_ivp(radial_derivative, radial_span, initial_values, t_eval=radius,
+            solution = solve_ivp(radial_derivative, radial_span, initial_values, t_eval=radius, args=derivative_inputs,
                                  method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
 
             if solution.status != 0:
                 raise IntegrationFailed(
-                    f'Integration Solution Failed for homogeneous model at solution #{solution_num}.'
-                    f'\n\t{solution.message}')
+                        f'Integration Solution Failed for homogeneous model at solution #{solution_num}.'
+                        f'\n\t{solution.message}')
+
+            y = solution.y
 
             if verbose:
                 print('\nIntegration Done!')
-            y = solution.y
 
         solutions.append(y)
 
@@ -215,6 +247,6 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
         tidal_y = re_dimensionalize_radial_func(tidal_y, planet_radius, planet_bulk_density)
 
     # Now that tidal_y has been found, we can find the radial derivatives which are used in some calculations.
-    tidal_y_derivative = np.stack(radial_derivative(radius, tidal_y))
+    tidal_y_derivative = np.stack(radial_derivative(radius, tidal_y, *derivative_inputs))
 
     return tidal_y, tidal_y_derivative

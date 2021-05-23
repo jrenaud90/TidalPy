@@ -2,13 +2,13 @@ from typing import Tuple
 
 import numpy as np
 
-from .helper import build_static_solid_solver, build_dynamic_solid_solver, build_static_liquid_solver, \
-    build_dynamic_liquid_solver
+from .odes import dynamic_solid_ode, static_solid_ode, dynamic_liquid_ode, static_liquid_ode
 from ...constants import G
 from ...exceptions import IntegrationFailed, AttributeNotSetError
 from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ...tides.multilayer.numerical_int import find_initial_guess
 from ...tides.multilayer.numerical_int.interfaces import find_interface_func
+from ...utilities.integration.integrate import rk_integrator
 from ...utilities.performance import njit
 
 TidalYSolType = Tuple[Tuple[np.ndarray, np.ndarray, np.ndarray],
@@ -81,8 +81,8 @@ def convergence_ls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surface
 
 @njit(cacheable=True)
 def convergence_ls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surface_solution: np.ndarray,
-                                gravity_array_layer0: np.ndarray, density_array_layer0: np.ndarray,
-                                radius_array_layer0: np.ndarray, orbital_freq: float) -> np.ndarray:
+                               gravity_array_layer0: np.ndarray, density_array_layer0: np.ndarray,
+                               radius_array_layer0: np.ndarray, orbital_freq: float) -> np.ndarray:
     """ Determine the radial solution convergence for a planet with liquid-solid structure.
     A dynamic liquid layer is assumed.
 
@@ -165,7 +165,9 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
                  layer_0_static: bool = True, layer_1_static: bool = False,
                  surface_boundary_condition: np.ndarray = None,
                  order_l: int = 2, use_kamata: bool = True,
-                 use_julia: bool = False, verbose: bool = False,
+                 use_julia: bool = False,
+                 use_numba_integrator: bool = False,
+                 verbose: bool = False,
                  int_rtol: float = 1.0e-6, int_atol: float = 1.0e-6,
                  scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
                  non_dimensionalize: bool = False,
@@ -213,10 +215,12 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
         Integration method for the Scipy integration scheme.
         See options here (note some do not work for complex numbers):
             https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
+    use_julia : bool = False
+        If True, the Julia `diffeqpy` integration tools will be used.
+        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
+    use_numba_integrator : bool = False
+        If True, TidalPy's numba-safe RK-based integrator will be used.
+        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
     non_dimensionalize : bool = False
         If True, integration will use dimensionless variables. These will be converted back before output is given to
         the user.
@@ -270,26 +274,25 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
 
     # Find the differential equation
     if layer_0_static:
-        radial_derivative_layer_0 = \
-            build_static_liquid_solver(radius[layer_0_indx],
-                                       density[layer_0_indx], gravity[layer_0_indx],
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_0 = static_liquid_ode
+        derivative_inputs_layer_0 = (radius[layer_0_indx], density[layer_0_indx], gravity[layer_0_indx],
+                                     order_l, G_to_use)
     else:
-        radial_derivative_layer_0 = \
-            build_dynamic_liquid_solver(radius[layer_0_indx], bulk_modulus[layer_0_indx],
-                                        density[layer_0_indx], gravity[layer_0_indx], frequency,
-                                        order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_0 = dynamic_liquid_ode
+        derivative_inputs_layer_0 = (radius[layer_0_indx], bulk_modulus[layer_0_indx],
+                                     density[layer_0_indx], gravity[layer_0_indx], frequency,
+                                     order_l, G_to_use)
 
     if layer_1_static:
-        radial_derivative_layer_1 = \
-            build_static_solid_solver(radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
-                                      density[layer_1_indx], gravity[layer_1_indx],
-                                      order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_1 = static_solid_ode
+        derivative_inputs_layer_1 = (radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
+                                     density[layer_1_indx], gravity[layer_1_indx],
+                                     order_l, G_to_use)
     else:
-        radial_derivative_layer_1 = \
-            build_dynamic_solid_solver(radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
-                                       density[layer_1_indx], gravity[layer_1_indx], frequency,
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_1 = dynamic_solid_ode
+        derivative_inputs_layer_1 = (radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
+                                     density[layer_1_indx], gravity[layer_1_indx], frequency,
+                                     order_l, G_to_use)
 
     # Find interfaces
     interface_1_func = find_interface_func(lower_layer_is_solid=False, lower_layer_is_static=layer_0_static,
@@ -304,6 +307,7 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
             radial_span = radial_span_0
             radial_solve = radial_solve_0
             derivatives = radial_derivative_layer_0
+            derivative_inputs = derivative_inputs_layer_0
             initial_values_to_use = initial_value_tuple
 
             if layer_0_static:
@@ -315,6 +319,7 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
             radial_span = radial_span_1
             radial_solve = radial_solve_1
             derivatives = radial_derivative_layer_1
+            derivative_inputs = derivative_inputs_layer_1
             # Initial values are based on the previous layer's results
             if layer_0_static:
                 # The interface function will only expect one solution, but they are stored in a tuple no matter what.
@@ -326,7 +331,7 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
 
         if use_julia:
             def diffeq_julia(u, p, r):
-                output = derivatives(r, u)
+                output = derivatives(r, u, *p)
                 return list(output)
 
             # Import Julia's Diffeqpy and reinit the problem
@@ -340,10 +345,40 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
-                problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span)
+                problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span, derivative_inputs)
                 solution = ode.solve(problem, solver(), saveat=save_at_interval, abstol=int_atol, reltol=int_rtol)
 
                 solutions_by_layer[layer_i].append(np.transpose(solution.u))
+
+            if verbose:
+                print('\nIntegration Done!')
+
+        elif use_numba_integrator:
+
+            if scipy_int_method == 'RK23':
+                rk_method = 0
+            elif scipy_int_method == 'RK45':
+                rk_method = 1
+            else:
+                raise NotImplementedError
+
+            if verbose:
+                print(f"Solving Layer {layer_i + 1} (with TidalPy's Numba integrator, using {scipy_int_method})...")
+
+            for solution_num, initial_values in enumerate(initial_values_to_use):
+
+                ts, ys, status, message, success = \
+                    rk_integrator(derivatives, radial_span, initial_values,
+                                  args=derivative_inputs,
+                                  rk_method=rk_method,
+                                  t_eval_N=radial_solve.size, t_eval_log=False, use_teval=True,
+                                  rtol=int_rtol, atol=int_atol, verbose=False)
+
+                if status != 0:
+                    raise IntegrationFailed(f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
+                                            f'\n\t{message}')
+
+                solutions_by_layer[layer_i].append(ys)
 
             if verbose:
                 print('\nIntegration Done!')
@@ -355,8 +390,9 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
-                solution = solve_ivp(derivatives, radial_span, initial_values, t_eval=radial_solve,
-                                     method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
+                solution = solve_ivp(
+                        derivatives, radial_span, initial_values, t_eval=radial_solve, args=derivative_inputs,
+                        method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
 
                 if solution.status != 0:
                     raise IntegrationFailed(f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
@@ -395,8 +431,9 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
 
     # Now that tidal_y has been found, we can find the radial derivatives which are used in some calculations.
     tidal_y_derivative = np.zeros_like(tidal_y)
-    tidal_y_derivative[:, layer_1_indx] = \
-        np.stack(radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx]))
+    tidal_y_derivative[:, layer_1_indx] = np.stack(
+            radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx], *derivative_inputs_layer_1)
+    )
     # Layer 1 is liquid so that complicates the calculation slightly
     if layer_0_static:
         # TODO: This is not correct, we could pull out dy_5/dr but it is not used in subsequent calculations,
@@ -408,7 +445,9 @@ def calculate_ls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np
         tidal_y_liq[1, :] = tidal_y[1, layer_0_indx]
         tidal_y_liq[2, :] = tidal_y[4, layer_0_indx]
         tidal_y_liq[3, :] = tidal_y[5, layer_0_indx]
-        liq_derivatives = np.stack(radial_derivative_layer_0(radius[layer_0_indx], tidal_y_liq))
+        liq_derivatives = np.stack(
+                radial_derivative_layer_0(radius[layer_0_indx], tidal_y_liq, *derivative_inputs_layer_0)
+        )
         tidal_y_derivative[0, layer_0_indx] = liq_derivatives[0, :]
         tidal_y_derivative[1, layer_0_indx] = liq_derivatives[1, :]
         tidal_y_derivative[4, layer_0_indx] = liq_derivatives[2, :]

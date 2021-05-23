@@ -42,8 +42,8 @@ def test_derivatives_solid_static():
     # Test for l=2
     solid_derivative = radial_derivatives_solid_static(radius_array_to_use, radial_funcs, shear_array, bulk_array,
                                                        density_array, gravity_array, order_l=2)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
+    assert type(solid_derivative) == np.ndarray
+    assert solid_derivative.shape[0] == 6
     for y_i in range(6):
         assert solid_derivative[y_i].dtype == shear_array.dtype
         assert solid_derivative[y_i].shape == (10,)
@@ -51,8 +51,8 @@ def test_derivatives_solid_static():
     # Test for l=3
     solid_derivative = radial_derivatives_solid_static(radius_array_to_use, radial_funcs, shear_array, bulk_array,
                                                        density_array, gravity_array, order_l=3)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
+    assert type(solid_derivative) == np.ndarray
+    assert solid_derivative.shape[0] == 6
     for y_i in range(6):
         assert solid_derivative[y_i].dtype == shear_array.dtype
         assert solid_derivative[y_i].shape == (10,)
@@ -74,8 +74,8 @@ def test_derivatives_solid_dynamic():
     # Test for l=2
     solid_derivative = radial_derivatives_solid_dynamic(radius_array_to_use, radial_funcs, shear_array, bulk_array,
                                                         density_array, gravity_array, frequency, order_l=2)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
+    assert type(solid_derivative) == np.ndarray
+    assert solid_derivative.shape[0] == 6
     for y_i in range(6):
         assert solid_derivative[y_i].dtype == shear_array.dtype
         assert solid_derivative[y_i].shape == (10,)
@@ -83,8 +83,8 @@ def test_derivatives_solid_dynamic():
     # Test for l=3
     solid_derivative = radial_derivatives_solid_dynamic(radius_array_to_use, radial_funcs, shear_array, bulk_array,
                                                         density_array, gravity_array, frequency, order_l=3)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
+    assert type(solid_derivative) == np.ndarray
+    assert solid_derivative.shape[0] == 6
     for y_i in range(6):
         assert solid_derivative[y_i].dtype == shear_array.dtype
         assert solid_derivative[y_i].shape == (10,)
@@ -105,16 +105,16 @@ def test_derivatives_solid_dynamic():
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
     grav_mtx, _ = np.meshgrid(gravity_array, freq_domain)
-    solid_guess = radial_derivatives_solid_dynamic(rad_mtx, radial_funcs_mtx, shear_mtx, bulk_mtx,
-                                                   den_mtx, grav_mtx, freq_mtx, order_l=3)
-    assert type(solid_guess) == tuple
-    assert len(solid_guess) == 6
-    for sn in range(6):
-        assert type(solid_guess[sn]) == np.ndarray
-        assert solid_guess[sn].dtype == shear_mtx.dtype
+    solid_derivative = radial_derivatives_solid_dynamic(rad_mtx, radial_funcs_mtx, shear_mtx, bulk_mtx,
+                                                        den_mtx, grav_mtx, freq_mtx, order_l=3)
+    assert type(solid_derivative) == np.ndarray
+    assert solid_derivative.shape[0] == 6
+    for y_i in range(6):
+        assert type(solid_derivative[y_i]) == np.ndarray
+        assert solid_derivative[y_i].dtype == shear_mtx.dtype
         # Dynamic solid solution should have 6 y values across the radius domain (10)
         #     and again across the new freq domain (20)
-        assert solid_guess[sn].shape == (20, 10)
+        assert solid_derivative[y_i].shape == (20, 10)
 
 
 def test_derivatives_liquid_static():
@@ -127,22 +127,22 @@ def test_derivatives_liquid_static():
     ])
 
     # Test for l=2
-    solid_derivative = radial_derivatives_liquid_static(radius_array_to_use, radial_funcs, density_array, gravity_array,
+    liquid_derivative = radial_derivatives_liquid_static(radius_array_to_use, radial_funcs, density_array, gravity_array,
                                                         order_l=2)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 2
+    assert type(liquid_derivative) == np.ndarray
+    assert liquid_derivative.shape[0] == 2
     for y_i in range(2):
-        assert solid_derivative[y_i].dtype == bulk_array.dtype
-        assert solid_derivative[y_i].shape == (10,)
+        assert liquid_derivative[y_i].dtype == bulk_array.dtype
+        assert liquid_derivative[y_i].shape == (10,)
 
     # Test for l=3
-    solid_derivative = radial_derivatives_liquid_static(radius_array_to_use, radial_funcs, density_array, gravity_array,
+    liquid_derivative = radial_derivatives_liquid_static(radius_array_to_use, radial_funcs, density_array, gravity_array,
                                                         order_l=3)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 2
+    assert type(liquid_derivative) == np.ndarray
+    assert liquid_derivative.shape[0] == 2
     for y_i in range(2):
-        assert solid_derivative[y_i].dtype == bulk_array.dtype
-        assert solid_derivative[y_i].shape == (10,)
+        assert liquid_derivative[y_i].dtype == bulk_array.dtype
+        assert liquid_derivative[y_i].shape == (10,)
 
 
 def test_derivatives_liquid_dynamic():
@@ -157,22 +157,22 @@ def test_derivatives_liquid_dynamic():
     ])
 
     # Test for l=2
-    solid_derivative = radial_derivatives_liquid_dynamic(radius_array_to_use, radial_funcs, bulk_array, density_array,
+    liquid_derivative = radial_derivatives_liquid_dynamic(radius_array_to_use, radial_funcs, bulk_array, density_array,
                                                          gravity_array, frequency, order_l=2)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 4
+    assert type(liquid_derivative) == np.ndarray
+    assert liquid_derivative.shape[0] == 4
     for y_i in range(4):
-        assert solid_derivative[y_i].dtype == bulk_array.dtype
-        assert solid_derivative[y_i].shape == (10,)
+        assert liquid_derivative[y_i].dtype == bulk_array.dtype
+        assert liquid_derivative[y_i].shape == (10,)
 
     # Test for l=3
-    solid_derivative = radial_derivatives_liquid_dynamic(radius_array_to_use, radial_funcs, bulk_array,
+    liquid_derivative = radial_derivatives_liquid_dynamic(radius_array_to_use, radial_funcs, bulk_array,
                                                          density_array, gravity_array, frequency, order_l=3)
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 4
+    assert type(liquid_derivative) == np.ndarray
+    assert liquid_derivative.shape[0] == 4
     for y_i in range(4):
-        assert solid_derivative[y_i].dtype == bulk_array.dtype
-        assert solid_derivative[y_i].shape == (10,)
+        assert liquid_derivative[y_i].dtype == bulk_array.dtype
+        assert liquid_derivative[y_i].shape == (10,)
 
     # Test for an array in the frequency variable
     # Initialize 6 fake radial function solutions
@@ -187,13 +187,13 @@ def test_derivatives_liquid_dynamic():
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
     grav_mtx, _ = np.meshgrid(gravity_array, freq_domain)
-    solid_guess = radial_derivatives_liquid_dynamic(rad_mtx, radial_funcs_mtx, bulk_mtx,
-                                                    den_mtx, grav_mtx, freq_mtx, order_l=3)
-    assert type(solid_guess) == tuple
-    assert len(solid_guess) == 4
-    for sn in range(4):
-        assert type(solid_guess[sn]) == np.ndarray
-        assert solid_guess[sn].dtype == bulk_mtx.dtype
+    liquid_derivative = radial_derivatives_liquid_dynamic(rad_mtx, radial_funcs_mtx, bulk_mtx,
+                                                          den_mtx, grav_mtx, freq_mtx, order_l=3)
+    assert type(liquid_derivative) == np.ndarray
+    assert liquid_derivative.shape[0] == 4
+    for y_i in range(4):
+        assert type(liquid_derivative[y_i]) == np.ndarray
+        assert liquid_derivative[y_i].dtype == bulk_mtx.dtype
         # Dynamic solid solution should have 6 y values across the radius domain (10)
         #     and again across the new freq domain (20)
-        assert solid_guess[sn].shape == (20, 10)
+        assert liquid_derivative[y_i].shape == (20, 10)

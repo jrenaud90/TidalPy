@@ -8,6 +8,9 @@
     * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI.
     * Did away with all of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
         * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **do** need to define array functions in the future: all the infrastructure is still in place.
+    * Added a numba-safe Explicit Runge-Kutta integrator. This is fully wrapped in njit'd functions.
+        * On its own this can be 5--20 times faster than `scipy.solve_ivp`. 
+        * This also allows the integration function to be used from within another njit'd function(s).
 * Minor Changes
     * New cookbook to showcase the multilayer calculations.
     * Added surface area slices to base physical class.

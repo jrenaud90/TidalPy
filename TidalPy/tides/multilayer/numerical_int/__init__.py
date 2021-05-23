@@ -9,11 +9,9 @@ from .initial_solution_static import solid_guess_kamata as solid_static_guess, \
     solid_guess_takeuchi as solid_static_guess_ts72,\
     SolidStaticGuess, LiquidStaticGuess
 from .radial_derivatives_dynamic import radial_derivatives_solid_general as radial_derivatives_solid_dynamic, \
-    radial_derivatives_liquid_general as radial_derivatives_liquid_dynamic, RadialFuncSolidDynamicType, \
-    RadialFuncLiquidDynamicType
+    radial_derivatives_liquid_general as radial_derivatives_liquid_dynamic
 from .radial_derivatives_static import radial_derivatives_solid_general as radial_derivatives_solid_static, \
-    radial_derivatives_liquid_general as radial_derivatives_liquid_static, RadialFuncSolidStaticType, \
-    RadialFuncLiquidStaticType
+    radial_derivatives_liquid_general as radial_derivatives_liquid_static
 
 # Known initial guess functions stored by: is_kamata, is_solid, is_dynamic
 known_initial_guess_funcs = {

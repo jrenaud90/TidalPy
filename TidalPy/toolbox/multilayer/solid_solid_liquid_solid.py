@@ -2,13 +2,13 @@ from typing import Tuple
 
 import numpy as np
 
-from .helper import build_static_solid_solver, build_dynamic_solid_solver, build_static_liquid_solver, \
-    build_dynamic_liquid_solver
+from .odes import dynamic_solid_ode, static_solid_ode, dynamic_liquid_ode, static_liquid_ode
 from ...constants import G
 from ...exceptions import IntegrationFailed, AttributeNotSetError
 from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ...tides.multilayer.numerical_int import find_initial_guess
 from ...tides.multilayer.numerical_int.interfaces import find_interface_func
+from ...utilities.integration.integrate import rk_integrator
 from ...utilities.performance import njit
 
 TidalYSolType = Tuple[Tuple[np.ndarray, np.ndarray, np.ndarray],
@@ -228,7 +228,9 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
                    layer_2_static: bool = True, layer_3_static: bool = False,
                    surface_boundary_condition: np.ndarray = None,
                    order_l: int = 2, use_kamata: bool = True,
-                   use_julia: bool = False, verbose: bool = False,
+                   use_julia: bool = False,
+                   use_numba_integrator: bool = False,
+                   verbose: bool = False,
                    int_rtol: float = 1.0e-6, int_atol: float = 1.0e-6,
                    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
                    non_dimensionalize: bool = False,
@@ -273,7 +275,10 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
     use_julia : bool = False
         If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` will be used.
+        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
+    use_numba_integrator : bool = False
+        If True, TidalPy's numba-safe RK-based integrator will be used.
+        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
     verbose : bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     int_rtol : float = 1.0e-6
@@ -345,47 +350,47 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
 
     # Find the differential equation
     if layer_0_static:
-        radial_derivative_layer_0 = \
-            build_static_solid_solver(radius[layer_0_indx], shear_modulus[layer_0_indx], bulk_modulus[layer_0_indx],
-                                      density[layer_0_indx], gravity[layer_0_indx],
-                                      order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_0 = static_solid_ode
+        derivative_inputs_layer_0 = (radius[layer_0_indx], shear_modulus[layer_0_indx], bulk_modulus[layer_0_indx],
+                                     density[layer_0_indx], gravity[layer_0_indx],
+                                     order_l, G_to_use)
     else:
-        radial_derivative_layer_0 = \
-            build_dynamic_solid_solver(radius[layer_0_indx], shear_modulus[layer_0_indx], bulk_modulus[layer_0_indx],
-                                       density[layer_0_indx], gravity[layer_0_indx], frequency,
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_0 = dynamic_solid_ode
+        derivative_inputs_layer_0 = (radius[layer_0_indx], shear_modulus[layer_0_indx], bulk_modulus[layer_0_indx],
+                                     density[layer_0_indx], gravity[layer_0_indx], frequency,
+                                     order_l, G_to_use)
 
     if layer_1_static:
-        radial_derivative_layer_1 = \
-            build_static_solid_solver(radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
-                                      density[layer_1_indx], gravity[layer_1_indx],
-                                      order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_1 = static_solid_ode
+        derivative_inputs_layer_1 = (radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
+                                     density[layer_1_indx], gravity[layer_1_indx],
+                                     order_l, G_to_use)
     else:
-        radial_derivative_layer_1 = \
-            build_dynamic_solid_solver(radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
-                                       density[layer_1_indx], gravity[layer_1_indx], frequency,
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_1 = dynamic_solid_ode
+        derivative_inputs_layer_1 = (radius[layer_1_indx], shear_modulus[layer_1_indx], bulk_modulus[layer_1_indx],
+                                     density[layer_1_indx], gravity[layer_1_indx], frequency,
+                                     order_l, G_to_use)
 
     if layer_2_static:
-        radial_derivative_layer_2 = \
-            build_static_liquid_solver(radius[layer_2_indx],
-                                       density[layer_2_indx], gravity[layer_2_indx],
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_2 = static_liquid_ode
+        derivative_inputs_layer_2 = (radius[layer_2_indx],
+                                     density[layer_2_indx], gravity[layer_2_indx],
+                                     order_l, G_to_use)
     else:
-        radial_derivative_layer_2 = \
-            build_dynamic_liquid_solver(radius[layer_2_indx], bulk_modulus[layer_2_indx],
-                                        density[layer_2_indx], gravity[layer_2_indx], frequency,
-                                        order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_2 = dynamic_liquid_ode
+        derivative_inputs_layer_2 = (radius[layer_2_indx], bulk_modulus[layer_2_indx],
+                                     density[layer_2_indx], gravity[layer_2_indx], frequency,
+                                     order_l, G_to_use)
     if layer_3_static:
-        radial_derivative_layer_3 = \
-            build_static_solid_solver(radius[layer_3_indx], shear_modulus[layer_3_indx], bulk_modulus[layer_3_indx],
-                                      density[layer_3_indx], gravity[layer_3_indx],
-                                      order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_3 = static_solid_ode
+        derivative_inputs_layer_3 = (radius[layer_3_indx], shear_modulus[layer_3_indx], bulk_modulus[layer_3_indx],
+                                     density[layer_3_indx], gravity[layer_3_indx],
+                                     order_l, G_to_use)
     else:
-        radial_derivative_layer_3 = \
-            build_dynamic_solid_solver(radius[layer_3_indx], shear_modulus[layer_3_indx], bulk_modulus[layer_3_indx],
-                                       density[layer_3_indx], gravity[layer_3_indx], frequency,
-                                       order_l=order_l, G_to_use=G_to_use)
+        radial_derivative_layer_3 = dynamic_solid_ode
+        derivative_inputs_layer_3 = (radius[layer_3_indx], shear_modulus[layer_3_indx], bulk_modulus[layer_3_indx],
+                                     density[layer_3_indx], gravity[layer_3_indx], frequency,
+                                     order_l, G_to_use)
 
     # Find interfaces
     interface_1_func = find_interface_func(lower_layer_is_solid=True, lower_layer_is_static=layer_0_static,
@@ -409,16 +414,19 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
             radial_solve = radial_solve_0
             derivatives = radial_derivative_layer_0
             initial_values_to_use = initial_value_tuple
+            derivative_inputs = derivative_inputs_layer_0
         elif layer_i == 1:
             radial_span = radial_span_1
             radial_solve = radial_solve_1
             derivatives = radial_derivative_layer_1
+            derivative_inputs = derivative_inputs_layer_1
             # Initial values are based on the previous layer's results
             initial_values_to_use = interface_1_func(solutions_by_layer[0])
         elif layer_i == 2:
             radial_span = radial_span_2
             radial_solve = radial_solve_2
             derivatives = radial_derivative_layer_2
+            derivative_inputs = derivative_inputs_layer_2
             # Initial values are based on the previous layer's results
             initial_values_to_use = interface_2_func(solutions_by_layer[1])
 
@@ -430,6 +438,7 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
             radial_span = radial_span_3
             radial_solve = radial_solve_3
             derivatives = radial_derivative_layer_3
+            derivative_inputs = derivative_inputs_layer_3
             # Initial values are based on the previous layer's results
             if layer_2_static:
                 # The interface function will only expect one solution, but they are stored in a tuple no matter what.
@@ -442,7 +451,7 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
 
         if use_julia:
             def diffeq_julia(u, p, r):
-                output = derivatives(r, u)
+                output = derivatives(r, u, *p)
                 return list(output)
 
             # Import Julia's Diffeqpy and reinit the problem
@@ -456,10 +465,41 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
-                problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span)
+                problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span, derivative_inputs)
                 solution = ode.solve(problem, solver(), saveat=save_at_interval, abstol=int_atol, reltol=int_rtol)
 
                 solutions_by_layer[layer_i].append(np.transpose(solution.u))
+
+            if verbose:
+                print('\nIntegration Done!')
+
+        elif use_numba_integrator:
+
+            if scipy_int_method == 'RK23':
+                rk_method = 0
+            elif scipy_int_method == 'RK45':
+                rk_method = 1
+            else:
+                raise NotImplementedError
+
+            if verbose:
+                print(f"Solving Layer {layer_i + 1} (with TidalPy's Numba integrator, using {scipy_int_method})...")
+
+            for solution_num, initial_values in enumerate(initial_values_to_use):
+
+                # TODO: The copy below makes this work for numba on multiprocessing due to contiguous arrays... wtf!
+                ts, ys, status, message, success = \
+                    rk_integrator(derivatives, radial_span, np.copy(initial_values),
+                                  args=derivative_inputs,
+                                  rk_method=rk_method,
+                                  t_eval_N=radial_solve.size, t_eval_log=False, use_teval=True,
+                                  rtol=int_rtol, atol=int_atol, verbose=False)
+
+                if status != 0:
+                    raise IntegrationFailed(f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
+                                            f'\n\t{message}')
+
+                solutions_by_layer[layer_i].append(ys)
 
             if verbose:
                 print('\nIntegration Done!')
@@ -471,8 +511,9 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
-                solution = solve_ivp(derivatives, radial_span, initial_values, t_eval=radial_solve,
-                                     method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
+                solution = solve_ivp(
+                        derivatives, radial_span, initial_values, t_eval=radial_solve, args=derivative_inputs,
+                        method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
 
                 if solution.status != 0:
                     raise IntegrationFailed(f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
@@ -512,12 +553,15 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
 
     # Now that tidal_y has been found, we can find the radial derivatives which are used in some calculations.
     tidal_y_derivative = np.zeros_like(tidal_y)
-    tidal_y_derivative[:, layer_0_indx] = \
-        np.stack(radial_derivative_layer_0(radius[layer_0_indx], tidal_y[:, layer_0_indx]))
-    tidal_y_derivative[:, layer_1_indx] = \
-        np.stack(radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx]))
-    tidal_y_derivative[:, layer_3_indx] = \
-        np.stack(radial_derivative_layer_3(radius[layer_3_indx], tidal_y[:, layer_3_indx]))
+    tidal_y_derivative[:, layer_0_indx] = np.stack(
+            radial_derivative_layer_0(radius[layer_0_indx], tidal_y[:, layer_0_indx], *derivative_inputs_layer_0)
+    )
+    tidal_y_derivative[:, layer_1_indx] = np.stack(
+            radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx], *derivative_inputs_layer_1)
+    )
+    tidal_y_derivative[:, layer_3_indx] = np.stack(
+            radial_derivative_layer_3(radius[layer_3_indx], tidal_y[:, layer_3_indx], *derivative_inputs_layer_3)
+    )
     # Layer 2 is liquid so that complicates the calculation slightly
     if layer_2_static:
         # TODO: This is not correct, we could pull out dy_5/dr but it is not used in subsequent calculations,
@@ -529,7 +573,9 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
         tidal_y_liq[1, :] = tidal_y[1, layer_2_indx]
         tidal_y_liq[2, :] = tidal_y[4, layer_2_indx]
         tidal_y_liq[3, :] = tidal_y[5, layer_2_indx]
-        liq_derivatives = np.stack(radial_derivative_layer_2(radius[layer_2_indx], tidal_y_liq))
+        liq_derivatives = np.stack(
+                radial_derivative_layer_2(radius[layer_2_indx], tidal_y_liq, *derivative_inputs_layer_2)
+        )
         tidal_y_derivative[0, layer_2_indx] = liq_derivatives[0, :]
         tidal_y_derivative[1, layer_2_indx] = liq_derivatives[1, :]
         tidal_y_derivative[4, layer_2_indx] = liq_derivatives[2, :]

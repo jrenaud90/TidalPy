@@ -7,7 +7,7 @@ TMS05 : Tobie+ (2005; Icarus; DOI: 10.1016/j.icarus.2005.04.006)
 """
 
 import numpy as np
-
+import time
 from TidalPy.constants import G
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
@@ -19,9 +19,10 @@ from TidalPy.utilities.graphics.multilayer import yplot
 
 # Switches
 show_shooting_method_technique = True
-show_propagation_matrix_technique = True
-use_static_liquid_core = False
+show_propagation_matrix_technique = False
+use_static_liquid_core = True
 use_julia_integrator = False
+use_numba_integrator = True
 use_non_dimensional_solver = False
 use_kamata_starting_values = False
 # Set the following two switches to true for comparison to Roberts and Nimmo.
@@ -32,8 +33,8 @@ use_incompressible_limit = False
 scipy_integration_method = 'RK45'
 # scipy_integration_method = 'DOP853'
 julia_integration_method = 'Tsit5'
-r_tol = 1.0e-8
-a_tol = 1.0e-7
+r_tol = 1.0e-6
+a_tol = 1.0e-4
 
 # Plot switches
 plot_tobie = True
@@ -65,6 +66,7 @@ host_mass = 5.683e26
 eccentricity = 0.0045
 orbital_freq_HZ = 2. * np.pi * 5.308e-5  # This is reported in Hz in RN08. We will need to convert them to rad s-1
 orbital_freq_TB_match = 2. * np.pi / (86400. * 1)
+# orbital_freq_TB_match = 2. * np.pi / (86400. * 5.)
 freq_europa = 2.04793e-05
 freq_titan = 4.55938e-06
 
@@ -90,6 +92,7 @@ model_colors = list()
 for model_name, (core_density, mantle_density) in models.items():
 
     print(f'\n\nWorking on model {model_name}.\n------------------')
+    t0 = time.time()
 
     # Determine the radius structure based on the density
     if core_density is None:
@@ -135,6 +138,7 @@ for model_name, (core_density, mantle_density) in models.items():
                 calculate_homogen_solid(radius_array, complex_shear_array, bulk_array, density_array, gravity_array,
                                         orbital_freq, order_l=2, use_static=use_static_mantle,
                                         use_kamata=use_kamata_starting_values, use_julia=use_julia_integrator,
+                                        use_numba_integrator=use_numba_integrator,
                                         verbose=True,
                                         int_rtol=r_tol, int_atol=a_tol,
                                         scipy_int_method=scipy_integration_method, julia_int_method='Tsit5',
@@ -148,6 +152,7 @@ for model_name, (core_density, mantle_density) in models.items():
                              layer_0_static=use_static_liquid_core, layer_1_static=use_static_mantle,
                              order_l=2,
                              use_kamata=use_kamata_starting_values, use_julia=use_julia_integrator,
+                             use_numba_integrator=use_numba_integrator,
                              verbose=True,
                              int_rtol=r_tol, int_atol=a_tol,
                              scipy_int_method=scipy_integration_method, julia_int_method='Tsit5',
@@ -188,12 +193,10 @@ for model_name, (core_density, mantle_density) in models.items():
         model_results.append(tidal_y_prop)
         model_colors.append('orange')
 
-    print(f'\n\nModel {model_name} Completed!.\n------------------')
+    print(f'\n\nModel {model_name} Completed!. Taking {time.time() - t0:0.3f}s\n------------------')
 
 yplot(model_results, model_radii, labels=model_names, colors=model_colors,
       use_tobie_limits=True, plot_tobie=plot_tobie, plot_roberts=plot_roberts)
-
-
 
 
 # BVP Approach

@@ -15,19 +15,18 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 from typing import Tuple
 
+import numpy as np
+
 from ....constants import pi, G
 from ....utilities.performance import njit
 from ....utilities.types import FloatArray, NumArray
 
-RadialFuncSolidStaticType = Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
-RadialFuncLiquidStaticType = Tuple[NumArray, NumArray]
-
 
 @njit(cacheable=True)
-def radial_derivatives_solid_general(radius: FloatArray, radial_functions: RadialFuncSolidStaticType,
+def radial_derivatives_solid_general(radius: FloatArray, radial_functions: NumArray,
                                      shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
                                      gravity: FloatArray,
-                                     order_l: int = 2, G_to_use: float = G) -> RadialFuncSolidStaticType:
+                                     order_l: int = 2, G_to_use: float = G) -> NumArray:
     """ Calculates the derivatives of the radial functions using the static assumption - for solid layers.
 
     Allows for compressibility.
@@ -42,7 +41,7 @@ def radial_derivatives_solid_general(radius: FloatArray, radial_functions: Radia
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m; or dimensionless]
-    radial_functions : RadialFuncSolidStaticType
+    radial_functions : NumArray
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : CmplxFltArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
@@ -60,12 +59,14 @@ def radial_derivatives_solid_general(radius: FloatArray, radial_functions: Radia
 
     Returns
     -------
-    radial_derivatives : RadialFuncSolidStaticType
+    radial_derivatives : NumArray
         The radial derivatives of the radial functions
 
     """
 
-    y1, y2, y3, y4, y5, y6 = radial_functions
+    y1, y2, y3, y4, y5, y6 = \
+        radial_functions[0], radial_functions[1], radial_functions[2], radial_functions[3], radial_functions[4], \
+        radial_functions[5],
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     lame = (bulk_modulus - (2. / 3.) * shear_modulus)
@@ -115,13 +116,20 @@ def radial_derivatives_solid_general(radius: FloatArray, radial_functions: Radia
         y3 * grav_term * llp1 * r_inverse + \
         y6 * (order_l - 1.) * r_inverse
 
-    return dy1, dy2, dy3, dy4, dy5, dy6
+    dy1 = np.asarray(dy1)
+    dy2 = np.asarray(dy2)
+    dy3 = np.asarray(dy3)
+    dy4 = np.asarray(dy4)
+    dy5 = np.asarray(dy5)
+    dy6 = np.asarray(dy6)
+
+    return np.stack((dy1, dy2, dy3, dy4, dy5, dy6))
 
 
 @njit(cacheable=True)
-def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: RadialFuncLiquidStaticType,
+def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: NumArray,
                                       density: FloatArray, gravity: FloatArray,
-                                      order_l: int = 2, G_to_use: float = G) -> RadialFuncLiquidStaticType:
+                                      order_l: int = 2, G_to_use: float = G) -> NumArray:
     """ Calculates the derivatives of the radial functions using the static assumption - for liquid layers (mu = 0).
 
     Allows for compressibility (technically, but bulk mod is not used in this equations).
@@ -136,7 +144,7 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : RadialFuncLiquidStaticType
+    radial_functions : NumArray
         Tuple of radial functions for a solid layer (y5, y7)
     density : FloatArray
         Density at  at `radius` [kg m-3]
@@ -156,7 +164,7 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
     """
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y1 and y2 are not defined uniquely
-    y5, y7 = radial_functions
+    y5, y7 = radial_functions[0], radial_functions[1]
 
     # Optimizations
     r_inverse = 1. / radius
@@ -171,4 +179,7 @@ def radial_derivatives_liquid_general(radius: FloatArray, radial_functions: Radi
         y5 * 2. * (order_l - 1.) * r_inverse * grav_term / gravity + \
         y7 * ((order_l - 1.) * r_inverse - grav_term / gravity)
 
-    return dy5, dy7
+    dy5 = np.asarray(dy5)
+    dy7 = np.asarray(dy7)
+
+    return np.stack((dy5, dy7))
