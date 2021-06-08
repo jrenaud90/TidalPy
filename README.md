@@ -31,8 +31,9 @@ The major limitations of the current version of TidalPy are...
 
 Below is a list (non-exhaustive) of publicly available software that performance similar or parallel calculations as TidalPy.
 
-* Are you interested in the orbital evolution of multiple planets with each planet influencing one another? Consider an N-body approach like...
+* Are you interested in the habitability of a planet? With considerations of tides, atmospheres, water content, solar interactions? Check out...
     * [VPLanet](https://github.com/VirtualPlanetaryLaboratory/vplanet)
+* Are you interested in the orbital evolution of multiple planets with each planet influencing one another? Consider an N-body approach like...
     * [Posidonius (formerly Mercury-T)](https://github.com/marblestation/posidonius)
     * [ReboundX](https://github.com/dtamayo/reboundx)
 * Don't care about tides or orbital dynamics but are instead interested in interior structure and composition of planets?
@@ -41,7 +42,7 @@ Below is a list (non-exhaustive) of publicly available software that performance
 * Are you interested in tides, interiors, *and* the chemical evolution of small worlds but don't care about non-synchronous rotation?
     * [IcyDwarf](https://github.com/MarcNeveu/IcyDwarf)
 
-Instead, if you are okay with a less accurate interior model and no multi-planet support, then you have come to the right place! Look below on how to install and use TidalPy.
+However, if you want high fidelity tidal, orbital, spin, and interior models --- then you have come to the right place! Read below for instructions on how to install and use TidalPy.
 
 ## How to Install
 

@@ -411,17 +411,20 @@ def calculate_sls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: n
             from ...utilities.julia_helper.integration_methods import get_julia_solver
             ode, solver = get_julia_solver(julia_int_method)
 
-            # Julia uses a different method to save the integration data. We need a delta_x instead of the specific x's.
-            save_at_interval = radial_solve[1] - radial_solve[0]
-
             if verbose:
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
                 problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span, derivative_inputs)
-                solution = ode.solve(problem, solver(), saveat=save_at_interval, abstol=int_atol, reltol=int_rtol)
+                solution = ode.solve(problem, solver(), abstol=int_atol, reltol=int_rtol)
 
-                solutions_by_layer[layer_i].append(np.transpose(solution.u))
+                # Julia does not have the same t_eval. There is the "saveat" keyword but can cause issues.
+                #    So perform an interpolation for the desired radii
+                u_T = np.transpose(solution.u)
+                u = np.zeros((u_T.shape[0], radial_solve.size), dtype=np.complex128)
+                for i in range(u_T.shape[0]):
+                    u[i, :] = np.interp(radial_solve, solution.t, u_T[i, :])
+                solutions_by_layer[layer_i].append(u)
 
             if verbose:
                 print('\nIntegration Done!')

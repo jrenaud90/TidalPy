@@ -20,9 +20,9 @@ from TidalPy.utilities.graphics.multilayer import yplot
 # Switches
 show_shooting_method_technique = True
 show_propagation_matrix_technique = False
-use_static_liquid_core = True
-use_julia_integrator = False
-use_numba_integrator = True
+use_static_liquid_core = False
+use_julia_integrator = True
+use_numba_integrator = False
 use_non_dimensional_solver = False
 use_kamata_starting_values = False
 # Set the following two switches to true for comparison to Roberts and Nimmo.
@@ -38,7 +38,7 @@ a_tol = 1.0e-4
 
 # Plot switches
 plot_tobie = True
-plot_roberts = True
+plot_roberts = False
 
 # Planet Structure
 R_planet = 1600.e3
@@ -65,8 +65,7 @@ planet_mass = 1.08e20
 host_mass = 5.683e26
 eccentricity = 0.0045
 orbital_freq_HZ = 2. * np.pi * 5.308e-5  # This is reported in Hz in RN08. We will need to convert them to rad s-1
-orbital_freq_TB_match = 2. * np.pi / (86400. * 1)
-# orbital_freq_TB_match = 2. * np.pi / (86400. * 5.)
+orbital_freq_TB_match = 2. * np.pi / (86400. * 1.0)
 freq_europa = 2.04793e-05
 freq_titan = 4.55938e-06
 

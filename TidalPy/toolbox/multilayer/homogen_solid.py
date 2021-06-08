@@ -171,15 +171,18 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
             from ...utilities.julia_helper.integration_methods import get_julia_solver
             ode, solver = get_julia_solver(julia_int_method)
 
-            # Julia uses a different method to save the integration data. We need a delta_x instead of the specific x's.
-            save_at_interval = radius[1] - radius[0]
-
             problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span, derivative_inputs)
             if verbose:
                 print(f'Solving (with Julia, using {julia_int_method})...')
 
-            solution = ode.solve(problem, solver(), saveat=save_at_interval, abstol=int_atol, reltol=int_rtol)
-            y = np.transpose(solution.u)
+            solution = ode.solve(problem, solver(), abstol=int_atol, reltol=int_rtol)
+
+            # Julia does not have the same t_eval. There is the "saveat" keyword but can cause issues.
+            #    So perform an interpolation for the desired radii
+            u_T = np.transpose(solution.u)
+            y = np.zeros((u_T.shape[0], radius.size), dtype=np.complex128)
+            for i in range(u_T.shape[0]):
+                y[i, :] = np.interp(radius, solution.t, u_T[i, :])
 
             if verbose:
                 print('\nIntegration Done!')

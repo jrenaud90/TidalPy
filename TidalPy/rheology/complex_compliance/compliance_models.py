@@ -388,11 +388,11 @@ def andrade_freq(frequency: FloatArray, compliance: FloatArray, viscosity: Float
     """
 
     # Update Zeta based on an additional frequency dependence.
-    freq_ratio = abs(critical_freq / frequency)
-    if freq_ratio > float_lognat_max:
-        freq_ratio = float_lognat_max
+    freq_ratio = np.abs(critical_freq / frequency)
+    freq_ratio = (freq_ratio > float_lognat_max) * float_lognat_max + \
+                 (freq_ratio <= float_lognat_max) * freq_ratio
 
-    zeta *= np.exp(freq_ratio)
+    zeta = zeta * np.exp(freq_ratio)
 
     # Continue on with regular Andrade calculation
     andrade_term = compliance * viscosity * frequency * zeta
