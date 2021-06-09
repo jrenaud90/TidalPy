@@ -2,15 +2,16 @@
 
 ## Version 0.3.0 Alpha (Spring 2021)
 *Scripts based on 0.2.x will likely break with this version!*
- 
-* Major Changes
-    * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for addtional physics.
+
+* Major Changes:
+    * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for additional physics.
     * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI.
-    * Did away with all of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
+    * Did away with most of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
         * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **do** need to define array functions in the future: all the infrastructure is still in place.
     * Added a numba-safe Explicit Runge-Kutta integrator. This is fully wrapped in njit'd functions.
         * On its own this can be 5--20 times faster than `scipy.solve_ivp`. 
         * This also allows the integration function to be used from within another njit'd function(s).
+        * This is still very experimental so please use caution and testing when using it. 
 * Minor Changes
     * Numerous bug fixes.
     * Removed the array versions of the dynamic functions.
