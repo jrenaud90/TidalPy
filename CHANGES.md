@@ -12,7 +12,9 @@
         * On its own this can be 5--20 times faster than `scipy.solve_ivp`. 
         * This also allows the integration function to be used from within another njit'd function(s).
 * Minor Changes
-    * Numerous bug fixes
+    * Numerous bug fixes.
+    * Removed the array versions of the dynamic functions.
+        * `use_array` is still tracked in OOP and some quick calculation functions. These may all be not necessary now.
     * New cookbook to showcase the multilayer calculations.
     * Added surface area slices to base physical class.
     * Fixed some issues with how radius slices are tracked within layers and worlds.

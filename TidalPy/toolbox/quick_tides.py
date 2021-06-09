@@ -23,8 +23,7 @@ from typing import Tuple, Dict, TYPE_CHECKING, Union
 import numpy as np
 
 from .conversions import days2rads, orbital_motion2semi_a
-from ..dynamics import semia_eccen_derivatives_dual, semia_eccen_derivatives_array_dual, semia_eccen_derivatives, \
-    semia_eccen_derivatives_array, spin_rate_derivative
+from ..dynamics import semia_eccen_derivatives_dual, semia_eccen_derivatives, spin_rate_derivative
 from ..exceptions import MissingArgumentError, ArgumentException, IncorrectArgumentType, MissingAttributeError
 from ..rheology.complex_compliance import known_models as known_compliance_models
 from ..rheology.complex_compliance.complex_compliance import compliance_dict_helper
@@ -259,12 +258,8 @@ def quick_tidal_dissipation(host_mass: float, target_radius: float, target_mass:
     if calculate_orbit_spin_derivatives:
         # Calculate orbit-spin derivatives
         dspin_dt = spin_rate_derivative(dUdO, target_moi, host_mass)
-        if use_array:
-            da_dt, de_dt = semia_eccen_derivatives_array(semi_major_axis, orbital_frequency, eccentricity,
-                                                         target_mass, dUdM, dUdw, host_mass)
-        else:
-            da_dt, de_dt = semia_eccen_derivatives(semi_major_axis, orbital_frequency, eccentricity,
-                                                   target_mass, dUdM, dUdw, host_mass)
+        da_dt, de_dt = semia_eccen_derivatives(semi_major_axis, orbital_frequency, eccentricity,
+                                               target_mass, dUdM, dUdw, host_mass)
         # Store results
         dissipation_results['spin_rate_derivative'] = dspin_dt * dspin_dt_scale
         dissipation_results['eccentricity_derivative'] = de_dt * de_dt_scale
@@ -484,24 +479,14 @@ def quick_dual_body_tidal_dissipation(
             use_array = True
 
     # Now that both world's dissipation is calculated we can find the dual-body evolution derivatives
-    if use_array:
-        da_dt, de_dt = \
-            semia_eccen_derivatives_array_dual(semi_major_axis, orbital_frequency, eccentricity,
-                                               masses[0],
-                                               dissipation_results['host']['dUdM'],
-                                               dissipation_results['host']['dUdw'],
-                                               masses[1],
-                                               dissipation_results['secondary']['dUdM'],
-                                               dissipation_results['secondary']['dUdw'])
-    else:
-        da_dt, de_dt = \
-            semia_eccen_derivatives_dual(semi_major_axis, orbital_frequency, eccentricity,
-                                         masses[0],
-                                         dissipation_results['host']['dUdM'],
-                                         dissipation_results['host']['dUdw'],
-                                         masses[1],
-                                         dissipation_results['secondary']['dUdM'],
-                                         dissipation_results['secondary']['dUdw'])
+    da_dt, de_dt = \
+        semia_eccen_derivatives_dual(semi_major_axis, orbital_frequency, eccentricity,
+                                     masses[0],
+                                     dissipation_results['host']['dUdM'],
+                                     dissipation_results['host']['dUdw'],
+                                     masses[1],
+                                     dissipation_results['secondary']['dUdM'],
+                                     dissipation_results['secondary']['dUdw'])
 
     # Store results
     dissipation_results['eccentricity_derivative'] = de_dt * de_dt_scale
