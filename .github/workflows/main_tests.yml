@@ -36,26 +36,26 @@ jobs:
           name: coverage${{ matrix.group }}
           path: .coverage
 
-    coverage:
-      needs: test
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v2
-        - name: Set up Python 3.9
-          uses: actions/setup-python@v2
-          with:
-            python-version: 3.9
-        - name: Install deps
-          run: |
-            python -m pip install --upgrade pip
-            python -m pip install git+https://github.com/geodynamics/burnman.git@master
-            pip install -r requirements.txt
-        - name: Download all artifacts
-          # Downloads coverage1, coverage2, etc.
-          uses: actions/download-artifact@v2
-        - name: Run coverage
-          run: |
-            coverage combine coverage*/.coverage*
-            coverage report --fail-under=100
-            coverage xml
-        - uses: codecov/codecov-action@v1
+  coverage:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install git+https://github.com/geodynamics/burnman.git@master
+          pip install -r requirements.txt
+      - name: Download all artifacts
+        # Downloads coverage1, coverage2, etc.
+        uses: actions/download-artifact@v2
+      - name: Run coverage
+        run: |
+          coverage combine coverage*/.coverage*
+          coverage report --fail-under=100
+          coverage xml
+      - uses: codecov/codecov-action@v1
