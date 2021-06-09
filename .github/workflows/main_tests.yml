@@ -79,7 +79,7 @@ jobs:
 
   # Combine and upload coverage reports.
   coverage:
-    needs: test
+    needs: test-no-numba
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
