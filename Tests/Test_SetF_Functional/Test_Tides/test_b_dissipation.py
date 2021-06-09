@@ -22,8 +22,8 @@ def test_tidal_susceptibility_load_and_types():
     # Test floats
     reduced_float_result = calc_tidal_susceptibility_reduced(1., 2.)
     full_float_result = calc_tidal_susceptibility(1., 2., 3.)
-    assert type(reduced_float_result) is float
-    assert type(full_float_result) is float
+    assert type(reduced_float_result) in [float, np.float, np.float64]
+    assert type(full_float_result) in [float, np.float, np.float64]
 
     # Test Arrays
     full_float_result = calc_tidal_susceptibility(1., 2., np.linspace(1., 5., 5))

@@ -1,12 +1,15 @@
+import os
+
 import numpy as np
 import numba
+import os
 
 import TidalPy
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
-use_numba = TidalPy.configurations['use_numba']
+use_numba = TidalPy.utilities.performance.numba.use_numba
 
 def test_eccentricity_func_load():
 
@@ -40,10 +43,10 @@ def test_eccentricity_func():
             # Perform float calculation
             e_result_float = e_func(0.3)
             for p, p_result in e_result_float.items():
-                assert type(p) is int
+                assert type(p) in [int, np.int, np.int32]
                 for q, q_result in p_result.items():
-                    assert type(q) is int
-                    assert type(q_result) is float
+                    assert type(q) in [int, np.int, np.int32]
+                    assert type(q_result) in [float, np.float, np.float64]
 
             # Perform array calculation
             e_result_array = e_func(np.linspace(0.1, 0.9, 4))
@@ -92,13 +95,13 @@ def test_inclination_func():
             assert type(obliqu_result_off_float) is dict
 
         for (p, m), result_off in obliqu_result_on_float.items():
-            assert type(p) is int
-            assert type(m) is int
-            assert type(result_off) is float
+            assert type(p) in [int, np.int, np.int32]
+            assert type(m) in [int, np.int, np.int32]
+            assert type(result_off) in [float, np.float, np.float64]
         for (p, m), result_on in obliqu_result_off_float.items():
-            assert type(p) is int
-            assert type(m) is int
-            assert type(result_on) is float
+            assert type(p) in [int, np.int, np.int32]
+            assert type(m) in [int, np.int, np.int32]
+            assert type(result_on) in [float, np.float, np.float64]
 
         # Perform array calculation
         obliqu_result_on_array = obliqu_func_on(np.linspace(0.1, 0.4, 4))
@@ -112,10 +115,10 @@ def test_inclination_func():
             assert type(obliqu_result_off_float) is dict
 
         for (p, m), result_off in obliqu_result_on_array.items():
-            assert type(p) is int
-            assert type(m) is int
+            assert type(p) in [int, np.int, np.int32]
+            assert type(m) in [int, np.int, np.int32]
             assert type(result_off) is np.ndarray
         for (p, m), result_on in obliqu_result_off_array.items():
-            assert type(p) is int
-            assert type(m) is int
+            assert type(p) in [int, np.int, np.int32]
+            assert type(m) in [int, np.int, np.int32]
             assert type(result_on) is np.ndarray

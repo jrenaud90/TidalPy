@@ -47,7 +47,7 @@ def ctl_neg_imk_helper_func(tidal_frequencies: Dict[FreqSig, FloatArray], fixed_
 
     # Real calculation
     for freq_sig, freq in tidal_frequencies.items():
-      
+
         effective_q = ctl_method(freq, *ctl_inputs)
         # The 0 * fake_freq is to ensure the correct array size is used.
         neg_imk_by_unique_freq[freq_sig] = fixed_k2 * (1. - (1.j * effective_q)) + (0. * fake_freq)

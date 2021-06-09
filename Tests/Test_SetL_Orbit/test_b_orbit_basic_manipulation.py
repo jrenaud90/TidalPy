@@ -7,7 +7,7 @@ TidalPy.reinit()
 
 from TidalPy import build_world, scale_from_world
 from TidalPy.structures.orbit import OrbitBase
-from TidalPy.tools.conversions import days2rads, orbital_motion2semi_a
+from TidalPy.toolbox.conversions import days2rads, orbital_motion2semi_a
 
 io_config = {
     "name": "Io",

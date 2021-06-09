@@ -17,8 +17,8 @@ Operating System :: Unix
 Operating System :: POSIX :: Linux
 Programming Language :: Python
 Programming Language :: Python :: 3
-Programming Language :: Python :: 3.7
 Programming Language :: Python :: 3.8
+Programming Language :: Python :: 3.9
 Programming Language :: Python :: 3 :: Only
 Programming Language :: Python :: Implementation :: CPython
 Intended Audience :: Science/Research
@@ -28,7 +28,7 @@ Topic :: Scientific/Engineering
 Topic :: Scientific/Engineering :: Astronomy
 Topic :: Scientific/Engineering :: Physics
 Natural Language :: English
-License :: CC BY-NC-SA 4.0
+License :: OSI Approved :: GNU General Public License v3 (GPLv3)
 """
 
 # Get version number
@@ -98,7 +98,7 @@ setup(
         extras_require={
             'dev': ['sympy']
         },
-        python_requires='>=3.8, <3.9',
+        python_requires='>=3.7',
         install_requires=requirements,
 )
 

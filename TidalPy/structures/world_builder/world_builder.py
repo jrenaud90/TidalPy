@@ -9,7 +9,7 @@ from ... import log
 from ...burnman_interface.build import build_burnman_world
 from ...exceptions import UnknownWorld, UnknownWorldType, TidalPyWorldError, NotYetImplementedError, \
     MissingArgumentError
-from ...utilities.classes.config.dictionaryUtils import nested_replace
+from ...utilities.classes.config.dictionary_utils import nested_replace
 
 
 def build_world(world_name: str, world_config: Union[dict, TextIO] = None):

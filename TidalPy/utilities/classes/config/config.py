@@ -3,7 +3,7 @@ import os
 from pprint import pprint
 from typing import Any, Tuple
 
-from .jsonUtils import save_dict_to_json
+from .json_utils import save_dict_to_json
 from ..base import TidalPyClass
 from .... import disk_loc, log, debug_mode, version
 from ....exceptions import ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError

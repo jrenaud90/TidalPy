@@ -11,7 +11,7 @@
 #     partial_melt_func_obj1 = tuple([layer.rheology.partial_melting_model.func for layer in object_1])
 #     viscosity_func_obj1 = tuple([layer.rheology.viscosity_model.func for layer in object_1])
 #
-#     @njit
+#     @njit()
 #     def diffeq(time, variables):
 #
 #         # TODO: orbital variation wil lbe first few variables

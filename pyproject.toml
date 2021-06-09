@@ -1,0 +1,79 @@
+[project]
+name = "TidalPy-test"
+version = "0.3.0a"
+description = "Toolbox for solving tidal dynamics and planetary interior problems."
+authors = [
+    "Joe P. Renaud <joseph.p.renaud@nasa.gov>"
+]
+license = "CC BY-NC-SA 4.0"
+readme = "README.md"
+python = "^3.8"
+homepage = "https://github.com/jrenaud90/TidalPy"
+repository = "https://github.com/jrenaud90/TidalPy"
+documentation = "https://github.com/jrenaud90/TidalPy"
+
+keywords = [
+    "planetary science",
+    "planetary interiors",
+    "tidal dynamics",
+    "tides",
+    "moons",
+    "exoplanets",
+    "astrophysics",
+    "science"
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Unix",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Natural Language :: English",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
+]
+
+# Requirements
+[build-system]
+requires = [
+    "setuptools>=57.0.0",
+    "pip>=21.0.0",
+    "wheel>=0.36.0"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 160
+target_version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | foo.py           # also separately exclude a file named foo.py in
+                     # the root of the project
+)
+'''

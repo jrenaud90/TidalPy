@@ -2,7 +2,7 @@ import operator
 from typing import Tuple, Callable, Union, TYPE_CHECKING
 
 from ..config.config import ConfigHolder
-from ..config.dictionaryUtils import nested_get, nested_place
+from ..config.dictionary_utils import nested_get, nested_place
 from ...types import NoneType
 from .... import debug_mode, log
 from ....exceptions import (MissingArgumentError, ParameterMissingError,

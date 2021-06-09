@@ -1,2 +1,0 @@
-from .quick_tides import quick_tidal_dissipation, quick_dual_body_tidal_dissipation, \
-    dual_dissipation_from_dict_or_world_instance, single_dissipation_from_dict_or_world_instance

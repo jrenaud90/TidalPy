@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import known_models, known_model_live_args, known_model_const_args
-from .cooling_models import CoolingOutputTypeArray
+from .cooling_models import CoolingOutputType
 from .defaults import cooling_defaults
 from .. import log
 from ..exceptions import MissingAttributeError, OuterscopePropertySetError, \
@@ -74,7 +74,7 @@ class CoolingModel(LayerModelHolder):
         self._rayleigh = None
         self._nusselt = None
 
-    def _calculate(self) -> CoolingOutputTypeArray:
+    def _calculate(self) -> CoolingOutputType:
         """ Calculate layer cooling based on the layer's state properties.
 
         Returns
@@ -126,7 +126,7 @@ class CoolingModel(LayerModelHolder):
 
         return self.cooling_flux, self.boundary_layer_thickness, self.rayleigh, self.nusselt
 
-    def _calculate_debug(self) -> CoolingOutputTypeArray:
+    def _calculate_debug(self) -> CoolingOutputType:
 
         if self.layer.surface_temperature is None:
             raise MissingAttributeError(f"Layer {self.layer.name}'s surface temperature has not been set yet.")

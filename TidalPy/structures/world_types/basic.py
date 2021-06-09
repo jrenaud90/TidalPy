@@ -14,7 +14,7 @@ from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
                            IncorrectMethodToSetStateProperty, UnknownModelError, InitiatedPropertyChangeError,
                            OuterscopePropertySetError)
 from ...stellar import calc_equilibrium_temperature, equilibrium_insolation_functions, EquilibFuncType
-from ...tools.conversions import days2rads, rads2days
+from ...toolbox.conversions import days2rads, rads2days
 from ...utilities.graphics import geotherm_plot
 from ...utilities.types import FloatArray, NoneType
 

@@ -5,7 +5,7 @@ from ..helpers.orbit_config import pull_out_orbit_from_config
 from ..world_types import AllWorldType, StarWorld, all_world_types
 from ... import log
 from ...exceptions import ImproperPropertyHandling, BadWorldSignature, BadWorldSignatureType, TidalPyOrbitError
-from ...tools.conversions import rads2days, days2rads, semi_a2orbital_motion, orbital_motion2semi_a
+from ...toolbox.conversions import rads2days, days2rads, semi_a2orbital_motion, orbital_motion2semi_a
 from ...utilities.classes.base import TidalPyClass
 from ...utilities.types import FloatArray
 

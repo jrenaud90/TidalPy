@@ -5,8 +5,7 @@ import numpy as np
 from .base import OrbitBase, WorldSignatureType
 from ..world_types import AllWorldType, StarWorld, all_tidal_world_types, TidalWorldType
 from ... import log
-from ...dynamics import semia_eccen_derivatives_array_dual, semia_eccen_derivatives_dual, \
-    semia_eccen_derivatives_array, semia_eccen_derivatives
+from ...dynamics import semia_eccen_derivatives_dual, semia_eccen_derivatives
 from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
 from ...utilities.types import FloatArray
 
@@ -475,19 +474,11 @@ class PhysicsOrbit(OrbitBase):
         if use_dual_body:
             # Set the debugging flag
             self._last_calc_used_dual_body = True
-
-            if use_array:
-                derivative_func = semia_eccen_derivatives_array_dual
-            else:
-                derivative_func = semia_eccen_derivatives_dual
+            derivative_func = semia_eccen_derivatives_dual
         else:
             # Set the debugging flag
             self._last_calc_used_dual_body = False
-
-            if use_array:
-                derivative_func = semia_eccen_derivatives_array
-            else:
-                derivative_func = semia_eccen_derivatives
+            derivative_func = semia_eccen_derivatives
 
         # Calculate time derivatives
         # Make shortcuts to the objects to save on text in the function calls.

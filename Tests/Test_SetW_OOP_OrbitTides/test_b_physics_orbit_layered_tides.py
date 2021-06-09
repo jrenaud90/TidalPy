@@ -45,8 +45,8 @@ def test_layered_tide_model_maxwell_rheology():
     # Test loading in layer temperature and performing necessary steps to eventually calculate the complex compliance
     #    once a frequency is set.
     world_tidal.mantle.temperature = 1400.
-    assert type(world_tidal.mantle.viscosity) == float
-    assert type(world_tidal.mantle.shear_modulus) == float
+    assert type(world_tidal.mantle.viscosity) in [float, np.float, np.float64]
+    assert type(world_tidal.mantle.shear_modulus) in [float, np.float, np.float64]
 
     # Test Floats
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -58,14 +58,14 @@ def test_layered_tide_model_maxwell_rheology():
     assert world_tidal.eccentricity_truncation_lvl == 2
     assert world_tidal.max_tidal_order_lvl == 2
     assert world_tidal.spin_period == 10.
-    assert type(world_tidal.tidal_susceptibility) == float
-    assert type(world_tidal.global_love_by_orderl[2]) == complex
-    assert type(world_tidal.global_negative_imk_by_orderl[2]) == float
-    assert type(world_tidal.effective_q_by_orderl[2]) == float
-    assert type(world_tidal.dUdM) == float
-    assert type(world_tidal.dUdO) == float
-    assert type(world_tidal.dUdw) == float
-    assert type(world_tidal.tidal_heating_global) == float
+    assert type(world_tidal.tidal_susceptibility) in [float, np.float, np.float64]
+    assert type(world_tidal.global_love_by_orderl[2]) in [complex, np.complex, np.complex128]
+    assert type(world_tidal.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
+    assert type(world_tidal.effective_q_by_orderl[2]) in [float, np.float, np.float64]
+    assert type(world_tidal.dUdM) in [float, np.float, np.float64]
+    assert type(world_tidal.dUdO) in [float, np.float, np.float64]
+    assert type(world_tidal.dUdw) in [float, np.float, np.float64]
+    assert type(world_tidal.tidal_heating_global) in [float, np.float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.

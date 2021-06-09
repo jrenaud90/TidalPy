@@ -4,7 +4,7 @@ from .basic import BaseWorld
 from ... import log
 from ...exceptions import ConfigPropertyChangeError, InitiatedPropertyChangeError, InnerscopePropertySetError, \
     AttributeNotSetError, IncorrectMethodToSetStateProperty
-from ...rheology.complex_compliance.compliance_models import fixed_q, fixed_q_array
+from ...rheology.complex_compliance.compliance_models import fixed_q
 from ...tides import GlobalApproxTides
 from ...utilities.types import NoneType, FloatArray
 
@@ -57,11 +57,6 @@ class TidalWorld(BaseWorld):
 
         # Initialized properties
         self._tides = None  # type: Union[NoneType, GlobalApproxTides]
-
-        # Helper Functions
-        # TODO: why are these stored here?
-        self.fixed_q_func = fixed_q
-        self.fixed_q_func_array = fixed_q_array
 
         if initialize:
             self.reinit(initial_init=True, setup_simple_tides=True)

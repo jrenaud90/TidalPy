@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ...constants import G
-from ...tools.conversions import orbital_motion2semi_a, sec2myr, semi_a2orbital_motion
+from ...toolbox.conversions import orbital_motion2semi_a, sec2myr, semi_a2orbital_motion
 from ...utilities.performance import njit
 from ...tides.mode_manipulation import find_mode_manipulators
 from ...tides.dissipation import calc_tidal_susceptibility
@@ -242,7 +242,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     # We are going to be building several functions in this function. Make sure the namespace is as clean as possible.
     del _layer_i, _layer_masses_below_for_object, _mass, _n_layer, _object_i,
 
-    @njit
+    @njit()
     def diffeq_scipy(time, variables):
 
         # # Progress bar
@@ -614,6 +614,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
 
                 # Determine Heating
                 total_incoming_heating = tidal_heating + radiogenic_heating
+                print(layer_i, tidal_heating/1e12)
                 if not bottom_layer:
                     total_incoming_heating += layer_coolings[layer_i - 1]
 

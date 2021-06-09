@@ -1,5 +1,30 @@
 # TidalPy Major Change Log
 
+## Version 0.3.0 Alpha (Spring 2021)
+*Scripts based on 0.2.x will likely break with this version!*
+ 
+* Major Changes
+    * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current version is that it does not allow for NSR or high eccentricity / obliquity. A future version will attempt to add in a more robust Tidal Potential equation which will allow for addtional physics.
+    * Setup.py has been revamped as has the installation process. This is in prep to allow for TidalPy to become available on PyPI.
+    * Did away with all of the `_array` functions. Found a way for njit to compile a function to handle either arrays or floats.
+        * Left the `self._func_array` (in addition to `self._func`) in the `model.py` classes just in case we ever **do** need to define array functions in the future: all the infrastructure is still in place.
+    * Added a numba-safe Explicit Runge-Kutta integrator. This is fully wrapped in njit'd functions.
+        * On its own this can be 5--20 times faster than `scipy.solve_ivp`. 
+        * This also allows the integration function to be used from within another njit'd function(s).
+* Minor Changes
+    * Numerous bug fixes.
+    * Removed the array versions of the dynamic functions.
+        * `use_array` is still tracked in OOP and some quick calculation functions. These may all be not necessary now.
+    * New cookbook to showcase the multilayer calculations.
+    * Added surface area slices to base physical class.
+    * Fixed some issues with how radius slices are tracked within layers and worlds.
+        * `<world/layer>.radii[0]` is never the radius at the bottom of the object, it is always one dx up.
+        * An interpolation had to be added to Burnman layers since Burnman radii starts at 0.
+    * Improved various docstrings.
+    * Refactored the `TidalPy.tools` to `TidalPy.toolbox`.
+    * Refactored `Cookbooks` to `Demos`.
+    * conversions.semi_a2orbital_motion and orbital_motion2semi_a now always return np.nan where they used to return complex numbers.
+
 ## Version 0.2.1 Alpha (Fall 2020)
 *Will break studies based on previous versions*
 
@@ -48,4 +73,4 @@ Note: TidalPy version of "0.2.0" was never made publicly available. This is the 
         * The beginning of an integration module was added. This is still very early and not particularly useful. Users are still recommended to build their own integration tools that wrap TidalPy functions.
 
 ## Version 0.1.0 Alpha (July 2019)
-Main Release - Changes not tracked
+*Initial Release - Changes not tracked*

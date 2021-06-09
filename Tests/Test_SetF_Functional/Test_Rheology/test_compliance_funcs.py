@@ -58,7 +58,7 @@ def test_all_models():
         else:
             # Non array test
             res = model_func(0.001, 1.0, 2.0)
-            assert type(res) in [complex, np.complex]
+            assert type(res) in [complex, np.complex, np.complex128]
 
 
 

@@ -1,5 +1,6 @@
 from pprint import pprint
 from sympy import series, nsimplify, Symbol, init_printing, Function, collect
+from sympy.functions.special.polynomials import assoc_legendre
 from IPython.display import display
 
 USE_PRETTY_PRINT = True
@@ -15,25 +16,38 @@ spin_sat = Symbol('Omega___S', real=True)
 moi_host = Symbol('C___H', real=True, positive=True)
 moi_sat = Symbol('C___S', real=True, positive=True)
 
-love2_num_host = Function('Xi___H2')
-love2_num_sat = Function('Xi___S2')
-love3_num_host = Function('Xi___H3')
-love3_num_sat = Function('Xi___S3')
-love4_num_host = Function('Xi___H4')
-love4_num_sat = Function('Xi___S4')
-love5_num_host = Function('Xi___H5')
-love5_num_sat = Function('Xi___S5')
-love6_num_host = Function('Xi___H6')
-love6_num_sat = Function('Xi___S6')
-love7_num_host = Function('Xi___H7')
-love7_num_sat = Function('Xi___S7')
-love8_num_host = Function('Xi___H8')
-love8_num_sat = Function('Xi___S8')
+love2_num_host = Function('Xi___H2', real=True)
+love2_num_sat = Function('Xi___S2', real=True)
+love3_num_host = Function('Xi___H3', real=True)
+love3_num_sat = Function('Xi___S3', real=True)
+love4_num_host = Function('Xi___H4', real=True)
+love4_num_sat = Function('Xi___S4', real=True)
+love5_num_host = Function('Xi___H5', real=True)
+love5_num_sat = Function('Xi___S5', real=True)
+love6_num_host = Function('Xi___H6', real=True)
+love6_num_sat = Function('Xi___S6', real=True)
+love7_num_host = Function('Xi___H7', real=True)
+love7_num_sat = Function('Xi___S7', real=True)
+love8_num_host = Function('Xi___H8', real=True)
+love8_num_sat = Function('Xi___S8', real=True)
+
+legendreP = assoc_legendre
 
 love_funcs_host = (love2_num_host, love3_num_host, love4_num_host, love5_num_host, love6_num_host, love7_num_host,
                    love8_num_host)
 love_funcs_sat = (love2_num_sat, love3_num_sat, love4_num_sat, love5_num_sat, love6_num_sat, love7_num_sat,
                    love8_num_sat)
+
+periapsis = Symbol('\\omega', real=True, positive=True)
+mean_anon = Symbol('\\mathcal{M}', real=True, positive=True)
+node = Symbol('\\Omega', real=True, positive=True)
+longitude = Symbol('\\lambda', real=True, positive=True)
+latitude = Symbol('\\phi', real=True)
+rotation_angle = Symbol('\\theta', real=True)
+
+def find_varpi(l: int, m: int, p: int, q: int):
+
+    return (l - 2 * p) * periapsis + (l - 2 * p + q) * mean_anon + m * node
 
 love_func_lookup = {
     'host': {

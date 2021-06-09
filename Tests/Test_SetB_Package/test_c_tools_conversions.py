@@ -6,7 +6,7 @@ from scipy.constants import G
 
 import TidalPy
 from TidalPy.exceptions import BadValueError
-from TidalPy.tools.conversions import sec2myr, \
+from TidalPy.toolbox.conversions import sec2myr, \
     myr2sec, m2Au, Au2m, days2rads, orbital_motion2semi_a, semi_a2orbital_motion, rads2days
 
 TidalPy.config['stream_level'] = 'ERROR'

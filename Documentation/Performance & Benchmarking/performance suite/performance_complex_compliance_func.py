@@ -24,21 +24,21 @@ class ComplexCompliancePerformance(PerformanceTrackBase):
                                 inputs=(1.1e-4, 2.1e-11, 3.3e9))
 
     def run_perform_complex_comp_maxwell_array(self):
-        from TidalPy.rheology.complex_compliance.compliance_models import maxwell_array
+        from TidalPy.rheology.complex_compliance.compliance_models import maxwell
         freq = np.linspace(1.1e-4, 5.1e-4, 10000)
-        self.record_performance('Complex Compliance - Maxwell - Array', maxwell_array,
+        self.record_performance('Complex Compliance - Maxwell - Array', maxwell,
                                 inputs=(freq, 2.1e-11, 3.3e9), array_N=len(freq))
 
     def run_perform_complex_comp_andrade_array(self):
-        from TidalPy.rheology.complex_compliance.compliance_models import andrade_array
+        from TidalPy.rheology.complex_compliance.compliance_models import andrade
         freq = np.linspace(1.1e-4, 5.1e-4, 10000)
-        self.record_performance('Complex Compliance - Andrade - Array', andrade_array,
+        self.record_performance('Complex Compliance - Andrade - Array', andrade,
                                 inputs=(freq, 2.1e-11, 3.3e9), array_N=len(freq))
 
     def run_perform_complex_comp_sundberg_array(self):
-        from TidalPy.rheology.complex_compliance.compliance_models import sundberg_array
+        from TidalPy.rheology.complex_compliance.compliance_models import sundberg
         freq = np.linspace(1.1e-4, 5.1e-4, 10000)
-        self.record_performance('Complex Compliance - Sundberg - Array', sundberg_array,
+        self.record_performance('Complex Compliance - Sundberg - Array', sundberg,
                                 inputs=(freq, 2.1e-11, 3.3e9), array_N=len(freq))
 
 
