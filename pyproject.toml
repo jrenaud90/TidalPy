@@ -48,9 +48,9 @@ classifiers = [
 # Requirements
 [build-system]
 requires = [
-    "setuptools>=51.0.0",
-    "pip>=20.2.2",
-    "wheel"
+    "setuptools>=57.0.0",
+    "pip>=21.0.0",
+    "wheel>=0.36.0"
 ]
 build-backend = "setuptools.build_meta"
 
