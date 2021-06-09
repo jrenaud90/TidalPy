@@ -17,6 +17,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
+          python -m pip install flake8
           python -m pip install git+https://github.com/geodynamics/burnman.git@master
           pip install -r requirements.txt
       - name: Lint with flake8
@@ -40,6 +41,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-split
           python -m pip install git+https://github.com/geodynamics/burnman.git@master
           pip install -r requirements.txt
       - name: Run pytest
@@ -62,6 +64,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-split
           python -m pip install git+https://github.com/geodynamics/burnman.git@master
           pip install -r requirements.txt
       - name: Download all artifacts
