@@ -5,7 +5,7 @@ from ...utilities.performance.numba import njit
 from ...utilities.types import float_lognat_max
 
 
-@njit
+@njit()
 def arrhenius(temperature: float, pressure: float,
               arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
               grain_size: float, grain_size_expo: float,
@@ -64,7 +64,7 @@ def arrhenius(temperature: float, pressure: float,
 
     return viscosity
 
-@njit
+@njit()
 def arrhenius_array(temperature: np.ndarray, pressure: np.ndarray,
                     arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
                     grain_size: float, grain_size_expo: float,
@@ -121,7 +121,7 @@ def arrhenius_array(temperature: np.ndarray, pressure: np.ndarray,
 
     return viscosity
 
-@njit
+@njit()
 def reference(temperature: float, pressure: float,
               reference_viscosity: float, reference_temperature: float,
               molar_activation_energy: float, molar_activation_volume: float) -> float:
@@ -169,7 +169,7 @@ def reference(temperature: float, pressure: float,
 
     return viscosity
 
-@njit
+@njit()
 def reference_array(temperature: np.ndarray, pressure: np.ndarray,
                     reference_viscosity: float, reference_temperature: float,
                     molar_activation_energy: float, molar_activation_volume: float) -> np.ndarray:
@@ -215,7 +215,7 @@ def reference_array(temperature: np.ndarray, pressure: np.ndarray,
 
     return viscosity
 
-@njit
+@njit()
 def constant(temperature: float, pressure: float,
              reference_viscosity: float) -> float:
     """ Solid Viscosity Function: Constant. Ignores other input and returns the reference viscosity value - NonArrays Only
@@ -241,7 +241,7 @@ def constant(temperature: float, pressure: float,
 
     return reference_viscosity
 
-@njit
+@njit()
 def constant_array(temperature: np.ndarray, pressure: np.ndarray,
                    reference_viscosity: float) -> np.ndarray:
     """ Solid Viscosity Function: Constant. Ignores other input and returns the reference viscosity value - Arrays Only

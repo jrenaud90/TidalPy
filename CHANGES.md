@@ -12,6 +12,7 @@
         * On its own this can be 5--20 times faster than `scipy.solve_ivp`. 
         * This also allows the integration function to be used from within another njit'd function(s).
 * Minor Changes
+    * Numerous bug fixes
     * New cookbook to showcase the multilayer calculations.
     * Added surface area slices to base physical class.
     * Fixed some issues with how radius slices are tracked within layers and worlds.
@@ -20,6 +21,7 @@
     * Improved various docstrings.
     * Refactored the `TidalPy.tools` to `TidalPy.toolbox`.
     * Refactored `Cookbooks` to `Demos`.
+    * conversions.semi_a2orbital_motion and orbital_motion2semi_a now always return np.nan where they used to return complex numbers.
 
 ## Version 0.2.1 Alpha (Fall 2020)
 *Will break studies based on previous versions*

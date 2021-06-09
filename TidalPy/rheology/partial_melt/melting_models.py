@@ -7,7 +7,7 @@ import numpy as np
 from ...utilities.performance.numba import njit
 
 
-@njit
+@njit()
 def off(melt_fraction: float, premelt_viscosity: float, premelt_shear: float) -> Tuple[float, float]:
     """ Viscosity and Shear Modulus Partial Melting Model: off - NonArrays Only
 
@@ -35,7 +35,7 @@ def off(melt_fraction: float, premelt_viscosity: float, premelt_shear: float) ->
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit
+@njit()
 def off_array(melt_fraction: np.ndarray, premelt_viscosity: np.ndarray, premelt_shear: float) -> \
         Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: off - Arrays Only
@@ -64,7 +64,7 @@ def off_array(melt_fraction: np.ndarray, premelt_viscosity: np.ndarray, premelt_
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit
+@njit()
 def spohn(melt_fraction: float, temperature: float, liquid_viscosity: float,
           liquid_shear: float = 1.0e-5,
           fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
@@ -114,7 +114,7 @@ def spohn(melt_fraction: float, temperature: float, liquid_viscosity: float,
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit
+@njit()
 def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_viscosity: np.ndarray,
                 liquid_shear: float = 1.0e-5,
                 fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
@@ -163,7 +163,7 @@ def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_visco
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit
+@njit()
 def henning(melt_fraction: float, temperature: float,
             premelt_viscosity: float, liquid_viscosity: float, premelt_shear: float, solidus: float, liquidus: float,
             liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
@@ -257,7 +257,7 @@ def henning(melt_fraction: float, temperature: float,
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit
+@njit()
 def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
                   premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
                   premelt_shear: float, solidus: float, liquidus: float,

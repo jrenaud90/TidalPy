@@ -242,7 +242,7 @@ def build_2layer_icy_shell_diffeq(obj0_config: dict, obj1_config: dict, orbital_
     # We are going to be building several functions in this function. Make sure the namespace is as clean as possible.
     del _layer_i, _layer_masses_below_for_object, _mass, _n_layer, _object_i,
 
-    @njit
+    @njit()
     def diffeq_scipy(time, variables):
 
         # # Progress bar

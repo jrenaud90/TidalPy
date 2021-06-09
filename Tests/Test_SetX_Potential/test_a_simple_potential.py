@@ -32,12 +32,12 @@ def test_float():
         tidal_potential_simple(radius_array[-1], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
                                eccentricity=eccentricity, time=1000.)
 
-    assert type(potential) == float
-    assert type(potential_partial_theta) == float
-    assert type(potential_partial_phi) == float
-    assert type(potential_partial2_theta2) == float
-    assert type(potential_partial2_phi2) == float
-    assert type(potential_partial2_theta_phi) == float
+    assert type(potential) in [float, np.float, np.float64]
+    assert type(potential_partial_theta) in [float, np.float, np.float64]
+    assert type(potential_partial_phi) in [float, np.float, np.float64]
+    assert type(potential_partial2_theta2) in [float, np.float, np.float64]
+    assert type(potential_partial2_phi2) in [float, np.float, np.float64]
+    assert type(potential_partial2_theta_phi) in [float, np.float, np.float64]
 
 
 def test_array():

@@ -5,11 +5,8 @@ dependencies (looking at you, Numba).
 
 import numpy as np
 
-from ... import config
 from ..types import NumArray
-from ..performance import njit
-
-use_numba = config['use_numba']
+from ..performance import njit, use_numba
 
 
 def _sqrt_neg_python(z: NumArray, is_real: bool = False) -> NumArray:
@@ -55,7 +52,8 @@ if use_numba:
     # TODO: Numba currently does not support wrapping np.lib.scimath.sqrt, so we have to define our own function.
     #    However, numba.njit of np.sqrt is about 10x faster than np.sqrt with floats and about 2x fast with arrays.
     #    So the above method is actually pretty efficient.
-    sqrt_neg = njit(_sqrt_neg_python, cacheable=True)
+    sqrt_neg = njit(cacheable=True)(_sqrt_neg_python)
 else:
-    # numpy already has a built in function to handle this. Use it instead
-    sqrt_neg = np.lib.scimath.sqrt
+    # Numpy already has a built in function to handle this. Use it instead
+    def sqrt_neg(z, is_real: bool = False):
+        return np.lib.scimath.sqrt(z)

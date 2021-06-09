@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..rheology import Rheology
     from ...structures.layers import PhysicalLayerType
 
-@njit
+@njit()
 def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float) -> float:
     """ Calculates the partial melt volume fraction based on the material's solidus and liquidus - NonArray Only
 
@@ -47,7 +47,7 @@ def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float)
 
     return partial_melt_volume_frac
 
-@njit
+@njit()
 def calculate_melt_fraction_array(temperature: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
     """ Calculates the partial melt volume fraction based on the material's solidus and liquidus - Arrays Only
 
@@ -77,7 +77,7 @@ def calculate_melt_fraction_array(temperature: np.ndarray, solidus: float, liqui
 
     return partial_melt_volume_frac
 
-@njit
+@njit()
 def calculate_temperature_frommelt(melt_frac: float, solidus: float, liquidus: float) -> float:
     """ Calculates the temperature from the volumetric melt fraction - NonArray Only
 
@@ -107,7 +107,7 @@ def calculate_temperature_frommelt(melt_frac: float, solidus: float, liquidus: f
 
     return temp_at_melt
 
-@njit
+@njit()
 def calculate_temperature_frommelt_array(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
     """ Calculates the temperature from the volumetric melt fraction - Arrays Only
 

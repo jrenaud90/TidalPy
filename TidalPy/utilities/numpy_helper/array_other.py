@@ -62,7 +62,7 @@ def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool =
     return new_dict
 
 
-@njit
+@njit()
 def find_nearest(array: np.ndarray, value: NumericalType):
     """ Returns the index of the value closest to a provided value in a numpy array.
 

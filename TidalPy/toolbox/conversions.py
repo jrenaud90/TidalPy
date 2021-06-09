@@ -144,6 +144,7 @@ def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_m
     if target_mass < 0.:
         raise BadValueError('Target mass must be greater than or equal to zero.')
 
+    # TODO: numba does not currently support np.cbrt
     semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1/3)
 
     return semi_major_axis
@@ -173,6 +174,6 @@ def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_
     if target_mass < 0.:
         raise BadValueError('Target mass must be greater than or equal to zero.')
 
-    orbital_motion = (G * (host_mass + target_mass) / semi_major_axis**3)**(1/2)
+    orbital_motion = np.sqrt(G * (host_mass + target_mass) / semi_major_axis**3)
 
     return orbital_motion

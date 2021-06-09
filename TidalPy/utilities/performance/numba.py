@@ -1,9 +1,16 @@
+import os
+from functools import wraps
+
 import numpy as np
 from scipy.special import gamma
 
 from ... import config
 
-use_numba = config['use_numba']
+use_numba_cfg = config['use_numba']
+use_numba_env = True
+if 'NUMBA_DISABLE_JIT' in os.environ:
+    use_numba_env = (os.environ['NUMBA_DISABLE_JIT'] == 0)
+use_numba = use_numba_cfg and use_numba_env
 cache_numba = config['cache_numba']
 
 if use_numba:
@@ -51,7 +58,7 @@ _predefined_inputs = np.sort(np.concatenate((_predefined_range, _common_alphas))
 _factorials = gamma(_predefined_inputs + 1.0)
 
 
-@njit
+@njit()
 def find_factorial(number: float) -> float:
     """ Find's the factorial of a number based on a look-up table. 'number' must be between 0 and 1.
 

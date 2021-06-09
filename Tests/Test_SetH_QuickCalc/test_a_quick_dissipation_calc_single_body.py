@@ -28,17 +28,17 @@ def test_quick_tidal_dissipation_fixedq_float():
                                 use_obliquity=True, tidal_scale=1., fixed_q=120.)
 
     assert type(dissipation_results) == dict
-    assert type(dissipation_results['tidal_heating']) == float
-    assert type(dissipation_results['dUdM']) == float
-    assert type(dissipation_results['dUdw']) == float
-    assert type(dissipation_results['dUdO']) == float
+    assert type(dissipation_results['tidal_heating']) in [float, np.float, np.float64]
+    assert type(dissipation_results['dUdM']) in [float, np.float, np.float64]
+    assert type(dissipation_results['dUdw']) in [float, np.float, np.float64]
+    assert type(dissipation_results['dUdO']) in [float, np.float, np.float64]
     assert type(dissipation_results['love_number_by_orderl']) in [Dict, dict]
     assert type(dissipation_results['negative_imk_by_orderl']) in [Dict, dict]
     assert type(dissipation_results['effective_q_by_orderl']) in [Dict, dict]
     assert len(dissipation_results['effective_q_by_orderl']) == 1
-    assert type(dissipation_results['love_number_by_orderl'][2]) == complex
-    assert type(dissipation_results['negative_imk_by_orderl'][2]) == float
-    assert type(dissipation_results['effective_q_by_orderl'][2]) == float
+    assert type(dissipation_results['love_number_by_orderl'][2]) in [complex, np.complex, np.complex128]
+    assert type(dissipation_results['negative_imk_by_orderl'][2]) in [float, np.float, np.float64]
+    assert type(dissipation_results['effective_q_by_orderl'][2]) in [float, np.float, np.float64]
 
 def test_quick_tidal_dissipation_fixedq_orbital_array():
     """ This will test the quick tidal dissipation calculator - using orbital array with the fixed-q rheology """
