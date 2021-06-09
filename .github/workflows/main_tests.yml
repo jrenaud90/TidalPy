@@ -45,7 +45,7 @@ jobs:
           python -m pip install git+https://github.com/geodynamics/burnman.git@master
           pip install -r requirements.txt
       - name: Run pytest
-        run: pytest --cov --splits 5 --group ${{ matrix.group }}
+        run: python -m pytest --cov --splits 5 --group ${{ matrix.group }}
       - name: Upload coverage
         uses: actions/upload-artifact@v2
         with:
