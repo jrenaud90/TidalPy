@@ -12,19 +12,18 @@ TidalPy is an open-source software suite designed to assist researchers in the s
 
 **TidalPy is intended to be a...**
 * Black Box (referred to as "*OOP* scheme" for `Object-Oriented Programming` throughout the documentation)
-    * TidalPy serves as simple to install (cross-platform) and, hopefully, simple to use package that non-experts (to tides and planetary interiors) can pick up and use quickly.
-    * The OOP scheme performs many calculations with very little input from the user. The major drawbacks are peformance (in some situations) and that assumptions have been made that are opaque to the user without some digging. 
+    * TidalPy serves as simple to install (cross-platform) and, hopefully, simple to use package that users can pick up and hit the ground running.
+    * The OOP scheme performs many calculations with very little input from the user. The major drawbacks are performance (in some situations) and that assumptions have been made that are opaque to the user without some digging. 
 * Tool Box (referred to as "*Functional* scheme")
     * TidalPy also contains many efficient functions to perform calculations relevant to tides and thermal-orbital coupling. These can be quickly imported and used in a custom script by a more experienced user.
-        * In general, the functional scheme will have much higher performance, flexibility, and extensibility than OOP. It also ensures that assumptions in the various models are made clear to the use. 
+        * In general, the functional scheme will have much higher performance, flexibility, and extensibility than OOP. It also generally makes assumptions more visible to the user. 
           
 *Once you are comfortable with TidalPy, it is usually a good idea to mix the two schemes: take some aspects of OOP that you don't want to deal with and build on them with some of TidalPy's or your own functions and code.*
 
 ### Limitations
 
 The major limitations of the current version of TidalPy are...
-* The interiors of planets are treated as 0-dimensional layers. Multiple layers are allowed, but a multi-shell dissipation approach has not been implemented.
-* Effects caused by compressibility are not considered.
+* A multilayer model has now been implemented, but it is not currently part of the OOP scheme.
 * Chemical and phase changes within a planet's layers have not yet been implemented.
 
 ### Related Software
@@ -39,7 +38,7 @@ Below is a list (non-exhaustive) of publicly available software that performance
 * Don't care about tides or orbital dynamics but are instead interested in interior structure and composition of planets?
     * [BurnMan](https://github.com/geodynamics/burnman)
     * [PerpleX](http://www.perplex.ethz.ch/)
-* Are you interested in tides, interiors, *and* the chemical evolution of small worlds but don't care about non-synchronous rotation?
+* Are you interested in tides, interiors, *and* the chemical evolution of small worlds but don't care about non-synchronous rotation or compressibility of planets?
     * [IcyDwarf](https://github.com/MarcNeveu/IcyDwarf)
 
 However, if you want high fidelity tidal, orbital, spin, and interior models --- then you have come to the right place! Read below for instructions on how to install and use TidalPy.
@@ -47,10 +46,10 @@ However, if you want high fidelity tidal, orbital, spin, and interior models ---
 ## How to Install
 
 ### Compatibility
-*As of TidalPy v0.2.1.a3*:
+*As of TidalPy v0.3.0a*:
 * **Win10**: *Installation & tests passed.*
-* **MacOS (Catalina)**: *Installation & tests passed.*
-* **CentOS7**: *Conflicts during some parts of conda install, however after a while installation completes and all tests pass.*
+* **MacOS (Catalina)**: *TBD*
+* **CentOS7**: *TBD*
 
 ### Pre-Install
 
