@@ -1,6 +1,6 @@
 [project]
-name = "TidalPy-test"
-version = "0.3.0a"
+name = "TidalPy"
+version = "0.3.0b"
 description = "Toolbox for solving tidal dynamics and planetary interior problems."
 authors = [
     "Joe P. Renaud <joseph.p.renaud@nasa.gov>"
