@@ -3,6 +3,7 @@ channels:
 dependencies:
   - setuptools>=51.0.0
   - pip>=20.2.2
+  - wheel
   - dill>=0.3.2
   - ipympl>=0.5.8
   - ipython>=7.19.0
@@ -14,6 +15,7 @@ dependencies:
   - numpy>=1.19.2
   - pytest>=6.0.1
   - scipy>=1.5.2
+  - pandas
   - pip:
     - "git+https://github.com/geodynamics/burnman.git"
     - pathos
