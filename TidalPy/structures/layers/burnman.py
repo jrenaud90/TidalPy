@@ -7,7 +7,7 @@ from .physics import PhysicsLayer
 from ... import log
 from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 from ...configurations import configurations
-from ...exceptions import (UnknownTidalPyConfigValue, AttributeNotSetError, ImproperPropertyHandling)
+from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, UnknownTidalPyConfigValue)
 from ...utilities.numpy_helper.array_other import find_nearest
 from ...utilities.types import FloatArray
 
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 class BurnmanLayer(PhysicsLayer):
-
     """ BurnmanLayer
     Layer object to store parameters calculated by the Burnman software. Additionally it contains properties and
         functionality that matches the TidalPy `PhysicsLayer`.
@@ -29,8 +28,10 @@ class BurnmanLayer(PhysicsLayer):
 
     layer_class = 'burnman'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'BurnManWorld', layer_config: dict,
-                 is_top_layer: bool, initialize: bool = True):
+    def __init__(
+        self, layer_name: str, layer_index: int, world: 'BurnManWorld', layer_config: dict,
+        is_top_layer: bool, initialize: bool = True
+        ):
         """ Burnman layer constructor
 
         Parameters
@@ -63,8 +64,10 @@ class BurnmanLayer(PhysicsLayer):
         self.interp_func = None
 
         # Material Properties set by BurnMan
-        self.interp_temperature_range = np.linspace(*tuple(self.config['interp_temperature_range']),
-                                                    configurations['burnman_interpolation_N'])
+        self.interp_temperature_range = np.linspace(
+            *tuple(self.config['interp_temperature_range']),
+            configurations['burnman_interpolation_N']
+            )
         self._interp_prop_data_lookup = dict()
 
         if initialize:
@@ -100,8 +103,10 @@ class BurnmanLayer(PhysicsLayer):
         # Build lookup tables
         self._build_material_property_interpolation()
 
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
-                  shear_modulus: FloatArray = None):
+    def set_state(
+        self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
+        shear_modulus: FloatArray = None
+        ):
         """ Set the layer's state properties
 
         Parameters
@@ -146,8 +151,10 @@ class BurnmanLayer(PhysicsLayer):
         # Set the new state properties in the layer.
         super().set_state(temperature=temperature, pressure=pressure, viscosity=viscosity, shear_modulus=shear_modulus)
 
-    def set_geometry(self, radius: float = None, mass: float = None, thickness: float = None,
-                     mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True):
+    def set_geometry(
+        self, radius: float = None, mass: float = None, thickness: float = None,
+        mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True
+        ):
         """ Calculates and sets the layer's physical parameters based on user provided input.
 
         For a BurnmanLayer almost all of the geometry is set by the results of the burnman evaluation.
@@ -213,8 +220,8 @@ class BurnmanLayer(PhysicsLayer):
 
         # Mass below each slice is equal to slice masses + and mass below this physical object
         self._mass_below_slices = np.asarray(
-                [self.mass_below + sum(self.mass_slices[:i + 1]) for i in range(self.num_slices)]
-        )
+            [self.mass_below + sum(self.mass_slices[:i + 1]) for i in range(self.num_slices)]
+            )
 
         # For BurnmanLayer, assume everything is calculated by BurnMan.
         #     Override some of the items set by the set_geometry method.
@@ -254,11 +261,15 @@ class BurnmanLayer(PhysicsLayer):
 
         # Make a call to the parent methods set_geometry method, but update_state_geometry=False will prevent them from
         #    changing the geometry that was set above.
-        super().set_geometry(self.radius, self.mass, self.thickness, mass_below=layer_below_mass,
-                             update_state_geometry=False, build_slices=False)
+        super().set_geometry(
+            self.radius, self.mass, self.thickness, mass_below=layer_below_mass,
+            update_state_geometry=False, build_slices=False
+            )
 
-    def set_static_pressure(self, pressure_above: float = None, build_slices: bool = True,
-                            called_from_burnman: bool = True):
+    def set_static_pressure(
+        self, pressure_above: float = None, build_slices: bool = True,
+        called_from_burnman: bool = True
+        ):
         """ Sets the static pressure for the physical structure.
 
         `Static` here indicates that this is not a dynamic pressure used in many calculations. The static pressure can

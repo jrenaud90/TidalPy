@@ -1,17 +1,19 @@
 import numpy as np
 
 from ...constants import G
-from ...tides.multilayer.numerical_int import radial_derivatives_liquid_dynamic, radial_derivatives_liquid_static, \
-    radial_derivatives_solid_dynamic, radial_derivatives_solid_static
+from ...tides.multilayer.numerical_int import (radial_derivatives_liquid_dynamic, radial_derivatives_liquid_static,
+                                               radial_derivatives_solid_dynamic, radial_derivatives_solid_static)
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
 
 @njit(cacheable=True)
-def dynamic_solid_ode(radius: FloatArray, y_vector: np.ndarray,
-                      radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-                      densities: np.ndarray, gravities: np.ndarray, frequency: float,
-                      order_l: int = 2, G_to_use: float = G) -> callable:
+def dynamic_solid_ode(
+    radius: FloatArray, y_vector: np.ndarray,
+    radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
+    densities: np.ndarray, gravities: np.ndarray, frequency: float,
+    order_l: int = 2, G_to_use: float = G
+    ) -> callable:
     """ A njit-safe radial derivative function for static, solid layers.
 
     Parameters
@@ -53,17 +55,20 @@ def dynamic_solid_ode(radius: FloatArray, y_vector: np.ndarray,
 
     y_derivatives = \
         radial_derivatives_solid_dynamic(
-                radius, y_vector, shear_modulus, bulk_modulus, density, gravity, frequency,
-                order_l=order_l, G_to_use=G_to_use)
+            radius, y_vector, shear_modulus, bulk_modulus, density, gravity, frequency,
+            order_l=order_l, G_to_use=G_to_use
+            )
 
     return y_derivatives
 
 
 @njit(cacheable=True)
-def static_solid_ode(radius: FloatArray, y_vector: np.ndarray,
-                     radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-                     densities: np.ndarray, gravities: np.ndarray,
-                     order_l: int = 2, G_to_use: float = G) -> callable:
+def static_solid_ode(
+    radius: FloatArray, y_vector: np.ndarray,
+    radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
+    densities: np.ndarray, gravities: np.ndarray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> callable:
     """ A njit-safe radial derivative function for static, solid layers.
 
     Parameters
@@ -103,17 +108,20 @@ def static_solid_ode(radius: FloatArray, y_vector: np.ndarray,
 
     y_derivatives = \
         radial_derivatives_solid_static(
-                radius, y_vector, shear_modulus, bulk_modulus, density, gravity,
-                order_l=order_l, G_to_use=G_to_use)
+            radius, y_vector, shear_modulus, bulk_modulus, density, gravity,
+            order_l=order_l, G_to_use=G_to_use
+            )
 
     return y_derivatives
 
 
 @njit(cacheable=True)
-def dynamic_liquid_ode(radius: FloatArray, y_vector: np.ndarray,
-                       radii: np.ndarray, bulk_moduli: np.ndarray,
-                       densities: np.ndarray, gravities: np.ndarray, frequency: float,
-                       order_l: int = 2, G_to_use: float = G) -> callable:
+def dynamic_liquid_ode(
+    radius: FloatArray, y_vector: np.ndarray,
+    radii: np.ndarray, bulk_moduli: np.ndarray,
+    densities: np.ndarray, gravities: np.ndarray, frequency: float,
+    order_l: int = 2, G_to_use: float = G
+    ) -> callable:
     """ A njit-safe radial derivative function for dynamic, liquid layers.
 
     Parameters
@@ -151,16 +159,19 @@ def dynamic_liquid_ode(radius: FloatArray, y_vector: np.ndarray,
     gravity = np.interp(radius, radii, gravities)
 
     y_derivatives = radial_derivatives_liquid_dynamic(
-            radius, y_vector, bulk_modulus, density, gravity, frequency,
-            order_l=order_l, G_to_use=G_to_use)
+        radius, y_vector, bulk_modulus, density, gravity, frequency,
+        order_l=order_l, G_to_use=G_to_use
+        )
 
     return y_derivatives
 
 
 @njit(cacheable=True)
-def static_liquid_ode(radius: FloatArray, y_vector: np.ndarray,
-                      radii: np.ndarray, densities: np.ndarray, gravities: np.ndarray,
-                      order_l: int = 2, G_to_use: float = G) -> callable:
+def static_liquid_ode(
+    radius: FloatArray, y_vector: np.ndarray,
+    radii: np.ndarray, densities: np.ndarray, gravities: np.ndarray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> callable:
     """ A njit-safe radial derivative function for static, liquid layers.
 
     Parameters
@@ -193,7 +204,8 @@ def static_liquid_ode(radius: FloatArray, y_vector: np.ndarray,
     gravity = np.interp(radius, radii, gravities)
 
     y_derivatives = radial_derivatives_liquid_static(
-            radius, y_vector, density, gravity,
-            order_l=order_l, G_to_use=G_to_use)
+        radius, y_vector, density, gravity,
+        order_l=order_l, G_to_use=G_to_use
+        )
 
     return y_derivatives

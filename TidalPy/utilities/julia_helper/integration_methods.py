@@ -1,4 +1,4 @@
-from diffeqpy import ode, de
+from diffeqpy import de, ode
 
 # Read more about Julia's ode solvers here: https://diffeq.sciml.ai/dev/solvers/ode_solve/
 
@@ -34,7 +34,7 @@ non_stiff_solvers = {
     # A 5 parallel, 2 processor explicit Runge-Kutta method of 5th order.
     # These methods utilize multithreading on the f calls to parallelize the problem. This requires that simultaneous calls to f are thread-safe.
     'kuttaprk2p5': ode.KuttaPRK2p5
-}
+    }
 
 stiff_solvers = {
     'rosenbrock23': de.Rosenbrock23,
@@ -42,7 +42,8 @@ stiff_solvers = {
     # Rosenbrock 4(3) method.
     'rodas4'      : de.Rodas4,
     'rodas5'      : de.Rodas5
-}
+    }
+
 
 def get_julia_solver(solver_name: str):
     try:

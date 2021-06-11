@@ -7,30 +7,31 @@ TidalPy.use_disk = False
 TidalPy.reinit()
 
 io_config = {
-    "name": "Io",
-    "type": "layered",
-    "radius": 1821.49e3,
-    "orbital_period": 1.769,
-    "eccentricity": 0.0041,
-    "spin_period": 1.769,
-    "albedo": 0.63,
+    "name"           : "Io",
+    "type"           : "layered",
+    "radius"         : 1821.49e3,
+    "orbital_period" : 1.769,
+    "eccentricity"   : 0.0041,
+    "spin_period"    : 1.769,
+    "albedo"         : 0.63,
     "force_spin_sync": True,
-    "layers": {
-        "Core": {
-            "type": "iron",
+    "layers"         : {
+        "Core"  : {
+            "type"    : "iron",
             "is_tidal": False,
-            "radius": 810.0e3,
-            "density": 5200.
-        },
+            "radius"  : 810.0e3,
+            "density" : 5200.
+            },
         "Mantle": {
-            "type": "rock",
-            "is_tidal": True,
-            "radius": 1821.49e3,
+            "type"               : "rock",
+            "is_tidal"           : True,
+            "radius"             : 1821.49e3,
             "surface_temperature": 100.0,
-            "density": 3200.
+            "density"            : 3200.
+            }
         }
     }
-}
+
 
 def value_check(world, config_to_compare: dict, check_name: bool = True):
     """ This is a helper function to test the values of a LayeredWorld. Used in LayeredWorld builder tests. """
@@ -94,6 +95,7 @@ def test_paint_layered():
     assert io.paint(auto_show=False)
     return True
 
+
 def test_build_from_layered_world():
     """ This will test building a secondary LayeredWorld from an already built one. """
 
@@ -112,6 +114,7 @@ def test_build_from_layered_world():
     assert io_2.config['eccentricity'] == 0.5
     return True
 
+
 def test_build_from_layered_world_scale_radius():
     """ This will test building a secondary LayeredWorld from an already built one using a radius scaling technique. """
 
@@ -119,7 +122,7 @@ def test_build_from_layered_world_scale_radius():
     io = TidalPy.build_world('Io_Simple')
 
     # Now build a second version that only has a name and eccentricity change.
-    io_2 = TidalPy.scale_from_world(io, new_name = 'small_io', radius_scale=0.5)
+    io_2 = TidalPy.scale_from_world(io, new_name='small_io', radius_scale=0.5)
 
     # Check name
     assert io_2.name == 'small_io'
@@ -139,6 +142,7 @@ def test_build_from_layered_world_scale_radius():
     np.testing.assert_approx_equal(io_3.radius, io.radius * 2.)
     for layer, layer_3 in zip(io, io_3):
         np.testing.assert_approx_equal(layer_3.radius, layer.radius * 2.)
+
 
 def test_build_complex_layered_world():
     """ For this test we will build a world with more than two layers. """

@@ -1,6 +1,6 @@
 from typing import Dict
 
-from ..inclination_funcs import orderl2, orderl3, orderl4, orderl5, InclinOutput
+from ..inclination_funcs import InclinOutput, orderl2, orderl3, orderl4, orderl5
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 
@@ -28,7 +28,7 @@ def inclination_off_maxl_5(obliquity: FloatArray) -> Dict[int, InclinOutput]:
         3: orderl3.calc_inclination_off(obliquity),
         4: orderl4.calc_inclination_off(obliquity),
         5: orderl5.calc_inclination_off(obliquity)
-    }
+        }
 
     return result_by_orderl
 
@@ -56,6 +56,6 @@ def inclination_on_maxl_5(obliquity: FloatArray) -> Dict[int, InclinOutput]:
         3: orderl3.calc_inclination(obliquity),
         4: orderl4.calc_inclination(obliquity),
         5: orderl5.calc_inclination(obliquity)
-    }
+        }
 
     return result_by_orderl

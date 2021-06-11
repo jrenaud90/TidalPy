@@ -1,6 +1,4 @@
-
 def test_version():
-
     # Test Load
     from TidalPy.version import version
 

@@ -6,9 +6,11 @@ from ...exceptions import ParameterMissingError
 from ...utilities.types import NoneType
 
 
-def find_geometry_from_config(config: dict, layer_index: int, is_top_layer: bool,
-                              world_radius: float, world_mass: float,
-                              layer_below_radius: Union[float, NoneType] = None):
+def find_geometry_from_config(
+    config: dict, layer_index: int, is_top_layer: bool,
+    world_radius: float, world_mass: float,
+    layer_below_radius: Union[float, NoneType] = None
+    ):
     """ Parse a configuration dictionary for geometry information
 
     Parameters

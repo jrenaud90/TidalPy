@@ -25,6 +25,7 @@ def test_timestamp():
     time_str = timestamped_str(string_to_stamp='Hello', date=True, time=True, second=True, provided_datetime=now)
     assert type(time_str) == str
 
+
 def test_uniquepath():
     """ Test the unique path function """
 

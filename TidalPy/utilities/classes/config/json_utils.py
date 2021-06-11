@@ -7,10 +7,11 @@ from warnings import warn
 import json5
 import numpy as np
 
+from .... import log, use_disk
 from ....io_helper import unique_path
-from .... import use_disk, log
 
 JSON5_KWARGS = {'indent': 4}
+
 
 def clean_config_for_json(dict_to_clean: dict, keys_to_skip: Tuple[str, ...] = ('radii',)) -> OrderedDict:
     """ JSON does not like some data types. This is called right before a JSON dump, converting things as needed.
@@ -45,8 +46,10 @@ def clean_config_for_json(dict_to_clean: dict, keys_to_skip: Tuple[str, ...] = (
                 input_key = str(key)
             except TypeError:
                 # Can't do much here. It won't be stored
-                warn(f'Unusual key type encountered while trying to clean a dictionary for json. '
-                     f'Key type = {type(key)}.')
+                warn(
+                    f'Unusual key type encountered while trying to clean a dictionary for json. '
+                    f'Key type = {type(key)}.'
+                    )
                 dont_store = True
         else:
             input_key = key

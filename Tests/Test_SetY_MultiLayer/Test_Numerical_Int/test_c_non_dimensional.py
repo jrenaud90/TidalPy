@@ -4,9 +4,9 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tides.multilayer.nondimensional import non_dimensionalize_physicals,\
-    re_dimensionalize_physicals, re_dimensionalize_radial_func
 from TidalPy.constants import G
+from TidalPy.tides.multilayer.nondimensional import (non_dimensionalize_physicals,
+                                                     re_dimensionalize_physicals, re_dimensionalize_radial_func)
 from TidalPy.utilities.types import float_eps
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -26,17 +26,19 @@ bulk_array = 10.e10 * np.ones(10, dtype=np.complex128)
 radius_array_to_use = radius_array[1:]
 frequency = 2. * np.pi / (86400. * 1.)
 
-def test_non_dimensionalize_physicals():
 
+def test_non_dimensionalize_physicals():
     # Create non-dimensionalized properties.
     R_nd = 1.123e6
     rho_nd = 1030.
-    result = non_dimensionalize_physicals(radius_array[1:], gravity_array, density_array, shear_array, bulk_array,
-                                          frequency, R_nd, rho_nd)
+    result = non_dimensionalize_physicals(
+        radius_array[1:], gravity_array, density_array, shear_array, bulk_array,
+        frequency, R_nd, rho_nd
+        )
     # Perform type checks
     assert type(result) == tuple
     radius_prime, gravity_prime, density_prime, shear_modulus_prime, bulk_modulus_prime, frequency_prime, \
-        newton_g_prime = result
+    newton_g_prime = result
 
     for arr in [radius_prime, gravity_prime, density_prime]:
         assert type(arr) == np.ndarray
@@ -53,12 +55,14 @@ def test_non_dimensionalize_physicals():
 
     # Try to redimensionalize them
     result = \
-        re_dimensionalize_physicals(radius_prime, gravity_prime, density_prime, shear_modulus_prime, bulk_modulus_prime,
-                                    frequency_prime, R_nd, rho_nd)
+        re_dimensionalize_physicals(
+            radius_prime, gravity_prime, density_prime, shear_modulus_prime, bulk_modulus_prime,
+            frequency_prime, R_nd, rho_nd
+            )
     # Perform type checks
     assert type(result) == tuple
-    radius_dbl_prime, gravity_dbl_prime, density_dbl_prime, shear_modulus_dbl_prime, bulk_modulus_dbl_prime,\
-        frequency_dbl_prime = result
+    radius_dbl_prime, gravity_dbl_prime, density_dbl_prime, shear_modulus_dbl_prime, bulk_modulus_dbl_prime, \
+    frequency_dbl_prime = result
 
     # Perform type checks
     for arr in [radius_dbl_prime, gravity_dbl_prime, density_dbl_prime]:
@@ -87,14 +91,16 @@ def test_non_dimensionalize_tidaly():
     # TODO TESTS - this is not actually testing that it is preforming the conversion correctly. Just a unit and process check.
 
     # Make a random tidal y array
-    tidal_y_prime = np.stack((
+    tidal_y_prime = np.stack(
+        (
             np.linspace(0.1, 10.0, 10),
             np.linspace(0.8, 10.0, 10),
             np.linspace(11.0, 10.0, 10),
             np.linspace(0.1, 10.0, 10),
             np.linspace(83.2, 10.0, 10),
             np.linspace(0.1, 10.0, 10),
-    ))
+            )
+        )
 
     # Attempt to re-dimensionalize it
     R_nd = 1.123e6

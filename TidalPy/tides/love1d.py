@@ -1,6 +1,7 @@
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray
 
+
 @njit(cacheable=True)
 def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity: FloatArray) -> FloatArray:
     """ Calculates the 2nd order complex Love number
@@ -27,8 +28,10 @@ def complex_love(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_
 
 
 @njit(cacheable=True)
-def complex_love_general(complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
-                         order_l: int = 2) -> FloatArray:
+def complex_love_general(
+    complex_compliance: FloatArray, shear_modulus: FloatArray, eff_rigidity_general: FloatArray,
+    order_l: int = 2
+    ) -> FloatArray:
     """ Calculates the l-th order complex Love number
 
     Parameters
@@ -72,6 +75,7 @@ def static_love(eff_rigidity: FloatArray) -> FloatArray:
     static_love_ = (3. / 2.) * (1. / (1. + eff_rigidity))
     return static_love_
 
+
 @njit(cacheable=True)
 def static_love_general(eff_rigidity_general: FloatArray, order_l: int = 2) -> FloatArray:
     """ Calculate the static (non-complex) tidal Love number k.
@@ -91,6 +95,7 @@ def static_love_general(eff_rigidity_general: FloatArray, order_l: int = 2) -> F
 
     static_love = (3. / (2. * (order_l - 1))) * (1. / (1. + eff_rigidity_general))
     return static_love
+
 
 @njit(cacheable=True)
 def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float, density: float) -> FloatArray:
@@ -119,8 +124,10 @@ def effective_rigidity(shear_modulus: FloatArray, gravity: float, radius: float,
 
 
 @njit(cacheable=True)
-def effective_rigidity_general(shear_modulus: FloatArray, gravity: float, radius: float, density: float,
-                               order_l: int = 2) -> FloatArray:
+def effective_rigidity_general(
+    shear_modulus: FloatArray, gravity: float, radius: float, density: float,
+    order_l: int = 2
+    ) -> FloatArray:
     """ Calculates the l-th order effective rigidity
 
     Parameters

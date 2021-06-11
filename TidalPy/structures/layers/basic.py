@@ -6,9 +6,9 @@ from .defaults import layer_defaults
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
 from ... import log
-from ...exceptions import OuterscopePropertySetError, MissingArgumentError, \
-    ConfigPropertyChangeError, ParameterMissingError, InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
-from ...utilities.types import NoneType, FloatArray
+from ...exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
+                           MissingArgumentError, OuterscopePropertySetError, ParameterMissingError)
+from ...utilities.types import FloatArray, NoneType
 
 if TYPE_CHECKING:
     from ..world_types import LayeredWorldType
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 class LayerBase(PhysicalObjSpherical):
-
     """ LayerBase
     Layer object to store parameters geometric and physical properties calculated by TidalPy based on a user-provided
         configuration dictionary.
@@ -34,8 +33,10 @@ class LayerBase(PhysicalObjSpherical):
     default_config = layer_defaults
     layer_class = 'base'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'LayeredWorldType', layer_config: dict,
-                 is_top_layer: bool, initialize: bool = True):
+    def __init__(
+        self, layer_name: str, layer_index: int, world: 'LayeredWorldType', layer_config: dict,
+        is_top_layer: bool, initialize: bool = True
+        ):
         """ Basic layer constructor
 
         Parameters
@@ -114,8 +115,10 @@ class LayerBase(PhysicalObjSpherical):
                     radius_layer_below = self.layer_below.radius
 
                 radius, thickness, volume, mass, density = \
-                    find_geometry_from_config(self.config, self.layer_index, self.is_top_layer,
-                                              self.world.radius, self.world.mass, radius_layer_below)
+                    find_geometry_from_config(
+                        self.config, self.layer_index, self.is_top_layer,
+                        self.world.radius, self.world.mass, radius_layer_below
+                        )
             except ParameterMissingError as e:
                 log.error(f'Not enough information provided to determine geometry for {self}.')
                 raise e
@@ -124,8 +127,10 @@ class LayerBase(PhysicalObjSpherical):
             #     OPT: some of set_geometry will end up redoing some of the above calculations, but they are not
             #         expensive calculations and it should only be preformed a handful of times.
             #         But perhaps an area for future optimization.
-            self.set_geometry(radius=radius, mass=mass, thickness=thickness, update_state_geometry=True,
-                              build_slices=True)
+            self.set_geometry(
+                radius=radius, mass=mass, thickness=thickness, update_state_geometry=True,
+                build_slices=True
+                )
 
         # Clean up config:
         if 'radii' in self.config:
@@ -220,8 +225,10 @@ class LayerBase(PhysicalObjSpherical):
         if temp_or_press_changed:
             self.temperature_pressure_changed()
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None,
-                     mass_below: float = None, update_state_geometry: bool = True, build_slices: bool = True):
+    def set_geometry(
+        self, radius: float, mass: float, thickness: float = None,
+        mass_below: float = None, update_state_geometry: bool = True, build_slices: bool = True
+        ):
         """ Calculates and sets the layer's physical parameters based on user provided input.
 
         Assumptions
@@ -258,21 +265,23 @@ class LayerBase(PhysicalObjSpherical):
                 raise MissingArgumentError
 
         # Gravity (and therefore pressure) will depend on the mass contained below this layer
-        if self.layer_index == 0 :
+        if self.layer_index == 0:
             # Bottom-most layer - nothing below it.
             mass_below = 0.
         else:
             mass_below = sum([self.world.layers[i].mass for i in range(0, self.layer_index)])
 
         # Setup Layer Geometry
-        super().set_geometry(radius, mass, thickness, mass_below=mass_below,
-                             update_state_geometry=update_state_geometry, build_slices=build_slices)
+        super().set_geometry(
+            radius, mass, thickness, mass_below=mass_below,
+            update_state_geometry=update_state_geometry, build_slices=build_slices
+            )
 
         # Setup Tidal Volume Fraction
         if self.use_tidal_vol_frac:
             self.tidal_scale = self.volume / self.world.volume
 
-    def set_temperature(self, temperature : FloatArray, call_updates: bool = True):
+    def set_temperature(self, temperature: FloatArray, call_updates: bool = True):
         """ Set the layer's dynamic temperature
 
         Parameters
@@ -304,7 +313,6 @@ class LayerBase(PhysicalObjSpherical):
 
         if call_updates:
             self.temperature_pressure_changed()
-
 
     # # Initialized properties
     @property
@@ -342,7 +350,6 @@ class LayerBase(PhysicalObjSpherical):
     @is_top_layer.setter
     def is_top_layer(self, value):
         raise InitiatedPropertyChangeError
-
 
     # # State properties
     @property
@@ -386,7 +393,6 @@ class LayerBase(PhysicalObjSpherical):
     @density.setter
     def density(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Configuration Properties
     @property
@@ -477,7 +483,6 @@ class LayerBase(PhysicalObjSpherical):
     @surface_temperature.setter
     def surface_temperature(self, value):
         raise OuterscopePropertySetError
-
 
     # # Dunder methods
     def __str__(self):

@@ -12,17 +12,19 @@ from typing import Tuple
 
 import numpy as np
 
-from ...utilities.types import FloatArray
 from ...utilities.performance import njit
+from ...utilities.types import FloatArray
 
 StressType = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 StrainType = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
 @njit(cacheable=True)
-def calculate_displacements(tidal_potential: np.ndarray,
-                            tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
-                            tidal_solution_y: np.ndarray, colatitude: FloatArray):
+def calculate_displacements(
+    tidal_potential: np.ndarray,
+    tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
+    tidal_solution_y: np.ndarray, colatitude: FloatArray
+    ):
     """ Calculate tidal displacements using the tidal potential and its partial derivatives as well as the y-solution
     vector.
 
@@ -59,14 +61,15 @@ def calculate_displacements(tidal_potential: np.ndarray,
 
 @njit(cacheable=True)
 def calculate_strain_stress_heating(
-        tidal_potential: np.ndarray,
-        tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
-        tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,
-        tidal_potential_partial2_theta_phi: np.ndarray,
-        tidal_solution_y: np.ndarray, tidal_solution_y_derivative: np.ndarray,
-        colatitude: FloatArray,
-        radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-        frequency: FloatArray) -> Tuple[StressType, StrainType, np.ndarray]:
+    tidal_potential: np.ndarray,
+    tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
+    tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,
+    tidal_potential_partial2_theta_phi: np.ndarray,
+    tidal_solution_y: np.ndarray, tidal_solution_y_derivative: np.ndarray,
+    colatitude: FloatArray,
+    radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
+    frequency: FloatArray
+    ) -> Tuple[StressType, StrainType, np.ndarray]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.
 
@@ -161,7 +164,7 @@ def calculate_strain_stress_heating(
              (y1 * tidal_potential + (y3 / sin_theta**2) *
               (tidal_potential_partial2_phi2 + cos_theta * sin_theta * tidal_potential_partial_theta))
     e_thph = (2. * y3 / (radius * sin_theta)) * \
-              (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
+             (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
 
     # The (1/2) in the off-diagonal terms are due to these components appearing twice in the tensor
     e_rth *= (1. / 2.)

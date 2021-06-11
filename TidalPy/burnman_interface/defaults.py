@@ -5,4 +5,4 @@ default_burnman_layer_params = {
     'top_temperature'     : None,
     'interp_lookup_method': 'mid',
     'slices'              : 50
-}
+    }

@@ -27,7 +27,6 @@ spohn_input = (liquid_shear, fs_visc_power_slope, fs_visc_power_phase, fs_shear_
 
 
 def test_melt_fraction():
-
     from TidalPy.rheology.partial_melt import calculate_melt_fraction, calculate_melt_fraction_array
 
     # Test float version
@@ -46,8 +45,8 @@ def test_melt_fraction():
     mf = calculate_melt_fraction_array(1800. * np.ones(10), 1600., 2000.)
     np.testing.assert_allclose(mf, 0.5)
 
-def test_reverse_melt_fraction():
 
+def test_reverse_melt_fraction():
     from TidalPy.rheology.partial_melt import calculate_temperature_frommelt_array, calculate_temperature_frommelt
 
     # Test float version
@@ -66,8 +65,8 @@ def test_reverse_melt_fraction():
     temp = calculate_temperature_frommelt_array(.5 * np.ones(10), 1600., 2000.)
     np.testing.assert_allclose(temp, 1800.)
 
-def test_all_models():
 
+def test_all_models():
     # TODO: Currently this does not have a nice programic-way to test `all` models (pull in their inputs, etc.)
     #    This should be possible using the partial_melt module's get_partial_melt_model_default_inputs()
 
@@ -94,11 +93,12 @@ def test_all_models():
     assert type(spohn_shear) in [float, np.float, np.float64]
 
     #    Testing `henning` model
-    henn_visco, henn_shear = henning(melt_fraction, temperature, premelt_viscosity, liquid_viscosity, premelt_shear,
-                                     *henning_input)
+    henn_visco, henn_shear = henning(
+        melt_fraction, temperature, premelt_viscosity, liquid_viscosity, premelt_shear,
+        *henning_input
+        )
     assert type(henn_visco) in [float, np.float, np.float64]
     assert type(henn_shear) in [float, np.float, np.float64]
-
 
     # Test Array versions
     from TidalPy.rheology.partial_melt.melting_models import off_array, spohn_array, henning_array
@@ -121,7 +121,9 @@ def test_all_models():
     assert spohn_shear.shape == melt_fraction.shape
 
     #    Testing `henning` model
-    henn_visco, henn_shear = henning_array(melt_fraction, temperature, premelt_viscosity, liquid_viscosity,
-                                           premelt_shear, *henning_input)
+    henn_visco, henn_shear = henning_array(
+        melt_fraction, temperature, premelt_viscosity, liquid_viscosity,
+        premelt_shear, *henning_input
+        )
     assert henn_visco.shape == melt_fraction.shape
     assert henn_shear.shape == melt_fraction.shape

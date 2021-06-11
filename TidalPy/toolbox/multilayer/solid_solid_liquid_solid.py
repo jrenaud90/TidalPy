@@ -2,9 +2,9 @@ from typing import Tuple
 
 import numpy as np
 
-from .odes import dynamic_solid_ode, static_solid_ode, dynamic_liquid_ode, static_liquid_ode
+from .odes import dynamic_liquid_ode, dynamic_solid_ode, static_liquid_ode, static_solid_ode
 from ...constants import G
-from ...exceptions import IntegrationFailed, AttributeNotSetError
+from ...exceptions import AttributeNotSetError, IntegrationFailed
 from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ...tides.multilayer.numerical_int import find_initial_guess
 from ...tides.multilayer.numerical_int.interfaces import find_interface_func
@@ -17,8 +17,10 @@ TidalYSolType = Tuple[Tuple[np.ndarray, np.ndarray, np.ndarray],
 
 
 @njit(cacheable=True)
-def convergence_ssls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surface_solution: np.ndarray,
-                                gravity_array_layer2: np.ndarray, density_array_layer2: np.ndarray) -> np.ndarray:
+def convergence_ssls_static_liq(
+    tidal_y_solutions_by_layer: TidalYSolType, surface_solution: np.ndarray,
+    gravity_array_layer2: np.ndarray, density_array_layer2: np.ndarray
+    ) -> np.ndarray:
     """ Determine the radial solution convergence for a planet with solid-solid-liquid-solid structure.
     A static liquid layer is assumed.
 
@@ -52,11 +54,13 @@ def convergence_ssls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surfa
     gravity_interface_2 = gravity_array_layer2[0]
 
     # Build solution matrix at surface
-    sol_surf_mtx = np.asarray([
-        [tidal_y_layer3[0][1, -1], tidal_y_layer3[1][1, -1], tidal_y_layer3[2][1, -1]],
-        [tidal_y_layer3[0][3, -1], tidal_y_layer3[1][3, -1], tidal_y_layer3[2][3, -1]],
-        [tidal_y_layer3[0][5, -1], tidal_y_layer3[1][5, -1], tidal_y_layer3[2][5, -1]]
-    ])
+    sol_surf_mtx = np.asarray(
+        [
+            [tidal_y_layer3[0][1, -1], tidal_y_layer3[1][1, -1], tidal_y_layer3[2][1, -1]],
+            [tidal_y_layer3[0][3, -1], tidal_y_layer3[1][3, -1], tidal_y_layer3[2][3, -1]],
+            [tidal_y_layer3[0][5, -1], tidal_y_layer3[1][5, -1], tidal_y_layer3[2][5, -1]]
+            ]
+        )
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_layer3_vector = sol_surf_mtx_inv @ surface_solution
 
@@ -99,7 +103,7 @@ def convergence_ssls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surfa
         np.nan * np.ones_like(tidal_y_layer2[0, :]),
         tidal_y_layer2[0, :],
         np.nan * np.ones_like(tidal_y_layer2[0, :])
-    )
+        )
 
     tidal_y_layer2_full = np.vstack(layer2_ys)
 
@@ -120,9 +124,11 @@ def convergence_ssls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surfa
 
 
 @njit(cacheable=True)
-def convergence_ssls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surface_solution: np.ndarray,
-                                 gravity_array_layer2: np.ndarray, density_array_layer2: np.ndarray,
-                                 radius_array_layer2: np.ndarray, orbital_freq: float) -> np.ndarray:
+def convergence_ssls_dynamic_liq(
+    tidal_y_solutions_by_layer: TidalYSolType, surface_solution: np.ndarray,
+    gravity_array_layer2: np.ndarray, density_array_layer2: np.ndarray,
+    radius_array_layer2: np.ndarray, orbital_freq: float
+    ) -> np.ndarray:
     """ Determine the radial solution convergence for a planet with solid-solid-liquid-solid structure.
     A dynamic liquid layer is assumed.
 
@@ -158,11 +164,13 @@ def convergence_ssls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surf
     tidal_y_layer3 = tidal_y_solutions_by_layer[3]
 
     # Build solution matrix at surface
-    sol_surf_mtx = np.asarray([
-        [tidal_y_layer3[0][1, -1], tidal_y_layer3[1][1, -1], tidal_y_layer3[2][1, -1]],
-        [tidal_y_layer3[0][3, -1], tidal_y_layer3[1][3, -1], tidal_y_layer3[2][3, -1]],
-        [tidal_y_layer3[0][5, -1], tidal_y_layer3[1][5, -1], tidal_y_layer3[2][5, -1]]
-    ])
+    sol_surf_mtx = np.asarray(
+        [
+            [tidal_y_layer3[0][1, -1], tidal_y_layer3[1][1, -1], tidal_y_layer3[2][1, -1]],
+            [tidal_y_layer3[0][3, -1], tidal_y_layer3[1][3, -1], tidal_y_layer3[2][3, -1]],
+            [tidal_y_layer3[0][5, -1], tidal_y_layer3[1][5, -1], tidal_y_layer3[2][5, -1]]
+            ]
+        )
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_layer3_vector = sol_surf_mtx_inv @ surface_solution
 
@@ -201,7 +209,7 @@ def convergence_ssls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surf
         np.nan * np.ones_like(tidal_y_layer2[0, :]),
         tidal_y_layer2[2, :],
         tidal_y_layer2[3, :]
-    )
+        )
 
     tidal_y_layer2_full = np.vstack(layer2_ys)
 
@@ -221,20 +229,22 @@ def convergence_ssls_dynamic_liq(tidal_y_solutions_by_layer: TidalYSolType, surf
     return tidal_y
 
 
-def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
-                   density: np.ndarray, gravity: np.ndarray, frequency: float,
-                   interface_1_radius: float, interface_2_radius: float, interface_3_radius: float,
-                   layer_0_static: bool = False, layer_1_static: bool = False,
-                   layer_2_static: bool = True, layer_3_static: bool = False,
-                   surface_boundary_condition: np.ndarray = None,
-                   order_l: int = 2, use_kamata: bool = True,
-                   use_julia: bool = False,
-                   use_numba_integrator: bool = False,
-                   verbose: bool = False,
-                   int_rtol: float = 1.0e-6, int_atol: float = 1.0e-6,
-                   scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-                   non_dimensionalize: bool = False,
-                   planet_bulk_density: float = None) -> Tuple[np.ndarray, np.ndarray]:
+def calculate_ssls(
+    radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
+    density: np.ndarray, gravity: np.ndarray, frequency: float,
+    interface_1_radius: float, interface_2_radius: float, interface_3_radius: float,
+    layer_0_static: bool = False, layer_1_static: bool = False,
+    layer_2_static: bool = True, layer_3_static: bool = False,
+    surface_boundary_condition: np.ndarray = None,
+    order_l: int = 2, use_kamata: bool = True,
+    use_julia: bool = False,
+    use_numba_integrator: bool = False,
+    verbose: bool = False,
+    int_rtol: float = 1.0e-6, int_atol: float = 1.0e-6,
+    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+    non_dimensionalize: bool = False,
+    planet_bulk_density: float = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """ Calculate the radial solution for a planet that has a three layer structure: Solid-Liquid-Solid.
 
     Parameters
@@ -318,8 +328,10 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
             raise AttributeNotSetError('Planet bulk modulus must be provided if non-dimensionalize is True.')
 
         radius, gravity, density, shear_modulus, bulk_modulus, frequency, G_to_use = \
-            non_dimensionalize_physicals(radius, gravity, density, shear_modulus, bulk_modulus, frequency,
-                                         mean_radius=planet_radius, bulk_density=planet_bulk_density)
+            non_dimensionalize_physicals(
+                radius, gravity, density, shear_modulus, bulk_modulus, frequency,
+                mean_radius=planet_radius, bulk_density=planet_bulk_density
+                )
     else:
         G_to_use = G
 
@@ -342,11 +354,15 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
     # Initial (base) guess will be for a solid layer
     initial_value_func = find_initial_guess(is_kamata=use_kamata, is_solid=True, is_dynamic=(not layer_0_static))
     if layer_0_static:
-        initial_value_tuple = initial_value_func(radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                                                 order_l=order_l, G_to_use=G_to_use)
+        initial_value_tuple = initial_value_func(
+            radius[0], shear_modulus[0], bulk_modulus[0], density[0],
+            order_l=order_l, G_to_use=G_to_use
+            )
     else:
-        initial_value_tuple = initial_value_func(radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                                                 frequency, order_l=order_l, G_to_use=G_to_use)
+        initial_value_tuple = initial_value_func(
+            radius[0], shear_modulus[0], bulk_modulus[0], density[0],
+            frequency, order_l=order_l, G_to_use=G_to_use
+            )
 
     # Find the differential equation
     if layer_0_static:
@@ -393,18 +409,24 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
                                      order_l, G_to_use)
 
     # Find interfaces
-    interface_1_func = find_interface_func(lower_layer_is_solid=True, lower_layer_is_static=layer_0_static,
-                                           upper_layer_is_solid=True, upper_layer_is_static=layer_1_static)
+    interface_1_func = find_interface_func(
+        lower_layer_is_solid=True, lower_layer_is_static=layer_0_static,
+        upper_layer_is_solid=True, upper_layer_is_static=layer_1_static
+        )
 
-    interface_2_func = find_interface_func(lower_layer_is_solid=True, lower_layer_is_static=layer_1_static,
-                                           upper_layer_is_solid=False, upper_layer_is_static=layer_2_static,
-                                           liquid_density=density[layer_2_indx][-1],
-                                           interface_gravity=gravity[layer_2_indx][-1])
+    interface_2_func = find_interface_func(
+        lower_layer_is_solid=True, lower_layer_is_static=layer_1_static,
+        upper_layer_is_solid=False, upper_layer_is_static=layer_2_static,
+        liquid_density=density[layer_2_indx][-1],
+        interface_gravity=gravity[layer_2_indx][-1]
+        )
 
-    interface_3_func = find_interface_func(lower_layer_is_solid=False, lower_layer_is_static=layer_2_static,
-                                           upper_layer_is_solid=True, upper_layer_is_static=layer_3_static,
-                                           liquid_density=density[layer_2_indx][-1],
-                                           interface_gravity=gravity[layer_2_indx][-1])
+    interface_3_func = find_interface_func(
+        lower_layer_is_solid=False, lower_layer_is_static=layer_2_static,
+        upper_layer_is_solid=True, upper_layer_is_static=layer_3_static,
+        liquid_density=density[layer_2_indx][-1],
+        interface_gravity=gravity[layer_2_indx][-1]
+        )
 
     solutions_by_layer = [list(), list(), list(), list()]
     for layer_i in range(4):
@@ -492,15 +514,19 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
 
                 # TODO: The copy below makes this work for numba on multiprocessing due to contiguous arrays... wtf!
                 ts, ys, status, message, success = \
-                    rk_integrator(derivatives, radial_span, np.copy(initial_values),
-                                  args=derivative_inputs,
-                                  rk_method=rk_method,
-                                  t_eval_N=radial_solve.size, t_eval_log=False, use_teval=True,
-                                  rtol=int_rtol, atol=int_atol, verbose=False)
+                    rk_integrator(
+                        derivatives, radial_span, np.copy(initial_values),
+                        args=derivative_inputs,
+                        rk_method=rk_method,
+                        t_eval_N=radial_solve.size, t_eval_log=False, use_teval=True,
+                        rtol=int_rtol, atol=int_atol, verbose=False
+                        )
 
                 if status != 0:
-                    raise IntegrationFailed(f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
-                                            f'\n\t{message}')
+                    raise IntegrationFailed(
+                        f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
+                        f'\n\t{message}'
+                        )
 
                 solutions_by_layer[layer_i].append(ys)
 
@@ -515,12 +541,15 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
                 solution = solve_ivp(
-                        derivatives, radial_span, initial_values, t_eval=radial_solve, args=derivative_inputs,
-                        method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
+                    derivatives, radial_span, initial_values, t_eval=radial_solve, args=derivative_inputs,
+                    method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
+                    )
 
                 if solution.status != 0:
-                    raise IntegrationFailed(f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
-                                            f'\n\t{solution.message}')
+                    raise IntegrationFailed(
+                        f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
+                        f'\n\t{solution.message}'
+                        )
 
                 solutions_by_layer[layer_i].append(solution.y)
 
@@ -538,13 +567,17 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
 
     if layer_2_static:
         tidal_y = \
-            convergence_ssls_static_liq(solutions_by_layer, surface_boundary_condition,
-                                        gravity[layer_2_indx], density[layer_2_indx])
+            convergence_ssls_static_liq(
+                solutions_by_layer, surface_boundary_condition,
+                gravity[layer_2_indx], density[layer_2_indx]
+                )
     else:
         tidal_y = \
-            convergence_ssls_dynamic_liq(solutions_by_layer, surface_boundary_condition,
-                                         gravity[layer_2_indx], density[layer_2_indx],
-                                         radius[layer_2_indx], frequency)
+            convergence_ssls_dynamic_liq(
+                solutions_by_layer, surface_boundary_condition,
+                gravity[layer_2_indx], density[layer_2_indx],
+                radius[layer_2_indx], frequency
+                )
 
     if verbose:
         print('Done!')
@@ -557,14 +590,14 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
     # Now that tidal_y has been found, we can find the radial derivatives which are used in some calculations.
     tidal_y_derivative = np.zeros_like(tidal_y)
     tidal_y_derivative[:, layer_0_indx] = np.stack(
-            radial_derivative_layer_0(radius[layer_0_indx], tidal_y[:, layer_0_indx], *derivative_inputs_layer_0)
-    )
+        radial_derivative_layer_0(radius[layer_0_indx], tidal_y[:, layer_0_indx], *derivative_inputs_layer_0)
+        )
     tidal_y_derivative[:, layer_1_indx] = np.stack(
-            radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx], *derivative_inputs_layer_1)
-    )
+        radial_derivative_layer_1(radius[layer_1_indx], tidal_y[:, layer_1_indx], *derivative_inputs_layer_1)
+        )
     tidal_y_derivative[:, layer_3_indx] = np.stack(
-            radial_derivative_layer_3(radius[layer_3_indx], tidal_y[:, layer_3_indx], *derivative_inputs_layer_3)
-    )
+        radial_derivative_layer_3(radius[layer_3_indx], tidal_y[:, layer_3_indx], *derivative_inputs_layer_3)
+        )
     # Layer 2 is liquid so that complicates the calculation slightly
     if layer_2_static:
         # TODO: This is not correct, we could pull out dy_5/dr but it is not used in subsequent calculations,
@@ -577,8 +610,8 @@ def calculate_ssls(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: 
         tidal_y_liq[2, :] = tidal_y[4, layer_2_indx]
         tidal_y_liq[3, :] = tidal_y[5, layer_2_indx]
         liq_derivatives = np.stack(
-                radial_derivative_layer_2(radius[layer_2_indx], tidal_y_liq, *derivative_inputs_layer_2)
-        )
+            radial_derivative_layer_2(radius[layer_2_indx], tidal_y_liq, *derivative_inputs_layer_2)
+            )
         tidal_y_derivative[0, layer_2_indx] = liq_derivatives[0, :]
         tidal_y_derivative[1, layer_2_indx] = liq_derivatives[1, :]
         tidal_y_derivative[4, layer_2_indx] = liq_derivatives[2, :]

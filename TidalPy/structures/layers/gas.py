@@ -5,8 +5,8 @@ from .basic import LayerBase
 if TYPE_CHECKING:
     from ..world_types import GasGiantLayeredWorld
 
-class GasLayer(LayerBase):
 
+class GasLayer(LayerBase):
     """" GasLayer
     Layer object used to construct gas giant or ice giant planets that contain a significant gas layer. Currently,
         these layers do not do anything over the base layer class but allow for future functionality.
@@ -21,8 +21,10 @@ class GasLayer(LayerBase):
 
     layer_class = 'gas'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'GasGiantLayeredWorld', layer_config: dict,
-                 is_top_layer: bool, initialize: bool = True):
+    def __init__(
+        self, layer_name: str, layer_index: int, world: 'GasGiantLayeredWorld', layer_config: dict,
+        is_top_layer: bool, initialize: bool = True
+        ):
         """ Gas layer constructor
 
         Parameters

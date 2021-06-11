@@ -8,7 +8,7 @@ complex_compliance_defaults = {
         'alpha'                  : 1. / 3.,
         'zeta'                   : 1.,
         'critical_freq'          : 2. * np.pi / (86400. * 3.)
-    },
+        },
     'rock': {
         'model'                  : 'maxwell',
         'voigt_compliance_offset': .2,
@@ -16,7 +16,7 @@ complex_compliance_defaults = {
         'alpha'                  : 1. / 3.,
         'zeta'                   : 1.,
         'critical_freq'          : 2. * np.pi / (86400. * 3.)
-    },
+        },
     'iron': {
         'model'                  : 'maxwell',
         'voigt_compliance_offset': .2,
@@ -24,5 +24,5 @@ complex_compliance_defaults = {
         'alpha'                  : 1. / 3.,
         'zeta'                   : 1.,
         'critical_freq'          : 2. * np.pi / (86400. * 3.)
+        }
     }
-}

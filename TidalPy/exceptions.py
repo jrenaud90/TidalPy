@@ -46,6 +46,7 @@ class BadArrayShape(TidalPyValueException):
     default_message = 'TidalPy requires certain arrays maintain the same shape for all layers and planets. ' \
                       'It has found an array with an unexpected shape.'
 
+
 class BadValueError(TidalPyValueException):
     default_message = 'An unrealistic value was encountered.'
 
@@ -82,6 +83,7 @@ class ReinitNotAllowedError(ReinitError):
 class AttributeException(TidalPyOOPException):
     default_message = 'There was a problem with one or more class attributes or methods.'
 
+
 # # Property Handling
 class ImproperPropertyHandling(AttributeException):
     default_message = 'The attribute you are attempting to set must be set by a different class or method.'
@@ -91,26 +93,32 @@ class IncorrectMethodToSetStateProperty(ImproperPropertyHandling):
     default_message = "This particular state property is set by a different method than the one attempted. It may be " \
                       "set by a different object entirely."
 
+
 class InitiatedPropertyChangeError(ImproperPropertyHandling):
     default_message = "Attempted to change an initiated class property. These are set when an instance is created and " \
                       "can only be changed by that object's methods (or not at all). Try to make a new instance or " \
                       "use the object's methods instead of changing its initiated properties."
 
+
 class ConfigPropertyChangeError(ImproperPropertyHandling):
     default_message = "Attempted to change a configuration class property. These must be changed in the " \
                       "world/layer's configuration (`<instance>.config`) followed by a call to its `reinit` method."
+
 
 class ImproperGeometryPropertyHandling(ConfigPropertyChangeError):
     default_message = 'The attribute you are attempting to set must be set by the set_geometry method ' \
                       'or in the configurations.'
 
+
 class OuterscopePropertySetError(ImproperPropertyHandling):
     default_message = "Attempted to set a property of an object from a separate object that is inside the scope of " \
                       "the first. Try to set this property to the outer object."
 
+
 class InnerscopePropertySetError(ImproperPropertyHandling):
     default_message = "Attempted to set a property of an object that is inside the scope of the object where the " \
                       "setter was called from. Try to set this property to the object of interest."
+
 
 # # Attribute Issues
 class MissingAttributeError(AttributeException):
@@ -154,6 +162,7 @@ class ParameterMissingError(ParameterException):
     default_message = 'One or more parameter(s) or configuration(s) are missing and have no defaults. ' \
                       'Check that keys have correct spelling and capitalization.'
 
+
 class ParameterTypeError(ParameterException):
     default_message = 'One or more parameters were found to have an incorrect type.'
 
@@ -178,6 +187,7 @@ class TidalPyWorldError(TidalPyOOPException):
 class UnknownWorld(TidalPyWorldError):
     default_message = 'User provided world name does not match any prebuilt world configs. ' \
                       'Check name or provide a manual configuration dictionary.'
+
 
 class UnknownWorldType(TidalPyWorldError):
     default_message = 'A world type was encountered that is either unknown, contains a typo, or is not yet implemented.'
@@ -211,4 +221,3 @@ class IntegrationTimeOut(TidalPyIntegrationException):
 
 class IntegrationFailed(TidalPyIntegrationException):
     default_message = 'Integration was not successful'
-

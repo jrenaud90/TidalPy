@@ -2,13 +2,14 @@ import pytest
 
 import TidalPy
 from TidalPy.exceptions import ModelException
-from TidalPy.utilities.classes.model.functionalUtils import parse_model_docstring, is_function
+from TidalPy.utilities.classes.model.functionalUtils import is_function, parse_model_docstring
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
-def test_parse_model_docstring():
 
+def test_parse_model_docstring():
     def func_1():
         """ This is a Test. This is a Test.
         ----
@@ -20,7 +21,6 @@ def test_parse_model_docstring():
         -------
         """
         return None
-
 
     const_args, live_args = parse_model_docstring(func_1)
     assert const_args == ('arg1', 'arg2', 'arg3')
@@ -109,7 +109,6 @@ def test_parse_model_docstring():
 
 
 def test_is_function():
-
     # First check for things that are not functions
     import numpy as np
     assert is_function('') == False
@@ -124,5 +123,6 @@ def test_is_function():
     # Now check for legitimate functions
     def f():
         return 1
+
     assert is_function(f) == True
     assert is_function(njit(f)) == True

@@ -1,7 +1,7 @@
 import numpy as np
 
 import TidalPy
-from TidalPy import build_world, build_from_world
+from TidalPy import build_from_world, build_world
 from TidalPy.structures.orbit import PhysicsOrbit
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -10,7 +10,7 @@ TidalPy.reinit()
 
 star_config_ = {
     'tides_on': False,
-}
+    }
 star_base = build_world('55cnc')
 
 config_ = {
@@ -21,27 +21,27 @@ config_ = {
         'eccentricity_truncation_lvl': 2,
         'max_tidal_order_l'          : 2,
         'obliquity_tides_on'         : True
-    },
-    "layers": {
-        "Core": {
+        },
+    "layers"         : {
+        "Core"  : {
             "is_tidal": False,
             "rheology": {
                 'complex_compliance': {
                     'model': 'maxwell'
+                    }
                 }
-            }
-        },
+            },
         "Mantle": {
             "is_tidal": True
+            }
         }
     }
-}
 io_base = build_world('io')
+
 
 def test_single_body_derivative_calc():
     """ This test will load a tidally active body and a tidally inactive host, set the temperatures and orbit then
         check that single body tidal calculations are occurring as expected. """
-
 
     star_to_use = build_from_world(star_base, new_config=star_config_)
     world_to_use = build_from_world(io_base, new_config=config_, new_name='io_world')
@@ -86,8 +86,10 @@ def test_single_body_derivative_calc():
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
     orb_period = np.linspace(10., 50., 10)
-    world_to_use.set_state(orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
-                           spin_period=0.5 * orb_period)
+    world_to_use.set_state(
+        orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
+        spin_period=0.5 * orb_period
+        )
     # For a world in synchronous rotation the spin period should equal the new orbital period.
     assert not world_to_use.is_spin_sync
     assert world_to_use.tides_on
@@ -107,6 +109,7 @@ def test_single_body_derivative_calc():
     assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) == np.ndarray
     assert type(orbit.get_eccentricity_time_derivative(world_to_use)) == np.ndarray
     assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) == np.ndarray
+
 
 def test_dual_body_derivative_calc():
     """ This test will load a tidally active host and body, set the temperatures and orbits then check that dual body
@@ -160,8 +163,10 @@ def test_dual_body_derivative_calc():
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
     orb_period = np.linspace(10., 50., 10)
-    world_to_use.set_state(orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
-                    spin_period=0.5 * orb_period)
+    world_to_use.set_state(
+        orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
+        spin_period=0.5 * orb_period
+        )
     host_to_use.set_state(obliquity=np.radians(5.), spin_period=0.2 * orb_period)
     # For a world in synchronous rotation the spin period should equal the new orbital period.
     for world_to_check in [host_to_use, world_to_use]:
@@ -183,6 +188,7 @@ def test_dual_body_derivative_calc():
     assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) == np.ndarray
     assert type(orbit.get_eccentricity_time_derivative(world_to_use)) == np.ndarray
     assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) == np.ndarray
+
 
 def test_dual_body_derivative_calc_temperature_array():
     """ This test will load a tidally active host and body, set the temperatures and orbits then check that dual body

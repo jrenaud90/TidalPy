@@ -3,7 +3,7 @@ import copy
 import json5
 
 from ... import log, world_config_loc
-from ...utilities.io.pathing import get_all_files_of_type\
+from ...utilities.io.pathing import get_all_files_of_type
 
 
 def clean_world_config(world_config: dict, make_copy: bool = True):
@@ -49,6 +49,7 @@ def clean_world_config(world_config: dict, make_copy: bool = True):
 
     return cleaned_dict
 
+
 def check_for_duplicate_worlds(world_configs: dict):
     """ Check for duplicate world_types in the world config listing.
 
@@ -73,12 +74,14 @@ def check_for_duplicate_worlds(world_configs: dict):
     for planet_name in potential_dups:
         log.warning(f'Possible duplicate saved planet found: {planet_name}. Ensure you use the correct subscript.')
 
+
 # Find all planet configurations and import their config files
 # Locate all planet configurations
 known_worlds_files = get_all_files_of_type(world_config_loc, ['cfg', 'json', 'json5'])
 known_worlds_cfg = dict()
 check_for_duplicate_worlds(known_worlds_cfg)
 _configs_loaded = False
+
 
 def _cfgpath_to_json():
     global known_worlds_cfg
@@ -97,6 +100,7 @@ def _cfgpath_to_json():
                     known_worlds_cfg[config_name] = known_worlds_cfg[world_name]
 
     _configs_loaded = True
+
 
 def get_world_configs():
     global known_planets_cfg

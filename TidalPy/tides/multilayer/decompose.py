@@ -11,12 +11,14 @@ ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/
 import numpy as np
 
 from ...utilities.performance import njit
-from ...utilities.types import FloatArray
+from ...utilities.types import NumArray
 
 
 @njit(cacheable=True)
-def decompose(tidal_y: np.ndarray, tidal_y_derivative: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
-              complex_shear_modulus: np.ndarray, bulk_modulus: FloatArray, order_l: int = 2):
+def decompose(
+    tidal_y: np.ndarray, tidal_y_derivative: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
+    complex_shear_modulus: np.ndarray, bulk_modulus: NumArray, order_l: int = 2
+    ):
     """ Decomposes the tidal solution (y) into useful properties.
 
     Note: Both the radius and tidal_y must be provided with length N (number of shells), but shear and bulk modulus
@@ -38,7 +40,7 @@ def decompose(tidal_y: np.ndarray, tidal_y_derivative: np.ndarray, radius_array:
         Acceleration due to gravity at the top of each shell within the world [m s-2].
     complex_shear_modulus : np.ndarray
         The complex shear modulus as found by the world or layer's rheology (N-1) [Pa].
-    bulk_modulus : FloatArray
+    bulk_modulus : NumArray
         The bulk modulus of the world [Pa]. Can be provided as a float (constant for the whole world) or as an array.
         If provided as an array, then it must have the same shape as the radius array (N-1).
         Note from ID:
@@ -81,7 +83,7 @@ def decompose(tidal_y: np.ndarray, tidal_y_derivative: np.ndarray, radius_array:
     #     ID flips y2 and y3 are inverted here, but we have already done that in propagate.py
     shear_term1 = \
         (4. / 3.) * radius**2 / (np.abs(bulk_modulus + (4. / 3.) * complex_shear_modulus)**2) * \
-        (np.abs(y2 - (((bulk_modulus - (2. / 3.) * complex_shear_modulus) / radius) * y1mllp1y3) )**2)
+        (np.abs(y2 - (((bulk_modulus - (2. / 3.) * complex_shear_modulus) / radius) * y1mllp1y3))**2)
 
     shear_term2 = \
         - (4. / 3.) * radius * np.real(dy1_dr_conj * y1mllp1y3)

@@ -1,8 +1,8 @@
 rheology_defaults = {
-    'ice': {
-    },
+    'ice' : {
+        },
     'rock': {
-    },
+        },
     'iron': {
+        }
     }
-}

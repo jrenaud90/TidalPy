@@ -10,8 +10,10 @@ def norm(x: np.ndarray) -> np.ndarray:
 
 
 @njit(cacheable=True)
-def select_initial_step(func: callable, t0: float, y0: np.ndarray, f0: np.ndarray, direction: float, order: float,
-                        rtol: float, atol: float) -> float:
+def select_initial_step(
+    func: callable, t0: float, y0: np.ndarray, f0: np.ndarray, direction: float, order: float,
+    rtol: float, atol: float
+    ) -> float:
     """Empirically select a good initial step.
     The algorithm is described in [1]_.
     Parameters

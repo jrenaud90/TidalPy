@@ -8,12 +8,11 @@ import numpy as np
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ..helpers.orbit_config import pull_out_orbit_from_config
-from ... import debug_mode, use_disk, tidalpy_loc, configurations, log
-from ...exceptions import (ImproperPropertyHandling, UnusualRealValueError,
-                           AttributeNotSetError, IOException, ConfigPropertyChangeError,
-                           IncorrectMethodToSetStateProperty, UnknownModelError, InitiatedPropertyChangeError,
-                           OuterscopePropertySetError)
-from ...stellar import calc_equilibrium_temperature, equilibrium_insolation_functions, EquilibFuncType
+from ... import configurations, debug_mode, log, tidalpy_loc, use_disk
+from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
+                           IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError,
+                           UnknownModelError, UnusualRealValueError)
+from ...stellar import EquilibFuncType, calc_equilibrium_temperature, equilibrium_insolation_functions
 from ...toolbox.conversions import days2rads, rads2days
 from ...utilities.graphics import geotherm_plot
 from ...utilities.types import FloatArray, NoneType
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
 
 
 class BaseWorld(PhysicalObjSpherical):
-
     """ WorldBase Class - Base class used to build other world methods.
 
 
@@ -149,9 +147,11 @@ class BaseWorld(PhysicalObjSpherical):
             # Update orbit with any new configurations
             # TODO: Isn't this done in the orbit class?
             orbital_freq, semi_major_axis, eccentricity = pull_out_orbit_from_config(self.config)
-            self.orbit.set_state(self, eccentricity=eccentricity,
-                                 orbital_frequency=orbital_freq, semi_major_axis=semi_major_axis,
-                                 call_orbit_change=False)
+            self.orbit.set_state(
+                self, eccentricity=eccentricity,
+                orbital_frequency=orbital_freq, semi_major_axis=semi_major_axis,
+                call_orbit_change=False
+                )
 
     def update_surface_temperature(self, called_from_cooling: bool = False):
         """ Surface temperature has changed - Perform any calculations that may have also changed.
@@ -168,8 +168,10 @@ class BaseWorld(PhysicalObjSpherical):
 
         if self.insolation_heating is not None:
             self._surface_temperature = \
-                calc_equilibrium_temperature(self.insolation_heating, self.radius,
-                                             internal_heating, self.emissivity)
+                calc_equilibrium_temperature(
+                    self.insolation_heating, self.radius,
+                    internal_heating, self.emissivity
+                    )
 
         self.surface_temperature_changed(called_from_cooling=called_from_cooling)
 
@@ -181,9 +183,11 @@ class BaseWorld(PhysicalObjSpherical):
 
         # Most updated_time functionality implemented by child methods.
 
-    def orbit_spin_changed(self, orbital_freq_changed: bool = False, spin_freq_changed: bool = False,
-                           eccentricity_changed: bool = False, obliquity_changed: bool = False,
-                           call_orbit_dissipation: bool = True):
+    def orbit_spin_changed(
+        self, orbital_freq_changed: bool = False, spin_freq_changed: bool = False,
+        eccentricity_changed: bool = False, obliquity_changed: bool = False,
+        call_orbit_dissipation: bool = True
+        ):
         """ The world's orbit, spin, and/or obliquity has changed. Make any necessary updates """
 
         log.debug(f'Orbit, spin, and/or obliquity changed called for {self}.')
@@ -224,17 +228,20 @@ class BaseWorld(PhysicalObjSpherical):
         self._surface_temperature = None
 
         # Setup functions and models
-        self._equilibrium_insolation_func = equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
+        self._equilibrium_insolation_func = equilibrium_insolation_functions[
+            self.config['equilibrium_insolation_model']]
 
         # Reset any orbits this world is connected to
         if not preserve_orbit and self.orbit is not None:
             # Purge orbital properties for this world from the Orbit class.
             self.orbit.clear_state(clear_all=False, clear_specific=self, clear_world_state=False)
 
-    def set_state(self, spin_frequency: FloatArray = None, spin_period: FloatArray = None,
-                  obliquity: FloatArray = None, time: FloatArray = None,
-                  orbital_frequency: FloatArray = None, orbital_period: FloatArray = None,
-                  semi_major_axis: FloatArray = None, eccentricity: FloatArray = None, set_by_world: bool = False):
+    def set_state(
+        self, spin_frequency: FloatArray = None, spin_period: FloatArray = None,
+        obliquity: FloatArray = None, time: FloatArray = None,
+        orbital_frequency: FloatArray = None, orbital_period: FloatArray = None,
+        semi_major_axis: FloatArray = None, eccentricity: FloatArray = None, set_by_world: bool = False
+        ):
         """ Set multiple orbital parameters at once, this reduces the number of calls to self.orbit_change
 
         This contains a wrapper to the orbit class method set_state. It extends that function by including the spin
@@ -297,9 +304,11 @@ class BaseWorld(PhysicalObjSpherical):
         # Check if any orbital updates
         if any((new_orbital_frequency, new_orbital_period, new_semi_major_axis, new_eccentricity)):
             # Tell orbit to update the state of this world.
-            self.orbit.set_state(self, eccentricity=eccentricity, semi_major_axis=semi_major_axis,
-                                 orbital_frequency=orbital_frequency, orbital_period=orbital_period,
-                                 set_by_world=True)
+            self.orbit.set_state(
+                self, eccentricity=eccentricity, semi_major_axis=semi_major_axis,
+                orbital_frequency=orbital_frequency, orbital_period=orbital_period,
+                set_by_world=True
+                )
 
             if new_orbital_period and not new_orbital_frequency:
                 # A change to the orbital period will also change the spin frequency
@@ -319,13 +328,17 @@ class BaseWorld(PhysicalObjSpherical):
                 self.time_changed()
 
             if any((new_spin_frequency, new_spin_period, new_orbital_frequency, new_obliquity, new_eccentricity)):
-                self.orbit_spin_changed(spin_freq_changed=new_spin_frequency,
-                                        orbital_freq_changed=new_orbital_frequency,
-                                        obliquity_changed=new_obliquity,
-                                        eccentricity_changed=new_eccentricity)
+                self.orbit_spin_changed(
+                    spin_freq_changed=new_spin_frequency,
+                    orbital_freq_changed=new_orbital_frequency,
+                    obliquity_changed=new_obliquity,
+                    eccentricity_changed=new_eccentricity
+                    )
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
-                     update_state_geometry: bool = True, build_slices: bool = True):
+    def set_geometry(
+        self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
+        update_state_geometry: bool = True, build_slices: bool = True
+        ):
         """ Calculates and sets the world's physical parameters based on user provided input.
 
         Assumptions
@@ -352,8 +365,10 @@ class BaseWorld(PhysicalObjSpherical):
 
         # Thickness of a world will always be equal to its radius.
         del thickness
-        super().set_geometry(radius, mass, thickness=radius, mass_below=0.,
-                             update_state_geometry=update_state_geometry, build_slices=build_slices)
+        super().set_geometry(
+            radius, mass, thickness=radius, mass_below=0.,
+            update_state_geometry=update_state_geometry, build_slices=build_slices
+            )
 
     def set_time(self, time: FloatArray, call_updates: bool = True):
         """ Set the time of the world.
@@ -386,8 +401,10 @@ class BaseWorld(PhysicalObjSpherical):
 
         if debug_mode:
             if np.any(np.abs(spin_frequency) > 1.e-3):
-                raise UnusualRealValueError(f'Spin-frequency should be entered in units of [rads s-1]. '
-                                            f'|{spin_frequency}| seems very large.')
+                raise UnusualRealValueError(
+                    f'Spin-frequency should be entered in units of [rads s-1]. '
+                    f'|{spin_frequency}| seems very large.'
+                    )
 
         self._spin_frequency = spin_frequency
         self._spin_period = rads2days(spin_frequency)
@@ -431,8 +448,10 @@ class BaseWorld(PhysicalObjSpherical):
 
         if debug_mode:
             if np.any(obliquity > 7.):
-                raise UnusualRealValueError('Obliquity should be entered in radians. '
-                                            f'A value of {np.max(obliquity)} seems unusually large.')
+                raise UnusualRealValueError(
+                    'Obliquity should be entered in radians. '
+                    f'A value of {np.max(obliquity)} seems unusually large.'
+                    )
 
         self._obliquity = obliquity
         if call_updates:
@@ -489,9 +508,11 @@ class BaseWorld(PhysicalObjSpherical):
         figure: matplotlib.pyplot.figure
         """
 
-        figure = geotherm_plot(self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
-                               bulk_density=self.density_bulk, planet_name=self.name,
-                               planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show)
+        figure = geotherm_plot(
+            self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
+            bulk_density=self.density_bulk, planet_name=self.name,
+            planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show
+            )
 
         if return_fig:
             return figure
@@ -513,8 +534,10 @@ class BaseWorld(PhysicalObjSpherical):
         """
 
         if not use_disk:
-            raise IOException("User attempted to save a world's configurations when TidalPy has been set to "
-                              "not use_disk")
+            raise IOException(
+                "User attempted to save a world's configurations when TidalPy has been set to "
+                "not use_disk"
+                )
 
         log.debug(f'Saving world configurations for {self}.')
 
@@ -531,8 +554,10 @@ class BaseWorld(PhysicalObjSpherical):
             save_locales.append(os.getcwd())
 
         # No need to save to run dir as that will automatically happen when the planet is killed.
-        self.save_config(save_to_run_dir=False, additional_save_dirs=save_locales,
-                         overwrite=configurations['overwrite_configs'])
+        self.save_config(
+            save_to_run_dir=False, additional_save_dirs=save_locales,
+            overwrite=configurations['overwrite_configs']
+            )
 
     def kill_world(self):
         """ Performs saving tasks when the world is about to be deleted due to end of run
@@ -549,11 +574,11 @@ class BaseWorld(PhysicalObjSpherical):
                 tidalpy_planet_cfg_dir = [planet_config_loc]
             else:
                 tidalpy_planet_cfg_dir = list()
-            self.save_config(save_to_run_dir=configurations['auto_save_planet_config_to_rundir'],
-                             additional_save_dirs=tidalpy_planet_cfg_dir,
-                             overwrite=configurations['overwrite_configs'])
-
-
+            self.save_config(
+                save_to_run_dir=configurations['auto_save_planet_config_to_rundir'],
+                additional_save_dirs=tidalpy_planet_cfg_dir,
+                overwrite=configurations['overwrite_configs']
+                )
 
     # # Initialized properties
     @property
@@ -564,7 +589,6 @@ class BaseWorld(PhysicalObjSpherical):
     @name.setter
     def name(self, value):
         raise InitiatedPropertyChangeError
-
 
     # # Configuration properties
     @property
@@ -612,7 +636,6 @@ class BaseWorld(PhysicalObjSpherical):
     @internal_to_surf_heating_frac.setter
     def internal_to_surf_heating_frac(self, value):
         raise ConfigPropertyChangeError
-
 
     # # State properties
     @property
@@ -683,7 +706,6 @@ class BaseWorld(PhysicalObjSpherical):
     def insolation_heating(self, new_insolation_heating: FloatArray):
         self.set_insolation_heating(new_insolation_heating)
 
-
     # Outer-scope properties
     # # Orbit Class
     @property
@@ -724,7 +746,9 @@ class BaseWorld(PhysicalObjSpherical):
     def orbital_frequency(self, new_orbital_frequency: FloatArray):
 
         if self.orbit is None:
-            raise AttributeNotSetError(f'Can not set orbital frequency until an Orbit class has been applied to {self}.')
+            raise AttributeNotSetError(
+                f'Can not set orbital frequency until an Orbit class has been applied to {self}.'
+                )
 
         self.orbit.set_orbital_frequency(self, new_orbital_frequency)
 
@@ -754,8 +778,10 @@ class BaseWorld(PhysicalObjSpherical):
     def eccentricity(self, new_eccentricity: FloatArray):
 
         if self.orbit is None:
-            raise AttributeNotSetError(f'Can not set orbital eccentricity until an Orbit class has been applied '
-                                       f'to {self}.')
+            raise AttributeNotSetError(
+                f'Can not set orbital eccentricity until an Orbit class has been applied '
+                f'to {self}.'
+                )
 
         self.orbit.set_eccentricity(self, new_eccentricity)
 
@@ -770,8 +796,10 @@ class BaseWorld(PhysicalObjSpherical):
     def stellar_eccentricity(self, new_eccentricity: FloatArray):
 
         if self.orbit is None:
-            raise AttributeNotSetError(f'Can not set the stellar eccentricity until an Orbit class has been applied '
-                                       f'to {self}.')
+            raise AttributeNotSetError(
+                f'Can not set the stellar eccentricity until an Orbit class has been applied '
+                f'to {self}.'
+                )
         self.orbit.set_stellar_eccentricity(self, new_eccentricity)
 
     @property
@@ -785,8 +813,10 @@ class BaseWorld(PhysicalObjSpherical):
     def stellar_distance(self, new_distance: FloatArray):
 
         if self.orbit is None:
-            raise AttributeNotSetError(f'Can not set the stellar distance until an Orbit class has been applied '
-                                       f'to {self}.')
+            raise AttributeNotSetError(
+                f'Can not set the stellar distance until an Orbit class has been applied '
+                f'to {self}.'
+                )
         self.orbit.set_stellar_distance(self, new_distance)
 
     @property
@@ -820,7 +850,6 @@ class BaseWorld(PhysicalObjSpherical):
             return None
         else:
             return self.orbit.get_orbital_motion_time_derivative(self)
-
 
     # # Aliased properties
     @property
@@ -858,7 +887,6 @@ class BaseWorld(PhysicalObjSpherical):
     @orbital_motion.setter
     def orbital_motion(self, value):
         self.orbital_frequency = value
-
 
     # Dunder properties
     def __str__(self):

@@ -1,13 +1,13 @@
-from typing import TYPE_CHECKING, Union, List
+from typing import List, TYPE_CHECKING, Union
 
 import numpy as np
 
-from . import known_models, known_model_const_args, known_model_live_args
+from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import known_isotope_data, radiogenics_defaults
 from .. import log
-from ..exceptions import (ParameterMissingError, UnknownModelError, AttributeNotSetError,
-                          IncorrectAttributeType, OuterscopePropertySetError, IncorrectMethodToSetStateProperty,
-                          ConfigPropertyChangeError)
+from ..exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectAttributeType,
+                          IncorrectMethodToSetStateProperty, OuterscopePropertySetError, ParameterMissingError,
+                          UnknownModelError)
 from ..utilities.classes.model import LayerModelHolder
 from ..utilities.types import FloatArray, NoneType
 
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 class Radiogenics(LayerModelHolder):
-
     """ Radiogenic Model Class - Child of LayerModelHolder Class
 
     Radiogenic model provides the functionality to calculate a layer's heating due to radioactive isotopes based on
@@ -29,8 +28,10 @@ class Radiogenics(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = 'radiogenics'
 
-    def __init__(self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
-                 initialize: bool = True):
+    def __init__(
+        self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
+        initialize: bool = True
+        ):
         """ Constructor for the Radiogenics model
 
         Parameters
@@ -152,7 +153,6 @@ class Radiogenics(LayerModelHolder):
             self.config['iso_halflives'] = self.isos_halflife
             self.config['iso_heat_production'] = self.isos_hpr
 
-
         # Call the parent's reinit right away
         super().reinit(initial_init)
 
@@ -192,11 +192,15 @@ class Radiogenics(LayerModelHolder):
         # Value checks
         if self.model == 'isotope':
             if abs(self.time[-1] / max(self.isos_halflife)) > 1.0e4:
-                log.warning('Time is much larger than radiogenic half-life - Check units of the time array and half lives.')
+                log.warning(
+                    'Time is much larger than radiogenic half-life - Check units of the time array and half lives.'
+                    )
         elif self.model == 'fixed':
             if abs(self.time[-1] / max(self.config['average_half_life'])) > 1.0e4:
-                log.warning('Time is much larger than the fixed-average radiogenic half-life - '
-                         'Check units of the time array and fixed half-life.')
+                log.warning(
+                    'Time is much larger than the fixed-average radiogenic half-life - '
+                    'Check units of the time array and fixed half-life.'
+                    )
 
         # Calculate and perform more value checks
         radiogenic_heating = self._calculate()
@@ -283,7 +287,6 @@ class Radiogenics(LayerModelHolder):
     def radiogenic_layer_mass_frac(self, value):
         raise ConfigPropertyChangeError
 
-
     # # State properties
     @property
     def heating(self) -> FloatArray:
@@ -295,7 +298,6 @@ class Radiogenics(LayerModelHolder):
         # TODO We could have the user set the radiogenic heating and then this setter could call the layer's
         #  thermal update.
         raise IncorrectMethodToSetStateProperty
-
 
     # # Outer-scope properties
     @property

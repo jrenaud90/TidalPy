@@ -1,12 +1,11 @@
-from typing import Tuple, Dict, Union, Iterator
+from typing import Dict, Iterator, Tuple, Union
 
 import numpy as np
 
 from .tidal import TidalWorld
-from ..layers import PhysicsLayer, layers_class_by_world_class, LayerType, GasLayer, BurnmanLayer
+from ..layers import BurnmanLayer, GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
 from ... import log
-from ...exceptions import ParameterMissingError, TidalPyWorldError, MissingArgumentError, \
-    InitiatedPropertyChangeError
+from ...exceptions import (InitiatedPropertyChangeError, MissingArgumentError, ParameterMissingError, TidalPyWorldError)
 from ...tides.methods import GlobalApproxTides, LayeredTides
 from ...utilities.numpy_helper import find_nearest
 from ...utilities.types import FloatArray, NoneType
@@ -15,7 +14,6 @@ BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^'
 
 
 class LayeredWorld(TidalWorld):
-
     """ LayeredWorld - Construct tidal world_types that have layers.
 
 
@@ -46,8 +44,10 @@ class LayeredWorld(TidalWorld):
         """
 
         if 'layers' not in world_config:
-            log.error("Layered world's configurations do not contain layer information. "
-                      "Construction can not be completed.")
+            log.error(
+                "Layered world's configurations do not contain layer information. "
+                "Construction can not be completed."
+                )
             raise ParameterMissingError("Layered world's configurations do not contain layer information.")
 
         super().__init__(world_config, name, initialize=False)
@@ -101,8 +101,10 @@ class LayeredWorld(TidalWorld):
         if initialize:
             self.reinit(initial_init=True, setup_simple_tides=False, reinit_layers=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
-               set_by_burnman: bool = False, reinit_layers: bool = True):
+    def reinit(
+        self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
+        set_by_burnman: bool = False, reinit_layers: bool = True
+        ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
         This must be called at least once before an instance can be used. The constructor will automatically make an
@@ -123,9 +125,11 @@ class LayeredWorld(TidalWorld):
         """
 
         # Don't let parent methods initialize geometry since a LayeredWorld's mass is based on its layers' masses
-        super().reinit(initial_init=initial_init, reinit_geometry=False,
-                       set_by_burnman=set_by_burnman,
-                       setup_simple_tides=False)
+        super().reinit(
+            initial_init=initial_init, reinit_geometry=False,
+            set_by_burnman=set_by_burnman,
+            setup_simple_tides=False
+            )
 
         # Setup Geometry
         if set_by_burnman:
@@ -200,8 +204,10 @@ class LayeredWorld(TidalWorld):
                 mass = self.mass
 
             if reinit_geometry:
-                self.set_geometry(radius, mass, thickness=None, mass_below=0.,
-                                  update_state_geometry=update_state_geometry, build_slices=False)
+                self.set_geometry(
+                    radius, mass, thickness=None, mass_below=0.,
+                    update_state_geometry=update_state_geometry, build_slices=False
+                    )
                 reinit_geometry = False
 
             # Working from the top-most layer downwards, calculate pressures in each layer.
@@ -209,8 +215,10 @@ class LayeredWorld(TidalWorld):
             self.set_static_pressure(self.pressure_above, build_slices=True)
 
         if reinit_geometry:
-            self.set_geometry(radius, mass, thickness=None, mass_below=0., update_state_geometry=update_state_geometry,
-                              build_slices=False)
+            self.set_geometry(
+                radius, mass, thickness=None, mass_below=0., update_state_geometry=update_state_geometry,
+                build_slices=False
+                )
 
         # Setup the tides model
         if self.tides_on:
@@ -287,8 +295,10 @@ class LayeredWorld(TidalWorld):
             if layer.tidal_heating is not None:
                 layer.internal_thermal_equilibrium_changed()
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
-                     update_state_geometry: bool = True, build_slices: bool = False):
+    def set_geometry(
+        self, radius: float, mass: float, thickness: float = None, mass_below: float = 0.,
+        update_state_geometry: bool = True, build_slices: bool = False
+        ):
         """ Calculates and sets world's physical parameters based on user provided input.
 
         Assumptions
@@ -313,8 +323,10 @@ class LayeredWorld(TidalWorld):
 
         """
 
-        super().set_geometry(radius, mass, thickness=None, mass_below=0., update_state_geometry=update_state_geometry,
-                             build_slices=False)
+        super().set_geometry(
+            radius, mass, thickness=None, mass_below=0., update_state_geometry=update_state_geometry,
+            build_slices=False
+            )
 
         # For a layered world the middle gravity and pressure will depend upon the layer structure and densities.
         #    We must use the layers' static pressure to determine this world's middle pressure
@@ -325,8 +337,10 @@ class LayeredWorld(TidalWorld):
             self._gravity_middle = self.gravity_slices[median_index]
             self._density_middle = self.density_slices[median_index]
 
-    def set_static_pressure(self, pressure_above: float = None, build_slices: bool = True,
-                            called_from_burnman: bool = False):
+    def set_static_pressure(
+        self, pressure_above: float = None, build_slices: bool = True,
+        called_from_burnman: bool = False
+        ):
         """ Sets the static pressure for the physical structure.
 
         `Static` here indicates that this is not a dynamic pressure used in many calculations. The static pressure can
@@ -489,7 +503,6 @@ class LayeredWorld(TidalWorld):
     @num_layers.setter
     def num_layers(self, value):
         raise InitiatedPropertyChangeError
-
 
     # Dunder properties
     def __iter__(self) -> Iterator[Union[PhysicsLayer, GasLayer, BurnmanLayer]]:

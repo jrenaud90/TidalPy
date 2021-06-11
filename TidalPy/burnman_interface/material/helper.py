@@ -94,11 +94,15 @@ def find_material(material_name: str, material_source: str = None):
             material_source, material_class = known_materials_sourceless[material_name]
         except KeyError:
             UnknownModelError(
-                    f'Unknown material: {material_name}. No source filename was provided. Providing a source filename may correct this error.')
+                f'Unknown material: {material_name}. No source filename was provided. '
+                f'Providing a source filename may correct this error.'
+                )
     else:
         if material_source not in known_materials:
             raise UnknownModelError(
-                    f'Material source filename {material_source} not found. If source file unknown set material_source to None.')
+                f'Material source filename {material_source} not found. '
+                f'If source file unknown set material_source to None.'
+                )
         if material_name not in known_materials[material_source]:
             raise UnknownModelError(f'Material {material_name} not found in source file: {material_source}')
         material_class = known_materials[material_source][material_name]

@@ -56,4 +56,4 @@ configurations = {
     'stream_err_level'                     : 'WARNING',
     'error_logfile_level'                  : 'WARNING',
     'regular_logfile_level'                : 'INFO'
-}
+    }

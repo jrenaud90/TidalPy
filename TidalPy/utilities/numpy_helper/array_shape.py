@@ -6,8 +6,10 @@ from ..types import NumArray
 from ...exceptions import BadArrayShape
 
 
-def reshape_help(value: NumArray, comparison_shape: tuple, call_locale = None,
-                 force_into_new_shape: bool = False, force_ints_to_floats: bool = True) -> \
+def reshape_help(
+    value: NumArray, comparison_shape: tuple, call_locale=None,
+    force_into_new_shape: bool = False, force_ints_to_floats: bool = True
+    ) -> \
         Tuple[Tuple[int, ...], np.ndarray]:
     """ Attempts to reshape value into an array that matches the shape of new_shape. Raises an error if it is unable
     to do so.
@@ -68,7 +70,6 @@ def reshape_help(value: NumArray, comparison_shape: tuple, call_locale = None,
                 dtype = np.int
         else:
             dtype = np.float
-
 
     if comparison_shape is not None:
         if comparison_shape == tuple():

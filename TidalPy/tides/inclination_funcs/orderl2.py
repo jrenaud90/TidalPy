@@ -8,7 +8,6 @@ from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 
 
-
 @njit(cacheable=True)
 def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp (assuming I=0) for l = 2"""
@@ -17,9 +16,9 @@ def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     ones_ = np.ones_like(inclination)
 
     inclination_results = {
-        (0, 1) : 0.25 * ones_,
-        (2, 0) : 9. * ones_,
-    }
+        (0, 1): 0.25 * ones_,
+        (2, 0): 9. * ones_,
+        }
 
     return inclination_results
 
@@ -39,16 +38,15 @@ def calc_inclination(inclination: FloatArray) -> InclinOutput:
     sin_i_double = np.sin(i_double)
 
     inclination_results = {
-        (0, 0) : 0.140625*sin_i**4,
-        (0, 1) : (sin_i_half**4 - sin_i_half**2 - 0.5*sin_i**2 + 0.5)**2,
-        (0, 2) : 0.140625*sin_i**4,
-        (1, 0) : 9.0*sin_i_half**2*cos_i_half**6,
-        (1, 1) : 0.5625*sin_i_double**2,
-        (1, 2) : 9.0*sin_i_half**6*cos_i_half**2,
-        (2, 0) : 9.0*cos_i_half**8,
-        (2, 1) : 2.25*sin_i**4,
-        (2, 2) : 9.0*sin_i_half**8
-    }
+        (0, 0): 0.140625 * sin_i**4,
+        (0, 1): (sin_i_half**4 - sin_i_half**2 - 0.5 * sin_i**2 + 0.5)**2,
+        (0, 2): 0.140625 * sin_i**4,
+        (1, 0): 9.0 * sin_i_half**2 * cos_i_half**6,
+        (1, 1): 0.5625 * sin_i_double**2,
+        (1, 2): 9.0 * sin_i_half**6 * cos_i_half**2,
+        (2, 0): 9.0 * cos_i_half**8,
+        (2, 1): 2.25 * sin_i**4,
+        (2, 2): 9.0 * sin_i_half**8
+        }
 
     return inclination_results
-

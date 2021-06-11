@@ -1,6 +1,7 @@
 import numpy as np
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
@@ -26,12 +27,18 @@ def test_radiogenic_calc_fixed_in_layered_world():
     assert io_off.Mantle.radiogenics.heating == 0.
 
     # Test a model where the radiogenics are on but fixed
-    radio_dict = {'layers': {'Mantle': {'is_tidal': False, 'radiogenics': {
-        'model': 'fixed',
-        'fixed_heat_production': 100.,
-        'average_half_life': 1.,
-        'ref_time': 10.
-    }}}}
+    radio_dict = {
+        'layers': {
+            'Mantle': {
+                'is_tidal': False, 'radiogenics': {
+                    'model'                : 'fixed',
+                    'fixed_heat_production': 100.,
+                    'average_half_life'    : 1.,
+                    'ref_time'             : 10.
+                    }
+                }
+            }
+        }
     io_fixed = build_from_world(io_base, radio_dict)
 
     # Set time to reference time. The heat production should equal that in the dict.
@@ -58,33 +65,39 @@ def test_radiogenic_calc_fixed_in_layered_world():
     expected_heating = io_fixed.Mantle.mass * 100. * np.exp(gamma * (time - 10.))
     np.testing.assert_allclose(io_fixed.Mantle.radiogenics.heating, expected_heating)
 
+
 def test_radiogenic_calc_isotope_in_layered_world():
     """ This test will build a LayeredWorld and see if radiogenic calculations are performed as expected """
 
     # Test a model where there are some fake isotopes
-    radio_dict = {'layers': {'Mantle': {'is_tidal': False, 'radiogenics': {
-        'model': 'isotope',
-        'ref_time': 10.,
-        'isotopes': {
-            'iso1': {
-                'iso_mass_fraction'    : 0.001,
-                'hpr'                  : 0.5,
-                'half_life'            : 1.,
-                'element_concentration': 0.002
-            },
-            'iso2': {
-                'iso_mass_fraction'    : 0.005,
-                'hpr'                  : 0.75,
-                'half_life'            : .1,
-                'element_concentration': 0.002
+    radio_dict = {
+        'layers': {
+            'Mantle': {
+                'is_tidal': False, 'radiogenics': {
+                    'model'   : 'isotope',
+                    'ref_time': 10.,
+                    'isotopes': {
+                        'iso1': {
+                            'iso_mass_fraction'    : 0.001,
+                            'hpr'                  : 0.5,
+                            'half_life'            : 1.,
+                            'element_concentration': 0.002
+                            },
+                        'iso2': {
+                            'iso_mass_fraction'    : 0.005,
+                            'hpr'                  : 0.75,
+                            'half_life'            : .1,
+                            'element_concentration': 0.002
+                            }
+                        }
+                    }
+                }
             }
         }
-    }}}}
     io_iso = build_from_world(io_base, radio_dict)
     assert io_iso.Mantle.radiogenics.model == 'isotope'
 
     def expected_heating_func(time):
-
         specific_heating = np.zeros_like(time)
         specific_heating += .001 * .002 * .5 * np.exp((np.log(0.5) / 1.) * (time - 10.))
         specific_heating += .005 * .002 * .75 * np.exp((np.log(0.5) / .1) * (time - 10.))

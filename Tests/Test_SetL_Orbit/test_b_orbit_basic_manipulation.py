@@ -1,6 +1,7 @@
 import numpy as np
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
@@ -10,30 +11,31 @@ from TidalPy.structures.orbit import OrbitBase
 from TidalPy.toolbox.conversions import days2rads, orbital_motion2semi_a
 
 io_config = {
-    "name": "Io",
-    "type": "layered",
-    "radius": 1821.49e3,
-    "orbital_period": 1.769,
-    "eccentricity": 0.0041,
-    "spin_period": 1.769,
-    "albedo": 0.63,
+    "name"           : "Io",
+    "type"           : "layered",
+    "radius"         : 1821.49e3,
+    "orbital_period" : 1.769,
+    "eccentricity"   : 0.0041,
+    "spin_period"    : 1.769,
+    "albedo"         : 0.63,
     "force_spin_sync": True,
-    "layers": {
-        "Core": {
-            "type": "iron",
+    "layers"         : {
+        "Core"  : {
+            "type"    : "iron",
             "is_tidal": False,
-            "radius": 810.0e3,
-            "density": 5200.
-        },
+            "radius"  : 810.0e3,
+            "density" : 5200.
+            },
         "Mantle": {
-            "type": "rock",
-            "is_tidal": True,
-            "radius": 1821.49e3,
+            "type"               : "rock",
+            "is_tidal"           : True,
+            "radius"             : 1821.49e3,
             "surface_temperature": 100.0,
-            "density": 3200.
+            "density"            : 3200.
+            }
         }
     }
-}
+
 
 def test_get_orbital_parameters():
     """ Make sure that orbital parameters set in a world_types configuration are accessible as expected. """
@@ -55,6 +57,7 @@ def test_get_orbital_parameters():
     expected_semi_a = orbital_motion2semi_a(expected_orb_freq, io.mass, small_io.mass)
     np.testing.assert_approx_equal(orbit.get_semi_major_axis(small_io), expected_semi_a)
     np.testing.assert_approx_equal(small_io.semi_major_axis, expected_semi_a)
+
 
 def test_set_orbital_parameters():
     """ Make sure that orbital parameters can be set as expected. """
@@ -106,6 +109,7 @@ def test_set_orbital_parameters():
     np.testing.assert_allclose(orbit.get_semi_major_axis(small_io), expected_semi_a)
     np.testing.assert_allclose(small_io.semi_major_axis, expected_semi_a)
 
+
 def test_get_tidal_host_orbital_parameters_host_is_star():
     """ This will test how an orbit class handles getting orbital parameters for a tidal host.
 
@@ -143,6 +147,7 @@ def test_get_tidal_host_orbital_parameters_host_is_star():
     orbit.set_eccentricity(tiny_io, eccentricities)
     assert orbit.get_eccentricity(star) is eccentricities
     assert star.eccentricity is eccentricities
+
 
 def test_get_tidal_host_orbital_parameters_host_is_world():
     """ This will test how an orbit class handles getting orbital parameters for a tidal host.

@@ -1,26 +1,29 @@
-from typing import Tuple, Dict, Union, List
+from typing import Dict, Tuple, Union
 
 import numpy as np
 
 from .eccentricity_funcs import EccenOutput
 from .inclination_funcs import InclinOutput
-from .love1d import effective_rigidity_general, complex_love_general
+from .love1d import complex_love_general, effective_rigidity_general
 from .mode_calc_helper import eccentricity_functions_lookup, inclination_functions_lookup
 from .universal_coeffs import get_universal_coeffs
 from ..utilities.performance.numba import njit
-from ..utilities.types import FloatArray, ComplexArray, NoneType
+from ..utilities.types import ComplexArray, FloatArray, NoneType
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]
 DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
+
 @njit(cacheable=True)
-def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
-                    semi_major_axis: FloatArray, radius: float,
-                    eccentricity_results_byorderl: Dict[int, EccenOutput],
-                    obliquity_results_byorderl: Dict[int, InclinOutput],
-                    multiply_modes_by_sign: bool = True):
+def calculate_terms(
+    spin_frequency: FloatArray, orbital_frequency: FloatArray,
+    semi_major_axis: FloatArray, radius: float,
+    eccentricity_results_byorderl: Dict[int, EccenOutput],
+    obliquity_results_byorderl: Dict[int, InclinOutput],
+    multiply_modes_by_sign: bool = True
+    ):
     """ Calculate tidal dissipation terms and frequencies based on the current orbital and spin state.
 
     Requires the user to provide the correct eccentricity and inclination functions. This is generally done by the
@@ -80,11 +83,11 @@ def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
     results_by_frequency = {
         (-100, -100): {
             0: (fake_result, fake_result, fake_result, fake_result)
+            }
         }
-    }
     unique_frequencies = {
         (-100, -100): orbital_frequency - spin_frequency
-    }
+        }
 
     # Distance Scale used in the distance multiplier
     distance_scale = radius / semi_major_axis
@@ -191,14 +194,17 @@ def calculate_terms(spin_frequency: FloatArray, orbital_frequency: FloatArray,
 
     return unique_frequencies, results_by_frequency
 
+
 @njit(cacheable=True)
-def collapse_modes(gravity: float, radius: float, density: float,
-                   shear_modulus: Union[NoneType, FloatArray], tidal_scale: float,
-                   tidal_host_mass: float,
-                   tidal_susceptibility: FloatArray,
-                   complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
-                   tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
-                   max_order_l: int, cpl_ctl_method: bool = False) -> \
+def collapse_modes(
+    gravity: float, radius: float, density: float,
+    shear_modulus: Union[NoneType, FloatArray], tidal_scale: float,
+    tidal_host_mass: float,
+    tidal_susceptibility: FloatArray,
+    complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
+    tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
+    max_order_l: int, cpl_ctl_method: bool = False
+    ) -> \
         Tuple[FloatArray, FloatArray, FloatArray, FloatArray,
               Dict[int, ComplexArray], Dict[int, FloatArray], Dict[int, FloatArray]]:
     """ Collapses the tidal terms calculated by calculate_modes() combined with rheological information from the layer.
@@ -282,7 +288,7 @@ def collapse_modes(gravity: float, radius: float, density: float,
     fake_compliance = complex_compliance_by_frequency[fake_index]
     # Love number is a complex number, the others are regular real floats.
     love_number_by_orderl = {-100: fake_compliance}
-    negative_imk_by_orderl =  {-100: np.real(fake_compliance)}
+    negative_imk_by_orderl = {-100: np.real(fake_compliance)}
     effective_q_by_orderl = {-100: np.real(fake_compliance)}
 
     for tidal_order_l in range(2, max_order_l + 1):
@@ -295,11 +301,15 @@ def collapse_modes(gravity: float, radius: float, density: float,
             if shear_modulus is None:
                 # Numba does not support specific exception methods.
                 raise Exception('Shear modulus is still required for CTL/CPL models. Set it to a fake float e.g., 1.')
-            effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
-                                                            order_l=2)
+            effective_rigidity = effective_rigidity_general(
+                shear_modulus, gravity, radius, density,
+                order_l=2
+                )
         else:
-            effective_rigidity = effective_rigidity_general(shear_modulus, gravity, radius, density,
-                                                            order_l=tidal_order_l)
+            effective_rigidity = effective_rigidity_general(
+                shear_modulus, gravity, radius, density,
+                order_l=tidal_order_l
+                )
 
         # Pull out the already computed tidal heating and potential terms each frequency
         love_number_at_orderl = list()
@@ -322,8 +332,10 @@ def collapse_modes(gravity: float, radius: float, density: float,
                     complex_love = complex_compliance
                 else:
                     # Calculate the complex Love number, which also changes functional form for each order_l
-                    complex_love = complex_love_general(complex_compliance, shear_modulus, effective_rigidity,
-                                                        order_l=tidal_order_l)
+                    complex_love = complex_love_general(
+                        complex_compliance, shear_modulus, effective_rigidity,
+                        order_l=tidal_order_l
+                        )
 
                 # Scale the Love number by the layer's contribution
                 # TODO: Should the tidal scale affect the Re(k) as well as the Im(k)?
@@ -417,7 +429,6 @@ def collapse_modes(gravity: float, radius: float, density: float,
 
 
 def find_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: int = 8, use_obliquity: bool = True):
-
     # Find Eccentricity and Obliquity Functions
     eccentricity_func = eccentricity_functions_lookup[eccentricity_truncation_lvl][max_order_l]
     inclination_func = inclination_functions_lookup[use_obliquity][max_order_l]

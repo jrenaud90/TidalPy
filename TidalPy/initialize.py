@@ -59,9 +59,11 @@ def initialize_tidalpy():
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        inner_dir_str = timestamped_str(string_to_stamp='TidalPyRun',
-                                        date=True, time=True, second=False, millisecond=False,
-                                        preappend=False, separation='_')
+        inner_dir_str = timestamped_str(
+            string_to_stamp='TidalPyRun',
+            date=True, time=True, second=False, millisecond=False,
+            preappend=False, separation='_'
+            )
 
         # Make inner `run` directory. Make sure it is unique.
         inner_dir_path = os.path.join(save_dir, inner_dir_str)
@@ -79,7 +81,6 @@ def initialize_tidalpy():
     # Initialize the loggers
     tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc, running_in_jupyter=running_in_jupyter)
     TidalPy.log = tidalpy_log
-
 
     # Finish initialization
     TidalPy._tidalpy_init = True

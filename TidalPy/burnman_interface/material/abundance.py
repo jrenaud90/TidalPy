@@ -1,4 +1,3 @@
-
 def high_pressure_silicate_from_abundance(mg_number: float, mg_si_ratio: float):
     """ Determine the material composition for high pressure silicate based on Mg concentrations.
 
@@ -17,4 +16,4 @@ def high_pressure_silicate_from_abundance(mg_number: float, mg_si_ratio: float):
     """
 
     iron_number = 1. - mg_number
-    #TODO
+    # TODO

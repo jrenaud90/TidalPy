@@ -10,7 +10,7 @@ world_defaults = {
         'use_real_moi'                        : True,
         'surface_pressure'                    : 0.,
         'slices'                              : 40,
-    },
+        },
     'simple_tidal': {
         'name'                                : 'unknown_world_simple_tide_type',
         'store_tides_config_in_world'         : True,
@@ -23,7 +23,7 @@ world_defaults = {
         'tides_on'                            : True,
         'surface_pressure'                    : 0.,
         'slices'                              : 40,
-    },
+        },
     'gas_giant'   : {
         'name'                                : 'unknown_world_gas_giant_type',
         'store_tides_config_in_world'         : True,
@@ -36,7 +36,7 @@ world_defaults = {
         'tides_on'                            : True,
         'surface_pressure'                    : 0.,
         'slices'                              : 40,
-    },
+        },
     'star'        : {
         'name'                                : 'unknown_world_star_type',
         'store_tides_config_in_world'         : True,
@@ -49,7 +49,7 @@ world_defaults = {
         'tides_on'                            : False,
         'surface_pressure'                    : 0.,
         'slices'                              : 40,
-    },
+        },
     'layered'     : {
         'name'                                : 'unknown_world_layered_type',
         'store_tides_config_in_world'         : True,
@@ -62,7 +62,7 @@ world_defaults = {
         'tides_on'                            : True,
         'surface_pressure'                    : 0.,
         'slices'                              : None
-    },
+        },
     'burnman'     : {
         'name'                                : 'unknown_world_burnman_type',
         'store_tides_config_in_world'         : True,
@@ -75,5 +75,5 @@ world_defaults = {
         'tides_on'                            : True,
         'surface_pressure'                    : 0.,
         'slices'                              : None
+        }
     }
-}

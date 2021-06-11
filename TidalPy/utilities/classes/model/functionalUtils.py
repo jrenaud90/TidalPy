@@ -1,7 +1,8 @@
 from inspect import isfunction
-from typing import List, Tuple, Callable
+from typing import Callable, List, Tuple
 
 from numba import njit as real_njit
+
 try:
     from numba.array_analysis import MAP_TYPES
     from numba.targets.registry import CPUTarget, CPUDispatcher

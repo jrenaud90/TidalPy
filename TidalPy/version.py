@@ -47,6 +47,7 @@ else:
 
 compatibility_signature = _vers_major + _vers_minor
 
+
 def is_compatible(test_version: str):
     """ Tests rather or not a feature made in test_version is likely to be compatible in current __version__
     """

@@ -23,6 +23,7 @@ def linear_dt(frequency: FloatArray, fixed_dt: float):
 
     return effective_q
 
+
 @njit(cacheable=True)
 def linear_dt_with_q(frequency: FloatArray, fixed_dt: float, fixed_q: float):
     """ Estimates dissipative term of the Love number assuming a function that is linear with frequency. The fixed Q

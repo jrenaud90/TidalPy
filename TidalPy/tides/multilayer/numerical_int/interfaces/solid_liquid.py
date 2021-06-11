@@ -8,8 +8,8 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 import numpy as np
 
-from ..initial_solution_dynamic import SolidDynamicGuess, LiquidDynamicGuess
-from ..initial_solution_static import SolidStaticGuess, LiquidStaticGuess
+from ..initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+from ..initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 from .....constants import G
 from .....utilities.performance import njit
 
@@ -91,8 +91,10 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> LiquidDynamicGuess:
 
 
 @njit(cacheable=True)
-def dynamic_static(solid_layer_ys: SolidDynamicGuess,
-                   interface_gravity: float, liquid_density: float, G_to_use: float = G) -> LiquidStaticGuess:
+def dynamic_static(
+    solid_layer_ys: SolidDynamicGuess,
+    interface_gravity: float, liquid_density: float, G_to_use: float = G
+    ) -> LiquidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a liquid layer that is above a solid
     surface. Assumes dynamic tides in the lower solid layer and static tides in the liquid layer.
 
@@ -146,8 +148,10 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess,
 
 
 @njit(cacheable=True)
-def both_static(solid_layer_ys: SolidStaticGuess,
-                interface_gravity: float, liquid_density: float, G_to_use: float = G) -> LiquidStaticGuess:
+def both_static(
+    solid_layer_ys: SolidStaticGuess,
+    interface_gravity: float, liquid_density: float, G_to_use: float = G
+    ) -> LiquidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a liquid layer that is above a solid
     surface. Assumes static tides in both the liquid and solid layers.
 

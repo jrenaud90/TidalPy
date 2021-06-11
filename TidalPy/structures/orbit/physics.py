@@ -1,17 +1,16 @@
-from typing import Union, List
+from typing import List, Union
 
 import numpy as np
 
 from .base import OrbitBase, WorldSignatureType
-from ..world_types import AllWorldType, StarWorld, all_tidal_world_types, TidalWorldType
+from ..world_types import AllWorldType, StarWorld, TidalWorldType, all_tidal_world_types
 from ... import log
-from ...dynamics import semia_eccen_derivatives_dual, semia_eccen_derivatives
-from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
+from ...dynamics import semia_eccen_derivatives, semia_eccen_derivatives_dual
+from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError
 from ...utilities.types import FloatArray
 
 
 class PhysicsOrbit(OrbitBase):
-
     """ PhysicsOrbit class
     Contains attributes and methods to track the orbit of multiple TidalPy world_types. Also contains attributes and methods
         used to calculate various physics for the world_types stored within. This includes: tidal heating, tidal evolution,
@@ -31,9 +30,11 @@ class PhysicsOrbit(OrbitBase):
 
     class_name = 'physics'
 
-    def __init__(self, star: StarWorld = None, tidal_host: AllWorldType = None,
-                 tidal_bodies: Union[AllWorldType, List[AllWorldType]] = None, star_host: bool = False,
-                 host_tide_raiser: AllWorldType = None, make_copies: Union[bool, str] = False, initialize: bool = True):
+    def __init__(
+        self, star: StarWorld = None, tidal_host: AllWorldType = None,
+        tidal_bodies: Union[AllWorldType, List[AllWorldType]] = None, star_host: bool = False,
+        host_tide_raiser: AllWorldType = None, make_copies: Union[bool, str] = False, initialize: bool = True
+        ):
         """ PhysicsOrbit constructor
 
         Orbits allow TidalPy world_types to communicate with one another and for tides to be calculated.
@@ -79,9 +80,11 @@ class PhysicsOrbit(OrbitBase):
         self._semi_major_axis_time_derivatives = list()
         self._orbital_motion_time_derivatives = list()
 
-        super().__init__(star, tidal_host, tidal_bodies,
-                         star_host=star_host, host_tide_raiser=host_tide_raiser,
-                         make_copies=make_copies, initialize=False)
+        super().__init__(
+            star, tidal_host, tidal_bodies,
+            star_host=star_host, host_tide_raiser=host_tide_raiser,
+            make_copies=make_copies, initialize=False
+            )
 
         # Helper flags useful for debugging
         self._last_calc_used_dual_body = None
@@ -90,8 +93,10 @@ class PhysicsOrbit(OrbitBase):
             # Make first call to the methods reinit method.
             self.reinit(initial_init=True, reinit_worlds=False, run_update=True)
 
-    def orbit_changed(self, specific_world: WorldSignatureType = None, orbital_freq_changed: bool = False,
-                      eccentricity_changed: bool = False):
+    def orbit_changed(
+        self, specific_world: WorldSignatureType = None, orbital_freq_changed: bool = False,
+        eccentricity_changed: bool = False
+        ):
         """ The orbit of a specific world has changed. Make any necessary updates.
 
         Parameters
@@ -104,8 +109,10 @@ class PhysicsOrbit(OrbitBase):
             If `True`, then the world_types' eccentricity changed.
         """
 
-        super().orbit_changed(specific_world, orbital_freq_changed=orbital_freq_changed,
-                              eccentricity_changed=eccentricity_changed)
+        super().orbit_changed(
+            specific_world, orbital_freq_changed=orbital_freq_changed,
+            eccentricity_changed=eccentricity_changed
+            )
 
         # Now that those changes have been passed and the tides have been updated, we can make a single call to
         #    the orbit's dissipation_changed method
@@ -115,7 +122,6 @@ class PhysicsOrbit(OrbitBase):
 
     def dissipation_changed(self, world_signature: WorldSignatureType) -> bool:
         """ Tidal dissipation has changed on the provided world. Make any necessary changes. """
-
 
         orbit_index = self.world_signature_to_index(world_signature, return_tidal_host=True)
         world_instance = self.tidal_objects[orbit_index]
@@ -190,8 +196,10 @@ class PhysicsOrbit(OrbitBase):
                              self._orbital_motion_time_derivatives]:
             if len(storage_list) >= orbit_index + 1 and not storage_warn:
                 # Already something at this location.
-                log.warning(f'Trying to add orbital derivative placeholders for {tidal_world} in {self} but parameters '
-                            f'already present (orbit index = {orbit_index}). Replacing...')
+                log.warning(
+                    f'Trying to add orbital derivative placeholders for {tidal_world} in {self} but parameters '
+                    f'already present (orbit index = {orbit_index}). Replacing...'
+                    )
                 # Set this flag to True so that a warning does not appear for each list.
                 storage_warn = True
 
@@ -240,8 +248,10 @@ class PhysicsOrbit(OrbitBase):
         if run_update:
             orbital_freq_changed = self.get_orbital_frequency(tidal_world) is not None
             eccentricity_changed = self.get_eccentricity(tidal_world) is not None
-            self.orbit_changed(tidal_world, orbital_freq_changed=orbital_freq_changed,
-                               eccentricity_changed=eccentricity_changed)
+            self.orbit_changed(
+                tidal_world, orbital_freq_changed=orbital_freq_changed,
+                eccentricity_changed=eccentricity_changed
+                )
 
         return orbit_index
 
@@ -399,13 +409,17 @@ class PhysicsOrbit(OrbitBase):
             stellar_eccentricity = self.get_stellar_eccentricity(world_signature)
             if stellar_eccentricity is None:
                 # Stellar eccentricity not set. Assume it is zero
-                log.warning(f'Calculating insolation heating for {world}, but stellar eccentricity is not set. '
-                            f'Assuming zero.')
+                log.warning(
+                    f'Calculating insolation heating for {world}, but stellar eccentricity is not set. '
+                    f'Assuming zero.'
+                    )
                 stellar_eccentricity = np.zeros_like(stellar_distance)
 
             insolation_heating = \
-                world.equilibrium_insolation_func(self.star.luminosity, stellar_distance, world.albedo, world.radius,
-                                                  stellar_eccentricity)
+                world.equilibrium_insolation_func(
+                    self.star.luminosity, stellar_distance, world.albedo, world.radius,
+                    stellar_eccentricity
+                    )
 
             if set_insolation_in_world:
                 world.set_insolation_heating(insolation_heating)
@@ -486,16 +500,22 @@ class PhysicsOrbit(OrbitBase):
         t = world_instance
         if use_dual_body:
             # Dual-body dissipation
-            da_dt, de_dt = derivative_func(semi_major_axis, orbital_motion, eccentricity,
-                                           h.mass, h.dUdM, h.dUdw, t.mass, t.dUdM, t.dUdw)
+            da_dt, de_dt = derivative_func(
+                semi_major_axis, orbital_motion, eccentricity,
+                h.mass, h.dUdM, h.dUdw, t.mass, t.dUdM, t.dUdw
+                )
         elif tidal_host_active:
             # Single body dissipation - Tidal host only.
-            da_dt, de_dt = derivative_func(semi_major_axis, orbital_motion, eccentricity,
-                                           h.mass, h.dUdM, h.dUdw, t.mass)
+            da_dt, de_dt = derivative_func(
+                semi_major_axis, orbital_motion, eccentricity,
+                h.mass, h.dUdM, h.dUdw, t.mass
+                )
         elif tidal_body_active:
             # Single body dissipation - Tidal body only.
-            da_dt, de_dt = derivative_func(semi_major_axis, orbital_motion, eccentricity,
-                                           t.mass, t.dUdM, t.dUdw, h.mass)
+            da_dt, de_dt = derivative_func(
+                semi_major_axis, orbital_motion, eccentricity,
+                t.mass, t.dUdM, t.dUdw, h.mass
+                )
         else:
             log.warning('Can not calculate orbital derivatives until tides are calculated.')
             self._eccentricity_time_derivatives[orbit_index] = None
@@ -512,7 +532,6 @@ class PhysicsOrbit(OrbitBase):
         self._semi_major_axis_time_derivatives[orbit_index] = da_dt
         self._orbital_motion_time_derivatives[orbit_index] = dn_dt
         return True
-
 
     # # State properties
     @property
@@ -544,7 +563,6 @@ class PhysicsOrbit(OrbitBase):
     @orbital_motion_time_derivatives.setter
     def orbital_motion_time_derivatives(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Initialized properties
     @property

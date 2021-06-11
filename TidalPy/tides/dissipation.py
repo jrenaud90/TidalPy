@@ -28,6 +28,7 @@ def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major
 
     return tidal_susceptibility
 
+
 @njit(cacheable=True)
 def calc_tidal_susceptibility_reduced(host_mass: float, target_radius: float) -> float:
     """ Calculate the tidal susceptibility (reduced) for a given target radius and host mass.

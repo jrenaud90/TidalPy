@@ -1,7 +1,7 @@
 """ Layered Tides Module
 """
 
-from typing import TYPE_CHECKING, Dict, List
+from typing import Dict, List, TYPE_CHECKING
 
 import numpy as np
 
@@ -210,13 +210,15 @@ class LayeredTides(TidesBase):
                     # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global and
                     #    localized dissipation values
                     tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, \
-                        effective_q_by_orderl = \
-                        self.collapse_modes_func(gravity_surf, radius, bulk_density, shear_modulus,
-                                                 tidal_scale,
-                                                 self.tidal_host.mass, self.tidal_susceptibility,
-                                                 complex_compliances_by_frequency_list,
-                                                 self.tidal_terms_by_frequency, self.max_tidal_order_lvl,
-                                                 cpl_ctl_method=False)
+                    effective_q_by_orderl = \
+                        self.collapse_modes_func(
+                            gravity_surf, radius, bulk_density, shear_modulus,
+                            tidal_scale,
+                            self.tidal_host.mass, self.tidal_susceptibility,
+                            complex_compliances_by_frequency_list,
+                            self.tidal_terms_by_frequency, self.max_tidal_order_lvl,
+                            cpl_ctl_method=False
+                            )
 
                     # These will be summed for global values
                     nonNone_love_number.append(love_number_by_orderl)
@@ -246,25 +248,30 @@ class LayeredTides(TidesBase):
                 self._dUdO = sum(nonNone_dUdO)
 
                 # Sum the parameters that are stored by order-l
-                for order_l in range(2, self.max_tidal_order_lvl+1):
+                for order_l in range(2, self.max_tidal_order_lvl + 1):
 
                     # TODO: Should all of these simply be sums of each layer's contribution?
                     self._effective_q_by_orderl[order_l] = \
-                        sum([nonNone_effective_q_for_layer[order_l] for nonNone_effective_q_for_layer
-                             in nonNone_effective_q])
+                        sum(
+                            [nonNone_effective_q_for_layer[order_l] for nonNone_effective_q_for_layer
+                             in nonNone_effective_q]
+                            )
                     self._global_negative_imk_by_orderl[order_l] = \
-                        sum([nonNone_neg_imk_for_layer[order_l] for nonNone_neg_imk_for_layer
-                             in nonNone_neg_imk])
+                        sum(
+                            [nonNone_neg_imk_for_layer[order_l] for nonNone_neg_imk_for_layer
+                             in nonNone_neg_imk]
+                            )
                     self._global_love_by_orderl[order_l] = \
-                        sum([nonNone_love_number_for_layer[order_l] for nonNone_love_number_for_layer
-                             in nonNone_love_number])
+                        sum(
+                            [nonNone_love_number_for_layer[order_l] for nonNone_love_number_for_layer
+                             in nonNone_love_number]
+                            )
 
                 # Now tell other methods to update now that derivatives and heating has been altered
                 super().collapse_modes()
 
         # Return tidal heating and derivatives
         return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
-
 
     # # State properties
     @property

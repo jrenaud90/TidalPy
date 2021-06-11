@@ -1,9 +1,11 @@
 from datetime import datetime
 
 
-def timestamped_str(date: bool = True, time: bool = True, second: bool = False, millisecond: bool = False,
-                    string_to_stamp: str = '', preappend: bool = True, separation: str = '_',
-                    provided_datetime=None) -> str:
+def timestamped_str(
+    date: bool = True, time: bool = True, second: bool = False, millisecond: bool = False,
+    string_to_stamp: str = '', preappend: bool = True, separation: str = '_',
+    provided_datetime=None
+    ) -> str:
     """ Creates a timestamp string at the current time and date.
 
     Parameters
