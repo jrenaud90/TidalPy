@@ -1,6 +1,6 @@
 import numpy as np
-from scipy.special import ellipe
 from scipy.constants import Stefan_Boltzmann as sbc
+from scipy.special import ellipe
 
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray
@@ -9,8 +9,10 @@ from ..utilities.types import FloatArray
 # Equilibrium Temperature
 # TODO: njit does not like the heating addition checking for None.
 # @njit(cacheable=True)
-def calc_equilibrium_temperature(insolation_heating: FloatArray, radius: float, internal_heating: FloatArray = None,
-                                 emissivity: float = 1.):
+def calc_equilibrium_temperature(
+    insolation_heating: FloatArray, radius: float, internal_heating: FloatArray = None,
+    emissivity: float = 1.
+    ) -> FloatArray:
     """ Calculates the surface equilibrium temperature of a planet that is heated by stellar and internal heating
 
     References
@@ -50,8 +52,10 @@ def calc_equilibrium_temperature(insolation_heating: FloatArray, radius: float, 
 # Insolation Heating Functions
 # TODO: the ellipe function can't be wrapped by njit. Perhaps one day it will or we could make our own njit-friendly wrapping
 # @njit
-def equilibrium_insolation_mendez(luminosity: float, semi_major_axis: FloatArray, albedo: float,
-                                  radius: float, eccentricity: FloatArray) -> FloatArray:
+def equilibrium_insolation_mendez(
+    luminosity: float, semi_major_axis: FloatArray, albedo: float,
+    radius: float, eccentricity: FloatArray
+    ) -> FloatArray:
     """ Calculate the insolation heating using the mendez method for elliptical orbits
 
     Based on Mendez & Rivera-Valentin (ApJL 837 1, 2017)
@@ -88,8 +92,10 @@ def equilibrium_insolation_mendez(luminosity: float, semi_major_axis: FloatArray
 
 
 @njit(cacheable=True)
-def equilibrium_insolation_williams(luminosity: float, semi_major_axis: FloatArray, albedo: float,
-                                    radius: float, eccentricity: FloatArray) -> FloatArray:
+def equilibrium_insolation_williams(
+    luminosity: float, semi_major_axis: FloatArray, albedo: float,
+    radius: float, eccentricity: FloatArray
+    ) -> FloatArray:
     """ Calculate the insolation heating using the williams method for elliptical orbits
 
     Based on *NEED WILLIAMS REF
@@ -124,8 +130,10 @@ def equilibrium_insolation_williams(luminosity: float, semi_major_axis: FloatArr
 
 
 @njit(cacheable=True)
-def equilibrium_insolation_no_eccentricity(luminosity: float, semi_major_axis: FloatArray, albedo: float,
-                                           radius: float, eccentricity: FloatArray = None) -> FloatArray:
+def equilibrium_insolation_no_eccentricity(
+    luminosity: float, semi_major_axis: FloatArray, albedo: float,
+    radius: float, eccentricity: FloatArray = None
+    ) -> FloatArray:
     """ Calculate the insolation heating assuming a circular orbit
 
     Parameters

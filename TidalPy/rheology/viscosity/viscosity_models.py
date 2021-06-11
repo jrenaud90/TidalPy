@@ -5,11 +5,13 @@ from ...utilities.performance.numba import njit
 from ...utilities.types import float_lognat_max
 
 
-@njit()
-def arrhenius(temperature: float, pressure: float,
-              arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
-              grain_size: float, grain_size_expo: float,
-              molar_activation_energy: float, molar_activation_volume: float) -> float:
+@njit(cacheable=True)
+def arrhenius(
+    temperature: float, pressure: float,
+    arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
+    grain_size: float, grain_size_expo: float,
+    molar_activation_energy: float, molar_activation_volume: float
+    ) -> float:
     """ Solid Viscosity Function: Generic Arrhenius Relationship - NonArray Only
 
     See, for example, Moore (2006)
@@ -64,11 +66,14 @@ def arrhenius(temperature: float, pressure: float,
 
     return viscosity
 
-@njit()
-def arrhenius_array(temperature: np.ndarray, pressure: np.ndarray,
-                    arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
-                    grain_size: float, grain_size_expo: float,
-                    molar_activation_energy: float, molar_activation_volume: float) -> np.ndarray:
+
+@njit(cacheable=True)
+def arrhenius_array(
+    temperature: np.ndarray, pressure: np.ndarray,
+    arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
+    grain_size: float, grain_size_expo: float,
+    molar_activation_energy: float, molar_activation_volume: float
+    ) -> np.ndarray:
     """ Solid Viscosity Function: Generic Arrhenius Relationship - Arrays Only
 
     See, for example, Moore (2006)
@@ -121,10 +126,13 @@ def arrhenius_array(temperature: np.ndarray, pressure: np.ndarray,
 
     return viscosity
 
-@njit()
-def reference(temperature: float, pressure: float,
-              reference_viscosity: float, reference_temperature: float,
-              molar_activation_energy: float, molar_activation_volume: float) -> float:
+
+@njit(cacheable=True)
+def reference(
+    temperature: float, pressure: float,
+    reference_viscosity: float, reference_temperature: float,
+    molar_activation_energy: float, molar_activation_volume: float
+    ) -> float:
     """ Solid Viscosity Function: Arrhnius-like utilizing a reference viscosity - NonArrays Only
 
     See, for example, Henning (2009)
@@ -169,10 +177,13 @@ def reference(temperature: float, pressure: float,
 
     return viscosity
 
-@njit()
-def reference_array(temperature: np.ndarray, pressure: np.ndarray,
-                    reference_viscosity: float, reference_temperature: float,
-                    molar_activation_energy: float, molar_activation_volume: float) -> np.ndarray:
+
+@njit(cacheable=True)
+def reference_array(
+    temperature: np.ndarray, pressure: np.ndarray,
+    reference_viscosity: float, reference_temperature: float,
+    molar_activation_energy: float, molar_activation_volume: float
+    ) -> np.ndarray:
     """ Solid Viscosity Function: Arrhnius-like utilizing a reference viscosity - Arrays Only
 
     See, for example, Henning (2009)
@@ -215,9 +226,12 @@ def reference_array(temperature: np.ndarray, pressure: np.ndarray,
 
     return viscosity
 
-@njit()
-def constant(temperature: float, pressure: float,
-             reference_viscosity: float) -> float:
+
+@njit(cacheable=True)
+def constant(
+    temperature: float, pressure: float,
+    reference_viscosity: float
+    ) -> float:
     """ Solid Viscosity Function: Constant. Ignores other input and returns the reference viscosity value - NonArrays Only
 
     Parameters
@@ -241,9 +255,12 @@ def constant(temperature: float, pressure: float,
 
     return reference_viscosity
 
-@njit()
-def constant_array(temperature: np.ndarray, pressure: np.ndarray,
-                   reference_viscosity: float) -> np.ndarray:
+
+@njit(cacheable=True)
+def constant_array(
+    temperature: np.ndarray, pressure: np.ndarray,
+    reference_viscosity: float
+    ) -> np.ndarray:
     """ Solid Viscosity Function: Constant. Ignores other input and returns the reference viscosity value - Arrays Only
 
     Parameters

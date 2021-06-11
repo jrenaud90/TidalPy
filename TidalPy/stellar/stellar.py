@@ -4,6 +4,7 @@ from scipy.constants import Stefan_Boltzmann as sbc
 from ..constants import luminosity_solar, mass_solar
 from ..utilities.performance.numba import njit
 
+
 @njit(cacheable=True)
 def efftemp_from_luminosity(luminosity: float, radius: float):
     """ Calculates a star's effective surface temperature provided a luminosity

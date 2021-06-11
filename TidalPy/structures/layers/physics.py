@@ -7,18 +7,17 @@ import numpy as np
 from .basic import LayerBase
 from ... import log
 from ...cooling import CoolingModel
-from ...exceptions import (ImproperPropertyHandling, OuterscopePropertySetError,
-                           ConfigPropertyChangeError, AttributeNotSetError, MissingAttributeError)
+from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, ImproperPropertyHandling,
+                           MissingAttributeError, OuterscopePropertySetError)
 from ...radiogenics.radiogenics import Radiogenics
 from ...rheology import Rheology
-from ...utilities.types import NoneType, FloatArray
+from ...utilities.types import FloatArray, NoneType
 
 if TYPE_CHECKING:
     from ..world_types import TidalWorldType
 
 
 class PhysicsLayer(LayerBase):
-
     """ PhysicsLayer
     Layer object to store parameters geometric and physical properties calculated by TidalPy based on a user-provided
         configuration dictionary. PhysicsLayer contains additional properties and methods used to perform various
@@ -35,8 +34,10 @@ class PhysicsLayer(LayerBase):
 
     layer_class = 'physics'
 
-    def __init__(self, layer_name: str, layer_index: int, world: 'TidalWorldType', layer_config: dict,
-                 is_top_layer: bool, initialize: bool = True):
+    def __init__(
+        self, layer_name: str, layer_index: int, world: 'TidalWorldType', layer_config: dict,
+        is_top_layer: bool, initialize: bool = True
+        ):
         """ Physics layer constructor
 
         Parameters
@@ -103,8 +104,10 @@ class PhysicsLayer(LayerBase):
         """
 
         # Base class's reinit is called *after* the geometry is set (so that tidal volume fraction is set correctly)
-        super().reinit(initial_init=initial_init, set_by_burnman=set_by_burnman,
-                       initialize_geometry=initialize_geometry)
+        super().reinit(
+            initial_init=initial_init, set_by_burnman=set_by_burnman,
+            initialize_geometry=initialize_geometry
+            )
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
@@ -123,9 +126,9 @@ class PhysicsLayer(LayerBase):
         # Find all heating sources
         self.heat_sources = list()
         if 'off' not in self.radiogenics.model:
-            self.heat_sources.append(lambda : self.radiogenic_heating)
+            self.heat_sources.append(lambda: self.radiogenic_heating)
         if self.is_tidal:
-            self.heat_sources.append(lambda : self.tidal_heating)
+            self.heat_sources.append(lambda: self.tidal_heating)
 
     def update_cooling(self, force_update: bool = False):
         """ Calculate parameters related to cooling of the layer, be it convection or conduction
@@ -275,8 +278,10 @@ class PhysicsLayer(LayerBase):
         # Pass the new strength to the rheology class
         self.rheology.set_state(viscosity, shear_modulus)
 
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
-                  shear_modulus: FloatArray = None):
+    def set_state(
+        self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
+        shear_modulus: FloatArray = None
+        ):
         """ Set the layer's state properties
 
         Parameters
@@ -299,8 +304,10 @@ class PhysicsLayer(LayerBase):
         shear_modulus_change = shear_modulus is not None
 
         if (temperature_change or pressure_change) and (viscosity_change or shear_modulus_change):
-            log.warning(f'Trying to set TP and strength at the same time for layer {self}. '
-                        f'Only setting the strength changes.')
+            log.warning(
+                f'Trying to set TP and strength at the same time for layer {self}. '
+                f'Only setting the strength changes.'
+                )
             temperature_change = False
             pressure_change = False
 
@@ -438,7 +445,6 @@ class PhysicsLayer(LayerBase):
     @radiogenics.setter
     def radiogenics(self, new_radiogenics: 'Radiogenics'):
         raise ConfigPropertyChangeError
-
 
     # Inner-scope properties
     # # Rheology Class
@@ -622,7 +628,6 @@ class PhysicsLayer(LayerBase):
     def nusselt(self, value):
         self.cooling_model.nusselt = value
 
-
     # Outer-scope properties
     # # Tides Class
     @property
@@ -640,7 +645,6 @@ class PhysicsLayer(LayerBase):
     @tidal_heating.setter
     def tidal_heating(self, value):
         raise OuterscopePropertySetError
-
 
     # Aliased properties
     @property

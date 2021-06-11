@@ -2,9 +2,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import known_model_live_args, known_model_const_args, known_models
+from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty, OuterscopePropertySetError
+from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError
 from ...utilities.classes.model import LayerModelHolder
 from ...utilities.types import FloatArray
 
@@ -28,8 +28,10 @@ class ViscosityParentClass(LayerModelHolder):
 
     is_liquid = False
 
-    def __init__(self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
-                 store_config_in_layer: bool = True, initialize: bool = True):
+    def __init__(
+        self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
+        store_config_in_layer: bool = True, initialize: bool = True
+        ):
         """ Constructor for Parent Viscosity class
 
         Common Viscosity class for liquid and solid viscosity models.
@@ -84,7 +86,6 @@ class ViscosityParentClass(LayerModelHolder):
 
         return viscosity
 
-
     # # Initialized properties
     @property
     def rheology_class(self) -> 'Rheology':
@@ -95,7 +96,6 @@ class ViscosityParentClass(LayerModelHolder):
     def rheology_class(self, value):
         raise InitiatedPropertyChangeError
 
-
     # # State properties
     @property
     def viscosity(self) -> FloatArray:
@@ -105,7 +105,6 @@ class ViscosityParentClass(LayerModelHolder):
     @viscosity.setter
     def viscosity(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Outer-scope references
     @property
@@ -134,7 +133,6 @@ class ViscosityParentClass(LayerModelHolder):
 
 
 class LiquidViscosity(ViscosityParentClass):
-
     """ LiquidViscosity
     Model for calculating viscosity of a liquid.
 
@@ -154,7 +152,6 @@ class LiquidViscosity(ViscosityParentClass):
 
 
 class SolidViscosity(ViscosityParentClass):
-
     """ SolidViscosity
     Model for calculating viscosity of a solid.
 

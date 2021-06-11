@@ -7,8 +7,10 @@ from ..types import FloatArray, NumericalType
 from ...exceptions import BadArrayShape
 
 
-def normalize_dict(dict_of_values: Dict[str, np.ndarray], pass_negatives: bool = False,
-                   new_max: float = 1.0, new_min: float = 0.0):
+def normalize_dict(
+    dict_of_values: Dict[str, np.ndarray], pass_negatives: bool = False,
+    new_max: float = 1.0, new_min: float = 0.0
+    ):
     """ Normalizes values provided in a name separated dictionary to the specified range.
 
     Parameters

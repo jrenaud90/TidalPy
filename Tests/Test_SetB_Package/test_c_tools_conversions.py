@@ -6,20 +6,19 @@ from scipy.constants import G
 
 import TidalPy
 from TidalPy.exceptions import BadValueError
-from TidalPy.toolbox.conversions import sec2myr, \
-    myr2sec, m2Au, Au2m, days2rads, orbital_motion2semi_a, semi_a2orbital_motion, rads2days
+from TidalPy.toolbox.conversions import (Au2m, days2rads, m2Au, myr2sec, orbital_motion2semi_a, rads2days, sec2myr,
+                                         semi_a2orbital_motion)
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
-def test_sec2myr():
 
+def test_sec2myr():
     # Build arrays for testing
     zero_array = np.zeros(10, dtype=np.float)
     one_array = np.ones(10, dtype=np.float)
     sec_array = 3.154e13 * np.ones(10, dtype=np.float)
-
 
     # Test sec2myr - Floats
     assert sec2myr(0.) == 0.
@@ -27,9 +26,9 @@ def test_sec2myr():
     assert sec2myr(-3.154e13) == -1.
 
     # Test sec2myr - Arrays
-    np.testing.assert_array_almost_equal( sec2myr(zero_array), zero_array )
-    np.testing.assert_array_almost_equal( sec2myr(sec_array), one_array )
-    np.testing.assert_array_almost_equal( sec2myr(-sec_array), -one_array )
+    np.testing.assert_array_almost_equal(sec2myr(zero_array), zero_array)
+    np.testing.assert_array_almost_equal(sec2myr(sec_array), one_array)
+    np.testing.assert_array_almost_equal(sec2myr(-sec_array), -one_array)
 
     # Test myr2sec - Floats
     assert myr2sec(0.) == 0.
@@ -43,7 +42,6 @@ def test_sec2myr():
 
 
 def test_Au2m():
-
     # Build arrays for testing
     zero_array = np.zeros(10, dtype=np.float)
     one_array = np.ones(10, dtype=np.float)
@@ -71,7 +69,6 @@ def test_Au2m():
 
 
 def test_rads2days():
-
     # Build arrays for testing
     day_to_radians = 2. * np.pi / 86400.
     zero_array = np.zeros(10, dtype=np.float)
@@ -103,12 +100,11 @@ def test_rads2days():
 
 
 def test_semi_a2orbital_motion():
-
     # Build Arrays for testing
     earth_distance = 1.49597887e11  # meters
     earth_mass = 5.972e24  # kg
     sun_mass = 1.988435e30  # kg
-    earth_orb_motion = (G * (earth_mass + sun_mass) / earth_distance**3)**(1/2)  # radians second-1
+    earth_orb_motion = (G * (earth_mass + sun_mass) / earth_distance**3)**(1 / 2)  # radians second-1
 
     zero_array = np.zeros(10, dtype=np.float)
     distance_array = earth_distance * np.ones(10, dtype=np.float)
@@ -122,19 +118,29 @@ def test_semi_a2orbital_motion():
 
     # Test semi_a2orbital_motion - Arrays
     assert np.all(np.isinf(semi_a2orbital_motion(zero_array, sun_mass, earth_mass)))
-    np.testing.assert_array_almost_equal(semi_a2orbital_motion(distance_array, sun_mass, earth_mass), frequency_array, decimal=9)
+    np.testing.assert_array_almost_equal(
+        semi_a2orbital_motion(distance_array, sun_mass, earth_mass), frequency_array, decimal=9
+        )
     assert np.all(np.isnan(semi_a2orbital_motion(-1. * distance_array, sun_mass, earth_mass)))
 
     # Test orbital_motion2semi_a - Floats
     with pytest.raises(ZeroDivisionError) as e_info:
         _ = orbital_motion2semi_a(0., sun_mass, earth_mass)
-    np.testing.assert_almost_equal(round(orbital_motion2semi_a(earth_orb_motion, sun_mass, earth_mass) * 1.e3) / 1.e3, earth_distance)
-    np.testing.assert_almost_equal(round(orbital_motion2semi_a(-earth_orb_motion, sun_mass, earth_mass) * 1.e3) / 1.e3, earth_distance)
+    np.testing.assert_almost_equal(
+        round(orbital_motion2semi_a(earth_orb_motion, sun_mass, earth_mass) * 1.e3) / 1.e3, earth_distance
+        )
+    np.testing.assert_almost_equal(
+        round(orbital_motion2semi_a(-earth_orb_motion, sun_mass, earth_mass) * 1.e3) / 1.e3, earth_distance
+        )
 
     # Test orbital_motion2semi_a - Arrays
     assert np.all(np.isinf(orbital_motion2semi_a(zero_array, sun_mass, earth_mass)))
-    np.testing.assert_array_almost_equal(orbital_motion2semi_a(frequency_array, sun_mass, earth_mass), distance_array, decimal=3)
-    np.testing.assert_array_almost_equal(orbital_motion2semi_a(-1. * frequency_array, sun_mass, earth_mass), distance_array, decimal=3)
+    np.testing.assert_array_almost_equal(
+        orbital_motion2semi_a(frequency_array, sun_mass, earth_mass), distance_array, decimal=3
+        )
+    np.testing.assert_array_almost_equal(
+        orbital_motion2semi_a(-1. * frequency_array, sun_mass, earth_mass), distance_array, decimal=3
+        )
 
     # Test negative masses
     with pytest.raises(BadValueError) as e_info:

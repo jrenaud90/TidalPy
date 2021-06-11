@@ -4,7 +4,7 @@ partial_melt_defaults = {
         'solidus'     : 270.,
         'liquidus'    : 273.15,
         'liquid_shear': 1.e-5
-    },
+        },
     'rock': {
         'model'                 : 'henning',
         'solidus'               : 1600.,
@@ -21,11 +21,11 @@ partial_melt_defaults = {
         'hn_shear_param_1'      : 40000.0,
         'hn_shear_param_2'      : 25.0,
         'hn_shear_falloff_slope': 700.0
-    },
+        },
     'iron': {
         'model'       : 'off',
         'solidus'     : 4000.,
         'liquidus'    : 5000.,
         'liquid_shear': 1.e-5
+        }
     }
-}

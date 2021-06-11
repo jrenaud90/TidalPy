@@ -13,6 +13,7 @@ from TidalPy.toolbox.conversions import rads2days, days2rads, semi_a2orbital_mot
 star = build_world('55cnc')
 world = build_world('earth_simple')
 
+
 def test_apply_physics_orbit():
     """ This will test applying a Physical orbit to the system """
 
@@ -22,6 +23,7 @@ def test_apply_physics_orbit():
     assert orbit.star is star
     assert orbit.tidal_objects[0] is star
     assert orbit.tidal_objects[1] is world
+
 
 def test_set_orbital_frequency_and_eccentricity():
     """ This will test applying a Physical orbit to the system """
@@ -36,8 +38,9 @@ def test_set_orbital_frequency_and_eccentricity():
     assert world_tidal.orbital_period == 50.
     np.testing.assert_approx_equal(rads2days(world_tidal.orbital_frequency), 50.)
     np.testing.assert_allclose(
-            rads2days(semi_a2orbital_motion(world_tidal.semi_major_axis, orbit.tidal_host.mass, world_tidal.mass)),
-            50.)
+        rads2days(semi_a2orbital_motion(world_tidal.semi_major_axis, orbit.tidal_host.mass, world_tidal.mass)),
+        50.
+        )
 
     # Test orbital frequency - Array
     orb_period = np.linspace(10., 50., 10)
@@ -47,8 +50,9 @@ def test_set_orbital_frequency_and_eccentricity():
     np.testing.assert_allclose(world_tidal.orbital_period, orb_period)
     np.testing.assert_allclose(rads2days(world_tidal.orbital_frequency), orb_period)
     np.testing.assert_allclose(
-            rads2days(semi_a2orbital_motion(world_tidal.semi_major_axis, orbit.tidal_host.mass, world_tidal.mass)),
-            orb_period)
+        rads2days(semi_a2orbital_motion(world_tidal.semi_major_axis, orbit.tidal_host.mass, world_tidal.mass)),
+        orb_period
+        )
 
     # Test eccentricity - Float
     orbit.set_state(world_tidal, eccentricity=0.1)
@@ -63,25 +67,26 @@ def test_set_orbital_frequency_and_eccentricity():
     np.testing.assert_allclose(orbit.get_eccentricity(world_tidal), eccentricities)
     np.testing.assert_allclose(world_tidal.eccentricity, eccentricities)
 
+
 def test_global_tidal_calculation_cpl_synchronous_rotation_no_obliquity():
     """ This will test the global tidal heating calculation assuming a cpl model assuming synchronous rotation
         and no obliquity. """
 
     config_ = {
-        'force_spin_sync' : True,
-        'type': 'simple_tidal',
-        'mass': 5.972e24,
+        'force_spin_sync': True,
+        'type'           : 'simple_tidal',
+        'mass'           : 5.972e24,
         # TODO: Bug when you remove the below. For some reason the old world's slice number gets set to None.
-        'slices': 100,
-        "tides": {
-            "model": "global_approx",
-            "fixed_q": 125.0,
-            "use_ctl": False,
-            'eccentricity_truncation_lvl' : 2,
-            'max_tidal_order_l' : 2,
-            'obliquity_tides_on': False
+        'slices'         : 100,
+        "tides"          : {
+            "model"                      : "global_approx",
+            "fixed_q"                    : 125.0,
+            "use_ctl"                    : False,
+            'eccentricity_truncation_lvl': 2,
+            'max_tidal_order_l'          : 2,
+            'obliquity_tides_on'         : False
+            }
         }
-    }
     world_cpl = build_from_world(world, new_config=config_)
     orbit = PhysicsOrbit(star, tidal_host=star, tidal_bodies=world_cpl)
 
@@ -141,24 +146,25 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_no_obliquity():
     assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) == np.ndarray
     assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) == np.ndarray
 
+
 def test_global_tidal_calculation_cpl_synchronous_rotation_with_obliquity():
     """ This will test the global tidal heating calculation assuming a cpl model assuming synchronous rotation
         with an obliquity """
 
     config_ = {
-        'force_spin_sync' : True,
-        'type': 'simple_tidal',
-        'mass': 5.972e24,
-        'slices': 100,
-        "tides": {
-            "model": "global_approx",
-            "fixed_q": 125.0,
-            "use_ctl": False,
-            'eccentricity_truncation_lvl' : 2,
-            'max_tidal_order_l' : 2,
-            'obliquity_tides_on': True
+        'force_spin_sync': True,
+        'type'           : 'simple_tidal',
+        'mass'           : 5.972e24,
+        'slices'         : 100,
+        "tides"          : {
+            "model"                      : "global_approx",
+            "fixed_q"                    : 125.0,
+            "use_ctl"                    : False,
+            'eccentricity_truncation_lvl': 2,
+            'max_tidal_order_l'          : 2,
+            'obliquity_tides_on'         : True
+            }
         }
-    }
 
     world_cpl = build_from_world(world, new_config=config_)
     orbit = PhysicsOrbit(star, tidal_host=star, tidal_bodies=world_cpl)
@@ -210,24 +216,25 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_with_obliquity():
     assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) == np.ndarray
     assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) == np.ndarray
 
+
 def test_global_tidal_calculation_cpl_synchronous_rotation_with_eccen_oblique_array():
     """ This will test the global tidal heating calculation assuming a cpl model assuming synchronous rotation
         with an array version of eccentricity and obliquity """
 
     config_ = {
-        'force_spin_sync' : True,
-        'type': 'simple_tidal',
-        'mass': 5.972e24,
-        'slices': 100,
-        "tides": {
-            "model": "global_approx",
-            "fixed_q": 125.0,
-            "use_ctl": False,
-            'eccentricity_truncation_lvl' : 2,
-            'max_tidal_order_l' : 2,
-            'obliquity_tides_on': True
+        'force_spin_sync': True,
+        'type'           : 'simple_tidal',
+        'mass'           : 5.972e24,
+        'slices'         : 100,
+        "tides"          : {
+            "model"                      : "global_approx",
+            "fixed_q"                    : 125.0,
+            "use_ctl"                    : False,
+            'eccentricity_truncation_lvl': 2,
+            'max_tidal_order_l'          : 2,
+            'obliquity_tides_on'         : True
+            }
         }
-    }
 
     world_cpl = build_from_world(world, new_config=config_)
     orbit = PhysicsOrbit(star, tidal_host=star, tidal_bodies=world_cpl)
@@ -257,25 +264,26 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_with_eccen_oblique_ar
     assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) == np.ndarray
     assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) == np.ndarray
 
+
 def test_global_tidal_calculation_ctl_synchronous_rotation_with_obliquity():
     """ This will test the global tidal heating calculation assuming a ctl model assuming synchronous rotation
         with an obliquity """
 
     config_ = {
-        'force_spin_sync' : True,
-        'type': 'simple_tidal',
-        'mass': 5.972e24,
-        'slices': 100,
-        "tides": {
-            "model": "global_approx",
-            "use_ctl": True,
-            'eccentricity_truncation_lvl' : 2,
-            'max_tidal_order_l' : 2,
-            'obliquity_tides_on': True,
-            'ctl_calc_method': 'linear_simple',
-            'fixed_dt':  (1. / 125.) * days2rads(50.)**(-1),
+        'force_spin_sync': True,
+        'type'           : 'simple_tidal',
+        'mass'           : 5.972e24,
+        'slices'         : 100,
+        "tides"          : {
+            "model"                      : "global_approx",
+            "use_ctl"                    : True,
+            'eccentricity_truncation_lvl': 2,
+            'max_tidal_order_l'          : 2,
+            'obliquity_tides_on'         : True,
+            'ctl_calc_method'            : 'linear_simple',
+            'fixed_dt'                   : (1. / 125.) * days2rads(50.)**(-1),
+            }
         }
-    }
 
     world_ctl = build_from_world(world, new_config=config_)
     orbit = PhysicsOrbit(star, tidal_host=star, tidal_bodies=world_ctl)
@@ -325,33 +333,36 @@ def test_global_tidal_calculation_ctl_synchronous_rotation_with_obliquity():
     assert type(orbit.get_semi_major_axis_time_derivative(world_ctl)) == np.ndarray
     assert type(orbit.get_orbital_motion_time_derivative(world_ctl)) == np.ndarray
 
+
 def test_global_tidal_calculation_ctl_nsr_with_obliquity():
     """ This will test the global tidal heating calculation assuming a ctl model assuming NSR
         with an obliquity """
 
     config_ = {
-        'force_spin_sync' : False,
-        'type': 'simple_tidal',
-        'mass': 5.972e24,
-        'slices': 100,
-        "tides": {
-            "model": "global_approx",
-            "use_ctl": True,
-            'eccentricity_truncation_lvl' : 2,
-            'max_tidal_order_l' : 2,
-            'obliquity_tides_on': True,
-            'ctl_calc_method': 'linear_simple',
-            'fixed_dt':  (1. / 125.) * days2rads(50.)**(-1),
+        'force_spin_sync': False,
+        'type'           : 'simple_tidal',
+        'mass'           : 5.972e24,
+        'slices'         : 100,
+        "tides"          : {
+            "model"                      : "global_approx",
+            "use_ctl"                    : True,
+            'eccentricity_truncation_lvl': 2,
+            'max_tidal_order_l'          : 2,
+            'obliquity_tides_on'         : True,
+            'ctl_calc_method'            : 'linear_simple',
+            'fixed_dt'                   : (1. / 125.) * days2rads(50.)**(-1),
+            }
         }
-    }
 
     world_ctl = build_from_world(world, new_config=config_)
     orbit = PhysicsOrbit(star, tidal_host=star, tidal_bodies=world_ctl)
 
     # Test Floats
     # Set orbital frequency and eccentricity - check that spin locking worked.
-    world_ctl.set_state(orbital_period=50., eccentricity=0.2, obliquity=np.radians(10.),
-                        spin_period=10.)
+    world_ctl.set_state(
+        orbital_period=50., eccentricity=0.2, obliquity=np.radians(10.),
+        spin_period=10.
+        )
     # For a world in synchronous rotation the spin period should equal the new orbital period.
     assert not world_ctl.is_spin_sync
     assert world_ctl.tides_on
@@ -374,8 +385,10 @@ def test_global_tidal_calculation_ctl_nsr_with_obliquity():
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
     orb_period = np.linspace(10., 50., 10)
-    world_ctl.set_state(orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
-                        spin_period=0.5 * orb_period)
+    world_ctl.set_state(
+        orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
+        spin_period=0.5 * orb_period
+        )
     # For a world in synchronous rotation the spin period should equal the new orbital period.
     assert not world_ctl.is_spin_sync
     assert world_ctl.tides_on

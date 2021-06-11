@@ -22,10 +22,12 @@ from ... import log
 from ...exceptions import IncompatibleModelError
 
 
-def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: float = None,
-                            initial_core_density: float = 10000., initial_mantle_density: float = 4000.,
-                            ice_density: float = 920.,
-                            tolerance = 0.05):
+def world_iterative_builder(
+    base_world, goal_radius, goal_mass, ice_mass_frac: float = None,
+    initial_core_density: float = 10000., initial_mantle_density: float = 4000.,
+    ice_density: float = 920.,
+    tolerance=0.05
+    ):
     """ Takes a baseline planet that is close to ideal and iterates on the constructor until there is convergence in
     the mass and radius
 
@@ -57,17 +59,23 @@ def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: f
     """
 
     log.debug(f'Building a planet based on an iteration on planet: {base_world.name}')
-    log.warning(f'The world_iterative_builder is very much a work in progress. '
-                f'Double check that results match expectations.')
+    log.warning(
+        f'The world_iterative_builder is very much a work in progress. '
+        f'Double check that results match expectations.'
+        )
 
     # This is a two-layer iterator so a ice_mass_fraction is required. If none is provided then we will use whatever
     #    value was initially used in base_world.
     num_layers = len(base_world.layers)
 
     if num_layers < 2 or num_layers > 3:
-        log.error(f'world_iterative_builder requires at least 2, and at most 3, layers in the '
-                  f'base_world, {base_world.name}.')
-        raise IncompatibleModelError('world_iterative_builder requires at least 2, and at most 3, layers in the base_world.')
+        log.error(
+            f'world_iterative_builder requires at least 2, and at most 3, layers in the '
+            f'base_world, {base_world.name}.'
+            )
+        raise IncompatibleModelError(
+            'world_iterative_builder requires at least 2, and at most 3, layers in the base_world.'
+            )
     if num_layers == 2:
         # No ice layer is used
         ice_mass_frac = None
@@ -86,7 +94,7 @@ def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: f
         ice_radius_lower = None
     else:
         ice_radius_upper = goal_radius
-        ice_radius_lower = (ice_radius_upper**3 - (3. * ice_volume / (4. * np.pi)))**(1/3)
+        ice_radius_lower = (ice_radius_upper**3 - (3. * ice_volume / (4. * np.pi)))**(1 / 3)
 
     # Make a copy of the base planet's dictionary
     new_config = copy.deepcopy(base_world.config)
@@ -127,8 +135,10 @@ def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: f
         iteration_step += 1
         log.debug(f'\tIteration Step {iteration_step}')
         if iteration_step > 40:
-            log.error(f'world_iterative_builder could not find convergence working from the '
-                      f'base_world, {base_world.name}.')
+            log.error(
+                f'world_iterative_builder could not find convergence working from the '
+                f'base_world, {base_world.name}.'
+                )
             raise StopIteration('world_iterative_builder could not find convergence.')
 
         # Pull out information from the burnman build
@@ -136,7 +146,7 @@ def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: f
         core_density = iterated_world.layers[0].density_bulk
 
         core_radius = ((goal_radius**3 * (bulk_density - ice_density) +
-                        mantle_radius**3 * (ice_density - mantle_density)) / (core_density - mantle_density))**(1/3)
+                        mantle_radius**3 * (ice_density - mantle_density)) / (core_density - mantle_density))**(1 / 3)
 
         # Update config with new values
         new_config['layers'][core_layer_name]['radius'] = core_radius
@@ -148,10 +158,3 @@ def world_iterative_builder(base_world, goal_radius, goal_mass, ice_mass_frac: f
         iterated_world = build_from_world(iterated_world, new_config, new_name=base_world.name)
 
     return iterated_world
-
-
-
-
-
-
-

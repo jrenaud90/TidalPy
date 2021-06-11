@@ -2,12 +2,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import known_models, known_model_live_args, known_model_const_args
+from . import known_model_const_args, known_model_live_args, known_models
 from .cooling_models import CoolingOutputType
 from .defaults import cooling_defaults
 from .. import log
-from ..exceptions import MissingAttributeError, OuterscopePropertySetError, \
-    IncorrectMethodToSetStateProperty
+from ..exceptions import (IncorrectMethodToSetStateProperty, MissingAttributeError, OuterscopePropertySetError)
 from ..utilities.classes.model import LayerModelHolder
 from ..utilities.types import FloatArray
 
@@ -16,7 +15,6 @@ if TYPE_CHECKING:
 
 
 class CoolingModel(LayerModelHolder):
-
     """ CoolingModel
 
     Cooling model provides the functionality to calculate a layer's cooling efficiency based on user provided
@@ -33,8 +31,10 @@ class CoolingModel(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = 'cooling'
 
-    def __init__(self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
-                 initialize: bool = True):
+    def __init__(self,
+         layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
+        initialize: bool = True
+        ):
         """ Constructor for CoolingModel class
 
         Parameters
@@ -90,13 +90,15 @@ class CoolingModel(LayerModelHolder):
         """
 
         if self.temperature is None:
-            raise MissingAttributeError(f"Can not calculate cooling until layer's temperature ({self.layer.name}) "
-                                        f"has been set")
+            raise MissingAttributeError(
+                f"Can not calculate cooling until layer's temperature ({self.layer.name}) has been set"
+                )
 
         if self.temperature_surf is None:
-            raise MissingAttributeError(f"Can not calculate cooling until layer's surface "
-                                        f"temperature ({self.layer.name}) has been set. Set the layer above its "
-                                        f"dynamic temperature, or (if top layer) set the world's surface temperature.")
+            raise MissingAttributeError(
+                f"Can not calculate cooling until layer's surface temperature ({self.layer.name}) has been set. "
+                f"Set the layer above its dynamic temperature, or (if top layer) set the world's surface temperature."
+                )
 
         delta_temp = self.temperature - self.temperature_surf
 
@@ -134,7 +136,6 @@ class CoolingModel(LayerModelHolder):
             raise MissingAttributeError(f"Layer {self.layer.name}'s average/central temperature has not been set yet.")
 
         return self._calculate()
-
 
     # # State properties
     @property
@@ -181,7 +182,6 @@ class CoolingModel(LayerModelHolder):
     @nusselt.setter
     def nusselt(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Outer-scope properties
     @property
@@ -273,7 +273,6 @@ class CoolingModel(LayerModelHolder):
     @density_bulk.setter
     def density_bulk(self, value):
         raise OuterscopePropertySetError
-
 
     # # Aliased properties
     @property

@@ -1,20 +1,19 @@
 import operator
-from typing import Tuple, Callable, Union, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING, Tuple, Union
 
 from ..config.config import ConfigHolder
 from ..config.dictionary_utils import nested_get, nested_place
 from ...types import NoneType
 from .... import debug_mode, log
-from ....exceptions import (MissingArgumentError, ParameterMissingError,
-                            UnknownModelError, AttributeNotSetError, OuterscopePropertySetError,
-                            ConfigPropertyChangeError, InitiatedPropertyChangeError)
+from ....exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
+                            MissingArgumentError, OuterscopePropertySetError, ParameterMissingError, UnknownModelError)
 
 if TYPE_CHECKING:
     from ....structures.layers import PhysicalLayerType
     from ....structures.world_types import LayeredWorldType
 
-class ModelHolder(ConfigHolder):
 
+class ModelHolder(ConfigHolder):
     """ ModelHolder
     This class serves as a parent for most physics models (e.g., Radiogenics, Rheology, etc.)
 
@@ -94,8 +93,10 @@ class ModelHolder(ConfigHolder):
                 self._calc_to_use = getattr(self, '_calculate_debug')
                 self._debug_mode_on = True
             else:
-                log.debug(f"TidalPy's debug mode is on, but no debug calculation method found for {self}. "
-                          f"Using Regular.")
+                log.debug(
+                    f"TidalPy's debug mode is on, but no debug calculation method found for {self}. "
+                    f"Using Regular."
+                    )
                 self._calc_to_use = getattr(self, '_calculate')
         else:
             self._calc_to_use = getattr(self, '_calculate')
@@ -143,8 +144,10 @@ class ModelHolder(ConfigHolder):
             log.error(f'Unknown model: "{self.model}" for {self}')
             raise UnknownModelError(f'Unknown model encountered {self}.')
         elif model_name != self.model:
-            log.warning(f'Model "{self.model}" for {self} does not match TidalPy capitalization. '
-                        f'Changing to {model_name}.')
+            log.warning(
+                f'Model "{self.model}" for {self} does not match TidalPy capitalization. '
+                f'Changing to {model_name}.'
+                )
             self._model = model_name
 
         # Load the model's functions
@@ -261,7 +264,6 @@ class ModelHolder(ConfigHolder):
     def debug_mode_on(self, value):
         raise ConfigPropertyChangeError
 
-
     # # Dunder properties
     def __str__(self):
         name_str = f'{self.__class__.__name__}'
@@ -269,7 +271,6 @@ class ModelHolder(ConfigHolder):
             if self.model is not None:
                 name_str += ' ({self.model})'
         return name_str
-
 
     @staticmethod
     def build_args(arg_names: Tuple[str, ...], parameter_dict: dict = None, is_live_args: bool = False):
@@ -296,8 +297,10 @@ class ModelHolder(ConfigHolder):
             # Constant Arguments
             if parameter_dict is None:
                 log.error(f'Parameter configuration dictionary is required to build constant model arguments.')
-                raise MissingArgumentError(f'Parameter configuration dictionary is required to build constant '
-                                           f'model arguments.')
+                raise MissingArgumentError(
+                    f'Parameter configuration dictionary is required to build constant '
+                    f'model arguments.'
+                    )
 
             for arg_name in arg_names:
                 if arg_name not in parameter_dict:
@@ -321,7 +324,6 @@ class ModelHolder(ConfigHolder):
 
 
 class LayerModelHolder(ModelHolder):
-
     """ LayerModelHolder
     Parent class for physics models that are stored within a world's layer
 
@@ -337,8 +339,10 @@ class LayerModelHolder(ModelHolder):
 
     model_config_key = None
 
-    def __init__(self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
-                 initialize: bool = True):
+    def __init__(
+        self, layer: 'PhysicalLayerType', model_name: str = None, store_config_in_layer: bool = True,
+        initialize: bool = True
+        ):
         """ Constructor for LayerModelHolder class
 
         Parameters
@@ -385,7 +389,6 @@ class LayerModelHolder(ModelHolder):
             #    store the new config in the layer's config, overwriting any previous parameters.
             nested_place(self.config, self.layer.config, self.model_config_key, make_copy=False, retain_old_value=True)
 
-
     # # Initialized properties
     @property
     def layer(self) -> 'PhysicalLayerType':
@@ -414,7 +417,6 @@ class LayerModelHolder(ModelHolder):
     def store_config_in_layer(self, value):
         raise InitiatedPropertyChangeError
 
-
     # # Outer-scope Properties
     @property
     def layer_type(self):
@@ -423,7 +425,6 @@ class LayerModelHolder(ModelHolder):
     @layer_type.setter
     def layer_type(self, value):
         raise OuterscopePropertySetError
-
 
     # # Dunder properties
     def __str__(self):

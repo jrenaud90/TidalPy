@@ -39,7 +39,7 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> LiquidDynamicGuess:
     base_liquid_ys = (
         liquid_layer_ys[0][:, -1],
         liquid_layer_ys[1][:, -1]
-    )
+        )
     return base_liquid_ys
 
 

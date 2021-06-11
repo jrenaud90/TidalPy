@@ -10,15 +10,18 @@ ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/
 
 import numpy as np
 
-from ...utilities.types import FloatArray
-from ...utilities.performance import njit
 from ...constants import G
+from ...utilities.performance import njit
+from ...utilities.types import FloatArray
+
 
 @njit(cacheable=True)
-def calc_radial_tidal_heating(eccentricity: FloatArray, orbital_frequency: FloatArray, semi_major_axis: FloatArray,
-                              tidal_host_mass: float,
-                              radius_array: np.ndarray, radial_sensitivity_to_shear: np.ndarray,
-                              complex_shear_modulus: np.ndarray, order_l: int = 2):
+def calc_radial_tidal_heating(
+    eccentricity: FloatArray, orbital_frequency: FloatArray, semi_major_axis: FloatArray,
+    tidal_host_mass: float,
+    radius_array: np.ndarray, radial_sensitivity_to_shear: np.ndarray,
+    complex_shear_modulus: np.ndarray, order_l: int = 2
+    ):
     """ Calculate tidal heating as a function of radius.
 
     Assumptions
@@ -70,11 +73,11 @@ def calc_radial_tidal_heating(eccentricity: FloatArray, orbital_frequency: Float
     tidal_susceptibility = (3. / 2.) * G * tidal_host_mass**2 * world_radius**5 / semi_major_axis**6
 
     radial_tidal_heating = (tidal_susceptibility / world_radius) * \
-        (G * radial_sensitivity_to_shear * np.imag(complex_shear_modulus) / ((2. * order_l + 1.) * radius_array**2)) *\
-        portion_to_be_upgraded
+                           (G * radial_sensitivity_to_shear * np.imag(complex_shear_modulus) / (
+                                       (2. * order_l + 1.) * radius_array**2)) * \
+                           portion_to_be_upgraded
 
     # TODO: Finding that the heating rate as a function of depth can go negative. Setting those to zero for now.
     radial_tidal_heating[radial_tidal_heating < 0.] = 0.
 
     return radial_tidal_heating
-

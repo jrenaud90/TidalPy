@@ -27,8 +27,10 @@ def test_rk23_Yis1D_noTeval():
     initial_y = np.asarray([1.])
     t_span = (0., 100.)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=0, use_teval=False,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=0, use_teval=False,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0
@@ -64,8 +66,10 @@ def test_rk45_Yis1D_noTeval():
     initial_y = np.asarray([1.])
     t_span = (0., 100.)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=1, use_teval=False,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=1, use_teval=False,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0
@@ -105,8 +109,10 @@ def test_rk23_Yis2D_noTeval():
     initial_y = np.asarray([1., (1. - 0.005), (1. - (1. - 0.005))])
     t_span = (0., 100.)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=0, use_teval=False,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=0, use_teval=False,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0
@@ -146,8 +152,10 @@ def test_rk45_Yis2D_noTeval():
     initial_y = np.asarray([1., (1. - 0.005), (1. - (1. - 0.005))])
     t_span = (0., 100.)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=1, use_teval=False,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=1, use_teval=False,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0
@@ -190,8 +198,10 @@ def test_rk45_Yis2D_noTeval_complex():
 
     t_span = (0., 100.)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=1, use_teval=False,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=1, use_teval=False,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0
@@ -229,8 +239,10 @@ def test_rk45_Yis2D_withTeval_smallerN():
     t_span = (0., 15.)
     t_eval = np.linspace(0., 15., 25)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=1, t_eval_N=t_eval.size, t_eval_log=False, use_teval=True,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=1, t_eval_N=t_eval.size, t_eval_log=False, use_teval=True,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0
@@ -267,8 +279,10 @@ def test_rk45_Yis2D_withTeval_largerN():
     t_span = (0., 15.)
     t_eval = np.linspace(0., 15., 80)
     ts, ys, status, message, success = \
-        rk_integrator(diffeq, t_span, initial_y, rk_method=1, t_eval_N=t_eval.size, t_eval_log=False, use_teval=True,
-                      rtol=1.0e-3, atol=1.0e-6, verbose=False)
+        rk_integrator(
+            diffeq, t_span, initial_y, rk_method=1, t_eval_N=t_eval.size, t_eval_log=False, use_teval=True,
+            rtol=1.0e-3, atol=1.0e-6, verbose=False
+            )
 
     assert success
     assert status == 0

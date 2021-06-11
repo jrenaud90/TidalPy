@@ -1,4 +1,5 @@
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
@@ -10,7 +11,6 @@ io_base = build_world('io_simple')
 
 
 def test_basic_set_temperature():
-
     # Set the temperature of the Mantle to something where there would be no partial melt
     io_base.Mantle.set_state(temperature=1500.)
 

@@ -2,15 +2,13 @@ from typing import Union
 
 from .basic import BaseWorld
 from ... import log
-from ...exceptions import ConfigPropertyChangeError, InitiatedPropertyChangeError, InnerscopePropertySetError, \
-    AttributeNotSetError, IncorrectMethodToSetStateProperty
-from ...rheology.complex_compliance.compliance_models import fixed_q
+from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
+                           InitiatedPropertyChangeError, InnerscopePropertySetError)
 from ...tides import GlobalApproxTides
-from ...utilities.types import NoneType, FloatArray
+from ...utilities.types import FloatArray, NoneType
 
 
 class TidalWorld(BaseWorld):
-
     """ TidalWorld - Provides a simple base to build tidally dissipative world_types off of.
 
     Adds basic functionality for CPL or CTL world_types.
@@ -61,8 +59,10 @@ class TidalWorld(BaseWorld):
         if initialize:
             self.reinit(initial_init=True, setup_simple_tides=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
-               setup_simple_tides: bool = True):
+    def reinit(
+        self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
+        setup_simple_tides: bool = True
+        ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
         This must be called at least once before an instance can be used. The constructor will automatically make an
@@ -94,21 +94,27 @@ class TidalWorld(BaseWorld):
             else:
                 self._tides = None
 
-    def orbit_spin_changed(self, orbital_freq_changed: bool = False, spin_freq_changed: bool = False,
-                           eccentricity_changed: bool = False, obliquity_changed: bool = False,
-                           call_orbit_dissipation: bool = True):
+    def orbit_spin_changed(
+        self, orbital_freq_changed: bool = False, spin_freq_changed: bool = False,
+        eccentricity_changed: bool = False, obliquity_changed: bool = False,
+        call_orbit_dissipation: bool = True
+        ):
         """ The world's orbit, spin, and/or obliquity has changed. Make any necessary updates """
 
-        super().orbit_spin_changed(orbital_freq_changed=orbital_freq_changed, spin_freq_changed=spin_freq_changed,
-                                   eccentricity_changed=eccentricity_changed, obliquity_changed=obliquity_changed,
-                                   call_orbit_dissipation=call_orbit_dissipation)
+        super().orbit_spin_changed(
+            orbital_freq_changed=orbital_freq_changed, spin_freq_changed=spin_freq_changed,
+            eccentricity_changed=eccentricity_changed, obliquity_changed=obliquity_changed,
+            call_orbit_dissipation=call_orbit_dissipation
+            )
 
         # Tell the tides model that the orbit and/or spin has changed.
         if self.tides is not None:
-            self.tides.orbit_spin_changed(eccentricity_change=eccentricity_changed,
-                                          obliquity_change=obliquity_changed,
-                                          orbital_freq_changed=orbital_freq_changed,
-                                          spin_freq_changed=spin_freq_changed)
+            self.tides.orbit_spin_changed(
+                eccentricity_change=eccentricity_changed,
+                obliquity_change=obliquity_changed,
+                orbital_freq_changed=orbital_freq_changed,
+                spin_freq_changed=spin_freq_changed
+                )
 
             if call_orbit_dissipation:
                 self.orbit.dissipation_changed(self)
@@ -235,7 +241,6 @@ class TidalWorld(BaseWorld):
 
         return internal_heating_to_surface
 
-
     # # Initialized properties
     @property
     def tides(self):
@@ -245,7 +250,6 @@ class TidalWorld(BaseWorld):
     @tides.setter
     def tides(self, value):
         raise InitiatedPropertyChangeError
-
 
     # # Configuration properties
     @property
@@ -266,7 +270,6 @@ class TidalWorld(BaseWorld):
     def tides_on(self, value):
         raise ConfigPropertyChangeError
 
-
     # # State properties
     @property
     def spin_time_derivative(self) -> FloatArray:
@@ -285,7 +288,6 @@ class TidalWorld(BaseWorld):
     @tidal_polar_torque.setter
     def tidal_polar_torque(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Inner-scope properties - Tides model
     @property
@@ -429,7 +431,6 @@ class TidalWorld(BaseWorld):
     def effective_q_by_orderl(self, value):
         raise InnerscopePropertySetError
 
-
     # # Aliased properties
     @property
     def fixed_time_lag(self):
@@ -457,4 +458,3 @@ class TidalWorld(BaseWorld):
     @tidal_heating.setter
     def tidal_heating(self, value):
         self.tidal_heating_global = value
-

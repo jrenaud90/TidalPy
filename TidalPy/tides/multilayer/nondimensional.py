@@ -15,15 +15,16 @@ from ...constants import G
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray, NumArray
 
-
 NonDimPhysicalOutput = Tuple[FloatArray, FloatArray, FloatArray, NumArray, NumArray, FloatArray, float]
 ReDimPhysicalOutput = Tuple[FloatArray, FloatArray, FloatArray, NumArray, NumArray, FloatArray]
 
 
 @njit(cacheable=True)
-def non_dimensionalize_physicals(radius: FloatArray, gravity: FloatArray, density: FloatArray,
-                                 shear_modulus: NumArray, bulk_modulus: NumArray, frequency: FloatArray,
-                                 mean_radius: float, bulk_density: float) -> NonDimPhysicalOutput:
+def non_dimensionalize_physicals(
+    radius: FloatArray, gravity: FloatArray, density: FloatArray,
+    shear_modulus: NumArray, bulk_modulus: NumArray, frequency: FloatArray,
+    mean_radius: float, bulk_density: float
+    ) -> NonDimPhysicalOutput:
     """ A function to non-dimensionalize physical parameters
 
     Parameters
@@ -92,10 +93,12 @@ def non_dimensionalize_physicals(radius: FloatArray, gravity: FloatArray, densit
 
 
 @njit(cacheable=True)
-def re_dimensionalize_physicals(radius_prime: FloatArray, gravity_prime: FloatArray, density_prime: FloatArray,
-                                shear_modulus_prime: NumArray, bulk_modulus_prime: NumArray,
-                                frequency_prime: FloatArray,
-                                mean_radius: float, bulk_density: float) -> ReDimPhysicalOutput:
+def re_dimensionalize_physicals(
+    radius_prime: FloatArray, gravity_prime: FloatArray, density_prime: FloatArray,
+    shear_modulus_prime: NumArray, bulk_modulus_prime: NumArray,
+    frequency_prime: FloatArray,
+    mean_radius: float, bulk_density: float
+    ) -> ReDimPhysicalOutput:
     """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
 
     Parameters
@@ -158,8 +161,10 @@ def re_dimensionalize_physicals(radius_prime: FloatArray, gravity_prime: FloatAr
 
 
 @njit(cacheable=True)
-def re_dimensionalize_radial_func(tidal_y_prime: np.ndarray,
-                                  mean_radius: float, bulk_density: float) -> np.ndarray:
+def re_dimensionalize_radial_func(
+    tidal_y_prime: np.ndarray,
+    mean_radius: float, bulk_density: float
+    ) -> np.ndarray:
     """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
 
     Parameters

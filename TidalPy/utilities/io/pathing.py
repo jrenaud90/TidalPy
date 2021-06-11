@@ -1,5 +1,5 @@
 import os
-from typing import List, Union, Dict
+from typing import Dict, List, Union
 
 
 def get_all_files_of_type(directory_to_search: str, file_extensions: Union[List[str], str]) -> Dict[str, str]:

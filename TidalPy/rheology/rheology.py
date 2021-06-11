@@ -5,10 +5,10 @@ import numpy as np
 from .complex_compliance import ComplexCompliance
 from .defaults import rheology_defaults
 from .partial_melt import PartialMelt
-from .viscosity import SolidViscosity, LiquidViscosity
+from .viscosity import LiquidViscosity, SolidViscosity
 from .. import debug_mode, log
-from ..exceptions import MissingArgumentError, OuterscopePropertySetError, UnusualRealValueError, \
-    InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty
+from ..exceptions import (IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, MissingArgumentError,
+                          OuterscopePropertySetError, UnusualRealValueError)
 from ..utilities.classes import LayerConfigHolder
 from ..utilities.types import FloatArray
 
@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
 
 class Rheology(LayerConfigHolder):
-
     """ Rheology
     A class for methods and attributes used to calculate a layer's strength-related physics.
 
@@ -63,11 +62,13 @@ class Rheology(LayerConfigHolder):
             ComplexCompliance(self.layer, self, store_config_in_layer=self.store_config_in_layer)
 
         # Report information about the models loaded
-        log.debug(f"Rheology loaded into {self.layer}:\n"
-                  f"\tSolid Viscosity:     {self.viscosity_model.model}\n"
-                  f"\tLiquid Viscosity:    {self.liquid_viscosity_model.model}\n"
-                  f"\tPartial Melting:     {self.partial_melting_model.model}\n"
-                  f"\tComplex Compliance:  {self.complex_compliance_model.model}")
+        log.debug(
+            f"Rheology loaded into {self.layer}:\n"
+            f"\tSolid Viscosity:     {self.viscosity_model.model}\n"
+            f"\tLiquid Viscosity:    {self.liquid_viscosity_model.model}\n"
+            f"\tPartial Melting:     {self.partial_melting_model.model}\n"
+            f"\tComplex Compliance:  {self.complex_compliance_model.model}"
+            )
 
     def tidal_frequencies_changed(self, collapse_tidal_modes: bool = True):
         """ The tidal frequencies have changed. Make any necessary updates.
@@ -211,7 +212,6 @@ class Rheology(LayerConfigHolder):
             # Tell rheology that the strength has changed.
             self.strength_changed()
 
-
     # # Initialized properties
     @property
     def viscosity_model(self) -> SolidViscosity:
@@ -248,7 +248,6 @@ class Rheology(LayerConfigHolder):
     @complex_compliance_model.setter
     def complex_compliance_model(self, value):
         raise InitiatedPropertyChangeError
-
 
     # Inner-scope reference properties
     # # Viscosity Class
@@ -318,7 +317,6 @@ class Rheology(LayerConfigHolder):
     def complex_compliances(self, value):
         raise IncorrectMethodToSetStateProperty
 
-
     # Outer-scope reference properties
     # # Layer Class
     @property
@@ -357,7 +355,6 @@ class Rheology(LayerConfigHolder):
     @unique_tidal_frequencies.setter
     def unique_tidal_frequencies(self, value):
         raise OuterscopePropertySetError
-
 
     # # Aliased properties
     @property

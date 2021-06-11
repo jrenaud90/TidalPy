@@ -1,6 +1,5 @@
-
-from scipy.special import gamma
 import numpy as np
+from scipy.special import gamma
 
 import TidalPy
 
@@ -8,8 +7,8 @@ TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
-def test_find_factorial():
 
+def test_find_factorial():
     # Test Load
     from TidalPy.utilities.performance.numba import find_factorial
     assert type(find_factorial(1.)) in [float, np.float, np.float64]

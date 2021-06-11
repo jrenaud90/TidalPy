@@ -12,16 +12,19 @@ SVC16 : Sabadini, Vermeerson, & Cambiotti (2016, DOI: 10.1007/978-94-017-7552-6)
 HH14  : Henning & Hurford (2014, DOI: 10.1088/0004-637X/789/1/30)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
 """
+from typing import Tuple
 
 import numpy as np
 
-from ....constants import pi, G
+from ....constants import G, pi
 from ....utilities.performance import njit
 
 
 @njit(cacheable=True)
-def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np.ndarray,
-                               density_array: np.ndarray, gravity_array: np.ndarray, order_l: int = 2):
+def fundamental_matrix_generic(
+    radius_array: np.ndarray, complex_shear_array: np.ndarray,
+    density_array: np.ndarray, gravity_array: np.ndarray, order_l: int = 2
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """ Construct the fundamental matrix and its inverse for a generic order-l
 
     See Eq. 2.42 of SVC16
@@ -53,7 +56,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
         The matrix, A, that satisfies the equation dy/dr = A * y
 
     """
-    
+
     # First index: Rows of the propagation matrix
     # Second index: Columns of the propagation matrix
     # Third index: shell index (set outside of function)
@@ -78,7 +81,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     l2m1 = (order_l**2 - 1.)
     dlp1 = (2. * order_l + 1.)
     dlp3 = (2. * order_l + 3.)
-    
+
     rgp = radius_array * gravity_array * density_array
     rgp_s = rgp / complex_shear_array
     r_s = radius_array / complex_shear_array
@@ -89,7 +92,8 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     ## Column 1
     fundamental_mtx[0, 0, :] = order_l * rlp1 / (2. * dlp3)
     fundamental_mtx[1, 0, :] = lp3 * rlp1 / (2. * dlp3 * lp1)
-    fundamental_mtx[2, 0, :] = (order_l * rgp + 2. * l2mlm3 * complex_shear_array) * rl / (2. * dlp3)  # Believe there is a typo in HH14, they have the r^l only on one term instead of both.
+    fundamental_mtx[2, 0, :] = (order_l * rgp + 2. * l2mlm3 * complex_shear_array) * rl / (
+                2. * dlp3)  # Believe there is a typo in HH14, they have the r^l only on one term instead of both.
     fundamental_mtx[3, 0, :] = order_l * lp2 * complex_shear_array * rl / (dlp3 * lp1)
     # fundamental_mtx[4, 0, :] = np.zeros(num_shells)
     fundamental_mtx[5, 0, :] = 2. * pi * G * density_array * order_l * rlp1 / dlp3
@@ -133,7 +137,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     # fundamental_mtx[3, 5, :] = np.zeros(num_shells)
     fundamental_mtx[4, 5, :] = -1. / rlp1
     # fundamental_mtx[5, 5, :] = np.zeros(num_shells)
-    
+
     # Inverse of the Fundamental Matrix
     # This function manually defines the inverse matrix which is about 15--30% faster than a version that uses
     #    np.linalg.inv() to calculate the inverse matrix.
@@ -197,7 +201,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     ## Column 6
     # inverse_fundamental_mtx[0, 5, :] = np.zeros(num_shells)
     # inverse_fundamental_mtx[1, 5, :] = np.zeros(num_shells)
-    inverse_fundamental_mtx[2, 5, :] =  d_coeff_3 * (-np.ones(num_shells, dtype=np.complex128))
+    inverse_fundamental_mtx[2, 5, :] = d_coeff_3 * (-np.ones(num_shells, dtype=np.complex128))
     # inverse_fundamental_mtx[3, 5, :] = np.zeros(num_shells)
     # inverse_fundamental_mtx[4, 5, :] = np.zeros(num_shells)
     inverse_fundamental_mtx[5, 5, :] = d_coeff_6 * (-radius_array)
@@ -221,7 +225,7 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
     derivative_mtx[0, 1, :] = order_l * lp1 * r_inv
     derivative_mtx[1, 1, :] = r_inv
     derivative_mtx[2, 1, :] = -order_l * lp1 * r_inv * (6. * complex_shear_array * r_inv -
-                                                                  density_array * gravity_array)
+                                                        density_array * gravity_array)
     derivative_mtx[3, 1, :] = 2. * (2. * order_l**2 + 2. * order_l - 1.) * complex_shear_array * (r_inv**2)
     # derivative_mtx[4, 1, :] = np.zeros(num_shells)
     derivative_mtx[5, 1, :] = 4. * np.pi * G * density_array * order_l * lp1 * r_inv
@@ -260,9 +264,12 @@ def fundamental_matrix_generic(radius_array: np.ndarray, complex_shear_array: np
 
     return fundamental_mtx, inverse_fundamental_mtx, derivative_mtx
 
+
 @njit(cacheable=True)
-def fundamental_matrix_orderl2(radius_array: np.ndarray, complex_shear_array: np.ndarray,
-                               density_array: np.ndarray, gravity_array: np.ndarray):
+def fundamental_matrix_orderl2(
+    radius_array: np.ndarray, complex_shear_array: np.ndarray,
+    density_array: np.ndarray, gravity_array: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """ Construct the fundamental matrix and its inverse for a order-l = 2
 
     This is a restricted version of the generic fundamental matrix that is only valid for tidal order l = 2. The

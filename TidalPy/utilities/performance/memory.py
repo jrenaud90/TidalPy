@@ -7,6 +7,7 @@ try:
 except ImportError:
     pass
 
+
 def total_size(o, handlers={}, verbose=False):
     """ Returns the approximate memory footprint an object and all of its contents.
 
@@ -19,19 +20,20 @@ def total_size(o, handlers={}, verbose=False):
 
     """
     dict_handler = lambda d: chain.from_iterable(d.items())
-    all_handlers = {tuple: iter,
-                    list: iter,
-                    deque: iter,
-                    dict: dict_handler,
-                    set: iter,
-                    frozenset: iter,
-                   }
-    all_handlers.update(handlers)     # user handlers take precedence
-    seen = set()                      # track which object id's have already been seen
-    default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
+    all_handlers = {
+        tuple    : iter,
+        list     : iter,
+        deque    : iter,
+        dict     : dict_handler,
+        set      : iter,
+        frozenset: iter,
+        }
+    all_handlers.update(handlers)  # user handlers take precedence
+    seen = set()  # track which object id's have already been seen
+    default_size = getsizeof(0)  # estimate sizeof object without __sizeof__
 
     def sizeof(o):
-        if id(o) in seen:       # do not double count the same object
+        if id(o) in seen:  # do not double count the same object
             return 0
         seen.add(id(o))
         s = getsizeof(o, default_size)
@@ -45,4 +47,4 @@ def total_size(o, handlers={}, verbose=False):
                 break
         return s
 
-    return sizeof(o)*1e-6
+    return sizeof(o) * 1e-6

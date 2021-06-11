@@ -1,5 +1,4 @@
 import os
-from functools import wraps
 
 import numpy as np
 from scipy.special import gamma
@@ -16,6 +15,7 @@ cache_numba = config['cache_numba']
 if use_numba:
     import numba
 
+
     def njit(*args, **kwargs):
         if 'cacheable' in kwargs:
             if kwargs['cacheable'] and cache_numba:
@@ -26,6 +26,7 @@ if use_numba:
             return numba.njit(*args, **kwargs)
         return numba.njit(*args, **kwargs)
 
+
     vectorize = numba.vectorize
     float64 = numba.float64
     int64 = numba.int64
@@ -35,11 +36,13 @@ else:
     float64 = np.float64
     int64 = np.int64
 
+
     def njit(*args, **kwargs):
         def njit_inner(func):
-
             return func
+
         return njit_inner
+
 
     def nbTuple(*args):
         return None
@@ -52,8 +55,10 @@ else:
 #     To counter this we add a list of commonly used values of the Andrade alpha parameter, as it is usually what we are
 #     taking the factorial of.
 _predefined_range = np.linspace(0., 1., 1000)
-_common_alphas = np.asarray([0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85,
-                             0.9, 0.95])
+_common_alphas = np.asarray(
+    [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85,
+     0.9, 0.95]
+    )
 _predefined_inputs = np.sort(np.concatenate((_predefined_range, _common_alphas)))
 _factorials = gamma(_predefined_inputs + 1.0)
 

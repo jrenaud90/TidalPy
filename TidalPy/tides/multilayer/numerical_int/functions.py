@@ -1,9 +1,9 @@
-from typing import Union, Tuple
+from typing import Tuple, Union
 
 from scipy.special import gamma, spherical_jn
 
-from ....utilities.types import FloatArray, ComplexArray
 from ....utilities.performance import njit
+from ....utilities.types import ComplexArray, FloatArray
 
 FltCmplxArray = Union[FloatArray, ComplexArray]
 
@@ -17,9 +17,10 @@ for l in range(25):
 
 l2p1_double_factorials = tuple(l2p1_double_factorials)
 
+
 # OPT: This can not be njited because it depends on the non-njited spherical bessel functions.
 #    subsequent functions that depend on this must use the approximate `takeuchi_phi_psi`.
-def takeuchi_phi_psi_general(z : FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
+def takeuchi_phi_psi_general(z: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
     """ Calculate the two functions used to find initial conditions for shooting method.
 
     See Eq. 103 in Takeuchi & Saito 1972
@@ -45,8 +46,9 @@ def takeuchi_phi_psi_general(z : FltCmplxArray, order_l: int = 2) -> Tuple[FltCm
 
     return phi, phi_lplus1, psi
 
+
 @njit(cacheable=True)
-def takeuchi_phi_psi(z2 : FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
+def takeuchi_phi_psi(z2: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
     """ Calculate the two functions used to find initial conditions for shooting method.
 
     See Eq. 103 in Takeuchi & Saito 1972

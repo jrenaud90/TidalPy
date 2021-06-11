@@ -5,8 +5,8 @@ from typing import Any, Tuple
 
 from .json_utils import save_dict_to_json
 from ..base import TidalPyClass
-from .... import disk_loc, log, debug_mode, version
-from ....exceptions import ImproperPropertyHandling, ParameterMissingError, OuterscopePropertySetError
+from .... import debug_mode, disk_loc, log, version
+from ....exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
 
 
 class ConfigHolder(TidalPyClass):
@@ -106,8 +106,10 @@ class ConfigHolder(TidalPyClass):
 
         if param_name not in self.config:
             if raise_missing:
-                raise ParameterMissingError(f'Parameter {param_name} missing from user provided and default '
-                                            f'configurations for class: {self}.')
+                raise ParameterMissingError(
+                    f'Parameter {param_name} missing from user provided and default '
+                    f'configurations for class: {self}.'
+                    )
             else:
                 param = fallback
         else:
@@ -181,10 +183,12 @@ class ConfigHolder(TidalPyClass):
         if self.config is not None:
             pprint(self.config)
 
-    def save_config(self, class_name: str = None,
-                    save_to_run_dir: bool = True, additional_save_dirs: list = None,
-                    save_default: bool = False, save_old_config: bool = False,
-                    overwrite: bool = False) -> Tuple[str, ...]:
+    def save_config(
+        self, class_name: str = None,
+        save_to_run_dir: bool = True, additional_save_dirs: list = None,
+        save_default: bool = False, save_old_config: bool = False,
+        overwrite: bool = False
+        ) -> Tuple[str, ...]:
         """ Saves class' configurations to a local JSON file.
 
         Parameters
@@ -265,8 +269,10 @@ class ConfigHolder(TidalPyClass):
 
     @old_config.setter
     def old_config(self, value):
-        raise ImproperPropertyHandling('To change configurations set the "config_user" attribute '
-                                        'or run "update_config"')
+        raise ImproperPropertyHandling(
+            'To change configurations set the "config_user" attribute '
+            'or run "update_config"'
+            )
 
     @property
     def config(self) -> dict:
@@ -274,15 +280,16 @@ class ConfigHolder(TidalPyClass):
 
     @config.setter
     def config(self, value):
-        raise ImproperPropertyHandling('To change configurations set the "replacement_config" attribute '
-                                        'or run "update_config"')
+        raise ImproperPropertyHandling(
+            'To change configurations set the "replacement_config" attribute '
+            'or run "update_config"'
+            )
 
     def __str__(self):
         return f'{self.__class__.__name__}'
 
 
 class LayerConfigHolder(ConfigHolder):
-
     """ Classes with configuration information which are stored within a layer and make calls to that
     layer's attributes and methods.
     """
@@ -309,8 +316,10 @@ class LayerConfigHolder(ConfigHolder):
             log.debug(f"User provided no model ({self}) information for {self.layer}, using defaults instead.")
 
         if config is None and self.default_config is None:
-            raise ParameterMissingError(f"Config was not provided for [layer: {self.layer.name} in world: {world_name}]'s "
-                                        f"{self.__class__.__name__} and no defaults are set.")
+            raise ParameterMissingError(
+                f"Config was not provided for [layer: {self.layer.name} in world: {world_name}]'s "
+                f"{self.__class__.__name__} and no defaults are set."
+                )
 
         # Setup ModelHolder and ConfigHolder methods. Using the layer's config file as the replacement config.
         super().__init__(replacement_config=config)
@@ -354,7 +363,6 @@ class LayerConfigHolder(ConfigHolder):
 
 
 class WorldConfigHolder(ConfigHolder):
-
     """ Classes with configuration information which are stored within a world and make calls to that
     world's attributes and methods.
     """
@@ -374,14 +382,20 @@ class WorldConfigHolder(ConfigHolder):
         try:
             config = self.world.config[self.world_config_key]
         except KeyError:
-            log.debug(f"User provided no model information for [<WorldConfigHolder> in world: {world_name}]'s "
-                        f"{self.__class__.__name__}, using defaults instead.")
+            log.debug(
+                f"User provided no model information for [<WorldConfigHolder> in world: {world_name}]'s "
+                f"{self.__class__.__name__}, using defaults instead."
+                )
 
         if config is None and self.default_config is None:
-            log.error(f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
-                      f"{self.__class__.__name__} and no defaults are set.")
-            raise ParameterMissingError(f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
-                                        f"{self.__class__.__name__} and no defaults are set.")
+            log.error(
+                f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
+                f"{self.__class__.__name__} and no defaults are set."
+                )
+            raise ParameterMissingError(
+                f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
+                f"{self.__class__.__name__} and no defaults are set."
+                )
 
         # Setup ModelHolder and ConfigHolder methods. Using the world's config file as the replacement config.
         super().__init__(replacement_config=config)

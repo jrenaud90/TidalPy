@@ -5,11 +5,12 @@ import numpy as np
 
 from .defaults import default_burnman_layer_params
 from .material.helper import find_material
-from .. import debug_mode, log, configurations
-from ..exceptions import BadValueError, ParameterValueError, ParameterMissingError
+from .. import configurations, debug_mode, log
+from ..exceptions import BadValueError, ParameterMissingError, ParameterValueError
 from ..utilities.types import float_eps
 
 BURNMAN_VERBOSE = debug_mode and not configurations['force_burnman_quiet']
+
 
 def build_layer(layer_name: str, layer_config: dict) -> burnman.Layer:
     """ Build a Burnman layer
@@ -148,8 +149,10 @@ def build_burnman_world(planet_config: dict, verbose: bool = False) -> Tuple[bur
                 layer_config['thickness'] = layer_config['radius'] - last_layer_radius
         layer_config['radius_upper'] = layer_config['radius']
         layer_config['radius_lower'] = layer_config['radius_upper'] - layer_config['thickness']
-        layer_config['radii'] = np.linspace(layer_config['radius_lower'], layer_config['radius_upper'],
-                                            layer_config['slices'], endpoint=True)
+        layer_config['radii'] = np.linspace(
+            layer_config['radius_lower'], layer_config['radius_upper'],
+            layer_config['slices'], endpoint=True
+            )
 
         # Check for physical consistency
         if layer_config['thickness'] <= float_eps:

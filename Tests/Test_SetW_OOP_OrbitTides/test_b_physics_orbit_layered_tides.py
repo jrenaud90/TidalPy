@@ -12,6 +12,7 @@ from TidalPy.structures.orbit import PhysicsOrbit
 star = build_world('55cnc')
 world = build_world('io')
 
+
 def test_layered_tide_model_maxwell_rheology():
     """ This test will load a maxwell model into a layered Io and test the tidal calculations """
 
@@ -23,21 +24,21 @@ def test_layered_tide_model_maxwell_rheology():
             'eccentricity_truncation_lvl': 2,
             'max_tidal_order_l'          : 2,
             'obliquity_tides_on'         : True
-        },
-        "layers": {
-            "Core": {
+            },
+        "layers"         : {
+            "Core"  : {
                 "is_tidal": False,
                 "rheology": {
                     'complex_compliance': {
                         'model': 'maxwell'
+                        }
                     }
-                }
-            },
+                },
             "Mantle": {
                 "is_tidal": True
+                }
             }
         }
-    }
 
     world_tidal = build_from_world(world, new_config=config_)
     orbit = PhysicsOrbit(star, tidal_host=star, tidal_bodies=world_tidal)
@@ -50,8 +51,10 @@ def test_layered_tide_model_maxwell_rheology():
 
     # Test Floats
     # Set orbital frequency and eccentricity - check that spin locking worked.
-    world_tidal.set_state(orbital_period=50., eccentricity=0.2, obliquity=np.radians(10.),
-                          spin_period=10.)
+    world_tidal.set_state(
+        orbital_period=50., eccentricity=0.2, obliquity=np.radians(10.),
+        spin_period=10.
+        )
     # For a world in synchronous rotation the spin period should equal the new orbital period.
     assert not world_tidal.is_spin_sync
     assert world_tidal.tides_on
@@ -70,8 +73,10 @@ def test_layered_tide_model_maxwell_rheology():
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
     orb_period = np.linspace(10., 50., 10)
-    world_tidal.set_state(orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
-                        spin_period=0.5 * orb_period)
+    world_tidal.set_state(
+        orbital_period=orb_period, eccentricity=0.2, obliquity=np.radians(10.),
+        spin_period=0.5 * orb_period
+        )
     # For a world in synchronous rotation the spin period should equal the new orbital period.
     assert not world_tidal.is_spin_sync
     assert world_tidal.tides_on

@@ -27,7 +27,7 @@ layer_defaults = {
         'thermal_diffusivity'          : 2.3 / (1000. * 2000.),
         'thermal_expansion'            : 5.0e-5,
 
-    },
+        },
     'rock': {
         # General Layer Information
         'type'                         : 'rock',
@@ -53,7 +53,7 @@ layer_defaults = {
         'thermal_conductivity'         : 3.75,
         'thermal_diffusivity'          : 3.75 / (3250. * 1260.),
         'thermal_expansion'            : 5.2e-5,
-    },
+        },
     'iron': {
         # General Layer Information
         'type'                         : 'iron',
@@ -79,5 +79,5 @@ layer_defaults = {
         'thermal_conductivity'         : 7.95,
         'thermal_diffusivity'          : 7.95 / (9000. * 444.),
         'thermal_expansion'            : 1.2e-5,
+        }
     }
-}

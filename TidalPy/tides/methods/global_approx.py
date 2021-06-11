@@ -1,18 +1,18 @@
 """ Simple Tides Module
 """
-from typing import TYPE_CHECKING, Dict, Tuple, Callable
+from typing import Callable, Dict, TYPE_CHECKING, Tuple
 
 import numpy as np
 
 from .base import TidesBase
 from .defaults import tide_defaults
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
-from ..mode_manipulation import FreqSig, DissipTermsArray
+from ..mode_manipulation import DissipTermsArray, FreqSig
 from ... import log
-from ...exceptions import (NotYetImplementedError, IncorrectMethodToSetStateProperty,
-                           ConfigPropertyChangeError, UnknownModelError)
+from ...exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, NotYetImplementedError,
+                           UnknownModelError)
 from ...utilities.performance import njit
-from ...utilities.types import FloatArray, ComplexArray
+from ...utilities.types import ComplexArray, FloatArray
 
 if TYPE_CHECKING:
     from ...structures.world_types import TidalWorldType
@@ -20,8 +20,10 @@ if TYPE_CHECKING:
 
 # Can not cache this func since it relies on a user provided njit'd callable (ctl_method)
 @njit(cacheable=False)
-def ctl_neg_imk_helper_func(tidal_frequencies: Dict[FreqSig, FloatArray], fixed_k2: float,
-                            ctl_method: Callable, ctl_inputs: Tuple[float, ...]) -> Dict[FreqSig, ComplexArray]:
+def ctl_neg_imk_helper_func(
+    tidal_frequencies: Dict[FreqSig, FloatArray], fixed_k2: float,
+    ctl_method: Callable, ctl_inputs: Tuple[float, ...]
+    ) -> Dict[FreqSig, ComplexArray]:
     """ Njit-safe helper function for calculating -Imk2 for CTL method.
 
     Parameters
@@ -65,6 +67,7 @@ def ctl_neg_imk_helper_func(tidal_frequencies: Dict[FreqSig, FloatArray], fixed_
     del neg_imk_by_unique_freq[(-100, -100)]
 
     return neg_imk_by_unique_freq
+
 
 @njit(cacheable=True)
 def cpl_neg_imk_helper_func(tidal_frequencies: Dict[FreqSig, FloatArray], fixed_k2: float, fixed_q: float) \
@@ -203,9 +206,11 @@ class GlobalApproxTides(TidesBase):
         if self.max_tidal_order_lvl > 2:
             raise NotYetImplementedError('Tidal order number > 2 is not implemented for global approx tides.')
 
-    def orbit_spin_changed(self, eccentricity_change: bool = True, obliquity_change: bool = True,
-                           orbital_freq_changed: bool = True, spin_freq_changed: bool = True,
-                           call_world_frequency_changed: bool = False, call_collapse_modes: bool = True) -> \
+    def orbit_spin_changed(
+        self, eccentricity_change: bool = True, obliquity_change: bool = True,
+        orbital_freq_changed: bool = True, spin_freq_changed: bool = True,
+        call_world_frequency_changed: bool = False, call_collapse_modes: bool = True
+        ) -> \
             Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
@@ -247,14 +252,15 @@ class GlobalApproxTides(TidesBase):
 
         # Find all the tidal modes using the base class' method. Prevent it from calling the world's complex compliance
         #   calculator.
-        super().orbit_spin_changed(eccentricity_change=eccentricity_change, obliquity_change=obliquity_change,
-                                   orbital_freq_changed=orbital_freq_changed, spin_freq_changed=spin_freq_changed,
-                                   call_world_frequency_changed=False, call_collapse_modes=False)
+        super().orbit_spin_changed(
+            eccentricity_change=eccentricity_change, obliquity_change=obliquity_change,
+            orbital_freq_changed=orbital_freq_changed, spin_freq_changed=spin_freq_changed,
+            call_world_frequency_changed=False, call_collapse_modes=False
+            )
 
         # See if we need to update the CTL/CPL method results
         tidal_freqs_changed = orbital_freq_changed or spin_freq_changed
         need_to_collapse_modes = eccentricity_change or obliquity_change or tidal_freqs_changed
-
 
         # If the CTL method is used then the dissipation efficiency will change with frequency.
         #    In CPL: Dissipation ~ k_2 / Q
@@ -272,13 +278,17 @@ class GlobalApproxTides(TidesBase):
 
                 # Calculate new values
                 self._ctl_complex_love_by_unique_freq = \
-                    ctl_neg_imk_helper_func(self.unique_tidal_frequencies, self.fixed_k2,
-                                            self.ctl_calc_method, ctl_inputs)
+                    ctl_neg_imk_helper_func(
+                        self.unique_tidal_frequencies, self.fixed_k2,
+                        self.ctl_calc_method, ctl_inputs
+                        )
             else:
                 # CPL Method
                 self._cpl_complex_love_by_unique_freq = \
-                    cpl_neg_imk_helper_func(self.unique_tidal_frequencies, self.fixed_k2,
-                                            self.fixed_q)
+                    cpl_neg_imk_helper_func(
+                        self.unique_tidal_frequencies, self.fixed_k2,
+                        self.fixed_q
+                        )
 
         if need_to_collapse_modes and call_collapse_modes:
             self.collapse_modes()
@@ -338,12 +348,14 @@ class GlobalApproxTides(TidesBase):
             # Mode collapse will parse through tidal order-l and all unique frequencies and calculate global dissipation
             #    values
             tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
-                self.collapse_modes_func(gravity_surf, radius, bulk_density, shear_modulus,
-                                         tidal_scale,
-                                         self.tidal_host.mass, self.tidal_susceptibility,
-                                         self.complex_love_by_unique_freq,
-                                         self.tidal_terms_by_frequency, self.max_tidal_order_lvl,
-                                         cpl_ctl_method=True)
+                self.collapse_modes_func(
+                    gravity_surf, radius, bulk_density, shear_modulus,
+                    tidal_scale,
+                    self.tidal_host.mass, self.tidal_susceptibility,
+                    self.complex_love_by_unique_freq,
+                    self.tidal_terms_by_frequency, self.max_tidal_order_lvl,
+                    cpl_ctl_method=True
+                    )
 
             # Calculation finished. Store info in accessible containers
             self._tidal_heating_global = tidal_heating
@@ -359,7 +371,6 @@ class GlobalApproxTides(TidesBase):
 
         # Return tidal heating and derivatives
         return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO
-
 
     # # Configuration properties
     @property

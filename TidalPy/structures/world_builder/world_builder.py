@@ -1,14 +1,14 @@
 import copy
-from typing import Union, TextIO
+from typing import TextIO, Union
 
 import json5
 
-from .config_handler import get_world_configs, world_config_loc, clean_world_config
-from ..world_types import world_types, BurnManWorld
+from .config_handler import clean_world_config, get_world_configs, world_config_loc
+from ..world_types import BurnManWorld, world_types
 from ... import log
 from ...burnman_interface.build import build_burnman_world
-from ...exceptions import UnknownWorld, UnknownWorldType, TidalPyWorldError, NotYetImplementedError, \
-    MissingArgumentError
+from ...exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
+                           UnknownWorldType)
 from ...utilities.classes.config.dictionary_utils import nested_replace
 
 
@@ -40,7 +40,6 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         The initialized TidalPy world object.
     """
 
-
     log.info(f'Preparing to build world: {world_name}.')
 
     # If world_config is a file then load it through json and get a dict
@@ -54,8 +53,10 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         log.debug(f'User provided world configurations for {world_name}.')
 
     if world_config is None:
-        log.info(f'No manual configuration dictionary was provided for {world_name}, '
-                 f'attempting to locate saved configuration file.')
+        log.info(
+            f'No manual configuration dictionary was provided for {world_name}, '
+            f'attempting to locate saved configuration file.'
+            )
 
         known_worlds = get_world_configs()
 
@@ -64,9 +65,11 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         elif world_name.lower() in known_worlds:
             world_config = known_worlds[world_name.lower()]
         else:
-            log.error(f'The user provided world name, {world_name}, can not be found in the directory of pre-built '
-                         f'world configs. Please add a new config to this directory or provide a manual world '
-                         f'configuration dictionary. Pre-built world configs can be found in:\n{world_config_loc}')
+            log.error(
+                f'The user provided world name, {world_name}, can not be found in the directory of pre-built '
+                f'world configs. Please add a new config to this directory or provide a manual world '
+                f'configuration dictionary. Pre-built world configs can be found in:\n{world_config_loc}'
+                )
             raise UnknownWorld
 
         log.debug(f'World configuration dictionary found for {world_name}.')
@@ -81,8 +84,10 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     WorldClass = world_types[world_type]
 
     if WorldClass is BurnManWorld:
-        log.debug(f'Burnman world detected for {world_name}. '
-                  f'Now attempting to build the BurnMan class for the world.')
+        log.debug(
+            f'Burnman world detected for {world_name}. '
+            f'Now attempting to build the BurnMan class for the world.'
+            )
 
         # Build BurnMan world first
         burnman_world, burnman_layers = build_burnman_world(world_config)
@@ -103,6 +108,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     #     atexit.register(planet.kill_world)
 
     return world
+
 
 def build_from_world(old_world, new_config: dict, new_name: str = None):
     """ Constructs a new world based on a previously built one.
@@ -182,6 +188,7 @@ def build_from_world(old_world, new_config: dict, new_name: str = None):
 
     return new_world
 
+
 def scale_from_world(old_world, new_name: str = None, mass_scale: float = None, radius_scale: float = None):
     """ Constructs a new planet that is a scaled up/down version of an old planet
 
@@ -218,8 +225,10 @@ def scale_from_world(old_world, new_name: str = None, mass_scale: float = None, 
 
     if mass_scale is None:
         if radius_scale is None:
-            raise MissingArgumentError('radius_scale must be provided to the scale_from_world function '
-                                       '(until mass_scale argument is implemented).')
+            raise MissingArgumentError(
+                'radius_scale must be provided to the scale_from_world function '
+                '(until mass_scale argument is implemented).'
+                )
     else:
         # TODO: This may require some sort of iterative method w/ Burnman
         raise NotYetImplementedError('Right now planets can only be scaled by their radius')
@@ -244,7 +253,7 @@ def scale_from_world(old_world, new_name: str = None, mass_scale: float = None, 
 
         # Update other items
         scaled_config['layers'][layer_name]['thickness'] = scaled_config['layers'][layer_name]['radius'] - \
-            scaled_config['layers'][layer_name]['radius_inner']
+                                                           scaled_config['layers'][layer_name]['radius_inner']
 
     # Give it an identifiable name
     if new_name is None:

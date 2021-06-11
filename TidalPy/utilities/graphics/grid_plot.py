@@ -1,14 +1,16 @@
 import numpy as np
-from matplotlib import gridspec as gspec, pyplot as plt, colors
+from matplotlib import colors, gridspec as gspec, pyplot as plt
 
 from ..numpy_helper.array_other import normalize_dict
 
 
-def success_grid_plot(success_by_rheo: dict, x: np.ndarray, y: np.ndarray,
-                      xname: str = 'unknown x', yname: str = 'unknown y',
-                      xlog: bool = False, ylog: bool = False,
-                      print_value: bool = False,
-                      auto_show: bool = True):
+def success_grid_plot(
+    success_by_rheo: dict, x: np.ndarray, y: np.ndarray,
+    xname: str = 'unknown x', yname: str = 'unknown y',
+    xlog: bool = False, ylog: bool = False,
+    print_value: bool = False,
+    auto_show: bool = True
+    ):
     cb_N = 7
     # Normalize input data
     success_by_rheo_norm = normalize_dict(success_by_rheo, pass_negatives=True, new_max=4.0, new_min=0.0)
@@ -51,7 +53,7 @@ def success_grid_plot(success_by_rheo: dict, x: np.ndarray, y: np.ndarray,
                   (1.99 / (cb_N - 1), map_colors[3][2], map_colors[2][2]),
                   (6 / (cb_N - 1), map_colors[4][2], map_colors[3][2])
                   ),
-    }
+        }
 
     cmap = colors.LinearSegmentedColormap('twoseg_linear', c_dict)
     norm = colors.Normalize(vmin=-2, vmax=4)
@@ -108,8 +110,10 @@ def success_grid_plot(success_by_rheo: dict, x: np.ndarray, y: np.ndarray,
         # pass_index = np.concatenate((pass_index, np.zeros((1, pass_index.shape[1]))))
 
         # The edgecolor and linewidth control the gridlines
-        cb = ax.pcolormesh(extent_x, extent_y, np.transpose(pass_index), cmap=cmap, norm=norm, edgecolor='k',
-                           linewidths=.5)
+        cb = ax.pcolormesh(
+            extent_x, extent_y, np.transpose(pass_index), cmap=cmap, norm=norm, edgecolor='k',
+            linewidths=.5
+            )
         ax.set_title(r_name)
         if col_i == 0:
             ax.set_ylabel(yname)

@@ -1,12 +1,10 @@
-import warnings
 import os
-
-from setuptools import setup, find_packages
-
 import pathlib
+import warnings
+
+from setuptools import find_packages, setup
 
 SETUP_FILE_PATH = pathlib.Path(__file__).parent.absolute()
-
 
 # TODO: Update development status
 CLASSIFIERS = """\
@@ -43,6 +41,7 @@ with open(os.path.join('TidalPy', 'version.txt'), 'r') as version_file:
 with open('README.md', 'r') as readme:
     long_desc = readme.read()
 
+
 # Read requirements file.
 def get_requirements(remove_links=False):
     """
@@ -68,39 +67,43 @@ def get_requirements(remove_links=False):
             if requirement.startswith("hg+"):
                 requirements_.remove(requirement)
     return requirements_
+
+
 requirements = get_requirements(remove_links=True)
 
-setup(
-        name='TidalPy',
-        version=version,
-        description='Planetary Tidal Evolution Software made with Python',
-        long_description=long_desc,
-        long_description_content_type='text/markdown',
-        url='http://github.com/jrenaud90/TidalPy',
-        download_url='http://github.com/jrenaud90/TidalPy.git',
-        project_urls={
-            "Bug Tracker": "https://github.com/jrenaud90/TidalPy/issues",
-            ## TODO: "Documentation": get_docs_url(),
-            "Source Code": "https://github.com/jrenaud90/TidalPy",
+setup_kwargs = {
+    'name'                         : 'TidalPy',
+    'version'                      : version,
+    'description'                  : 'Planetary Tidal Evolution Software made with Python',
+    'long_description'             : long_desc,
+    'long_description_content_type': 'text/markdown',
+    'url'                          : 'http://github.com/jrenaud90/TidalPy',
+    'download_url'                 : 'http://github.com/jrenaud90/TidalPy.git',
+    'project_urls'                 : {
+        'Bug Tracker': "https://github.com/jrenaud90/TidalPy/issues",
+        ## TODO: "Documentation": get_docs_url(),
+        'Source Code': "https://github.com/jrenaud90/TidalPy",
         },
-        author='Joe P. Renaud',
-        author_email='joe.p.renaud@gmail.com',
-        maintainer='TidalPy Community',
-        maintainer_email='TidalPy@gmail.com',
-        license='CC BY-NC-SA 4.0',
-        classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-        keywords='scientific modeling, tidal dynamics, planetary science, habitability, astrophysics, tides, '
-                 'orbital mechanics, exoplanets, planets',
-        platforms=["Windows", "MacOS", "CentOS"],
-        packages= find_packages() + ['TidalPy.WorldConfigs'],
-        # dependency_links = ['git+http://github.com/geodynamics/burnman/tarball/master#egg=burnman-0.10.0-pre'],
-        include_package_data=True,
-        extras_require={
-            'dev': ['sympy']
+    'author'                       : 'Joe P. Renaud',
+    'author_email'                 : 'joe.p.renaud@gmail.com',
+    'maintainer'                   : 'TidalPy Community',
+    'maintainer_email'             : 'TidalPy@gmail.com',
+    'license'                      : 'CC BY-NC-SA 4.0',
+    'classifiers'                  : [_f for _f in CLASSIFIERS.split('\n') if _f],
+    'keywords'                     : 'scientific modeling, tidal dynamics, planetary science, habitability, '
+                                     'astrophysics, tides, orbital mechanics, exoplanets, planets',
+    'platforms'                    : ["Windows", "MacOS", "CentOS"],
+    'packages'                     : find_packages() + ['TidalPy.WorldConfigs'],
+    # dependency_links : ['git+http://github.com/geodynamics/burnman/tarball/master#egg=burnman-0.10.0-pre'],
+    'include_package_data'         : True,
+    'extras_require'               : {
+        'dev': ['sympy']
         },
-        python_requires='>=3.7',
-        install_requires=requirements,
-)
+    'python_requires'              : '>=3.7',
+    'install_requires'             : requirements,
+    }
+
+setup(**setup_kwargs)
 
 print('\n\nTidalPy install complete!')
 print('-----------------------------------------------------------------------------')

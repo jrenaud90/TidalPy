@@ -2,11 +2,13 @@ import numpy as np
 from numba.typed.typeddict import Dict
 
 import TidalPy
-from TidalPy.toolbox.quick_tides import quick_dual_body_tidal_dissipation,\
-    dual_dissipation_from_dict_or_world_instance
+from TidalPy.toolbox.quick_tides import (dual_dissipation_from_dict_or_world_instance,
+                                         quick_dual_body_tidal_dissipation)
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
+
 
 def test_quick_tidal_dissipation_fixedq_float():
     """ This will test the quick tidal dissipation calculator - using all floats for fixed-q rheology """
@@ -30,18 +32,20 @@ def test_quick_tidal_dissipation_fixedq_float():
     eccentricity = 0.1
     rheology = 'cpl'
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods = (host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          rheologies=rheology,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=2, eccentricity_truncation_lvl=2,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            rheologies=rheology,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=2, eccentricity_truncation_lvl=2,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -59,6 +63,7 @@ def test_quick_tidal_dissipation_fixedq_float():
         assert type(world_results['effective_q_by_orderl'][2]) in [float, np.float, np.float64]
     assert type(dissipation_results['eccentricity_derivative']) in [float, np.float, np.float64]
     assert type(dissipation_results['semi_major_axis_derivative']) in [float, np.float, np.float64]
+
 
 def test_quick_tidal_dissipation_fixedq_orbital_array():
     """ This will test the quick tidal dissipation calculator - using orbital array with the fixed-q rheology """
@@ -82,18 +87,20 @@ def test_quick_tidal_dissipation_fixedq_orbital_array():
     eccentricity = 0.1
     rheology = 'cpl'
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          rheologies=rheology,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=2, eccentricity_truncation_lvl=2,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            rheologies=rheology,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=2, eccentricity_truncation_lvl=2,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -112,6 +119,7 @@ def test_quick_tidal_dissipation_fixedq_orbital_array():
         assert type(world_results['effective_q_by_orderl'][2]) == np.ndarray
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
+
 
 def test_quick_tidal_dissipation_fixedq_orbital_array_NSR():
     """ This will test the quick tidal dissipation calculator - using orbital array with the fixed-q rheology - NSR """
@@ -135,18 +143,20 @@ def test_quick_tidal_dissipation_fixedq_orbital_array_NSR():
     eccentricity = 0.1
     rheology = 'cpl'
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          rheologies=rheology,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=2, eccentricity_truncation_lvl=2,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            rheologies=rheology,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=2, eccentricity_truncation_lvl=2,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -165,6 +175,7 @@ def test_quick_tidal_dissipation_fixedq_orbital_array_NSR():
         assert type(world_results['effective_q_by_orderl'][2]) == np.ndarray
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
+
 
 def test_quick_tidal_dissipation_maxwell_orbital_array_NSR():
     """ This will test the quick tidal dissipation calculator - using orbital array with the Maxwell rheology - NSR """
@@ -191,19 +202,21 @@ def test_quick_tidal_dissipation_maxwell_orbital_array_NSR():
     eccentricity = 0.1
     rheology = 'maxwell'
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
-                                          rheologies=rheology,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=2, eccentricity_truncation_lvl=2,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
+            rheologies=rheology,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=2, eccentricity_truncation_lvl=2,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -222,6 +235,7 @@ def test_quick_tidal_dissipation_maxwell_orbital_array_NSR():
         assert type(world_results['effective_q_by_orderl'][2]) == np.ndarray
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
+
 
 def test_quick_tidal_dissipation_andrade_orbital_array_NSR():
     """ This will test the quick tidal dissipation calculator - using orbital array with the Andrade rheology - NSR """
@@ -249,19 +263,21 @@ def test_quick_tidal_dissipation_andrade_orbital_array_NSR():
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
-                                          rheologies=rheology, complex_compliance_inputs=andrade_inputs,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=2, eccentricity_truncation_lvl=2,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
+            rheologies=rheology, complex_compliance_inputs=andrade_inputs,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=2, eccentricity_truncation_lvl=2,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -280,6 +296,7 @@ def test_quick_tidal_dissipation_andrade_orbital_array_NSR():
         assert type(world_results['effective_q_by_orderl'][2]) == np.ndarray
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
+
 
 def test_quick_tidal_dissipation_andrade_visco_array_NSR():
     """ This will test the quick tidal dissipation calculator - using viscosity array with the Andrade rheology - NSR """
@@ -307,19 +324,21 @@ def test_quick_tidal_dissipation_andrade_visco_array_NSR():
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
-                                          rheologies=rheology, complex_compliance_inputs=andrade_inputs,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=2, eccentricity_truncation_lvl=2,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
+            rheologies=rheology, complex_compliance_inputs=andrade_inputs,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=2, eccentricity_truncation_lvl=2,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -338,6 +357,7 @@ def test_quick_tidal_dissipation_andrade_visco_array_NSR():
         assert type(world_results['effective_q_by_orderl'][2]) == np.ndarray
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
+
 
 def test_quick_tidal_dissipation_andrade_visco_array_higher_l():
     """ This will test the quick tidal dissipation calculator - using viscosity array with the Andrade rheology
@@ -366,19 +386,21 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l():
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
     dissipation_results = \
-        quick_dual_body_tidal_dissipation(radii=(host_radius, target_radius),
-                                          masses=(host_mass, target_mass),
-                                          gravities=(host_gravity, target_gravity),
-                                          densities=(host_density, target_density),
-                                          mois=(host_moi, target_moi),
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
-                                          rheologies=rheology, complex_compliance_inputs=andrade_inputs,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=3, eccentricity_truncation_lvl=6,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        quick_dual_body_tidal_dissipation(
+            radii=(host_radius, target_radius),
+            masses=(host_mass, target_mass),
+            gravities=(host_gravity, target_gravity),
+            densities=(host_density, target_density),
+            mois=(host_moi, target_moi),
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
+            rheologies=rheology, complex_compliance_inputs=andrade_inputs,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=3, eccentricity_truncation_lvl=6,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -398,17 +420,18 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l():
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
 
+
 def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_dict():
     """ This will test the quick tidal dissipation (parameters pulled from a dict) calculator -
         using viscosity array with the Andrade rheology. Max l = 3, eccentricity trunc = 4 """
 
     secondary_dict = {
-        'radius': 1.e6,
-        'mass': 1.e24,
+        'radius'         : 1.e6,
+        'mass'           : 1.e24,
         'gravity_surface': 10.,
-        'density_bulk': 5000.,
-        'moi': 1.e10
-    }
+        'density_bulk'   : 5000.,
+        'moi'            : 1.e10
+        }
 
     host_dict = {
         'radius'         : 1.e7,
@@ -416,7 +439,7 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_dict():
         'gravity_surface': 20.,
         'density_bulk'   : 5000.,
         'moi'            : 1.e10
-    }
+        }
 
     viscosity = np.logspace(10., 40., 10)
     shear = 1.e10
@@ -431,15 +454,17 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_dict():
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
     dissipation_results = \
-        dual_dissipation_from_dict_or_world_instance(host_dict, secondary_dict,
-                                          spin_periods=(host_spin_period, target_spin_period),
-                                          obliquities=(host_obliquity, target_obliquity),
-                                          tidal_scales=(1., 1.),
-                                          viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
-                                          rheologies=rheology, complex_compliance_inputs=andrade_inputs,
-                                          eccentricity=eccentricity, orbital_period=orbital_period,
-                                          max_tidal_order_l=3, eccentricity_truncation_lvl=6,
-                                          use_obliquity=True, fixed_qs=(10000., 120.))
+        dual_dissipation_from_dict_or_world_instance(
+            host_dict, secondary_dict,
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
+            rheologies=rheology, complex_compliance_inputs=andrade_inputs,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=3, eccentricity_truncation_lvl=6,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
@@ -458,6 +483,7 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_dict():
         assert type(world_results['effective_q_by_orderl'][2]) == np.ndarray
     assert type(dissipation_results['eccentricity_derivative']) == np.ndarray
     assert type(dissipation_results['semi_major_axis_derivative']) == np.ndarray
+
 
 def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_world_instance():
     """ This will test the quick tidal dissipation (parameters pulled from a world instance) calculator -
@@ -481,15 +507,17 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_world_instanc
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
     dissipation_results = \
-        dual_dissipation_from_dict_or_world_instance(jupiter, io,
-                                                     spin_periods=(host_spin_period, target_spin_period),
-                                                     obliquities=(host_obliquity, target_obliquity),
-                                                     tidal_scales=(1., 1.),
-                                                     viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
-                                                     rheologies=rheology, complex_compliance_inputs=andrade_inputs,
-                                                     eccentricity=eccentricity, orbital_period=orbital_period,
-                                                     max_tidal_order_l=3, eccentricity_truncation_lvl=6,
-                                                     use_obliquity=True, fixed_qs=(10000., 120.))
+        dual_dissipation_from_dict_or_world_instance(
+            jupiter, io,
+            spin_periods=(host_spin_period, target_spin_period),
+            obliquities=(host_obliquity, target_obliquity),
+            tidal_scales=(1., 1.),
+            viscosities=(viscosity, viscosity), shear_moduli=(shear, shear),
+            rheologies=rheology, complex_compliance_inputs=andrade_inputs,
+            eccentricity=eccentricity, orbital_period=orbital_period,
+            max_tidal_order_l=3, eccentricity_truncation_lvl=6,
+            use_obliquity=True, fixed_qs=(10000., 120.)
+            )
 
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:

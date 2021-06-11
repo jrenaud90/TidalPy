@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from ..utilities.performance.numba import njit
-from ..utilities.types import float_eps, FloatArray
+from ..utilities.types import FloatArray, float_eps
 
 
 @njit(cacheable=True)
@@ -31,9 +31,12 @@ def spin_rate_derivative(dU_dO: FloatArray, moment_of_inertia: float, host_mass:
 
     return dspin_dt
 
+
 @njit(cacheable=True)
-def semi_major_axis_derivative(semi_major_axis: FloatArray, orbital_motion: FloatArray,
-                               mass_1: float, dU_dM_1: FloatArray, mass_2: float) -> FloatArray:
+def semi_major_axis_derivative(
+    semi_major_axis: FloatArray, orbital_motion: FloatArray,
+    mass_1: float, dU_dM_1: FloatArray, mass_2: float
+    ) -> FloatArray:
     """ Calculate the time derivative of the semi-major axis for a signle-body dissipating system
 
     See Boue and Efroimsky (2019, CMDA), Eq. 116
@@ -65,9 +68,12 @@ def semi_major_axis_derivative(semi_major_axis: FloatArray, orbital_motion: Floa
 
     return da_dt
 
+
 @njit(cacheable=True)
-def eccentricity_derivative(semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity: FloatArray,
-                            mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray, mass_2: float) -> FloatArray:
+def eccentricity_derivative(
+    semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity: FloatArray,
+    mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray, mass_2: float
+    ) -> FloatArray:
     """ Calculate the time derivative of the eccentricity for a single-body dissipating system
 
     See Boue and Efroimsky (2019, CMDA), Eq. 117
@@ -110,10 +116,12 @@ def eccentricity_derivative(semi_major_axis: FloatArray, orbital_motion: FloatAr
 
     return de_dt
 
+
 @njit(cacheable=True)
 def semia_eccen_derivatives(
-        semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity: FloatArray,
-        mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray, mass_2: float) -> Tuple[FloatArray, FloatArray]:
+    semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity: FloatArray,
+    mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray, mass_2: float
+    ) -> Tuple[FloatArray, FloatArray]:
     """ Calculate the time derivatives of semi-major axis and eccentricity for a single-body dissipating system
 
     See Boue and Efroimsky (2019, CMDA), Eqs. 116 and 117

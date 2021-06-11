@@ -4,12 +4,15 @@
 
 import numpy as np
 
-from ...utilities.types import FloatArray
 from ...utilities.performance import njit
+from ...utilities.types import FloatArray
+
 
 @njit(cacheable=True)
-def tidal_potential(radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
-                    orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray):
+def tidal_potential(
+    radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
+    orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray
+    ):
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
     Parameters
@@ -55,41 +58,41 @@ def tidal_potential(radius: FloatArray, longitude: FloatArray, colatitude: Float
     # Calculate tidal potential
     r2n2e = radius**2 * orbital_frequency**2 * eccentricity
     potential = r2n2e * \
-        ( (-3. / 2.) * p_02 * np.cos(orbital_frequency * time) +
-          (1. / 4.) * p_22 *
-          (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
-           4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)) )
+                ((-3. / 2.) * p_02 * np.cos(orbital_frequency * time) +
+                 (1. / 4.) * p_22 *
+                 (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
+                  4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
 
     # Its partial derivatives
-    potential_partial_theta = r2n2e  * \
-        ( (-3. / 2.) * dp_02_dtheta * np.cos(orbital_frequency * time) +
-          (1. / 4.) * dp_22_dtheta *
-          (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
-           4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)) )
+    potential_partial_theta = r2n2e * \
+                              ((-3. / 2.) * dp_02_dtheta * np.cos(orbital_frequency * time) +
+                               (1. / 4.) * dp_22_dtheta *
+                               (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
+                                4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
 
     potential_partial_phi = r2n2e * \
-        ( (1. / 4.) * p_22 *
-          (-6. * np.cos(orbital_frequency * time) * np.sin(2. * longitude) +
-           8. * np.sin(orbital_frequency * time) * np.cos(2. * longitude)))
+                            ((1. / 4.) * p_22 *
+                             (-6. * np.cos(orbital_frequency * time) * np.sin(2. * longitude) +
+                              8. * np.sin(orbital_frequency * time) * np.cos(2. * longitude)))
 
     # And its 2nd order partial derivatives
     potential_partial2_theta2 = r2n2e * \
-        ( (-3. / 2.) * dp2_02_dtheta2 * np.cos(orbital_frequency * time) +
-          (1. / 4.) * dp2_22_dtheta2 *
-          (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
-           4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
+                                ((-3. / 2.) * dp2_02_dtheta2 * np.cos(orbital_frequency * time) +
+                                 (1. / 4.) * dp2_22_dtheta2 *
+                                 (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
+                                  4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
 
     potential_partial2_phi2 = r2n2e * \
-        ( (1. / 4.) * p_22 *
-          (-12. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +    # I believe there is an error in Henning code where this (-12) is a (+12) which I believe is wrong.
-           -16. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
+                              ((1. / 4.) * p_22 *
+                               (-12. * np.cos(orbital_frequency * time) * np.cos(
+                                   2. * longitude
+                                   ) +  # I believe there is an error in Henning code where this (-12) is a (+12) which I believe is wrong.
+                                -16. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
 
     potential_partial2_theta_phi = r2n2e * \
-        ( (1. / 4.) * dp_22_dtheta *
-          (-6. * np.cos(orbital_frequency * time) * np.sin(2. * longitude) +
-           8. * np.sin(orbital_frequency * time) * np.cos(2. * longitude)))
+                                   ((1. / 4.) * dp_22_dtheta *
+                                    (-6. * np.cos(orbital_frequency * time) * np.sin(2. * longitude) +
+                                     8. * np.sin(orbital_frequency * time) * np.cos(2. * longitude)))
 
-
-
-    return potential, potential_partial_theta, potential_partial_phi,\
+    return potential, potential_partial_theta, potential_partial_phi, \
            potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi

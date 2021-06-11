@@ -9,10 +9,12 @@ LOG_HALF = np.log(0.5)
 
 
 @njit(cacheable=True)
-def isotope(time: FloatArray, mass: float,
-            iso_massfracs_of_isotope: Tuple[float, ...], iso_element_concentrations: Tuple[float, ...],
-            iso_halflives: Tuple[float, ...], iso_heat_production: Tuple[float, ...],
-            ref_time: float = 4600.) -> FloatArray:
+def isotope(
+    time: FloatArray, mass: float,
+    iso_massfracs_of_isotope: Tuple[float, ...], iso_element_concentrations: Tuple[float, ...],
+    iso_halflives: Tuple[float, ...], iso_heat_production: Tuple[float, ...],
+    ref_time: float = 4600.
+    ) -> FloatArray:
     """ Calculate radiogenic heating based on multiple isotopes
 
     !TPY_args live: self.time, self.mass
@@ -57,9 +59,11 @@ def isotope(time: FloatArray, mass: float,
 
 
 @njit(cacheable=True)
-def fixed(time: FloatArray, mass: float,
-          fixed_heat_production: float, average_half_life: float,
-          ref_time: float = 4600.) -> FloatArray:
+def fixed(
+    time: FloatArray, mass: float,
+    fixed_heat_production: float, average_half_life: float,
+    ref_time: float = 4600.
+    ) -> FloatArray:
     """ Calculate radiogenic heating based on a fixed rate and exponential decay (set at a reference time)
 
     !TPY_args live: self.time, self.mass
@@ -117,4 +121,3 @@ def off(time: FloatArray, mass: float) -> FloatArray:
     radiogenic_heating = shape
 
     return radiogenic_heating
-

@@ -2,9 +2,9 @@ from typing import Tuple
 
 import numpy as np
 
-from .odes import static_solid_ode, dynamic_solid_ode
+from .odes import dynamic_solid_ode, static_solid_ode
 from ...constants import G
-from ...exceptions import IntegrationFailed, AttributeNotSetError
+from ...exceptions import AttributeNotSetError, IntegrationFailed
 from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ...tides.multilayer.numerical_int import find_initial_guess
 from ...utilities.integration.integrate import rk_integrator
@@ -35,11 +35,13 @@ def convergence_solid(solid_solutions: Tuple[np.ndarray, np.ndarray, np.ndarray]
         """
 
     # Build solution matrix at surface
-    sol_surf_mtx = np.asarray([
-        [solid_solutions[0][1, -1], solid_solutions[1][1, -1], solid_solutions[2][1, -1]],
-        [solid_solutions[0][3, -1], solid_solutions[1][3, -1], solid_solutions[2][3, -1]],
-        [solid_solutions[0][5, -1], solid_solutions[1][5, -1], solid_solutions[2][5, -1]]
-    ])
+    sol_surf_mtx = np.asarray(
+        [
+            [solid_solutions[0][1, -1], solid_solutions[1][1, -1], solid_solutions[2][1, -1]],
+            [solid_solutions[0][3, -1], solid_solutions[1][3, -1], solid_solutions[2][3, -1]],
+            [solid_solutions[0][5, -1], solid_solutions[1][5, -1], solid_solutions[2][5, -1]]
+            ]
+        )
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_vector = sol_surf_mtx_inv @ surface_solution
 
@@ -50,17 +52,19 @@ def convergence_solid(solid_solutions: Tuple[np.ndarray, np.ndarray, np.ndarray]
     return tidal_y
 
 
-def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
-                            density: np.ndarray, gravity: np.ndarray, frequency: float,
-                            order_l: int = 2, use_static: bool = False,
-                            surface_boundary_condition: np.ndarray = None,
-                            use_kamata: bool = True, use_julia: bool = False,
-                            use_numba_integrator: bool = False,
-                            verbose: bool = False,
-                            int_rtol: float = 1.0e-6, int_atol: float = 1.0e-4, scipy_int_method: str = 'RK45',
-                            julia_int_method: str = 'Tsit5',
-                            non_dimensionalize: bool = False,
-                            planet_bulk_density: float = None) -> Tuple[np.ndarray, np.ndarray]:
+def calculate_homogen_solid(
+    radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
+    density: np.ndarray, gravity: np.ndarray, frequency: float,
+    order_l: int = 2, use_static: bool = False,
+    surface_boundary_condition: np.ndarray = None,
+    use_kamata: bool = True, use_julia: bool = False,
+    use_numba_integrator: bool = False,
+    verbose: bool = False,
+    int_rtol: float = 1.0e-6, int_atol: float = 1.0e-4, scipy_int_method: str = 'RK45',
+    julia_int_method: str = 'Tsit5',
+    non_dimensionalize: bool = False,
+    planet_bulk_density: float = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """ Calculate the radial solution for a homogeneous, solid planet.
 
     Parameters
@@ -127,8 +131,10 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
             raise AttributeNotSetError('Planet bulk modulus must be provided if non-dimensionalize is True.')
 
         radius, gravity, density, shear_modulus, bulk_modulus, frequency, G_to_use = \
-            non_dimensionalize_physicals(radius, gravity, density, shear_modulus, bulk_modulus, frequency,
-                                         mean_radius=planet_radius, bulk_density=planet_bulk_density)
+            non_dimensionalize_physicals(
+                radius, gravity, density, shear_modulus, bulk_modulus, frequency,
+                mean_radius=planet_radius, bulk_density=planet_bulk_density
+                )
     else:
         G_to_use = G
 
@@ -145,11 +151,15 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
     is_dynamic = not use_static
     initial_value_func = find_initial_guess(is_kamata=use_kamata, is_solid=True, is_dynamic=is_dynamic)
     if use_static:
-        initial_value_tuple = initial_value_func(radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                                                 order_l=order_l, G_to_use=G_to_use)
+        initial_value_tuple = initial_value_func(
+            radius[0], shear_modulus[0], bulk_modulus[0], density[0],
+            order_l=order_l, G_to_use=G_to_use
+            )
     else:
-        initial_value_tuple = initial_value_func(radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                                                 frequency, order_l=order_l, G_to_use=G_to_use)
+        initial_value_tuple = initial_value_func(
+            radius[0], shear_modulus[0], bulk_modulus[0], density[0],
+            frequency, order_l=order_l, G_to_use=G_to_use
+            )
 
     # Find the differential equation
     if use_static:
@@ -200,15 +210,19 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
                 print(f"Solving solution {solution_num} (with TidalPy's Numba integrator, using {scipy_int_method})...")
 
             ts, ys, status, message, success = \
-                rk_integrator(radial_derivative, radial_span, initial_values,
-                              args=derivative_inputs,
-                              rk_method=rk_method,
-                              t_eval_N=radius.size, t_eval_log=False, use_teval=True,
-                              rtol=int_rtol, atol=int_atol, verbose=False)
+                rk_integrator(
+                    radial_derivative, radial_span, initial_values,
+                    args=derivative_inputs,
+                    rk_method=rk_method,
+                    t_eval_N=radius.size, t_eval_log=False, use_teval=True,
+                    rtol=int_rtol, atol=int_atol, verbose=False
+                    )
 
             if status != 0:
-                raise IntegrationFailed(f'Integration Solution Failed for solution {solution_num}.'
-                                        f'\n\t{message}')
+                raise IntegrationFailed(
+                    f'Integration Solution Failed for solution {solution_num}.'
+                    f'\n\t{message}'
+                    )
             y = ys
 
             if verbose:
@@ -220,13 +234,16 @@ def calculate_homogen_solid(radius: np.ndarray, shear_modulus: np.ndarray, bulk_
             if verbose:
                 print(f'Solving (with SciPy, using {scipy_int_method})...')
 
-            solution = solve_ivp(radial_derivative, radial_span, initial_values, t_eval=radius, args=derivative_inputs,
-                                 method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol)
+            solution = solve_ivp(
+                radial_derivative, radial_span, initial_values, t_eval=radius, args=derivative_inputs,
+                method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
+                )
 
             if solution.status != 0:
                 raise IntegrationFailed(
-                        f'Integration Solution Failed for homogeneous model at solution #{solution_num}.'
-                        f'\n\t{solution.message}')
+                    f'Integration Solution Failed for homogeneous model at solution #{solution_num}.'
+                    f'\n\t{solution.message}'
+                    )
 
             y = solution.y
 

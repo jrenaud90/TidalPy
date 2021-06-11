@@ -13,24 +13,26 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple, Union
+from typing import Tuple
 
 import numpy as np
 
 from .functions import takeuchi_phi_psi
 from .initial_solution_dynamic import z_calc
-from ....constants import pi, G
+from ....constants import G, pi
 from ....utilities.math.special import sqrt_neg
 from ....utilities.performance import njit
-from ....utilities.types import FloatArray, ComplexArray
+from ....utilities.types import ComplexArray, FloatArray, NumArray
 
-CmplxFltArray = Union[FloatArray, ComplexArray]
-SolidStaticGuess = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray]
-LiquidStaticGuess = CmplxFltArray
+SolidStaticGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
+LiquidStaticGuess = ComplexArray
+
 
 @njit(cacheable=True)
-def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                       density: FloatArray, order_l: int = 2, G_to_use: float = G) -> SolidStaticGuess:
+def solid_guess_kamata(
+    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
+    density: FloatArray, order_l: int = 2, G_to_use: float = G
+    ) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
@@ -48,9 +50,9 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    shear_modulus : CmplxFltArray
+    shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : CmplxFltArray
+    bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
@@ -153,9 +155,12 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
 
     return tidaly_s1, tidaly_s2, tidaly_s3
 
+
 @njit(cacheable=True)
-def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                         density: FloatArray, order_l: int = 2, G_to_use: float = G) -> SolidStaticGuess:
+def solid_guess_takeuchi(
+    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
+    density: FloatArray, order_l: int = 2, G_to_use: float = G
+    ) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -173,9 +178,9 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    shear_modulus : CmplxFltArray
+    shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : CmplxFltArray
+    bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
@@ -239,7 +244,7 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
 
     # # y2 solutions
     y2_s1 = -(lame + 2. * shear_modulus) * radius**order_l * f_k2_pos * phi_k2_pos + \
-        (shear_modulus * radius**order_l / (2. * order_l + 3.)) * \
+            (shear_modulus * radius**order_l / (2. * order_l + 3.)) * \
             (-order_l * (order_l - 1.) * h_k2_pos * psi_k2_pos +
              2. * (2. * f_k2_pos + order_l * (order_l + 1.)) * phi_lp1_k2_pos)
     y2_s2 = -(lame + 2. * shear_modulus) * radius**order_l * f_k2_neg * phi_k2_neg + \
@@ -306,6 +311,7 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     tidaly_s3 = np.stack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
 
     return tidaly_s1, tidaly_s2, tidaly_s3
+
 
 @njit(cacheable=True)
 def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G) -> LiquidStaticGuess:

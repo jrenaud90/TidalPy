@@ -14,40 +14,37 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple, Union
+from typing import Tuple
 
 import numpy as np
 
 from .functions import takeuchi_phi_psi
-from ....constants import pi, G
+from ....constants import G, pi
 from ....utilities.math.special import sqrt_neg
 from ....utilities.performance import njit
-from ....utilities.types import FloatArray, ComplexArray
+from ....utilities.types import ComplexArray, FloatArray, NumArray
 
-CmplxFltArray = Union[FloatArray, ComplexArray]
-SolidDynamicGuess = Tuple[CmplxFltArray, CmplxFltArray, CmplxFltArray]
-LiquidDynamicGuess = Tuple[CmplxFltArray, CmplxFltArray]
+SolidDynamicGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
+LiquidDynamicGuess = Tuple[ComplexArray, ComplexArray]
 
 
 @njit(cacheable=True)
-def z_calc(x_squared: CmplxFltArray, order_l: int = 2, init_l: int = 10):
+def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 10) -> NumArray:
     """ Calculates the z function used in the calculations of initial guesses for radial functions.
     Simplification (recursion calculation) of the spherical Bessel function, see Eq. B16 of KMN15.
 
     Parameters
     ----------
-    x_squared : CmplxFltArray
+    x_squared : NumArray
         Expression passed to the Bessel function.
     order_l : int = 2
         Tidal harmonic order.
     init_l : int = 10
         Max integer to start the calculation from.
-    G_to_use : float = G
-        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
 
     Returns
     -------
-    z : CmplxFltArray
+    z : NumArray
         Result of the recursive calculation
 
     """
@@ -62,9 +59,11 @@ def z_calc(x_squared: CmplxFltArray, order_l: int = 2, init_l: int = 10):
 
 
 @njit(cacheable=True)
-def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                       density: FloatArray, frequency: FloatArray,
-                       order_l: int = 2, G_to_use: float = G) -> SolidDynamicGuess:
+def solid_guess_kamata(
+    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
+    density: FloatArray, frequency: FloatArray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
@@ -82,9 +81,9 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    shear_modulus : CmplxFltArray
+    shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : CmplxFltArray
+    bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
@@ -192,9 +191,11 @@ def solid_guess_kamata(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_mo
 
 
 @njit(cacheable=True)
-def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
-                        density: FloatArray, frequency: FloatArray,
-                        order_l: int = 2, G_to_use: float = G) -> LiquidDynamicGuess:
+def liquid_guess_kamata(
+    radius: FloatArray, bulk_modulus: NumArray,
+    density: FloatArray, frequency: FloatArray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> LiquidDynamicGuess:
     """  Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B29-B37).
@@ -212,7 +213,7 @@ def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    bulk_modulus : CmplxFltArray
+    bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
@@ -279,9 +280,11 @@ def liquid_guess_kamata(radius: FloatArray, bulk_modulus: CmplxFltArray,
 
 
 @njit(cacheable=True)
-def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_modulus: CmplxFltArray,
-                         density: FloatArray, frequency: FloatArray,
-                         order_l: int = 2, G_to_use: float = G) -> SolidDynamicGuess:
+def solid_guess_takeuchi(
+    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
+    density: FloatArray, frequency: FloatArray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -299,9 +302,9 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    shear_modulus : CmplxFltArray
+    shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : CmplxFltArray
+    bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
@@ -438,9 +441,11 @@ def solid_guess_takeuchi(radius: FloatArray, shear_modulus: CmplxFltArray, bulk_
 
 
 @njit(cacheable=True)
-def liquid_guess_takeuchi(radius: FloatArray, bulk_modulus: CmplxFltArray,
-                          density: FloatArray, frequency: FloatArray,
-                          order_l: int = 2, G_to_use: float = G) -> LiquidDynamicGuess:
+def liquid_guess_takeuchi(
+    radius: FloatArray, bulk_modulus: NumArray,
+    density: FloatArray, frequency: FloatArray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> LiquidDynamicGuess:
     """ Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -458,7 +463,7 @@ def liquid_guess_takeuchi(radius: FloatArray, bulk_modulus: CmplxFltArray,
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    bulk_modulus : CmplxFltArray
+    bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
