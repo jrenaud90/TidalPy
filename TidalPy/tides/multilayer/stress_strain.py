@@ -68,7 +68,7 @@ def calculate_strain_stress_heating(
     tidal_solution_y: np.ndarray, tidal_solution_y_derivative: np.ndarray,
     colatitude: FloatArray,
     radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-    frequency: FloatArray
+    frequency: FloatArray, order_l: int = 2,
     ) -> Tuple[StressType, StrainType, np.ndarray]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.
@@ -101,6 +101,8 @@ def calculate_strain_stress_heating(
         Bulk modulus as a function of radius [Pa]
     frequency : FloatArray
         Forcing frequency used to calculate tidal heating [rad s-1]
+    order_l : int = 2
+        Tidal harmonic order
 
     Returns
     -------
@@ -150,6 +152,7 @@ def calculate_strain_stress_heating(
     #     dy1_dr = (tidal_solution_y[0, 1:] - tidal_solution_y[0, :]) / (radius - radius[ri-1])
 
     y1 = tidal_solution_y[0]
+    y2 = tidal_solution_y[1]
     y3 = tidal_solution_y[2]
     y4 = tidal_solution_y[3]
 
@@ -158,12 +161,14 @@ def calculate_strain_stress_heating(
     e_rr = dy1_dr * tidal_potential
     e_rth = y4 * tidal_potential_partial_theta / shear_moduli
     e_rph = y4 * tidal_potential_partial_phi / (shear_moduli * sin_theta)
-
     e_thth = (1. / radius) * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
+    # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
+    #  as pointed out in Kervazo et al (2021; A&A) Appendix D
     e_phph = (1. / radius) * \
-             (y1 * tidal_potential + (y3 / sin_theta**2) *
-              (tidal_potential_partial2_phi2 + cos_theta * sin_theta * tidal_potential_partial_theta))
-    e_thph = (2. * y3 / (radius * sin_theta)) * \
+             (y1 * tidal_potential +
+              (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
+              y3 * cot_theta * tidal_potential_partial_theta)
+    e_thph = (2. / radius) * (y3 / sin_theta) * \
              (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
 
     # The (1/2) in the off-diagonal terms are due to these components appearing twice in the tensor
@@ -177,16 +182,23 @@ def calculate_strain_stress_heating(
     #                             [e_rth, e_thth, e_thph],
     #                             [e_rph, e_thph , e_phph]], dtype=np.complex128)
 
-    # Calculate stress
-    trace = e_rr + e_thth + e_phph
-    kk_term = (bulk_moduli - (2. / 3.) * shear_moduli) * trace
-
-    s_rr = (2. * shear_moduli * e_rr) + kk_term
-    s_thth = (2. * shear_moduli * e_thth) + kk_term
-    s_phph = (2. * shear_moduli * e_phph) + kk_term
-    s_rth = 2. * shear_moduli * e_rth
-    s_rph = 2. * shear_moduli * e_rph
-    s_thph = 2. * shear_moduli * e_thph
+    # Calculate stress using Kervazo et al (2021; A&A) Appendix D Eqs D.7-D.12
+    strength_term_1 = (bulk_moduli - (2. / 3.) * shear_moduli)
+    strength_term_2 = (bulk_moduli + (4. / 3.) * shear_moduli)
+    s_rr = y2 * tidal_potential
+    s_thth = tidal_potential * (strength_term_1 * dy1_dr +
+                                (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
+                                2. * shear_moduli * y1 / radius) - \
+             (2. * shear_moduli * y3 / radius) * (cot_theta * tidal_potential_partial_theta +
+                                                  (1. / sin_theta**2) * tidal_potential_partial2_phi2)
+    s_phph = tidal_potential * (strength_term_1 * dy1_dr +
+                                (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
+                                2. * shear_moduli * y1 / radius) - \
+             (2. * shear_moduli * y3 / radius) * tidal_potential_partial2_theta2
+    s_thph = (2. * shear_moduli * y3 / (radius * sin_theta)) * (tidal_potential_partial2_theta_phi -
+                                                                cot_theta * tidal_potential_partial_phi)
+    s_rth = y4 * tidal_potential_partial_theta
+    s_rph = (y4 / sin_theta) * tidal_potential_partial_phi
 
     # Calculate Tidal Heating, using two methods
     volumetric_heating = (frequency / 2.) * (
