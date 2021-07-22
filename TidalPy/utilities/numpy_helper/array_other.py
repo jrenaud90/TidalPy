@@ -114,6 +114,6 @@ def neg_array_for_log_plot(array_with_negatives: np.ndarray):
 
     array_positive[array_positive <= 0.] = np.nan
     array_negative[array_negative >= 0.] = np.nan
-    array_negative[array_negative < 0.] *= -1.
+    array_negative = np.abs(array_negative)
 
     return array_positive, array_negative
