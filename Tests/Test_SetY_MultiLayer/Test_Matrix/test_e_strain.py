@@ -9,7 +9,7 @@ from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_orderl2
 from TidalPy.tides.multilayer.matrix.propagate import propagate
 from TidalPy.tides.multilayer.stress_strain import calculate_displacements, calculate_strain_stress_heating
-from TidalPy.tides.potential import tidal_potential_simple
+from TidalPy.tides.potential import tidal_potential_simple, tidal_potential_nsr
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -76,7 +76,7 @@ def test_calc_displacements():
     assert type(azimuthal_displacement[0]) in [np.complex, np.complex128, complex]
 
 
-def test_calc_strains():
+def test_calc_strains_heating_simple():
     # Calculate the fundamental matrix and its inverse
     F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array, density_array, gravity_array)
 
@@ -103,6 +103,63 @@ def test_calc_strains():
         tidal_potential_simple(
             radius_array[1:], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
             eccentricity=eccentricity, time=1000.
+            )
+
+    # Calculate strain tensor
+    strain_components, stress_components, vol_heating = \
+        calculate_strain_stress_heating(
+            potential, potential_partial_theta, potential_partial_phi,
+            potential_partial2_theta2, potential_partial2_phi2,
+            potential_partial2_theta_phi, tidal_y, tidal_y_deriv,
+            colatitude=0.1, radius=radius_array[1:], shear_moduli=shear_array,
+            bulk_moduli=bulk_array, frequency=orbital_freq
+            )
+
+    for strain_component in strain_components:
+        # Check shape
+        assert strain_component.shape == (10,)
+
+        # Check type
+        assert strain_component.dtype in [np.complex128, np.complex, complex]
+
+    for stress_component in stress_components:
+        # Check shape
+        assert stress_component.shape == (10,)
+
+        # Check type
+        assert stress_component.dtype in [np.complex128, np.complex, complex]
+
+    assert vol_heating.shape == (10,)
+    assert vol_heating.dtype in [np.float64, np.float, float]
+
+def test_calc_strains_heating_nsr():
+    # Calculate the fundamental matrix and its inverse
+    F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array, density_array, gravity_array)
+
+    # Central boundary condition
+    ## From IcyDwarf: "They are inconsequential on the rest of the solution, so false assumptions are OK."
+    core_condition = np.zeros((6, 3), dtype=np.complex128)
+    # Roberts & Nimmo (2000): Liquid innermost zone.
+    core_condition[2, 0] = 1.0
+    core_condition[3, 1] = 1.0
+    core_condition[5, 2] = 1.0
+
+    # Find tidal solution
+    tidal_y, tidal_y_deriv = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
+
+    # Decompose the results
+    sensitivity_to_shear, (k, h, l) = decompose(
+        tidal_y, tidal_y_deriv, radius_array[1:], gravity_array,
+        shear_array, bulk_modulus=200.0e9, order_l=2
+        )
+
+    # Calculate tidal potential and its partial derivatives
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+        tidal_potential_nsr(
+            radius_array[1:], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
+            eccentricity=eccentricity, time=1000., obliquity=0.0, rotation_rate=5. * orbital_freq, periapsis=0.0,
+            world_radius=radius_array[-1]
             )
 
     # Calculate strain tensor

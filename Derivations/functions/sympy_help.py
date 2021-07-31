@@ -15,6 +15,8 @@ spin_host = Symbol('Omega___H', real=True)
 spin_sat = Symbol('Omega___S', real=True)
 moi_host = Symbol('C___H', real=True, positive=True)
 moi_sat = Symbol('C___S', real=True, positive=True)
+r_sat = Symbol('r___S', real=True, positive=True)
+r_host = Symbol('r___S', real=True, positive=True)
 
 love2_num_host = Function('Xi___H2', real=True)
 love2_num_sat = Function('Xi___S2', real=True)
