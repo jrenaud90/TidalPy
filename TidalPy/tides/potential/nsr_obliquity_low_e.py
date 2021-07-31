@@ -78,7 +78,7 @@ def tidal_potential(
     # # TODO: Most authors use (R^2), but (R^5/r^3) shows up in the derivation. Should the lower case r be included?
     # radius_factor = planet_radius**2 * np.ones_like(radius)
     # radius_factor = radius**2
-    radius_factor = (planet_radius**5 / radius**3)
+    radius_factor = (world_radius**5 / radius**3)
 
     # Calculate the sub-components of the tidal potential
     # See Eqs. 2 -- 7 in Jara-Orué & Vermeerson (2014; Icarus)
