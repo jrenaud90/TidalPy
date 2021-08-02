@@ -3,8 +3,9 @@
 ### Version 0.3.1 Alpha (Summer 2021)
 
 * Major Changes
+    * Added a simplistic (not modal version) NSR tidal potential for use in the multilayer code.
 * Minor Changes
-    * Did large scale code reformats (just style, no refactoring) on nearly all files.
+    * Did large scale code reformatting (just style, no refactoring) on nearly all files.
     * Cleaned up some doc strings.
 * Bug Fixes
 

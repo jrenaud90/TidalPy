@@ -8,7 +8,7 @@ from ...utilities.types import FloatArray
 def tidal_potential(
     radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray,
-    obliquity: FloatArray, rotation_rate: FloatArray, periapsis: float, world_radius: float
+    rotation_rate: FloatArray, world_radius: float
     ):
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
@@ -26,12 +26,8 @@ def tidal_potential(
         Eccentricity of the orbit
     time : FloatArray
         Time (orbit position) [s]
-    obliquity : FloatArray
-        World's obliquity [radians]
     rotation_rate: FloatArray
         Rotation rate of the planet [rad s-1]
-    periapsis: float
-        Argument of periapsis (used with rotation rate as a phase offset) [radians]
     world_radius: float
         World's surface radius [m]
 
@@ -63,30 +59,12 @@ def tidal_potential(
     dp_20_dtheta = -3. * cos_lat * sin_lat
     dp2_20_dtheta2 = 3. * (sin2_lat - cos2_lat)
 
-    p_21 = -3. * cos_lat * sqrt_cos2_lat
-    dp_21_dtheta = (3. * sin_lat * (1. - 2. * cos2_lat)) / sqrt_cos2_lat
-    dp2_21_dtheta2 = 3. * cos_lat * sqrt_cos2_lat + \
-        6. * sin2_lat * cos_lat / sqrt_cos2_lat - \
-        3. * cos_lat * ((cos2_lat / sqrt_cos2_lat) - (sin2_lat * cos2_lat / ((1. - cos2_lat)**(3/2))) -
-                        sin2_lat / sqrt_cos2_lat)
-
     p_22 = 3. * (1. - cos2_lat)
     dp_22_dtheta = 6. * cos_lat * sin_lat
     dp2_22_dtheta2 = 6. * (cos2_lat - sin2_lat)
 
-    # Radius Factor
-    # # TODO: Most authors use (R^2), but (R^5/r^3) shows up in the derivation. Should the lower case r be included?
-    #       Looking at Wahr+ (2009; Icarus) it looks like r^2 is the correct choice. There is a (r/R)^2 * R^2
-    # radius_factor = world_radius**2 * np.ones_like(radius)
-    radius_factor = radius**2
-    # radius_factor = (world_radius**5 / radius**3)
-
-
-    # Calculate the sub-components of the tidal potential
-    # See Eqs. 2 -- 7 in Jara-Orué & Vermeerson (2011; Icarus)
-
     # # Static
-    # # TODO: Is this used? It is absent from other authors definitions. For now I am excluding it
+    # # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
     # compo_static = \
     #     -(1. / 2.) * p_20 + (1. / 4.) * p_22 * np.cos(2. * longitude)
     # compo_static_partial_theta = \
@@ -100,7 +78,7 @@ def tidal_potential(
     # compo_static_partial2_theta_phi = \
     #     -(1. / 2.) * dp_22_dtheta * np.sin(2. * longitude)
 
-    # # NSR
+    # # NSR Solo Term
     nsr_factor = rotation_rate - orbital_frequency
     compo_nsr = \
         -(1. / 2.) * p_22 * np.sin(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
@@ -115,7 +93,7 @@ def tidal_potential(
     compo_nsr_partial2_theta_phi = \
         -dp_22_dtheta * np.cos(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
 
-    # # Eccentricity Term 1
+    # # Eccentricity Solo Term
     compo_e1 = \
         -(3. / 2.) * eccentricity * p_20 * np.cos(orbital_frequency * time)
     compo_e1_partial_theta = \
@@ -129,7 +107,7 @@ def tidal_potential(
     compo_e1_partial2_theta_phi = \
         0.0
 
-    # # Eccentricity Term 2
+    # # Eccentricity NSR Term
     compo_e2 = \
         (eccentricity / 4.) * p_22 * \
             (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
@@ -178,7 +156,10 @@ def tidal_potential(
 
 
     # Final Potential and Potential Derivatives
-    coefficient = radius_factor * orbital_frequency**2
+    susceptibility_reduced = (3. / 2.) * G * host_mass * world_radius**2 / semi_major_axis**3
+    radius_factor = (radius / world_radius)**2
+    coefficient = susceptibility_reduced * radius_factor
+    
     potential = coefficient * (compo_nsr + compo_e1 + compo_e2 + compo_obli)
 
     potential_partial_theta = coefficient * \

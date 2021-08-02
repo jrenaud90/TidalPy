@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from scipy.special import gamma
+import math
 from sympy import Symbol, Rational, expand_trig, simplify, trigsimp
 from sympy.functions.elementary.trigonometric import sin, cos
 
@@ -39,6 +40,16 @@ def F_func(l, m, p, inclination, cut_off_power=None, auto_taylor: bool = False, 
         summation += term_1 * term_2 * term_3 * term_4 * term_5
 
     result = outer_coeff * summation
+
+    # It appears that this entier function should be used. This is a problem when F is used in place of F^2
+    # See discussion around Eq. 2 of Gooding and Wagner 2010
+    int_func = (1. / 2.) * (l - m + 1.)
+    # Using the Entier functions "Integer part" defined as floor if x >= 0 and ceiling otherise
+    if int_func >= 0:
+        ent_scale = math.floor(int_func)
+    else:
+        ent_scale = math.ceil(int_func)
+    result = (-1)**ent_scale * result
     if auto_taylor:
         if cut_off_power is None:
             raise Exception('Cutoff Power Required')
