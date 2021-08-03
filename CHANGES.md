@@ -1,12 +1,13 @@
 # TidalPy Major Change Log
 
-### Version 0.3.1 Alpha (Summer 2021)
 
-* Major Changes
-* Minor Changes
-    * Did large scale code reformats (just style, no refactoring) on nearly all files.
-    * Cleaned up some doc strings.
-* Bug Fixes
+## Version 0.3.2 Alpha (Summer 2021)
+* Added support for Burnman version 0.10.0. 
+* Improved installation process. 
+
+### Version 0.3.1 Alpha (Summer 2021)
+* Did large scale code reformats (just style, no refactoring) on nearly all files.
+* Cleaned up some doc strings.
 
 ## Version 0.3.0 Alpha (Spring 2021)
 
