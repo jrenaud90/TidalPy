@@ -1,6 +1,6 @@
 import copy
 from types import ModuleType
-from typing import Callable, Tuple, Dict, Union, Any
+from typing import Any, Callable, Dict, Tuple, Union
 from warnings import warn
 
 from .functionalUtils import is_function, parse_model_docstring
@@ -30,9 +30,9 @@ def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()
         Dictionary of function names: tuple of names of live arguments for that function.
     """
 
-    models = dict()  # type: Dict['str', Callable]
+    models = dict()            # type: Dict['str', Callable]
     model_const_args = dict()  # type: Dict[str, Tuple[str, ...]]
-    model_live_args = dict()  # type: Dict[str, Tuple[str, ...]]
+    model_live_args = dict()   # type: Dict[str, Tuple[str, ...]]
 
     for item_name, item in module.__dict__.items():
 
@@ -57,8 +57,10 @@ def find_all_models(module: ModuleType, ignore_functional_types: tuple = tuple()
     return models, model_const_args, model_live_args
 
 
-def build_model_default_inputs(const_arg_dict: Dict[str, Tuple[str, ...]], dict_of_defaults: dict,
-                               inner_keys: Union[Tuple[str, ...], str] = None) -> Dict[str, Dict[str, Tuple[Any, ...]]]:
+def build_model_default_inputs(
+    const_arg_dict: Dict[str, Tuple[str, ...]], dict_of_defaults: dict,
+    inner_keys: Union[Tuple[str, ...], str] = None
+    ) -> Dict[str, Dict[str, Tuple[Any, ...]]]:
     """ Builds a dictionary of default input parameters using a constant argument dictionary and a dictionary of
     default values.
 
@@ -102,8 +104,10 @@ def build_model_default_inputs(const_arg_dict: Dict[str, Tuple[str, ...]], dict_
                 else:
                     # What to do if a required constant argument is not in the default dictionary.
                     # For now we will raise a warning.
-                    warn(f'Can not find the required constant parameter {const_arg_name} (used in function {func_name})'
-                         f' for layer type {outer_key}.')
+                    warn(
+                        f'Can not find the required constant parameter {const_arg_name} (used in function {func_name})'
+                        f' for layer type {outer_key}.'
+                        )
                     # Then just put make this entire functions default args == None.
                     force_none = True
 

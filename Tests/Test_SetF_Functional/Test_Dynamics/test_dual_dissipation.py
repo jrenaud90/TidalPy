@@ -1,14 +1,13 @@
 """ Tests for TidalPy.dynamics.dual_dissipation """
 import numpy as np
-from numba.typed.typeddict import Dict
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
-from TidalPy.dynamics.dual_dissipation import eccentricity_derivative, semi_major_axis_derivative,\
-    semia_eccen_derivatives
-
+from TidalPy.dynamics.dual_dissipation import (eccentricity_derivative, semi_major_axis_derivative,
+                                               semia_eccen_derivatives)
 
 semi_major_axis = 1.0e11
 orbital_freq = 1.0e-5
@@ -40,22 +39,29 @@ target_dRdw = 5.0e-5
 def test_dual_disp_floats():
     """ Test the three dynamic functions for float inputs """
 
-    result = eccentricity_derivative(semi_major_axis, orbital_freq, eccentricity,
-                                     host_mass, host_dRdM, host_dRdw,
-                                     target_mass, target_dRdM, target_dRdw)
+    result = eccentricity_derivative(
+        semi_major_axis, orbital_freq, eccentricity,
+        host_mass, host_dRdM, host_dRdw,
+        target_mass, target_dRdM, target_dRdw
+        )
     assert type(result) in [float, np.float, np.float64]
 
-    result = semi_major_axis_derivative(semi_major_axis, orbital_freq,
-                                        host_mass, host_dRdM,
-                                        target_mass, target_dRdM)
+    result = semi_major_axis_derivative(
+        semi_major_axis, orbital_freq,
+        host_mass, host_dRdM,
+        target_mass, target_dRdM
+        )
     assert type(result) in [float, np.float, np.float64]
 
-    result = semia_eccen_derivatives(semi_major_axis, orbital_freq, eccentricity,
-                                     host_mass, host_dRdM, host_dRdw,
-                                     target_mass, target_dRdM, target_dRdw)
+    result = semia_eccen_derivatives(
+        semi_major_axis, orbital_freq, eccentricity,
+        host_mass, host_dRdM, host_dRdw,
+        target_mass, target_dRdM, target_dRdw
+        )
     assert type(result) == tuple
     assert type(result[0]) in [float, np.float, np.float64]
     assert type(result[1]) in [float, np.float, np.float64]
+
 
 def test_dual_disp_arrays():
     """ Test the three dynamic functions for float inputs """
@@ -67,23 +73,29 @@ def test_dual_disp_arrays():
     tdRdM = target_dRdM * np.ones(10, dtype=np.float64)
     tdRdw = target_dRdw * np.ones(10, dtype=np.float64)
 
-    result = eccentricity_derivative(sa, freq, eccentricity,
-                                     host_mass, hdRdM, hdRdw,
-                                     target_mass, tdRdM, tdRdw)
+    result = eccentricity_derivative(
+        sa, freq, eccentricity,
+        host_mass, hdRdM, hdRdw,
+        target_mass, tdRdM, tdRdw
+        )
     assert type(result) == np.ndarray
     assert result.dtype in [float, np.float, np.float64]
     assert result.shape == (10,)
 
-    result = semi_major_axis_derivative(sa, freq,
-                                        host_mass, hdRdM,
-                                        target_mass, tdRdM)
+    result = semi_major_axis_derivative(
+        sa, freq,
+        host_mass, hdRdM,
+        target_mass, tdRdM
+        )
     assert type(result) == np.ndarray
     assert result.dtype in [float, np.float, np.float64]
     assert result.shape == (10,)
 
-    result = semia_eccen_derivatives(sa, freq, eccentricity,
-                                     host_mass, hdRdM, hdRdw,
-                                     target_mass, tdRdM, tdRdw)
+    result = semia_eccen_derivatives(
+        sa, freq, eccentricity,
+        host_mass, hdRdM, hdRdw,
+        target_mass, tdRdM, tdRdw
+        )
     assert type(result) == tuple
     assert type(result[0]) == np.ndarray
     assert result[0].dtype in [float, np.float, np.float64]

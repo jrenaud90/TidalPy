@@ -7,10 +7,12 @@ SCATTER_SIZE = 1
 SCALE = 3
 
 
-def geotherm_plot(radii: np.ndarray,
-                  gravitys: np.ndarray, pressures: np.ndarray, densitys: np.ndarray, temperatures: np.ndarray = None,
-                  planet_radius: float = None, bulk_density: float = None, planet_name: str = None,
-                  depth_plot: bool = False, auto_show: bool = False, annotate: bool = True):
+def geotherm_plot(
+    radii: np.ndarray,
+    gravitys: np.ndarray, pressures: np.ndarray, densitys: np.ndarray, temperatures: np.ndarray = None,
+    planet_radius: float = None, bulk_density: float = None, planet_name: str = None,
+    depth_plot: bool = False, auto_show: bool = False, annotate: bool = True
+    ):
     """ Plots the depth plot of a planet in 3 or 4 panels (temperature is optional)
 
     Parameters
@@ -113,22 +115,28 @@ def geotherm_plot(radii: np.ndarray,
                     pos = (0.05, 0.9)
                 else:
                     pos = (0.05, 0.9)
-                ax.text(*pos, f'surf = {gravitys[-1]:0.2f}',
-                        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                ax.text(
+                    *pos, f'surf = {gravitys[-1]:0.2f}',
+                    horizontalalignment='left', verticalalignment='center', transform=ax.transAxes
+                    )
             if y is pressures:
                 if depth_plot:
                     pos = (0.05, 0.15)
                 else:
                     pos = (0.05, 0.15)
-                ax.text(*pos, f'base = {pressures[0]:0.2f}',
-                        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                ax.text(
+                    *pos, f'base = {pressures[0]:0.2f}',
+                    horizontalalignment='left', verticalalignment='center', transform=ax.transAxes
+                    )
             if y is densitys and bulk_density is not None:
                 if depth_plot:
                     pos = (0.05, 0.15)
                 else:
                     pos = (0.05, 0.15)
-                ax.text(*pos, f'bulk = {bulk_density:0.2f}',
-                        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+                ax.text(
+                    *pos, f'bulk = {bulk_density:0.2f}',
+                    horizontalalignment='left', verticalalignment='center', transform=ax.transAxes
+                    )
 
     if planet_name is not None:
         axes[0].set_title(planet_name)

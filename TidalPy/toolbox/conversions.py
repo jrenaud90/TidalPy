@@ -85,6 +85,7 @@ def days2rads(days: FloatArray) -> FloatArray:
 
     return radians_per_second
 
+
 @njit(cacheable=True)
 def sec2myr(seconds: FloatArray) -> FloatArray:
     """ Convert time from seconds to millions of years
@@ -120,6 +121,7 @@ def myr2sec(myrs: FloatArray) -> FloatArray:
 
     return myrs * 3.154e13
 
+
 @njit(cacheable=True)
 def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
     """ Convert orbital mean motion to semi-major axis (Kepler's 3rd law)
@@ -145,7 +147,7 @@ def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_m
         raise BadValueError('Target mass must be greater than or equal to zero.')
 
     # TODO: numba does not currently support np.cbrt
-    semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1/3)
+    semi_major_axis = (G * (host_mass + target_mass) / orbital_motion**2)**(1 / 3)
 
     return semi_major_axis
 

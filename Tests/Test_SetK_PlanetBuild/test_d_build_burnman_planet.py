@@ -4,12 +4,12 @@ import os
 import numpy as np
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
 from TidalPy.structures import build_world
-
 
 io_config = {
     "name"           : "Io",
@@ -30,7 +30,7 @@ io_config = {
             "material_fractions": [0.5, 0.5],
             "temperature_mode"  : "user-defined",
             "temperature_fixed" : 1800.0
-        },
+            },
         "Mantle": {
             "type"               : "rock",
             "is_tidal"           : True,
@@ -41,9 +41,9 @@ io_config = {
             "temperature_mode"   : "adiabatic",
             "temperature_top"    : 1800.0,
             "surface_temperature": 100.0
+            }
         }
     }
-}
 
 
 def planet_asserts(planet):
@@ -55,11 +55,13 @@ def planet_asserts(planet):
 
     return True
 
+
 def test_build_burnman_world_from_dict():
     # Try
     result = build_world('Io', world_config=io_config)
 
     assert planet_asserts(result)
+
 
 def test_build_burnman_world_from_json():
     with open('temp_io.json', 'w') as planet_file:
@@ -72,6 +74,7 @@ def test_build_burnman_world_from_json():
 
     assert planet_asserts(result)
 
+
 def test_build_from_burnman_world_scale_radius():
     """ This will test building a secondary BurnmanWorld from an already built one using a radius scaling technique. """
 
@@ -79,7 +82,7 @@ def test_build_from_burnman_world_scale_radius():
     io = TidalPy.build_world('Io')
 
     # Now build a second version that only has a name and eccentricity change.
-    io_2 = TidalPy.scale_from_world(io, new_name = 'small_io', radius_scale=0.5)
+    io_2 = TidalPy.scale_from_world(io, new_name='small_io', radius_scale=0.5)
 
     # Check name
     assert io_2.name == 'small_io'
@@ -100,10 +103,12 @@ def test_build_from_burnman_world_scale_radius():
     for layer, layer_3 in zip(io, io_3):
         np.testing.assert_approx_equal(layer_3.radius, layer.radius * 2.)
 
+
 def test_build_burnman_world_from_prebuilt():
     result = build_world('Io')
 
     assert planet_asserts(result)
+
 
 def test_paint_burnman():
     # This will test the slicing features of the world_types, as well as the painting graphics tool

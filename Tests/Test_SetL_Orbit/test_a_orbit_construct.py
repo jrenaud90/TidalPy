@@ -10,33 +10,33 @@ from TidalPy import build_world, scale_from_world
 from TidalPy.structures.orbit import OrbitBase
 
 big_io_config = {
-    "name": "BigIo",
-    "type": "layered",
-    "radius": 1821.49e3 * 10.,
-    "orbital_period": 1.769,
-    "eccentricity": 0.0041,
-    "spin_period": 1.769,
-    "albedo": 0.63,
+    "name"           : "BigIo",
+    "type"           : "layered",
+    "radius"         : 1821.49e3 * 10.,
+    "orbital_period" : 1.769,
+    "eccentricity"   : 0.0041,
+    "spin_period"    : 1.769,
+    "albedo"         : 0.63,
     "force_spin_sync": True,
-    "layers": {
-        "Core": {
-            "type": "iron",
+    "layers"         : {
+        "Core"  : {
+            "type"    : "iron",
             "is_tidal": False,
-            "radius": 810.0e3,
-            "density": 5200.
-        },
+            "radius"  : 810.0e3,
+            "density" : 5200.
+            },
         "Mantle": {
-            "type": "rock",
-            "is_tidal": True,
-            "radius": 1821.49e3 * 10.,
+            "type"               : "rock",
+            "is_tidal"           : True,
+            "radius"             : 1821.49e3 * 10.,
             "surface_temperature": 100.0,
-            "density": 3200.
+            "density"            : 3200.
+            }
         }
     }
-}
+
 
 def test_basic_orbit_construction():
-
     # Construct orbit with no members
     orbit = OrbitBase()
 
@@ -82,6 +82,7 @@ def test_orbit_construction_with_star_and_host():
     # Tidal host should be the first (and only) tidal body
     assert len(orbit.tidal_objects) == 1
     assert orbit.tidal_objects[0] is host
+
 
 def test_orbit_construction_with_star_and_host_and_tidalbody():
     """ This will test building an orbit with one tidal world. """
@@ -134,6 +135,7 @@ def test_orbit_construction_with_star_and_host_and_tidalbody():
     assert orbit_2.tidal_objects[0] is big_io_2
     assert orbit_2.tidal_objects[1] is io_2
 
+
 def test_orbit_construction_with_no_star_and_host_and_tidalbody():
     """ This will test building an orbit with one tidal world, but no star. """
 
@@ -160,6 +162,7 @@ def test_orbit_construction_with_no_star_and_host_and_tidalbody():
     assert orbit.world_signature_to_index(io) == 1
     assert orbit.world_signature_to_index(io.name) == 1
     assert orbit.world_signature_to_index(1) == 1
+
 
 def test_orbit_construction_with_star_and_host_and_multi_tidalbodies():
     """ This will test building an orbit with multiple tidal world_types. """

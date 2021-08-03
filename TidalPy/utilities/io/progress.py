@@ -24,7 +24,7 @@ def progress_bar(loop_limits: tuple, verbose: bool = True, poll_time: float = 1.
                     if input_time < loop_limits[0]:
                         input_time = loop_limits[0]
                     elif input_time > loop_limits[1]:
-                        input_time = 0.997*(loop_limits[1] - loop_limits[0])
+                        input_time = 0.997 * (loop_limits[1] - loop_limits[0])
 
                     percent_done = (input_time - loop_limits[0]) / (loop_limits[-1] - loop_limits[0])
                     percent_done = np.nan_to_num(percent_done)
@@ -32,12 +32,14 @@ def progress_bar(loop_limits: tuple, verbose: bool = True, poll_time: float = 1.
 
                     # Use an average of the last 3 (arbitrary) time_left's.
                     time_left = 3. * (1. - percent_done) / (
-                                delta + inner_wrapper.prev_delta + inner_wrapper.prev_prev_delta)
+                            delta + inner_wrapper.prev_delta + inner_wrapper.prev_prev_delta)
                     if time_left > 99999999.0:
                         time_left = 99999999.0
-                    print('\rPercent Done: {:0>5.2f}%. Approx. Time Remaining: {:0>2} days, '
-                          '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(100. * percent_done, *convert_to_hms(time_left)),
-                          flush=True, end='')
+                    print(
+                        '\rPercent Done: {:0>5.2f}%. Approx. Time Remaining: {:0>2} days, '
+                        '{:0>2.0f}:{:0>2.0f}::{:0>4.1f}'.format(100. * percent_done, *convert_to_hms(time_left)),
+                        flush=True, end=''
+                        )
                     inner_wrapper.prev_perc = percent_done
                     inner_wrapper.clock_old = now
                     inner_wrapper.prev_prev_delta = max(inner_wrapper.prev_delta, 1.e-5)

@@ -1,6 +1,6 @@
 from typing import Dict
 
-from ..eccentricity_funcs import orderl2, EccenOutput
+from ..eccentricity_funcs import EccenOutput, orderl2
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 
@@ -24,9 +24,10 @@ def eccentricity_truncation_2_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecce
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc2(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_4_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -47,9 +48,10 @@ def eccentricity_truncation_4_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecce
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc4(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_6_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -70,9 +72,10 @@ def eccentricity_truncation_6_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecce
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc6(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_8_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -93,9 +96,10 @@ def eccentricity_truncation_8_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecce
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc8(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_10_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -116,9 +120,10 @@ def eccentricity_truncation_10_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc10(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_12_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -139,9 +144,10 @@ def eccentricity_truncation_12_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc12(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_14_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -162,9 +168,10 @@ def eccentricity_truncation_14_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc14(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_16_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -185,9 +192,10 @@ def eccentricity_truncation_16_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc16(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_18_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -208,9 +216,10 @@ def eccentricity_truncation_18_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc18(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_20_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -231,9 +240,10 @@ def eccentricity_truncation_20_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc20(eccentricity)
-    }
+        }
 
     return result_by_orderl
+
 
 @njit(cacheable=True)
 def eccentricity_truncation_22_maxl_2(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
@@ -254,6 +264,6 @@ def eccentricity_truncation_22_maxl_2(eccentricity: FloatArray) -> Dict[int, Ecc
 
     result_by_orderl = {
         2: orderl2.eccentricity_funcs_trunc22(eccentricity)
-    }
+        }
 
     return result_by_orderl

@@ -7,7 +7,7 @@ import numpy as np
 from ...utilities.performance.numba import njit
 
 
-@njit()
+@njit(cacheable=True)
 def off(melt_fraction: float, premelt_viscosity: float, premelt_shear: float) -> Tuple[float, float]:
     """ Viscosity and Shear Modulus Partial Melting Model: off - NonArrays Only
 
@@ -35,9 +35,11 @@ def off(melt_fraction: float, premelt_viscosity: float, premelt_shear: float) ->
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit()
-def off_array(melt_fraction: np.ndarray, premelt_viscosity: np.ndarray, premelt_shear: float) -> \
-        Tuple[np.ndarray, np.ndarray]:
+
+@njit(cacheable=True)
+def off_array(
+    melt_fraction: np.ndarray, premelt_viscosity: np.ndarray, premelt_shear: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: off - Arrays Only
 
     !TPY_args live: self.premelt_viscosity, self.premelt_shear
@@ -64,11 +66,14 @@ def off_array(melt_fraction: np.ndarray, premelt_viscosity: np.ndarray, premelt_
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit()
-def spohn(melt_fraction: float, temperature: float, liquid_viscosity: float,
-          liquid_shear: float = 1.0e-5,
-          fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
-          fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6) -> Tuple[float, float]:
+
+@njit(cacheable=True)
+def spohn(
+    melt_fraction: float, temperature: float, liquid_viscosity: float,
+    liquid_shear: float = 1.0e-5,
+    fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
+    fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6
+    ) -> Tuple[float, float]:
     """ Viscosity and Shear Modulus Partial Melting Model: spohn - NonArrays Only
 
     Fischer and Spohn (1990) Partial-Melt Viscosity Function
@@ -114,11 +119,14 @@ def spohn(melt_fraction: float, temperature: float, liquid_viscosity: float,
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit()
-def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_viscosity: np.ndarray,
-                liquid_shear: float = 1.0e-5,
-                fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
-                fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6) -> \
+
+@njit(cacheable=True)
+def spohn_array(
+    melt_fraction: np.ndarray, temperature: np.ndarray, liquid_viscosity: np.ndarray,
+    liquid_shear: float = 1.0e-5,
+    fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
+    fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6
+    ) -> \
         Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: spohn - Arrays Only
 
@@ -163,12 +171,15 @@ def spohn_array(melt_fraction: np.ndarray, temperature: np.ndarray, liquid_visco
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit()
-def henning(melt_fraction: float, temperature: float,
-            premelt_viscosity: float, liquid_viscosity: float, premelt_shear: float, solidus: float, liquidus: float,
-            liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
-            hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,
-            hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.) -> Tuple[float, float]:
+
+@njit(cacheable=True)
+def henning(
+    melt_fraction: float, temperature: float,
+    premelt_viscosity: float, liquid_viscosity: float, premelt_shear: float, solidus: float, liquidus: float,
+    liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
+    hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,
+    hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.
+    ) -> Tuple[float, float]:
     """ Viscosity and Shear Modulus Partial Melting Model: henning - NonArrays Only
 
     Henning (2009, 2010) Partial-Melt Viscosity Function
@@ -236,11 +247,11 @@ def henning(melt_fraction: float, temperature: float,
         if melt_fraction < crit_melt_frac:
             # Partial melting before critical break-down.
             postmelt_viscosity *= np.exp(-hn_visc_slope_1 * melt_fraction)
-            postmelt_shear_modulus *= np.exp((hn_shear_param_1/temperature) - hn_shear_param_2)
+            postmelt_shear_modulus *= np.exp((hn_shear_param_1 / temperature) - hn_shear_param_2)
         elif crit_melt_frac <= melt_fraction <= crit_melt_frac_plus_width:
             # Get the maximum pre-melt effect
             postmelt_viscosity *= np.exp(-hn_visc_slope_1 * crit_melt_frac)
-            postmelt_shear_modulus *= np.exp((hn_shear_param_1/break_down_temp) - hn_shear_param_2)
+            postmelt_shear_modulus *= np.exp((hn_shear_param_1 / break_down_temp) - hn_shear_param_2)
             # Then apply critical breakdown occurring.
             postmelt_viscosity *= np.exp(-hn_visc_falloff_slope * (melt_fraction - crit_melt_frac))
             postmelt_shear_modulus *= np.exp(-hn_shear_falloff_slope * (melt_fraction - crit_melt_frac))
@@ -257,13 +268,16 @@ def henning(melt_fraction: float, temperature: float,
 
     return postmelt_viscosity, postmelt_shear_modulus
 
-@njit()
-def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
-                  premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
-                  premelt_shear: float, solidus: float, liquidus: float,
-                  liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
-                  hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,
-                  hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.) -> Tuple[np.ndarray, np.ndarray]:
+
+@njit(cacheable=True)
+def henning_array(
+    melt_fraction: np.ndarray, temperature: np.ndarray,
+    premelt_viscosity: np.ndarray, liquid_viscosity: np.ndarray,
+    premelt_shear: float, solidus: float, liquidus: float,
+    liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
+    hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,
+    hn_shear_param_2: float = 25., hn_shear_falloff_slope: float = 700.
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """ Viscosity and Shear Modulus Partial Melting Model: henning
 
     Henning (2009, 2010) Partial-Melt Viscosity Function
@@ -329,16 +343,22 @@ def henning_array(melt_fraction: np.ndarray, temperature: np.ndarray,
     # For breakdown_index, apply maximum from the pre-critical domain
     postmelt_viscosity[breakdown_index] *= np.exp(-hn_visc_slope_1 * crit_melt_frac)
     # Then apply the breakdown effects
-    postmelt_viscosity[breakdown_index] *= np.exp(-hn_visc_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac))
+    postmelt_viscosity[breakdown_index] *= np.exp(
+        -hn_visc_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac)
+        )
     postmelt_viscosity[molten_index] = liquid_viscosity[molten_index]
 
     # Calculate shear modulus in the three domains
     postmelt_shear_modulus = premelt_shear * np.ones_like(temperature)
-    postmelt_shear_modulus[pre_breakdown_index] *= np.exp((hn_shear_param_1 / temperature[pre_breakdown_index]) - hn_shear_param_2)
+    postmelt_shear_modulus[pre_breakdown_index] *= np.exp(
+        (hn_shear_param_1 / temperature[pre_breakdown_index]) - hn_shear_param_2
+        )
     # For breakdown_index, apply maximum from the pre-critical domain
     postmelt_shear_modulus[breakdown_index] *= np.exp((hn_shear_param_1 / break_down_temp) - hn_shear_param_2)
     # Then apply the breakdown effects
-    postmelt_shear_modulus[breakdown_index] *= np.exp(-hn_shear_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac))
+    postmelt_shear_modulus[breakdown_index] *= np.exp(
+        -hn_shear_falloff_slope * (melt_fraction[breakdown_index] - crit_melt_frac)
+        )
     postmelt_shear_modulus[molten_index] = liquid_shear
 
     # Perform sanity checks

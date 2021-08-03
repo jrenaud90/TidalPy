@@ -5,11 +5,13 @@ import numpy as np
 
 import TidalPy
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int import liquid_dynamic_guess, liquid_static_guess, solid_static_guess, \
-    solid_dynamic_guess
-from TidalPy.tides.multilayer.numerical_int.interfaces import interface_LDy_LDy, interface_LSt_LSt, interface_SDy_SDy, \
-    interface_SSt_SSt, interface_SSt_SDy, interface_SDy_SSt, interface_LDy_SDy, interface_LDy_SSt, interface_LSt_SDy, \
-    interface_LSt_SSt, interface_SDy_LDy, interface_SDy_LSt, interface_SSt_LDy, interface_SSt_LSt
+from TidalPy.tides.multilayer.numerical_int import (liquid_dynamic_guess, liquid_static_guess, solid_dynamic_guess,
+                                                    solid_static_guess)
+from TidalPy.tides.multilayer.numerical_int.interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt,
+                                                               interface_LSt_LSt, interface_LSt_SDy, interface_LSt_SSt,
+                                                               interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy,
+                                                               interface_SDy_SSt, interface_SSt_LDy, interface_SSt_LSt,
+                                                               interface_SSt_SDy, interface_SSt_SSt)
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -35,13 +37,14 @@ LSt_guess_l2 = liquid_static_guess(radius_array_to_use, order_l=2)
 SSt_guess_l2 = solid_static_guess(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
 SDy_guess_l2 = solid_dynamic_guess(radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=2)
 
+
 def test_solid_solid_interface():
     tests = {
         interface_SSt_SSt: (SSt_guess_l2,),
         interface_SDy_SDy: (SDy_guess_l2,),
         interface_SSt_SDy: (SSt_guess_l2,),
         interface_SDy_SSt: (SDy_guess_l2,)
-    }
+        }
 
     i = 0
     for test_func, test_input in tests.items():
@@ -53,6 +56,7 @@ def test_solid_solid_interface():
 
         i += 1
 
+
 def test_liquid_liquid_interface():
     tests = {
         interface_LSt_LSt: (LSt_guess_l2,),
@@ -60,7 +64,7 @@ def test_liquid_liquid_interface():
         # TODO: these are not implemented yet
         # interface_LSt_LDy: (LSt_guess_l2,),
         # interface_LDy_LSt: (LDy_guess_l2,)
-    }
+        }
 
     i = 0
     for test_func, test_input in tests.items():
@@ -79,13 +83,14 @@ def test_liquid_liquid_interface():
 
         i += 1
 
+
 def test_liquid_solid_interface():
     tests = {
         interface_LSt_SSt: (LSt_guess_l2, gravity_array[-1], density_array[-1]),
         interface_LDy_SDy: (LDy_guess_l2,),
         interface_LSt_SDy: (LSt_guess_l2, gravity_array[-1], density_array[-1]),
         interface_LDy_SSt: (LDy_guess_l2,)
-    }
+        }
 
     i = 0
     for test_func, test_input in tests.items():
@@ -116,13 +121,14 @@ def test_liquid_solid_interface():
 
         i += 1
 
+
 def test_solid_liquid_interface():
     tests = {
         interface_SSt_LSt: (SSt_guess_l2, gravity_array[-1], density_array[-1]),
         interface_SDy_LDy: (SDy_guess_l2,),
         interface_SSt_LDy: (SSt_guess_l2,),
         interface_SDy_LSt: (SDy_guess_l2, gravity_array[-1], density_array[-1])
-    }
+        }
 
     i = 0
     for test_func, test_input in tests.items():

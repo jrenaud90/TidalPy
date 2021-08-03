@@ -20,6 +20,6 @@ class Pyrite(Mineral):
             'G_0'              : 112.3e9,  # From Whitaker & Wang 2010 Journal of Earth Science Vol 21 No 5 p. 792
             'Gprime_0'         : 3.0,
             # Merkel et al (2002) in Physics and Chemistry of Minerals Vol 29 page 1) had slightly higher value (126e9)
-        }
+            }
 
         Mineral.__init__(self)

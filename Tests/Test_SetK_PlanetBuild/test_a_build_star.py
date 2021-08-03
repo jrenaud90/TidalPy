@@ -1,26 +1,28 @@
 import os
+
 import numpy as np
 from scipy.constants import G
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
 cancri_star_config = {
-    "name": "55-Cancri",
-    "type": "star",
-    "radius": 6.679e8,
-    "mass": 1.91e30,
+    "name"      : "55-Cancri",
+    "type"      : "star",
+    "radius"    : 6.679e8,
+    "mass"      : 1.91e30,
     "luminosity": 2.266e26
-}
+    }
 
 volume = (4. / 3.) * np.pi * cancri_star_config['radius']**3
 surf_area = 4. * np.pi * cancri_star_config['radius']**2
 surf_gravity = G * cancri_star_config['mass'] / cancri_star_config['radius']**2
 
-def value_check(built_world, check_numerical: bool = True):
 
+def value_check(built_world, check_numerical: bool = True):
     assert built_world.name == '55-Cancri'
     if check_numerical:
         np.testing.assert_approx_equal(built_world.mass, cancri_star_config['mass'])
@@ -46,27 +48,25 @@ def value_check(built_world, check_numerical: bool = True):
 
 
 def test_build_star_from_manual_config():
-
     # Test loading a star from a user-provided configuration dictionary
     cancri_star = TidalPy.build_world('55-Cancri', cancri_star_config)
 
     # Test that its attributes match expectations
     assert value_check(cancri_star)
 
-def test_build_star_from_file_loaded_config():
 
+def test_build_star_from_file_loaded_config():
     # Test loading a star from a user-provided configuration file
     worlds_dir = TidalPy.structures.world_builder.world_config_loc
     cancri_filepath = os.path.join(worlds_dir, '55cnc.json')
     with open(cancri_filepath, 'r') as cancri_config_file:
-
         cancri_star = TidalPy.build_world('55-Cancri', cancri_config_file)
 
     # Test that its attributes match expectations
     assert value_check(cancri_star)
 
-def test_build_star_from_prebuilt_config():
 
+def test_build_star_from_prebuilt_config():
     # Test loading a star from a pre-built configuration file
     cancri_star = TidalPy.build_world('55-Cancri')
 
@@ -74,8 +74,8 @@ def test_build_star_from_prebuilt_config():
     #    non-numerical checks.
     assert value_check(cancri_star, check_numerical=False)
 
-def test_paint_star():
 
+def test_paint_star():
     # This will test the slicing features of the world_types, as well as the painting graphics tool
     cancri_star = TidalPy.build_world('55-Cancri')
     assert cancri_star.paint(auto_show=False, return_fig=True)

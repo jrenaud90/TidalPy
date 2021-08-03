@@ -1,14 +1,15 @@
 import copy
-from typing import List, Tuple, Union, Any
-
+from typing import Any, List, Tuple, Union
 
 PossibleKeyType = Union[str, int, float]
 
 
-def nested_get(input_dict: dict,
-               nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType, ...]],
-               default: Any = None,
-               raiseon_nolocate: bool = False) -> Any:
+def nested_get(
+    input_dict: dict,
+    nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType, ...]],
+    default: Any = None,
+    raiseon_nolocate: bool = False
+    ) -> Any:
     """ Returns a value from a series of nested dictionaries given a list of keys
 
     Parameters
@@ -58,9 +59,11 @@ def nested_get(input_dict: dict,
     return internal_dict_value
 
 
-def nested_place(replacement_value: Any, dict_to_overwrite: dict,
-                 nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType, ...]],
-                 make_copy: bool = False, retain_old_value: bool = False) -> dict:
+def nested_place(
+    replacement_value: Any, dict_to_overwrite: dict,
+    nested_keys: Union[PossibleKeyType, List[PossibleKeyType], Tuple[PossibleKeyType, ...]],
+    make_copy: bool = False, retain_old_value: bool = False
+    ) -> dict:
     """ Replaces a nested-dictionary value based on a list of keys.
 
     Parameters
@@ -141,6 +144,7 @@ def nested_place(replacement_value: Any, dict_to_overwrite: dict,
                 dict_ref = dict_ref[key]
 
     return dict_to_overwrite
+
 
 def nested_replace(old_dict: dict, new_dict: dict, make_copies: bool = True) -> dict:
     """ Replaces values in an old dict with values in a new dict, but does not overwrite nested dicts. Instead it

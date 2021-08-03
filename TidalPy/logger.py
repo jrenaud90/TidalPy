@@ -8,22 +8,24 @@ LOGGING_LEVELS = {
     # Critical: A serious error, indicating that the program itself may be unable to continue running.
     'CRITICAL': logging.CRITICAL,
     # Error: Due to a more serious problem, the software has not been able to perform some function.
-    'ERROR': logging.ERROR,
+    'ERROR'   : logging.ERROR,
     # Warning: An indication that something unexpected happened, or indicative of some problem in the near future (e.g.,
     #    `dis space low`). The software is still working as expected.
-    'WARNING': logging.WARNING,
+    'WARNING' : logging.WARNING,
     # Info: Confirmation that things are working as expected.
-    'INFO': logging.INFO,
+    'INFO'    : logging.INFO,
     # Debug: Detailed information, typically of interest only when diagnosing problems.
-    'DEBUG': logging.DEBUG
-}
+    'DEBUG'   : logging.DEBUG
+    }
 
 
 class LevelFilter(logging.Filter):
+
     def __init__(self, low, high):
         self._low = low
         self._high = high
         super().__init__()
+
     def filter(self, record):
         normal_filter = super().filter(record)
         if normal_filter:
@@ -69,7 +71,7 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         f'----------------------------------------------------------------------------------',
         f'Run made on {now_str}.',
         f'Using Python {sys.version} on {sys.platform}.\n##\n\n'
-    )
+        )
     HEADER_TEXT = '\n'.join(HEADER_TEXT)
 
     # Setup a global logger
@@ -103,8 +105,12 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         # We do not want to print to console when we are running in a jupyter notebook
         reg_stream_handler = logging.StreamHandler(stream=sys.stdout)
         reg_stream_handler.setFormatter(stream_formatter)
-        reg_stream_handler.addFilter(LevelFilter(LOGGING_LEVELS[config['stream_level']],
-                                                 LOGGING_LEVELS[config['stream_err_level']]))
+        reg_stream_handler.addFilter(
+            LevelFilter(
+                LOGGING_LEVELS[config['stream_level']],
+                LOGGING_LEVELS[config['stream_err_level']]
+                )
+            )
         tidalpy_log.addHandler(reg_stream_handler)
 
         err_stream_handler = logging.StreamHandler(stream=sys.stderr)

@@ -1,13 +1,12 @@
 from .tidal import TidalWorld
 from ... import log
 from ...exceptions import ConfigPropertyChangeError
-from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_mass, luminosity_from_efftemp
+from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_efftemp, luminosity_from_mass
 
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
 
 class StarWorld(TidalWorld):
-
     """ StarWorld
     Stars can dissipate tidal energy through the CPL/CTL method (or not at all) and have methods to calculate
         insolation heating.
@@ -32,8 +31,10 @@ class StarWorld(TidalWorld):
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
-               setup_simple_tides: bool = True):
+    def reinit(
+        self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
+        setup_simple_tides: bool = True
+        ):
         """ Initialize or Reinitialize the star based on changes to its configurations.
 
         This must be called at least once before an instance can be used. The constructor will automatically make an
@@ -51,8 +52,10 @@ class StarWorld(TidalWorld):
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         """
 
-        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry,
-                       set_by_burnman=set_by_burnman, setup_simple_tides=setup_simple_tides)
+        super().reinit(
+            initial_init=initial_init, reinit_geometry=reinit_geometry,
+            set_by_burnman=set_by_burnman, setup_simple_tides=setup_simple_tides
+            )
 
         self._luminosity = self.config.get('luminosity', None)
         self._effective_temperature = self.config.get('effective_temperature', None)
@@ -61,8 +64,10 @@ class StarWorld(TidalWorld):
             # If no luminosity provided: Try to convert effective surface temperature
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
-                log.info(f'Luminosity and effective temperature of {self} was not provided. '
-                         'Estimating these values from the stellar mass.')
+                log.info(
+                    f'Luminosity and effective temperature of {self} was not provided. '
+                    'Estimating these values from the stellar mass.'
+                    )
                 self._luminosity = luminosity_from_mass(self.mass)
                 self._effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
             else:
@@ -70,7 +75,6 @@ class StarWorld(TidalWorld):
         else:
             if self._effective_temperature is None:
                 self._effective_temperature = efftemp_from_luminosity(self.luminosity, self.radius)
-
 
     # # Configuration properties
     @property

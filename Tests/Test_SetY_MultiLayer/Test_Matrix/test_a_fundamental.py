@@ -4,8 +4,8 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_generic, fundamental_matrix_orderl2
 from TidalPy.constants import G
+from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_generic, fundamental_matrix_orderl2
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -13,13 +13,14 @@ TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
-radius_array =  np.linspace(0., 1.e6, 11)
+radius_array = np.linspace(0., 1.e6, 11)
 volume_array = (4. / 3.) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
 mass_array = volume_array * density_array
 planet_mass = sum(mass_array)
-mass_below = np.asarray([np.sum(mass_array[:i+1]) for i in range(10)])
+mass_below = np.asarray([np.sum(mass_array[:i + 1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
 shear_array = 5.e10 * np.ones(10, dtype=np.complex)
+
 
 # import matplotlib.pyplot as plt
 # fig, ax = plt.subplots()
@@ -44,8 +45,10 @@ shear_array = 5.e10 * np.ones(10, dtype=np.complex)
 # plt.show()
 
 def test_calc_fundamental_order2():
-    F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array,
-                                                     density_array, gravity_array)
+    F, F_inv, deriv_mtx = fundamental_matrix_orderl2(
+        radius_array[1:], shear_array,
+        density_array, gravity_array
+        )
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -70,12 +73,16 @@ def test_calc_fundamental_order2():
         identity = F[:, :, i] @ F_inv[:, :, i]
         assert np.allclose(identity, np.identity(6), atol=1.e-6)
 
-def test_calc_fundamental_orderl_l2():
 
-    F2, F2_inv, deriv_mtx2 = fundamental_matrix_orderl2(radius_array[1:], shear_array,
-                                                        density_array, gravity_array)
-    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array,
-                                                     density_array, gravity_array, order_l=2)
+def test_calc_fundamental_orderl_l2():
+    F2, F2_inv, deriv_mtx2 = fundamental_matrix_orderl2(
+        radius_array[1:], shear_array,
+        density_array, gravity_array
+        )
+    F, F_inv, deriv_mtx = fundamental_matrix_generic(
+        radius_array[1:], shear_array,
+        density_array, gravity_array, order_l=2
+        )
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -106,9 +113,12 @@ def test_calc_fundamental_orderl_l2():
         assert np.allclose(F[:, :, i], F2[:, :, i])
         assert np.allclose(F_inv[:, :, i], F2_inv[:, :, i])
 
+
 def test_calc_fundamental_orderl_l3():
-    F, F_inv, deriv_mtx = fundamental_matrix_generic(radius_array[1:], shear_array,
-                                                     density_array, gravity_array, order_l=3)
+    F, F_inv, deriv_mtx = fundamental_matrix_generic(
+        radius_array[1:], shear_array,
+        density_array, gravity_array, order_l=3
+        )
 
     # Check that the shapes are correct
     assert F.shape[0] == 6

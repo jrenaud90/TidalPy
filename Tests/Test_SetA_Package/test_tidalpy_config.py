@@ -6,8 +6,8 @@ TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
-def test_load_configs():
 
+def test_load_configs():
     # Load configurations and make sure they have all the needed parameters
     assert config is configurations
 

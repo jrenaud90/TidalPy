@@ -1,21 +1,24 @@
-from typing import Union, List
-
 import os
-import numpy as np
-import matplotlib.pyplot as plt
+from typing import List, Union
 
-from ....exceptions import MissingArgumentError, IncorrectArgumentType
+import matplotlib.pyplot as plt
+import numpy as np
+
+from ....exceptions import IncorrectArgumentType, MissingArgumentError
 
 FILE_PATH = os.path.join(os.path.realpath(__file__), os.pardir)
 PROP_CYCLE = plt.rcParams['axes.prop_cycle']
 MP_COLORS = PROP_CYCLE.by_key()['color']
 
-def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
-          radius : Union[List[np.ndarray], np.ndarray],
-          depth_plot: bool = False, planet_radius: float = None,
-          colors: List[str] = None, labels: List[str] = None,
-          show_plot: bool = True, use_tobie_limits: bool = False,
-          plot_tobie: bool = False, plot_roberts: bool = False):
+
+def yplot(
+    tidal_ys: Union[List[np.ndarray], np.ndarray],
+    radius: Union[List[np.ndarray], np.ndarray],
+    depth_plot: bool = False, planet_radius: float = None,
+    colors: List[str] = None, labels: List[str] = None,
+    show_plot: bool = True, use_tobie_limits: bool = False,
+    plot_tobie: bool = False, plot_roberts: bool = False
+    ):
     """ Plot the six tidal y's in a six panel figure
 
     Parameters
@@ -112,7 +115,7 @@ def yplot(tidal_ys: Union[List[np.ndarray], np.ndarray],
         else:
             ncols = 3
 
-        ax_y5.legend(ncol=ncols, fancybox=True, bbox_to_anchor=(1,-0.6), loc="lower right")
+        ax_y5.legend(ncol=ncols, fancybox=True, bbox_to_anchor=(1, -0.6), loc="lower right")
 
     if use_tobie_limits:
         ax_y1.set(xlim=(0.0, 0.15))

@@ -2,7 +2,7 @@ from typing import Union
 
 from .basic import BaseWorld
 from .burnman import BurnManWorld
-from .gas import GasGiantWorld, GasGiantLayeredWorld
+from .gas import GasGiantLayeredWorld, GasGiantWorld
 from .layered import LayeredWorld
 from .stellar import StarWorld
 from .tidal import TidalWorld
@@ -27,4 +27,4 @@ world_types = {
     'simple_tidal'     : TidalWorld,
     'layered'          : LayeredWorld,
     'burnman'          : BurnManWorld
-}
+    }

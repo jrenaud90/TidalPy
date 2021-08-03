@@ -5,8 +5,8 @@ dependencies (looking at you, Numba).
 
 import numpy as np
 
-from ..types import NumArray
 from ..performance import njit, use_numba
+from ..types import NumArray
 
 
 def _sqrt_neg_python(z: NumArray, is_real: bool = False) -> NumArray:
@@ -46,6 +46,7 @@ def _sqrt_neg_python(z: NumArray, is_real: bool = False) -> NumArray:
                  (z_i == 0.) * imag_part * 1.0j
 
     return z_sqrt
+
 
 # Imaginary square roots
 if use_numba:

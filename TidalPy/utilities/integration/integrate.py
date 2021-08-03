@@ -24,11 +24,10 @@ from typing import Tuple
 
 import numpy as np
 
-from .helpers import select_initial_step, norm
-from .methods.rk import rk_stepper, n_stages_RK23, n_stages_RK45, error_estimator_order_RK23, error_estimator_order_RK45
+from .helpers import norm, select_initial_step
+from .methods.rk import error_estimator_order_RK23, error_estimator_order_RK45, n_stages_RK23, n_stages_RK45, rk_stepper
 from ..performance import njit
-
-EPS = np.finfo(float).eps
+from ..types import float_eps
 
 
 @njit(cacheable=True)
@@ -87,11 +86,13 @@ def select_initial_step(func, t0, y0, f0, direction, order, rtol, atol, args: tu
 
 
 @njit(cacheable=True)
-def rk_integrator(func: callable, t_span: Tuple[float, float], y0: np.ndarray,
-                  args: tuple = tuple(),
-                  rk_method: int = 0, t_eval_N: int = 3, t_eval_log: bool = False, use_teval: bool = False,
-                  rtol=1.0e-3, atol=1.0e-6,
-                  verbose: bool = True):
+def rk_integrator(
+    func: callable, t_span: Tuple[float, float], y0: np.ndarray,
+    args: tuple = tuple(),
+    rk_method: int = 0, t_eval_N: int = 3, t_eval_log: bool = False, use_teval: bool = False,
+    rtol=1.0e-3, atol=1.0e-6,
+    verbose: bool = True
+    ):
     # Determine integration domain and shape of y
     t0, tf = float(t_span[0]), float(t_span[1])
     if t_eval_log:
@@ -122,10 +123,10 @@ def rk_integrator(func: callable, t_span: Tuple[float, float], y0: np.ndarray,
         raise Exception
 
     # Validate tolerances
-    if rtol < 100 * EPS:
+    if rtol < 100 * float_eps:
         if verbose:
             print("`rtol` is too low, setting to 100 * EPS")
-        rtol = 100 * EPS
+        rtol = 100 * float_eps
 
     atol = np.asarray(atol)
     ts = [t0]
@@ -150,8 +151,10 @@ def rk_integrator(func: callable, t_span: Tuple[float, float], y0: np.ndarray,
         direction = 1.
 
     # Determine size of initial step
-    step_size_abs = select_initial_step(func, t0, y0, current_deriv_val, direction, error_estimator_order, rtol, atol,
-                                        args=args)
+    step_size_abs = select_initial_step(
+        func, t0, y0, current_deriv_val, direction, error_estimator_order, rtol, atol,
+        args=args
+        )
 
     # Setup the K variable (Storage array for putting RK stages).
     K = np.empty((n_stages + 1, y_size), dtype=dtype)
@@ -172,8 +175,10 @@ def rk_integrator(func: callable, t_span: Tuple[float, float], y0: np.ndarray,
             # Integration is not complete.
             # Run the step function
             t_new, y_new, new_deriv_val, new_step_size_abs, y_old, t_old, old_step, step_status, message = \
-                rk_stepper(func, t, y, current_deriv_val, tf, direction, step_size_abs, max_step, atol, rtol, K,
-                           rk_method=rk_method, args=args)
+                rk_stepper(
+                    func, t, y, current_deriv_val, tf, direction, step_size_abs, max_step, atol, rtol, K,
+                    rk_method=rk_method, args=args
+                    )
 
             # Check out integration status from step response.
             t = t_new

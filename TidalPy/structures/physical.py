@@ -10,13 +10,13 @@ import numpy as np
 
 from .. import debug_mode, log
 from ..constants import G
-from ..exceptions import (BadAttributeValueError, ImproperPropertyHandling, IncorrectAttributeType,
-                          UnusualRealValueError, MissingArgumentError, ImproperGeometryPropertyHandling)
+from ..exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
+                          IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
 from ..utilities.classes import ConfigHolder
-from ..utilities.types import float_eps, float_like, NoneType
-
+from ..utilities.types import NoneType, float_eps, float_like
 
 FloatNone = Union[NoneType, float]
+
 
 class PhysicalObjSpherical(ConfigHolder):
     """ PhysicalObjSpherical Class contains attributes and functionality used for objects such as planets or layers
@@ -114,8 +114,10 @@ class PhysicalObjSpherical(ConfigHolder):
 
         # Other reinit steps are set by child class' reinit methods.
 
-    def set_geometry(self, radius: float, mass: float, thickness: float = None,
-                     mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True):
+    def set_geometry(
+        self, radius: float, mass: float, thickness: float = None,
+        mass_below: float = 0., update_state_geometry: bool = True, build_slices: bool = True
+        ):
         """ Calculates and sets the object's physical parameters based on user provided input.
 
         Assumptions
@@ -205,8 +207,8 @@ class PhysicalObjSpherical(ConfigHolder):
 
                 # Mass below each slice is equal to slice masses + and mass below this physical object
                 self._mass_below_slices = np.asarray(
-                        [self.mass_below + sum(self.mass_slices[:i+1]) for i in range(self.num_slices)]
-                )
+                    [self.mass_below + sum(self.mass_slices[:i + 1]) for i in range(self.num_slices)]
+                    )
 
                 # Calculate gravity at the top of each slice
                 self._gravity_slices = G * self.mass_below_slices / self.radii**2
@@ -250,8 +252,10 @@ class PhysicalObjSpherical(ConfigHolder):
         # Let the class know that the geometry has been set
         self.geometry_init = True
 
-    def set_static_pressure(self, pressure_above: float = None, build_slices: bool = True,
-                            called_from_burnman: bool = False):
+    def set_static_pressure(
+        self, pressure_above: float = None, build_slices: bool = True,
+        called_from_burnman: bool = False
+        ):
         """ Sets the static pressure for the physical structure.
 
         `Static` here indicates that this is not a dynamic pressure used in many calculations. The static pressure can
@@ -306,11 +310,10 @@ class PhysicalObjSpherical(ConfigHolder):
                 self._pressure_slices = \
                     np.asarray(
                         [pressure_above + sum(pressure_pieces[i:]) for i in range(self.num_slices)]
-                    )
+                        )
 
                 if debug_mode:
                     np.testing.assert_approx_equal(self.pressure_inner, self.pressure_slices[0])
-
 
     # # Independent state properties
     @property
@@ -351,7 +354,6 @@ class PhysicalObjSpherical(ConfigHolder):
     @thickness.setter
     def thickness(self, value):
         raise ImproperGeometryPropertyHandling
-
 
     # Dependent state properties
     #    Geometry properties
@@ -471,8 +473,10 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @moi_factor.setter
     def moi_factor(self, value):
-        raise ImproperGeometryPropertyHandling('Moment of Inertia Factor is set by the set_geometry method or '
-                                               'by setting self.moi (the real moment of inertia)')
+        raise ImproperGeometryPropertyHandling(
+            'Moment of Inertia Factor is set by the set_geometry method or '
+            'by setting self.moi (the real moment of inertia)'
+            )
 
     @property
     def beta_middle(self) -> float:

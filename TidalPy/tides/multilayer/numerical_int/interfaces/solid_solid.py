@@ -43,7 +43,7 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-    )
+        )
     return base_solid_ys
 
 
@@ -72,7 +72,7 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-    )
+        )
     return base_solid_ys
 
 
@@ -101,7 +101,7 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-    )
+        )
     return base_solid_ys
 
 
@@ -130,5 +130,5 @@ def both_static(solid_layer_ys: SolidStaticGuess) -> SolidStaticGuess:
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-    )
+        )
     return base_solid_ys

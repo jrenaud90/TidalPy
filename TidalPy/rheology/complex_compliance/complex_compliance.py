@@ -1,14 +1,14 @@
-from typing import List, Dict, TYPE_CHECKING, Callable, Tuple
+from typing import Callable, Dict, List, TYPE_CHECKING, Tuple
 
 import numpy as np
 
-from . import known_models, known_model_live_args, known_model_const_args
+from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import complex_compliance_defaults
-from ...exceptions import InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty, OuterscopePropertySetError
+from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError
 from ...tides.mode_manipulation import FreqSig
 from ...utilities.classes.model import LayerModelHolder
 from ...utilities.performance import njit
-from ...utilities.types import FloatArray, ComplexArray
+from ...utilities.types import ComplexArray, FloatArray
 
 if TYPE_CHECKING:
     from ..rheology import Rheology
@@ -16,8 +16,10 @@ if TYPE_CHECKING:
 
 
 @njit(cacheable=False)
-def compliance_dict_helper(tidal_frequencies: Dict[FreqSig, FloatArray], compliance_func: Callable,
-                           live_inputs: Tuple[FloatArray, ...], inputs: Tuple[float, ...]):
+def compliance_dict_helper(
+    tidal_frequencies: Dict[FreqSig, FloatArray], compliance_func: Callable,
+    live_inputs: Tuple[FloatArray, ...], inputs: Tuple[float, ...]
+    ):
     """ Njit-safe Complex compliance calculator helper - Array version
 
     Parameters
@@ -52,45 +54,8 @@ def compliance_dict_helper(tidal_frequencies: Dict[FreqSig, FloatArray], complia
 
     return complex_compliance_by_tidal_freq
 
-# @njit(cacheable=True)
-# def compliance_dict_helper_float(tidal_frequencies: Dict[FreqSig, FloatArray], compliance_func_float: Callable,
-#                                  live_inputs: Tuple[FloatArray, ...], inputs: Tuple[float, ...]):
-#     """ Njit-safe Complex compliance calculator helper - Float version
-#     # TODO: Do we need a separte func for this? Can we use the one above?
-#
-#     Parameters
-#     ----------
-#     tidal_frequencies : Dict[FreqSig, FloatArray]
-#         Njit-safe TypedDict of tidal frequencies.
-#     compliance_func_float : Callable
-#         Complex compliance function - float version.
-#     live_inputs : Tuple[FloatArray, ...]
-#         Live inputs to the complex compliance function.
-#     inputs : Tuple[float, ...]
-#         Static inputs to the complex compliance function.
-#
-#     Returns
-#     -------
-#     complex_compliance_by_tidal_freq : Dict[FreqSig, ComplexArray]
-#     """
-#
-#     # Build fake dictionary so that njit can compile the function
-#     fake_index = list(tidal_frequencies.keys())[0]
-#     fake_freq = tidal_frequencies[fake_index]
-#     complex_compliance_by_tidal_freq = {(-100, -100): fake_freq * (1. + 1.j)}
-#
-#     # Find the complex compliance for each frequency
-#     for freq_sig, freq in tidal_frequencies.items():
-#         complex_compliance_by_tidal_freq[freq_sig] = compliance_func_float(freq, *live_inputs, *inputs)
-#
-#     # Delete the fake complex compliance we added earlier
-#     del complex_compliance_by_tidal_freq[(-100, -100)]
-#
-#     return complex_compliance_by_tidal_freq
-
 
 class ComplexCompliance(LayerModelHolder):
-
     """ ComplexCompliance
     Complex compliance provides the functionality to calculate the complex compliance once provided a viscosity, shear
         modulus, and forcing frequency. Different rheological models provide different functional forms of the
@@ -108,8 +73,10 @@ class ComplexCompliance(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = ('rheology', 'complex_compliance')
 
-    def __init__(self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
-                 store_config_in_layer: bool = True, initialize: bool = True):
+    def __init__(
+        self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
+        store_config_in_layer: bool = True, initialize: bool = True
+        ):
         """ Constructor for ComplexCompliance class
 
         Parameters
@@ -187,12 +154,13 @@ class ComplexCompliance(LayerModelHolder):
             else:
                 comp_func = self.func_array
 
-            complex_compliances = compliance_dict_helper(self.tidal_freqs, comp_func,
-                                                         self.live_inputs, self.inputs)
+            complex_compliances = compliance_dict_helper(
+                self.tidal_freqs, comp_func,
+                self.live_inputs, self.inputs
+                )
             self._complex_compliances = complex_compliances
 
         return self.complex_compliances
-
 
     # # Initialized properties
     @property
@@ -204,7 +172,6 @@ class ComplexCompliance(LayerModelHolder):
     def rheology_class(self, value):
         raise InitiatedPropertyChangeError
 
-
     # # State properties
     @property
     def complex_compliances(self) -> Dict[FreqSig, ComplexArray]:
@@ -214,7 +181,6 @@ class ComplexCompliance(LayerModelHolder):
     @complex_compliances.setter
     def complex_compliances(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Outer-scope properties
     # Rheology class

@@ -1,12 +1,12 @@
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
-from . import known_model_live_args, known_model_const_args, known_models
+from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import partial_melt_defaults
 from ... import log
-from ...exceptions import BadValueError, InitiatedPropertyChangeError, IncorrectMethodToSetStateProperty, \
-    OuterscopePropertySetError
+from ...exceptions import (BadValueError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
+                           OuterscopePropertySetError)
 from ...utilities.classes.model import LayerModelHolder
 from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
@@ -15,7 +15,8 @@ if TYPE_CHECKING:
     from ..rheology import Rheology
     from ...structures.layers import PhysicalLayerType
 
-@njit()
+
+@njit(cacheable=True)
 def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float) -> float:
     """ Calculates the partial melt volume fraction based on the material's solidus and liquidus - NonArray Only
 
@@ -47,7 +48,8 @@ def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float)
 
     return partial_melt_volume_frac
 
-@njit()
+
+@njit(cacheable=True)
 def calculate_melt_fraction_array(temperature: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
     """ Calculates the partial melt volume fraction based on the material's solidus and liquidus - Arrays Only
 
@@ -77,7 +79,8 @@ def calculate_melt_fraction_array(temperature: np.ndarray, solidus: float, liqui
 
     return partial_melt_volume_frac
 
-@njit()
+
+@njit(cacheable=True)
 def calculate_temperature_frommelt(melt_frac: float, solidus: float, liquidus: float) -> float:
     """ Calculates the temperature from the volumetric melt fraction - NonArray Only
 
@@ -107,7 +110,8 @@ def calculate_temperature_frommelt(melt_frac: float, solidus: float, liquidus: f
 
     return temp_at_melt
 
-@njit()
+
+@njit(cacheable=True)
 def calculate_temperature_frommelt_array(melt_frac: np.ndarray, solidus: float, liquidus: float) -> np.ndarray:
     """ Calculates the temperature from the volumetric melt fraction - Arrays Only
 
@@ -137,7 +141,6 @@ def calculate_temperature_frommelt_array(melt_frac: np.ndarray, solidus: float, 
 
 
 class PartialMelt(LayerModelHolder):
-
     """ PartialMelt
 
     Partial melting provides a further temperature dependence to both viscosity and shear modulus. Depending upon the
@@ -156,8 +159,10 @@ class PartialMelt(LayerModelHolder):
     known_model_live_args = known_model_live_args
     model_config_key = ('rheology', 'partial_melting')
 
-    def __init__(self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
-                 store_config_in_layer: bool = True, initialize: bool = True):
+    def __init__(
+        self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,
+        store_config_in_layer: bool = True, initialize: bool = True
+        ):
         """ Constructor for ComplexCompliance class
 
         Parameters
@@ -281,7 +286,6 @@ class PartialMelt(LayerModelHolder):
         else:
             return calculate_temperature_frommelt(melt_fraction, self.solidus, self.liquidus)
 
-
     # # Initialized properties
     @property
     def rheology_class(self) -> 'Rheology':
@@ -291,7 +295,6 @@ class PartialMelt(LayerModelHolder):
     @rheology_class.setter
     def rheology_class(self, value):
         raise InitiatedPropertyChangeError
-
 
     # # State properties
     @property
@@ -329,7 +332,6 @@ class PartialMelt(LayerModelHolder):
     @melt_fraction.setter
     def melt_fraction(self, value):
         raise IncorrectMethodToSetStateProperty
-
 
     # # Outer-scope properties
     @property

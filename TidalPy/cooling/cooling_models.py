@@ -1,7 +1,5 @@
 from typing import Tuple
 
-import numpy as np
-
 from ..utilities.performance.numba import njit
 from ..utilities.types import FloatArray, float_eps
 
@@ -47,11 +45,14 @@ def off(delta_temp: FloatArray, layer_thickness: float) -> CoolingOutputType:
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
+
 @njit(cacheable=True)
-def convection(delta_temp: FloatArray,
-               viscosity: FloatArray, thermal_conductivity: float, thermal_diffusivity: float, thermal_expansion: float,
-               layer_thickness: float, gravity: float, density: float,
-               convection_alpha: float, convection_beta: float, critical_rayleigh: float) -> CoolingOutputType:
+def convection(
+    delta_temp: FloatArray,
+    viscosity: FloatArray, thermal_conductivity: float, thermal_diffusivity: float, thermal_expansion: float,
+    layer_thickness: float, gravity: float, density: float,
+    convection_alpha: float, convection_beta: float, critical_rayleigh: float
+    ) -> CoolingOutputType:
     """ Calculates cooling by a parameterized convection model via the Rayleigh number
 
     !TPY_args live: self.viscosity, self.thermal_conductivity, self.thermal_diffusivity, self.thermal_expansion, self.thickness, self.gravity, self.density_bulk
@@ -130,9 +131,12 @@ def convection(delta_temp: FloatArray,
 
     return cooling_flux, boundary_layer_thickness, rayleigh, nusselt
 
+
 @njit(cacheable=True)
-def conduction(delta_temp: FloatArray,
-               thermal_conductivity: float, layer_thickness: float) -> CoolingOutputType:
+def conduction(
+    delta_temp: FloatArray,
+    thermal_conductivity: float, layer_thickness: float
+    ) -> CoolingOutputType:
     """ Calculates cooling by conduction through a sub-layer half the thickness of the layer - NonArrays Only
 
     Half layer thickness is used based on the assumption that delta_temp is the average (central) temperature minus

@@ -4,9 +4,9 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.tides.multilayer.numerical_int import liquid_dynamic_guess, liquid_static_guess, solid_static_guess, \
-    solid_dynamic_guess
 from TidalPy.constants import G
+from TidalPy.tides.multilayer.numerical_int import (liquid_dynamic_guess, liquid_static_guess, solid_dynamic_guess,
+                                                    solid_static_guess)
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False

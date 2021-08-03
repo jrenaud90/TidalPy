@@ -1,3 +1,5 @@
 from .physical import PhysicalObjSpherical
-from .world_builder import build_world, scale_from_world, build_from_world
+
+# Physical must be imported before the following are imported.
 from .orbit import PhysicsOrbit as Orbit
+from .world_builder import build_from_world, build_world, scale_from_world

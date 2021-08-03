@@ -7,7 +7,6 @@ from ...exceptions import InitiatedPropertyChangeError
 
 
 class BurnManWorld(LayeredWorld):
-
     """ BurnManWorld
     Tidal world_types that have layers whose state properties are initialized by user-provided equations of state. These
         calculations are done by the Burnman package.
@@ -21,8 +20,10 @@ class BurnManWorld(LayeredWorld):
 
     world_class = 'burnman'
 
-    def __init__(self, world_config: dict, burnman_world: burnman.Planet, burnman_layers: Tuple[burnman.Layer, ...],
-                 name: str = None, initialize: bool = True):
+    def __init__(
+        self, world_config: dict, burnman_world: burnman.Planet, burnman_layers: Tuple[burnman.Layer, ...],
+        name: str = None, initialize: bool = True
+        ):
         """ BurnManWorld constructor
 
         Parameters
@@ -52,8 +53,10 @@ class BurnManWorld(LayeredWorld):
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
-               set_by_burnman: bool = True, reinit_layers: bool = True):
+    def reinit(
+        self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
+        set_by_burnman: bool = True, reinit_layers: bool = True
+        ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
         This must be called at least once before an instance can be used. The constructor will automatically make an
@@ -84,7 +87,6 @@ class BurnManWorld(LayeredWorld):
 
         # Make call to parent reinit
         super().reinit(initial_init, reinit_geometry, setup_simple_tides, set_by_burnman, reinit_layers)
-
 
     # # Initiated properties
     @property

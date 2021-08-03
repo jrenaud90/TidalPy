@@ -7,16 +7,19 @@ HH14  : Henning & Hurford (2014, DOI: 10.1088/0004-637X/789/1/30)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
 B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 """
+from typing import Tuple
 
 import numpy as np
 
 from ....utilities.performance import njit
 
 
-# @njit(cacheable=True)
-def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray, derivative_matrix: np.ndarray,
-              inner_boundary_condition: np.ndarray, world_radius: float,
-              order_l: int = 2):
+@njit(cacheable=True)
+def propagate(
+    fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray, derivative_matrix: np.ndarray,
+    inner_boundary_condition: np.ndarray, world_radius: float,
+    order_l: int = 2
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """ This function will propagate the incompressible tidal equations, via the fundamental matrix, through a world or
     layers sub-shells.
 
@@ -67,10 +70,10 @@ def propagate(fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.nda
         # Dot product of between the fundamental matrix and (the dot product between the inverse fundamental matrix one
         #    layer below and the propagation matrix one layer below).
         propagation_mtx[:, :, i] = \
-            fundamental_matrix[:, :, i] @ (fundamental_matrix_inverse[:, :, i-1] @ propagation_mtx[:, :, i-1])
+            fundamental_matrix[:, :, i] @ (fundamental_matrix_inverse[:, :, i - 1] @ propagation_mtx[:, :, i - 1])
 
     # Surface condition matrix is a 3x3 matrix of the top-most shell of the aggregate matrix's rows [3, 4, 6]
-    surface_matrix = np.vstack( (propagation_mtx[2, :, -1], propagation_mtx[3, :, -1], propagation_mtx[5, :, -1]) )
+    surface_matrix = np.vstack((propagation_mtx[2, :, -1], propagation_mtx[3, :, -1], propagation_mtx[5, :, -1]))
 
     # The surface boundary conditions are (always?) static and only based on the radius and order-l
     surface_bc = np.zeros((3,), dtype=np.complex128)

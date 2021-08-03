@@ -1,15 +1,16 @@
-import numpy as np
 import numba
+import numpy as np
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
 from TidalPy.rheology.complex_compliance import known_models
 
-def test_all_models():
 
+def test_all_models():
     print('Complex Compliance Model Testing...')
 
     for model_name, model_func in known_models.items():
@@ -59,7 +60,3 @@ def test_all_models():
             # Non array test
             res = model_func(0.001, 1.0, 2.0)
             assert type(res) in [complex, np.complex, np.complex128]
-
-
-
-

@@ -1,9 +1,8 @@
-import os
-
-import numpy as np
 import numba
+import numpy as np
 
 import TidalPy
+
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
@@ -12,7 +11,6 @@ use_numba = TidalPy.utilities.performance.numba.use_numba
 
 
 def test_eccentricity_multi_l_calc():
-
     from TidalPy.tides.mode_calc_helper import eccentricity_functions_lookup
 
     # Test a few truncation levels; these tests can take a long time to run so only doing a spot check on e^2 and e^10
@@ -24,7 +22,7 @@ def test_eccentricity_multi_l_calc():
 
             # Perform float calculation
             e_result_float = eccen_func(0.3)
-            for order_l in range(2, tidal_order_l+1):
+            for order_l in range(2, tidal_order_l + 1):
                 for p, p_result in e_result_float[order_l].items():
                     assert type(p) in [int, np.int, np.int32]
                     for q, q_result in p_result.items():
@@ -33,14 +31,13 @@ def test_eccentricity_multi_l_calc():
 
             # Perform array calculation
             e_result_array = eccen_func(np.linspace(0.1, 0.9, 4))
-            for order_l in range(2, tidal_order_l+1):
+            for order_l in range(2, tidal_order_l + 1):
                 for p, p_result in e_result_array[order_l].items():
                     for q, q_result in p_result.items():
                         assert type(q_result) is np.ndarray
 
 
 def test_inclination_multi_l_calc():
-
     from TidalPy.tides.mode_calc_helper import inclination_functions_lookup
 
     # Test a few truncation levels
@@ -52,7 +49,7 @@ def test_inclination_multi_l_calc():
 
             # Perform float calculation
             i_result_float = inclin_func(0.3)
-            for order_l in range(2, tidal_order_l+1):
+            for order_l in range(2, tidal_order_l + 1):
                 for (p, m), result in i_result_float[order_l].items():
                     assert type(p) in [int, np.int, np.int32]
                     assert type(m) in [int, np.int, np.int32]
@@ -60,7 +57,7 @@ def test_inclination_multi_l_calc():
 
             # Perform array calculation
             i_result_array = inclin_func(np.linspace(0.1, 0.9, 4))
-            for order_l in range(2, tidal_order_l+1):
+            for order_l in range(2, tidal_order_l + 1):
                 for (p, m), result in i_result_array[order_l].items():
                     assert type(p) in [int, np.int, np.int32]
                     assert type(m) in [int, np.int, np.int32]
@@ -90,7 +87,6 @@ tidal_susceptibility_array = tidal_susceptibility * np.ones_like(orbital_frequen
 
 
 def test_calculate_and_collapse_modes():
-
     from TidalPy.utilities.performance import njit
     from TidalPy.tides.mode_manipulation import calculate_terms, collapse_modes
     from TidalPy.tides.mode_calc_helper import inclination_functions_lookup, eccentricity_functions_lookup
@@ -122,11 +118,15 @@ def test_calculate_and_collapse_modes():
 
             # Calculate tidal frequencies and modes
             unique_freq_float, tidal_results_float = \
-                calculate_terms(spin_frequency, orbital_frequency, semi_major_axis, radius,
-                                eccentricity_results_float, obliquity_results_float)
+                calculate_terms(
+                    spin_frequency, orbital_frequency, semi_major_axis, radius,
+                    eccentricity_results_float, obliquity_results_float
+                    )
             unique_freq_array, tidal_results_array = \
-                calculate_terms(spin_frequency_array, orbital_frequency_array, semi_major_axis_array, radius,
-                                eccentricity_results_array, obliquity_results_array)
+                calculate_terms(
+                    spin_frequency_array, orbital_frequency_array, semi_major_axis_array, radius,
+                    eccentricity_results_array, obliquity_results_array
+                    )
 
             @njit()
             def build_numba_dict(freq_dict, static_comp):
@@ -142,8 +142,10 @@ def test_calculate_and_collapse_modes():
                 return complex_comp_dict
 
             complex_comp_float = build_numba_dict(unique_freq_float, static_complex_compliance)
-            complex_comp_array = build_numba_dict(unique_freq_array,
-                                                  static_complex_compliance * np.ones_like(spin_frequency_array))
+            complex_comp_array = build_numba_dict(
+                unique_freq_array,
+                static_complex_compliance * np.ones_like(spin_frequency_array)
+                )
 
             if use_numba:
                 assert isinstance(unique_freq_float, numba.typed.typeddict.Dict)
@@ -154,9 +156,11 @@ def test_calculate_and_collapse_modes():
 
             # Collapse modes
             result_float = \
-                collapse_modes(gravity, radius, density, shear_modulus, tidal_scale, tidal_host_mass,
-                               tidal_susceptibility, complex_comp_float, tidal_results_float, order_l,
-                               cpl_ctl_method=False)
+                collapse_modes(
+                    gravity, radius, density, shear_modulus, tidal_scale, tidal_host_mass,
+                    tidal_susceptibility, complex_comp_float, tidal_results_float, order_l,
+                    cpl_ctl_method=False
+                    )
 
             tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
                 result_float
@@ -176,9 +180,11 @@ def test_calculate_and_collapse_modes():
             assert type(effective_q_by_orderl[2]) in [float, np.float, np.float64]
 
             result_array = \
-                collapse_modes(gravity, radius, density, shear_modulus, tidal_scale, tidal_host_mass,
-                               tidal_susceptibility_array, complex_comp_array, tidal_results_array, order_l,
-                               cpl_ctl_method=False)
+                collapse_modes(
+                    gravity, radius, density, shear_modulus, tidal_scale, tidal_host_mass,
+                    tidal_susceptibility_array, complex_comp_array, tidal_results_array, order_l,
+                    cpl_ctl_method=False
+                    )
 
             tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
                 result_array
