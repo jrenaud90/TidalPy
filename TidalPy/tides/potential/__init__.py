@@ -1,2 +1,4 @@
 from .synchronous_low_e import tidal_potential as tidal_potential_simple
-from .nsr_obliquity_low_e import tidal_potential as tidal_potential_nsr
+from .nsr_obliquity_low_e import tidal_potential as tidal_potential_obliquity_nsr
+from .nsr_med_e import tidal_potential as tidal_potential_nsr
+from .nsr_med_e_modes import tidal_potential as tidal_potential_nsr_modes

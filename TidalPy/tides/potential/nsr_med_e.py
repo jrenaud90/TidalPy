@@ -1,5 +1,6 @@
 import numpy as np
 
+from ...constants import G
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
@@ -8,7 +9,8 @@ from ...utilities.types import FloatArray
 def tidal_potential(
     radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray,
-    rotation_rate: FloatArray, world_radius: float
+    rotation_rate: FloatArray, world_radius: float, host_mass: float, semi_major_axis: FloatArray,
+    use_static: bool = False,
     ):
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
@@ -30,6 +32,12 @@ def tidal_potential(
         Rotation rate of the planet [rad s-1]
     world_radius: float
         World's surface radius [m]
+    host_mass : float
+        Mass of tide-rasing world
+    semi_major_axis : FloatArray
+        Orbital semi-major axis [m]
+    use_static : bool = False
+        Use the static portion of the potential equation (no time dependence in these terms)
 
     Returns
     -------
@@ -53,6 +61,12 @@ def tidal_potential(
     cos2_lat = cos_lat * cos_lat
     sin2_lat = sin_lat * sin_lat
     sqrt_cos2_lat = np.sqrt(1. - cos2_lat)
+    dbl_long = 2.0 * longitude
+    e = eccentricity
+    e2 = eccentricity * eccentricity
+    e3 = eccentricity * e2
+    n = orbital_frequency
+    o = rotation_rate
 
     # Associated Legendre Functions and their derivatives
     p_20 = (1. / 2.) * (3. * cos2_lat - 1.)
@@ -65,122 +79,153 @@ def tidal_potential(
 
     # # Static
     # # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
-    # compo_static = \
-    #     -(1. / 2.) * p_20 + (1. / 4.) * p_22 * np.cos(2. * longitude)
-    # compo_static_partial_theta = \
-    #     -(1. / 2.) * dp_20_dtheta + (1. / 4.) * dp_22_dtheta * np.cos(2. * longitude)
-    # compo_static_partial_phi = \
-    #     -(1. / 2.) * p_22 * np.sin(2. * longitude)
-    # compo_static_partial2_theta2 = \
-    #     -(1. / 2.) * dp2_20_dtheta2 + (1. / 4.) * dp2_22_dtheta2 * np.cos(2. * longitude)
-    # compo_static_partial2_phi2 = \
-    #     -p_22 * np.cos(2. * longitude)
-    # compo_static_partial2_theta_phi = \
-    #     -(1. / 2.) * dp_22_dtheta * np.sin(2. * longitude)
+    compo_static = \
+        -(1. / 3.) * p_20
+    compo_static_partial_theta = \
+        -(1. / 3.) * dp_20_dtheta
+    compo_static_partial_phi = \
+        0.0
+    compo_static_partial2_theta2 = \
+        -(1. / 3.) * dp2_20_dtheta2
+    compo_static_partial2_phi2 = \
+        0.0
+    compo_static_partial2_theta_phi = \
+        0.0
 
     # # NSR Solo Term
-    nsr_factor = rotation_rate - orbital_frequency
     compo_nsr = \
-        -(1. / 2.) * p_22 * np.sin(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
+        (1. / 6.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time)
     compo_nsr_partial_theta = \
-        -(1. / 2.) * dp_22_dtheta * np.sin(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
+        (1. / 6.) * dp_22_dtheta * np.cos(dbl_long + 2. * (o - n) * time)
     compo_nsr_partial_phi = \
-        -p_22 * np.cos(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
+        (-1. / 3.) * p_22 * np.sin(dbl_long + 2. * (o - n) * time)
     compo_nsr_partial2_theta2 = \
-        -(1. / 2.) * dp2_22_dtheta2 * np.sin(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
+        (1. / 6.) * dp2_22_dtheta2 * np.cos(dbl_long + 2. * (o - n) * time)
     compo_nsr_partial2_phi2 = \
-        2. * p_22 * np.sin(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
+        (-2. / 3.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time)
     compo_nsr_partial2_theta_phi = \
-        -dp_22_dtheta * np.cos(2. * longitude + nsr_factor * time) * np.sin(nsr_factor * time)
+        (-1. / 3.) * dp_22_dtheta * np.sin(dbl_long + 2. * (o - n) * time)
 
     # # Eccentricity Solo Term
-    compo_e1 = \
-        -(3. / 2.) * eccentricity * p_20 * np.cos(orbital_frequency * time)
-    compo_e1_partial_theta = \
-        -(3. / 2.) * eccentricity * dp_20_dtheta * np.cos(orbital_frequency * time)
-    compo_e1_partial_phi = \
+    if use_static:
+        e2_static = -(1. / 2.)
+    else:
+        e2_static = 0.0
+
+    compo_e = \
+        -p_20 * (
+            e2 * e2_static +
+            np.cos(n * time) * (e + (9. / 8.) * e3) +
+            np.cos(2. * n * time) * ((3. / 2.) * e2) +
+            np.cos(3. * n * time) * ((53. / 24.) * e3)
+        )
+    compo_e_partial_theta =  \
+        -dp_20_dtheta * (
+            e2 * e2_static +
+            np.cos(n * time) * (e + (9. / 8.) * e3) +
+            np.cos(2. * n * time) * ((3. / 2.) * e2) +
+            np.cos(3. * n * time) * ((53. / 24.) * e3)
+        )
+    compo_e_partial_phi = \
         0.0
-    compo_e1_partial2_theta2 = \
-        -(3. / 2.) * eccentricity * dp2_20_dtheta2 * np.cos(orbital_frequency * time)
-    compo_e1_partial2_phi2 = \
+    compo_e_partial2_theta2 = \
+        -dp2_20_dtheta2 * (
+            e2 * e2_static +
+            np.cos(n * time) * (e + (9. / 8.) * e3) +
+            np.cos(2. * n * time) * ((3. / 2.) * e2) +
+            np.cos(3. * n * time) * ((53. / 24.) * e3)
+        )
+    compo_e_partial2_phi2 = \
         0.0
-    compo_e1_partial2_theta_phi = \
+    compo_e_partial2_theta_phi = \
         0.0
 
-    # # Eccentricity NSR Term
-    compo_e2 = \
-        (eccentricity / 4.) * p_22 * \
-            (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
-    compo_e2_partial_theta = \
-        (eccentricity / 4.) * dp_22_dtheta * \
-            (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
-    compo_e2_partial_phi = \
-        (eccentricity / 4.) * p_22 * \
-            (-6. * np.sin(2. * longitude) * np.cos(orbital_frequency * time) +
-             8. * np.cos(2. * longitude) * np.sin(orbital_frequency * time))
-    compo_e2_partial2_theta2 = \
-        (eccentricity / 4.) * dp2_22_dtheta2 * \
-            (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
-    compo_e2_partial2_phi2 = \
-        (eccentricity / 4.) * p_22 * \
-            (-12. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             -16. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
-    # I believe there is an error in Henning code where this^^ (-12) is a (+12) which I believe is wrong.
-    compo_e2_partial2_theta_phi = \
-        (eccentricity / 4.) * dp_22_dtheta * \
-            (-6. * np.sin(2. * longitude) * np.cos(orbital_frequency * time) +
-             8. * np.cos(2. * longitude) * np.sin(orbital_frequency * time))
-
-    # # Obliquity Term
-    compo_obli = \
-        p_21 * np.cos(obliquity) * np.sin(obliquity) * np.cos(longitude) * \
-        np.sin(periapsis + orbital_frequency * time)
-    compo_obli_partial_theta = \
-        dp_21_dtheta * np.cos(obliquity) * np.sin(obliquity) * np.cos(longitude) * \
-        np.sin(periapsis + orbital_frequency * time)
-    compo_obli_partial_phi = \
-        -p_21 * np.cos(obliquity) * np.sin(obliquity) * np.sin(longitude) * \
-        np.sin(periapsis + orbital_frequency * time)
-    compo_obli_partial2_theta2 = \
-        dp2_21_dtheta2 * np.cos(obliquity) * np.sin(obliquity) * np.cos(longitude) * \
-        np.sin(periapsis + orbital_frequency * time)
-    compo_obli_partial2_phi2 = \
-        -p_21 * np.cos(obliquity) * np.sin(obliquity) * np.cos(longitude) * \
-        np.sin(periapsis + orbital_frequency * time)
-    compo_obli_partial2_theta_phi = \
-        -dp_21_dtheta * np.cos(obliquity) * np.sin(obliquity) * np.sin(longitude) * \
-        np.sin(periapsis + orbital_frequency * time)
-
+    # # Eccentricity / NSR Cross Terms
+    compo_e_nsr = \
+        p_22 * (
+            np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3) +
+            np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3) +
+            np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2) +
+            np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3) +
+            np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2) +
+            np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)
+        )
+    compo_e_nsr_partial_theta = \
+        dp_22_dtheta * (
+                np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3) +
+                np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3) +
+                np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2) +
+                np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3) +
+                np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2) +
+                np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)
+        )
+    compo_e_nsr_partial_phi = \
+        p_22 * (
+                -2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3) +
+                -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3) +
+                -2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2) +
+                -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3) +
+                -2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2) +
+                -2. * np.sin(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)
+        )
+    compo_e_nsr_partial2_theta2 = \
+        dp2_22_dtheta2 * (
+                np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3) +
+                np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3) +
+                np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2) +
+                np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3) +
+                np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2) +
+                np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)
+        )
+    compo_e_nsr_partial2_phi2 = \
+        p_22 * (
+                -4. * np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3) +
+                -4. * np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3) +
+                -4. * np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2) +
+                -4. * np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3) +
+                -4. * np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2) +
+                -4. * np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)
+        )
+    compo_e_nsr_partial2_theta_phi = \
+        dp_22_dtheta * (
+                -2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3) +
+                -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3) +
+                -2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2) +
+                -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3) +
+                -2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2) +
+                -2. * np.sin(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)
+        )
 
     # Final Potential and Potential Derivatives
     susceptibility_reduced = (3. / 2.) * G * host_mass * world_radius**2 / semi_major_axis**3
     radius_factor = (radius / world_radius)**2
     coefficient = susceptibility_reduced * radius_factor
     
-    potential = coefficient * (compo_nsr + compo_e1 + compo_e2 + compo_obli)
+    potential = coefficient * \
+        (compo_nsr + compo_e + compo_e_nsr)
 
     potential_partial_theta = coefficient * \
-                              (compo_nsr_partial_theta + compo_e1_partial_theta +
-                               compo_e2_partial_theta + compo_obli_partial_theta)
+        (compo_nsr_partial_theta + compo_e_partial_theta + compo_e_nsr_partial_theta)
 
     potential_partial_phi = coefficient * \
-                            (compo_nsr_partial_phi + compo_e1_partial_phi +
-                             compo_e2_partial_phi + compo_obli_partial_phi)
+        (compo_nsr_partial_phi + compo_e_partial_phi + compo_e_nsr_partial_phi)
 
     potential_partial2_theta2 = coefficient * \
-                                (compo_nsr_partial2_theta2 + compo_e1_partial2_theta2 +
-                                 compo_e2_partial2_theta2 + compo_obli_partial2_theta2)
+        (compo_nsr_partial2_theta2 + compo_e_partial2_theta2 + compo_e_nsr_partial2_theta2)
 
     potential_partial2_phi2 = coefficient * \
-                              (compo_nsr_partial2_phi2 + compo_e1_partial2_phi2 +
-                               compo_e2_partial2_phi2 + compo_obli_partial2_phi2)
+        (compo_nsr_partial2_phi2 + compo_e_partial2_phi2 + compo_e_nsr_partial2_phi2)
 
     potential_partial2_theta_phi = coefficient * \
-                                   (compo_nsr_partial2_theta_phi + compo_e1_partial2_theta_phi +
-                                    compo_e2_partial2_theta_phi + compo_obli_partial2_theta_phi)
+        (compo_nsr_partial2_theta_phi + compo_e_partial2_theta_phi + compo_e_nsr_partial2_theta_phi)
+
+    if use_static:
+        potential += coefficient * compo_static
+        potential_partial_theta += coefficient * compo_static_partial_theta
+        potential_partial_phi += coefficient * compo_static_partial_phi
+        potential_partial2_theta2 += coefficient * compo_static_partial2_theta2
+        potential_partial2_phi2 += coefficient * compo_static_partial2_phi2
+        potential_partial2_theta_phi += coefficient * compo_static_partial2_theta_phi
 
     return potential, potential_partial_theta, potential_partial_phi, \
            potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi
