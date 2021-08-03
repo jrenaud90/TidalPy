@@ -17,6 +17,6 @@ dependencies:
   - scipy>=1.6.3
   - pandas>=1.2.4
   - pip:
-    - burnmand>=0.10.0
+    - burnman>=0.10.0
     - pathos
     - .
