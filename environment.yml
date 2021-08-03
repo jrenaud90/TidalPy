@@ -17,6 +17,6 @@ dependencies:
   - scipy>=1.6.3
   - pandas>=1.2.4
   - pip:
-    - "git+https://github.com/geodynamics/burnman.git"
+    - burnmand>=0.10.0
     - pathos
     - .

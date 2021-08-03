@@ -74,23 +74,20 @@ The current version of TidalPy is in Alpha and will receive many updates on a re
         * Always make a backup of the TidalPy installation directory in case new versions break whatever you were working on.
 
 **Before continuing:** You might consider using a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
-* Install Burnman:
-    * The latest released version of [Burnman](https://github.com/geodynamics/burnman) has several issues that will prevent TidalPy from running. However, the latest update on its github is working.
-        * Install from github: `python -m pip install git+https://github.com/geodynamics/burnman.git`
-    
 * Install TidalPy:
     * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then:
         * For Anaconda Python:
-            * Run `conda install --file conda_requirements.txt; pip install -e .` *(That trailing period is important, don't leave it out!)*
+            * Run `conda install --file conda_requirements.txt; pip install -e .`
         * For non-Anaconda Python:
-            * Run `pip install -e .` *(That trailing period is important, don't leave it out!)*
+            * Run `pip install -e .`
+    * The `-e .` (including the trailing period) tells python to install TidalPy as an *editable* package. This is useful if you plan to make changes to the code. Otherwise, you can exclude `-e .`.
     * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages.
 * Test your installation:
     * Navigate to the TidalPy directory that contains `setup.py` in a terminal.
     * Ensure you have `pytest` package installed (`conda install pytest` or `pip install pytest`).
     * Run pytest by simply using the command `pytest` from your terminal:
-        * Running all the tests can take a while (currently 3-10 minutes), if all you are interested in is checking that TidalPy installed correctly then you can let pytest check first handful or so if they are passing then you can quit the test suite early.
-        * If no errors show up (warnings are okay and expected) then the first check is good.
+        * Running all the tests can take a while (currently 10+ minutes on a fresh install), if all you are interested in is checking that TidalPy installed correctly then you can let pytest run the first handful or so. If those all pass then you can quit the test suite early.
+        * If no *errors* show up (warnings are usually okay and expected) then the first check is good.
     * Open a new terminal *not in the TidalPy directory* (e.g., your desktop).
         * Run `python` and then try to `import TidalPy`; if that works try the command `TidalPy.version` if you do not get any import errors, and the version number is as you expect, then TidalPy was successfully installed.
     
@@ -128,7 +125,7 @@ The science used in TidalPy is described in the following papers (and references
     * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
     * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
 * Non-synchronous Rotation Evolution and High Eccentricity Truncation Packages:
-    * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2020arXiv201011801R/abstract)
+    * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2021PSJ.....2....4R/abstract)
     * [Tidal Evolution of the Keplerian Elements](https://ui.adsabs.harvard.edu/abs/2019CeMDA.131...30B/abstract)
 * Third Party Software:
     * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
@@ -144,7 +141,7 @@ TidalPy is in early alpha and there are lots of areas where it can improve! If y
     * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
 ## License Information
-You are welcome to make a copy/fork of TidalPy and make modifications assuming the following conditions are met:
+You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
 * Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
 * Any software derived from TidalPy must remain open-source and non-commercial.
 

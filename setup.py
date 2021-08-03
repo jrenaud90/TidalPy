@@ -93,7 +93,6 @@ setup(
                  'orbital mechanics, exoplanets, planets',
         platforms=["Windows", "MacOS", "CentOS"],
         packages= find_packages() + ['TidalPy.WorldConfigs'],
-        # dependency_links = ['git+http://github.com/geodynamics/burnman/tarball/master#egg=burnman-0.10.0-pre'],
         include_package_data=True,
         extras_require={
             'dev': ['sympy']
