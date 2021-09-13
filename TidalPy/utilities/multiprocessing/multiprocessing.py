@@ -3,12 +3,14 @@ Functions to easily allow multiprocessing calculations of TidalPy functions.
 
 """
 from ... import version
+from collections import namedtuple
 import math
 import time
 import os
 from datetime import datetime
 import numpy as np
 import warnings
+from ..numpy_helper.array_other import find_nearest
 
 import psutil
 import multiprocessing as python_mp
@@ -18,11 +20,16 @@ try:
     from pathos import multiprocessing as pathos_mp
     PATHOS_INSTALLED = True
 except ImportError:
-    pass
+    pathos_mp = None
 
-def mp_run(directory_name: str, study_name: str, study_function: callable, input_data: dict,
-           force_restart: bool = True, verbose: bool = True, max_procs: int = None, allow_low_procs: bool = False,
-           perform_memory_check: bool = True):
+MultiprocessingInputTuple = namedtuple('input', ('name', 'nice_name', 'start', 'end', 'scale', 'n'))
+
+def multiprocessing_run(directory_name: str, study_name: str, study_function: callable, input_data: tuple,
+                        postprocess_func: callable = None,
+                        force_restart: bool = True, verbose: bool = True, max_procs: int = None,
+                        allow_low_procs: bool = False,
+                        perform_memory_check: bool = True, single_run_memory_gb: float = 1000.,
+                        avoid_crashes: bool = True, force_post_process_rerun: bool = True):
 
     # Initial housekeeping
     start_time = datetime.now()
@@ -57,14 +64,13 @@ def mp_run(directory_name: str, study_name: str, study_function: callable, input
         # Check system memory
         mem = psutil.virtual_memory()
         # To be safe, make sure there is a gigabyte of free memory per processor.
-        min_memory = 1000 * 1024 * 1024 * procs_to_use
+        min_memory = single_run_memory_gb * 1024 * 1024 * procs_to_use
         if mem.total <= min_memory:
             raise SystemError('Not enough system memory for a stable run. Try reducing number of processors allocated.')
 
     # Check to see if the called run is a re-call of a cancelled or crashed run
-    mp_data_file_dir = os.path.join(directory_name, 'tpy_mp.dat')
+    mp_data_file_dir = os.path.join(directory_name, 'tpy_mp.log')
     study_restart = False
-    cases_to_skip = list()
     dir_to_use = directory_name
     if os.path.isdir(directory_name):
         if os.path.isfile(mp_data_file_dir):
@@ -75,36 +81,43 @@ def mp_run(directory_name: str, study_name: str, study_function: callable, input
             if force_restart:
                 if verbose:
                     print('\tForced Restart. Creating sub-directory.')
-                new_run_num = 1
+                new_study_num = 1
                 while True:
-                    new_study_dir = os.path.join(directory_name, f'new_run_{new_run_num}')
+                    new_study_dir = os.path.join(directory_name, f'restarted_study_{new_study_num}')
                     if not os.path.isdir(new_study_dir):
                         dir_to_use = new_study_dir
                         break
-                    new_run_num += 1
+                    new_study_num += 1
             else:
                 study_restart = True
 
-    mp_data_file_dir = os.path.join(dir_to_use, 'tpy_mp.dat')
+    mp_data_file_dir = os.path.join(dir_to_use, 'tpy_mp.log')
     input_data_to_use = input_data
     if not study_restart:
-        # Create directory
-        os.makedirs(dir_to_use)
+        if not os.path.isdir(dir_to_use):
+            # Create directory
+            os.makedirs(dir_to_use)
 
         # Create mp data file
         with open(mp_data_file_dir, 'w') as mp_file:
-            mp_file.write(f'TidalPy v{version} - Multiprocessor Study: {study_name}.')
+            mp_file.write(f'TidalPy v{version} - Multiprocessor Study: {study_name}.\n')
             date_time_str = start_time.strftime('%Y/%m/%d, %H:%M:%S')
-            mp_file.write(f'Study started on: {date_time_str}.')
-            mp_file.write('------Inputs Below------')
-            for input_name, input_info in input_data.items():
-                mp_file.write(f'{input_name}:-:{input_info}')
-            mp_file.write('------------')
+            mp_file.write(f'Study started on: {date_time_str}.\n')
+            mp_file.write('------Inputs Below------\n')
+            for input_tuple in input_data:
+                input_name = input_tuple.name
+                input_nice_name = input_tuple.nice_name
+                input_start = input_tuple.start
+                input_end = input_tuple.end
+                input_scale = input_tuple.scale
+                input_n = input_tuple.n
+                mp_file.write(f'{input_name}:-:{input_nice_name}:;:{input_start}:;:{input_end}:;:{input_scale}:;:{input_n}\n')
+            mp_file.write('------------\n')
     else:
         # Study is being restarted. Some of the inputs may have already been completed.
         # We need to use exactly the same inputs as the previous study(ies) so, to be safe, ignore the user input and
         #  use what was in the original tpy_mp.dat file.
-        input_data_to_use = dict()
+        input_data_to_use = list()
         if verbose:
             print('Restarting multiprocessing run.')
 
@@ -125,79 +138,251 @@ def mp_run(directory_name: str, study_name: str, study_function: callable, input
                     if line[-1] == '\n':
                         line = line[:-1]
                     input_name, input_data = line.split(':-:')
-                    # TODO: This `eval` may be dangerous... but... it is a lot easier...
-                    input_data = eval(input_data)
-                    input_data_to_use[input_name] = input_data
+                    input_data = input_data.split(':;:')
+                    input_data[1] = float(input_data[1])
+                    input_data[2] = float(input_data[2])
+                    input_data[4] = int(input_data[4])
+                    input_data = tuple([input_name] + input_data)
+                    input_tuple = MultiprocessingInputTuple(*input_data)
+                    input_data_to_use.append(input_tuple)
 
-        with open(mp_data_file_dir, 'w') as mp_file:
+        with open(mp_data_file_dir, 'a') as mp_file:
             date_time_str = start_time.strftime('%Y/%m/%d, %H:%M:%S')
-            mp_file.write(f'Study restarted on: {date_time_str}.')
-
-        # Make list of runs to skip TODO
+            mp_file.write(f'TidalPy MultiProcessing Study Restarted on: {date_time_str}.\n')
 
     # Build inputs
     if verbose:
         print('Building cases...')
     total_n = 1
     dimensions = 0
+    run_num = 0
     input_arrays = list()
     input_names = list()
-    for input_name, (input_is_log, input_start, input_end, input_n) in input_data_to_use.items():
+    input_scales = list()
+    for input_tuple in input_data_to_use:
+        input_name = input_tuple.name
+        input_start = input_tuple.start
+        input_end = input_tuple.end
+        input_is_log = input_tuple.scale == 'log'
+        input_n = input_tuple.n
+
         total_n *= input_n
         dimensions += 1
         if input_is_log:
             array = np.logspace(input_start, input_end, input_n)
+            input_scales.append('log')
         else:
             array = np.linspace(input_start, input_end, input_n)
+            input_scales.append('linear')
         input_arrays.append(array)
         input_names.append(input_name)
         np.save(os.path.join(dir_to_use, f'{input_name}.npy'), array)
 
     mesh = np.meshgrid(*input_arrays, indexing='ij')
-    assert len(mesh[0]) == total_n
+    assert np.size(mesh[0]) == total_n
 
+    # There may be completed runs. Check to see if there are any cases we can skip in during this restart.
+    cases_to_skip = list()
+    if study_restart:
+        for run_dir in os.listdir(dir_to_use):
+            if '_run_' in run_dir:
+                run_num = int(run_dir.split('_run_')[-1])
+            run_path = os.path.join(dir_to_use, run_dir)
+            # There is a directory. Did the run complete successfully?
+            success_file_path = os.path.join(run_path, 'mp_success.log')
+            if not os.path.isfile(success_file_path):
+                # No success file. Rerun.
+                continue
+            else:
+                # Success file found. Skip this run.
+                cases_to_skip.append(run_num)
+
+        with open(mp_data_file_dir, 'a') as mp_file:
+            date_time_str = start_time.strftime('%Y/%m/%d, %H:%M:%S')
+            mp_file.write(f'Skipping {len(cases_to_skip)} cases that were completed on previous run.\n')
+
+    # Build cases that need to be run
+    num_skipped_cases = len(cases_to_skip)
+    skipped_indicies = dict()
     cases = list()
     for run_num in range(total_n):
 
+        # Get run index
+        run_indicies = list()
+        for dim in range(dimensions):
+            dimarray = mesh[dim]
+            dim_input = dimarray.flatten()[run_num]
+            one_dim_array = input_arrays[dim]
+            run_indicies.append(find_nearest(one_dim_array, dim_input))
+
         if run_num in cases_to_skip:
+            skipped_indicies[run_num] = tuple(run_indicies)
             continue
 
         case_inputs = list()
         case_input_names = list()
         for dim in range(dimensions):
-            array = mesh[dim]
+            dimarray = mesh[dim]
             name = input_names[dim]
-            case_inputs.append(array[run_num])
+            dim_input = dimarray.flatten()[run_num]
+            case_inputs.append(dim_input)
             case_input_names.append(name)
         case_inputs = tuple(case_inputs)
         case_input_names = tuple(case_input_names)
-        case_data = (run_num, *case_inputs, *case_input_names, total_n)
+        case_data = (run_num, tuple(run_indicies), total_n, *case_inputs, *case_input_names)
         cases.append(case_data)
-    if verbose:
-        print(f'Inputs Built. Total Cases: {total_n}. Cases Skipped: {len(cases_to_skip)}.')
 
-    # Build a new function that performs a few house keeping steps
-    def func_to_use(run_num, *args, **kwargs):
+    if verbose:
+        print(f'Inputs Built. Total Possible Cases: {total_n}. Cases Skipped: {num_skipped_cases}. '
+              f'Remaining: {len(cases)}')
+    chunksize = max(int(len(cases) / procs_to_use), 1)
+
+    # Build a new function that performs a few house keeping steps.
+    def func_to_use(this_run_num, run_indicies, total_runs_to_do, *args, **kwargs):
+
+        print(f'MP Study:: Working on Case {this_run_num} of {total_runs_to_do}. Index: {run_indicies}')
 
         run_time_init = time.time()
         # Create directory
-        run_dir = os.path.join(dir_to_use, f'run_{run_num}')
-        if not os.path.isdir(run_dir):
-            os.makedirs(run_dir)
+        this_run_dir = os.path.join(dir_to_use, f'index_{run_indicies}_run_{this_run_num}')
+        if not os.path.isdir(this_run_dir):
+            os.makedirs(this_run_dir)
 
-        # Call the function
-        result = study_function(run_dir, *args, **kwargs)
+        failed_run = False
+        if avoid_crashes:
+            try:
+                # Call the function
+                result = study_function(this_run_dir, *args, **kwargs)
+            except Exception as e:
+                result = None
+                failed_run = True
+                error_message = f'TidalPy MultiProcessor Error. ' \
+                                f'Run: {this_run_num} failed due to the following exception:\n\t{e}'
+                warnings.warn(error_message)
+                with open(os.path.join(this_run_dir, 'error.log'), 'w') as error_log:
+                    error_log.write(error_message + '\n')
+        else:
+            # Call the function
+            result = study_function(this_run_dir, *args, **kwargs)
 
-        # Save something to disk to mark that this was completed successfully
-        with open(os.path.join(run_dir, 'mp_success.log'), 'w') as success_file:
-            success_file.write(f'Run: {run_num} completed successfully. '
-                               f'Taking {time.time() - run_time_init:0.2f} seconds.')
+        if not failed_run:
+            # Save something to disk to mark that this was completed successfully
+            with open(os.path.join(this_run_dir, 'mp_success.log'), 'w') as success_file:
+                success_file.write(f'Run: {this_run_num} completed successfully. '
+                                   f'Taking {time.time() - run_time_init:0.2f} seconds.\n')
 
-        return result
+            # Save key data to disk
+            for result_name, result_array in result.items():
+                np.save(os.path.join(this_run_dir, f'{result_name}.npy'), result_array)
 
+        return run_num, run_indicies, result
+
+    # Perform multiprocessing study
+    if len(cases) > 0:
+        if PATHOS_INSTALLED:
+            # Use pathos
+            if verbose:
+                print('Using Pathos for Multiprocessing.')
+            try:
+                with pathos_mp.ProcessingPool(nodes=procs_to_use) as pool:
+                    patho_func = lambda x: func_to_use(*x)
+                    mp_results = pool.map(patho_func, cases, chunksize=chunksize)
+            except Exception as e:
+                warnings.warn(f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n')
+                study_crashed = True
+        else:
+            # Use Python
+            if verbose:
+                print('Using Python MP for Multiprocessing.')
+            try:
+                with python_mp.Pool(processes=procs_to_use) as pool:
+                    mp_results = pool.starmap(func_to_use, cases, chunksize=chunksize)
+            except Exception as e:
+                warnings.warn(f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n')
+                study_crashed = True
+    else:
+        # No cases to run.
+        mp_results = list()
+
+    # Wrap up the multiprocessing study
     if not study_crashed:
+        # Load any previous data that was saved from prior study runs
+        previous_run_data = list()
+        if len(cases_to_skip) != 0:
 
-        with open(mp_data_file_dir, 'w') as mp_file:
+            # Need to know the names of data arrays to load. First try to pull those from current runs results.
+            if len(mp_results) > 0:
+                results_to_look_for = mp_results[0][2].keys()
+            else:
+                # If no results were calculated this run then pull from one of run's directories
+                results_to_look_for = list()
+                run_dir = os.path.join(dir_to_use, f'index_{skipped_indicies[cases_to_skip[0]]}_run_{cases_to_skip[0]}')
+                for file in os.listdir(run_dir):
+                    if file.endswith('.npy'):
+                        results_to_look_for.append(file.split('.npy')[0])
+
+            for run_num in cases_to_skip:
+                run_dir = os.path.join(dir_to_use, f'index_{skipped_indicies[run_num]}_run_{run_num}')
+                case_result = dict()
+                for result_name in results_to_look_for:
+                    case_result[result_name] = np.load(os.path.join(run_dir, f'{result_name}.npy'))
+
+                run_indicies = list()
+                for dim in range(dimensions):
+                    dimarray = mesh[dim]
+                    dim_input = dimarray.flatten()[run_num]
+                    one_dim_array = input_arrays[dim]
+                    run_indicies.append(find_nearest(one_dim_array, dim_input))
+
+                previous_run_data.append((run_num, run_indicies, case_result))
+
+            # Combine with any new results
+            mp_results = mp_results + previous_run_data
+
+        cases_to_skip = list()
+        if study_restart:
+            for run_num in range(total_n):
+                run_dir = os.path.join(dir_to_use, f'run_{run_num}')
+                if not os.path.isdir(run_dir):
+                    # No directory, no run.
+                    continue
+                else:
+                    # There is a directory. Did the run complete successfully?
+                    success_file_path = os.path.join(run_dir, 'mp_success.log')
+                    if not os.path.isfile(success_file_path):
+                        # No success file. Rerun.
+                        continue
+                    else:
+                        # Success file found. Skip this run.
+                        cases_to_skip.append(run_num)
+
+        # Perform any post processing
+        if postprocess_func is not None:
+            if verbose:
+                print('Multiprocessing Calculations Completed. Running Post-Processing Function.')
+            post_proc_dir = os.path.join(dir_to_use, 'post_processing')
+            if not os.path.isdir(post_proc_dir):
+                os.makedirs(post_proc_dir)
+                postprocess_func(post_proc_dir, mp_results, input_data_to_use)
+            else:
+                # Was post-process already run? Hard to check without knowing what the function is.
+                # So check to see if the user wants to force a re-run
+                if verbose:
+                    print('Postprocessing results already found.')
+                if force_post_process_rerun:
+                    if verbose:
+                        print('Rerunning Post-Processing.')
+                    postprocess_func(post_proc_dir, mp_results, input_data_to_use)
+
+        # Close out log file.
+        with open(mp_data_file_dir, 'a') as mp_file:
             date_time_str = datetime.now().strftime('%Y/%m/%d, %H:%M:%S')
-            mp_file.write(f'Study successfully completed on: {date_time_str}.')
+            mp_file.write(f'Study successfully completed on: {date_time_str}.\n')
 
+
+        if verbose:
+            print('Multiprocessing Study Completed.')
+
+        return mp_results
+
+    return None
