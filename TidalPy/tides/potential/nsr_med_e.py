@@ -84,27 +84,37 @@ def tidal_potential(
     compo_static_partial_theta = \
         -(1. / 3.) * dp_20_dtheta
     compo_static_partial_phi = \
-        0.0
+        0.0 * p_20
     compo_static_partial2_theta2 = \
         -(1. / 3.) * dp2_20_dtheta2
     compo_static_partial2_phi2 = \
-        0.0
+        0.0 * p_20
     compo_static_partial2_theta_phi = \
-        0.0
+        0.0 * p_20
 
     # # NSR Solo Term
-    compo_nsr = \
-        (1. / 6.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time)
-    compo_nsr_partial_theta = \
-        (1. / 6.) * dp_22_dtheta * np.cos(dbl_long + 2. * (o - n) * time)
-    compo_nsr_partial_phi = \
-        (-1. / 3.) * p_22 * np.sin(dbl_long + 2. * (o - n) * time)
-    compo_nsr_partial2_theta2 = \
-        (1. / 6.) * dp2_22_dtheta2 * np.cos(dbl_long + 2. * (o - n) * time)
-    compo_nsr_partial2_phi2 = \
-        (-2. / 3.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time)
-    compo_nsr_partial2_theta_phi = \
-        (-1. / 3.) * dp_22_dtheta * np.sin(dbl_long + 2. * (o - n) * time)
+    # # This term loses its time dependence when o = n
+    if np.all(np.asarray((o - n) < 1.0e-20)) and not use_static:
+        # TODO This seems so hacky, is this right..
+        compo_nsr = 0. * dbl_long * time * o * n
+        compo_nsr_partial_theta = 0. * dbl_long * time * o * n
+        compo_nsr_partial_phi = 0. * dbl_long * time * o * n
+        compo_nsr_partial2_theta2 = 0. * dbl_long * time * o * n
+        compo_nsr_partial2_phi2 = 0. * dbl_long * time * o * n
+        compo_nsr_partial2_theta_phi = 0. * dbl_long * time * o * n
+    else:
+        compo_nsr = \
+            (1. / 6.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time)
+        compo_nsr_partial_theta = \
+            (1. / 6.) * dp_22_dtheta * np.cos(dbl_long + 2. * (o - n) * time)
+        compo_nsr_partial_phi = \
+            (-1. / 3.) * p_22 * np.sin(dbl_long + 2. * (o - n) * time)
+        compo_nsr_partial2_theta2 = \
+            (1. / 6.) * dp2_22_dtheta2 * np.cos(dbl_long + 2. * (o - n) * time)
+        compo_nsr_partial2_phi2 = \
+            (-2. / 3.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time)
+        compo_nsr_partial2_theta_phi = \
+            (-1. / 3.) * dp_22_dtheta * np.sin(dbl_long + 2. * (o - n) * time)
 
     # # Eccentricity Solo Term
     if use_static:
