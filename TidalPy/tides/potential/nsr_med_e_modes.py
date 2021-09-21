@@ -1,9 +1,10 @@
 import numpy as np
 
 from ...constants import G
-from ...utilities.performance import njit
+from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
 
+MIN_SPIN_ORB_DIF = 1.0e-10
 
 @njit(cacheable=True)
 def tidal_potential(
@@ -67,6 +68,7 @@ def tidal_potential(
     e3 = eccentricity * e2
     n = orbital_frequency
     o = rotation_rate
+    shape = o * n * time * colatitude * eccentricity
 
     # Associated Legendre Functions and their derivatives
     p_20 = (1. / 2.) * (3. * cos2_lat - 1.)
@@ -79,16 +81,42 @@ def tidal_potential(
 
     # # Build frequency modes
     modes = {
-        'n': np.abs(n),
-        '2n': np.abs(2. * n),
-        '3n': np.abs(3. * n),
-        '2o+n': np.abs(2. * o + n),
-        '2o-n': np.abs(2. * o - n),
+        'n'    : np.abs(n),
+        '2n'   : np.abs(2. * n),
+        '3n'   : np.abs(3. * n),
+        '2o+n' : np.abs(2. * o + n),
+        '2o-n' : np.abs(2. * o - n),
         '2o-2n': np.abs(2. * o - 2. * n),
         '2o-3n': np.abs(2. * o - 3. * n),
         '2o-4n': np.abs(2. * o - 4. * n),
         '2o-5n': np.abs(2. * o - 5. * n)
         }
+
+    # There will be terms that are non-zero even though they do not carry a time dependence. This switch will
+    #   ensure all non-time dependence --> zero unless the user sets `use_static` = True.
+    mode_switch = {
+        'n'    : np.ones_like(shape, dtype=bool_),
+        '2n'   : np.ones_like(shape, dtype=bool_),
+        '3n'   : np.ones_like(shape, dtype=bool_),
+        '2o+n' : np.ones_like(shape, dtype=bool_),
+        '2o-n' : np.ones_like(shape, dtype=bool_),
+        '2o-2n': np.ones_like(shape, dtype=bool_),
+        '2o-3n': np.ones_like(shape, dtype=bool_),
+        '2o-4n': np.ones_like(shape, dtype=bool_),
+        '2o-5n': np.ones_like(shape, dtype=bool_)
+        }
+    if use_static:
+        # Use static is True. All switches are on regardless of n and o
+        pass
+    else:
+        # Use static is False (default). Switches depend on the value of n and o
+        # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).
+        mode_switch['2o+n'] *= np.abs(2. * o + n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o-n'] *= np.abs(2. * o - n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o-2n'] *= np.abs(2. * o - 2. * n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o-3n'] *= np.abs(2. * o - 3. * n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o-4n'] *= np.abs(2. * o - 4. * n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o-5n'] *= np.abs(2. * o - 5. * n) > MIN_SPIN_ORB_DIF
 
     # # Static
     # # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
@@ -120,93 +148,79 @@ def tidal_potential(
             np.zeros_like(p_20)
 
     # # NSR Solo Term
-    shape = o * n * time * colatitude * eccentricity
     # Set all to zero for now.
     compo_nsr = {
-        'n': np.zeros_like(shape),
-        '2n': np.zeros_like(shape),
-        '3n': np.zeros_like(shape),
-        '2o+n': np.zeros_like(shape),
-        '2o-n': np.zeros_like(shape),
-        '2o-2n': np.zeros_like(shape),
+        'n'    : np.zeros_like(shape),
+        '2n'   : np.zeros_like(shape),
+        '3n'   : np.zeros_like(shape),
+        '2o+n' : np.zeros_like(shape),
+        '2o-n' : np.zeros_like(shape),
+        '2o-2n': (1. / 6.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': np.zeros_like(shape),
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
-    }
+        }
     compo_nsr_partial_theta = {
-        'n': np.zeros_like(shape),
-        '2n': np.zeros_like(shape),
-        '3n': np.zeros_like(shape),
-        '2o+n': np.zeros_like(shape),
-        '2o-n': np.zeros_like(shape),
-        '2o-2n': np.zeros_like(shape),
+        'n'    : np.zeros_like(shape),
+        '2n'   : np.zeros_like(shape),
+        '3n'   : np.zeros_like(shape),
+        '2o+n' : np.zeros_like(shape),
+        '2o-n' : np.zeros_like(shape),
+        '2o-2n': (1. / 6.) * dp_22_dtheta * np.cos(dbl_long + 2. * (o - n) * time) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': np.zeros_like(shape),
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
-    }
+        }
     compo_nsr_partial_phi = {
-        'n': np.zeros_like(shape),
-        '2n': np.zeros_like(shape),
-        '3n': np.zeros_like(shape),
-        '2o+n': np.zeros_like(shape),
-        '2o-n': np.zeros_like(shape),
-        '2o-2n': np.zeros_like(shape),
+        'n'    : np.zeros_like(shape),
+        '2n'   : np.zeros_like(shape),
+        '3n'   : np.zeros_like(shape),
+        '2o+n' : np.zeros_like(shape),
+        '2o-n' : np.zeros_like(shape),
+        '2o-2n': (-1. / 3.) * p_22 * np.sin(dbl_long + 2. * (o - n) * time) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': np.zeros_like(shape),
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
-    }
+        }
     compo_nsr_partial2_theta2 = {
-        'n': np.zeros_like(shape),
-        '2n': np.zeros_like(shape),
-        '3n': np.zeros_like(shape),
-        '2o+n': np.zeros_like(shape),
-        '2o-n': np.zeros_like(shape),
-        '2o-2n': np.zeros_like(shape),
+        'n'    : np.zeros_like(shape),
+        '2n'   : np.zeros_like(shape),
+        '3n'   : np.zeros_like(shape),
+        '2o+n' : np.zeros_like(shape),
+        '2o-n' : np.zeros_like(shape),
+        '2o-2n': (1. / 6.) * dp2_22_dtheta2 * np.cos(dbl_long + 2. * (o - n) * time) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': np.zeros_like(shape),
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
-    }
+        }
     compo_nsr_partial2_phi2 = {
-        'n': np.zeros_like(shape),
-        '2n': np.zeros_like(shape),
-        '3n': np.zeros_like(shape),
-        '2o+n': np.zeros_like(shape),
-        '2o-n': np.zeros_like(shape),
-        '2o-2n': np.zeros_like(shape),
+        'n'    : np.zeros_like(shape),
+        '2n'   : np.zeros_like(shape),
+        '3n'   : np.zeros_like(shape),
+        '2o+n' : np.zeros_like(shape),
+        '2o-n' : np.zeros_like(shape),
+        '2o-2n': (-2. / 3.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': np.zeros_like(shape),
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
-    }
+        }
     compo_nsr_partial2_theta_phi = {
-        'n': np.zeros_like(shape),
-        '2n': np.zeros_like(shape),
-        '3n': np.zeros_like(shape),
-        '2o+n': np.zeros_like(shape),
-        '2o-n': np.zeros_like(shape),
-        '2o-2n': np.zeros_like(shape),
+        'n'    : np.zeros_like(shape),
+        '2n'   : np.zeros_like(shape),
+        '3n'   : np.zeros_like(shape),
+        '2o+n' : np.zeros_like(shape),
+        '2o-n' : np.zeros_like(shape),
+        '2o-2n': (-1. / 3.) * dp_22_dtheta * np.sin(dbl_long + 2. * (o - n) * time) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': np.zeros_like(shape),
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
-    }
-    # # This term loses its time dependence when o = n
-    if np.all(np.asarray((o - n) < 1.0e-20)) and not use_static:
-        # TODO This seems so hacky, is this right..
-        # # Everything is already zero, nothing needs to be done.
-        pass
-    else:
-        # Change the few modes which are now non-zero.
-        compo_nsr['2o-2n'] = \
-            (1. / 6.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time) * np.ones_like(shape)
-        compo_nsr_partial_theta['2o-2n'] = \
-            (1. / 6.) * dp_22_dtheta * np.cos(dbl_long + 2. * (o - n) * time) * np.ones_like(shape)
-        compo_nsr_partial_phi['2o-2n'] = \
-            (-1. / 3.) * p_22 * np.sin(dbl_long + 2. * (o - n) * time) * np.ones_like(shape)
-        compo_nsr_partial2_theta2['2o-2n'] = \
-            (1. / 6.) * dp2_22_dtheta2 * np.cos(dbl_long + 2. * (o - n) * time) * np.ones_like(shape)
-        compo_nsr_partial2_phi2['2o-2n'] = \
-            (-2. / 3.) * p_22 * np.cos(dbl_long + 2. * (o - n) * time) * np.ones_like(shape)
-        compo_nsr_partial2_theta_phi['2o-2n'] = \
-            (-1. / 3.) * dp_22_dtheta * np.sin(dbl_long + 2. * (o - n) * time) * np.ones_like(shape)
+        }
 
     # # Eccentricity Solo Term
     if use_static:
@@ -215,9 +229,12 @@ def tidal_potential(
         e2_static = 0.0
 
     compo_e = {
-        'n'    : p_20 * ((e2 * e2_static) + np.cos(n * time) * (-e + (-9. / 8.) * e3)) * np.ones_like(shape),
-        '2n'   : p_20 * ((e2 * e2_static) + np.cos(2. * n * time) * ((-3. / 2.) * e2)) * np.ones_like(shape),
-        '3n'   : p_20 * ((e2 * e2_static) + np.cos(3. * n * time) * ((-53. / 24.) * e3)) * np.ones_like(shape),
+        'n'    : p_20 * ((e2 * e2_static) + np.cos(n * time) * (-e + (-9. / 8.) * e3)) *
+                 np.ones_like(shape) * mode_switch['n'],
+        '2n'   : p_20 * ((e2 * e2_static) + np.cos(2. * n * time) * ((-3. / 2.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2n'],
+        '3n'   : p_20 * ((e2 * e2_static) + np.cos(3. * n * time) * ((-53. / 24.) * e3)) *
+                 np.ones_like(shape) * mode_switch['3n'],
         '2o+n' : np.zeros_like(shape),
         '2o-n' : np.zeros_like(shape),
         '2o-2n': np.zeros_like(shape),
@@ -225,10 +242,13 @@ def tidal_potential(
         '2o-4n': np.zeros_like(shape),
         '2o-5n': np.zeros_like(shape)
         }
-    compo_e_partial_theta =  {
-        'n'    : dp_20_dtheta * ((e2 * e2_static) + np.cos(n * time) * (-e + (-9. / 8.) * e3)) * np.ones_like(shape),
-        '2n'   : dp_20_dtheta * ((e2 * e2_static) + np.cos(2. * n * time) * ((-3. / 2.) * e2)) * np.ones_like(shape),
-        '3n'   : dp_20_dtheta * ((e2 * e2_static) + np.cos(3. * n * time) * ((-53. / 24.) * e3)) * np.ones_like(shape),
+    compo_e_partial_theta = {
+        'n'    : dp_20_dtheta * ((e2 * e2_static) + np.cos(n * time) * (-e + (-9. / 8.) * e3)) *
+                 np.ones_like(shape) * mode_switch['n'],
+        '2n'   : dp_20_dtheta * ((e2 * e2_static) + np.cos(2. * n * time) * ((-3. / 2.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2n'],
+        '3n'   : dp_20_dtheta * ((e2 * e2_static) + np.cos(3. * n * time) * ((-53. / 24.) * e3)) *
+                 np.ones_like(shape) * mode_switch['3n'],
         '2o+n' : np.zeros_like(shape),
         '2o-n' : np.zeros_like(shape),
         '2o-2n': np.zeros_like(shape),
@@ -248,9 +268,12 @@ def tidal_potential(
         '2o-5n': np.zeros_like(shape)
         }
     compo_e_partial2_theta2 = {
-        'n'    : dp2_20_dtheta2 * ((e2 * e2_static) + np.cos(n * time) * (-e + (-9. / 8.) * e3)) * np.ones_like(shape),
-        '2n'   : dp2_20_dtheta2 * ((e2 * e2_static) + np.cos(2. * n * time) * ((-3. / 2.) * e2)) * np.ones_like(shape),
-        '3n'   : dp2_20_dtheta2 * ((e2 * e2_static) + np.cos(3. * n * time) * ((-53. / 24.) * e3)) * np.ones_like(shape),
+        'n'    : dp2_20_dtheta2 * ((e2 * e2_static) + np.cos(n * time) * (-e + (-9. / 8.) * e3)) *
+                 np.ones_like(shape) * mode_switch['n'],
+        '2n'   : dp2_20_dtheta2 * ((e2 * e2_static) + np.cos(2. * n * time) * ((-3. / 2.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2n'],
+        '3n'   : dp2_20_dtheta2 * ((e2 * e2_static) + np.cos(3. * n * time) * ((-53. / 24.) * e3)) *
+                 np.ones_like(shape) * mode_switch['3n'],
         '2o+n' : np.zeros_like(shape),
         '2o-n' : np.zeros_like(shape),
         '2o-2n': np.zeros_like(shape),
@@ -286,67 +309,113 @@ def tidal_potential(
         'n'    : np.zeros_like(shape),
         '2n'   : np.zeros_like(shape),
         '3n'   : np.zeros_like(shape),
-        '2o+n' : p_22 * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) * np.ones_like(shape),
-        '2o-n' : p_22 * (np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) * np.ones_like(shape),
-        '2o-2n': p_22 * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) * np.ones_like(shape),
-        '2o-3n': p_22 * (np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) * np.ones_like(shape),
-        '2o-4n': p_22 * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) * np.ones_like(shape),
-        '2o-5n': p_22 * (np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) * np.ones_like(shape)
+        '2o+n' : p_22 * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o+n'],
+        '2o-n' : p_22 * (np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-n'],
+        '2o-2n': p_22 * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
+        '2o-3n': p_22 * (np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-3n'],
+        '2o-4n': p_22 * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-4n'],
+        '2o-5n': p_22 * (np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-5n']
         }
     compo_e_nsr_partial_theta = {
         'n'    : np.zeros_like(shape),
         '2n'   : np.zeros_like(shape),
         '3n'   : np.zeros_like(shape),
-        '2o+n' : dp_22_dtheta * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) * np.ones_like(shape),
-        '2o-n' : dp_22_dtheta * (np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) * np.ones_like(shape),
-        '2o-2n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) * np.ones_like(shape),
-        '2o-3n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) * np.ones_like(shape),
-        '2o-4n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) * np.ones_like(shape),
-        '2o-5n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) * np.ones_like(shape)
+        '2o+n' : dp_22_dtheta * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o+n'],
+        '2o-n' : dp_22_dtheta * (
+                    np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-n'],
+        '2o-2n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
+        '2o-3n': dp_22_dtheta * (
+                    np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-3n'],
+        '2o-4n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-4n'],
+        '2o-5n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-5n']
         }
     compo_e_nsr_partial_phi = {
         'n'    : np.zeros_like(shape),
         '2n'   : np.zeros_like(shape),
         '3n'   : np.zeros_like(shape),
-        '2o+n' : p_22 * (-2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) * np.ones_like(shape),
-        '2o-n' : p_22 * (-2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) * np.ones_like(shape),
-        '2o-2n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) * np.ones_like(shape),
-        '2o-3n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) * np.ones_like(shape),
-        '2o-4n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) * np.ones_like(shape),
-        '2o-5n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) * np.ones_like(shape)
+        '2o+n' : p_22 * (-2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o+n'],
+        '2o-n' : p_22 * (
+                    -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-n'],
+        '2o-2n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
+        '2o-3n': p_22 * (
+                    -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-3n'],
+        '2o-4n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-4n'],
+        '2o-5n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-5n']
         }
     compo_e_nsr_partial2_theta2 = {
         'n'    : np.zeros_like(shape),
         '2n'   : np.zeros_like(shape),
         '3n'   : np.zeros_like(shape),
-        '2o+n' : dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) * np.ones_like(shape),
-        '2o-n' : dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) * np.ones_like(shape),
-        '2o-2n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) * np.ones_like(shape),
-        '2o-3n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) * np.ones_like(shape),
-        '2o-4n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) * np.ones_like(shape),
-        '2o-5n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) * np.ones_like(shape)
+        '2o+n' : dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o+n'],
+        '2o-n' : dp2_22_dtheta2 * (
+                    np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-n'],
+        '2o-2n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
+        '2o-3n': dp2_22_dtheta2 * (
+                    np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-3n'],
+        '2o-4n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-4n'],
+        '2o-5n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-5n']
         }
     compo_e_nsr_partial2_phi2 = {
         'n'    : np.zeros_like(shape),
         '2n'   : np.zeros_like(shape),
         '3n'   : np.zeros_like(shape),
-        '2o+n' : p_22 * (-4. * np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) * np.ones_like(shape),
-        '2o-n' : p_22 * (-4. * np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) * np.ones_like(shape),
-        '2o-2n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) * np.ones_like(shape),
-        '2o-3n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) * np.ones_like(shape),
-        '2o-4n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) * np.ones_like(shape),
-        '2o-5n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) * np.ones_like(shape)
+        '2o+n' : p_22 * (-4. * np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o+n'],
+        '2o-n' : p_22 * (
+                    -4. * np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-n'],
+        '2o-2n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
+        '2o-3n': p_22 * (
+                    -4. * np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-3n'],
+        '2o-4n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-4n'],
+        '2o-5n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-5n']
         }
     compo_e_nsr_partial2_theta_phi = {
         'n'    : np.zeros_like(shape),
         '2n'   : np.zeros_like(shape),
         '3n'   : np.zeros_like(shape),
-        '2o+n' : dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) * np.ones_like(shape),
-        '2o-n' : dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) * np.ones_like(shape),
-        '2o-2n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) * np.ones_like(shape),
-        '2o-3n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) * np.ones_like(shape),
-        '2o-4n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) * np.ones_like(shape),
-        '2o-5n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) * np.ones_like(shape)
+        '2o+n' : dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o+n'],
+        '2o-n' : dp_22_dtheta * (
+                    -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-n'],
+        '2o-2n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-2n'],
+        '2o-3n': dp_22_dtheta * (
+                    -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-3n'],
+        '2o-4n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
+                 np.ones_like(shape) * mode_switch['2o-4n'],
+        '2o-5n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - (5. / 2.) * n) * time) * ((845. / 288.) * e3)) *
+                 np.ones_like(shape) * mode_switch['2o-5n']
         }
 
     # Final Potential and Potential Derivatives
