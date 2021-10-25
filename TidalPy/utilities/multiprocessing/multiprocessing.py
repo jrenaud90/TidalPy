@@ -22,7 +22,7 @@ try:
 except ImportError:
     pathos_mp = None
 
-MultiprocessingInputTuple = namedtuple('input', ('name', 'nice_name', 'start', 'end', 'scale', 'n'))
+MultiprocessingInputTuple = namedtuple('input', ('name', 'nice_name', 'start', 'end', 'scale', 'must_include', 'n'))
 
 def multiprocessing_run(directory_name: str, study_name: str, study_function: callable, input_data: tuple,
                         postprocess_func: callable = None,
@@ -110,8 +110,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                 input_start = input_tuple.start
                 input_end = input_tuple.end
                 input_scale = input_tuple.scale
+                input_must_include = input_tuple.must_include
                 input_n = input_tuple.n
-                mp_file.write(f'{input_name}:-:{input_nice_name}:;:{input_start}:;:{input_end}:;:{input_scale}:;:{input_n}\n')
+                mp_file.write(f'{input_name}:-:{input_nice_name}:;:{input_start}:;:{input_end}:;:{input_scale}:;:{input_must_include}:;:{input_n}\n')
             mp_file.write('------------\n')
     else:
         # Study is being restarted. Some of the inputs may have already been completed.
@@ -141,7 +142,8 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                     input_data = input_data.split(':;:')
                     input_data[1] = float(input_data[1])
                     input_data[2] = float(input_data[2])
-                    input_data[4] = int(input_data[4])
+                    input_data[4] = [float(i.strip()) for i in input_data[4].replace('[', '').replace(']', '').split(',') if i != '']
+                    input_data[5] = int(input_data[5])
                     input_data = tuple([input_name] + input_data)
                     input_tuple = MultiprocessingInputTuple(*input_data)
                     input_data_to_use.append(input_tuple)
@@ -164,9 +166,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
         input_start = input_tuple.start
         input_end = input_tuple.end
         input_is_log = input_tuple.scale == 'log'
+        input_must_include = input_tuple.must_include
         input_n = input_tuple.n
 
-        total_n *= input_n
         dimensions += 1
         if input_is_log:
             array = np.logspace(input_start, input_end, input_n)
@@ -174,6 +176,15 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
         else:
             array = np.linspace(input_start, input_end, input_n)
             input_scales.append('linear')
+
+        if len(input_must_include) > 0:
+            # Add in specific values that the user wants included in the array
+            array = np.concatenate((array, np.asarray(input_must_include)))
+            # Sort the new array
+            array = np.sort(array)
+            input_n = len(array)
+
+        total_n *= input_n
         input_arrays.append(array)
         input_names.append(input_name)
         np.save(os.path.join(dir_to_use, f'{input_name}.npy'), array)
