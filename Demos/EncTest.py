@@ -20,6 +20,8 @@ MIN_SHEAR = 0.1
 MIN_ELASTIC_THICKNESS = 5.
 MIN_VISCOELASTIC_THICKNESS = 2.5
 MAX_ITERATIONS = 10
+# TODO: Check how critical changing this value is.
+MAX_REEMERGENCE_THICK_FRACTION = 0.001
 
 # Model switches
 model_use_obliquity = False
@@ -48,7 +50,7 @@ target_density_bulk = target_mass / target_volume
 target_gravity = G * target_mass / target_radius**2
 surface_temperature = 72.15
 semi_a_roche = host_radius * (2. * (host_density_bulk / target_density_bulk))**(1 / 3)
-period_roche = semi_a2orbital_motion(semi_a_roche, host_mass, target_mass)
+roche_freq = semi_a2orbital_motion(semi_a_roche, host_mass, target_mass)
 
 # Layer Properties
 # # Crust
@@ -68,6 +70,7 @@ ice_convection_beta = 1. / 3.
 ice_critical_rayleigh = 900.
 ice_elastic_threshold_temp = ice_visco_tempdrop * crust_visco_liquidus
 ice_visco_mid_temp = 0.5 * (crust_visco_liquidus + ice_elastic_threshold_temp)
+crust_visco_energy_to_freeze = ice_specific_heat * (crust_visco_liquidus - ice_elastic_threshold_temp)
 # # Geometry and Structure
 crust_radius = target_radius
 crust_total_thickness = (35. + 30.) * 1.e3
@@ -230,18 +233,15 @@ def diffeq_scipy(time, variables, extra_params):
     orbital_motion = variables[2]
     rotation_rate = variables[3]
     core_temperature = variables[4]
-    crust_viscoelastic_temperature = variables[5]
+    crust_viscoelastic_base_temperature = variables[5]
     crust_visco_dx = variables[6]
     crust_elastic_dx = variables[7]
 
     # Reset Flags
     is_ocean_present = False
     is_fully_ocean = False
-    is_fully_stagnant_lid = False
     is_stagnant_lid_gone = False
-    is_visco_grounded_out = False
     is_visco_layer_gone = False
-    is_visco_temp_diffeq_needed = False
     is_core_cooling_loop_required = False
     is_max_iteration_hit = False
     is_ocean_reemergence = False
@@ -254,7 +254,7 @@ def diffeq_scipy(time, variables, extra_params):
     dt_correct_orb_motion = 0.
     dt_correct_rotation = 0.
     dt_correct_core_temp = 0.
-    dt_correct_crust_visco_temp = 0.
+    dt_correct_crust_visco_base_temp = 0.
     dt_correct_crust_visco_dx = 0.
     dt_correct_crust_elast_dx = 0.
 
@@ -262,28 +262,32 @@ def diffeq_scipy(time, variables, extra_params):
     if crust_elastic_dx <= float_eps:
         dt_correct_crust_elast_dx += np.abs(crust_elastic_dx)
         crust_elastic_dx = float_eps
+    elif crust_elastic_dx > crust_total_thickness:
+        crust_elastic_dx = crust_total_thickness
     if crust_visco_dx <= float_eps:
         dt_correct_crust_visco_dx += np.abs(crust_visco_dx)
         crust_visco_dx = float_eps
+    elif crust_visco_dx > crust_total_thickness:
+        crust_visco_dx = crust_total_thickness
     if core_temperature < surface_temperature:
         dt_correct_core_temp += surface_temperature - core_temperature
         core_temperature = surface_temperature
-    if crust_viscoelastic_temperature < ice_elastic_threshold_temp:
-        dt_correct_crust_visco_temp += ice_elastic_threshold_temp - crust_viscoelastic_temperature
-        crust_visco_temp_from_dt = ice_elastic_threshold_temp
-    elif crust_viscoelastic_temperature > crust_visco_liquidus:
-        dt_correct_crust_visco_temp += crust_visco_liquidus - crust_viscoelastic_temperature
-        crust_visco_temp_from_dt = crust_visco_liquidus
+    if crust_viscoelastic_base_temperature < ice_elastic_threshold_temp:
+        dt_correct_crust_visco_base_temp += ice_elastic_threshold_temp - crust_viscoelastic_base_temperature
+        crust_viscoelastic_base_temperature = ice_elastic_threshold_temp
+    elif crust_viscoelastic_base_temperature > crust_visco_liquidus:
+        dt_correct_crust_visco_base_temp += crust_visco_liquidus - crust_viscoelastic_base_temperature
+        crust_viscoelastic_base_temperature = crust_visco_liquidus
     if eccentricity > .99:
         dt_correct_eccentricity += .99 - eccentricity
         eccentricity = .99
     elif eccentricity <= float_eps:
         dt_correct_eccentricity += np.abs(eccentricity)
         eccentricity = 0.
-    if np.abs(orbital_motion) <= period_roche:
+    if np.abs(orbital_motion) >= roche_freq:
         # Planet is interior to the roche limit... it is gone :(
-        dt_correct_orb_motion = period_roche - np.abs(orbital_motion)
-        orbital_motion = np.sign(orbital_motion) * period_roche
+        dt_correct_orb_motion = roche_freq - np.abs(orbital_motion)
+        orbital_motion = np.sign(orbital_motion) * roche_freq
         is_roche_hit = True
     if model_force_tidal_lock:
         if np.abs(orbital_motion - rotation_rate) > float_eps:
@@ -368,30 +372,19 @@ def diffeq_scipy(time, variables, extra_params):
         dt_correct_crust_elast_dx = MIN_ELASTIC_THICKNESS - crust_elastic_dx
         crust_elastic_dx = MIN_ELASTIC_THICKNESS
         crust_visco_dx = MIN_VISCOELASTIC_THICKNESS
-    elif (crust_visco_liquidus - crust_viscoelastic_temperature) <= float_eps:
-        # Viscoelastic layer is very warm. Give up half of it to the ocean
-        is_visco_layer_gone = False
-        crust_visco_dx = _half_visco_dx
-        if not is_ocean_present:
-            # There was no ocean present, but based on this temperature there should be. Assume ocean forms
-            #    with half the visco layer's thickness
-            is_ocean_reemergence = True
-            is_ocean_present = True
-
-        # Correct temperature (jump to mid-temp)
-        dt_correct_crust_visco_temp = ice_visco_mid_temp - crust_viscoelastic_temperature
-        crust_visco_temperature = ice_visco_mid_temp
 
     if is_ocean_present:
         # There is at least a thin layer of ocean. Set the temperatures based off the ocean being adiabatic
         core_top_temp = crust_visco_liquidus
-        visco_bottom_temp = crust_visco_liquidus
         elastic_bottom_temp = ice_elastic_threshold_temp
+
+        # Set the temperature at the base of the viscoelastic layer to be equal to the ocean temperature
+        crust_viscoelastic_base_temperature = crust_visco_liquidus
+        dt_correct_crust_visco_base_temp = crust_visco_liquidus - crust_viscoelastic_base_temperature
 
     # Now check if the viscoelastic layer is present
     if crust_elastic_dx >= crust_total_thickness:
         # Elastic layer comprises full water layer
-        is_fully_stagnant_lid = True
         is_visco_layer_gone = True
         dt_correct_crust_visco_dx = -crust_visco_dx
         crust_visco_dx = 0.
@@ -401,35 +394,47 @@ def diffeq_scipy(time, variables, extra_params):
     if crust_visco_dx <= float_eps:
         # No or nearly no viscoelastic layer found.
         # If there is no ocean then assume elastic layer is grounded out.
-        if is_ocean_present or is_fully_ocean:
-            # If there is an ocean, assume a think viscoelastic layer separates it from the elastic layer
+        if is_ocean_present:
+            # If there is an ocean, assume a thin viscoelastic layer separates it from the elastic layer
             is_visco_layer_gone = False
             dt_correct_crust_visco_dx = MIN_VISCOELASTIC_THICKNESS - crust_visco_dx
             crust_visco_dx = MIN_VISCOELASTIC_THICKNESS
 
-            # Update temperatures
-            core_top_temp = crust_visco_liquidus
-            visco_bottom_temp = crust_visco_liquidus
-            elastic_bottom_temp = ice_elastic_threshold_temp
         else:
             # If there is no ocean then assume elastic layer is grounded out.
             is_visco_layer_gone = True
             dt_correct_crust_visco_dx = -crust_visco_dx
             crust_visco_dx = 0.
 
+            # Set the temperature at the base of the (non-exsitent) viscoelastic layer
+            #   This is not used, just here for tracking purposes.
+            crust_viscoelastic_base_temperature = ice_elastic_threshold_temp
+            dt_correct_crust_visco_base_temp = ice_elastic_threshold_temp - crust_viscoelastic_base_temperature
+
             # We will need to calculate the temperature at the base of this layer later using an interactive method.
             is_core_cooling_loop_required = True
-    elif (crust_viscoelastic_temperature - ice_elastic_threshold_temp) <= float_eps:
-        # Viscoelastic layer is very cold. Start transitioning it into elastic.
-        is_visco_layer_gone = False
-        dt_correct_crust_visco_dx = -_half_visco_dx
-        crust_visco_dx = _half_visco_dx
-        dt_correct_crust_elast_dx = _half_visco_dx
-        crust_elastic_dx = crust_elastic_dx + _half_visco_dx
+    elif (crust_viscoelastic_base_temperature - ice_elastic_threshold_temp) <= float_eps:
+        # Viscoelastic layer is so cold that it is fully elastic.
+        is_visco_layer_gone = True
+        dt_correct_crust_elast_dx = crust_visco_dx
+        crust_elastic_dx = crust_elastic_dx + crust_visco_dx
+        dt_correct_crust_visco_dx = -crust_visco_dx
+        crust_visco_dx = 0.
 
         # Correct temperature
-        dt_correct_crust_visco_temp = ice_visco_mid_temp - crust_viscoelastic_temperature
-        crust_visco_temperature = ice_visco_mid_temp
+        # Set the temperature at the base of the (now non-exsitent) viscoelastic layer
+        #   This is not used, just here for tracking purposes.
+        crust_viscoelastic_base_temperature = ice_elastic_threshold_temp
+        dt_correct_crust_visco_base_temp = ice_elastic_threshold_temp - crust_viscoelastic_base_temperature
+
+        # We will need to calculate the temperature at the base of this layer later using an interactive method.
+        is_core_cooling_loop_required = True
+    else:
+        # Viscoelastic layer is still present.
+        elastic_bottom_temp = ice_elastic_threshold_temp
+        if not is_ocean_present:
+            # Then the temperature at the top of the core is equal to the temperature at the base of the visco layer
+            core_top_temp = crust_viscoelastic_base_temperature
 
     # Check if elastic layer is gone
     if crust_elastic_dx <= float_eps:
@@ -437,59 +442,6 @@ def diffeq_scipy(time, variables, extra_params):
         dt_correct_crust_visco_dx = MIN_ELASTIC_THICKNESS - crust_elastic_dx
         crust_elastic_dx = MIN_ELASTIC_THICKNESS
         elastic_bottom_temp = ice_elastic_threshold_temp
-
-
-    """
-    elif crust_elastic_dx <= MIN_ELASTIC_THICKNESS:
-        # Elastic layer is non-existent. Make it small so we don't have divide by zero issues
-        is_stagnant_lid_gone = True
-        crust_elastic_dx = MIN_ELASTIC_THICKNESS
-
-    if is_fully_stagnant_lid:
-        # There is no viscoelastic ice layer. The viscoelastic temperature won't matter so set it to nan.
-        is_visco_layer_gone = True
-        crust_viscoelastic_temperature = 0.0
-        crust_viscoelastic_top_temperature = 0.0
-
-        # The bottom temperature is still required for core cooling.
-        # An iterative loop will be required to solve for this bottom temperature of the elastic layer
-        is_core_cooling_loop_required = True
-        crust_bottom_temperature = 0.0
-        crust_elastic_bottom_temperature = 0.0
-    else:
-        if is_fully_ocean:
-            # There is no viscoelastic ice layer due to the large ocean
-            is_visco_layer_gone = True
-            crust_viscoelastic_temperature = 0.0
-            crust_viscoelastic_top_temperature = 0.0
-            crust_bottom_temperature = crust_visco_liquidus
-            crust_elastic_bottom_temperature = crust_bottom_temperature
-        elif is_ocean_present:
-            # There is a viscoelastic layer and an underlying ocean.
-            # # Determine temperature within viscoelastic ice
-            is_visco_layer_gone = True
-            crust_bottom_temperature = crust_visco_liquidus
-            crust_viscoelastic_top_temperature = crust_bottom_temperature * ice_visco_tempdrop
-            crust_elastic_bottom_temperature = crust_viscoelastic_top_temperature
-            crust_viscoelastic_temperature = \
-                0.5 * (crust_viscoelastic_top_temperature + crust_bottom_temperature)
-        else:
-            # Grounded Out: There is a viscoelastic layer, but no ocean. Viscoelastic layer is touching the top of
-            #    the silicate core.
-            is_visco_layer_gone = True
-            is_visco_grounded_out = True
-            # The temperature of the viscoelastic layer is determined by a differential equation.
-            # Assume the bottom of the viscoelastic layer is what the differential equation is tracking
-            # TODO: This is not 100% accurate
-            crust_bottom_temperature = crust_visco_temp_from_dt
-            crust_viscoelastic_top_temperature = crust_bottom_temperature * ice_visco_tempdrop
-            crust_elastic_bottom_temperature = crust_viscoelastic_top_temperature
-            crust_viscoelastic_temperature = \
-                0.5 * (crust_viscoelastic_top_temperature + crust_bottom_temperature)
-    """
-
-
-
 
     # Calculate viscosity and shear modulus of layers
     # # Core
@@ -499,6 +451,7 @@ def diffeq_scipy(time, variables, extra_params):
         crust_viscosity = MIN_VISCOSITY
         crust_shear = MIN_SHEAR
     else:
+        crust_viscoelastic_temperature = 0.5 * (crust_viscoelastic_base_temperature + ice_elastic_threshold_temp)
         crust_viscosity, crust_shear = calc_viscoshear_ice(crust_viscoelastic_temperature)
 
     # Check for over/undershoots in viscosity and shear
@@ -649,93 +602,31 @@ def diffeq_scipy(time, variables, extra_params):
     # # Core
     # Determine the temperature at the top of the core
     core_heat_flux = core_heating / core_sa
-    _new_visco_dx = 0.
-    _new_ocean_dx = 0.
-    if not is_core_cooling_loop_required:
-        # There is either ocean or viscoelastic ice over top of the core. The top temperature is known and does not
-        #    need to be solved for. We can jump straight to cooling
-
-    else:
+    if is_core_cooling_loop_required:
         # There is elastic ice on top of the core. We don't know what the temperature is at the core-ice boundary.
         #    we will use an iterative loop to balance the heat leaving the core and that leaving the icy shell
         #    to solve for this temperature.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    if not is_core_cooling_loop_required:
-        # An iterative loop will be required to find the temperature at the top of the core.
-        # Start the temperature to be equal to the min for elastic ice.
-        core_top_temperature = ice_elastic_threshold_temp
+        # Solve for the core and ice crust heat balance
+        new_elastic_dx = crust_total_thickness
+        core_top_temp = ice_elastic_threshold_temp
+        core_top_temp_old = core_top_temp * 0.5
         crust_elastic_cooling = 1000.
         core_cooling = 1.
+        crust_elastic_cooling_flux = crust_elastic_cooling / crust_elastic_sa
+        core_cooling_flux = core_cooling / core_sa
         current_iteration = 0
-        while abs(core_cooling - crust_elastic_cooling) / core_cooling > 0.05:
-            if current_iteration > MAX_ITERATIONS:
-                # Max iterations hit. Go with whatever is calculated now.
-                is_max_iteration_hit = True
-                # TODO: Any sort of warning here other than the flag?
-                break
+        while abs(core_top_temp_old - core_top_temp) / core_top_temp > 0.05:
+            break
 
-            # Perform convection calculations
-            if core_passes_all_heat:
-                core_cooling_flux = core_heat_flux
-                core_delta_temp = 0.
-                core_boundary_dx = float_eps
-                core_rayleigh = 0.
-                core_nusselt = 1.
-                core_cooling = core_heating
-            else:
-                # Perform convection calculations
-                core_delta_temp = core_temperature - core_top_temperature
-                core_cooling_flux, core_boundary_dx, core_rayleigh, core_nusselt = \
-                    convection(
-                        core_delta_temp, core_viscosity,
-                        silicate_thermal_conductivity, silicate_thermal_diffusivity, silicate_thermal_expansion,
-                        core_thickness, core_gravity, silicate_density,
-                        silicate_convection_alpha, silicate_convection_beta, silicate_critical_rayleigh
-                        )
-                core_cooling = core_cooling_flux * core_sa
+        core_top_temp_old = core_top_temp
+        if current_iteration > MAX_ITERATIONS:
+            # Max iterations hit. Go with whatever is calculated now.
+            is_max_iteration_hit = True
+            # TODO: Any sort of warning here other than the flag?
+            # break
 
-            # Update new bottom temperature based on heat flux
-            # TODO: Is this right? It assumes equilibrium which may not be reached in a given timestep.
-            core_top_temperature = \
-                surface_temperature + core_cooling_flux * crust_total_thickness / ice_thermal_conductivity
-
-            # Check for if the temperature gets hot enough for ocean or viscoelastic reemergence.
-            if core_top_temperature > ice_elastic_threshold_temp:
-                # Viscoelastic reemergence
-                is_visco_reemergence = True
-            elif core_top_temperature >= crust_visco_liquidus:
-                is_visco_reemergence = True
-                is_ocean_reemergence = True
-                core_top_temperature = crust_visco_liquidus
-            else:
-                is_visco_reemergence = False
-                is_ocean_reemergence = False
-
-            # Calculate elastic cooling
-            crust_elastic_delta_temp = core_top_temperature - surface_temperature
-            crust_elastic_cooling_flux, crust_elastic_boundary_dx, crust_elastic_rayleigh, crust_elastic_nusselt = \
-                conduction(crust_elastic_delta_temp, ice_thermal_conductivity, crust_elastic_dx)
-            crust_elastic_cooling = crust_elastic_cooling_flux * crust_elastic_sa
-
-            # Next loop
-            current_iteration += 1
-
-    else:
-        # Perform convection calculation just once.
+        # Perform convection calculations
         if core_passes_all_heat:
             core_cooling_flux = core_heat_flux
             core_delta_temp = 0.
@@ -745,15 +636,187 @@ def diffeq_scipy(time, variables, extra_params):
             core_cooling = core_heating
         else:
             # Perform convection calculations
-            core_delta_temp = core_temperature - core_top_temperature
+            core_delta_temp = core_temperature - core_top_temp
             core_cooling_flux, core_boundary_dx, core_rayleigh, core_nusselt = \
                 convection(
                     core_delta_temp, core_viscosity,
                     silicate_thermal_conductivity, silicate_thermal_diffusivity, silicate_thermal_expansion,
                     core_thickness, core_gravity, silicate_density,
                     silicate_convection_alpha, silicate_convection_beta, silicate_critical_rayleigh
-                )
+                    )
             core_cooling = core_cooling_flux * core_sa
+
+        # Update new bottom temperature based on heat flux
+        # TODO: Is this right? It assumes equilibrium which may not be reached in a given timestep.
+        core_top_temp = \
+            surface_temperature + core_cooling_flux * new_elastic_dx / ice_thermal_conductivity
+
+        # Check for if the temperature gets hot enough for ocean or viscoelastic reemergence.
+        is_visco_reemergence = False
+        is_ocean_reemergence = False
+        if core_top_temp <= surface_temperature:
+            core_top_temp = surface_temperature
+        elif core_top_temp > ice_elastic_threshold_temp:
+            # Viscoelastic reemergence
+            is_visco_reemergence = True
+            new_visc_base_temp = core_top_temp
+        elif core_top_temp >= crust_visco_liquidus:
+            is_visco_reemergence = True
+            is_ocean_reemergence = True
+            core_top_temp = crust_visco_liquidus
+            new_visc_base_temp = crust_visco_liquidus
+
+        # Handle any reemergences that resulted from that loop
+        # We will need the thicknesses of any viscoelastic or ocean layer which we have no real way to get.
+        #    So we will assume in one time step that they can not have grown much.
+        if is_ocean_reemergence:
+            # This is hard because we do not know how much of the layer has gone to ocean vs. viscoelastic ice.
+            # Since this change will happen in one time step lets just assume that it is split evenly.
+            # The temperature at the base of the elastic shell is now fixed
+            elastic_bottom_temp = ice_elastic_threshold_temp
+            new_elastic_dx = \
+                ice_thermal_conductivity * (elastic_bottom_temp - surface_temperature) / core_cooling_flux
+            new_visco_dx = 0.5 * (crust_total_thickness - new_elastic_dx)
+            # Calculate the change in crust layer thickness and temperatures
+            dt_crust_visco_dx = new_visco_dx
+            dt_crust_elastic_dx = (crust_elastic_cooling_flux - core_cooling_flux) / \
+                                  (ice_density * crust_visco_energy_to_freeze)
+            dt_crust_visco_base_temperature = 0.
+
+        elif is_visco_reemergence:
+            # This is easy since the thickness is just the difference of the elastic layer
+            # The temperature at the base of the elastic shell is now fixed
+            elastic_bottom_temp = ice_elastic_threshold_temp
+            new_elastic_dx = \
+                ice_thermal_conductivity * (elastic_bottom_temp - surface_temperature) / core_cooling_flux
+            new_visco_dx = crust_total_thickness - new_elastic_dx
+            # Calculate the change in crust layer thickness and temperatures
+            dt_crust_visco_dx = new_visco_dx
+            dt_crust_elastic_dx = (crust_elastic_cooling_flux - core_cooling_flux) / \
+                                  (ice_density * crust_visco_energy_to_freeze)
+            dt_crust_visco_base_temperature = core_top_temp
+
+        else:
+            new_elastic_dx = crust_total_thickness
+            elastic_bottom_temp = core_top_temp
+            new_visco_dx = 0.
+            # Calculate the change in crust layer thickness and temperatures
+            dt_crust_visco_dx = 0.
+            dt_crust_elastic_dx = 0.
+            dt_crust_visco_base_temperature = 0.
+
+        # Calculate elastic cooling
+        crust_elastic_delta_temp = elastic_bottom_temp - surface_temperature
+        crust_elastic_cooling_flux, crust_elastic_boundary_dx, crust_elastic_rayleigh, crust_elastic_nusselt = \
+            conduction(crust_elastic_delta_temp, ice_thermal_conductivity, new_elastic_dx)
+        crust_elastic_cooling = crust_elastic_cooling_flux * crust_elastic_sa
+
+        # Next loop
+        current_iteration += 1
+
+    else:
+        # There is either ocean or viscoelastic ice over top of the core. The top temperature is known and does not
+        #    need to be solved for. We can jump straight to cooling
+        # Perform convection calculation just once starting from the bottom.
+        # # Core
+        if core_passes_all_heat:
+            core_cooling_flux = core_heat_flux
+            core_delta_temp = 0.
+            core_boundary_dx = float_eps
+            core_rayleigh = 0.
+            core_nusselt = 1.
+            core_cooling = core_heating
+        else:
+            # Perform convection calculations
+            core_delta_temp = core_temperature - core_top_temp
+            core_cooling_flux, core_boundary_dx, core_rayleigh, core_nusselt = \
+                convection(
+                    core_delta_temp, core_viscosity,
+                    silicate_thermal_conductivity, silicate_thermal_diffusivity, silicate_thermal_expansion,
+                    core_thickness, core_gravity, silicate_density,
+                    silicate_convection_alpha, silicate_convection_beta, silicate_critical_rayleigh
+                    )
+            core_cooling = core_cooling_flux * core_sa
+
+        # # Crust
+        crust_visco_heating = crust_visco_invitro_heating + core_cooling
+        # Grow or shrink ice layers based on temperature balance
+        crust_visco_base_heat_flux = crust_visco_heating / crust_visco_sa
+        if is_visco_layer_gone or crust_viscoelastic_layer_passes_all_heat:
+            # Pass all heat through the layer
+            crust_visco_cooling_flux = crust_visco_base_heat_flux
+            crust_visco_delta_temp = 0.
+            crust_visco_boundary_dx = float_eps
+            crust_visco_rayleigh = 0.
+            crust_visco_nusselt = 1.
+            crust_visco_cooling = crust_visco_heating
+        else:
+            # Solve viscoelastic layer cooling using a convection model
+            crust_visco_delta_temp = crust_viscoelastic_base_temperature - ice_elastic_threshold_temp
+            crust_visco_cooling_flux, crust_visco_boundary_dx, crust_visco_rayleigh, crust_visco_nusselt = \
+                convection(
+                    crust_visco_delta_temp, crust_viscosity,
+                    ice_thermal_conductivity, ice_thermal_diffusivity, ice_thermal_expansion,
+                    crust_visco_dx, crust_visco_gravity, ice_density,
+                    ice_convection_alpha, ice_convection_beta, ice_critical_rayleigh
+                    )
+            crust_visco_cooling = crust_visco_cooling_flux * crust_visco_sa
+
+        # Heating entering the base of the elastic layer is equal to that exiting the viscoelastic one
+        crust_elastic_heating = crust_visco_cooling
+        crust_elastic_base_heat_flux = crust_visco_cooling_flux
+        if is_stagnant_lid_gone or crust_elastic_layer_passes_all_heat:
+            # There is either no elastic layer or all of the heat is leaving it instantly due to debug switch
+            crust_elastic_cooling_flux = crust_elastic_heating / crust_elastic_sa
+            crust_elastic_delta_temp = 0.
+            crust_elastic_boundary_dx = MIN_ELASTIC_THICKNESS
+            crust_elastic_rayleigh = 0.
+            crust_elastic_nusselt = 1.
+            crust_elastic_cooling = crust_elastic_heating
+        else:
+            # There is an elastic layer, calculate conductive flux
+            crust_elastic_delta_temp = elastic_bottom_temp - surface_temperature
+            crust_elastic_cooling_flux, crust_elastic_boundary_dx, crust_elastic_rayleigh, crust_elastic_nusselt = \
+                conduction(crust_elastic_delta_temp, ice_thermal_conductivity, crust_elastic_dx)
+            crust_elastic_cooling = crust_elastic_cooling_flux * crust_elastic_sa
+
+        # Solve the change in the ice layer thicknesses
+        if is_visco_layer_gone or crust_viscoelastic_layer_passes_all_heat:
+            # There is no viscoelastic layer. No change in its thickness, no change in its temperature
+            dt_crust_visco_dx = 0.0
+            dt_crust_visco_base_temperature = 0.0
+            if crust_elastic_layer_passes_all_heat:
+                dt_crust_elastic_dx = 0.0
+            else:
+                dt_crust_elastic_dx = \
+                    (crust_elastic_cooling_flux - crust_elastic_base_heat_flux) / \
+                    (ice_density * crust_visco_energy_to_freeze)
+        elif is_ocean_present:
+            # There is an ocean present. We will need to calculate the change in the viscoelastic layer's thickness,
+            #    but do not need to calculate the change in temperature
+            dt_crust_visco_base_temperature = 0.0
+            dt_crust_visco_dx = \
+                (crust_visco_cooling_flux - crust_visco_base_heat_flux) / (ice_density * ice_latent_heat)
+            if crust_elastic_layer_passes_all_heat:
+                dt_crust_elastic_dx = 0.0
+            else:
+                dt_crust_elastic_dx = \
+                    (crust_elastic_cooling_flux - crust_elastic_base_heat_flux) / \
+                    (ice_density * crust_visco_energy_to_freeze)
+        else:
+            # There is no more ocean so the only way that the viscoelastic layer can change is be stealing or giving up
+            #   ground to the elastic layer
+            if crust_elastic_layer_passes_all_heat:
+                dt_crust_elastic_dx = 0.0
+            else:
+                dt_crust_elastic_dx = \
+                    (crust_elastic_cooling_flux - crust_elastic_base_heat_flux) / \
+                    (ice_density * crust_visco_energy_to_freeze)
+            dt_crust_visco_dx = -dt_crust_elastic_dx
+            # The temperature of this layer is now allowed to decrease via a differential equation until it too becomes
+            #    totally elastic.
+            dt_crust_visco_base_temperature = \
+                (crust_visco_heating - crust_visco_cooling) / (crust_visco_volume * ice_density * ice_specific_heat)
 
     # Update core temperature
     if core_passes_all_heat:
@@ -763,150 +826,15 @@ def diffeq_scipy(time, variables, extra_params):
         dt_core_temperature = \
             (core_heating - core_cooling) / (core_volume * silicate_density * silicate_specific_heat)
 
-    # # Crust
-    crust_visco_heating = crust_visco_invitro_heating + core_cooling
-    # Grow or shrink ice layers based on temperature balance
-    crust_visco_base_heat_flux = crust_visco_heating / crust_visco_sa
-    if is_visco_layer_gone or crust_viscoelastic_layer_passes_all_heat:
-
-        # Pass all heat through the layer
-        crust_visco_cooling_flux = crust_visco_base_heat_flux
-        crust_visco_delta_temp = 0.
-        crust_visco_boundary_dx = float_eps
-        crust_visco_rayleigh = 0.
-        crust_visco_nusselt = 1.
-        crust_visco_cooling = crust_visco_heating
-
-        if is_visco_reemergence:
-            # Viscoelastic layer may have reemerged during this loop.
-            # Update elastic bottom temperature
-            crust_elastic_bottom_temperature = ice_elastic_threshold_temp
-
-            # Assume at this early stage the layer is purely conductive and thin.
-            # The cooling will be a large fraction of the heat flux.
-            dt_crust_visco_dx = \
-                (0.99 * crust_visco_cooling_flux - crust_visco_base_heat_flux) / (ice_density * ice_latent_heat)
-        else:
-            dt_crust_visco_dx = 0.
-
-    else:
-        # Solve viscoelastic layer cooling using a convection model
-        crust_visco_delta_temp = crust_bottom_temperature - crust_viscoelastic_top_temperature
-        crust_visco_cooling_flux, crust_visco_boundary_dx, crust_visco_rayleigh, crust_visco_nusselt = \
-            convection(
-                crust_visco_delta_temp, crust_viscosity,
-                ice_thermal_conductivity, ice_thermal_diffusivity, ice_thermal_expansion,
-                crust_visco_dx, crust_visco_gravity, ice_density,
-                ice_convection_alpha, ice_convection_beta, ice_critical_rayleigh
-            )
-        crust_visco_cooling = crust_visco_cooling_flux*crust_visco_sa
-
-        dt_crust_visco_dx = \
-            (crust_visco_cooling_flux - crust_visco_base_heat_flux)/(ice_density*ice_latent_heat)
-
-    if crust_viscoelastic_layer_passes_all_heat:
-        # Pass all heat through the layer
-        crust_visco_cooling_flux = crust_visco_base_heat_flux
-        crust_visco_delta_temp = 0.
-        crust_visco_boundary_dx = float_eps
-        crust_visco_rayleigh = 0.
-        crust_visco_nusselt = 1.
-        crust_visco_cooling = crust_visco_heating
-
-
-    crust_visco_heating = crust_visco_invitro_heating + core_cooling
-    # Grow or shrink ice layers based on temperature balance
-    crust_visco_base_heat_flux = crust_visco_heating / crust_visco_sa
-    if is_visco_layer_gone or crust_viscoelastic_layer_passes_all_heat:
-        # Skip convection calculation if the viscoelastic layer is gone or a debug switch is on
-        crust_visco_cooling_flux = crust_visco_base_heat_flux
-        crust_visco_delta_temp = 0.
-        crust_visco_boundary_dx = float_eps
-        crust_visco_rayleigh = 0.
-        crust_visco_nusselt = 1.
-        crust_visco_cooling = crust_visco_heating
-    else:
-        # Perform convection calculations
-        crust_visco_delta_temp = crust_bottom_temperature - crust_viscoelastic_top_temperature
-        crust_visco_cooling_flux, crust_visco_boundary_dx, crust_visco_rayleigh, crust_visco_nusselt = \
-            convection(
-                crust_visco_delta_temp, crust_viscosity,
-                ice_thermal_conductivity, ice_thermal_diffusivity, ice_thermal_expansion,
-                crust_visco_dx, crust_visco_gravity, ice_density,
-                ice_convection_alpha, ice_convection_beta, ice_critical_rayleigh
-            )
-        crust_visco_cooling = crust_visco_cooling_flux * crust_visco_sa
-
-    # Heating entering the base of the elastic layer is equal to that exiting the viscoelastic one
-    crust_elastic_heating = crust_visco_cooling
-    crust_elastic_base_heat_flux = crust_visco_cooling_flux
-    if is_stagnant_lid_gone or crust_elastic_layer_passes_all_heat:
-        # There is either no elastic layer or all of the heat is leaving it instantly due to debug switch
-        crust_elastic_cooling_flux = crust_elastic_heating / crust_elastic_sa
-        crust_elastic_delta_temp = 0.
-        crust_elastic_boundary_dx = MIN_ELASTIC_THICKNESS
-        crust_elastic_rayleigh = 0.
-        crust_elastic_nusselt = 1.
-        crust_elastic_cooling = crust_elastic_heating
-    else:
-        # There is an elastic layer, calculate conductive flux
-        crust_elastic_delta_temp = crust_elastic_bottom_temperature - surface_temperature
-        crust_elastic_cooling_flux, crust_elastic_boundary_dx, crust_elastic_rayleigh, crust_elastic_nusselt = \
-                conduction(crust_elastic_delta_temp, ice_thermal_conductivity, crust_elastic_dx)
-        crust_elastic_cooling = crust_elastic_cooling_flux * crust_elastic_sa
-
-    # Calculate the change in the elastic layer's thickness
-    crust_visco_energy_to_freeze = ice_specific_heat * (crust_visco_liquidus - crust_viscoelastic_top_temperature)
-    if crust_elastic_layer_passes_all_heat or is_fully_stagnant_lid:
-        # If the debug flag is on then ignore elastic layer growth.
-        dt_crust_elastic_dx = 0.0
-    else:
-        dt_crust_elastic_dx = \
-            (crust_elastic_cooling_flux - crust_elastic_base_heat_flux) / (ice_density * crust_visco_energy_to_freeze)
-    # Check for over/undershoots
-    if is_stagnant_lid_gone and dt_crust_elastic_dx < 0.:
-        # Elastic layer is already gone, make sure it is not growing negative
-        #    (this shouldn't happen, just here as a double check).
-        dt_crust_elastic_dx = 0.0
-
-    if is_fully_stagnant_lid:
-        # There is no viscoelastic layer. No change in its thickness, no change in its temperature
-        dt_crust_visco_dx = 0.0
-        dt_crust_visco_temperature = 0.0
-    elif is_ocean_present:
-        # There is an ocean present. We will need to calculate the change in the viscoelastic layer's thickness,
-        #    but do not need to calculate the change in temperature
-        dt_crust_visco_temperature = 0.0
-        dt_crust_visco_dx = \
-                (crust_visco_cooling_flux - crust_visco_base_heat_flux) / (ice_density * ice_latent_heat)
-    elif is_visco_grounded_out:
-        # There is no more ocean so the only way that the viscoelastic layer can change is be stealing or giving up
-        #   ground to the elastic layer
-        dt_crust_visco_dx = -dt_crust_elastic_dx
-        # The temperature of this layer is now allowed to decrease via a differential equation until it too becomes
-        #    totally elastic.
-        dt_crust_visco_temperature = \
-            (crust_visco_heating - crust_visco_cooling) / (crust_visco_volume * ice_density * ice_specific_heat)
-    else:
-        # How did you end up here.
-        raise Exception
-
-    # Make corrections for the viscoelastic temperature
-    if dt_crust_visco_temperature != 0.:
-        if crust_visco_temp_from_dt <= surface_temperature:
-            dt_crust_visco_temperature = 0.
-        elif crust_visco_temp_from_dt >= crust_visco_liquidus:
-            dt_crust_visco_temperature = 0.
-
     # Combine diffeq variables with there corrections and correct any additional problems
-    dt_eccentricity += dt_correct_eccentricity
-    dt_obliquity += dt_correct_obliqutiy
-    dt_orbital_motion += dt_correct_orb_motion
-    dt_rotation_rate += dt_correct_rotation
-    dt_core_temperature += dt_correct_core_temp
-    dt_crust_visco_temperature += dt_correct_crust_visco_temp
-    dt_crust_visco_dx += dt_correct_crust_visco_dx
-    dt_crust_elastic_dx += dt_correct_crust_elast_dx
+    # dt_eccentricity += dt_correct_eccentricity
+    # dt_obliquity += dt_correct_obliqutiy
+    # dt_orbital_motion += dt_correct_orb_motion
+    # dt_rotation_rate += dt_correct_rotation
+    # dt_core_temperature += dt_correct_core_temp
+    # dt_crust_visco_base_temperature += dt_correct_crust_visco_base_temp
+    # dt_crust_visco_dx += dt_correct_crust_visco_dx
+    # dt_crust_elastic_dx += dt_correct_crust_elast_dx
 
     # Store diffeq results in output array
     output_variables = (
@@ -915,7 +843,7 @@ def diffeq_scipy(time, variables, extra_params):
         dt_orbital_motion,
         dt_rotation_rate,
         dt_core_temperature,
-        dt_crust_visco_temperature,
+        dt_crust_visco_base_temperature,
         dt_crust_visco_dx,
         dt_crust_elastic_dx
     )
@@ -937,13 +865,13 @@ def integrate_model(input_dict):
     i_orbital_motion = input_dict['initial_orbital_motion']
     i_rotation_rate = input_dict['initial_rotation_rate']
     i_core_temp = input_dict['initial_core_temp']
-    i_visco_temp = input_dict['initial_crust_visco_temp']
+    i_visco_temp = input_dict['initial_crust_visco_base_temp']
     i_crust_visco_dx = input_dict['initial_crust_visco_dx']
     i_crust_elastic_dx = input_dict['initial_crust_elastic_dx']
 
     # Build initial condition array
     if i_visco_temp is None:
-        i_visco_temp = 0.5 * (ice_elastic_threshold_temp + crust_visco_liquidus)
+        i_visco_temp = crust_visco_liquidus
     initial_conditions = (
         i_eccentricity,
         i_obliquity,
@@ -995,7 +923,7 @@ def solution_plotter(integration_solution):
     ax_orbit.set(ylabel='Semi-major Axis [R$_{S}$]')
     ax_spin.set(ylabel='Spin / Orbital Motion')
     ax_core_temp.set(ylabel='Core Temperature [K]')
-    ax_crust_temp.set(ylabel='Ice Temperature (dotted) [K]')
+    ax_crust_temp.set(ylabel='Visco Ice Base Temperature\n(dotted) [K]')
     ax_dxs.set(ylabel='Ice Crust Thicknesses [km]')
 
     # Pull out results
@@ -1046,9 +974,9 @@ default_dict = {
     'initial_orbital_motion': days2rads(1.370218),
     'initial_rotation_rate': days2rads(1.370218),
     'initial_core_temp': 800.,
-    'initial_crust_visco_temp': None,
-    'initial_crust_visco_dx': crust_total_thickness * 0.35,
-    'initial_crust_elastic_dx': crust_total_thickness * 0.6,
+    'initial_crust_visco_base_temp': crust_visco_liquidus,
+    'initial_crust_visco_dx': crust_total_thickness * 0.25,
+    'initial_crust_elastic_dx': crust_total_thickness * 0.3,
     'core_heating_t0': 0.,
     'crust_heating_t0': 0.,
     'core_heating_delta_time': 50.,
