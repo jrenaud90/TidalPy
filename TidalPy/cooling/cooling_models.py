@@ -135,7 +135,7 @@ def convection(
 @njit(cacheable=True)
 def conduction(
     delta_temp: FloatArray,
-    thermal_conductivity: float, layer_thickness: float
+    thermal_conductivity: float, layer_thickness: float,
     ) -> CoolingOutputType:
     """ Calculates cooling by conduction through a sub-layer half the thickness of the layer - NonArrays Only
 
