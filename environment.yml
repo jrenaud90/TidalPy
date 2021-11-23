@@ -12,12 +12,13 @@ dependencies:
   - jupyter>=1.0
   - matplotlib>=3.4.2
   - numba>=0.53
-  - numpy>=1.19.5,<1.20.0
+  - numpy>=1.19.5
   - pytest>=6.2.4
   - scipy>=1.6.3
   - pandas>=1.2.4
   - psutil>=5.8.0
   - pip:
-    - "git+https://github.com/geodynamics/burnman.git"
     - pathos
+    - pycddlib
+    - burnman>=1.0.1
     - .

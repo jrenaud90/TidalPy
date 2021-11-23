@@ -1,5 +1,13 @@
 # TidalPy Major Change Log
 
+### Version 0.3.3 Alpha (Fall 2021)
+* Major Changes
+    * Updated to work with BurnMan v1.0 release.
+
+### Version 0.3.2 Alpha (Summer 2021)
+* Major Changes
+    * Changes to setup to use released version of BurnMan.
+
 ### Version 0.3.1 Alpha (Summer 2021)
 
 * Major Changes

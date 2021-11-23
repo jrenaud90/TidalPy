@@ -91,7 +91,7 @@ def convergence_ssls_static_liq(
     C_layer0_vector = np.zeros(3, dtype=np.complex128)
     C_layer0_vector[0] = C_layer1_vector[0]
     C_layer0_vector[1] = C_layer1_vector[1]
-    C_layer0_vector[2] = C_layer1_vector[1]
+    C_layer0_vector[2] = C_layer1_vector[2]
 
     # Solve for the liquid layer's y's
     tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0]
