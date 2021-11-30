@@ -1,24 +1,28 @@
 name: tidalpy_env
 channels:
+  - conda-forge
 dependencies:
   - setuptools>=57.0.0
   - pip>=21.0.0
   - wheel>=0.36.0
-  - dill>=0.3.2
+  - pytest>=6.2.4
+  - numpy>=1.19.5
+  - pandas>=1.2.4
+  - matplotlib>=3.4.2
+  - scipy>=1.6.3
+  - numba>=0.53
+  - pytest>=6.2.4
   - ipympl>=0.7.0
   - ipython>=7.24.1
   - ipywidgets>=7.6.3
-  - json5>=0.9.5
   - jupyter>=1.0
-  - matplotlib>=3.4.2
-  - numba>=0.53
-  - numpy>=1.19.5
-  - pytest>=6.2.4
-  - scipy>=1.6.3
-  - pandas>=1.2.4
+  - json5>=0.9.5
+  - dill>=0.3.2
   - psutil>=5.8.0
+  - pathos>=0.2.0
+  - ecos>=2.0.8
+  - scs>=3.0.0
   - pip:
-    - pathos
-    - pycddlib
+    - pycddlib>=2.1
     - burnman>=1.0.1
     - .

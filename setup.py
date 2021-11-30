@@ -94,12 +94,11 @@ setup_kwargs = {
                                      'astrophysics, tides, orbital mechanics, exoplanets, planets',
     'platforms'                    : ["Windows", "MacOS", "CentOS"],
     'packages'                     : find_packages() + ['TidalPy.WorldConfigs'],
-    # dependency_links : ['git+http://github.com/geodynamics/burnman/tarball/master#egg=burnman-0.10.0-pre'],
     'include_package_data'         : True,
     'extras_require'               : {
-        'dev': ['sympy']
+        'dev': ['sympy', 'julia', 'diffeqpy']
         },
-    'python_requires'              : '>=3.7',
+    'python_requires'              : '>=3.8',
     'install_requires'             : requirements,
     }
 

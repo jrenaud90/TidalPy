@@ -178,8 +178,12 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
             input_scales.append('linear')
 
         if len(input_must_include) > 0:
+            must_include_array = np.asarray(input_must_include)
+            # Check if values need to be set to the power of 10.
+            if input_is_log:
+                must_include_array = 10**must_include_array
             # Add in specific values that the user wants included in the array
-            array = np.concatenate((array, np.asarray(input_must_include)))
+            array = np.concatenate((array, must_include_array))
             # Sort the new array
             array = np.sort(array)
             input_n = len(array)
@@ -283,8 +287,7 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                                    f'Taking {time.time() - run_time_init:0.2f} seconds.\n')
 
             # Save key data to disk
-            for result_name, result_array in result.items():
-                np.save(os.path.join(this_run_dir, f'{result_name}.npy'), result_array)
+            np.savez(os.path.join(this_run_dir, f'mp_results.npz'), **result)
 
         return run_num, run_indicies, result
 
@@ -320,23 +323,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
         # Load any previous data that was saved from prior study runs
         previous_run_data = list()
         if len(cases_to_skip) != 0:
-
-            # Need to know the names of data arrays to load. First try to pull those from current runs results.
-            if len(mp_results) > 0:
-                results_to_look_for = mp_results[0][2].keys()
-            else:
-                # If no results were calculated this run then pull from one of run's directories
-                results_to_look_for = list()
-                run_dir = os.path.join(dir_to_use, f'index_{skipped_indicies[cases_to_skip[0]]}_run_{cases_to_skip[0]}')
-                for file in os.listdir(run_dir):
-                    if file.endswith('.npy'):
-                        results_to_look_for.append(file.split('.npy')[0])
-
             for run_num in cases_to_skip:
                 run_dir = os.path.join(dir_to_use, f'index_{skipped_indicies[run_num]}_run_{run_num}')
-                case_result = dict()
-                for result_name in results_to_look_for:
-                    case_result[result_name] = np.load(os.path.join(run_dir, f'{result_name}.npy'))
+                case_result = np.load(os.path.join(run_dir, 'mp_results.npz'))
 
                 run_indicies = list()
                 for dim in range(dimensions):

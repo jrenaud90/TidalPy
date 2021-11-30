@@ -14,6 +14,6 @@ pytest>=6.2.4
 scipy>=1.6.3
 pandas>=1.2.4
 psutil>=5.8.0
-pathos
+pathos>=0.2.0
+pycddlib>=2.1
 burnman>=1.0.1
-pycddlib
