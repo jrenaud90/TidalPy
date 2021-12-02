@@ -21,22 +21,25 @@ l2p1_double_factorials = tuple(l2p1_double_factorials)
 # OPT: This can not be njited because it depends on the non-njited spherical bessel functions.
 #    subsequent functions that depend on this must use the approximate `takeuchi_phi_psi`.
 def takeuchi_phi_psi_general(z: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
-    """ Calculate the two functions used to find initial conditions for shooting method.
+    """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
 
     See Eq. 103 in Takeuchi & Saito 1972
 
     Parameters
     ----------
     z : FltCmplxArray
-        Input float or array.
+        Input scalar or array.
     order_l : int = 2
         Tidal harmonic order.
 
     Returns
     -------
     phi : FltCmplxArray
+        Phi function.
     phi_lplus1 : FltCmplxArray
+        Phi function for l+1.
     psi : FltCmplxArray
+        Psi function.
 
     """
 
@@ -48,35 +51,42 @@ def takeuchi_phi_psi_general(z: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmp
 
 
 @njit(cacheable=True)
-def takeuchi_phi_psi(z2: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
-    """ Calculate the two functions used to find initial conditions for shooting method.
+def takeuchi_phi_psi(z_squared: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
+    """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
+
+    This version of the function uses a Taylor expansion on the bessel function and only requires the even powers of
+        z. Thus only z^2 is provided.
 
     See Eq. 103 in Takeuchi & Saito 1972
 
     Parameters
     ----------
-    z2 : FltCmplxArray
-        Input float or array. squared.
+    z_squared : FltCmplxArray
+        Input scalar or array. squared.
     order_l : int = 2
         Tidal harmonic order.
 
     Returns
     -------
     phi : FltCmplxArray
+        Phi function.
     phi_lplus1 : FltCmplxArray
+        Phi function for l+1.
     psi : FltCmplxArray
+        Psi function.
 
     """
     order_lp1 = order_l + 1.
+    z_fourth = z_squared * z_squared
 
     phi = 1. - \
-          z2 / (2. * (2. * order_l + 3.)) + \
-          (z2 * z2) / (8. * (2. * order_l + 3.) * (2. * order_l + 5.))
+          z_squared / (2. * (2. * order_l + 3.)) + \
+          z_fourth / (8. * (2. * order_l + 3.) * (2. * order_l + 5.))
     phi_lplus1 = 1. - \
-                 z2 / (2. * (2. * order_lp1 + 3.)) + \
-                 (z2 * z2) / (8. * (2. * order_lp1 + 3.) * (2. * order_lp1 + 5.))
+                 z_squared / (2. * (2. * order_lp1 + 3.)) + \
+                 z_fourth / (8. * (2. * order_lp1 + 3.) * (2. * order_lp1 + 5.))
     psi = 1. - \
-          z2 / (4. * (2. * order_lp1 + 5.)) + \
-          (z2 * z2) / (12. * (2. * order_lp1 + 5.) * (2. * order_lp1 + 7.))
+          z_squared / (4. * (2. * order_l + 5.)) + \
+          z_fourth / (12. * (2. * order_l + 5.) * (2. * order_l + 7.))
 
     return phi, phi_lplus1, psi
