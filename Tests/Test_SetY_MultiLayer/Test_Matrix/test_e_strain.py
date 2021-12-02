@@ -158,8 +158,8 @@ def test_calc_strains_heating_nsr():
     potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
         tidal_potential_nsr(
             radius_array[1:], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
-            eccentricity=eccentricity, time=1000., obliquity=0.0, rotation_rate=5. * orbital_freq, periapsis=0.0,
-            world_radius=radius_array[-1]
+            eccentricity=eccentricity, time=1000., rotation_rate=5. * orbital_freq, world_radius=radius_array[-1],
+            host_mass=host_mass, semi_major_axis=semi_major_axis, use_static=False
             )
 
     # Calculate strain tensor

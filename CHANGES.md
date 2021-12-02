@@ -3,6 +3,8 @@
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes
     * Updated to work with BurnMan v1.0 release.
+    * Updated the NSR tidal potential for multilayer code to a multi-modal version
+    * 
 
 ### Version 0.3.2 Alpha (Summer 2021)
 * Major Changes
@@ -12,6 +14,7 @@
 
 * Major Changes
     * Added a simplistic (not modal version) NSR tidal potential for use in the multilayer code.
+    * Added multiprocessor toolkit to `TidalPy.utilities.multiprocessing`
 * Minor Changes
     * Did large scale code reformatting (just style, no refactoring) on nearly all files.
     * Cleaned up some doc strings.

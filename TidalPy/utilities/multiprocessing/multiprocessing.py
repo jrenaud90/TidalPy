@@ -2,34 +2,45 @@
 Functions to easily allow multiprocessing calculations of TidalPy functions.
 
 """
-from ... import version
-from collections import namedtuple
 import math
-import time
-import os
-from datetime import datetime
-import numpy as np
-import warnings
-from ..numpy_helper.array_other import find_nearest
-
-import psutil
 import multiprocessing as python_mp
+import os
+import time
+import warnings
+from collections import namedtuple
+from datetime import datetime
+from typing import List
+
+import numpy as np
+import psutil
+
+from ..numpy_helper.array_other import find_nearest
+from ... import version
 
 PATHOS_INSTALLED = False
 try:
     from pathos import multiprocessing as pathos_mp
+
     PATHOS_INSTALLED = True
 except ImportError:
+    # Pathos is not installed. Use Python's multiprocessing instead.
     pathos_mp = None
 
-MultiprocessingInputTuple = namedtuple('input', ('name', 'nice_name', 'start', 'end', 'scale', 'must_include', 'n'))
+MultiprocessingInput = namedtuple('MultiprocessingInput',
+                                  ('name', 'nice_name', 'start', 'end', 'scale', 'must_include', 'n'))
+MultiprocessingOutput = namedtuple('MultiprocessingOutput',
+                                   ('case_number', 'input_index', 'result'))
 
-def multiprocessing_run(directory_name: str, study_name: str, study_function: callable, input_data: tuple,
-                        postprocess_func: callable = None,
-                        force_restart: bool = True, verbose: bool = True, max_procs: int = None,
-                        allow_low_procs: bool = False,
-                        perform_memory_check: bool = True, single_run_memory_gb: float = 1000.,
-                        avoid_crashes: bool = True, force_post_process_rerun: bool = True):
+
+def multiprocessing_run(
+    directory_name: str, study_name: str, study_function: callable, input_data: tuple,
+    postprocess_func: callable = None,
+    force_restart: bool = True, verbose: bool = True, max_procs: int = None,
+    allow_low_procs: bool = False,
+    perform_memory_check: bool = True, single_run_memory_gb: float = 1000.,
+    avoid_crashes: bool = True,
+    force_post_process_rerun: bool = True
+    ) -> List[MultiprocessingOutput]:
 
     # Initial housekeeping
     start_time = datetime.now()
@@ -69,11 +80,11 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
             raise SystemError('Not enough system memory for a stable run. Try reducing number of processors allocated.')
 
     # Check to see if the called run is a re-call of a cancelled or crashed run
-    mp_data_file_dir = os.path.join(directory_name, 'tpy_mp.log')
+    mp_log_path = os.path.join(directory_name, 'tpy_mp.log')
     study_restart = False
     dir_to_use = directory_name
     if os.path.isdir(directory_name):
-        if os.path.isfile(mp_data_file_dir):
+        if os.path.isfile(mp_log_path):
             # It looks like there is already a multiprocessor study that was started in this directory.
             # See if user wants to force a restart. Otherwise this call will be a restart run.
             if verbose:
@@ -91,7 +102,7 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
             else:
                 study_restart = True
 
-    mp_data_file_dir = os.path.join(dir_to_use, 'tpy_mp.log')
+    mp_log_path = os.path.join(dir_to_use, 'tpy_mp.log')
     input_data_to_use = input_data
     if not study_restart:
         if not os.path.isdir(dir_to_use):
@@ -99,7 +110,7 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
             os.makedirs(dir_to_use)
 
         # Create mp data file
-        with open(mp_data_file_dir, 'w') as mp_file:
+        with open(mp_log_path, 'w') as mp_file:
             mp_file.write(f'TidalPy v{version} - Multiprocessor Study: {study_name}.\n')
             date_time_str = start_time.strftime('%Y/%m/%d, %H:%M:%S')
             mp_file.write(f'Study started on: {date_time_str}.\n')
@@ -112,7 +123,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                 input_scale = input_tuple.scale
                 input_must_include = input_tuple.must_include
                 input_n = input_tuple.n
-                mp_file.write(f'{input_name}:-:{input_nice_name}:;:{input_start}:;:{input_end}:;:{input_scale}:;:{input_must_include}:;:{input_n}\n')
+                mp_file.write(
+                    f'{input_name}:-:{input_nice_name}:;:{input_start}:;:{input_end}:;:{input_scale}:;:{input_must_include}:;:{input_n}\n'
+                    )
             mp_file.write('------------\n')
     else:
         # Study is being restarted. Some of the inputs may have already been completed.
@@ -122,7 +135,7 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
         if verbose:
             print('Restarting multiprocessing run.')
 
-        with open(mp_data_file_dir, 'r') as mp_file:
+        with open(mp_log_path, 'r') as mp_file:
             lines = mp_file.readlines()
             start_input_found = False
             for line in lines:
@@ -142,13 +155,14 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                     input_data = input_data.split(':;:')
                     input_data[1] = float(input_data[1])
                     input_data[2] = float(input_data[2])
-                    input_data[4] = [float(i.strip()) for i in input_data[4].replace('[', '').replace(']', '').split(',') if i != '']
+                    input_data[4] = [float(i.strip()) for i in
+                                     input_data[4].replace('[', '').replace(']', '').split(',') if i != '']
                     input_data[5] = int(input_data[5])
                     input_data = tuple([input_name] + input_data)
-                    input_tuple = MultiprocessingInputTuple(*input_data)
+                    input_tuple = MultiprocessingInput(*input_data)
                     input_data_to_use.append(input_tuple)
 
-        with open(mp_data_file_dir, 'a') as mp_file:
+        with open(mp_log_path, 'a') as mp_file:
             date_time_str = start_time.strftime('%Y/%m/%d, %H:%M:%S')
             mp_file.write(f'TidalPy MultiProcessing Study Restarted on: {date_time_str}.\n')
 
@@ -212,7 +226,7 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                 # Success file found. Skip this run.
                 cases_to_skip.append(run_num)
 
-        with open(mp_data_file_dir, 'a') as mp_file:
+        with open(mp_log_path, 'a') as mp_file:
             date_time_str = start_time.strftime('%Y/%m/%d, %H:%M:%S')
             mp_file.write(f'Skipping {len(cases_to_skip)} cases that were completed on previous run.\n')
 
@@ -248,14 +262,19 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
         cases.append(case_data)
 
     if verbose:
-        print(f'Inputs Built. Total Possible Cases: {total_n}. Cases Skipped: {num_skipped_cases}. '
-              f'Remaining: {len(cases)}')
+        print(
+            f'Inputs Built. Total Possible Cases: {total_n}. Cases Skipped: {num_skipped_cases}. '
+            f'Remaining: {len(cases)}'
+            )
     chunksize = max(int(len(cases) / procs_to_use), 1)
 
     # Build a new function that performs a few house keeping steps.
     def func_to_use(this_run_num, run_indicies, total_runs_to_do, *args, **kwargs):
 
-        print(f'MP Study:: Working on Case {this_run_num} of {total_runs_to_do}. Index: {run_indicies}')
+        case_text = f'MP Study:: Working on Case {this_run_num} of {total_runs_to_do}. Index: {run_indicies}'
+        print(case_text)
+        with open(mp_log_path, 'a') as mp_file:
+            mp_file.write(case_text)
 
         run_time_init = time.time()
         # Create directory
@@ -282,14 +301,18 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
 
         if not failed_run:
             # Save something to disk to mark that this was completed successfully
+            success_text = f'Run: {this_run_num} completed successfully. ' \
+                           f'Taking {time.time() - run_time_init:0.2f} seconds.\n'
             with open(os.path.join(this_run_dir, 'mp_success.log'), 'w') as success_file:
-                success_file.write(f'Run: {this_run_num} completed successfully. '
-                                   f'Taking {time.time() - run_time_init:0.2f} seconds.\n')
+                success_file.write(success_text)
+
+            with open(mp_log_path, 'a') as mp_file:
+                mp_file.write(success_text)
 
             # Save key data to disk
             np.savez(os.path.join(this_run_dir, f'mp_results.npz'), **result)
 
-        return run_num, run_indicies, result
+        return MultiprocessingOutput(case_number=run_num, input_index=run_indicies, result=result)
 
     # Perform multiprocessing study
     if len(cases) > 0:
@@ -302,7 +325,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                     patho_func = lambda x: func_to_use(*x)
                     mp_results = pool.map(patho_func, cases, chunksize=chunksize)
             except Exception as e:
-                warnings.warn(f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n')
+                warnings.warn(
+                    f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n'
+                    )
                 study_crashed = True
         else:
             # Use Python
@@ -312,7 +337,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                 with python_mp.Pool(processes=procs_to_use) as pool:
                     mp_results = pool.starmap(func_to_use, cases, chunksize=chunksize)
             except Exception as e:
-                warnings.warn(f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n')
+                warnings.warn(
+                    f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n'
+                    )
                 study_crashed = True
     else:
         # No cases to run.
@@ -375,10 +402,9 @@ def multiprocessing_run(directory_name: str, study_name: str, study_function: ca
                     postprocess_func(post_proc_dir, mp_results, input_data_to_use)
 
         # Close out log file.
-        with open(mp_data_file_dir, 'a') as mp_file:
+        with open(mp_log_path, 'a') as mp_file:
             date_time_str = datetime.now().strftime('%Y/%m/%d, %H:%M:%S')
             mp_file.write(f'Study successfully completed on: {date_time_str}.\n')
-
 
         if verbose:
             print('Multiprocessing Study Completed.')

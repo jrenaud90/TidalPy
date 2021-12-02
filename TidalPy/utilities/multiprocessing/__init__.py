@@ -1,1 +1,1 @@
-from .multiprocessing import multiprocessing_run, MultiprocessingInputTuple
+from .multiprocessing import multiprocessing_run, MultiprocessingInput, MultiprocessingOutput
