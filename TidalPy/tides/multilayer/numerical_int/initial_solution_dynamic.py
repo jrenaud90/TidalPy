@@ -18,7 +18,7 @@ from typing import Tuple
 
 import numpy as np
 
-from .functions import takeuchi_phi_psi
+from .functions import takeuchi_phi_psi, z_calc
 from ....constants import G, pi
 from ....utilities.math.special import sqrt_neg
 from ....utilities.performance import njit
@@ -26,36 +26,6 @@ from ....utilities.types import ComplexArray, FloatArray, NumArray
 
 SolidDynamicGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
 LiquidDynamicGuess = Tuple[ComplexArray, ComplexArray]
-
-
-@njit(cacheable=True)
-def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 10) -> NumArray:
-    """ Calculates the z function used in the calculations of initial guesses for radial functions.
-    Simplification (recursion calculation) of the spherical Bessel function, see Eq. B16 of KMN15.
-
-    Parameters
-    ----------
-    x_squared : NumArray
-        Expression passed to the Bessel function.
-    order_l : int = 2
-        Tidal harmonic order.
-    init_l : int = 10
-        Max integer to start the calculation from.
-
-    Returns
-    -------
-    z : NumArray
-        Result of the recursive calculation
-
-    """
-
-    z = x_squared / (2. * init_l + 3.)
-    for l_fake in range(order_l - 1, init_l - 1):
-        l = init_l - l_fake
-        # OPT: The above range is nicely written as range(order_l, init_l)[::-1]; but njit does not support this atm.
-        z = x_squared / ((2. * l + 1.) - z)
-
-    return z
 
 
 @njit(cacheable=True)

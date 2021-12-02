@@ -1,11 +1,19 @@
-from typing import Tuple, Union
+""" Functions to help calculate initial guess for radial functions at the bottom of a solid or liquid layer
 
+References
+----------
+KMN15 : Kamata+ (2015; JGR-P; DOI: 10.1002/2015JE004821)
+S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
+TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
+"""
+
+from typing import Tuple
+
+import numpy as np
 from scipy.special import gamma, spherical_jn
 
 from ....utilities.performance import njit
-from ....utilities.types import ComplexArray, FloatArray
-
-FltCmplxArray = Union[FloatArray, ComplexArray]
+from ....utilities.types import NumArray
 
 # Pre-calculate as much as we can
 l2p1_double_factorials = list()
@@ -20,25 +28,27 @@ l2p1_double_factorials = tuple(l2p1_double_factorials)
 
 # OPT: This can not be njited because it depends on the non-njited spherical bessel functions.
 #    subsequent functions that depend on this must use the approximate `takeuchi_phi_psi`.
-def takeuchi_phi_psi_general(z: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
+def takeuchi_phi_psi_general(z: NumArray, order_l: int = 2) -> Tuple[NumArray, NumArray, NumArray]:
     """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
 
-    See Eq. 103 in Takeuchi & Saito 1972
+    References
+    ----------
+    TS72 Eq. 103
 
     Parameters
     ----------
-    z : FltCmplxArray
+    z : NumArray
         Input scalar or array.
     order_l : int = 2
         Tidal harmonic order.
 
     Returns
     -------
-    phi : FltCmplxArray
+    phi : NumArray
         Phi function.
-    phi_lplus1 : FltCmplxArray
+    phi_lplus1 : NumArray
         Phi function for l+1.
-    psi : FltCmplxArray
+    psi : NumArray
         Psi function.
 
     """
@@ -51,28 +61,30 @@ def takeuchi_phi_psi_general(z: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmp
 
 
 @njit(cacheable=True)
-def takeuchi_phi_psi(z_squared: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmplxArray, FltCmplxArray, FltCmplxArray]:
+def takeuchi_phi_psi(z_squared: NumArray, order_l: int = 2) -> Tuple[NumArray, NumArray, NumArray]:
     """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
 
     This version of the function uses a Taylor expansion on the bessel function and only requires the even powers of
         z. Thus only z^2 is provided.
 
-    See Eq. 103 in Takeuchi & Saito 1972
+    References
+    ----------
+    TS72 Eq. 103
 
     Parameters
     ----------
-    z_squared : FltCmplxArray
+    z_squared : NumArray
         Input scalar or array. squared.
     order_l : int = 2
         Tidal harmonic order.
 
     Returns
     -------
-    phi : FltCmplxArray
+    phi : NumArray
         Phi function.
-    phi_lplus1 : FltCmplxArray
+    phi_lplus1 : NumArray
         Phi function for l+1.
-    psi : FltCmplxArray
+    psi : NumArray
         Psi function.
 
     """
@@ -90,3 +102,77 @@ def takeuchi_phi_psi(z_squared: FltCmplxArray, order_l: int = 2) -> Tuple[FltCmp
           z_fourth / (12. * (2. * order_l + 5.) * (2. * order_l + 7.))
 
     return phi, phi_lplus1, psi
+
+
+Z_CALC_MAX_L = (
+    (0.1, 10),
+    (1., 12),
+    (10., 17),
+    (100., 28),
+    (1000., 52),
+    (10000., 99),
+    (100000., 187),
+    (1000000., 342),
+    (10000000., 592)
+    )
+
+
+@njit(cacheable=True)
+def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error: bool = True) -> NumArray:
+    """ Calculates the z function used in the calculations of initial guesses for radial functions.
+    Simplification (recursion calculation) of the spherical Bessel function, see Eq. B16 of KMN15.
+
+    References
+    ----------
+    TS72 Eqs. 96, 97
+    KMN15 Eq. B16
+
+    Parameters
+    ----------
+    x_squared : NumArray
+        Expression passed to the Bessel function.
+    order_l : int = 2
+        Tidal harmonic order.
+    init_l : int = 0
+        Max integer to start the calculation from.
+        If set to 0 then the function will try to determine the smallest value that still provides convergence.
+    raise_l_error : bool = True
+        If `True` then an exception will be raised if max l appears too small for convergence.
+
+    Returns
+    -------
+    z : NumArray
+        Result of the recursive calculation
+
+    """
+
+    max_l_might_be_too_small = False
+    if init_l == 0:
+        # The convergence of this function depends on the absolute size of the real part of x^2.
+        # The table provided outside this function (`Z_CALC_MAX_L`) was tested on 2021/12/02 to find the smallest
+        #    max l that still allowed convergence. It is not comprehensize, thus the possibility of an error being
+        #    thrown below.
+        x2_real = np.abs(np.real(x_squared))
+        for min_val, max_l in Z_CALC_MAX_L:
+            if np.all(np.asarray(x2_real < min_val)):
+                max_l_to_use = max_l + (order_l - 2)
+                break
+        else:
+            # The value is outside of the predefined ranges. Go with something large and cross your fingers.
+            max_l_to_use = 1000
+            max_l_might_be_too_small = True
+    else:
+        max_l_to_use = max(order_l + 3, init_l)
+
+    if max_l_might_be_too_small and raise_l_error:
+        # Max l may be too small for convergence on large values of x_squared.
+        #   Perform tests and then you can set raise_l_error=False to avoid this error.
+        raise Exception
+
+    z = x_squared / (2. * max_l_to_use + 3.)
+    for l_fake in range(order_l, max_l_to_use + 1):
+        l = max_l_to_use - l_fake + order_l
+        # OPT: The above range is nicely written as range(order_l, init_l)[::-1]; but njit does not support this atm.
+        z = x_squared / ((2. * l + 1.) - z)
+
+    return z
