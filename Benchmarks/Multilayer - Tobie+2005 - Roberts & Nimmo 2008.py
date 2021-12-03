@@ -24,7 +24,7 @@ use_static_liquid_core = False
 use_julia_integrator = True
 use_numba_integrator = False
 use_non_dimensional_solver = False
-use_kamata_starting_values = False
+use_kamata_starting_values = True
 # Set the following two switches to true for comparison to Roberts and Nimmo.
 use_static_mantle = False
 use_incompressible_limit = False
