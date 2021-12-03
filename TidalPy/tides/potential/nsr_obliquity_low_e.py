@@ -1,5 +1,6 @@
 import numpy as np
 
+from . import TidalPotentialOutput
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
@@ -9,8 +10,8 @@ def tidal_potential(
     radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray,
     obliquity: FloatArray, rotation_rate: FloatArray, periapsis: float, world_radius: float
-    ):
-    """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
+    ) -> TidalPotentialOutput:
+    """ Tidal gravitational potential assuming low eccentricity, no obliquity, and non-synchronous rotation
 
     Parameters
     ----------
@@ -66,9 +67,9 @@ def tidal_potential(
     p_21 = -3. * cos_lat * sqrt_cos2_lat
     dp_21_dtheta = (3. * sin_lat * (1. - 2. * cos2_lat)) / sqrt_cos2_lat
     dp2_21_dtheta2 = 3. * cos_lat * sqrt_cos2_lat + \
-        6. * sin2_lat * cos_lat / sqrt_cos2_lat - \
-        3. * cos_lat * ((cos2_lat / sqrt_cos2_lat) - (sin2_lat * cos2_lat / ((1. - cos2_lat)**(3/2))) -
-                        sin2_lat / sqrt_cos2_lat)
+                     6. * sin2_lat * cos_lat / sqrt_cos2_lat - \
+                     3. * cos_lat * ((cos2_lat / sqrt_cos2_lat) - (sin2_lat * cos2_lat / ((1. - cos2_lat)**(3 / 2))) -
+                                     sin2_lat / sqrt_cos2_lat)
 
     p_22 = 3. * (1. - cos2_lat)
     dp_22_dtheta = 6. * cos_lat * sin_lat
@@ -80,7 +81,6 @@ def tidal_potential(
     # radius_factor = world_radius**2 * np.ones_like(radius)
     radius_factor = radius**2
     # radius_factor = (world_radius**5 / radius**3)
-
 
     # Calculate the sub-components of the tidal potential
     # See Eqs. 2 -- 7 in Jara-Orué & Vermeerson (2011; Icarus)
@@ -132,29 +132,29 @@ def tidal_potential(
     # # Eccentricity Term 2
     compo_e2 = \
         (eccentricity / 4.) * p_22 * \
-            (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
+        (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
+         4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
     compo_e2_partial_theta = \
         (eccentricity / 4.) * dp_22_dtheta * \
-            (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
+        (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
+         4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
     compo_e2_partial_phi = \
         (eccentricity / 4.) * p_22 * \
-            (-6. * np.sin(2. * longitude) * np.cos(orbital_frequency * time) +
-             8. * np.cos(2. * longitude) * np.sin(orbital_frequency * time))
+        (-6. * np.sin(2. * longitude) * np.cos(orbital_frequency * time) +
+         8. * np.cos(2. * longitude) * np.sin(orbital_frequency * time))
     compo_e2_partial2_theta2 = \
         (eccentricity / 4.) * dp2_22_dtheta2 * \
-            (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
+        (3. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
+         4. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
     compo_e2_partial2_phi2 = \
         (eccentricity / 4.) * p_22 * \
-            (-12. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
-             -16. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
+        (-12. * np.cos(2. * longitude) * np.cos(orbital_frequency * time) +
+         -16. * np.sin(2. * longitude) * np.sin(orbital_frequency * time))
     # I believe there is an error in Henning code where this^^ (-12) is a (+12) which I believe is wrong.
     compo_e2_partial2_theta_phi = \
         (eccentricity / 4.) * dp_22_dtheta * \
-            (-6. * np.sin(2. * longitude) * np.cos(orbital_frequency * time) +
-             8. * np.cos(2. * longitude) * np.sin(orbital_frequency * time))
+        (-6. * np.sin(2. * longitude) * np.cos(orbital_frequency * time) +
+         8. * np.cos(2. * longitude) * np.sin(orbital_frequency * time))
 
     # # Obliquity Term
     compo_obli = \
@@ -175,7 +175,6 @@ def tidal_potential(
     compo_obli_partial2_theta_phi = \
         -dp_21_dtheta * np.cos(obliquity) * np.sin(obliquity) * np.sin(longitude) * \
         np.sin(periapsis + orbital_frequency * time)
-
 
     # Final Potential and Potential Derivatives
     coefficient = radius_factor * orbital_frequency**2

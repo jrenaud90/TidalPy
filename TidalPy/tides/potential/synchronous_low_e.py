@@ -1,9 +1,6 @@
-"""
-
-"""
-
 import numpy as np
 
+from . import TidalPotentialOutput
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
@@ -12,7 +9,7 @@ from ...utilities.types import FloatArray
 def tidal_potential(
     radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray
-    ):
+    ) -> TidalPotentialOutput:
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
     Parameters

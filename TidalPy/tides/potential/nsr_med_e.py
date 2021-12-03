@@ -1,10 +1,9 @@
 import numpy as np
 
+from . import TidalPotentialOutput, MIN_SPIN_ORBITAL_DIFF
 from ...constants import G
 from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
-
-MIN_SPIN_ORB_DIF = 1.0e-10
 
 
 @njit(cacheable=True)
@@ -13,8 +12,8 @@ def tidal_potential(
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray,
     rotation_rate: FloatArray, world_radius: float, host_mass: float, semi_major_axis: FloatArray,
     use_static: bool = False,
-    ):
-    """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
+    ) -> TidalPotentialOutput:
+    """ Tidal gravitational potential assuming moderate eccentricity, no obliquity, and non-synchronous rotation
 
     Parameters
     ----------
@@ -99,12 +98,12 @@ def tidal_potential(
     else:
         # Use static is False (default). Switches depend on the value of n and o
         # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).
-        mode_switch['2o+n'] *= np.abs(2. * o + n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-n'] *= np.abs(2. * o - n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-2n'] *= np.abs(2. * o - 2. * n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-3n'] *= np.abs(2. * o - 3. * n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-4n'] *= np.abs(2. * o - 4. * n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-5n'] *= np.abs(2. * o - 5. * n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o+n'] *= np.abs(2. * o + n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-n'] *= np.abs(2. * o - n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-2n'] *= np.abs(2. * o - 2. * n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-3n'] *= np.abs(2. * o - 3. * n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-4n'] *= np.abs(2. * o - 4. * n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-5n'] *= np.abs(2. * o - 5. * n) > MIN_SPIN_ORBITAL_DIFF
 
     # # Static
     # # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
@@ -260,7 +259,7 @@ def tidal_potential(
 
     potential_partial2_theta_phi = coefficient * \
                                    (
-                                               compo_nsr_partial2_theta_phi + compo_e_partial2_theta_phi + compo_e_nsr_partial2_theta_phi)
+                                           compo_nsr_partial2_theta_phi + compo_e_partial2_theta_phi + compo_e_nsr_partial2_theta_phi)
 
     if use_static:
         potential += coefficient * compo_static

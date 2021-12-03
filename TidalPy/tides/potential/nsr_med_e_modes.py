@@ -1,10 +1,16 @@
+from typing import Dict, Tuple
+
 import numpy as np
 
+from . import MIN_SPIN_ORBITAL_DIFF
 from ...constants import G
 from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
 
-MIN_SPIN_ORB_DIF = 1.0e-10
+TidalPotentialModeOutput = Tuple[Dict[str, FloatArray], Dict[str, FloatArray], Dict[str, FloatArray],
+                                 Dict[str, FloatArray], Dict[str, FloatArray], Dict[str, FloatArray],
+                                 Dict[str, FloatArray]]
+
 
 @njit(cacheable=True)
 def tidal_potential(
@@ -12,8 +18,12 @@ def tidal_potential(
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray,
     rotation_rate: FloatArray, world_radius: float, host_mass: float, semi_major_axis: FloatArray,
     use_static: bool = False,
-    ):
-    """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
+    ) -> TidalPotentialModeOutput:
+    """ Tidal gravitational potential assuming moderate eccentricity, no obliquity, and non-synchronous rotation
+    utilizing multiple tidal modes.
+
+    This method uses multiple frequency models that are linear combinations of orbital motion and planetary rotation
+       rate.
 
     Parameters
     ----------
@@ -42,17 +52,19 @@ def tidal_potential(
 
     Returns
     -------
-    potential : FloatArray
+    tidal_modes : Dict[str, FloatArray]
+        Tidal frequency modes [radians s-1]
+    potential : Dict[str, FloatArray]
         Tidal Potential
-    potential_partial_theta : FloatArray
+    potential_partial_theta : Dict[str, FloatArray]
         Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial_phi : FloatArray
+    potential_partial_phi : Dict[str, FloatArray]
         Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta2 : FloatArray
+    potential_partial2_theta2 : Dict[str, FloatArray]
         2nd Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial2_phi2 : FloatArray
+    potential_partial2_phi2 : Dict[str, FloatArray]
         2nd Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta_phi : FloatArray
+    potential_partial2_theta_phi : Dict[str, FloatArray]
         2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
     """
 
@@ -111,12 +123,12 @@ def tidal_potential(
     else:
         # Use static is False (default). Switches depend on the value of n and o
         # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).
-        mode_switch['2o+n'] *= np.abs(2. * o + n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-n'] *= np.abs(2. * o - n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-2n'] *= np.abs(2. * o - 2. * n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-3n'] *= np.abs(2. * o - 3. * n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-4n'] *= np.abs(2. * o - 4. * n) > MIN_SPIN_ORB_DIF
-        mode_switch['2o-5n'] *= np.abs(2. * o - 5. * n) > MIN_SPIN_ORB_DIF
+        mode_switch['2o+n'] *= np.abs(2. * o + n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-n'] *= np.abs(2. * o - n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-2n'] *= np.abs(2. * o - 2. * n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-3n'] *= np.abs(2. * o - 3. * n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-4n'] *= np.abs(2. * o - 4. * n) > MIN_SPIN_ORBITAL_DIFF
+        mode_switch['2o-5n'] *= np.abs(2. * o - 5. * n) > MIN_SPIN_ORBITAL_DIFF
 
     # # Static
     # # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
@@ -329,12 +341,12 @@ def tidal_potential(
         '2o+n' : dp_22_dtheta * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o+n'],
         '2o-n' : dp_22_dtheta * (
-                    np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-n'],
         '2o-2n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': dp_22_dtheta * (
-                    np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-3n'],
         '2o-4n': dp_22_dtheta * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-4n'],
@@ -348,12 +360,12 @@ def tidal_potential(
         '2o+n' : p_22 * (-2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o+n'],
         '2o-n' : p_22 * (
-                    -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-n'],
         '2o-2n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': p_22 * (
-                    -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-3n'],
         '2o-4n': p_22 * (-2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-4n'],
@@ -367,12 +379,12 @@ def tidal_potential(
         '2o+n' : dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o+n'],
         '2o-n' : dp2_22_dtheta2 * (
-                    np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-n'],
         '2o-2n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': dp2_22_dtheta2 * (
-                    np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-3n'],
         '2o-4n': dp2_22_dtheta2 * (np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-4n'],
@@ -386,12 +398,12 @@ def tidal_potential(
         '2o+n' : p_22 * (-4. * np.cos(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o+n'],
         '2o-n' : p_22 * (
-                    -4. * np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                -4. * np.cos(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-n'],
         '2o-2n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': p_22 * (
-                    -4. * np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                -4. * np.cos(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-3n'],
         '2o-4n': p_22 * (-4. * np.cos(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-4n'],
@@ -405,12 +417,12 @@ def tidal_potential(
         '2o+n' : dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o + (1. / 2.) * n) * time) * ((1. / 288.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o+n'],
         '2o-n' : dp_22_dtheta * (
-                    -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
+                -2. * np.sin(dbl_long + 2. * (o - (1. / 2.) * n) * time) * ((-1. / 12.) * e + (1. / 96.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-n'],
         '2o-2n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - n) * time) * ((-5. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-2n'],
         '2o-3n': dp_22_dtheta * (
-                    -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
+                -2. * np.sin(dbl_long + 2. * (o - (3. / 2.) * n) * time) * ((7. / 12.) * e - (41. / 32.) * e3)) *
                  np.ones_like(shape) * mode_switch['2o-3n'],
         '2o-4n': dp_22_dtheta * (-2. * np.sin(dbl_long + 2. * (o - 2. * n) * time) * ((17. / 12.) * e2)) *
                  np.ones_like(shape) * mode_switch['2o-4n'],
