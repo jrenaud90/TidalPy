@@ -271,7 +271,11 @@ def multiprocessing_run(
     # Build a new function that performs a few house keeping steps.
     def func_to_use(this_run_num, run_indicies, total_runs_to_do, *args, **kwargs):
 
-        case_text = f'MP Study:: Working on Case {this_run_num} of {total_runs_to_do}. Index: {run_indicies}'
+        char_n_total = len(str(total_runs_to_do))
+        char_n_current = len(str(this_run_num))
+        extra_spaces = ' ' * max(0, char_n_total - char_n_current)
+        case_text = f'MP Study:: Working on Case {extra_spaces}{this_run_num} of {total_runs_to_do}. ' \
+                    f'Index: {run_indicies}'
         print(case_text)
         with open(mp_log_path, 'a') as mp_file:
             mp_file.write(case_text)
