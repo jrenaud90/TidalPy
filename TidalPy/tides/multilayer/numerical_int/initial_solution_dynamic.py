@@ -18,7 +18,7 @@ from typing import Tuple
 
 import numpy as np
 
-from .functions import takeuchi_phi_psi
+from .functions import takeuchi_phi_psi, z_calc
 from ....constants import G, pi
 from ....utilities.math.special import sqrt_neg
 from ....utilities.performance import njit
@@ -26,36 +26,6 @@ from ....utilities.types import ComplexArray, FloatArray, NumArray
 
 SolidDynamicGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
 LiquidDynamicGuess = Tuple[ComplexArray, ComplexArray]
-
-
-@njit(cacheable=True)
-def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 10) -> NumArray:
-    """ Calculates the z function used in the calculations of initial guesses for radial functions.
-    Simplification (recursion calculation) of the spherical Bessel function, see Eq. B16 of KMN15.
-
-    Parameters
-    ----------
-    x_squared : NumArray
-        Expression passed to the Bessel function.
-    order_l : int = 2
-        Tidal harmonic order.
-    init_l : int = 10
-        Max integer to start the calculation from.
-
-    Returns
-    -------
-    z : NumArray
-        Result of the recursive calculation
-
-    """
-
-    z = x_squared / (2. * init_l + 3.)
-    for l_fake in range(order_l - 1, init_l - 1):
-        l = init_l - l_fake
-        # OPT: The above range is nicely written as range(order_l, init_l)[::-1]; but njit does not support this atm.
-        z = x_squared / ((2. * l + 1.) - z)
-
-    return z
 
 
 @njit(cacheable=True)
@@ -75,7 +45,7 @@ def solid_guess_kamata(
 
     References
     ----------
-    KMN15
+    KMN15 Eqs. B1-B16
 
     Parameters
     ----------
@@ -106,40 +76,42 @@ def solid_guess_kamata(
 
     # Constants (See Eqs. B13-B16 of KMN15)
     dynamic_term = frequency * frequency
-    alpha_2 = (lame + 2. * shear_modulus) / density
-    beta_2 = shear_modulus / density
+    alpha2 = (lame + 2. * shear_modulus) / density
+    beta2 = shear_modulus / density
     gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
     r2_inverse = r_inverse * r_inverse
+    r2 = radius * radius
 
     # Helper functions
-    k2_quad_pos = (dynamic_term / beta_2) + ((dynamic_term + 4. * gamma) / alpha_2)
-    k2_quad_neg = (dynamic_term / beta_2) - ((dynamic_term + 4. * gamma) / alpha_2)
-    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1) * gamma**2) / (alpha_2 * beta_2))
+    k2_quad_pos = (dynamic_term / beta2) + ((dynamic_term + 4. * gamma) / alpha2)
+    k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4. * gamma) / alpha2)
+    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1) * gamma**2) / (alpha2 * beta2))
 
-    # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
+    # TODO: TS74 (eq. 99) has these flipped compared to KMN15. Going with KMN for this func.
+    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
     k2_pos = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
     k2_neg = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
 
-    f_k2_pos = (beta_2 * k2_pos - dynamic_term) / gamma
-    f_k2_neg = (beta_2 * k2_neg - dynamic_term) / gamma
+    f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma
+    f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma
 
     h_k2_pos = f_k2_pos - (order_l + 1.)
     h_k2_neg = f_k2_neg - (order_l + 1.)
 
-    z_k2_pos = z_calc(k2_pos * radius**2, order_l=order_l)
-    z_k2_neg = z_calc(k2_neg * radius**2, order_l=order_l)
+    z_k2_pos = z_calc(k2_pos * r2, order_l=order_l, init_l=0, raise_l_error=True)
+    z_k2_neg = z_calc(k2_neg * r2, order_l=order_l, init_l=0, raise_l_error=True)
 
     # See Eqs. B1-B12 of KMN15
     y1_s1 = -f_k2_pos * z_k2_pos * r_inverse
     y1_s2 = -f_k2_neg * z_k2_neg * r_inverse
     y1_s3 = order_l * r_inverse
 
-    y2_s1 = -density * f_k2_pos * alpha_2 * k2_pos + \
+    y2_s1 = -density * f_k2_pos * alpha2 * k2_pos + \
             (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + order_l * (order_l + 1.)) * z_k2_pos
-    y2_s2 = -density * f_k2_neg * alpha_2 * k2_neg + \
+    y2_s2 = -density * f_k2_neg * alpha2 * k2_neg + \
             (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + order_l * (order_l + 1.)) * z_k2_neg
     y2_s3 = 2. * shear_modulus * order_l * (order_l - 1) * r2_inverse
 
@@ -207,7 +179,7 @@ def liquid_guess_kamata(
 
     References
     ----------
-    KMN15
+    KMN15 Eq. B29-B37
 
     Parameters
     ----------
@@ -238,17 +210,17 @@ def liquid_guess_kamata(
     # Optimizations
     dynamic_term = frequency * frequency
     r_inverse = 1. / radius
-    r2_inverse = r_inverse * r_inverse
+    r2 = radius * radius
 
     # Helper functions
     gamma = (4. * pi * G_to_use * density / 3.)
-    alpha_2 = lame / density
-    k2 = (1. / alpha_2) * (dynamic_term + 4. * gamma - (order_l * (order_l + 1) * gamma**2 / dynamic_term))
+    alpha2 = lame / density
+    k2 = (1. / alpha2) * (dynamic_term + 4. * gamma - (order_l * (order_l + 1) * gamma**2 / dynamic_term))
     f = -dynamic_term / gamma
     h = f - (order_l + 1.)
 
     # See Eqs. B33--B36 in KMN15
-    y1_s1 = -f * r_inverse * z_calc(k2 * radius**2, order_l=order_l)
+    y1_s1 = -f * r_inverse * z_calc(k2 * r2, order_l=order_l)
     y1_s2 = order_l * r_inverse
 
     y2_s1 = -density * (f * (dynamic_term + 4 * gamma) + order_l * (order_l + 1) * gamma)
@@ -258,7 +230,7 @@ def liquid_guess_kamata(
     y5_s2 = order_l * gamma - dynamic_term
 
     y6_s1 = (2. * order_l + 1.) * y5_s1 * r_inverse
-    y6_s2 = ((2. * order_l + 1) * y5_s2 * r_inverse) - ((3. * order_l * gamma) * r_inverse)
+    y6_s2 = ((2. * order_l + 1.) * y5_s2 * r_inverse) - ((3. * order_l * gamma) * r_inverse)
 
     # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
     #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
@@ -327,36 +299,36 @@ def solid_guess_takeuchi(
 
     # Constants (See Eqs. B13-B16 of KMN15)
     dynamic_term = frequency * frequency
-    alpha_2 = (lame + 2. * shear_modulus) / density
-    beta_2 = shear_modulus / density
+    alpha2 = (lame + 2. * shear_modulus) / density
+    beta2 = shear_modulus / density
     gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
+    r2 = radius * radius
 
     # Helper functions
-    k2_quad_pos = (dynamic_term / beta_2) + ((dynamic_term + 4. * gamma) / alpha_2)
-    k2_quad_neg = (dynamic_term / beta_2) - ((dynamic_term + 4. * gamma) / alpha_2)
-    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha_2 * beta_2))
+    k2_quad_pos = (dynamic_term / beta2) + ((dynamic_term + 4. * gamma) / alpha2)
+    k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4. * gamma) / alpha2)
+    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha2 * beta2))
 
     # TODO: TS74 has these flipped compared to KMN15. Going with TS74 for this func.
     k2_pos = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
     k2_neg = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
 
-    f_k2_pos = (beta_2 * k2_pos - dynamic_term) / gamma
-    f_k2_neg = (beta_2 * k2_neg - dynamic_term) / gamma
+    f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma
+    f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma
 
     h_k2_pos = f_k2_pos - (order_l + 1.)
     h_k2_neg = f_k2_neg - (order_l + 1.)
 
     # Calculate Takeuchi and Saito functions
     # TODO: do we need to worry about the plus/minus on this sqrt?
-    #    The approximate `takeuchi_phi_psi` used here now only needs z^2 so we do not need to worry about the additional
-    #    squareroot and +/- ambiguity.
+    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
     # z_k2_pos = sqrt_neg(k2_pos, is_real=False) * radius
     # z_k2_neg = sqrt_neg(k2_neg, is_real=False) * radius
-    z_k2_pos = k2_pos * radius**2
-    z_k2_neg = k2_neg * radius**2
+    z_k2_pos = k2_pos * r2
+    z_k2_neg = k2_neg * r2
 
     phi_k2_pos, phi_lp1_k2_pos, psi_k2_pos = takeuchi_phi_psi(z_k2_pos, order_l)
     phi_k2_neg, phi_lp1_k2_neg, psi_k2_neg = takeuchi_phi_psi(z_k2_neg, order_l)
@@ -395,9 +367,9 @@ def solid_guess_takeuchi(
     y4_s3 = 2. * shear_modulus * (order_l - 1.) * radius**(order_l - 2.)
 
     # # y5 solutions
-    y5_s1 = radius**(order_l + 2.) * ((alpha_2 * f_k2_pos - (order_l + 1.) * beta_2) / radius**2 -
+    y5_s1 = radius**(order_l + 2.) * ((alpha2 * f_k2_pos - (order_l + 1.) * beta2) / r2 -
                                       (3. * gamma * f_k2_pos / (2. * (2. * order_l + 3.))) * psi_k2_pos)
-    y5_s2 = radius**(order_l + 2.) * ((alpha_2 * f_k2_neg - (order_l + 1.) * beta_2) / radius**2 -
+    y5_s2 = radius**(order_l + 2.) * ((alpha2 * f_k2_neg - (order_l + 1.) * beta2) / r2 -
                                       (3. * gamma * f_k2_neg / (2. * (2. * order_l + 3.))) * psi_k2_neg)
     y5_s3 = (order_l * gamma - dynamic_term) * radius**order_l
 
@@ -486,21 +458,20 @@ def liquid_guess_takeuchi(
 
     # Constants (See Eqs. B13-B16 of KMN15)
     dynamic_term = frequency * frequency
-    alpha_2 = lame / density
+    alpha2 = lame / density
     gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
     r_inverse = 1. / radius
+    r2 = radius * radius
 
     # Helper functions
-    k2 = (1. / alpha_2) * (dynamic_term + 4. * gamma - order_l * (order_l + 1.) * gamma**2 / dynamic_term)
+    k2 = (1. / alpha2) * (dynamic_term + 4. * gamma - order_l * (order_l + 1.) * gamma**2 / dynamic_term)
     f = -dynamic_term / gamma
     h = f - (order_l + 1.)
 
     # Calculate Takeuchi and Saito functions
-    # TODO: do we need to worry about the plus/minus on this sqrt?
-    # z = sqrt_neg(k2, is_real=True) * radius
-    z = k2 * radius**2
+    z = k2 * r2
     phi, phi_lp1, psi = takeuchi_phi_psi(z, order_l)
 
     # See Eq. 102 in TS72
@@ -513,7 +484,7 @@ def liquid_guess_takeuchi(
     y2_s2 = np.zeros_like(radius, dtype=np.complex128)
 
     # # y5 solutions
-    y5_s1 = radius**(order_l + 2.) * ((alpha_2 * f / radius**2) - (3. * gamma * f / (2. * (2. * order_l + 3.))) * psi)
+    y5_s1 = radius**(order_l + 2.) * ((alpha2 * f / r2) - (3. * gamma * f / (2. * (2. * order_l + 3.))) * psi)
     y5_s2 = (order_l * gamma - dynamic_term) * radius**order_l
 
     # # y6 solutions

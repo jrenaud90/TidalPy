@@ -30,11 +30,13 @@ if use_numba:
     vectorize = numba.vectorize
     float64 = numba.float64
     int64 = numba.int64
+    bool_ = numba.bool_
 
 else:
     vectorize = np.vectorize
     float64 = np.float64
     int64 = np.int64
+    bool_ = np.bool
 
 
     def njit(*args, **kwargs):

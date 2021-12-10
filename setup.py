@@ -96,9 +96,9 @@ setup_kwargs = {
     'packages'                     : find_packages() + ['TidalPy.WorldConfigs'],
     'include_package_data'         : True,
     'extras_require'               : {
-        'dev': ['sympy']
+        'dev': ['sympy', 'julia', 'diffeqpy']
         },
-    'python_requires'              : '>=3.7',
+    'python_requires'              : '>=3.8',
     'install_requires'             : requirements,
     }
 

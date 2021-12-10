@@ -4,7 +4,8 @@ from .initial_solution_dynamic import (LiquidDynamicGuess, SolidDynamicGuess,
                                        liquid_guess_takeuchi as liquid_dynamic_guess_ts72,
                                        solid_guess_kamata as solid_dynamic_guess,
                                        solid_guess_takeuchi as solid_dynamic_guess_ts72)
-from .initial_solution_static import (LiquidStaticGuess, SolidStaticGuess, liquid_guess_saito as liquid_static_guess,
+from .initial_solution_static import (LiquidStaticGuess, SolidStaticGuess,
+                                      liquid_guess_saito as liquid_static_guess,
                                       solid_guess_kamata as solid_static_guess,
                                       solid_guess_takeuchi as solid_static_guess_ts72)
 from .radial_derivatives_dynamic import (radial_derivatives_liquid_general as radial_derivatives_liquid_dynamic,

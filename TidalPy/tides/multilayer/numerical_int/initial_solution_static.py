@@ -79,6 +79,7 @@ def solid_guess_kamata(
     # Optimizations
     r_inverse = 1. / radius
     r2_inverse = r_inverse * r_inverse
+    r2 = radius * radius
 
     # Helper functions
     k2_quad_pos = + (4. * gamma / alpha_2)
@@ -86,6 +87,7 @@ def solid_guess_kamata(
     k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1) * gamma**2) / (alpha_2 * beta_2))
 
     # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
+    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
     k2_pos = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
     k2_neg = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
 
@@ -95,8 +97,8 @@ def solid_guess_kamata(
     h_k2_pos = f_k2_pos - (order_l + 1.)
     h_k2_neg = f_k2_neg - (order_l + 1.)
 
-    z_k2_pos = z_calc(k2_pos * radius**2, order_l=order_l)
-    z_k2_neg = z_calc(k2_neg * radius**2, order_l=order_l)
+    z_k2_pos = z_calc(k2_pos * r2, order_l=order_l)
+    z_k2_neg = z_calc(k2_neg * r2, order_l=order_l)
 
     # See Eqs. B1-B12 of KMN15
     y1_s1 = -f_k2_pos * z_k2_pos * r_inverse
@@ -206,6 +208,7 @@ def solid_guess_takeuchi(
 
     # Optimizations
     r_inverse = 1. / radius
+    r2 = radius * radius
 
     # Helper functions
     k2_quad_pos = + (4. * gamma / alpha_2)
@@ -224,12 +227,11 @@ def solid_guess_takeuchi(
 
     # Calculate Takeuchi and Saito functions
     # TODO: do we need to worry about the plus/minus on this sqrt?
-    #    The approximate `takeuchi_phi_psi` used here now only needs z^2 so we do not need to worry about the additional
-    #    squareroot and +/- ambiguity.
+    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
     # z_k2_pos = sqrt_neg(k2_pos, is_real=False) * radius
     # z_k2_neg = sqrt_neg(k2_neg, is_real=False) * radius
-    z_k2_pos = k2_pos * radius**2
-    z_k2_neg = k2_neg * radius**2
+    z_k2_pos = k2_pos * r2
+    z_k2_neg = k2_neg * r2
 
     phi_k2_pos, phi_lp1_k2_pos, psi_k2_pos = takeuchi_phi_psi(z_k2_pos, order_l)
     phi_k2_neg, phi_lp1_k2_neg, psi_k2_neg = takeuchi_phi_psi(z_k2_neg, order_l)
@@ -268,9 +270,9 @@ def solid_guess_takeuchi(
     y4_s3 = 2. * shear_modulus * (order_l - 1.) * radius**(order_l - 2.)
 
     # # y5 solutions
-    y5_s1 = radius**(order_l + 2.) * ((alpha_2 * f_k2_pos - (order_l + 1.) * beta_2) / radius**2 -
+    y5_s1 = radius**(order_l + 2.) * ((alpha_2 * f_k2_pos - (order_l + 1.) * beta_2) / r2 -
                                       (3. * gamma * f_k2_pos / (2. * (2. * order_l + 3.))) * psi_k2_pos)
-    y5_s2 = radius**(order_l + 2.) * ((alpha_2 * f_k2_neg - (order_l + 1.) * beta_2) / radius**2 -
+    y5_s2 = radius**(order_l + 2.) * ((alpha_2 * f_k2_neg - (order_l + 1.) * beta_2) / r2 -
                                       (3. * gamma * f_k2_neg / (2. * (2. * order_l + 3.))) * psi_k2_neg)
     y5_s3 = order_l * gamma * radius**order_l
 

@@ -1,4 +1,4 @@
-from burnman import Mineral
+from burnman.classes.mineral import Mineral
 
 
 class Pyrite(Mineral):

@@ -2,6 +2,7 @@
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/TidalPy" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/Testing" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
@@ -12,7 +13,7 @@
       <excludeFolder url="file://$MODULE_DIR$/Demos/A6Rp_LockOn_P10C20_e5_tEnd10Myr_l3_BothOn" />
       <excludeFolder url="file://$MODULE_DIR$/Demos/.ipynb_checkpoints" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.9 (dev)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.9 (arpy)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

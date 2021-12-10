@@ -4,8 +4,17 @@ import shutil
 from ... import tidalpy_loc
 
 
-def clear_cache(verbose: bool = False):
-    """ Clears TidalPy Cache including cached numba functions
+def clear_cache(verbose: bool = True):
+    """ Clears TidalPy's cached functions (python cache and cached numba functions).
+
+    Parameters
+    ----------
+    verbose : bool = True
+        Prints the name of pycache directories as they are cleared.
+
+    Returns
+    -------
+    success: bool
     """
 
     if verbose:
@@ -20,3 +29,5 @@ def clear_cache(verbose: bool = False):
             if verbose:
                 print('Deleting:', cache_dir)
             shutil.rmtree(cache_dir)
+
+    return True

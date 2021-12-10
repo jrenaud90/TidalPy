@@ -14,32 +14,31 @@ dissipation and subsequent orbit-spin evolution for rocky and icy worlds.
 
 **TidalPy is intended to be a...**
 
-* Black Box (referred to as "*OOP* scheme" for `Object-Oriented Programming` throughout the documentation)
+* Black Box (in the documentation this is referred to as the "*OOP* scheme" for Object-Oriented Programming)
     * TidalPy serves as simple to install (cross-platform) and, hopefully, simple to use package that users can pick up
       and hit the ground running.
     * The OOP scheme performs many calculations with very little input from the user. The major drawbacks are
-      performance (in some situations) and that assumptions have been made that are opaque to the user without some
-      digging.
-* Tool Box (referred to as "*Functional* scheme")
+      performance (in some situations) and that many assumptions are opaque to the user without some digging.
+* Tool Box (referred to as the "*Functional* scheme")
     * TidalPy also contains many efficient functions to perform calculations relevant to tides and thermal-orbital
-      coupling. These can be quickly imported and used in a custom script by a more experienced user.
+      coupling. These can be quickly imported and used in a custom scripts.
         * In general, the functional scheme will have much higher performance, flexibility, and extensibility than OOP.
-          It also generally makes assumptions more visible to the user.
+          It also generally makes assumptions more visible to the user. The downside is the user may need to be more
+          familiar with the underlying physics.
 
 *Once you are comfortable with TidalPy, it is usually a good idea to mix the two schemes: take some aspects of OOP that
-you don't want to deal with and build on them with some of TidalPy's or your own functions and code.*
+you don't want to deal with and build on them with some of TidalPy's or your own functions.*
 
 ### Limitations
 
 The major limitations of the current version of TidalPy are...
 
 * A multilayer model has now been implemented, but it is not currently part of the OOP scheme.
-* Chemical and phase changes within a planet's layers have not yet been implemented.
+* Chemical and phase changes within a planet's layers have not been implemented.
 
 ### Related Software
 
-Below is a list (non-exhaustive) of publicly available software that performance similar or parallel calculations as
-TidalPy.
+Below is a non-exhaustive list of publicly available software that performs similar or parallel calculations as TidalPy.
 
 * Are you interested in the habitability of a planet? With considerations of tides, atmospheres, water content, solar
   interactions? Check out...
@@ -69,72 +68,64 @@ Read below for instructions on how to install and use TidalPy.
 * **MacOS (Catalina)**: *TBD*
 * **CentOS7**: *TBD*
 
-### Pre-Install
+### Simple Installation
 
-Pre-Install Requirements:
+As simple as ensuring 64-bit [Python 3.8+](https://www.python.org/) is installed on your system and performing the
+following in a terminal:
 
-* Python version 3.8+ must be installed on your machine.
-    * It is highly recommended that you use the [Anaconda](https://www.anaconda.com/distribution/) distribution of
-      Python. This has pre-compiled binaries for several packages that TidalPy uses and will generally negate a lot of
-      potential headaches. If you don't want to use Anaconda you can find the regular Python
-      distribution [here](https://www.python.org/).
-    * Make sure that your Python (Anaconda or regular) is 64-bit if you are on a 64-bit machine.
-* Working internet connection (for the initial installation only).
-* The `setuptools` package is required before TidalPy can be installed. Usually it is automatically installed, but if
-  you are starting with a clean virtual environment it may not have been.
-    * For Anaconda: `conda install setuptools`
-    * Or for regular Python: `pip install setuptools`
-* Unless you plan to download the source code from github directly, make sure you
-  have [git](https://git-scm.com/downloads) or [github](https://desktop.github.com/) installed on your machine.
+`pip install TidalPy`
 
-### Install
+However, there can be several gotchas that come with this simple installation process. It is recommended to use the
+advanced installation described in the next section.
 
-The current version of TidalPy is in Alpha and will receive many updates on a relatively fast schedule. It is,
-therefore, recommended that you run it from an IDE (more on that below) and/or install it as
-an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs). If you do not wish to
-install as an editable package then please remove all `-e` flags used below.
+### Advanced Installation
 
-* Get the latest version of TidalPy from Github
-    * Open a terminal and navigate to an easy-to-access directory where you would like to install TidalPy.
-    * Clone the TidalPy git using `git clone https://github.com/jrenaud90/TidalPy.git`.
-        * Whenever you want to update TidalPy simply navigate to this directory and use `git pull` (to pull from the
-          master branch; other branches are not recommended).
-        * Since TidalPy is in early development, it is recommended you check for updates regularly. Updates will **not**
+It is highly recommended that you use the [Anaconda](https://www.anaconda.com/distribution/) distribution of Python.
+This has pre-compiled binaries for several packages that TidalPy uses and will generally negate a lot of potential
+headaches. It is also recommended that you use a virtual environment. Using Anaconda, a new virtual environment can be
+made with `conda create -n <name> python=3.9` and switched to with `conda activate <name>`.
+
+* Get the latest version of TidalPy from Github.
+    * Ensure you have the latest version of [git](https://git-scm.com/downloads)
+      or [github](https://desktop.github.com/). Clone the TidalPy git
+      using `git clone https://github.com/jrenaud90/TidalPy.git`.
+        * Whenever you want to update TidalPy simply navigate to this directory and use `git pull`. Since TidalPy is in
+          early development, it is recommended you check for updates regularly. Updates will **not**
           download automatically.
-        * Always make a backup of the TidalPy installation directory in case new versions break whatever you were
-          working on.
 
-**Before continuing:** You might consider using a new virtual environment so that these new packages do not overwrite
-packages that you may be using for different projects on your machine.
+* Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then:
+    * For Anaconda Python:
+        * Run `conda install --file conda_requirements.txt -c defaults -c conda-forge; pip install -e .` *(That trailing
+          period is important, don't leave it out!)*
+    * For non-Anaconda Python:
+        * Run `pip install -e .` *(That trailing period is important, don't leave it out!)*
 
-**Before continuing:** You might consider using a new virtual environment so that these new packages do not overwrite packages that you may be using for different projects on your machine.
-* Install TidalPy:
-    * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then:
-        * For Anaconda Python:
-            * Run `conda install --file conda_requirements.txt; pip install -e .`
-        * For non-Anaconda Python:
-            * Run `pip install -e .`
-    * The `-e .` (including the trailing period) tells python to install TidalPy as an *editable* package. This is useful if you plan to make changes to the code. Otherwise, you can exclude `-e .`.
-    * This will automatically ensure that your python installation (Anaconda or regular) has the required third party packages.
 * Test your installation:
     * Navigate to the TidalPy directory that contains `setup.py` in a terminal.
     * Ensure you have `pytest` package installed (`conda install pytest` or `pip install pytest`).
     * Run pytest by simply using the command `pytest` from your terminal:
-        * Running all the tests can take a while (currently 10+ minutes on a fresh install), if all you are interested in is checking that TidalPy installed correctly then you can let pytest run the first handful or so. If those all pass then you can quit the test suite early.
-        * If no *errors* show up (warnings are usually okay and expected) then the first check is good.
+        * Running all the tests can take a while (currently around 10 minutes), if all you are interested in is checking that
+          TidalPy installed correctly then you can let pytest check the first dozen tests if they are passing then you
+          can quit the test suite early.
+        * If no errors show up (warnings are okay and expected) then you should hopefully be good to go.
     * Open a new terminal *not in the TidalPy directory* (e.g., your desktop).
         * Run `python` and then try to `import TidalPy`; if that works try the command `TidalPy.version` if you do not
           get any import errors, and the version number is as you expect, then TidalPy was successfully installed.
 
-#### Using TidalPy from an IDE
+### Installation Troubleshooting
 
-A good Integrated Development Environment can automatically set paths to TidalPy and allows you to use TidalPy without
-actually "installing" it. If you are comfortable with IDEs then this may be an easier way to use TidalPy, especially
-during its alpha phase.
+* The `setuptools` package is required before TidalPy can be installed. Usually it is automatically installed, but if
+  you are starting with a clean virtual environment it may not have been.
+    * For Anaconda: `conda install setuptools`
+    * Or for regular Python: `pip install setuptools`
+* The current version of TidalPy is in Alpha and will receive many updates on a relatively fast schedule. So, it is
+  recommended that you run it from an IDE and/or install it as
+  an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs). If you do not wish to
+  install as an editable package then please remove all `-e` flags.
 
-#### Installing `Julia` and `diffeqpy` (integration suite)
+#### Installing `Julia` and `diffeqpy` (time integration suite)
 
-By default TidalPy will utilize the `SciPy.integrate` package for solving differential equations. However, it may be
+By default, TidalPy will utilize the `SciPy.integrate` package for solving differential equations. However, it may be
 more optimal to use the `Julia` language which has ODE integrators that can be called directly from Python. In order to
 use this functionality you will need to install `Julia` and the `diffeqpy` package.
 
@@ -143,9 +134,9 @@ use this functionality you will need to install `Julia` and the `diffeqpy` packa
 * Open an elevated ("as administrator") terminal, command prompt, or powershell.
     * If you are using a virtual Python environment make sure it is active.
 
-*As of TidalPy v0.3.0, the `diffeqpy` that is available from pypi is not up to date with the version found on the
+*As of TidalPy v0.3.0, the `diffeqpy` that is available from pypi is not up-to-date with the version found on the
 project's github page. TidalPy uses functionality that is only available from this new version. If you would like to use
-Julia with TidalPy you must close the github version. Keep in mind this is an unreleased version so more bugs are
+Julia with TidalPy you must clone the github version. Keep in mind this is an unreleased version so more bugs are
 likely.*
 
 * Create a new directory to clone the `diffeqpy` repository.

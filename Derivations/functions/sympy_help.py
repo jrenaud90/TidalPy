@@ -5,16 +5,19 @@ from IPython.display import display
 
 USE_PRETTY_PRINT = True
 
-# Symoblic Functions and Variables
+# Symbolic Functions and Variables
+time_var = Symbol('t', positive=True, real=True)
 eccentricity = Symbol('e', positive=True, real=True)
 obliquity_sat = Symbol('I___S', positive=True, real=True)
 obliquity_host = Symbol('I___H', positive=True, real=True)
 
-mean_n = Symbol('n', real=True)
-spin_host = Symbol('Omega___H', real=True)
-spin_sat = Symbol('Omega___S', real=True)
+mean_n = Symbol('n', real=True, positive=True)
+spin_host = Symbol('Omega___H', real=True, positive=True)
+spin_sat = Symbol('Omega___S', real=True, positive=True)
 moi_host = Symbol('C___H', real=True, positive=True)
 moi_sat = Symbol('C___S', real=True, positive=True)
+r_sat = Symbol('r___S', real=True, positive=True)
+r_host = Symbol('r___S', real=True, positive=True)
 
 love2_num_host = Function('Xi___H2', real=True)
 love2_num_sat = Function('Xi___S2', real=True)
@@ -32,6 +35,7 @@ love8_num_host = Function('Xi___H8', real=True)
 love8_num_sat = Function('Xi___S8', real=True)
 
 legendreP = assoc_legendre
+legendreP_symbolic = Function('P^{l}', real=True)
 
 love_funcs_host = (love2_num_host, love3_num_host, love4_num_host, love5_num_host, love6_num_host, love7_num_host,
                    love8_num_host)
@@ -41,10 +45,9 @@ love_funcs_sat = (love2_num_sat, love3_num_sat, love4_num_sat, love5_num_sat, lo
 periapsis = Symbol('\\omega', real=True, positive=True)
 mean_anon = Symbol('\\mathcal{M}', real=True, positive=True)
 node = Symbol('\\Omega', real=True, positive=True)
+sidereal_time = Symbol('\\Theta', real=True, positive=True)
 longitude = Symbol('\\lambda', real=True, positive=True)
 latitude = Symbol('\\phi', real=True)
-rotation_angle = Symbol('\\theta', real=True)
-
 def find_varpi(l: int, m: int, p: int, q: int):
 
     return (l - 2 * p) * periapsis + (l - 2 * p + q) * mean_anon + m * node

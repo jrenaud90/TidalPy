@@ -260,7 +260,8 @@ cm_data = [[0.10352, 0.047787, 0.39353],
            [0.99624, 0.94581, 0.94437],      
            [0.99706, 0.94979, 0.95121]]      
       
-lapaz_map = LinearSegmentedColormap.from_list('lapaz', cm_data)      
+lapaz_map = LinearSegmentedColormap.from_list('lapaz', cm_data)
+lapaz_map_r = LinearSegmentedColormap.from_list('lapaz_r', cm_data[::-1])
 # For use of "viscm view"      
 test_cm = lapaz_map      
       

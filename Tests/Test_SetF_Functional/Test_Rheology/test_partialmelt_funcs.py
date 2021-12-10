@@ -101,7 +101,6 @@ def test_all_models():
     assert type(henn_shear) in [float, np.float, np.float64]
 
     # Test Array versions
-    from TidalPy.rheology.partial_melt.melting_models import off_array, spohn_array, henning_array
     melt_fraction = 0.5 * np.ones(10)
     temperature = 1800. * np.ones(10)
     premelt_viscosity = 1.e20 * np.ones(10)
@@ -109,19 +108,19 @@ def test_all_models():
     premelt_shear = 50.e9 * np.ones(10)
 
     #    Testing `off` model
-    off_visco, off_shear = off_array(melt_fraction, premelt_viscosity, premelt_shear)
+    off_visco, off_shear = off(melt_fraction, premelt_viscosity, premelt_shear)
     assert off_visco.shape == melt_fraction.shape
     assert off_shear.shape == melt_fraction.shape
     np.testing.assert_allclose(off_visco, premelt_viscosity)
     np.testing.assert_allclose(off_shear, premelt_shear)
 
     #    Testing `spohn` model
-    spohn_visco, spohn_shear = spohn_array(melt_fraction, temperature, liquid_viscosity, *spohn_input)
+    spohn_visco, spohn_shear = spohn(melt_fraction, temperature, liquid_viscosity, *spohn_input)
     assert spohn_visco.shape == melt_fraction.shape
     assert spohn_shear.shape == melt_fraction.shape
 
     #    Testing `henning` model
-    henn_visco, henn_shear = henning_array(
+    henn_visco, henn_shear = henning(
         melt_fraction, temperature, premelt_viscosity, liquid_viscosity,
         premelt_shear, *henning_input
         )

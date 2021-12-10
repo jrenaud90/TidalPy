@@ -1,9 +1,6 @@
-"""
-
-"""
-
 import numpy as np
 
+from . import TidalPotentialOutput
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
@@ -12,7 +9,7 @@ from ...utilities.types import FloatArray
 def tidal_potential(
     radius: FloatArray, longitude: FloatArray, colatitude: FloatArray,
     orbital_frequency: FloatArray, eccentricity: FloatArray, time: FloatArray
-    ):
+    ) -> TidalPotentialOutput:
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
     Parameters
@@ -47,9 +44,9 @@ def tidal_potential(
     """
 
     # Associated Legendre Functions and their derivatives
-    p_02 = (1. / 2.) * (3. * np.cos(colatitude)**2 - 1.)
-    dp_02_dtheta = -3. * np.cos(colatitude) * np.sin(colatitude)
-    dp2_02_dtheta2 = 3. * (np.sin(colatitude)**2 - np.cos(colatitude)**2)
+    p_20 = (1. / 2.) * (3. * np.cos(colatitude)**2 - 1.)
+    dp_20_dtheta = -3. * np.cos(colatitude) * np.sin(colatitude)
+    dp2_20_dtheta2 = 3. * (np.sin(colatitude)**2 - np.cos(colatitude)**2)
 
     p_22 = 3. * (1. - np.cos(colatitude)**2)
     dp_22_dtheta = 6. * np.cos(colatitude) * np.sin(colatitude)
@@ -58,14 +55,14 @@ def tidal_potential(
     # Calculate tidal potential
     r2n2e = radius**2 * orbital_frequency**2 * eccentricity
     potential = r2n2e * \
-                ((-3. / 2.) * p_02 * np.cos(orbital_frequency * time) +
+                ((-3. / 2.) * p_20 * np.cos(orbital_frequency * time) +
                  (1. / 4.) * p_22 *
                  (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
                   4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
 
     # Its partial derivatives
     potential_partial_theta = r2n2e * \
-                              ((-3. / 2.) * dp_02_dtheta * np.cos(orbital_frequency * time) +
+                              ((-3. / 2.) * dp_20_dtheta * np.cos(orbital_frequency * time) +
                                (1. / 4.) * dp_22_dtheta *
                                (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
                                 4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
@@ -77,7 +74,7 @@ def tidal_potential(
 
     # And its 2nd order partial derivatives
     potential_partial2_theta2 = r2n2e * \
-                                ((-3. / 2.) * dp2_02_dtheta2 * np.cos(orbital_frequency * time) +
+                                ((-3. / 2.) * dp2_20_dtheta2 * np.cos(orbital_frequency * time) +
                                  (1. / 4.) * dp2_22_dtheta2 *
                                  (3. * np.cos(orbital_frequency * time) * np.cos(2. * longitude) +
                                   4. * np.sin(orbital_frequency * time) * np.sin(2. * longitude)))
