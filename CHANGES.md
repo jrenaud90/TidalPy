@@ -4,8 +4,10 @@
 * Major Changes
     * Updated to work with BurnMan v1.0 release.
     * Updated the NSR tidal potential for multilayer code to a multi-modal version
+    * Improvements to the multilayer module
 * Minor Changes
     * Added more tests
+    * Removed the remaining `_array` functions
 
 ### Version 0.3.2 Alpha (Summer 2021)
 * Major Changes
