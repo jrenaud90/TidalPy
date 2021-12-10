@@ -112,8 +112,6 @@ def reference(
 
     temp_diff = (1. / temperature) - (1. / reference_temperature)
     exponent = ((molar_activation_energy + pressure * molar_activation_volume) / R) * temp_diff
-
-    exponent = (molar_activation_energy + pressure * molar_activation_volume) / (temperature * R)
     exponent_shape = exponent + shape
     # Check for over/undershoots
     exponent = (exponent_shape < float_lognat_max) * (exponent_shape > -float_lognat_max) * \

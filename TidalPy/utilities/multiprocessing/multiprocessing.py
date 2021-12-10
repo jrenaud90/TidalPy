@@ -198,10 +198,10 @@ def multiprocessing_run(
                 must_include_array = 10**must_include_array
             # Add in specific values that the user wants included in the array
             array = np.concatenate((array, must_include_array))
-            # Sort the new array
-            array = np.sort(array)
             # Remove duplicated values
             array = np.unique(array)
+            # Sort the new array
+            array = np.sort(array)
             input_n = len(array)
 
         total_n *= input_n
