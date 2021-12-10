@@ -2,7 +2,7 @@
 <h3 align="center">v0.3 Alpha</h3>
 
 <p align="center">
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/main_tests.yml?query=branch%3Amaster" /><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/main_tests.yml/badge.svg?branch=master" /></a> <a href="https://codecov.io/gh/jrenaud90/TidalPy"><img src="https://codecov.io/gh/jrenaud90/TidalPy/branch/master/graph/badge.svg?token=35OY4ZLOA5"/></a><br />
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml?query=branch%3Amaster" /><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml/badge.svg?branch=master" /></a> <a href="https://codecov.io/gh/jrenaud90/TidalPy"><img src="https://codecov.io/gh/jrenaud90/TidalPy/branch/master/graph/badge.svg?token=35OY4ZLOA5"/></a><br />
     <a href="https://mybinder.org/v2/gh/jrenaud90/TidalPy/master?filepath=%2FCookbooks%2F"><img src="https://mybinder.org/badge_logo.svg" /></a>
     <a href="https://gitter.im/TidalPy/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/TidalPy/community.svg" /></a>
 </p>
@@ -92,6 +92,7 @@ made with `conda create -n <name> python=3.9` and switched to with `conda activa
         * Whenever you want to update TidalPy simply navigate to this directory and use `git pull`. Since TidalPy is in
           early development, it is recommended you check for updates regularly. Updates will **not**
           download automatically.
+
 * Using a terminal, navigate to the TidalPy directory that contains `setup.py` and then:
     * For Anaconda Python:
         * Run `conda install --file conda_requirements.txt -c defaults -c conda-forge; pip install -e .` *(That trailing
@@ -169,7 +170,7 @@ The science used in TidalPy is described in the following papers (and references
     * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
     * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
 * Non-synchronous Rotation Evolution and High Eccentricity Truncation Packages:
-    * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2020arXiv201011801R/abstract)
+    * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2021PSJ.....2....4R/abstract)
     * [Tidal Evolution of the Keplerian Elements](https://ui.adsabs.harvard.edu/abs/2019CeMDA.131...30B/abstract)
 * Third Party Software:
     * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
@@ -191,9 +192,7 @@ check out the information in `Documentation\Contribute.md`.
       other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
 ## License Information
-
-You are welcome to make a copy/fork of TidalPy and make modifications assuming the following conditions are met:
-
+You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
 * Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
 * Any software derived from TidalPy must remain open-source and non-commercial.
 

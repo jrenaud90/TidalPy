@@ -10,4 +10,7 @@
 # 1.2.0-rc1    # Release Candidate (All features are in place; no changes should be made unless essential; few bugs)
 # 1.2.X        # Final Release (X are bug fixes and patches that do not fall on the regular release cycle)
 
+# Note that a particular *version* of TidalPy may be in alpha, beta, dev, etc. that does not necessarily
+#   reflect the state of TidalPy as a whole project (which is currently still in Alpha).
+
 version = 0.3.3-beta

@@ -1,4 +1,4 @@
-setuptools>=57.0.0
+setuptools>=52.0.0
 pip>=21.0.0
 wheel>=0.36.0
 dill>=0.3.2
