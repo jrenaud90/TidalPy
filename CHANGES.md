@@ -1,5 +1,11 @@
 # TidalPy Major Change Log
 
+### Version 0.3.4 Alpha (Winter 2021)
+
+* Minor Changes
+  * Added more colormaps, updated how reserved versions are constructed, updated old maps. 
+  * Better support for post-multiprocessing function inputs.
+
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes
     * Updated to work with BurnMan v1.0 release.

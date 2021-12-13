@@ -260,8 +260,7 @@ cm_data = [[0.99983, 0.99974, 0.79991],
            [0.10549, 0.10296, 0.0076238],      
            [0.10023, 0.10091, 0.0037913]]      
       
-lajolla_map = LinearSegmentedColormap.from_list('lajolla', cm_data)
-lajolla_map_r = LinearSegmentedColormap.from_list('lajolla_r', cm_data[::-1])
+lajolla_map = LinearSegmentedColormap.from_list('lajolla', cm_data)      
 # For use of "viscm view"      
 test_cm = lajolla_map      
       
@@ -272,8 +271,7 @@ if __name__ == "__main__":
     try:      
         from viscm import viscm      
         viscm(lajolla_map)      
-    except ImportError:
-        viscm = None
+    except ImportError:      
         print("viscm not found, falling back on simple display")      
         plt.imshow(np.linspace(0, 100, 256)[None, :], aspect='auto',      
                    cmap=lajolla_map)      

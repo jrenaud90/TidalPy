@@ -162,7 +162,7 @@ email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentatio
 make forks or copies of TidalPy as long as their work references back to this page. License information can be found at
 the end of this file.
 
-### TidalPy's Science
+### Referencing TidalPy
 
 The science used in TidalPy is described in the following papers (and references therein):
 
@@ -176,7 +176,7 @@ The science used in TidalPy is described in the following papers (and references
     * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
     * *Integration Routines*: [diffeqpy](https://github.com/SciML/diffeqpy)
       , [Julia DiffEq](https://diffeq.sciml.ai/v2.0/)
-    * *CVD Conscious Color Maps*: [Geodynamic Color Maps](http://doi.org/10.5281/zenodo.1243862)
+    * *CVD Conscious Color Maps*: [Geodynamic Color Maps](http://doi.org/10.5281/zenodo.5501399)
 
 ## Contribute
 
