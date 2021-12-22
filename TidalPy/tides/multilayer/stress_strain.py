@@ -12,6 +12,7 @@ from typing import Tuple
 
 import numpy as np
 
+from .decompose import decompose
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
@@ -209,6 +210,12 @@ def calculate_strain_stress_heating(
             2. * (np.imag(s_rph) * np.real(e_rph) - np.real(s_rph) * np.imag(e_rph)) +
             2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
     )
+
+    # Uncomment to compare with Tobie method
+    # volumetric_heating, _ = decompose(
+    #     tidal_solution_y, tidal_solution_y_derivative, radius, np.zeros_like(radius),
+    #     shear_moduli, bulk_moduli, order_l=order_l
+    #     )
 
     # Compile results
     strains = (e_rr, e_thth, e_phph, e_rth, e_rph, e_thph)
