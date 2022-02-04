@@ -1,0 +1,345 @@
+""" Multilayer calculator for multiple tidal modes.
+
+Each tidal mode imparts a potentially different frequency which needs to be propagated throughout the planet's interior.
+
+This module contains functions to assist with calculating the response at each of these frequencies and then collapse
+    the findings into a final value.
+
+"""
+
+from typing import Callable, Dict
+
+import numpy as np
+
+from ..multilayer.stress_strain import calculate_strain_stress_heating
+from ..potential import tidal_potential_nsr_modes
+
+
+def collapse_multilayer_modes(
+    shear_modulus: np.ndarray, viscosity: np.ndarray, bulk_modulus: np.ndarray,
+    density: np.ndarray, gravity: np.ndarray,
+    complex_compliance_func: Callable,
+    radius_matrix, longitude_matrix, colatitude_matrix, time_matrix, voxel_volume,
+    orbital_frequency, spin_frequency, semi_major_axis, eccentricity, host_mass,
+    propagation_function: Callable,
+    interface_properties: dict,
+    order_l: int = 2, complex_compliance_input: tuple = None,
+    orbit_average_results: bool = True,
+    integration_parameters: dict = None
+    ):
+    """ Calculate the multilayer tidal response of a planet over a range of applicable tidal modes. Collapse
+    individual modal results into final heating distribution.
+
+    Some of these variables are ndarrays the shape of the planet's radius array, N_r
+    Others are multidimensional arrays the shape of (N_r, N_long, N_colat, N_time).
+    These multidim arrays MUST be in this order [radius_domain, longitude_domain, colatitude_domain, time_domain]
+
+    Parameters
+    ----------
+    shear_modulus : np.ndarray
+        Non-complex shear modulus as a function of radius [Pa].
+        Shape: N_r
+    viscosity : np.ndarray
+        Viscosity as a function of radius [Pa].
+        Shape: N_r
+    bulk_modulus : np.ndarray
+        Non-complex bulk modulus as a function of radius [Pa].
+        Shape: N_r
+    density : np.ndarray
+        Density as a function of radius [Pa].
+        Shape: N_r
+    gravity : np.ndarray
+        Gravity as a function of radius [Pa].
+        Shape: N_r
+    complex_compliance_func : Callable
+        Complex compliance function to use based on the rheology. See TidalPy.rheology.complex_compliance.
+    radius_matrix : np.ndarray
+        Radius matrix with increased dimensions [m].
+        Shape: (N_r, N_long, N_colat, N_time)
+    longitude_matrix : np.ndarray
+        Longitude matrix with increased dimensions [rads].
+        Shape: (N_r, N_long, N_colat, N_time)
+    colatitude_matrix : np.ndarray
+        Colatitude matrix with increased dimensions [rads].
+        Shape: (N_r, N_long, N_colat, N_time)
+    time_matrix : np.ndarray
+        Time matrix with increased dimensions [s].
+        It is important that the time domain be for one orbital period.
+        Shape: (N_r, N_long, N_colat, N_time)
+    voxel_volume : np.ndarray
+        Volume per voxel matrix with increased dimensions [m3].
+        Shape: (N_r, N_long, N_colat, N_time)
+    orbital_frequency : float
+        Orbital mean motion [rad s-1]
+    spin_frequency : float
+        Rotation frequency [rad s-1]
+    semi_major_axis : float
+        Orbital semi-major axis [m]
+    eccentricity : float
+        Orbital eccentricity
+    host_mass : float
+        Mass of tidal host [kg]
+    propagation_function : Callable
+        The interior propagation function to be used.
+        See TidalPy.toolbox.multilayer for more information.
+    interface_properties : dict
+        Dictionary of properties for the planet's internal layer interfaces.
+        See TidalPy.toolbox.multilayer for more information.
+    order_l : int = 2
+        Tidal harmonic order.
+    complex_compliance_input : tuple = None
+        Additional inputs to the complex compliance function. If None, then defaults will be used.
+    orbit_average_results : bool = True
+        If True, then the function will orbit average the heating, stress, and strain results. This will reduce the
+        final output's dimension by one.
+    integration_parameters : dict = None
+        Dictionary of integration parameters used to integrate through the planet's interior.
+        See TidalPy.toolbox.multilayer for more information.
+
+    Returns
+    -------
+    heating : np.ndarray
+        Heating within each voxel [W].
+        Shape: (N_r, N_long, N_colat)
+        If orbit_average_results is false then the results will be given at each time with a new shape of:
+            (N_r, N_long, N_colat, N_time)
+    volumetric_heating : np.ndarray
+        Volumetric Heating within each voxel [W].
+        Shape: (N_r, N_long, N_colat)
+        If orbit_average_results is false then the results will be given at each time with a new shape of:
+            (N_r, N_long, N_colat, N_time)
+    volumetric_heating_by_mode : Dict[str, np.ndarray]
+        Volumetric heating within each voxel broken up by each tidal mode [W].
+        Shape of each stored array: (N_r, N_long, N_colat)
+        If orbit_average_results is false then the results will be given at each time with a new shape of:
+            (N_r, N_long, N_colat, N_time)
+    strains : np.ndarray
+        Tidal strains within each voxel [m m-1].
+        Shape: (N_r, N_long, N_colat)
+        If orbit_average_results is false then the results will be given at each time with a new shape of:
+            (N_r, N_long, N_colat, N_time)
+    stresses : np.ndarray
+        Tidal stresses within each voxel [m m-1].
+        Shape: (N_r, N_long, N_colat)
+        If orbit_average_results is false then the results will be given at each time with a new shape of:
+            (N_r, N_long, N_colat, N_time)
+
+    """
+
+    # If no integration parameters were provided then just use an empty dictionary which will tell the function
+    #     to use its default values.
+    if integration_parameters is None:
+        integration_parameters = dict()
+
+    # If no inputs to the complex compliance function were provided then set it equal to an empty tuple which
+    #    will cause the complex compliance function to resort to defaults.
+    if complex_compliance_input is None:
+        complex_compliance_input = tuple()
+
+    # Variable may be a matrix calculated from a mesh grid over [radius_matrix, longitude_matrix, latitude, time_matrix] <- must be in this order
+
+    # Pull out individual arrays
+    radius = radius_matrix[:, 0, 0, 0]
+    longitude = longitude_matrix[0, :, 0, 0]
+    colatitude = colatitude_matrix[0, 0, :, 0]
+    time_domain = time_matrix[0, 0, 0, :]
+
+    # Check that dimensions make sense
+    assert radius.shape == shear_modulus.shape
+
+    # Check that the time domain has the correct end points
+    orbital_period = 2. * np.pi / orbital_frequency
+    if orbit_average_results:
+        # In order for the orbit average routine to work correctly, the time domain must start at zero and end
+        #    after 1 orbital period.
+        assert time_domain[0] == 0.
+        assert time_domain[-1] == orbital_period
+
+    # TODO: Currently this function (and other multilayer code) does not work for l>2. An additional loop will be
+    #   required to loop over each l and sum the results.
+    if order_l != 2:
+        raise Exception
+
+    # Expand voxel volume dimensions to include a time domain
+    voxel_volume_higher_dim = np.repeat(voxel_volume[:, :, :, np.newaxis], len(time_domain), axis=3)
+
+    # Calculate the tidal modes and the tidal potential and its partial derivatives.
+    planet_radius = radius[-1]
+    modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict, \
+    potential_d2phi_dict, potential_dtheta_dphi_dict = \
+        tidal_potential_nsr_modes(
+            radius_matrix, longitude_matrix, colatitude_matrix, orbital_frequency, eccentricity, time_matrix,
+            spin_frequency, world_radius=planet_radius, host_mass=host_mass, semi_major_axis=semi_major_axis,
+            use_static=False
+            )
+
+    # Make empty containers for variables which will be added to for each tidal mode.
+    complex_shears = np.zeros_like(radius, dtype=np.complex128)
+    tidal_y = np.zeros((6, *radius.shape), dtype=np.complex128)
+    tidal_y_deriv = np.zeros((6, *radius.shape), dtype=np.complex128)
+    strains = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+    stresses = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+    volumetric_heating_individual_modes = np.zeros_like(radius_matrix, dtype=np.float64)
+    heating_modes = np.zeros_like(radius_matrix, dtype=np.float64)
+    volumetric_heating_by_mode = dict()
+
+    # For each tidal mode we need to calculate the rheological and radial response.
+    modes_skipped = 0
+    for mode_name, mode_freq in modes.items():
+
+        # Pull out tidal potential information for this mode
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_dict[mode_name], potential_dtheta_dict[mode_name], potential_dphi_dict[mode_name], \
+            potential_d2theta_dict[mode_name], potential_d2phi_dict[mode_name], \
+            potential_dtheta_dphi_dict[mode_name]
+
+        # Calculate rheology and radial response
+        if mode_freq < 1.0e-15:
+            # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
+            tidal_y_at_mode = np.zeros((6, *radius.shape), dtype=np.complex128)
+            tidal_y_deriv_at_mode = np.zeros((6, *radius.shape), dtype=np.complex128)
+            complex_shears_at_mode = shear_modulus + 0.0j
+            strains_at_mode = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+            stresses_at_mode = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+            volumetric_heating_at_mode = np.zeros_like(radius_matrix, dtype=np.float64)
+            heating_at_mode = np.zeros_like(radius_matrix, dtype=np.float64)
+            modes_skipped += 1
+        else:
+            # Calculate material & rheological response
+            # Calculate Complex Compliance
+            complex_compliances_at_mode = \
+                complex_compliance_func(mode_freq, shear_modulus**(-1), viscosity, *complex_compliance_input)
+            complex_shears_at_mode = complex_compliances_at_mode**(-1)
+
+            # TODO: Should be fairly straight forward to add in bulk dissipation here by calling upon a rheology
+            #   function for bulk modulus rather than shear.
+
+            # Clean up complex shears based on any zero viscosities (short hand to indicate zero dissipation)
+            complex_shears_at_mode[viscosity == 0.] = shear_modulus[viscosity == 0.] * (1. + 0.j)
+            complex_shears_at_mode[shear_modulus == 0.] = 1.e-40 + 1.0j * 1.e-40
+            # The shear and complex shear should not be zero anywhere except liquid layers, where it is not used
+            #    in the first place. To avoid calculation issues set all of these to small values.
+            shear_modulus[shear_modulus == 0.] = 1.0e-40
+            viscosity[viscosity == 0.] = 1.0e-40
+            complex_shears_at_mode[np.imag(complex_shears_at_mode) == 0.] = \
+                np.real(complex_shears_at_mode[np.imag(complex_shears_at_mode) == 0.]) + 1.0j * 1.e-40
+            complex_shears_at_mode[np.real(complex_shears_at_mode) == 0.] = \
+                np.imag(complex_shears_at_mode[np.real(complex_shears_at_mode) == 0.]) + 1.e-40
+
+            # Calculate the propagation of tides through the planet's layers
+            tidal_y_at_mode, tidal_y_deriv_at_mode = \
+                propagation_function(
+                    radius, complex_shears_at_mode, bulk_modulus, density, gravity, mode_freq,
+                    order_l=order_l,
+                    **interface_properties, **integration_parameters
+                    )
+
+            # We need to recast the inputs into the correct dimensions
+            complex_shears_higher_dim, _, _, _ = \
+                np.meshgrid(complex_shears_at_mode, longitude, colatitude, time_domain, indexing='ij')
+            bulk_moduli_higher_dim, _, _, _ = \
+                np.meshgrid(bulk_modulus, longitude, colatitude, time_domain, indexing='ij')
+
+            # We need to recast the tidal y solution into the correct dimensions
+            #    (it does not care about long/lat or time_matrix - at least in this context).
+            tidal_y_higher_dim = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+            tidal_y_deriv_higher_dim = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+            for i in range(6):
+                tidal_y_higher_dim[i, :, :, :, :], _, _, _ = \
+                    np.meshgrid(tidal_y_at_mode[i, :], longitude, colatitude, time_domain,
+                                indexing='ij')
+                tidal_y_deriv_higher_dim[i, :, :, :, :], _, _, _ = \
+                    np.meshgrid(tidal_y_deriv_at_mode[i, :], longitude, colatitude, time_domain,
+                                indexing='ij')
+
+            # Calculate stresses and heating
+            strains_at_mode, stresses_at_mode, volumetric_heating_at_mode = calculate_strain_stress_heating(
+                tidal_potential=potential,
+                tidal_potential_partial_theta=potential_dtheta, tidal_potential_partial_phi=potential_dphi,
+                tidal_potential_partial2_theta2=potential_d2theta,
+                tidal_potential_partial2_phi2=potential_d2phi,
+                tidal_potential_partial2_theta_phi=potential_dtheta_dphi,
+                tidal_solution_y=tidal_y_higher_dim, tidal_solution_y_derivative=tidal_y_deriv_higher_dim,
+                colatitude=colatitude_matrix,
+                radius=radius_matrix, shear_moduli=complex_shears_higher_dim,
+                bulk_moduli=bulk_moduli_higher_dim,
+                frequency=mode_freq
+                )
+            heating_at_mode = voxel_volume_higher_dim * volumetric_heating_at_mode
+
+            del complex_shears_higher_dim, tidal_y_higher_dim, tidal_y_deriv_higher_dim
+
+        # Add to lists
+        complex_shears += complex_shears_at_mode
+        tidal_y += tidal_y_at_mode
+        tidal_y_deriv += tidal_y_deriv_at_mode
+        strains += strains_at_mode
+        stresses += stresses_at_mode
+        volumetric_heating_individual_modes += volumetric_heating_at_mode
+        heating_modes += heating_at_mode
+        volumetric_heating_by_mode[mode_name] = volumetric_heating_at_mode
+
+        del complex_shears_at_mode, tidal_y_at_mode, tidal_y_deriv_at_mode, strains_at_mode, stresses_at_mode, \
+            volumetric_heating_at_mode, heating_at_mode
+
+
+    # Pull out individual stresses and strains
+    e_rr, e_thth, e_phph, e_rth, e_rph, e_thph = strains
+    s_rr, s_thth, s_phph, s_rth, s_rph, s_thph = stresses
+
+    # Perform orbital averaging
+    if orbit_average_results:
+        e_rr = (1. / orbital_period) * np.trapz(e_rr, time_domain, axis=3)
+        e_thth = (1. / orbital_period) * np.trapz(e_thth, time_domain, axis=3)
+        e_phph = (1. / orbital_period) * np.trapz(e_phph, time_domain, axis=3)
+        e_rth = (1. / orbital_period) * np.trapz(e_rth, time_domain, axis=3)
+        e_rph = (1. / orbital_period) * np.trapz(e_rph, time_domain, axis=3)
+        e_thph = (1. / orbital_period) * np.trapz(e_thph, time_domain, axis=3)
+        stresses = np.zeros((6, *radius_matrix.shape[:-1]), dtype=np.complex128)
+        stresses[0, :, :, :] = e_rr
+        stresses[1, :, :, :] = e_thth
+        stresses[2, :, :, :] = e_phph
+        stresses[3, :, :, :] = e_rth
+        stresses[4, :, :, :] = e_rph
+        stresses[5, :, :, :] = e_thph
+
+        s_rr = (1. / orbital_period) * np.trapz(s_rr, time_domain, axis=3)
+        s_thth = (1. / orbital_period) * np.trapz(s_thth, time_domain, axis=3)
+        s_phph = (1. / orbital_period) * np.trapz(s_phph, time_domain, axis=3)
+        s_rth = (1. / orbital_period) * np.trapz(s_rth, time_domain, axis=3)
+        s_rph = (1. / orbital_period) * np.trapz(s_rph, time_domain, axis=3)
+        s_thph = (1. / orbital_period) * np.trapz(s_thph, time_domain, axis=3)
+        strains = np.zeros((6, *radius_matrix.shape[:-1]), dtype=np.complex128)
+        strains[0, :, :, :] = s_rr
+        strains[1, :, :, :] = s_thth
+        strains[2, :, :, :] = s_phph
+        strains[3, :, :, :] = s_rth
+        strains[4, :, :, :] = s_rph
+        strains[5, :, :, :] = s_thph
+
+        volumetric_heating_by_mode_orbavg = dict()
+        for mode_name, volumetric_heating_at_mode in volumetric_heating_by_mode.items():
+            volumetric_heating_by_mode_orbavg[mode_name] = \
+                (1. / orbital_period) * np.trapz(volumetric_heating_at_mode, time_domain, axis=3)
+        volumetric_heating_by_mode = volumetric_heating_by_mode_orbavg
+
+    # Calculate final heating as a function of strains and stresses
+    # TODO: which frequency... Using orbital freq for now.
+    frequency = orbital_frequency
+
+    # Calculate Tidal Heating
+    volumetric_heating = (frequency / 2.) * (
+            np.imag(s_rr) * np.real(e_rr) - np.real(s_rr) * np.imag(e_rr) +
+            np.imag(s_thth) * np.real(e_thth) - np.real(s_thth) * np.imag(e_thth) +
+            np.imag(s_phph) * np.real(e_phph) - np.real(s_phph) * np.imag(e_phph) +
+            2. * (np.imag(s_rth) * np.real(e_rth) - np.real(s_rth) * np.imag(e_rth)) +
+            2. * (np.imag(s_rph) * np.real(e_rph) - np.real(s_rph) * np.imag(e_rph)) +
+            2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
+    )
+
+    if orbit_average_results:
+        heating = volumetric_heating * voxel_volume
+    else:
+        heating = volumetric_heating * voxel_volume_higher_dim
+
+    return heating, volumetric_heating, volumetric_heating_by_mode, strains, stresses

@@ -164,7 +164,7 @@ def calculate_strain_stress_heating(
     e_rph = y4 * tidal_potential_partial_phi / (shear_moduli * sin_theta)
     e_thth = (1. / radius) * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
     # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
-    #  as pointed out in Kervazo et al (2021; A&A) Appendix D
+    #    as pointed out in Kervazo et al (2021; A&A) Appendix D
     e_phph = (1. / radius) * \
              (y1 * tidal_potential +
               (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
@@ -201,6 +201,11 @@ def calculate_strain_stress_heating(
     s_rth = y4 * tidal_potential_partial_theta
     s_rph = (y4 / sin_theta) * tidal_potential_partial_phi
 
+    # The (1/2) in the off-diagonal terms are due to these components appearing twice in the tensor
+    s_rph *= (1. / 2.)
+    s_rth *= (1. / 2.)
+    s_thph *= (1. / 2.)
+
     # Calculate Tidal Heating, using two methods
     volumetric_heating = (frequency / 2.) * (
             np.imag(s_rr) * np.real(e_rr) - np.real(s_rr) * np.imag(e_rr) +
@@ -211,13 +216,13 @@ def calculate_strain_stress_heating(
             2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
     )
 
-    # Uncomment to compare with Tobie method
+    # Uncomment to compare with Tobie method.
     # volumetric_heating, _ = decompose(
     #     tidal_solution_y, tidal_solution_y_derivative, radius, np.zeros_like(radius),
     #     shear_moduli, bulk_moduli, order_l=order_l
     #     )
 
-    # Compile results
+    # Collect results
     strains = (e_rr, e_thth, e_phph, e_rth, e_rph, e_thph)
     stresses = (s_rr, s_thth, s_phph, s_rth, s_rph, s_thph)
 

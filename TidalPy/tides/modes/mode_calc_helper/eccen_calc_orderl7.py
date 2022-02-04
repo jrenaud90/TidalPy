@@ -1,8 +1,8 @@
 from typing import Dict
 
-from ..eccentricity_funcs import EccenOutput, orderl2, orderl3, orderl4, orderl5, orderl6, orderl7
-from ...utilities.performance.numba import njit
-from ...utilities.types import FloatArray
+from ...eccentricity_funcs import EccenOutput, orderl2, orderl3, orderl4, orderl5, orderl6, orderl7
+from ....utilities.performance.numba import njit
+from ....utilities.types import FloatArray
 
 
 @njit(cacheable=True)

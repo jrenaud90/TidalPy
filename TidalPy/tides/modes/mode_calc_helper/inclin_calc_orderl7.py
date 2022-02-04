@@ -1,8 +1,8 @@
 from typing import Dict
 
-from ..inclination_funcs import InclinOutput, orderl2, orderl3, orderl4, orderl5, orderl6, orderl7
-from ...utilities.performance.numba import njit
-from ...utilities.types import FloatArray
+from ...inclination_funcs import InclinOutput, orderl2, orderl3, orderl4, orderl5, orderl6, orderl7
+from ....utilities.performance.numba import njit
+from ....utilities.types import FloatArray
 
 
 @njit(cacheable=True)

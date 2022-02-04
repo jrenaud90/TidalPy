@@ -30,7 +30,7 @@ from ..rheology.complex_compliance.complex_compliance import compliance_dict_hel
 from ..tides.ctl_funcs import linear_dt
 from ..tides.dissipation import calc_tidal_susceptibility
 from ..tides.methods.global_approx import cpl_neg_imk_helper_func, ctl_neg_imk_helper_func
-from ..tides.mode_manipulation import find_mode_manipulators
+from ..tides.modes.mode_manipulation import find_mode_manipulators
 from ..utilities.types import ComplexArray, FloatArray, NoneType
 
 if TYPE_CHECKING:

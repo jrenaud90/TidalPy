@@ -2,13 +2,13 @@ from typing import Dict, Tuple, Union
 
 import numpy as np
 
-from .eccentricity_funcs import EccenOutput
-from .inclination_funcs import InclinOutput
-from .love1d import complex_love_general, effective_rigidity_general
 from .mode_calc_helper import eccentricity_functions_lookup, inclination_functions_lookup
-from .universal_coeffs import get_universal_coeffs
-from ..utilities.performance.numba import njit
-from ..utilities.types import ComplexArray, FloatArray, NoneType
+from ..eccentricity_funcs import EccenOutput
+from ..inclination_funcs import InclinOutput
+from ..love1d import complex_love_general, effective_rigidity_general
+from ..universal_coeffs import get_universal_coeffs
+from ...utilities.performance.numba import njit
+from ...utilities.types import ComplexArray, FloatArray, NoneType
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]

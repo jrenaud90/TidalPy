@@ -5,7 +5,7 @@ import numpy as np
 from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import complex_compliance_defaults
 from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError
-from ...tides.mode_manipulation import FreqSig
+from ...tides.modes.mode_manipulation import FreqSig
 from ...utilities.classes.model import LayerModelHolder
 from ...utilities.performance import njit
 from ...utilities.types import ComplexArray, FloatArray

@@ -5,6 +5,8 @@
 * Minor Changes
   * Added more colormaps, updated how reserved versions are constructed, updated old maps. 
   * Better support for post-multiprocessing function inputs.
+  * Refactored tidal mode calculation functions into a new TidalPy.tides.modes module.
+  * Added a voxel calculator to TidalPy.utilities.spherical_helper. Also, added related tests & benchmarking tools.
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes

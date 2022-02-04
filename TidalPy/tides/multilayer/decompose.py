@@ -66,7 +66,7 @@ def decompose(
     y4 = tidal_y[3, :]
     y5 = tidal_y[4, :]
 
-    # As was done in ID, we invert y2 and y3 here... TODO: Check with Marc why this is.
+    # As was done in ID, we invert y2 and y3 here...
     # Optimizations
     llp1 = order_l * (order_l + 1)
     y1mllp1y3 = 2. * y1 - order_l * (order_l + 1.) * y3

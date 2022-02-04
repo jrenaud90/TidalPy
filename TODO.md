@@ -1,6 +1,5 @@
-* rheology.viscosity.viscosity_models.py still has `_array` functions.
-* rheology.partial_melt.melting_models.py still has `_array` functions.
-* rheology.partial_melt.partialmelt.py still has `_array` functions.
+* Add more propagation type tests for multilayer mode calculator
+* Add a benchmark and performance checker for multilayer mode calculator
 * A multilayer model has now been implemented, but it is not currently part of the OOP scheme.
 * Probably worth refactoring `burnman_interface` into the `utilities` module to match other 3rd party packages.
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()

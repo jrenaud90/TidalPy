@@ -7,7 +7,7 @@ import numpy as np
 from .base import TidesBase
 from .defaults import tide_defaults
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
-from ..mode_manipulation import DissipTermsArray, FreqSig
+from ..modes.mode_manipulation import DissipTermsArray, FreqSig
 from ... import log
 from ...exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, NotYetImplementedError,
                            UnknownModelError)
