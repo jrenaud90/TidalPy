@@ -11,7 +11,7 @@ use_numba = TidalPy.utilities.performance.numba.use_numba
 
 
 def test_eccentricity_multi_l_calc():
-    from TidalPy.tides.mode_calc_helper import eccentricity_functions_lookup
+    from TidalPy.tides.modes.mode_calc_helper import eccentricity_functions_lookup
 
     # Test a few truncation levels; these tests can take a long time to run so only doing a spot check on e^2 and e^10
     eccen_trunc_funcset_2 = eccentricity_functions_lookup[2]
@@ -38,7 +38,7 @@ def test_eccentricity_multi_l_calc():
 
 
 def test_inclination_multi_l_calc():
-    from TidalPy.tides.mode_calc_helper import inclination_functions_lookup
+    from TidalPy.tides.modes.mode_calc_helper import inclination_functions_lookup
 
     # Test a few truncation levels
     inclination_funcset_on = inclination_functions_lookup[True]
@@ -88,8 +88,8 @@ tidal_susceptibility_array = tidal_susceptibility * np.ones_like(orbital_frequen
 
 def test_calculate_and_collapse_modes():
     from TidalPy.utilities.performance import njit
-    from TidalPy.tides.mode_manipulation import calculate_terms, collapse_modes
-    from TidalPy.tides.mode_calc_helper import inclination_functions_lookup, eccentricity_functions_lookup
+    from TidalPy.tides.modes.mode_manipulation import calculate_terms, collapse_modes
+    from TidalPy.tides.modes.mode_calc_helper import inclination_functions_lookup, eccentricity_functions_lookup
 
     # These tests can take a long time to run, so only doing a spot check on l=2,3 and e^2, e^10
     for order_l in [2, 3]:

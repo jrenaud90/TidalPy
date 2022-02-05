@@ -74,8 +74,8 @@ def test_collapse_multilayer_modes_OrbAvg_homogen():
     # Check shape
     assert heating.shape == (10, 7, 5)
     assert volumetric_heating.shape == (10, 7, 5)
-    assert strains.shape == (6, 10, 7, 5, 12)
-    assert stresses.shape == (6, 10, 7, 5, 12)
+    assert strains.shape == (6, 10, 7, 5)
+    assert stresses.shape == (6, 10, 7, 5)
 
     # Look at stress/strain shapes
     for i in range(6):
