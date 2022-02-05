@@ -22,6 +22,7 @@ dependencies:
   - pathos>=0.2.0
   - ecos>=2.0.8
   - scs>=3.0.0
+  - cartopy>=0.18.0
   - pip:
     - pycddlib>=2.1
     - burnman>=1.0.1

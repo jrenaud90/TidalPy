@@ -18,3 +18,4 @@ psutil>=5.8.0
 pathos>=0.2.0
 ecos>=2.0.8
 scs>=3.0.0
+cartopy>=0.18.0

@@ -2,11 +2,16 @@
 
 ### Version 0.3.4 Alpha (Winter 2021)
 
+* Added `Cartopy` dependence
+  * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.global_map.py`.
+
 * Minor Changes
   * Added more colormaps, updated how reserved versions are constructed, updated old maps. 
   * Better support for post-multiprocessing function inputs.
   * Refactored tidal mode calculation functions into a new TidalPy.tides.modes module.
   * Added a voxel calculator to TidalPy.utilities.spherical_helper. Also, added related tests & benchmarking tools.
+  * Added a dictionary to track known color maps. It can be imported at `TidalPy.utilities.cmaps.KNOWN_CMAPS`
+  * Made some improvements to the unique_path function in io_helper.py
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes

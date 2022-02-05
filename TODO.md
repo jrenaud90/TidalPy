@@ -1,5 +1,6 @@
 * Add more propagation type tests for multilayer mode calculator
 * Add a benchmark and performance checker for multilayer mode calculator
+* Can io_helper.py be moved into the proper utilities module? Or is it used early in the TidalPy.init?
 * A multilayer model has now been implemented, but it is not currently part of the OOP scheme.
 * Probably worth refactoring `burnman_interface` into the `utilities` module to match other 3rd party packages.
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()

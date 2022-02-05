@@ -17,3 +17,4 @@ psutil>=5.8.0
 pathos>=0.2.0
 pycddlib>=2.1
 burnman>=1.0.1
+cartopy>=0.18.0

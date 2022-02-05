@@ -69,7 +69,7 @@ def timestamped_str(
 
 
 def unique_path(attempt_path: str, is_dir: bool = None, make_dir: bool = False) -> str:
-    """ Creates an unique directory or filename with appended numbers if file/dir already exists.
+    """ Creates a unique directory or filename with appended numbers if file/dir already exists.
 
     Parameters
     ----------
@@ -93,6 +93,21 @@ def unique_path(attempt_path: str, is_dir: bool = None, make_dir: bool = False) 
         else:
             is_dir = True
 
+    # Check if there are multiple subdirectories in the path. For each subdirectory make a directory if requested.
+    if os.pardir in attempt_path:
+        sub_dirs = attempt_path.split(os.pardir)
+        last_dir = len(sub_dirs) - 1
+        growing_dir = ''
+        for sub_dir_i, sub_dir in enumerate(sub_dirs):
+            growing_dir = sub_dir
+            if sub_dir_i == last_dir:
+                if not is_dir:
+                    break
+            if not os.path.isdir(growing_dir):
+                if make_dir:
+                    os.mkdir(growing_dir)
+            growing_dir += os.pardir
+
     # Check if the path already exists. If it does, add a number to make a unique path.
     if is_dir:
         attempt_path_original = attempt_path
@@ -103,6 +118,9 @@ def unique_path(attempt_path: str, is_dir: bool = None, make_dir: bool = False) 
                 try_num += 1
             else:
                 break
+            if try_num > 20:
+                raise FileExistsError('Large number of filepaths tested. No unique path found.')
+
     else:
         attempt_path_original = '.'.join(attempt_path.split('.')[:-1])
         extension = attempt_path.split('.')[-1]
@@ -113,6 +131,8 @@ def unique_path(attempt_path: str, is_dir: bool = None, make_dir: bool = False) 
                 try_num += 1
             else:
                 break
+            if try_num > 20:
+                raise FileExistsError('Large number of filepaths tested. No unique path found.')
 
     # Make the directory
     if make_dir and is_dir:
