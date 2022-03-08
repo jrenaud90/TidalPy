@@ -64,11 +64,11 @@ def geotherm_plot(
         use_temperature = True
 
     # Perform any unit conversions
-    pressures = pressures / 1e9  # Use GPa
-    densitys = densitys / 1000
-    x = x / 1000  # Use km
+    pressures = pressures / 1.e9   # Use GPa
+    densitys = densitys / 1000.    # Use kg m-3
+    x = x / 1000.                  # Use km
     if bulk_density is not None:
-        bulk_density = bulk_density / 1000
+        bulk_density = bulk_density / 1000. # Use kg m-3
 
     # If depth_plot then the plots will be stacked vertically, otherwise they will be arranged horizontally.
     n = 3

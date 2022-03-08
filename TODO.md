@@ -1,4 +1,5 @@
 * Add more propagation type tests for multilayer mode calculator
+* Test rectilinear vs PlateChautee for surface map plotter.
 * Add a benchmark and performance checker for multilayer mode calculator
 * Can io_helper.py be moved into the proper utilities module? Or is it used early in the TidalPy.init?
 * A multilayer model has now been implemented, but it is not currently part of the OOP scheme.

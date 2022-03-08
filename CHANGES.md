@@ -2,8 +2,10 @@
 
 ### Version 0.3.4 Alpha (Winter 2021)
 
-* Added `Cartopy` dependence
-  * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.global_map.py`.
+* Added `GridPlot` class to quickly make grid-like matplotlib figures. Checkout `TidalPy.utilities.graphics.grid_plot.py`
+* Added `Cartopy` dependence.
+  * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.graphics.global_map.py`.
+  * New jupyter notebooks to showcase map projects and GridPlot functionality.
 
 * Minor Changes
   * Added more colormaps, updated how reserved versions are constructed, updated old maps. 

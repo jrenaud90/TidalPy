@@ -4,9 +4,9 @@ from typing import List, Union
 import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.ticker as mticker
 from matplotlib.colors import Colormap
-from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+
 
 from .helper import get_cmap
 from ...io_helper import unique_path
@@ -17,6 +17,10 @@ ROTATED_POLE_DEFAULT_INPUT = {
     }
 
 _KNOWN_PROJECTIONS = {
+    # # Matplotlib Projections
+    'rectilinear'         : None,
+
+    # # CCR Projections
     'PlateCarree'         : ccrs.PlateCarree,
     'AlbersEqualArea'     : ccrs.AlbersEqualArea,
     'AzimuthalEquidistant': ccrs.AzimuthalEquidistant,
@@ -64,7 +68,8 @@ def projection_map(
     zticks: list = None, ztick_labels: list = None,
     projection: str = 'Mollweide', original_data_projection: str = 'PlateCarree',
     show_earth_coast: bool = False, show_grid_lines: bool = True,
-    auto_save: bool = True, auto_show: bool = True, save_png: bool = False,
+    ax: plt.Axes = None, cbax: plt.Axes = None,
+    auto_save: bool = False, auto_show: bool = True, save_png: bool = False,
     png_dpi: int = 300, filename: str = 'unknown_projection_plot', rotated_pole_input: dict = None
     ):
     """ Quickly plot surface maps using various kinds of latitude and longitude projections.
@@ -143,6 +148,9 @@ def projection_map(
         comparison purposes.
     show_grid_lines : bool = True
         If True, latitude and longitude lines will be plotted over the data.
+    ax : plt.Axes = None
+        If a matplotlib figure axis is provided then the function will use it rather than creating a new figure.
+        Note, this disables saving and show figure.
     auto_save : bool = True
         If True, the figure will be saved to disk.
     auto_show : bool = True
@@ -182,6 +190,9 @@ def projection_map(
         else:
             rotated_pole_input = {**ROTATED_POLE_DEFAULT_INPUT, **rotated_pole_input}
         projection_instance = projection(**rotated_pole_input)
+    elif projection is None:
+        rotated_pole_input = None
+        projection_instance = None
     else:
         rotated_pole_input = None
         projection_instance = projection()
@@ -190,8 +201,16 @@ def projection_map(
     cmap = get_cmap(cmap)
 
     # Make figure
-    fig = plt.figure(figsize=(figure_scale * aspect_ratio * 4., figure_scale * 4.))
-    ax = plt.axes(projection=projection_instance)
+    if ax is None:
+        fig = plt.figure(figsize=(figure_scale * aspect_ratio * 4., figure_scale * 4.))
+        if projection_instance is None:
+            ax = plt.axes(projection=None)
+        else:
+            ax = plt.axes(projection=projection_instance)
+        premade_ax = False
+    else:
+        fig = None
+        premade_ax = True
 
     # make the map global rather than have it zoom in to the extents of any plotted data
     ax.set_global()
@@ -208,13 +227,22 @@ def projection_map(
         data = np.log10(data)
 
     # Plot data making sure to transform it to the correct coordinate system.
-    cbdata = ax.contourf(
-        longitude, latitude, data.T, cpoints, cmap=cmap,
-        transform=data_projection()
-        )
+    if data_projection is None:
+        cbdata = ax.contourf(
+            longitude, latitude, data.T, cpoints, cmap=cmap,
+            transform=None
+            )
+    else:
+        cbdata = ax.contourf(
+            longitude, latitude, data.T, cpoints, cmap=cmap,
+            transform=data_projection()
+            )
 
     # Make colorbar
-    colorbar = plt.colorbar(cbdata, ax=ax)
+    if cbax is None:
+        colorbar = plt.colorbar(cbdata, ax=ax)
+    else:
+        colorbar = plt.colorbar(cbdata, cax=cbax)
     if zticks is not None:
         colorbar.set_ticks(zticks)
     if ztick_labels is not None:
@@ -222,20 +250,19 @@ def projection_map(
 
     # Plot lat and long gridlines
     if show_grid_lines:
-        gl = ax.gridlines(draw_labels=True, linestyle='--', alpha=0.5)
-        # gl.xlocator = mticker.FixedLocator([-180, -90, 0, 90, 180])
-        # gl.ylocator = mticker.FixedLocator([-90, -60, -30, 0, 30, 60, 90])
-        gl.xformatter = LONGITUDE_FORMATTER
-        gl.yformatter = LATITUDE_FORMATTER
-        gl.ylabels_right = False
-        gl.xlabels_top = False
+        gl = ax.gridlines(
+                          draw_labels=['x', 'y', 'bottom', 'left'], linestyle='-', alpha=0.35,
+                          xlocs=[-120, -60, 0, 60, 120],
+                          ylocs=[-60, -30, 0, 30, 60])
+        gl.right_labels  = False
+        gl.top_labels  = False
 
     # Set labels
     ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
     colorbar.set_label(zlabel)
 
     # Save figure
-    if auto_save:
+    if auto_save and not premade_ax:
         if '.pdf' == filename[-4:]:
             filename = filename[:-4]
 
@@ -246,7 +273,7 @@ def projection_map(
             fig.savefig(filepath + '.png', dpi=png_dpi)
 
     # Show figure
-    if auto_show:
+    if auto_show and not premade_ax:
         plt.show()
 
     return fig, ax
