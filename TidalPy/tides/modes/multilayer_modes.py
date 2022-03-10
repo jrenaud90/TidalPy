@@ -12,7 +12,7 @@ from typing import Callable, Dict
 import numpy as np
 
 from ..multilayer.stress_strain import calculate_strain_stress_heating
-from ..potential import tidal_potential_nsr_modes
+from ..potential import tidal_potential_nsr_modes, tidal_potential_simple, tidal_potential_nsr
 
 
 def collapse_multilayer_modes(
@@ -24,6 +24,7 @@ def collapse_multilayer_modes(
     propagation_function: Callable,
     interface_properties: dict,
     order_l: int = 2, complex_compliance_input: tuple = None,
+    use_modes: bool = True, use_static_potential: bool = False, use_simple_potential: bool = False,
     orbit_average_results: bool = True,
     integration_parameters: dict = None
     ):
@@ -89,6 +90,15 @@ def collapse_multilayer_modes(
         Tidal harmonic order.
     complex_compliance_input : tuple = None
         Additional inputs to the complex compliance function. If None, then defaults will be used.
+    use_modes : bool = True
+        If True, the interior integration will occur across multiple tidal modes.
+        This can be set to False if the planet is tidally locked AND the eccentricity is low (e <~ 0.1) and is
+           not expected to increase.
+    use_static_potential : bool = False
+        If True, then static terms within the tidal potential (usually phase terms like sin(2*phi) will be included.
+        These terms should not be used to calculate tidal heating since it is a time derivative of the potential.
+    use_simple_potential : bool = False
+        If True, then a simplified version of the tidal potential will be used when use_modes is set to False.
     orbit_average_results : bool = True
         If True, then the function will orbit average the heating, stress, and strain results. This will reduce the
         final output's dimension by one.
@@ -139,13 +149,13 @@ def collapse_multilayer_modes(
     # Variable may be a matrix calculated from a mesh grid over [radius_matrix, longitude_matrix, latitude, time_matrix] <- must be in this order
 
     # Pull out individual arrays
-    radius = radius_matrix[:, 0, 0, 0]
-    longitude = longitude_matrix[0, :, 0, 0]
-    colatitude = colatitude_matrix[0, 0, :, 0]
+    radius_array = radius_matrix[:, 0, 0, 0]
+    longitude_array = longitude_matrix[0, :, 0, 0]
+    colatitude_array = colatitude_matrix[0, 0, :, 0]
     time_domain = time_matrix[0, 0, 0, :]
 
     # Check that dimensions make sense
-    assert radius.shape == shear_modulus.shape
+    assert radius_array.shape == shear_modulus.shape
 
     # Check that the time domain has the correct end points
     orbital_period = 2. * np.pi / orbital_frequency
@@ -164,19 +174,44 @@ def collapse_multilayer_modes(
     voxel_volume_higher_dim = np.repeat(voxel_volume[:, :, :, np.newaxis], len(time_domain), axis=3)
 
     # Calculate the tidal modes and the tidal potential and its partial derivatives.
-    planet_radius = radius[-1]
-    modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict, \
-    potential_d2phi_dict, potential_dtheta_dphi_dict = \
-        tidal_potential_nsr_modes(
-            radius_matrix, longitude_matrix, colatitude_matrix, orbital_frequency, eccentricity, time_matrix,
-            spin_frequency, world_radius=planet_radius, host_mass=host_mass, semi_major_axis=semi_major_axis,
-            use_static=False
-            )
+    planet_radius = radius_array[-1]
+    if use_modes:
+        # First calculate the modes and potential
+        tidal_frequencies, tidal_modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict,\
+            potential_d2phi_dict, potential_dtheta_dphi_dict = \
+            tidal_potential_nsr_modes(
+                radius_matrix, longitude_matrix, colatitude_matrix, orbital_frequency, eccentricity, time_matrix,
+                spin_frequency, world_radius=planet_radius, host_mass=host_mass, semi_major_axis=semi_major_axis,
+                use_static=use_static_potential
+                )
+    else:
+        # Calculate the non-mode version of the tidal potential
+        if use_simple_potential:
+            # Calculate the simplified tidal potential
+            potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+                tidal_potential_simple(
+                    radius_matrix, longitude_matrix, colatitude_matrix, orbital_frequency, eccentricity, time_matrix)
+        else:
+            potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+                tidal_potential_nsr(
+                    radius_matrix, longitude_matrix, colatitude_matrix, orbital_frequency, eccentricity, time_matrix,
+                    spin_frequency, world_radius=planet_radius, host_mass=host_mass,
+                    semi_major_axis=semi_major_axis, use_static=use_static_potential
+                )
+        # Add the results to a mode dictionary so that the mode vs. non-mode calculation steps are identical.
+        tidal_frequencies = {'n': np.abs(orbital_frequency)}
+        tidal_modes = {'n': orbital_frequency}
+        potential_dict = {'n': potential}
+        potential_dtheta_dict = {'n': potential_dtheta}
+        potential_dphi_dict = {'n': potential_dphi}
+        potential_d2theta_dict = {'n': potential_d2theta}
+        potential_d2phi_dict = {'n': potential_d2phi}
+        potential_dtheta_dphi_dict = {'n': potential_dtheta_dphi}
 
     # Make empty containers for variables which will be added to for each tidal mode.
-    complex_shears = np.zeros_like(radius, dtype=np.complex128)
-    tidal_y = np.zeros((6, *radius.shape), dtype=np.complex128)
-    tidal_y_deriv = np.zeros((6, *radius.shape), dtype=np.complex128)
+    complex_shears = np.zeros_like(radius_array, dtype=np.complex128)
+    tidal_y = np.zeros((6, *radius_array.shape), dtype=np.complex128)
+    tidal_y_deriv = np.zeros((6, *radius_array.shape), dtype=np.complex128)
     strains = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
     stresses = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
     volumetric_heating_individual_modes = np.zeros_like(radius_matrix, dtype=np.float64)
@@ -185,7 +220,7 @@ def collapse_multilayer_modes(
 
     # For each tidal mode we need to calculate the rheological and radial response.
     modes_skipped = 0
-    for mode_name, mode_freq in modes.items():
+    for mode_name, mode_frequency in tidal_frequencies.items():
 
         # Pull out tidal potential information for this mode
         potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
@@ -194,10 +229,10 @@ def collapse_multilayer_modes(
             potential_dtheta_dphi_dict[mode_name]
 
         # Calculate rheology and radial response
-        if mode_freq < 1.0e-15:
+        if mode_frequency < 1.0e-15:
             # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
-            tidal_y_at_mode = np.zeros((6, *radius.shape), dtype=np.complex128)
-            tidal_y_deriv_at_mode = np.zeros((6, *radius.shape), dtype=np.complex128)
+            tidal_y_at_mode = np.zeros((6, *radius_array.shape), dtype=np.complex128)
+            tidal_y_deriv_at_mode = np.zeros((6, *radius_array.shape), dtype=np.complex128)
             complex_shears_at_mode = shear_modulus + 0.0j
             strains_at_mode = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
             stresses_at_mode = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
@@ -208,7 +243,7 @@ def collapse_multilayer_modes(
             # Calculate material & rheological response
             # Calculate Complex Compliance
             complex_compliances_at_mode = \
-                complex_compliance_func(mode_freq, shear_modulus**(-1), viscosity, *complex_compliance_input)
+                complex_compliance_func(mode_frequency, shear_modulus**(-1), viscosity, *complex_compliance_input)
             complex_shears_at_mode = complex_compliances_at_mode**(-1)
 
             # TODO: Should be fairly straight forward to add in bulk dissipation here by calling upon a rheology
@@ -229,16 +264,16 @@ def collapse_multilayer_modes(
             # Calculate the propagation of tides through the planet's layers
             tidal_y_at_mode, tidal_y_deriv_at_mode = \
                 propagation_function(
-                    radius, complex_shears_at_mode, bulk_modulus, density, gravity, mode_freq,
+                    radius_array, complex_shears_at_mode, bulk_modulus, density, gravity, mode_frequency,
                     order_l=order_l,
                     **interface_properties, **integration_parameters
                     )
 
             # We need to recast the inputs into the correct dimensions
             complex_shears_higher_dim, _, _, _ = \
-                np.meshgrid(complex_shears_at_mode, longitude, colatitude, time_domain, indexing='ij')
+                np.meshgrid(complex_shears_at_mode, longitude_array, colatitude_array, time_domain, indexing='ij')
             bulk_moduli_higher_dim, _, _, _ = \
-                np.meshgrid(bulk_modulus, longitude, colatitude, time_domain, indexing='ij')
+                np.meshgrid(bulk_modulus, longitude_array, colatitude_array, time_domain, indexing='ij')
 
             # We need to recast the tidal y solution into the correct dimensions
             #    (it does not care about long/lat or time_matrix - at least in this context).
@@ -246,10 +281,10 @@ def collapse_multilayer_modes(
             tidal_y_deriv_higher_dim = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
             for i in range(6):
                 tidal_y_higher_dim[i, :, :, :, :], _, _, _ = \
-                    np.meshgrid(tidal_y_at_mode[i, :], longitude, colatitude, time_domain,
+                    np.meshgrid(tidal_y_at_mode[i, :], longitude_array, colatitude_array, time_domain,
                                 indexing='ij')
                 tidal_y_deriv_higher_dim[i, :, :, :, :], _, _, _ = \
-                    np.meshgrid(tidal_y_deriv_at_mode[i, :], longitude, colatitude, time_domain,
+                    np.meshgrid(tidal_y_deriv_at_mode[i, :], longitude_array, colatitude_array, time_domain,
                                 indexing='ij')
 
             # Calculate stresses and heating
@@ -263,7 +298,7 @@ def collapse_multilayer_modes(
                 colatitude=colatitude_matrix,
                 radius=radius_matrix, shear_moduli=complex_shears_higher_dim,
                 bulk_moduli=bulk_moduli_higher_dim,
-                frequency=mode_freq
+                frequency=mode_frequency
                 )
             heating_at_mode = voxel_volume_higher_dim * volumetric_heating_at_mode
 

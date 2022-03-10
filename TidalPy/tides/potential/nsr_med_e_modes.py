@@ -52,6 +52,8 @@ def tidal_potential(
 
     Returns
     -------
+    tidal_frequencies : Dict[str, FloatArray]
+        Tidal frequencies, abs(modes) [radians s-1]
     tidal_modes : Dict[str, FloatArray]
         Tidal frequency modes [radians s-1]
     potential : Dict[str, FloatArray]
@@ -93,16 +95,28 @@ def tidal_potential(
 
     # # Build frequency modes
     modes = {
-        'n'    : np.abs(n),
-        '2n'   : np.abs(2. * n),
-        '3n'   : np.abs(3. * n),
-        '2o+n' : np.abs(2. * o + n),
-        '2o-n' : np.abs(2. * o - n),
-        '2o-2n': np.abs(2. * o - 2. * n),
-        '2o-3n': np.abs(2. * o - 3. * n),
-        '2o-4n': np.abs(2. * o - 4. * n),
-        '2o-5n': np.abs(2. * o - 5. * n)
+        'n'    : n,
+        '2n'   : 2. * n,
+        '3n'   : 3. * n,
+        '2o+n' : 2. * o + n,
+        '2o-n' : 2. * o - n,
+        '2o-2n': 2. * o - 2. * n,
+        '2o-3n': 2. * o - 3. * n,
+        '2o-4n': 2. * o - 4. * n,
+        '2o-5n': 2. * o - 5. * n
         }
+
+    frequencies = {
+        'n': np.abs(n),
+        '2n': np.abs(2.*n),
+        '3n': np.abs(3.*n),
+        '2o+n': np.abs(2.*o + n),
+        '2o-n': np.abs(2.*o - n),
+        '2o-2n': np.abs(2.*o - 2.*n),
+        '2o-3n': np.abs(2.*o - 3.*n),
+        '2o-4n': np.abs(2.*o - 4.*n),
+        '2o-5n': np.abs(2.*o - 5.*n)
+    }
 
     # There will be terms that are non-zero even though they do not carry a time dependence. This switch will
     #   ensure all non-time dependence --> zero unless the user sets `use_static` = True.
@@ -561,5 +575,5 @@ def tidal_potential(
                                 compo_e_partial2_theta_phi['2o-5n'] + compo_e_nsr_partial2_theta_phi['2o-5n'])
         }
 
-    return modes, potential, potential_partial_theta, potential_partial_phi, \
+    return frequencies, modes, potential, potential_partial_theta, potential_partial_phi, \
            potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi
