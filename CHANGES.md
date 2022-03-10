@@ -2,6 +2,7 @@
 
 ### Version 0.3.4 Alpha (Winter 2021)
 
+* Added `TidalPy.toolbox.multilayer.quick_calc.py` module to offer simplified calculation of multilayer tidal heating.  
 * Added `GridPlot` class to quickly make grid-like matplotlib figures. Checkout `TidalPy.utilities.graphics.grid_plot.py`
 * Added `Cartopy` dependence.
   * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.graphics.global_map.py`.
