@@ -7,12 +7,139 @@ This module contains functions to assist with calculating the response at each o
 
 """
 
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple
 
 import numpy as np
 
 from ..multilayer.stress_strain import calculate_strain_stress_heating
+from ...utilities.types import FloatArray
 from ..potential import tidal_potential_nsr_modes, tidal_potential_simple, tidal_potential_nsr
+from ...toolbox.multilayer import KNOWN_INTERIOR_MODELS
+
+
+def calculate_tidal_y(
+    complex_compliance_func: Callable, forcing_frequency: FloatArray,
+    radius_array: np.ndarray, gravity_array: np.ndarray, density_array,
+    shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
+    interior_layer_model: str,
+    layer_index_tuple: Tuple[np.ndarray], layer_is_static_tuple: Tuple[bool, ...],
+    order_l: int = 2, complex_compliance_input: Tuple[float, ...] = None,
+    **interior_integration_kwargs):
+    """ Wrapper for the tidal-y integrator that allows for different interior models.
+
+    Parameters
+    ----------
+    complex_compliance_func : Callable
+        Complex compliance function
+    forcing_frequency : FloatArray
+        Tidal forcing frequency [rad s-1]
+    radius_array : np.ndarray
+        Radius array through the planet [m]
+    gravity_array : np.ndarray
+        Acceleration due to gravity array through the planet [m s-2]
+    density_array : np.ndarray
+        Local density array through the planet [kg m-3]
+    shear_array : np.ndarray
+        Shear modulus array through the planet [Pa]
+    bulk_array : np.ndarray
+        Bulk modulus array through the planet [Pa]
+    viscosity_array : np.ndarray
+        Viscosity array through the planet [Pa s]
+    interior_layer_model : str
+        Interior model used for radial solution
+    layer_index_tuple : Tuple[np.ndarray, ...]
+        Tuple of indices for each internal layer.
+    layer_is_static_tuple : Tuple[bool, ...]
+        Tuple of flags if each internal layer is static or not.
+    order_l : int = 2
+        Tidal harmonic order.
+    complex_compliance_input : Tuple[float, ...]
+        Tuple of floats used in the complex compliance function.
+    interior_integration_kwargs
+
+    Returns
+    -------
+
+    """
+
+    # Calculate Complex Compliance
+    if complex_compliance_input is None:
+        complex_compliance_input = tuple()
+    complex_compliances = \
+        complex_compliance_func(forcing_frequency, shear_array**(-1), viscosity_array, *complex_compliance_input)
+    complex_shears = complex_compliances**(-1)
+
+    # Clean up complex shears based on any zero viscosities (short hand to indicate zero dissipation)
+    complex_shears[viscosity_array == 0.] = shear_array[viscosity_array == 0.] * (1. + 0.j)
+    # Make zero shears very small instead to avoid 1/0 issues.
+    complex_shears[shear_array == 0.] = (1. + 1.j) * 1.e-50
+    complex_shears[np.imag(complex_shears) == 0.] = \
+        np.real(complex_shears[np.imag(complex_shears) == 0.]) + 1.0j * 1e-40
+
+    # Find interface radii for each layer
+    num_layers = len(layer_index_tuple)
+    radius_of_interfaces = [radius_array[layer_index][-1] for layer_index in layer_index_tuple]
+
+    # Determine input based on the model used.
+    interior_calc_input = None
+    if interior_layer_model.lower() not in KNOWN_INTERIOR_MODELS:
+        raise KeyError('Unknown interior model provided to find_tidal_y.')
+    calculate_tidal_y = KNOWN_INTERIOR_MODELS[interior_layer_model.lower()]
+
+    # Build input to the model based on which model is being used.
+    if num_layers > 1:
+        if interior_layer_model.lower() not in ['homogeneous']:
+            raise ValueError('Mismatch between number of layers and interior model method.')
+        else:
+            interior_calc_input = {
+                'use_static': layer_is_static_tuple[0]
+                }
+
+    elif num_layers == 2:
+        if interior_layer_model.lower() not in ['liquid-solid']:
+            raise ValueError('Mismatch between number of layers and interior model method.')
+        else:
+            interior_calc_input = {
+                'interface_1_radius': radius_of_interfaces[0],
+                'layer_0_static': layer_is_static_tuple[0],
+                'layer_1_static': layer_is_static_tuple[1]
+                 }
+
+    elif num_layers == 3:
+        if interior_layer_model.lower() not in ['solid-liquid-solid']:
+            raise ValueError('Mismatch between number of layers and interior model method.')
+        else:
+            interior_calc_input = {
+                'interface_1_radius': radius_of_interfaces[0],
+                'interface_2_radius': radius_of_interfaces[1],
+                'layer_0_static'    : layer_is_static_tuple[0],
+                'layer_1_static'    : layer_is_static_tuple[1],
+                'layer_2_static'    : layer_is_static_tuple[2]
+                }
+    elif num_layers == 4:
+        if interior_layer_model.lower() not in ['solid-solid-liquid-solid']:
+            raise ValueError('Mismatch between number of layers and interior model method.')
+        else:
+            interior_calc_input = {
+                'interface_1_radius': radius_of_interfaces[0],
+                'interface_2_radius': radius_of_interfaces[1],
+                'interface_3_radius': radius_of_interfaces[2],
+                'layer_0_static'    : layer_is_static_tuple[0],
+                'layer_1_static'    : layer_is_static_tuple[1],
+                'layer_2_static'    : layer_is_static_tuple[2],
+                'layer_3_static'    : layer_is_static_tuple[3]
+                }
+    else:
+        raise NotImplementedError('Only 1 to 4 layers are currently supported by interior integrator.')
+
+    # Calculate the radial solution to the viscoelastic-gravitational problem
+    tidal_y, tidal_y_deriv = \
+        calculate_tidal_y(
+            radius_array, complex_shears, bulk_array, density_array, gravity_array, forcing_frequency,
+            **interior_calc_input, order_l=order_l,
+            **interior_integration_kwargs)
+
+    return complex_shears, tidal_y, tidal_y_deriv
 
 
 def collapse_multilayer_modes(
