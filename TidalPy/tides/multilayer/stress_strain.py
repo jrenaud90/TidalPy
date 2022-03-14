@@ -70,7 +70,7 @@ def calculate_strain_stress_heating(
     colatitude: FloatArray,
     radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
     frequency: FloatArray, order_l: int = 2,
-    ) -> Tuple[StressType, StrainType, np.ndarray]:
+    ) -> Tuple[StrainType, StressType, np.ndarray]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.
 
@@ -120,7 +120,7 @@ def calculate_strain_stress_heating(
             Strain tensor component - radius longitude (appears twice in the symmetric tensor)
         e_thph : np.ndarray
             Strain tensor component - colatitude longitude (appears twice in the symmetric tensor)
-    stress : StrainType
+    stress : StressType
         s_rr : np.ndarray
             Stress tensor component - radius radius
         s_thth : np.ndarray
@@ -165,10 +165,8 @@ def calculate_strain_stress_heating(
     e_thth = (1. / radius) * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
     # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
     #    as pointed out in Kervazo et al (2021; A&A) Appendix D
-    e_phph = (1. / radius) * \
-             (y1 * tidal_potential +
-              (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
-              y3 * cot_theta * tidal_potential_partial_theta)
+    e_phph = (1. / radius) * (y1 * tidal_potential + (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
+                              y3 * cot_theta * tidal_potential_partial_theta)
     e_thph = (2. / radius) * (y3 / sin_theta) * \
              (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
 

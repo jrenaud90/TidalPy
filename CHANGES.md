@@ -1,6 +1,6 @@
 # TidalPy Major Change Log
 
-### Version 0.3.4 Alpha (Winter 2021)
+### Version 0.3.4 Alpha (Winter/Spring 2021)
 
 * Added `TidalPy.toolbox.multilayer.quick_calc.py` module to offer simplified calculation of multilayer tidal heating.  
 * Added `GridPlot` class to quickly make grid-like matplotlib figures. Checkout `TidalPy.utilities.graphics.grid_plot.py`
@@ -9,6 +9,7 @@
   * New jupyter notebooks to showcase map projects and GridPlot functionality.
 
 * Minor Changes
+  * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
   * Added more colormaps, updated how reserved versions are constructed, updated old maps. 
   * Better support for post-multiprocessing function inputs.
   * Refactored tidal mode calculation functions into a new TidalPy.tides.modes module.

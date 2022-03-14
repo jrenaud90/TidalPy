@@ -55,10 +55,17 @@ def calculate_tidal_y(
         Tidal harmonic order.
     complex_compliance_input : Tuple[float, ...]
         Tuple of floats used in the complex compliance function.
-    interior_integration_kwargs
+    interior_integration_kwargs : dict
+        Keyword arguments for the interior integration function.
 
     Returns
     -------
+    complex_shears : np.ndarray
+        Complex shear modulus throughout the planet [Pa]
+    tidal_y : np.ndarray
+        Viscoelastic-gravitational solution as a function of radius.
+    tidal_y_deriv : np.ndarray
+        Radial derivative of the viscoelastic-gravitational solution as a function of radius.
 
     """
 
@@ -74,7 +81,7 @@ def calculate_tidal_y(
     # Make zero shears very small instead to avoid 1/0 issues.
     complex_shears[shear_array == 0.] = (1. + 1.j) * 1.e-50
     complex_shears[np.imag(complex_shears) == 0.] = \
-        np.real(complex_shears[np.imag(complex_shears) == 0.]) + 1.0j * 1e-40
+        np.real(complex_shears[np.imag(complex_shears) == 0.]) + 1.0j * 1e-50
 
     # Find interface radii for each layer
     num_layers = len(layer_index_tuple)
@@ -141,6 +148,162 @@ def calculate_tidal_y(
 
     return complex_shears, tidal_y, tidal_y_deriv
 
+
+def calculate_mode_response_coupled(
+    radius_matrix: np.ndarray, colatitude_matrix: np.ndarray,
+    time_domain, longitude_domain, colatitude_domain,
+    radius_array: np.ndarray, gravity_array: np.ndarray, density_array,
+    shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
+    mode_frequency: FloatArray,
+    tidal_potential_tuple: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+    complex_compliance_function: Callable, interior_layer_model: str,
+    layer_index_tuple: Tuple[np.ndarray, ...], layer_is_static_tuple: Tuple[bool, ...],
+    complex_compliance_input: Tuple[float, ...] = None,
+    order_l: int = 2, tidal_y_integration_kwargs: dict = None,
+    force_mode_calculation: bool = False):
+    """ Given a tidal frequency, this function will call on the interior integration routine with the proper inputs and
+        collect the results as well as calculate tidal heating as a function of radius, longitude, latitude, and time.
+
+    Parameters
+    ----------
+    radius_matrix : np.ndarray
+        Radius matrix with increased dimensions [m].
+        Shape: (N_r, N_long, N_colat, N_time)
+    colatitude_matrix : np.ndarray
+        Colatitude matrix with increased dimensions [rads].
+        Shape: (N_r, N_long, N_colat, N_time)
+    time_domain : np.ndarray
+        Time domain [s]
+    longitude_domain : np.ndarray
+        Longitude domain [rad]
+    colatitude_domain : np.ndarray
+        Colatitude domain [rad]
+    radius_array : np.ndarray
+        Radius array [m]
+    gravity_array : np.ndarray
+        Acceleration due to gravity as a function of radius [m s-2]
+    density_array : np.ndarray
+        Density as a function of radius [kg m-3]
+    shear_array : np.ndarray
+        Shear modulus as a function of radius [Pa]
+    bulk_array : np.ndarray
+        Bulk modulus as a function of radius [Pa]
+    viscosity_array : np.ndarray
+        Viscosity as a function of radius [Pa s]
+    mode_frequency : float
+        Tidal forcing frequency at requested mode [rad s-1]
+    tidal_potential_tuple : Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+        Inputs used to calculate the tidal potential
+    complex_compliance_function : Callable
+        Complex compliance function (set by rheology)
+    interior_layer_model : str
+        Interior model type used to propagate viscoelastic-gravitational solution.
+    layer_index_tuple : Tuple[np.ndarray, ...]
+        Tuple of boolean arrays indicating which radius values are associated with which layer.
+    layer_is_static_tuple : Tuple[bool, ...]
+        Tuple of booleans to indicate which layers should be treated with the static assumption.
+    complex_compliance_input : Tuple[float, ...]
+        Inputs used to calculate the complex compliance.
+    order_l : int = 2
+        Tidal harmonic order.
+    tidal_y_integration_kwargs : dict = None
+        Keyword arguments passed to the interior integrator function.
+    force_mode_calculation : bool = False
+        If True, then interior propagation will be performed for all modes regardless of frequency value.
+
+    Returns
+    -------
+    mode_skipped : bool
+        If True, then the mode's frequency was close to zero so no propagation was calculated.
+    strains_at_mode : np.ndarray
+        Tidal strains as a function of radius, longitude, colatitude, and time.
+    stresses_at_mode : np.ndarray
+        Tidal stresses as a function of radius, longitude, colatitude, and time.
+    complex_shears_at_mode : np.ndarray
+        Complex shear modulus as a function of radius.
+    tidal_y_at_mode : np.ndarray
+        Viscoelastic-gravitational radial solutions as a function of radius.
+
+    """
+
+    # Setup flags
+    mode_skipped = False
+
+    # Clean input
+    if tidal_y_integration_kwargs is None:
+        tidal_y_integration_kwargs = dict()
+
+    # Calculate rheology and radial response
+    if (not force_mode_calculation) and (mode_frequency < 1.0e-15):
+        # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
+        tidal_y_at_mode = np.zeros((6, *radius_array.shape), dtype=np.complex128)
+        tidal_y_derivative_at_mode = np.zeros((6, *radius_array.shape), dtype=np.complex128)
+        complex_shears_at_mode = shear_array + 0.0j
+        strains_at_mode = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+        stresses_at_mode = np.zeros((6, *radius_matrix.shape), dtype=np.complex128)
+        mode_skipped = True
+    else:
+        # Calculate the radial functions using a shooting integration method.
+        complex_shears_at_mode, tidal_y_at_mode, tidal_y_derivative_at_mode = \
+            calculate_tidal_y(
+                complex_compliance_function, mode_frequency,
+                radius_array, gravity_array, density_array, shear_array, bulk_array, viscosity_array,
+                interior_layer_model=interior_layer_model,
+                layer_index_tuple=layer_index_tuple, layer_is_static_tuple=layer_is_static_tuple,
+                order_l=order_l, complex_compliance_input=complex_compliance_input,
+                **tidal_y_integration_kwargs)
+
+        # We need to recast the inputs into the correct dimensions
+        complex_shears_higher_dim, _, _, _ = \
+            np.meshgrid(complex_shears_at_mode, longitude_domain, colatitude_domain, time_domain, indexing='ij')
+
+        # TODO: Bulk dissipation has not been implemented.
+        complex_bulks_higher_dim, _, _, _ = \
+            np.meshgrid(bulk_array, longitude_domain, colatitude_domain, time_domain, indexing='ij')
+
+        # We need to recast the tidal y solution into the correct dimensions
+        #    (it does not care about long/lat or time - at least in this context).
+        # OPT: It will probably be better from a memory conservation point of view if we don't make these higher dimension variables and instead use a non-numpy array technique during the potential calculations.
+        tidal_y_higher_dim = np.repeat(tidal_y_at_mode[:, :, np.newaxis],
+                                       len(longitude_domain), axis=2)
+        tidal_y_higher_dim = np.repeat(tidal_y_higher_dim[:, :, :, np.newaxis],
+                                       len(colatitude_domain), axis=3)
+        tidal_y_higher_dim = np.repeat(tidal_y_higher_dim[:, :, :, :, np.newaxis],
+                                       len(time_domain), axis=4)
+
+        tidal_y_derivative_higher_dim = np.repeat(tidal_y_at_mode[:, :, np.newaxis],
+                                                  len(longitude_domain), axis=2)
+        tidal_y_derivative_higher_dim = np.repeat(tidal_y_derivative_higher_dim[:, :, :, np.newaxis],
+                                                  len(colatitude_domain), axis=3)
+        tidal_y_derivative_higher_dim = np.repeat(tidal_y_derivative_higher_dim[:, :, :, :, np.newaxis],
+                                                  len(time_domain), axis=4)
+
+        for i in range(6):
+            tidal_y_higher_dim[i, :, :, :, :], _, _, _ = \
+                np.meshgrid(tidal_y_at_mode[i, :], longitude_domain, colatitude_domain, time_domain,
+                            indexing='ij')
+            tidal_y_derivative_higher_dim[i, :, :, :, :], _, _, _ = \
+                np.meshgrid(tidal_y_derivative_at_mode[i, :], longitude_domain, colatitude_domain, time_domain,
+                            indexing='ij')
+
+        # Unpack tidal potential terms
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            tidal_potential_tuple
+        # Calculate stresses and heating
+        strains_at_mode, stresses_at_mode, OLD_volumetric_heating_at_mode = calculate_strain_stress_heating(
+            tidal_potential=potential,
+            tidal_potential_partial_theta=potential_dtheta, tidal_potential_partial_phi=potential_dphi,
+            tidal_potential_partial2_theta2=potential_d2theta,
+            tidal_potential_partial2_phi2=potential_d2phi,
+            tidal_potential_partial2_theta_phi=potential_dtheta_dphi,
+            tidal_solution_y=tidal_y_higher_dim, tidal_solution_y_derivative=tidal_y_derivative_higher_dim,
+            colatitude=colatitude_matrix,
+            radius=radius_matrix, shear_moduli=complex_shears_higher_dim,
+            bulk_moduli=complex_bulks_higher_dim,
+            frequency=mode_frequency
+            )
+
+    return mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode
 
 def collapse_multilayer_modes(
     shear_modulus: np.ndarray, viscosity: np.ndarray, bulk_modulus: np.ndarray,
