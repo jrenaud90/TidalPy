@@ -12,6 +12,7 @@ dependencies:
   - scipy>=1.6.3
   - numba>=0.53
   - pytest>=6.2.4
+  - pytest-split>=0.7.0
   - ipympl>=0.7.0
   - ipython>=7.24.1
   - ipywidgets>=7.6.3

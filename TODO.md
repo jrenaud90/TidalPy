@@ -1,3 +1,5 @@
+* It looks like only surface potential is required. Change multilayer to only consider the surface radius.
+* Change the stress-strain relationship in stress_strain.py to be a generic consistutive equation.
 * Add more propagation type tests for multilayer mode calculator
 * Test rectilinear vs PlateChautee for surface map plotter.
 * Add a benchmark and performance checker for multilayer mode calculator

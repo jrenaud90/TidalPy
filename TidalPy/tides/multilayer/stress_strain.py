@@ -144,54 +144,62 @@ def calculate_strain_stress_heating(
     cot_theta = cos_theta / sin_theta
 
     # Shortcuts
-    # Method 1 - Definition:
     dy1_dr = tidal_solution_y_derivative[0]
-    # Method 2 - Euler method
-    # if ri == 0:
-    #     dy1_dr = tidal_solution_y[0, 1:] / radius
-    # else:
-    #     dy1_dr = (tidal_solution_y[0, 1:] - tidal_solution_y[0, :]) / (radius - radius[ri-1])
-
     y1 = tidal_solution_y[0]
     y2 = tidal_solution_y[1]
     y3 = tidal_solution_y[2]
     y4 = tidal_solution_y[3]
 
-    # TB05 Eq. 10; B13 Eq. 8 & 9
-    # TODO: Missing the sum over l and m used in TB05
-    e_rr = dy1_dr * tidal_potential
-    e_rth = y4 * tidal_potential_partial_theta / shear_moduli
-    e_rph = y4 * tidal_potential_partial_phi / (shear_moduli * sin_theta)
-    e_thth = (1. / radius) * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
+    # Build matrix for stress and strain calculations
+
+    # Strain Terms - TB05 Eq. 10; B13 Eq. 8 & 9
+    strain = np.zeros((6, *tidal_potential.shape), dtype=np.complex128)
+    # \epsilon_{rr}
+    strain[0, :, :, :, :] = dy1_dr * tidal_potential
+    # \epsilon_{\theta\theta}
+    strain[1, :, :, :, :] = (1. / radius) * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
+    # \epsilon_{\phi\phi}
     # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
     #    as pointed out in Kervazo et al (2021; A&A) Appendix D
-    e_phph = (1. / radius) * (y1 * tidal_potential + (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
-                              y3 * cot_theta * tidal_potential_partial_theta)
-    e_thph = (2. / radius) * (y3 / sin_theta) * \
-             (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
-
+    strain[2, :, :, :, :] = (1. / radius) * (y1 * tidal_potential +
+                                             (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
+                                             y3 * cot_theta * tidal_potential_partial_theta)
     # The (1/2) in the off-diagonal terms are due to these components appearing twice in the tensor
-    e_rth *= (1. / 2.)
-    e_rph *= (1. / 2.)
-    e_thph *= (1. / 2.)
+    # \epsilon_{r\theta}
+    strain[3, :, :, :, :] = (1. / 2.) * y4 * tidal_potential_partial_theta / shear_moduli
+    # \epsilon_{r\phi}
+    strain[4, :, :, :, :] = (1. / 2.) * y4 * tidal_potential_partial_phi / (shear_moduli * sin_theta)
+    # \epsilon_{\theta\phi}
+    strain[5, :, :, :, :] = (1. / 2.) * (2. / radius) * (y3 / sin_theta) * \
+                            (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
 
-    # Build strain tensor matrix. Off-diagonal terms are divided by 2 in the strain tensor.
-    # # TODO: Currently njit does not like the np.asarray() - perhaps in the future... (Remove 1/2 above)
-    # strain_tensor = np.asarray([[e_rr, e_rth, e_rph],
-    #                             [e_rth, e_thth, e_thph],
-    #                             [e_rph, e_thph , e_phph]], dtype=np.complex128)
 
     # Calculate stress using Kervazo et al (2021; A&A) Appendix D Eqs D.7-D.12
+    stress = np.zeros((6, *tidal_potential.shape), dtype=np.complex128)
     strength_term_1 = (bulk_moduli - (2. / 3.) * shear_moduli)
     strength_term_2 = (bulk_moduli + (4. / 3.) * shear_moduli)
-    s_rr = y2 * tidal_potential
-    s_thth = tidal_potential * (strength_term_1 * dy1_dr +
-                                (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
-                                2. * shear_moduli * y1 / radius) - \
+    theta_phi_term = strength_term_1 * dy1_dr + \
+        (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) - \
+        2. * shear_moduli * y1 / radius
+
+    # 2ue_ij + (K - 2/3u)*e_kk delta_ij
+
+    2ue_rr + (K - 2/3u) * (e_rr + e_thth + e_phph)
+
+    2u * dy1_dr * tidal_potential
+
+
+    # \sigma_{rr}
+    stress[0, :, :, :, :] = y2 * tidal_potential
+    # \sigma_{\theta\theta}
+    stress[1, :, :, :, :] = tidal_potential * (
+            strength_term_1 * dy1_dr + (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
+            2. * shear_moduli * y1 / radius) - \
              (2. * shear_moduli * y3 / radius) * (cot_theta * tidal_potential_partial_theta +
                                                   (1. / sin_theta**2) * tidal_potential_partial2_phi2)
-    s_phph = tidal_potential * (strength_term_1 * dy1_dr +
-                                (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
+    # \epsilon_{\phi\phi}
+    stress[2, :, :, :, :] = tidal_potential * (
+            strength_term_1 * dy1_dr + (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
                                 2. * shear_moduli * y1 / radius) - \
              (2. * shear_moduli * y3 / radius) * tidal_potential_partial2_theta2
     s_thph = (2. * shear_moduli * y3 / (radius * sin_theta)) * (tidal_potential_partial2_theta_phi -
@@ -204,24 +212,20 @@ def calculate_strain_stress_heating(
     s_rth *= (1. / 2.)
     s_thph *= (1. / 2.)
 
-    # Calculate Tidal Heating, using two methods
-    volumetric_heating = (frequency / 2.) * (
-            np.imag(s_rr) * np.real(e_rr) - np.real(s_rr) * np.imag(e_rr) +
-            np.imag(s_thth) * np.real(e_thth) - np.real(s_thth) * np.imag(e_thth) +
-            np.imag(s_phph) * np.real(e_phph) - np.real(s_phph) * np.imag(e_phph) +
-            2. * (np.imag(s_rth) * np.real(e_rth) - np.real(s_rth) * np.imag(e_rth)) +
-            2. * (np.imag(s_rph) * np.real(e_rph) - np.real(s_rph) * np.imag(e_rph)) +
-            2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
-    )
+    # # Calculate Tidal Heating
+    # volumetric_heating = (frequency / 2.) * (
+    #         np.imag(s_rr) * np.real(e_rr) - np.real(s_rr) * np.imag(e_rr) +
+    #         np.imag(s_thth) * np.real(e_thth) - np.real(s_thth) * np.imag(e_thth) +
+    #         np.imag(s_phph) * np.real(e_phph) - np.real(s_phph) * np.imag(e_phph) +
+    #         2. * (np.imag(s_rth) * np.real(e_rth) - np.real(s_rth) * np.imag(e_rth)) +
+    #         2. * (np.imag(s_rph) * np.real(e_rph) - np.real(s_rph) * np.imag(e_rph)) +
+    #         2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
+    # )
 
     # Uncomment to compare with Tobie method.
     # volumetric_heating, _ = decompose(
     #     tidal_solution_y, tidal_solution_y_derivative, radius, np.zeros_like(radius),
     #     shear_moduli, bulk_moduli, order_l=order_l
     #     )
-
-    # Collect results
-    strains = (e_rr, e_thth, e_phph, e_rth, e_rph, e_thph)
-    stresses = (s_rr, s_thth, s_phph, s_rth, s_rph, s_thph)
 
     return strains, stresses, volumetric_heating
