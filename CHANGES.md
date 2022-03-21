@@ -7,7 +7,8 @@
 * Added `Cartopy` dependence.
   * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.graphics.global_map.py`.
   * New jupyter notebooks to showcase map projects and GridPlot functionality.
-* Improved performance on the non-mode tidal potential functions by at least a factor of 3. If used correctly these can be nearly 100x faster.
+* Improved performance on both mode and non-mode tidal potential functions by at least a factor of 3. If used correctly these can be nearly 100x faster.
+* Added a new obliquity version of the mode version tidal potential.
 
 * Minor Changes
   * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
@@ -18,7 +19,7 @@
   * Added a dictionary to track known color maps. It can be imported at `TidalPy.utilities.cmaps.KNOWN_CMAPS`
   * Made some improvements to the unique_path function in io_helper.py
   * Rearranged the tidal potential argument order.
-  * Added some sanity checks on the various kinds on non-mode tidal potentials to compare with one another.
+  * Added some sanity checks on the various kinds on both mode and non-mode tidal potentials to compare with one another.
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes

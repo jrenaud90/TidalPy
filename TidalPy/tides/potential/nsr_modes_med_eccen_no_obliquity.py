@@ -1,6 +1,8 @@
+from typing import Dict
+
 import numpy as np
 
-from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialOutput
+from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput
 from ...constants import G
 from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
@@ -13,8 +15,11 @@ def tidal_potential(
     eccentricity: FloatArray,
     host_mass: float, semi_major_axis: FloatArray,
     use_static: bool = False,
-    ) -> TidalPotentialOutput:
+    ) -> TidalPotentialModeOutput:
     """ Tidal gravitational potential assuming moderate eccentricity, no obliquity, and non-synchronous rotation
+
+    This function will keep the subcomponents of the potential separate for each tidal mode so that they may
+       be collapsed later on (e.g., after combining with different frequency response at each mode).
 
     Parameters
     ----------
@@ -41,23 +46,27 @@ def tidal_potential(
 
     Returns
     -------
-    potential : FloatArray
+    tidal_frequencies : Dict[str, FloatArray]
+        Tidal frequencies, abs(modes) [radians s-1]
+    tidal_modes : Dict[str, FloatArray]
+        Tidal frequency modes [radians s-1]
+    potential : Dict[str, FloatArray]
         Tidal Potential
-    potential_partial_theta : FloatArray
+    potential_partial_theta : Dict[str, FloatArray]
         Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial_phi : FloatArray
+    potential_partial_phi : Dict[str, FloatArray]
         Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta2 : FloatArray
+    potential_partial2_theta2 : Dict[str, FloatArray]
         2nd Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial2_phi2 : FloatArray
+    potential_partial2_phi2 : Dict[str, FloatArray]
         2nd Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta_phi : FloatArray
+    potential_partial2_theta_phi : Dict[str, FloatArray]
         2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
 
 
     See Also
     --------
-    TidalPy.tides.potential.nsr_med_eccen_med_obliquity.py
+    TidalPy.tides.potential.nsr_modes_med_eccen_med_obliquity.py
     """
 
     # Optimizations
@@ -119,6 +128,18 @@ def tidal_potential(
         )
 
     # Setup mode list used under this functions assumptions.
+    mode_names = (
+        'n',
+        '2n',
+        '3n',
+        '2o+n',
+        '2o-n',
+        '2o-2n',
+        '2o-3n',
+        '2o-4n',
+        '2o-5n'
+        )
+
     modes = (
         n,
         2. * n,
@@ -196,13 +217,24 @@ def tidal_potential(
         (845. / 288.) * e3
         )
 
-    # Build storage for the potential and its derivatives
-    potential = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial_theta = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial_phi = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial2_theta2 = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial2_phi2 = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial2_theta_phi = np.zeros_like(colatitude, dtype=np.float64)
+    # Prepare static coeff
+    static_coeff = (-1. / 3.) - (1. / 2.) * e2
+    static_term = static_coeff * p_20
+    static_term_partial_theta = static_coeff * dp_20_dtheta
+    static_term_partial2_theta2 = static_coeff * dp2_20_dtheta2
+
+    # Prepare global coefficient
+    global_coefficient = (3. / 2.) * G * host_mass * radius**2 / semi_major_axis**3
+
+    # Build storage for the potential and its derivatives by mode
+    frequencies_by_name = dict()  # type: Dict[str, FloatArray]
+    modes_by_name = dict()  # type: Dict[str, FloatArray]
+    potential_by_mode = dict()  # type: Dict[str, FloatArray]
+    potential_partial_theta_by_mode = dict()  # type: Dict[str, FloatArray]
+    potential_partial_phi_by_mode = dict()  # type: Dict[str, FloatArray]
+    potential_partial2_theta2_by_mode = dict()  # type: Dict[str, FloatArray]
+    potential_partial2_phi2_by_mode = dict()  # type: Dict[str, FloatArray]
+    potential_partial2_theta_phi_by_mode = dict()  # type: Dict[str, FloatArray]
 
     # Go through modes and add their contribution to the potential and its derivatives.
     for mode_i, mode in enumerate(modes):
@@ -235,49 +267,58 @@ def tidal_potential(
         switch_coeff = mode_switch * mode_coeffs[mode_i]
 
         # Solve for the potential and its partial derivatives
-        potential += switch_coeff * \
-                     longitude_coeff * \
-                     legendre
+        potential = switch_coeff * \
+                    longitude_coeff * \
+                    legendre
 
-        potential_partial_theta += switch_coeff * \
-                                   longitude_coeff * \
-                                   legendre_dtheta
+        potential_partial_theta = switch_coeff * \
+                                  longitude_coeff * \
+                                  legendre_dtheta
 
-        potential_partial_phi += switch_coeff * \
-                                 longitude_coeff_dphi * \
-                                 legendre
+        potential_partial_phi = switch_coeff * \
+                                longitude_coeff_dphi * \
+                                legendre
 
-        potential_partial2_theta2 += switch_coeff * \
-                                     longitude_coeff * \
-                                     legendre_dtheta2
+        potential_partial2_theta2 = switch_coeff * \
+                                    longitude_coeff * \
+                                    legendre_dtheta2
 
-        potential_partial2_phi2 += switch_coeff * \
-                                   longitude_coeff_dphi2 * \
-                                   legendre
+        potential_partial2_phi2 = switch_coeff * \
+                                  longitude_coeff_dphi2 * \
+                                  legendre
 
-        potential_partial2_theta_phi += switch_coeff * \
-                                        longitude_coeff_dphi * \
-                                        legendre_dtheta
+        potential_partial2_theta_phi = switch_coeff * \
+                                       longitude_coeff_dphi * \
+                                       legendre_dtheta
 
-    # # Deal with static portion of the potential
-    # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
-    if use_static:
-        static_coeff = (-1. / 3.) - (1. / 2.) * e2
-        # The static portion for these assumptions does not depend on longitude so the partial with respect to phi is 0
-        #    don't bother adding anything to those partial derivatives.
-        potential += static_coeff * p_20
-        potential_partial_theta += static_coeff * dp_20_dtheta
-        potential_partial2_theta2 += static_coeff * dp2_20_dtheta2
+        # # Deal with static portion of the potential
+        # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
+        if use_static:
+            # The static portion for these assumptions does not depend on longitude so the partial with respect to phi is 0
+            #    don't bother adding anything to those partial derivatives.
+            potential += static_term
+            potential_partial_theta += static_term_partial_theta
+            potential_partial2_theta2 += static_term_partial2_theta2
 
-    # Multiply by the outer coefficients
-    global_coefficient = (3. / 2.) * G * host_mass * radius**2 / semi_major_axis**3
+        # Multiply by the outer coefficients
+        potential *= global_coefficient
+        potential_partial_theta *= global_coefficient
+        potential_partial_phi *= global_coefficient
+        potential_partial2_theta2 *= global_coefficient
+        potential_partial2_phi2 *= global_coefficient
+        potential_partial2_theta_phi *= global_coefficient
 
-    potential *= global_coefficient
-    potential_partial_theta *= global_coefficient
-    potential_partial_phi *= global_coefficient
-    potential_partial2_theta2 *= global_coefficient
-    potential_partial2_phi2 *= global_coefficient
-    potential_partial2_theta_phi *= global_coefficient
+        # Store results for this mode
+        mode_name = mode_names[mode_i]
+        frequencies_by_name[mode_name] = freq
+        modes_by_name[mode_name] = mode
+        potential_by_mode[mode_name] = potential
+        potential_partial_theta_by_mode[mode_name] = potential_partial_theta
+        potential_partial_phi_by_mode[mode_name] = potential_partial_phi
+        potential_partial2_theta2_by_mode[mode_name] = potential_partial2_theta2
+        potential_partial2_phi2_by_mode[mode_name] = potential_partial2_phi2
+        potential_partial2_theta_phi_by_mode[mode_name] = potential_partial2_theta_phi
 
-    return potential, potential_partial_theta, potential_partial_phi, \
-           potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi
+    return frequencies_by_name, modes_by_name, potential_by_mode, \
+           potential_partial_theta_by_mode, potential_partial_phi_by_mode, potential_partial2_theta2_by_mode, \
+           potential_partial2_phi2_by_mode, potential_partial2_theta_phi_by_mode
