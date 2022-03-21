@@ -9,6 +9,7 @@
   * New jupyter notebooks to showcase map projects and GridPlot functionality.
 * Improved performance on both mode and non-mode tidal potential functions by at least a factor of 3. If used correctly these can be nearly 100x faster.
 * Added a new obliquity version of the mode version tidal potential.
+* Corrected issue in stress and strain relationship for multi-layer tides.
 
 * Minor Changes
   * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
@@ -20,6 +21,8 @@
   * Made some improvements to the unique_path function in io_helper.py
   * Rearranged the tidal potential argument order.
   * Added some sanity checks on the various kinds on both mode and non-mode tidal potentials to compare with one another.
+  * Updated stress, strain, and displacement calculations to account for new low-memory calculation method.
+  * Greatly increased performance of multilayer stress, strain, and potential calculations.
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes

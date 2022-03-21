@@ -11,7 +11,7 @@ from typing import Callable, Dict, Tuple
 
 import numpy as np
 
-from ..multilayer.stress_strain import calculate_strain_stress_heating
+from ..multilayer.stress_strain import calculate_strain_stress
 from ...utilities.types import FloatArray
 from ..potential import tidal_potential_nsr_modes, tidal_potential_simple, tidal_potential_nsr
 from ...toolbox.multilayer import KNOWN_INTERIOR_MODELS
