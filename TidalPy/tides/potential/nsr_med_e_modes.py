@@ -44,7 +44,7 @@ def tidal_potential(
     world_radius: float
         World's surface radius [m]
     host_mass : float
-        Mass of tide-rasing world
+        Mass of tide-raising world
     semi_major_axis : FloatArray
         Orbital semi-major axis [m]
     use_static : bool = False

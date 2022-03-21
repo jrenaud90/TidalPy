@@ -60,17 +60,17 @@ def calculate_displacements(
     return radial_displacement, polar_displacement, azimuthal_displacement
 
 
-@njit(cacheable=True)
+# @njit(cacheable=True)
 def calculate_strain_stress_heating(
     tidal_potential: np.ndarray,
     tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
     tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,
     tidal_potential_partial2_theta_phi: np.ndarray,
-    tidal_solution_y: np.ndarray, tidal_solution_y_derivative: np.ndarray,
+    tidal_solution_y: np.ndarray,
     colatitude: FloatArray,
     radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
     frequency: FloatArray, order_l: int = 2,
-    ) -> Tuple[StrainType, StressType, np.ndarray]:
+    ) -> Tuple[StrainType, StressType]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.
 
@@ -90,8 +90,6 @@ def calculate_strain_stress_heating(
         The 2nd partial derivative of the tidal potential with respect to the colatitude and the longitude
     tidal_solution_y : np.ndarray
         Matrix [6 x N] of tidal solutions often denoted as a lower-case "y"
-    tidal_solution_y_derivative: np.ndarray
-        Matrix [6 x N] of the derivative of the tidal solutions with respect to radius (dy/dr).
     colatitude : FloatArray
         Co-latitude where the calculations are conducted
     radius : np.ndarray
@@ -133,8 +131,6 @@ def calculate_strain_stress_heating(
             Stress tensor component - radius longitude (appears twice in the symmetric tensor)
         s_thph : np.ndarray
             Stress tensor component - colatitude longitude (appears twice in the symmetric tensor)
-    volumetric_heating : np.ndarray
-        Volumetric heating rate [W]
 
     """
 
@@ -144,73 +140,48 @@ def calculate_strain_stress_heating(
     cot_theta = cos_theta / sin_theta
 
     # Shortcuts
-    dy1_dr = tidal_solution_y_derivative[0]
+    r_inverse = (1. / radius)
+    lame = bulk_moduli - (2. / 3.) * shear_moduli
     y1 = tidal_solution_y[0]
     y2 = tidal_solution_y[1]
     y3 = tidal_solution_y[2]
     y4 = tidal_solution_y[3]
-
-    # Build matrix for stress and strain calculations
+    dy1_dr = (1. / (lame + 2. * shear_moduli)) * (y2 - (lame * r_inverse) * (2. * y1 - order_l * (order_l + 1.) * y3))
 
     # Strain Terms - TB05 Eq. 10; B13 Eq. 8 & 9
-    strain = np.zeros((6, *tidal_potential.shape), dtype=np.complex128)
+    # Build matrix for strain calculations
+    # Strain and stress will have a shape of [6x strain/stress terms, radius_N, long_N, lat_N, time_N]
+    strains = np.zeros((6, *y1.shape, *tidal_potential.shape), dtype=np.complex128)
     # \epsilon_{rr}
-    strain[0, :, :, :, :] = dy1_dr * tidal_potential
+    strains[0, :, :, :, :] = dy1_dr * tidal_potential
     # \epsilon_{\theta\theta}
-    strain[1, :, :, :, :] = (1. / radius) * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
+    strains[1, :, :, :, :] = r_inverse * (y3 * tidal_potential_partial2_theta2 + y1 * tidal_potential)
     # \epsilon_{\phi\phi}
     # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
     #    as pointed out in Kervazo et al (2021; A&A) Appendix D
-    strain[2, :, :, :, :] = (1. / radius) * (y1 * tidal_potential +
-                                             (y3 / sin_theta**2) * tidal_potential_partial2_phi2 +
-                                             y3 * cot_theta * tidal_potential_partial_theta)
-    # The (1/2) in the off-diagonal terms are due to these components appearing twice in the tensor
+    strains[2, :, :, :, :] = r_inverse * (y1 * tidal_potential +
+                                          y3 * ((1. / sin_theta**2) * tidal_potential_partial2_phi2 +
+                                                cot_theta * tidal_potential_partial_theta))
     # \epsilon_{r\theta}
-    strain[3, :, :, :, :] = (1. / 2.) * y4 * tidal_potential_partial_theta / shear_moduli
+    strains[3, :, :, :, :] = y4 * tidal_potential_partial_theta / shear_moduli
     # \epsilon_{r\phi}
-    strain[4, :, :, :, :] = (1. / 2.) * y4 * tidal_potential_partial_phi / (shear_moduli * sin_theta)
+    strains[4, :, :, :, :] = y4 * tidal_potential_partial_phi / (shear_moduli * sin_theta)
     # \epsilon_{\theta\phi}
-    strain[5, :, :, :, :] = (1. / 2.) * (2. / radius) * (y3 / sin_theta) * \
+    strains[5, :, :, :, :] = 2. * r_inverse * (y3 / sin_theta) * \
                             (tidal_potential_partial2_theta_phi - cot_theta * tidal_potential_partial_phi)
 
+    # Calculate stress assuming isotropic media (Takeuchi & Saito (1972))
+    # First calculate the trace of strain \epsilon_{rr} + \epsilon_{\theta\theta} + \epsilon_{\phi\phi}
+    strain_trace = strains[0, :, :, :, :] + strains[1, :, :, :, :] + strains[2, :, :, :, :]
 
-    # Calculate stress using Kervazo et al (2021; A&A) Appendix D Eqs D.7-D.12
-    stress = np.zeros((6, *tidal_potential.shape), dtype=np.complex128)
-    strength_term_1 = (bulk_moduli - (2. / 3.) * shear_moduli)
-    strength_term_2 = (bulk_moduli + (4. / 3.) * shear_moduli)
-    theta_phi_term = strength_term_1 * dy1_dr + \
-        (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) - \
-        2. * shear_moduli * y1 / radius
-
-    # 2ue_ij + (K - 2/3u)*e_kk delta_ij
-
-    2ue_rr + (K - 2/3u) * (e_rr + e_thth + e_phph)
-
-    2u * dy1_dr * tidal_potential
-
-
-    # \sigma_{rr}
-    stress[0, :, :, :, :] = y2 * tidal_potential
-    # \sigma_{\theta\theta}
-    stress[1, :, :, :, :] = tidal_potential * (
-            strength_term_1 * dy1_dr + (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
-            2. * shear_moduli * y1 / radius) - \
-             (2. * shear_moduli * y3 / radius) * (cot_theta * tidal_potential_partial_theta +
-                                                  (1. / sin_theta**2) * tidal_potential_partial2_phi2)
+    # Constitutive equation: \sigma_{ij} = 2\bar{\mu} \epsilon_{ij} + \bar{\lambda}\epsilon_{kk}\delta_{ij}
+    stresses = 2. * shear_moduli * strains
+    # \epsilon_{rr}
+    stresses[0, :, :, :, :] += lame * strain_trace
+    # \epsilon_{\theta\theta}
+    stresses[1, :, :, :, :] += lame * strain_trace
     # \epsilon_{\phi\phi}
-    stress[2, :, :, :, :] = tidal_potential * (
-            strength_term_1 * dy1_dr + (strength_term_2 / radius) * (2. * y1 - order_l * (order_l + 1.) * y3) -
-                                2. * shear_moduli * y1 / radius) - \
-             (2. * shear_moduli * y3 / radius) * tidal_potential_partial2_theta2
-    s_thph = (2. * shear_moduli * y3 / (radius * sin_theta)) * (tidal_potential_partial2_theta_phi -
-                                                                cot_theta * tidal_potential_partial_phi)
-    s_rth = y4 * tidal_potential_partial_theta
-    s_rph = (y4 / sin_theta) * tidal_potential_partial_phi
-
-    # The (1/2) in the off-diagonal terms are due to these components appearing twice in the tensor
-    s_rph *= (1. / 2.)
-    s_rth *= (1. / 2.)
-    s_thph *= (1. / 2.)
+    stresses[2, :, :, :, :] += lame * strain_trace
 
     # # Calculate Tidal Heating
     # volumetric_heating = (frequency / 2.) * (
@@ -228,4 +199,4 @@ def calculate_strain_stress_heating(
     #     shear_moduli, bulk_moduli, order_l=order_l
     #     )
 
-    return strains, stresses, volumetric_heating
+    return strains, stresses

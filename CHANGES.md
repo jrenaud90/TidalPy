@@ -1,12 +1,13 @@
 # TidalPy Major Change Log
 
-### Version 0.3.4 Alpha (Winter/Spring 2021)
+### Version 0.3.4 Alpha (Winter/Spring 2022)
 
 * Added `TidalPy.toolbox.multilayer.quick_calc.py` module to offer simplified calculation of multilayer tidal heating.  
 * Added `GridPlot` class to quickly make grid-like matplotlib figures. Checkout `TidalPy.utilities.graphics.grid_plot.py`
 * Added `Cartopy` dependence.
   * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.graphics.global_map.py`.
   * New jupyter notebooks to showcase map projects and GridPlot functionality.
+* Improved performance on the non-mode tidal potential functions by at least a factor of 3. If used correctly these can be nearly 100x faster.
 
 * Minor Changes
   * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
@@ -16,6 +17,8 @@
   * Added a voxel calculator to TidalPy.utilities.spherical_helper. Also, added related tests & benchmarking tools.
   * Added a dictionary to track known color maps. It can be imported at `TidalPy.utilities.cmaps.KNOWN_CMAPS`
   * Made some improvements to the unique_path function in io_helper.py
+  * Rearranged the tidal potential argument order.
+  * Added some sanity checks on the various kinds on non-mode tidal potentials to compare with one another.
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes
