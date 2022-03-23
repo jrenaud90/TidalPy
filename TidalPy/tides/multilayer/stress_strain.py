@@ -13,8 +13,8 @@ from typing import Tuple
 import numpy as np
 from numba import prange
 
-from ...utilities.types import FloatArray
 from ...utilities.performance import njit
+from ...utilities.types import FloatArray
 
 StressType = np.ndarray
 StrainType = np.ndarray
@@ -181,6 +181,5 @@ def calculate_strain_stress(
     #     tidal_solution_y, tidal_solution_y_derivative, radius, np.zeros_like(radius),
     #     shear_moduli, bulk_moduli, order_l=order_l
     #     )
-
 
     return strains, stresses

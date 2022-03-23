@@ -13,7 +13,7 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-import numpy as np
+from typing import Tuple
 
 from ....constants import G, pi
 from ....utilities.performance import njit
@@ -22,11 +22,12 @@ from ....utilities.types import ComplexArray, FloatArray, NumArray
 
 @njit(cacheable=True)
 def radial_derivatives_solid_general(
-    radius: FloatArray, radial_functions: ComplexArray,
+    radius: FloatArray,
+    radial_functions: Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray],
     shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
     gravity: FloatArray,
     order_l: int = 2, G_to_use: float = G
-    ) -> ComplexArray:
+    ) -> Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray]:
     """ Calculates the derivatives of the radial functions using the static assumption - for solid layers.
 
     Allows for compressibility.
@@ -41,14 +42,14 @@ def radial_derivatives_solid_general(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m; or dimensionless]
-    radial_functions : ComplexArray
+    radial_functions : Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray]
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
     bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
     density : FloatArray
-        Density at  at `radius` [kg m-3; or dimensionless]
+        Density at `radius` [kg m-3; or dimensionless]
     gravity : FloatArray
         Acceleration due to gravity at `radius` [m s-2; or dimensionless]
     order_l : int = 2
@@ -59,79 +60,80 @@ def radial_derivatives_solid_general(
 
     Returns
     -------
-    radial_derivatives : ComplexArray
+    radial_derivatives : Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray]
         The radial derivatives of the radial functions
 
     """
 
-    y1, y2, y3, y4, y5, y6 = \
-        radial_functions[0], radial_functions[1], radial_functions[2], radial_functions[3], radial_functions[4], \
-        radial_functions[5],
+    y1, y2, y3, y4, y5, y6 = radial_functions
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     lame = (bulk_modulus - (2. / 3.) * shear_modulus)
 
     # Optimizations
-    lame_2mu = 1. / (lame + 2. * shear_modulus)
+    lp1 = order_l + 1.
+    lm1 = order_l - 1.
+    llp1 = order_l * lp1
+    lame_2mu = lame + 2. * shear_modulus
+    lame_2mu_inverse = 1. / lame_2mu
     r_inverse = 1. / radius
-    r2_inverse = r_inverse * r_inverse
-    llp1 = order_l * (order_l + 1.)
+    two_shear_r_inv = 2. * shear_modulus * r_inverse
+    density_gravity = density * gravity
     grav_term = 4. * pi * G_to_use * density
+    y1_y3_term = 2. * y1 - llp1 * y3
 
-    # See Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
-    # # dy2 and dy4 contain: viscoelastic, and gravitational terms.
-    dy1 = \
-        y1 * -2. * lame * lame_2mu * r_inverse + \
-        y2 * lame_2mu + \
-        y3 * llp1 * lame * lame_2mu * r_inverse
+    # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
+    # The static case just sets all frequency dependence in these equations to zero.
+    # dy2 and dy4 contain all three of: dynamic, viscoelastic, and gravitational terms.
+    dy1 = lame_2mu_inverse * (
+            y1_y3_term * -lame * r_inverse +
+            y2
+    )
 
-    dy2 = \
-        y1 * (12. * bulk_modulus * shear_modulus * lame_2mu * r2_inverse - 4. * density * gravity * r_inverse) - \
-        y2 * (4. * shear_modulus * lame_2mu * r_inverse) + \
-        y3 * r_inverse * llp1 * (density * gravity - 6. * bulk_modulus * shear_modulus * lame_2mu * r_inverse) + \
-        y4 * llp1 * r_inverse + \
-        y5 * (order_l + 1.) * r_inverse * density - \
-        y6 * density
+    dy2 = r_inverse * (
+            y1 * -2. * density_gravity +
+            y2 * -2. +
+            y4 * llp1 +
+            y5 * density * lp1 +
+            y6 * -density * radius +
+            dy1 * 2. * lame +
+            y1_y3_term * (2. * (lame + shear_modulus) * r_inverse - density_gravity)
+    )
 
     dy3 = \
         y1 * -r_inverse + \
         y3 * r_inverse + \
         y4 * (1. / shear_modulus)
 
-    dy4 = \
-        y1 * (density * gravity * r_inverse - 6. * bulk_modulus * shear_modulus * lame_2mu * r2_inverse) - \
-        y2 * lame * lame_2mu * r_inverse + \
-        y3 * (4. * llp1 * (lame + shear_modulus) * shear_modulus * lame_2mu * r2_inverse -
-              2. * shear_modulus * r2_inverse) - \
-        y4 * 3. * r_inverse - \
-        y5 * density * r_inverse
+    dy4 = r_inverse * (
+            y1 * (density_gravity + two_shear_r_inv) +
+            y3 * -two_shear_r_inv +
+            y4 * -3. +
+            y5 * -density +
+            dy1 * -lame +
+            y1_y3_term * -lame_2mu * r_inverse
+    )
 
     dy5 = \
-        y1 * grav_term - \
-        y5 * (order_l + 1.) * r_inverse + \
+        y1 * grav_term + \
+        y5 * -lp1 * r_inverse + \
         y6
 
-    dy6 = \
-        y1 * grav_term * (order_l + 1.) * r_inverse - \
-        y3 * grav_term * llp1 * r_inverse + \
-        y6 * (order_l - 1.) * r_inverse
+    dy6 = r_inverse * (
+            y1 * grav_term * lm1 +
+            y6 * lm1 +
+            y1_y3_term * grav_term
+    )
 
-    dy1 = np.asarray(dy1, dtype=np.complex128)
-    dy2 = np.asarray(dy2, dtype=np.complex128)
-    dy3 = np.asarray(dy3, dtype=np.complex128)
-    dy4 = np.asarray(dy4, dtype=np.complex128)
-    dy5 = np.asarray(dy5, dtype=np.complex128)
-    dy6 = np.asarray(dy6, dtype=np.complex128)
-
-    return np.stack((dy1, dy2, dy3, dy4, dy5, dy6))
+    return dy1, dy2, dy3, dy4, dy5, dy6
 
 
 @njit(cacheable=True)
 def radial_derivatives_liquid_general(
-    radius: FloatArray, radial_functions: ComplexArray,
+    radius: FloatArray, radial_functions: Tuple[ComplexArray, ComplexArray],
     density: FloatArray, gravity: FloatArray,
     order_l: int = 2, G_to_use: float = G
-    ) -> ComplexArray:
+    ) -> Tuple[ComplexArray, ComplexArray]:
     """ Calculates the derivatives of the radial functions using the static assumption - for liquid layers (mu = 0).
 
     Allows for compressibility (technically, but bulk mod is not used in this equations).
@@ -146,10 +148,10 @@ def radial_derivatives_liquid_general(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : ComplexArray
+    radial_functions : Tuple[ComplexArray, ComplexArray]
         Tuple of radial functions for a solid layer (y5, y7)
     density : FloatArray
-        Density at  at `radius` [kg m-3]
+        Density at `radius` [kg m-3]
     gravity : FloatArray
         Acceleration due to gravity at `radius` [m s-2]
     order_l : int = 2
@@ -160,28 +162,25 @@ def radial_derivatives_liquid_general(
 
     Returns
     -------
-    radial_derivatives : ComplexArray
+    radial_derivatives : Tuple[ComplexArray, ComplexArray]
         The radial derivatives of the radial functions
 
     """
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y1 and y2 are not defined uniquely
-    y5, y7 = radial_functions[0], radial_functions[1]
+    y5, y7 = radial_functions
 
     # Optimizations
     r_inverse = 1. / radius
-    grav_term = 4. * pi * G_to_use * density
+    grav_term = 4. * pi * G_to_use * density / gravity
 
     # See Eq. 18 in S75
     dy5 = \
-        y5 * (grav_term / gravity - (order_l + 1.) * r_inverse) + \
+        y5 * (grav_term - (order_l + 1.) * r_inverse) + \
         y7
 
     dy7 = \
-        y5 * 2. * (order_l - 1.) * r_inverse * grav_term / gravity + \
-        y7 * ((order_l - 1.) * r_inverse - grav_term / gravity)
+        y5 * 2. * (order_l - 1.) * r_inverse * grav_term + \
+        y7 * ((order_l - 1.) * r_inverse - grav_term)
 
-    dy5 = np.asarray(dy5, dtype=np.complex128)
-    dy7 = np.asarray(dy7, dtype=np.complex128)
-
-    return np.stack((dy5, dy7))
+    return dy5, dy7

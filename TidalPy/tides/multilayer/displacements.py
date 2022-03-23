@@ -12,6 +12,7 @@ from typing import Tuple
 
 import numpy as np
 from numba import prange
+
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 

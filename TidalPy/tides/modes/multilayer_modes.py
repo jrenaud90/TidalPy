@@ -91,7 +91,7 @@ def calculate_tidal_y(
     interior_calc_input = None
     if interior_layer_model.lower() not in KNOWN_INTERIOR_MODELS:
         raise KeyError('Unknown interior model provided to find_tidal_y.')
-    calculate_tidal_y = KNOWN_INTERIOR_MODELS[interior_layer_model.lower()]
+    tidal_y_function = KNOWN_INTERIOR_MODELS[interior_layer_model.lower()]
 
     # Build input to the model based on which model is being used.
     if num_layers == 1:
@@ -141,7 +141,7 @@ def calculate_tidal_y(
 
     # Calculate the radial solution to the viscoelastic-gravitational problem
     tidal_y, tidal_y_deriv = \
-        calculate_tidal_y(
+        tidal_y_function(
             radius_array, complex_shears, bulk_array, density_array, gravity_array, forcing_frequency,
             **interior_calc_input, order_l=order_l,
             **interior_integration_kwargs)

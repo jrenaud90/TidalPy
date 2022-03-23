@@ -151,6 +151,7 @@ def tidal_potential(
         2. * o - 4. * n,
         2. * o - 5. * n
         )
+    num_modes = 9
 
     # Indicate which legendre polynomial is associated with which mode. The number here refers to the l and the m
     mode_legendre = (
@@ -227,6 +228,7 @@ def tidal_potential(
     global_coefficient = (3. / 2.) * G * host_mass * radius**2 / semi_major_axis**3
 
     # Build storage for the potential and its derivatives by mode
+    oen_shape = o + e + n
     frequencies_by_name = dict()  # type: Dict[str, FloatArray]
     modes_by_name = dict()  # type: Dict[str, FloatArray]
     potential_by_mode = dict()  # type: Dict[str, FloatArray]
@@ -237,8 +239,9 @@ def tidal_potential(
     potential_partial2_theta_phi_by_mode = dict()  # type: Dict[str, FloatArray]
 
     # Go through modes and add their contribution to the potential and its derivatives.
-    for mode_i, mode in enumerate(modes):
+    for mode_i in range(num_modes):
         # Optimizations
+        mode = modes[mode_i]
         cos_mode = np.cos(mode * time)
         sin_mode = np.sin(mode * time)
         freq = np.abs(mode)
@@ -257,7 +260,7 @@ def tidal_potential(
         # Switches
         # There will be terms that are non-zero even though they do not carry a time dependence. This switch will
         #   ensure all non-time dependence --> zero unless the user sets `use_static` = True.
-        mode_switch = np.ones_like(o + n + e, dtype=bool_)
+        mode_switch = np.ones_like(oen_shape, dtype=bool_)
         if not use_static:
             # Use static is False (default). Switches depend on the value of n and o
             # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).

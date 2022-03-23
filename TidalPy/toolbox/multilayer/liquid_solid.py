@@ -60,13 +60,14 @@ def convergence_ls_static_liq(tidal_y_solutions_by_layer: TidalYSolType, surface
     # Solve for the liquid layer's y's
     tidal_y_layer0 = C_layer0_vector[0] * tidal_y_layer0[0]
 
+    shape = tidal_y_layer0[0, :].shape
     layer0_ys = (
-        np.nan * np.ones_like(tidal_y_layer0[0, :]),
-        np.nan * np.ones_like(tidal_y_layer0[0, :]),
-        np.nan * np.ones_like(tidal_y_layer0[0, :]),
-        np.nan * np.ones_like(tidal_y_layer0[0, :]),
+        np.nan * np.empty(shape, dtype=np.float64),
+        np.nan * np.empty(shape, dtype=np.float64),
+        np.nan * np.empty(shape, dtype=np.float64),
+        np.nan * np.empty(shape, dtype=np.float64),
         tidal_y_layer0[0, :],
-        np.nan * np.ones_like(tidal_y_layer0[0, :])
+        np.nan * np.empty(shape, dtype=np.float64)
         )
 
     tidal_y_layer1_full = np.vstack(layer0_ys)
@@ -125,13 +126,13 @@ def convergence_ls_dynamic_liq(
             [tidal_y_layer1[0][1, -1], tidal_y_layer1[1][1, -1], tidal_y_layer1[2][1, -1]],
             [tidal_y_layer1[0][3, -1], tidal_y_layer1[1][3, -1], tidal_y_layer1[2][3, -1]],
             [tidal_y_layer1[0][5, -1], tidal_y_layer1[1][5, -1], tidal_y_layer1[2][5, -1]]
-            ]
-        )
+        ]
+    )
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_layer1_vector = sol_surf_mtx_inv @ surface_solution
 
     # Solve for the outer core Qs
-    C_layer0_vector = np.zeros(2, dtype=np.complex128)
+    C_layer0_vector = np.empty(2, dtype=np.complex128)
     C_layer0_vector[0] = C_layer1_vector[0]
     C_layer0_vector[1] = C_layer1_vector[1]
 
@@ -144,11 +145,12 @@ def convergence_ls_dynamic_liq(
         (density_array_layer0 * gravity_array_layer0 * tidal_y_layer0[0, :] -
          tidal_y_layer0[1, :] - density_array_layer0 * tidal_y_layer0[2, :])
 
+    shape = tidal_y_layer0[0, :].shape
     layer0_ys = (
         tidal_y_layer0[0, :],
         tidal_y_layer0[1, :],
         y3_layer0,
-        np.nan * np.ones_like(tidal_y_layer0[0, :]),
+        np.nan * np.empty(shape, dtype=np.float64),
         tidal_y_layer0[2, :],
         tidal_y_layer0[3, :]
         )

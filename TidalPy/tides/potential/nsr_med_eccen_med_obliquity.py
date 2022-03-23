@@ -162,6 +162,7 @@ def tidal_potential(
         o - 3. * n,
         o - 4. * n
         )
+    num_modes = 17
 
     # Indicate which legendre polynomial is associated with which mode. The number here refers to the l and the m
     mode_legendre = (
@@ -277,16 +278,19 @@ def tidal_potential(
         )
 
     # Build storage for the potential and its derivatives
-    potential = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial_theta = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial_phi = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial2_theta2 = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial2_phi2 = np.zeros_like(colatitude, dtype=np.float64)
-    potential_partial2_theta_phi = np.zeros_like(colatitude, dtype=np.float64)
+    shape = colatitude.shape
+    oen_shape = o + e + n
+    potential = np.zeros(shape, dtype=np.float64)
+    potential_partial_theta = np.zeros(shape, dtype=np.float64)
+    potential_partial_phi = np.zeros(shape, dtype=np.float64)
+    potential_partial2_theta2 = np.zeros(shape, dtype=np.float64)
+    potential_partial2_phi2 = np.zeros(shape, dtype=np.float64)
+    potential_partial2_theta_phi = np.zeros(shape, dtype=np.float64)
 
     # Go through modes and add their contribution to the potential and its derivatives.
-    for mode_i, mode in enumerate(modes):
+    for mode_i in range(num_modes):
         # Optimizations
+        mode = modes[mode_i]
         cos_mode = np.cos(mode * time)
         sin_mode = np.sin(mode * time)
         freq = np.abs(mode)
@@ -296,8 +300,8 @@ def tidal_potential(
 
         # Pull out longitude coeffs for this mode
         cosine_coeff, sine_coeff, \
-        cosine_coeff_dphi, sine_coeff_dphi, \
-        cosine_coeff_dphi2, sine_coeff_dphi2 = longitude_coeffs[mode_longitude[mode_i]]
+            cosine_coeff_dphi, sine_coeff_dphi, \
+            cosine_coeff_dphi2, sine_coeff_dphi2 = longitude_coeffs[mode_longitude[mode_i]]
         longitude_coeff = (cosine_coeff * cos_mode + sine_coeff * sin_mode)
         longitude_coeff_dphi = (cosine_coeff_dphi * cos_mode + sine_coeff_dphi * sin_mode)
         longitude_coeff_dphi2 = (cosine_coeff_dphi2 * cos_mode + sine_coeff_dphi2 * sin_mode)
@@ -305,7 +309,7 @@ def tidal_potential(
         # Switches
         # There will be terms that are non-zero even though they do not carry a time dependence. This switch will
         #   ensure all non-time dependence --> zero unless the user sets `use_static` = True.
-        mode_switch = np.ones_like(o + n + e, dtype=bool_)
+        mode_switch = np.ones_like(oen_shape, dtype=bool_)
         if not use_static:
             # Use static is False (default). Switches depend on the value of n and o
             # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).
