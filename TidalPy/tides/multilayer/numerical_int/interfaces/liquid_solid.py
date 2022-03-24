@@ -8,8 +8,8 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 import numpy as np
 
-from ..initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from ..initial_solution_static import LiquidStaticGuess, SolidStaticGuess
+from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 from .....constants import G
 from .....utilities.performance import njit
 
@@ -103,7 +103,8 @@ def static_dynamic(
     base_solid_list = list()
 
     # For a dynamic liquid layer there will be one independent solutions at the top of the layer
-    liquid_sol = liquid_layer_ys[:, -1]
+    #   however for consistency this single solution is still stored in a tuple (of size 1) so we need to pull it out.
+    liquid_sol = liquid_layer_ys[0][:, -1]
 
     for solution in range(3):
         # For a dynamic solid layer there will be six y values used.

@@ -8,8 +8,8 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 import numpy as np
 
-from ..initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from ..initial_solution_static import LiquidStaticGuess, SolidStaticGuess
+from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 from .....constants import G
 from .....utilities.performance import njit
 
@@ -144,6 +144,7 @@ def dynamic_static(
     base_liquid_ys[1] = y_7_IC_0 - (gamma_1 / gamma_2) * y_7_IC_1 - \
                         (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * y_7_IC_2
 
+    base_liquid_ys = (base_liquid_ys,)
     return base_liquid_ys
 
 

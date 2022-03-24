@@ -19,13 +19,13 @@ import numpy as np
 
 from .functions import takeuchi_phi_psi
 from .initial_solution_dynamic import z_calc
-from ....constants import G, pi
-from ....utilities.math.special import sqrt_neg
-from ....utilities.performance import njit
-from ....utilities.types import ComplexArray, FloatArray, NumArray
+from .....constants import G, pi
+from .....utilities.math.special import sqrt_neg
+from .....utilities.performance import njit
+from .....utilities.types import ComplexArray, FloatArray, NumArray
 
 SolidStaticGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
-LiquidStaticGuess = ComplexArray
+LiquidStaticGuess = Tuple[ComplexArray]
 
 
 @njit(cacheable=True)
@@ -364,4 +364,7 @@ def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G
     # Combine the three solutions
     tidaly_s1 = np.stack((y5_s1, y7_s1))
 
-    return tidaly_s1
+    # There is only one solution for the static liquid layer initial condition. However, that outputting a single value
+    # does not match the form of the other initial condition functions. So we will wrap the value in a tuple.
+
+    return (tidaly_s1,)

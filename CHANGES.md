@@ -10,6 +10,7 @@
 * Improved performance on both mode and non-mode tidal potential functions by at least a factor of 3. If used correctly these can be nearly 100x faster.
 * Added a new obliquity version of the mode version tidal potential.
 * Corrected issue in stress and strain relationship for multi-layer tides.
+* Created a single multilayer solver to handle an arbitrary layer structure. See `TidalPy.tides.multilayer.numerical_int.solver.py`
 
 * Minor Changes
   * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
@@ -23,6 +24,7 @@
   * Added some sanity checks on the various kinds on both mode and non-mode tidal potentials to compare with one another.
   * Updated stress, strain, and displacement calculations to account for new low-memory calculation method.
   * Greatly increased performance of multilayer stress, strain, and potential calculations.
+  * Refactored much of the multilayer functions from TidalPy.toolbox to TidalPy.tides.multilayer.numerical_int and sub modules
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes

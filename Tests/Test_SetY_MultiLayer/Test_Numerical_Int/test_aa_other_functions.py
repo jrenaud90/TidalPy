@@ -1,6 +1,8 @@
-import TidalPy
 import numpy as np
-from TidalPy.tides.multilayer.numerical_int.functions import takeuchi_phi_psi, takeuchi_phi_psi_general, z_calc
+
+import TidalPy
+from TidalPy.tides.multilayer.numerical_int.initial_conditions.functions import (takeuchi_phi_psi,
+                                                                                 takeuchi_phi_psi_general, z_calc)
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -115,7 +117,7 @@ def test_z_calc():
 
     # Try providing an unreasonable max_l
     try:
-        z = z_calc(x_squared=(100000000. + 0.2j), order_l=2, init_l=0, raise_l_error=True)
+        z = z_calc(x_squared=(1.e12 + 0.2j), order_l=2, init_l=0, raise_l_error=True)
     except Exception as e:
         pass
     else:

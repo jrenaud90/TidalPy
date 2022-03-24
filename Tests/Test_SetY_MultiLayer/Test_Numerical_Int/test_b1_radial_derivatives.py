@@ -5,8 +5,10 @@ import numpy as np
 
 import TidalPy
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int import (radial_derivatives_liquid_dynamic, radial_derivatives_liquid_static,
-                                                    radial_derivatives_solid_dynamic, radial_derivatives_solid_static)
+from TidalPy.tides.multilayer.numerical_int.derivatives import (radial_derivatives_liquid_dynamic,
+                                                                radial_derivatives_liquid_static,
+                                                                radial_derivatives_solid_dynamic,
+                                                                radial_derivatives_solid_static)
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False

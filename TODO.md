@@ -1,4 +1,5 @@
 * It looks like only surface potential is required. Change multilayer to only consider the surface radius.
+* Check if numba parallel=True will speed up the collapse functions in tides.multilayer.numerical_int.collapse
 * Change the stress-strain relationship in stress_strain.py to be a generic consistutive equation.
 * Add more propagation type tests for multilayer mode calculator
 * Test rectilinear vs PlateChautee for surface map plotter.

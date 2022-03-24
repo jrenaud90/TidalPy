@@ -12,8 +12,8 @@ from typing import Tuple
 import numpy as np
 from scipy.special import gamma, spherical_jn
 
-from ....utilities.performance import njit
-from ....utilities.types import NumArray
+from .....utilities.performance import njit
+from .....utilities.types import NumArray
 
 # Pre-calculate as much as we can
 l2p1_double_factorials = list()
@@ -88,6 +88,8 @@ def takeuchi_phi_psi(z_squared: NumArray, order_l: int = 2) -> Tuple[NumArray, N
         Psi function.
 
     """
+
+    # Optimizations
     order_lp1 = order_l + 1.
     z_fourth = z_squared * z_squared
 
@@ -104,16 +106,28 @@ def takeuchi_phi_psi(z_squared: NumArray, order_l: int = 2) -> Tuple[NumArray, N
     return phi, phi_lplus1, psi
 
 
+# Table was updated March 2022 by testing positive inputs from 0.1 to 1e9 and ensuring convergence to within
+#  0.001% (0.00001)
 Z_CALC_MAX_L = (
-    (0.1, 10),
-    (1., 12),
-    (10., 17),
-    (100., 28),
-    (1000., 52),
-    (10000., 99),
-    (100000., 187),
-    (1000000., 342),
-    (10000000., 592)
+    (0.1, 7),
+    (1., 7),
+    (10., 8),
+    (100., 17),
+    (500., 32),
+    (1000., 44),  # 1.23us
+    (5000., 88),
+    (10000., 117),  # 1.75us
+    (50000., 245),
+    (100000., 340),  # 2.87us
+    (500000., 737),
+    (1000000., 1034),  # 6.09us
+    (5000000., 2279),
+    # After this point these are taking a several seconds to calculate.
+    (10000000., 3212),  # 15.7us
+    (50000000., 7132),
+    (100000000., 10071),  # 46us
+    (500000000., 22450),
+    (1000000000., 31721)  # 140us
     )
 
 
@@ -121,6 +135,10 @@ Z_CALC_MAX_L = (
 def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error: bool = True) -> NumArray:
     """ Calculates the z function used in the calculations of initial guesses for radial functions.
     Simplification (recursion calculation) of the spherical Bessel function, see Eq. B16 of KMN15.
+
+    OPT: This function is actually faster if a (too) large init_l is provided vs. it trying to find it on its own
+        but that comes with a big risk that you have the wrong answer.
+        Look at the table above for approx run times when x_squared is a float.
 
     References
     ----------
@@ -150,11 +168,11 @@ def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error
     if init_l == 0:
         # The convergence of this function depends on the absolute size of the real part of x^2.
         # The table provided outside this function (`Z_CALC_MAX_L`) was tested on 2021/12/02 to find the smallest
-        #    max l that still allowed convergence. It is not comprehensize, thus the possibility of an error being
+        #    max l that still allowed convergence. It is not comprehensive, thus the possibility of an error being
         #    thrown below.
         x2_real = np.abs(np.real(x_squared))
         for min_val, max_l in Z_CALC_MAX_L:
-            if np.all(np.asarray(x2_real < min_val)):
+            if np.all(np.asarray(x2_real <= min_val)):
                 max_l_to_use = max_l + (order_l - 2)
                 break
         else:
@@ -174,5 +192,7 @@ def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error
         l = max_l_to_use - l_fake + order_l
         # OPT: The above range is nicely written as range(order_l, init_l)[::-1]; but njit does not support this atm.
         z = x_squared / ((2. * l + 1.) - z)
+
+    # print(max_l_to_use)
 
     return z

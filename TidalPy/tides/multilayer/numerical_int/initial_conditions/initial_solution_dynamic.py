@@ -19,10 +19,10 @@ from typing import Tuple
 import numpy as np
 
 from .functions import takeuchi_phi_psi, z_calc
-from ....constants import G, pi
-from ....utilities.math.special import sqrt_neg
-from ....utilities.performance import njit
-from ....utilities.types import ComplexArray, FloatArray, NumArray
+from .....constants import G, pi
+from .....utilities.math.special import sqrt_neg
+from .....utilities.performance import njit
+from .....utilities.types import ComplexArray, FloatArray, NumArray
 
 SolidDynamicGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
 LiquidDynamicGuess = Tuple[ComplexArray, ComplexArray]
@@ -510,3 +510,126 @@ def liquid_guess_takeuchi(
     tidaly_s2 = np.stack((y1_s2, y2_s2, y5_s2, y6_s2))
 
     return tidaly_s1, tidaly_s2
+
+
+# @njit(cacheable=True)
+def solid_guess_martens(
+    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
+    density: FloatArray, frequency: FloatArray,
+    order_l: int = 2, G_to_use: float = G
+    ) -> SolidDynamicGuess:
+
+    # TODO: This looks like a more stable solution for the inner core, but I can't figure out how to implement it right now.
+
+    # Optimizations and shortcuts
+    w2 = frequency * frequency
+    grav_term = 4. * pi * G_to_use * density
+
+    # Other functions
+    k2 = order_l * (order_l + 1.)
+    lame = (bulk_modulus - (2. / 3.) * shear_modulus)
+    gamma = grav_term / 3.
+    zeta = 1. / (lame + 2. * shear_modulus)
+    delta = 2. * shear_modulus * (3. * lame + 2. * shear_modulus) * zeta
+    epsilon = 4. * k2 * shear_modulus * (lame + shear_modulus) * zeta - 2. * shear_modulus
+
+    # # See Martens Eqs. 4.98 and 4.99
+    p1 = 2. * order_l * (order_l * (order_l + 2.) * lame + (order_l * (order_l + 2) - 1.) * shear_modulus)
+    q1 = (order_l * (order_l + 1.) + order_l * (order_l + 3.)) * lame + 2. * order_l * (order_l + 1.) * shear_modulus
+    p2 = order_l * (order_l + 5) + (lame * order_l * (order_l + 3.)) / shear_modulus
+    q2 = 2. * (order_l + 1.) + (lame * (order_l + 3.) / shear_modulus)
+
+    # # First solution
+    # Set the values of the arbitrary coefficients
+    A_11 = 1.
+    A_61 = 1.
+    A_40 = 1.
+
+    # Solve for the dependent coefficients (Martens Eq. 4.97)
+    A_33 = A_11 * density * ((3. - order_l) * gamma + w2) / p1
+    A_13 = A_33 * -order_l
+    A_22 = A_33 * -q1
+    A_42 = 0.
+    A_54 = grav_term * ((order_l + 3.) * A_13 - k2 * A_33) / (2. * (2. * order_l + 3.))
+    A_63 = (order_l + 2.) * A_54 - grav_term * A_13
+
+    # Eq. 4.102
+    B_33 = A_61 * density / p1
+    B_13 = B_33 * -order_l
+    B_22 = B_33 * -q1
+    B_42 = 0.
+    B_54 = (grav_term / (2. * (2. * order_l + 3.))) * ((order_l + 3.) * B_13 - k2 * B_33)
+    B_63 = (order_l + 2.) * B_54 - grav_term * B_13
+
+    # Eq. 4.104
+    p_ratio = p2 / p1
+    C_11 = A_40 * (1. / shear_modulus - order_l * p_ratio)
+    C_20 = A_40 * (q2 - q1 * p_ratio)
+    C_31 = A_40 * p_ratio
+    C_52 = (grav_term / (2. * (2. * order_l + 3.))) * ((order_l + 3.) * C_11 - k2 * C_31)
+    C_61 = (order_l + 2.) * C_52 - grav_term * C_11
+
+    # Solve for other coefficients which requires matrix operations
+    A_matrix_1 = np.asarray(
+        [
+            [2. * lame * zeta + order_l + 3., -zeta, -k2 * lame * zeta, 0., 0., 0.],
+            [-2. * delta, 4 * shear_modulus * zeta + order_l + 2., k2 * delta, -k2, 0., 0.],
+            [1., 0., order_l + 2., -(1. / shear_modulus), 0., 0.],
+            [delta, lame * zeta, -epsilon, order_l + 5., 0., 0.],
+            [-3. * gamma, 0., 0., 0., order_l + 4., -1.],
+            [0., 0., 3. * gamma * k2, 0., -k2, order_l + 5.],
+            ]
+        )
+    A_matrix_2 = A_matrix_1 + 2. * np.eye(6, dtype=A_matrix_1.dtype)
+    A_matrix_1_inv = np.linalg.inv(A_matrix_1)
+    A_matrix_2_inv = np.linalg.inv(A_matrix_2)
+
+    # Solve for first set of coeffs
+    A_vector = np.asarray(
+        [
+            [0.],
+            [density * (-(4. * gamma + w2) * A_13 + (k2 * gamma) * A_33 - A_63)],
+            [0.],
+            [density * (gamma * A_13 - w2 * A_33 - A_54)],
+            [0.],
+            [0.]
+            ]
+        )
+    B_vector = np.asarray(
+        [
+            [0.],
+            [density * (-(4. * gamma + w2) * A_13 + (k2 * gamma) * A_33 - A_63)],
+            [0.],
+            [density * (gamma * A_13 - w2 * A_33 - A_54)],
+            [0.],
+            [0.]
+            ]
+        )
+    C_vector_1 = np.asarray(
+        [
+            [0.],
+            [density * (-(4. * gamma + w2) * C_11 + (k2 * gamma) * C_31 - C_61)],
+            [0.],
+            [density * (gamma * C_11 - w2 * C_31 - C_52)],
+            [0.],
+            [0.]
+            ]
+        )
+    C_vector_2 = np.asarray(
+        [
+            [0.],
+            [density * (-(4. * gamma + w2) * C_13 + (k2 * gamma) * C_33 - C_63)],
+            [0.],
+            [density * (gamma * C_13 - w2 * C_33 - C_54)],
+            [0.],
+            [0.]
+            ]
+        )
+    A_15, A_24, A_35, A_44, A_56, A_65 = (A_matrix_1_inv @ LHS_vector_1)[:, 0]
+
+
+    A_Matrix_inv = np.linalg.inv(A_Matrix)
+
+    A_1_coeff = A_Matrix_inv @ LHS_vector
+
+    return A_1_coeff

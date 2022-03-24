@@ -14,7 +14,7 @@ import numpy as np
 from ..multilayer.stress_strain import calculate_strain_stress
 from ...utilities.types import FloatArray
 from ..potential import tidal_potential_nsr_modes, tidal_potential_simple, tidal_potential_nsr
-from ...toolbox.multilayer import KNOWN_INTERIOR_MODELS
+from ...toolbox.multilayer_delete_soon import KNOWN_INTERIOR_MODELS
 
 
 def calculate_tidal_y(

@@ -6,8 +6,8 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from ..initial_solution_dynamic import LiquidDynamicGuess
-from ..initial_solution_static import LiquidStaticGuess
+from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess
+from ..initial_conditions.initial_solution_static import LiquidStaticGuess
 from .....utilities.performance import njit
 
 
@@ -114,6 +114,7 @@ def both_static(liquid_layer_ys: LiquidStaticGuess) -> LiquidStaticGuess:
         For the assumptions used in this model there will be one independent solution.
     """
 
-    base_liquid_ys = liquid_layer_ys[:, -1]
+    base_liquid_ys = liquid_layer_ys[0][:, -1]
+    base_liquid_ys = (base_liquid_ys,)
 
     return base_liquid_ys

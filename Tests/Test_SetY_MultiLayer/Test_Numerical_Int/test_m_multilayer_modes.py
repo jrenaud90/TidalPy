@@ -8,7 +8,7 @@ import TidalPy
 from TidalPy.constants import G, mass_trap1
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
-from TidalPy.toolbox.multilayer import calculate_homogen_solid, calculate_sls, calculate_ssls
+from TidalPy.toolbox.multilayer_delete_soon import calculate_homogen_solid, calculate_sls, calculate_ssls
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
 

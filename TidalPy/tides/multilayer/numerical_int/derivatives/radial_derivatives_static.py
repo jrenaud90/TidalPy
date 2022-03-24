@@ -15,19 +15,19 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 from typing import Tuple
 
-from ....constants import G, pi
-from ....utilities.performance import njit
-from ....utilities.types import ComplexArray, FloatArray, NumArray
+from .....constants import G, pi
+from .....utilities.performance import njit
+from .....utilities.types import ComplexArray, FloatArray, NumArray
 
 
 @njit(cacheable=True)
 def radial_derivatives_solid_general(
     radius: FloatArray,
-    radial_functions: Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray],
+    radial_functions: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
     shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
     gravity: FloatArray,
     order_l: int = 2, G_to_use: float = G
-    ) -> Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray]:
+    ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
     """ Calculates the derivatives of the radial functions using the static assumption - for solid layers.
 
     Allows for compressibility.
@@ -42,7 +42,7 @@ def radial_derivatives_solid_general(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m; or dimensionless]
-    radial_functions : Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray]
+    radial_functions : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
@@ -60,7 +60,7 @@ def radial_derivatives_solid_general(
 
     Returns
     -------
-    radial_derivatives : Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray, ComplexArray]
+    radial_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
         The radial derivatives of the radial functions
 
     """
@@ -130,7 +130,7 @@ def radial_derivatives_solid_general(
 
 @njit(cacheable=True)
 def radial_derivatives_liquid_general(
-    radius: FloatArray, radial_functions: Tuple[ComplexArray, ComplexArray],
+    radius: FloatArray, radial_functions: Tuple[NumArray, NumArray],
     density: FloatArray, gravity: FloatArray,
     order_l: int = 2, G_to_use: float = G
     ) -> Tuple[ComplexArray, ComplexArray]:
@@ -148,7 +148,7 @@ def radial_derivatives_liquid_general(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : Tuple[ComplexArray, ComplexArray]
+    radial_functions : Tuple[NumArray, NumArray]
         Tuple of radial functions for a solid layer (y5, y7)
     density : FloatArray
         Density at `radius` [kg m-3]
@@ -162,7 +162,7 @@ def radial_derivatives_liquid_general(
 
     Returns
     -------
-    radial_derivatives : Tuple[ComplexArray, ComplexArray]
+    radial_derivatives : Tuple[NumArray, NumArray]
         The radial derivatives of the radial functions
 
     """

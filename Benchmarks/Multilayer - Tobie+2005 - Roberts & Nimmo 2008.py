@@ -13,7 +13,7 @@ from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 
 # Load TidalPy's multilayer functions
-from TidalPy.toolbox.multilayer import calculate_homogen_solid, calculate_ls
+from TidalPy.toolbox.multilayer_delete_soon import calculate_homogen_solid, calculate_ls
 from TidalPy.tides.multilayer.matrix import fundamental_matrix_orderl2, propagate
 from TidalPy.utilities.graphics.multilayer import yplot
 
