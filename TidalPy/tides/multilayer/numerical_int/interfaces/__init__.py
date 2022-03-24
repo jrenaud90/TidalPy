@@ -1,3 +1,5 @@
+from typing import Tuple, Union
+
 from .liquid_liquid import both_dynamic as interface_LDy_LDy, both_static as interface_LSt_LSt
 from .liquid_solid import (both_dynamic as interface_LDy_SDy, both_static as interface_LSt_SSt,
                            dynamic_static as interface_LDy_SSt, static_dynamic as interface_LSt_SDy)
@@ -5,7 +7,7 @@ from .solid_liquid import (both_dynamic as interface_SDy_LDy, both_static as int
                            dynamic_static as interface_SDy_LSt, static_dynamic as interface_SSt_LDy)
 from .solid_solid import (both_dynamic as interface_SDy_SDy, both_static as interface_SSt_SSt,
                           dynamic_static as interface_SDy_SSt, static_dynamic as interface_SSt_SDy)
-from .....utilities.performance import njit
+from .....constants import G
 
 # Stored by is_lower_solid, is_upper_solid, is_lower_static, is_upper_static
 known_interfaces = {
@@ -37,8 +39,8 @@ known_interfaces = {
 def find_interface_func(
     lower_layer_is_solid: bool, lower_layer_is_static: bool,
     upper_layer_is_solid: bool, upper_layer_is_static: bool,
-    liquid_density: float = None, interface_gravity: float = None
-    ) -> callable:
+    liquid_density: float = None, interface_gravity: float = None, G_to_use: float = G
+    ) -> Tuple[callable, Union[Tuple, Tuple[float, float, float]]]:
     """ Helper function to find the correct interface function based on user provided assumptions.
 
     Parameters
@@ -61,6 +63,8 @@ def find_interface_func(
     -------
     interface_func : callable
         Interface function for solving the numerical shooting method.
+    inputs : Tuple[float, float, float]
+        Additional inputs for the interface function.
 
     """
     if not lower_layer_is_solid and not upper_layer_is_solid:
@@ -74,13 +78,11 @@ def find_interface_func(
                                                           lower_layer_is_static,
                                                           upper_layer_is_static)]
 
+    inputs = tuple()
     if needs_extra_input:
         if liquid_density is None or interface_gravity is None:
             raise ValueError(f'{interface_func} requires additional interface parameters, none provided.')
 
-        @njit(cacheable=False)
-        def interface_func_partial(lower_layer_ys):
-            return interface_func(lower_layer_ys, interface_gravity, liquid_density)
+        inputs = (interface_gravity, liquid_density, G_to_use)
 
-        return interface_func_partial
-    return interface_func
+    return interface_func, inputs

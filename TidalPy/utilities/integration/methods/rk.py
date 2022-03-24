@@ -87,8 +87,7 @@ P_RK45 = np.array(
         [0, 127303824393 / 49829197408, -318862633887 / 49829197408,
          701980252875 / 199316789632],
         [0, -282668133 / 205662961, 2019193451 / 616988883, -1453857185 / 822651844],
-        [0, 40617522 / 29380423, -110615467 / 29380423, 69997945 / 29380423]]
-    )
+        [0, 40617522 / 29380423, -110615467 / 29380423, 69997945 / 29380423]])
 
 
 # Error estimation for RK23 and RK45 (DOP-8 requires a different method)
@@ -97,6 +96,67 @@ def _RK23_45_estimate_error_norm(K, E, step_to_use, scale):
     abs_error = np.dot(K.T, E) * step_to_use
     return norm(abs_error / scale)
 
+@njit(cacheable=True)
+def rk_step(fun, t, y, f, h, A, B, C, K, args):
+    """Perform a single Runge-Kutta step.
+    This function computes a prediction of an explicit Runge-Kutta method and
+    also estimates the error of a less accurate method.
+    Notation for Butcher tableau is as in [1]_.
+    Parameters
+    ----------
+    fun : callable
+        Right-hand side of the system.
+    t : float
+        Current time.
+    y : ndarray, shape (n,)
+        Current state.
+    f : ndarray, shape (n,)
+        Current value of the derivative, i.e., ``fun(x, y)``.
+    h : float
+        Step to use.
+    A : ndarray, shape (n_stages, n_stages)
+        Coefficients for combining previous RK stages to compute the next
+        stage. For explicit methods the coefficients at and above the main
+        diagonal are zeros.
+    B : ndarray, shape (n_stages,)
+        Coefficients for combining RK stages for computing the final
+        prediction.
+    C : ndarray, shape (n_stages,)
+        Coefficients for incrementing time for consecutive RK stages.
+        The value for the first stage is always zero.
+    K : ndarray, shape (n_stages + 1, n)
+        Storage array for putting RK stages here. Stages are stored in rows.
+        The last row is a linear combination of the previous rows with
+        coefficients
+    args : tuple
+        Additional arguments to the diffeq.
+
+    Returns
+    -------
+    y_new : ndarray, shape (n,)
+        Solution at t + h computed with a higher accuracy.
+    f_new : ndarray, shape (n,)
+        Derivative ``fun(t + h, y_new)``.
+    K_new : ndarray, shape (n_stages + 1, n)
+
+    References
+    ----------
+    .. [1] E. Hairer, S. P. Norsett G. Wanner, "Solving Ordinary Differential
+           Equations I: Nonstiff Problems", Sec. II.4.
+    """
+    K[0] = f
+    s = 1
+    for a, c in zip(A[1:], C[1:]):
+        dy = np.dot(K[:s].T, a[:s]) * h
+        K[s] = np.asarray(fun(t + c * h, y + dy, *args), dtype=y.dtype)
+        s += 1
+
+    y_new = y + h * np.dot(K[:-1].T, B)
+    f_new = np.asarray(fun(t + h, y_new, *args), dtype=y.dtype)
+
+    K[-1] = f_new
+
+    return y_new, f_new
 
 @njit(cacheable=True)
 def rk_stepper(
@@ -150,14 +210,12 @@ def rk_stepper(
     # The A, B, and E parameters must be recast in the same dtype as y.
     A_array = np.asarray(A, dtype=dtype)
     B_array = np.asarray(B, dtype=dtype)
+    # C_array = np.asarray(C, dtype=dtype)
+    C_array = C
     E_array = np.asarray(E, dtype=dtype)
 
     # Integration step variables
-    t_new = 0.
-    y_new = y
-    new_deriv_val = current_deriv_val
     current_step_size_abs = step_size_abs
-    step = current_step_size_abs * direction
     status = 100
     message = 'Step was completed successfully.'
     step_accepted = False
@@ -179,22 +237,12 @@ def rk_stepper(
         if direction * (t_new - tf) > 0:
             # If it has, correct the new time to be the last time and update the step size accordingly
             t_new = tf
-            step = t_new - t
-            current_step_size_abs = np.abs(step)
+
+        step = t_new - t
+        current_step_size_abs = np.abs(step)
 
         # Start RK Specific step calculations
-        K[0] = current_deriv_val
-        s = 1
-        for a, c in zip(A_array[1:], C[1:]):
-            dy = np.dot(K[:s].T, a[:s]) * step
-            K[s] = func(t + c * step, y + dy, *args)
-            s += 1
-
-        y_new = y + step * np.dot(K[:-1].T, B_array)
-        new_deriv_val = func(t + step, y_new, *args)
-
-        K[-1] = new_deriv_val
-        # End RK Specific step calculations
+        y_new, new_deriv_val = rk_step(func, t, y, current_deriv_val, step, A_array, B_array, C_array, K, args)
 
         scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
         error_norm = error_func_norm(K, E_array, step, scale)
@@ -216,9 +264,6 @@ def rk_stepper(
             current_step_size_abs *= max(MIN_FACTOR, SAFETY * error_norm**error_exponent)
             step_rejected = True
 
-    previous_step = step
     new_step_size_abs = current_step_size_abs
-    y_old = y
-    t_old = t
 
-    return t_new, y_new, new_deriv_val, new_step_size_abs, y_old, t_old, previous_step, status, message
+    return t_new, y_new, new_deriv_val, new_step_size_abs, K, status, message

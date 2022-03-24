@@ -56,7 +56,7 @@ def select_initial_step(
         h0 = 0.01 * d0 / d1
 
     y1 = y0 + h0 * direction * f0
-    f1 = func(t0 + h0 * direction, y1)
+    f1 = np.asarray(func(t0 + h0 * direction, y1), dtype=y0.dtype)
     d2 = norm((f1 - f0) / scale) / h0
 
     if d1 <= 1e-15 and d2 <= 1e-15:

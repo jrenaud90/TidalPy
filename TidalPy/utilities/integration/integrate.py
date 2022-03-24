@@ -29,6 +29,10 @@ from .methods.rk import error_estimator_order_RK23, error_estimator_order_RK45, 
 from ..performance import njit
 from ..types import float_eps
 
+#TODO: I have spent 5 hours trying to make this match scipys which it is literally copied and pasted from.
+#    it will match it if you increase the rtol a lot (depending on ur diffeq) but otherwise it just doesnt match.
+#    this pure numba implementation runs ~8x faster than scipy but to get a SLS model to match I have to up the rtol
+#    to 1e-12 and then this takes 3 times slower
 
 @njit(cacheable=True)
 def select_initial_step(func, t0, y0, f0, direction, order, rtol, atol, args: tuple = tuple()):
@@ -74,7 +78,7 @@ def select_initial_step(func, t0, y0, f0, direction, order, rtol, atol, args: tu
         h0 = 0.01 * d0 / d1
 
     y1 = y0 + h0 * direction * f0
-    f1 = func(t0 + h0 * direction, y1, *args)
+    f1 = np.asarray(func(t0 + h0 * direction, y1, *args), dtype=y0.dtype)
     d2 = norm((f1 - f0) / scale) / h0
 
     if d1 <= 1e-15 and d2 <= 1e-15:
@@ -93,15 +97,19 @@ def rk_integrator(
     rtol=1.0e-3, atol=1.0e-6,
     verbose: bool = True
     ):
+
     # Determine integration domain and shape of y
+    y_size = y0.size
+    dtype = y0.dtype
+
+    # Determine the independent variable domain and limits
     t0, tf = float(t_span[0]), float(t_span[1])
+
     if t_eval_log:
         # TODO: Numba does not support np.logspace currently. So this is a hack on logspace
         t_eval = 10**np.linspace(np.log10(t0), np.log10(tf), t_eval_N)
     else:
         t_eval = np.linspace(t0, tf, t_eval_N)
-    y_size = y0.size
-    dtype = y0.dtype
 
     # Pull out RK method info
     # Explicit Runge-Kutta Method of order 3(2)
@@ -137,14 +145,14 @@ def rk_integrator(
     ys_array = y0.reshape(1, y_size)
 
     # Determine integration parameters
-    max_step = np.abs(tf - t0) / 2.
+    max_step = np.inf
 
     # Initialize integration variables
     t_old = 0.
-    previous_step_size = 0.
     t = t0
+    previous_step_size = 0.
     y = y0
-    current_deriv_val = func(t, y, *args)
+    current_deriv_val = np.asarray(func(t, y, *args), dtype=dtype)
     if tf != t0:
         direction = np.sign(tf - t0)
     else:
@@ -164,9 +172,8 @@ def rk_integrator(
     status = 100
     while status == 100:
         # While step is being calculated its status is 100.
-        step_status = 100
         if (y_size == 0) or (t == tf):
-            # Integration is complete
+            # Integration is complete because there is nothing to integrate
             status = 0
             t_old = t
             t = tf
@@ -174,7 +181,13 @@ def rk_integrator(
         else:
             # Integration is not complete.
             # Run the step function
-            t_new, y_new, new_deriv_val, new_step_size_abs, y_old, t_old, old_step, step_status, message = \
+            old_deriv_value = current_deriv_val
+            old_step_abs = step_size_abs
+            old_step = old_step_abs * direction
+            t_old = t
+            y_old = y
+            K_old = K
+            t_new, y_new, new_deriv_val, new_step_size_abs, K, step_status, message = \
                 rk_stepper(
                     func, t, y, current_deriv_val, tf, direction, step_size_abs, max_step, atol, rtol, K,
                     rk_method=rk_method, args=args

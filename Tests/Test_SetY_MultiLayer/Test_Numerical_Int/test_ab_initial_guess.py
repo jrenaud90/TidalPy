@@ -165,23 +165,33 @@ def test_static_liquid_s74():
     # Test for order l = 2
     # For the static liquid guess there is only one solution, therefore the output is NOT a tuple.
     liquid_guess = liquid_static_guess_s74(radius_array_to_use, order_l=2)
-    assert type(liquid_guess) == np.ndarray
-    assert type(liquid_guess) == np.ndarray
+    assert type(liquid_guess) == tuple
+    assert len(liquid_guess) == 1
     # Since there is no shear (or bulk) dependence for static liquid tides, then the results will be real not complex.
     #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
-    assert liquid_guess.dtype in [complex, np.complex128]
-    # Static liquid solution should have 2 y values across the radius domain (10).
-    assert liquid_guess.shape == (2, 10)
+    for sn in range(1):
+        assert type(liquid_guess[sn]) == np.ndarray
+        # Since there is no shear dependence for dynamic liquid tides, then the results will be real not complex unless
+        #    there is bulk dependence
+        #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+        assert liquid_guess[sn].dtype in [complex, np.complex128]
+        # Dynamic liquid solution should have 4 y values across the radius domain (10).
+        assert liquid_guess[sn].shape == (2, 10)
 
     # Test for order l = 3
     liquid_guess = liquid_static_guess_s74(radius_array_to_use, order_l=3)
-    assert type(liquid_guess) == np.ndarray
-    assert type(liquid_guess) == np.ndarray
+    assert type(liquid_guess) == tuple
+    assert len(liquid_guess) == 1
     # Since there is no shear (or bulk) dependence for static liquid tides, then the results will be real not complex.
     #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
-    assert liquid_guess.dtype in [complex, np.complex128]
-    # Static liquid solution should have 2 y values across the radius domain (10).
-    assert liquid_guess.shape == (2, 10)
+    for sn in range(1):
+        assert type(liquid_guess[sn]) == np.ndarray
+        # Since there is no shear dependence for dynamic liquid tides, then the results will be real not complex unless
+        #    there is bulk dependence
+        #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
+        assert liquid_guess[sn].dtype in [complex, np.complex128]
+        # Dynamic liquid solution should have 4 y values across the radius domain (10).
+        assert liquid_guess[sn].shape == (2, 10)
 
 
 def test_dynamic_liquid_kmn15():

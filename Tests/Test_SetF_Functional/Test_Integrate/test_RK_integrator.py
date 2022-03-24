@@ -2,6 +2,7 @@
 These integrators are comparable to SciPy's solve_ivp integration scheme but with numba tolerance.
 """
 import numpy as np
+from numpy.testing import assert_allclose
 from scipy.integrate import solve_ivp
 
 import TidalPy
@@ -13,6 +14,27 @@ TidalPy.use_disk = False
 TidalPy.reinit()
 
 TEVAL_RTOL = 0.8
+
+
+def test_rk23_coeffs():
+    """ Test that the RK23 coeffs are as expected. """
+
+    from TidalPy.utilities.integration.methods.rk import A_RK23 as A
+    from TidalPy.utilities.integration.methods.rk import B_RK23 as B
+    from TidalPy.utilities.integration.methods.rk import C_RK23 as C
+
+    assert_allclose(np.sum(B), 1, rtol=1e-15)
+    assert_allclose(np.sum(A, axis=1), C, rtol=1e-14)
+
+def test_rk45_coeffs():
+    """ Test that the RK45 coeffs are as expected. """
+
+    from TidalPy.utilities.integration.methods.rk import A_RK45 as A
+    from TidalPy.utilities.integration.methods.rk import B_RK45 as B
+    from TidalPy.utilities.integration.methods.rk import C_RK45 as C
+
+    assert_allclose(np.sum(B), 1, rtol=1e-15)
+    assert_allclose(np.sum(A, axis=1), C, rtol=1e-14)
 
 
 def test_rk23_Yis1D_noTeval():

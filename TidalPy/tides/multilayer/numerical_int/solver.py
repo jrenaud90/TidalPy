@@ -12,9 +12,6 @@ from ....exceptions import AttributeNotSetError, IntegrationFailed
 from ....utilities.integration.integrate import rk_integrator
 
 
-# MAX_DATA_SIZE = 2000
-
-
 def tidal_y_solver(
     model_name: str,
     radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
@@ -127,6 +124,7 @@ def tidal_y_solver(
     radial_odes = []
     ode_inputs = []
     bottom_interfaces = []
+    bottom_interface_inputs = []
     num_liquid_layers = 0
     liquid_indices = None
     is_liquid_static = None
@@ -200,9 +198,11 @@ def tidal_y_solver(
         if num_interfaces == 0:
             # There are no internal interfaces
             bottom_interfaces.append(None)
+            bottom_interface_inputs.append(tuple())
         elif layer_i == 0:
             # The first layer has no bottom interface.
             bottom_interfaces.append(None)
+            bottom_interface_inputs.append(tuple())
         else:
             # Real interface, need to figure out what type it is.
             layer_below_is_solid = is_solid_by_layer[layer_i - 1]
@@ -221,13 +221,14 @@ def tidal_y_solver(
                 liquid_density = density[layer_indices][0]
             interface_gravity = gravity[layer_indices][0]
 
-            interface_func = find_interface_func(
+            interface_func, interface_input = find_interface_func(
                 lower_layer_is_solid=layer_below_is_solid, lower_layer_is_static=layer_below_is_static,
                 upper_layer_is_solid=layer_is_solid, upper_layer_is_static=layer_is_static,
-                liquid_density=liquid_density, interface_gravity=interface_gravity
+                liquid_density=liquid_density, interface_gravity=interface_gravity, G_to_use=G_to_use
                 )
 
             bottom_interfaces.append(interface_func)
+            bottom_interface_inputs.append(interface_input)
 
     # Determine function to collapse the multiple solutions into a single solution for the planet.
     collapse_function, collapse_input = \
@@ -254,6 +255,7 @@ def tidal_y_solver(
         diffeq = radial_odes[layer_i]
         diffeq_input = ode_inputs[layer_i]
         bottom_interface = bottom_interfaces[layer_i]
+        bottom_interface_input = bottom_interface_inputs[layer_i]
 
         # Determine initial conditions at the base of the layer.
         if layer_i == 0:
@@ -261,7 +263,7 @@ def tidal_y_solver(
             initial_values_to_use = initial_value_tuple
         else:
             # Initial values are based on the previous layer's results and the interface function.
-            initial_values_to_use = bottom_interface(solutions_by_layer[layer_i - 1])
+            initial_values_to_use = bottom_interface(solutions_by_layer[layer_i - 1], *bottom_interface_input)
 
         # Start integration routine
         if use_julia:
@@ -294,9 +296,9 @@ def tidal_y_solver(
 
         elif use_numba_integrator:
 
-            if scipy_int_method == 'RK23':
+            if scipy_int_method.lower() in ['rk23']:
                 rk_method = 0
-            elif scipy_int_method == 'RK45':
+            elif scipy_int_method.lower() in ['rk45']:
                 rk_method = 1
             else:
                 raise NotImplementedError

@@ -25,6 +25,7 @@
   * Updated stress, strain, and displacement calculations to account for new low-memory calculation method.
   * Greatly increased performance of multilayer stress, strain, and potential calculations.
   * Refactored much of the multilayer functions from TidalPy.toolbox to TidalPy.tides.multilayer.numerical_int and sub modules
+  * Fixed issue that was causing some multilayer boundary calculations to be 10x slower.
 
 ### Version 0.3.3 Alpha (Fall 2021)
 * Major Changes
