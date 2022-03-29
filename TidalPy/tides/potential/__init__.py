@@ -4,9 +4,8 @@ from ...utilities.types import FloatArray
 
 TidalPotentialOutput = Tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]
 
-TidalPotentialModeOutput = Tuple[Dict[str, FloatArray], Dict[str, FloatArray], Dict[str, FloatArray],
-                                 Dict[str, FloatArray], Dict[str, FloatArray], Dict[str, FloatArray],
-                                 Dict[str, FloatArray], Dict[str, FloatArray]]
+PotentialTupleModeOutput = Dict[str, Tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]]
+TidalPotentialModeOutput = Tuple[Dict[str, FloatArray], Dict[str, FloatArray], PotentialTupleModeOutput]
 MIN_SPIN_ORBITAL_DIFF = 1.0e-10
 
 from .synchronous_low_e import tidal_potential as tidal_potential_simple

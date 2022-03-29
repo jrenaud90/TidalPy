@@ -1,7 +1,7 @@
 import numpy as np
 
 from ...constants import G
-from ...tides.multilayer.numerical_int import (radial_derivatives_liquid_dynamic, radial_derivatives_liquid_static,
+from ...tides.multilayer.numerical_int.derivatives import (radial_derivatives_liquid_dynamic, radial_derivatives_liquid_static,
                                                radial_derivatives_solid_dynamic, radial_derivatives_solid_static)
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray

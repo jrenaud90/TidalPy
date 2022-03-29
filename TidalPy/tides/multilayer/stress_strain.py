@@ -96,7 +96,6 @@ def calculate_strain_stress(
             Stress tensor component - radius longitude (appears twice in the symmetric tensor)
         s_thph : np.ndarray
             Stress tensor component - colatitude longitude (appears twice in the symmetric tensor)
-
     """
     # Optimizations
     sin_theta = np.sin(colatitude)
@@ -144,12 +143,16 @@ def calculate_strain_stress(
         # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
         #    as pointed out in Kervazo et al (2021; A&A) Appendix D
         strains[2, ri, :, :, :] = y1_r_tidal_potential + y3_r_ * s2_t1
+
+        # TODO: "Note that the non-diagonal strains (eh/, e/r, erh)in Takeuchi and Saito (1972)
+        #  must be multiplied by 1/2 if they are to be the components of the strain tensor" Is this right?
+        #  adding in the 1/2s now...
         # \epsilon_{r\theta}
-        strains[3, ri, :, :, :] = y4_shear_ * tidal_potential_partial_theta
+        strains[3, ri, :, :, :] = y4_shear_ * tidal_potential_partial_theta / 2.
         # \epsilon_{r\phi}
-        strains[4, ri, :, :, :] = y4_shear_ * s4_t0
+        strains[4, ri, :, :, :] = y4_shear_ * s4_t0 / 2.
         # \epsilon_{\theta\phi}
-        strains[5, ri, :, :, :] = y3_r_ * s5_t0
+        strains[5, ri, :, :, :] = y3_r_ * s5_t0 / 2.
 
         # Calculate stress assuming isotropic media (Takeuchi & Saito (1972))
         # First calculate the trace of strain \epsilon_{rr} + \epsilon_{\theta\theta} + \epsilon_{\phi\phi}
@@ -166,15 +169,14 @@ def calculate_strain_stress(
         # \epsilon_{\phi\phi}
         stresses[2, ri, :, :, :] += strain_trace_lame
 
-    # # Calculate Tidal Heating
-    # volumetric_heating = (frequency / 2.) * (
-    #         np.imag(s_rr) * np.real(e_rr) - np.real(s_rr) * np.imag(e_rr) +
-    #         np.imag(s_thth) * np.real(e_thth) - np.real(s_thth) * np.imag(e_thth) +
-    #         np.imag(s_phph) * np.real(e_phph) - np.real(s_phph) * np.imag(e_phph) +
-    #         2. * (np.imag(s_rth) * np.real(e_rth) - np.real(s_rth) * np.imag(e_rth)) +
-    #         2. * (np.imag(s_rph) * np.real(e_rph) - np.real(s_rph) * np.imag(e_rph)) +
-    #         2. * (np.imag(s_thph) * np.real(e_thph) - np.real(s_thph) * np.imag(e_thph))
-    # )
+    # Calculate Tidal Heating
+    # TODO: Does this frequency imply orbit average? There is still a time dependence...
+    #   Do I take the orbit average here over this particular frequency cycle's period?
+    # volumetric_heating = (frequency / 2.) * \
+    #     np.sum(np.imag(stresses[:3]) * np.real(strains[:3]) - np.real(stresses[:3]) * np.imag(strains[:3]) +
+    #            # 2 here is to double count cross terms since it is a symmetric matrix
+    #            2. * (np.imag(stresses[3:]) * np.real(strains[3:]) - np.real(stresses[3:]) * np.imag(strains[3:])),
+    #            axis=0)
 
     # Uncomment to compare with Tobie method.
     # volumetric_heating, _ = decompose(

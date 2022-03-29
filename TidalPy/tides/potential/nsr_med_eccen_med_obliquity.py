@@ -12,7 +12,7 @@ def tidal_potential(
     orbital_frequency: FloatArray, rotation_frequency: FloatArray,
     eccentricity: FloatArray, obliquity: FloatArray,
     host_mass: float, semi_major_axis: FloatArray,
-    use_static: bool = False,
+    use_static: bool = False
     ) -> TidalPotentialOutput:
     """ Tidal gravitational potential assuming moderate eccentricity, moderate obliquity, and non-synchronous rotation
 
@@ -278,14 +278,13 @@ def tidal_potential(
         )
 
     # Build storage for the potential and its derivatives
-    shape = colatitude.shape
-    oen_shape = o + e + n
-    potential = np.zeros(shape, dtype=np.float64)
-    potential_partial_theta = np.zeros(shape, dtype=np.float64)
-    potential_partial_phi = np.zeros(shape, dtype=np.float64)
-    potential_partial2_theta2 = np.zeros(shape, dtype=np.float64)
-    potential_partial2_phi2 = np.zeros(shape, dtype=np.float64)
-    potential_partial2_theta_phi = np.zeros(shape, dtype=np.float64)
+    shape = colatitude + o + e + n
+    potential = np.zeros_like(shape, dtype=np.float64)
+    potential_partial_theta = np.zeros_like(shape, dtype=np.float64)
+    potential_partial_phi = np.zeros_like(shape, dtype=np.float64)
+    potential_partial2_theta2 = np.zeros_like(shape, dtype=np.float64)
+    potential_partial2_phi2 = np.zeros_like(shape, dtype=np.float64)
+    potential_partial2_theta_phi = np.zeros_like(shape, dtype=np.float64)
 
     # Go through modes and add their contribution to the potential and its derivatives.
     for mode_i in range(num_modes):
@@ -309,7 +308,7 @@ def tidal_potential(
         # Switches
         # There will be terms that are non-zero even though they do not carry a time dependence. This switch will
         #   ensure all non-time dependence --> zero unless the user sets `use_static` = True.
-        mode_switch = np.ones_like(oen_shape, dtype=bool_)
+        mode_switch = np.ones_like(shape, dtype=bool_)
         if not use_static:
             # Use static is False (default). Switches depend on the value of n and o
             # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).

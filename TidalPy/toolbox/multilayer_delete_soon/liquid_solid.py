@@ -6,7 +6,7 @@ from .odes import dynamic_liquid_ode, dynamic_solid_ode, static_liquid_ode, stat
 from ...constants import G
 from ...exceptions import AttributeNotSetError, IntegrationFailed
 from ...tides.multilayer.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
-from ...tides.multilayer.numerical_int import find_initial_guess
+from ...tides.multilayer.numerical_int.initial_conditions import find_initial_guess
 from ...tides.multilayer.numerical_int.interfaces import find_interface_func
 from ...utilities.integration.integrate import rk_integrator
 from ...utilities.performance import njit
@@ -306,11 +306,12 @@ def calculate_ls(
                                      order_l, G_to_use)
 
     # Find interfaces
-    interface_1_func = find_interface_func(
+    interface_1_func, if_inputs = find_interface_func(
         lower_layer_is_solid=False, lower_layer_is_static=layer_0_static,
         upper_layer_is_solid=True, upper_layer_is_static=layer_1_static,
         liquid_density=density[layer_0_indx][0],
-        interface_gravity=gravity[layer_0_indx][0]
+        interface_gravity=gravity[layer_0_indx][0],
+        G_to_use=G_to_use
         )
 
     solutions_by_layer = [list(), list()]
@@ -323,10 +324,10 @@ def calculate_ls(
             derivative_inputs = derivative_inputs_layer_0
             initial_values_to_use = initial_value_tuple
 
-            if layer_0_static:
-                # There is only one solution provided by the interface func. Make it a list so the loop later on
-                #   works.
-                initial_values_to_use = (initial_values_to_use,)
+            # if layer_0_static:
+            #     # There is only one solution provided by the interface func. Make it a list so the loop later on
+            #     #   works.
+            #     initial_values_to_use = (initial_values_to_use,)
 
         else:
             radial_span = radial_span_1
@@ -340,7 +341,7 @@ def calculate_ls(
                 liq_sols = solutions_by_layer[0][0]
             else:
                 liq_sols = solutions_by_layer[0]
-            initial_values_to_use = interface_1_func(liq_sols)
+            initial_values_to_use = interface_1_func(liq_sols, *if_inputs)
 
         if use_julia:
             def diffeq_julia(u, p, r):

@@ -28,8 +28,8 @@ from ...performance import njit
 # Multiply steps computed from asymptotic behaviour of errors by this.
 SAFETY = 0.9
 
-MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
-MAX_FACTOR = 10.  # Maximum allowed increase in a step size.
+MIN_FACTOR = 0.1  # Minimum allowed decrease in a step size.
+MAX_FACTOR = 4.  # Maximum allowed increase in a step size.
 
 # Parameters for 3rd order RK
 order_RK23 = 3

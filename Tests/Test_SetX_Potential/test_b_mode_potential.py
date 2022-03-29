@@ -38,8 +38,7 @@ def test_tidal_potential_nsr_modes():
     """ Test the modal tidal potential assuming moderate eccentricity, no obliquity, and synchronous rotation """
     # Test arrays - Static=False
     spin_freq = 1.5 * orbital_freq
-    freqs, modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict, \
-        potential_d2phi_dict, potential_dtheta_dphi_dict = \
+    freqs, modes, potential_tuple_by_mode = \
         tidal_potential_nsr_modes(
             radius_array[-1], long_mtx, colat_mtx, time_mtx,
             orbital_freq, spin_freq,
@@ -54,31 +53,34 @@ def test_tidal_potential_nsr_modes():
         assert type(mode_label) == str
         assert type(mode_freq) in [float, np.float, np.float64]
 
-        assert type(potential_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dict[mode_label]) == np.ndarray
-        assert type(potential_dphi_dict[mode_label]) == np.ndarray
-        assert type(potential_d2theta_dict[mode_label]) == np.ndarray
-        assert type(potential_d2phi_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dphi_dict[mode_label]) == np.ndarray
+        # Unpack potential tuple
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_tuple_by_mode[mode_label]
 
-        assert potential_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dict[mode_label].shape == long_mtx.shape
-        assert potential_dphi_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2theta_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2phi_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dphi_dict[mode_label].shape == long_mtx.shape
+        assert type(potential) == np.ndarray
+        assert type(potential_dtheta) == np.ndarray
+        assert type(potential_dphi) == np.ndarray
+        assert type(potential_d2theta) == np.ndarray
+        assert type(potential_d2phi) == np.ndarray
+        assert type(potential_dtheta_dphi) == np.ndarray
 
-        assert type(potential_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2theta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2phi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
+        assert potential.shape == long_mtx.shape
+        assert potential_dtheta.shape == long_mtx.shape
+        assert potential_dphi.shape == long_mtx.shape
+        assert potential_d2theta.shape == long_mtx.shape
+        assert potential_d2phi.shape == long_mtx.shape
+        assert potential_dtheta_dphi.shape == long_mtx.shape
+
+        assert type(potential[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dphi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
 
     # Test arrays - Static=True
     spin_freq = 1.5 * orbital_freq
-    freqs, modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict, \
-    potential_d2phi_dict, potential_dtheta_dphi_dict = \
+    freqs, modes, potential_tuple_by_mode = \
         tidal_potential_nsr_modes(
             radius_array[-1], long_mtx, colat_mtx, time_mtx,
             orbital_freq, spin_freq,
@@ -94,33 +96,36 @@ def test_tidal_potential_nsr_modes():
         assert type(mode_label) == str
         assert type(mode_freq) in [float, np.float, np.float64]
 
-        assert type(potential_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dict[mode_label]) == np.ndarray
-        assert type(potential_dphi_dict[mode_label]) == np.ndarray
-        assert type(potential_d2theta_dict[mode_label]) == np.ndarray
-        assert type(potential_d2phi_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dphi_dict[mode_label]) == np.ndarray
+        # Unpack potential tuple
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_tuple_by_mode[mode_label]
 
-        assert potential_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dict[mode_label].shape == long_mtx.shape
-        assert potential_dphi_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2theta_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2phi_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dphi_dict[mode_label].shape == long_mtx.shape
+        assert type(potential) == np.ndarray
+        assert type(potential_dtheta) == np.ndarray
+        assert type(potential_dphi) == np.ndarray
+        assert type(potential_d2theta) == np.ndarray
+        assert type(potential_d2phi) == np.ndarray
+        assert type(potential_dtheta_dphi) == np.ndarray
 
-        assert type(potential_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2theta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2phi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
+        assert potential.shape == long_mtx.shape
+        assert potential_dtheta.shape == long_mtx.shape
+        assert potential_dphi.shape == long_mtx.shape
+        assert potential_d2theta.shape == long_mtx.shape
+        assert potential_d2phi.shape == long_mtx.shape
+        assert potential_dtheta_dphi.shape == long_mtx.shape
+
+        assert type(potential[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dphi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
 
 def test_tidal_potential_obliquity_nsr_modes():
     """ Test the modal tidal potential assuming moderate eccentricity, moderate obliquity, and synchronous rotation """
     # Test arrays - Static=False
     spin_freq = 1.5 * orbital_freq
-    freqs, modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict, \
-        potential_d2phi_dict, potential_dtheta_dphi_dict = \
+    freqs, modes, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr_modes(
             radius_array[-1], long_mtx, colat_mtx, time_mtx,
             orbital_freq, spin_freq,
@@ -135,31 +140,34 @@ def test_tidal_potential_obliquity_nsr_modes():
         assert type(mode_label) == str
         assert type(mode_freq) in [float, np.float, np.float64]
 
-        assert type(potential_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dict[mode_label]) == np.ndarray
-        assert type(potential_dphi_dict[mode_label]) == np.ndarray
-        assert type(potential_d2theta_dict[mode_label]) == np.ndarray
-        assert type(potential_d2phi_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dphi_dict[mode_label]) == np.ndarray
+        # Unpack potential tuple
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_tuple_by_mode[mode_label]
 
-        assert potential_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dict[mode_label].shape == long_mtx.shape
-        assert potential_dphi_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2theta_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2phi_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dphi_dict[mode_label].shape == long_mtx.shape
+        assert type(potential) == np.ndarray
+        assert type(potential_dtheta) == np.ndarray
+        assert type(potential_dphi) == np.ndarray
+        assert type(potential_d2theta) == np.ndarray
+        assert type(potential_d2phi) == np.ndarray
+        assert type(potential_dtheta_dphi) == np.ndarray
 
-        assert type(potential_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2theta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2phi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
+        assert potential.shape == long_mtx.shape
+        assert potential_dtheta.shape == long_mtx.shape
+        assert potential_dphi.shape == long_mtx.shape
+        assert potential_d2theta.shape == long_mtx.shape
+        assert potential_d2phi.shape == long_mtx.shape
+        assert potential_dtheta_dphi.shape == long_mtx.shape
+
+        assert type(potential[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dphi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
 
     # Test arrays - Static=True
     spin_freq = 1.5 * orbital_freq
-    freqs, modes, potential_dict, potential_dtheta_dict, potential_dphi_dict, potential_d2theta_dict, \
-    potential_d2phi_dict, potential_dtheta_dphi_dict = \
+    freqs, modes, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr_modes(
             radius_array[-1], long_mtx, colat_mtx, time_mtx,
             orbital_freq, spin_freq,
@@ -175,26 +183,30 @@ def test_tidal_potential_obliquity_nsr_modes():
         assert type(mode_label) == str
         assert type(mode_freq) in [float, np.float, np.float64]
 
-        assert type(potential_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dict[mode_label]) == np.ndarray
-        assert type(potential_dphi_dict[mode_label]) == np.ndarray
-        assert type(potential_d2theta_dict[mode_label]) == np.ndarray
-        assert type(potential_d2phi_dict[mode_label]) == np.ndarray
-        assert type(potential_dtheta_dphi_dict[mode_label]) == np.ndarray
+        # Unpack potential tuple
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_tuple_by_mode[mode_label]
 
-        assert potential_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dict[mode_label].shape == long_mtx.shape
-        assert potential_dphi_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2theta_dict[mode_label].shape == long_mtx.shape
-        assert potential_d2phi_dict[mode_label].shape == long_mtx.shape
-        assert potential_dtheta_dphi_dict[mode_label].shape == long_mtx.shape
+        assert type(potential) == np.ndarray
+        assert type(potential_dtheta) == np.ndarray
+        assert type(potential_dphi) == np.ndarray
+        assert type(potential_d2theta) == np.ndarray
+        assert type(potential_d2phi) == np.ndarray
+        assert type(potential_dtheta_dphi) == np.ndarray
 
-        assert type(potential_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2theta_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_d2phi_dict[mode_label][0, 0, 0]) in [float, np.float64]
-        assert type(potential_dtheta_dphi_dict[mode_label][0, 0, 0]) in [float, np.float64]
+        assert potential.shape == long_mtx.shape
+        assert potential_dtheta.shape == long_mtx.shape
+        assert potential_dphi.shape == long_mtx.shape
+        assert potential_d2theta.shape == long_mtx.shape
+        assert potential_d2phi.shape == long_mtx.shape
+        assert potential_dtheta_dphi.shape == long_mtx.shape
+
+        assert type(potential[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dphi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
 
 def test_tidal_potential_nsr_modes_vs_non_mode():
     """ Test the modal tidal potential assuming moderate eccentricity, no obliquity, and synchronous rotation vs.
@@ -202,8 +214,7 @@ def test_tidal_potential_nsr_modes_vs_non_mode():
     # First find the mode version
     # Test arrays - Static=False
     spin_freq = 1.5 * orbital_freq
-    freqs, modes, potential_modes, potential_dtheta_modes, potential_dphi_modes, potential_d2theta_modes, \
-        potential_d2phi_modes, potential_dtheta_dphi_modes = \
+    freqs, modes, potential_tuple_by_mode = \
         tidal_potential_nsr_modes(
             radius_array[-1], long_mtx, colat_mtx, time_mtx,
             orbital_freq, spin_freq,
@@ -222,16 +233,18 @@ def test_tidal_potential_nsr_modes_vs_non_mode():
             use_static=False
             )
 
-    for mode_pot, reg_pot in [(potential_modes, potential),
-                               (potential_dtheta_modes, potential_partial_theta),
-                               (potential_dphi_modes, potential_partial_phi),
-                               (potential_d2theta_modes, potential_partial2_theta2),
-                               (potential_d2phi_modes, potential_partial2_phi2),
-                               (potential_dtheta_dphi_modes, potential_partial2_theta_phi)]:
+    for mode_pot, reg_pot in [(0, potential),
+                              (1, potential_partial_theta),
+                              (2, potential_partial_phi),
+                              (3, potential_partial2_theta2),
+                              (4, potential_partial2_phi2),
+                              (5, potential_partial2_theta_phi)]:
 
         # We need to collapse the mode version so that it matches the non-mode version.
         # They will only match if we make the CPL assumption (linearly add the modes together).
-        collapsed_mode_pot = sum(list(mode_pot.values()))
+        collapsed_mode_pot = sum(
+            [potential_[mode_pot] for potential_ in list(potential_tuple_by_mode.values())]
+            )
 
         assert collapsed_mode_pot.shape == reg_pot.shape
         assert np.allclose(collapsed_mode_pot, reg_pot)
@@ -242,8 +255,7 @@ def test_tidal_potential_obliquity_nsr_modes_vs_non_mode():
     # First find the mode version
     # Test arrays - Static=False
     spin_freq = 1.5 * orbital_freq
-    freqs, modes, potential_modes, potential_dtheta_modes, potential_dphi_modes, potential_d2theta_modes, \
-        potential_d2phi_modes, potential_dtheta_dphi_modes = \
+    freqs, modes, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr_modes(
             radius_array[-1], long_mtx, colat_mtx, time_mtx,
             orbital_freq, spin_freq,
@@ -262,16 +274,18 @@ def test_tidal_potential_obliquity_nsr_modes_vs_non_mode():
             use_static=False
             )
 
-    for mode_pot, reg_pot in [(potential_modes, potential),
-                               (potential_dtheta_modes, potential_partial_theta),
-                               (potential_dphi_modes, potential_partial_phi),
-                               (potential_d2theta_modes, potential_partial2_theta2),
-                               (potential_d2phi_modes, potential_partial2_phi2),
-                               (potential_dtheta_dphi_modes, potential_partial2_theta_phi)]:
+    for mode_pot, reg_pot in [(0, potential),
+                              (1, potential_partial_theta),
+                              (2, potential_partial_phi),
+                              (3, potential_partial2_theta2),
+                              (4, potential_partial2_phi2),
+                              (5, potential_partial2_theta_phi)]:
 
         # We need to collapse the mode version so that it matches the non-mode version.
         # They will only match if we make the CPL assumption (linearly add the modes together).
-        collapsed_mode_pot = sum(list(mode_pot.values()))
+        collapsed_mode_pot = sum(
+            [potential_[mode_pot] for potential_ in list(potential_tuple_by_mode.values())]
+            )
 
         assert collapsed_mode_pot.shape == reg_pot.shape
         assert np.allclose(collapsed_mode_pot, reg_pot)

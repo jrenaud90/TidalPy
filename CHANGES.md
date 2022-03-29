@@ -11,6 +11,8 @@
 * Added a new obliquity version of the mode version tidal potential.
 * Corrected issue in stress and strain relationship for multi-layer tides.
 * Created a single multilayer solver to handle an arbitrary layer structure. See `TidalPy.tides.multilayer.numerical_int.solver.py`
+* Stress & Strain relationship now accounts for arbitrary rheology.
+* 
 
 * Minor Changes
   * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.

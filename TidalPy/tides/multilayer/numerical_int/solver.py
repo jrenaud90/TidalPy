@@ -96,7 +96,7 @@ def tidal_y_solver(
     planet_radius = radius[-1]
     if non_dimensionalize:
         if planet_bulk_density is None:
-            raise AttributeNotSetError('Planet bulk modulus must be provided if non-dimensionalize is True.')
+            raise AttributeNotSetError('Planet bulk density must be provided if non-dimensionalize is True.')
 
         radius, gravity, density, shear_modulus, bulk_modulus, frequency, G_to_use = \
             non_dimensionalize_physicals(

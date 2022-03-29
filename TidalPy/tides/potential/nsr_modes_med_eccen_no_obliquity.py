@@ -2,7 +2,7 @@ from typing import Dict
 
 import numpy as np
 
-from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput
+from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput, PotentialTupleModeOutput
 from ...constants import G
 from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
@@ -14,7 +14,7 @@ def tidal_potential(
     orbital_frequency: FloatArray, rotation_frequency: FloatArray,
     eccentricity: FloatArray,
     host_mass: float, semi_major_axis: FloatArray,
-    use_static: bool = False,
+    use_static: bool = False
     ) -> TidalPotentialModeOutput:
     """ Tidal gravitational potential assuming moderate eccentricity, no obliquity, and non-synchronous rotation
 
@@ -50,19 +50,21 @@ def tidal_potential(
         Tidal frequencies, abs(modes) [radians s-1]
     tidal_modes : Dict[str, FloatArray]
         Tidal frequency modes [radians s-1]
-    potential : Dict[str, FloatArray]
-        Tidal Potential
-    potential_partial_theta : Dict[str, FloatArray]
-        Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial_phi : Dict[str, FloatArray]
-        Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta2 : Dict[str, FloatArray]
-        2nd Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial2_phi2 : Dict[str, FloatArray]
-        2nd Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta_phi : Dict[str, FloatArray]
-        2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
+    potential_tuple_by_mode : PotentialTupleModeOutput
+        Storage for the tidal potential and its derivatives.
 
+        potential : FloatArray
+            Tidal Potential
+        potential_partial_theta : FloatArray
+            Partial Derivative of the Tidal Potential wrt colatitude.
+        potential_partial_phi : FloatArray
+            Partial Derivative of the Tidal Potential wrt longitude.
+        potential_partial2_theta2 : FloatArray
+            2nd Partial Derivative of the Tidal Potential wrt colatitude.
+        potential_partial2_phi2 : FloatArray
+            2nd Partial Derivative of the Tidal Potential wrt longitude.
+        potential_partial2_theta_phi : FloatArray
+            2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
 
     See Also
     --------
@@ -231,12 +233,7 @@ def tidal_potential(
     oen_shape = o + e + n
     frequencies_by_name = dict()  # type: Dict[str, FloatArray]
     modes_by_name = dict()  # type: Dict[str, FloatArray]
-    potential_by_mode = dict()  # type: Dict[str, FloatArray]
-    potential_partial_theta_by_mode = dict()  # type: Dict[str, FloatArray]
-    potential_partial_phi_by_mode = dict()  # type: Dict[str, FloatArray]
-    potential_partial2_theta2_by_mode = dict()  # type: Dict[str, FloatArray]
-    potential_partial2_phi2_by_mode = dict()  # type: Dict[str, FloatArray]
-    potential_partial2_theta_phi_by_mode = dict()  # type: Dict[str, FloatArray]
+    potential_tuple_by_mode = dict()  # type: PotentialTupleModeOutput
 
     # Go through modes and add their contribution to the potential and its derivatives.
     for mode_i in range(num_modes):
@@ -315,13 +312,8 @@ def tidal_potential(
         mode_name = mode_names[mode_i]
         frequencies_by_name[mode_name] = freq
         modes_by_name[mode_name] = mode
-        potential_by_mode[mode_name] = potential
-        potential_partial_theta_by_mode[mode_name] = potential_partial_theta
-        potential_partial_phi_by_mode[mode_name] = potential_partial_phi
-        potential_partial2_theta2_by_mode[mode_name] = potential_partial2_theta2
-        potential_partial2_phi2_by_mode[mode_name] = potential_partial2_phi2
-        potential_partial2_theta_phi_by_mode[mode_name] = potential_partial2_theta_phi
+        potential_tuple_by_mode[mode_name] = \
+            (potential, potential_partial_theta, potential_partial_phi, potential_partial2_theta2,
+             potential_partial2_phi2, potential_partial2_theta_phi)
 
-    return frequencies_by_name, modes_by_name, potential_by_mode, \
-           potential_partial_theta_by_mode, potential_partial_phi_by_mode, potential_partial2_theta2_by_mode, \
-           potential_partial2_phi2_by_mode, potential_partial2_theta_phi_by_mode
+    return frequencies_by_name, modes_by_name, potential_tuple_by_mode

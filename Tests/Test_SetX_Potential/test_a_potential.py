@@ -609,14 +609,14 @@ def test_tidal_potential_nsr_vs_obliquity():
             )
 
     # Uncomment below to show plot of the two potentials.
-    import matplotlib.pyplot as plt
-    cbdata = plt.contourf(longitude_array, colat_array, potentials_obliquity[0][:, :, 3])
-    plt.colorbar(cbdata)
-    plt.show()
-
-    cbdata = plt.contourf(longitude_array, colat_array, potentials_nsr[0][:, :, 3])
-    plt.colorbar(cbdata)
-    plt.show()
+    # import matplotlib.pyplot as plt
+    # cbdata = plt.contourf(longitude_array, colat_array, potentials_obliquity[0][:, :, 3])
+    # plt.colorbar(cbdata)
+    # plt.show()
+    #
+    # cbdata = plt.contourf(longitude_array, colat_array, potentials_nsr[0][:, :, 3])
+    # plt.colorbar(cbdata)
+    # plt.show()
 
     # Test the potential and its derivatives.
     for i in range(6):
