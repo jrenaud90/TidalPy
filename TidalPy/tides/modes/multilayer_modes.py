@@ -6,7 +6,7 @@ This module contains functions to assist with calculating the response at each o
     the findings into a final value.
 
 """
-
+import pdb
 from typing import Callable, Dict, Tuple, List
 
 import numpy as np
@@ -154,19 +154,12 @@ def calculate_mode_response_coupled(
         mode_skipped = True
     else:
         # Calculate Complex Compliance
-        if complex_compliance_input is None:
-            complex_compliance_input = tuple()
         complex_compliances = \
             complex_compliance_function(mode_frequency, shear_array**(-1), viscosity_array,
                                         *complex_compliance_input)
         complex_shears_at_mode = complex_compliances**(-1)
 
-        # Clean up complex shears based on any zero viscosities (short hand to indicate zero dissipation)
-        complex_shears_at_mode[viscosity_array == 0.] = shear_array[viscosity_array == 0.] * (1. + 0.j)
-        # Make zero shears very small instead to avoid 1/0 issues.
-        complex_shears_at_mode[shear_array == 0.] = (1. + 1.j) * 1.e-50
-        complex_shears_at_mode[np.imag(complex_shears_at_mode) == 0.] = \
-            np.real(complex_shears_at_mode[np.imag(complex_shears_at_mode) == 0.]) + 1.0j * 1e-50
+        # TODO: Calculate complex bulk modulus. (When bulk dissipation is added)
 
         # Calculate the radial functions using a shooting integration method.
         # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
@@ -215,8 +208,8 @@ def collapse_multilayer_modes(
     individual modal results into final heating distribution.
 
     Some of these variables are ndarrays the shape of the planet's radius array, N_r
-    Others are multidimensional arrays the shape of (N_r, N_long, N_colat, N_time).
-    These multidim arrays MUST be in this order [radius_domain, longitude_domain, colatitude_domain, time_domain]
+    Others are multidimensional arrays the shape of (N_long, N_colat, N_time).
+    These multidim arrays MUST be in this order [longitude_domain, colatitude_domain, time_domain]
 
     Parameters
     ----------
@@ -365,7 +358,7 @@ def collapse_multilayer_modes(
         # In order for the orbit average routine to work correctly, the time domain must start at zero and end
         #    after 1 orbital period.
         assert time_domain[0] == 0.
-        assert time_domain[-1] == orbital_period
+        assert time_domain[-1] == np.abs(orbital_period)
 
     planet_radius = radius_array[-1]
 
@@ -444,7 +437,8 @@ def collapse_multilayer_modes(
     tidal_y_avg = np.zeros((6, *r_shape), dtype=np.complex128)
     stresses = np.zeros((6, *mixed_shape), dtype=np.complex128)
     strains = np.zeros((6, *mixed_shape), dtype=np.complex128)
-    stress_minus_strain = np.zeros(mixed_shape, dtype=np.float64)
+    stresses_mode_scale = np.zeros((6, *mixed_shape), dtype=np.complex128)
+    strains_mode_scale = np.zeros((6, *mixed_shape), dtype=np.complex128)
     tidal_potential = np.zeros(colat_shape, dtype=np.complex128)
     total_potential = np.zeros(mixed_shape, dtype=np.complex128)
 
@@ -471,92 +465,84 @@ def collapse_multilayer_modes(
 
         if mode_skipped:
             num_modes_skipped += 1
+            modes_skipped[mode_name] = mode_skipped
 
         # Collapse Modes
         # Add items defined for each mode to lists
-        modes_skipped[mode_name] = mode_skipped
         love_k_by_mode[mode_name] = tidal_y_at_mode[4, -1] - 1.
         love_h_by_mode[mode_name] = tidal_y_at_mode[0, -1] * gravity_array[-1]
         love_l_by_mode[mode_name] = tidal_y_at_mode[2, -1] * gravity_array[-1]
 
-        # Estimate the "orbit" averaged response.
-        # TODO: I believe to calculate the orbit averaged response then we need to find Int_0^T 1/T f(t)dt
-        #   However, using the multi-mode approach, there are many different periods, T. So we will multiple all
-        #   relevant functions by 1/T_i where T_i is the period at this mode. Proceed with the summation and then
-        #   at the very end perform the integration for the average.
-
-        # OPT: Is it better to add these larger arrays together and then do the integration (via np.trapz) at the end
-        #   or deal with smaller dimension arrays but have to preform the integration for each mode?
-
         if not mode_skipped:
-            # This stress/strain term is used in the final calculation of tidal heating. It tracks a different coefficient
-            #   for frequency averaging (if stress and strain are used on their own then heating would be prop to T^{-2}
-            #   rather than T^{-1}
-            # Heating is equal to imag[o] * real[s] - real[o] * imag[s] but we need to multiply by two for the cross terms
-            #    since it is part of a symmetric matrix but only one side of the matrix is calculated in the previous steps.
-            # First calculate the trace terms which are not multiply by two.
-            stress_minus_strain_at_mode = (
-            # Im[\sigma_ij] * Re[\epsilon_ij]
-                (
-                    np.sum(np.imag(stresses_at_mode[:3]) * np.real(strains_at_mode[:3]), axis=0) +
-            # Now add the cross terms where we do multiply by two
-                    2. * np.sum(np.imag(stresses_at_mode[:3]) * np.real(strains_at_mode[:3]), axis=0)
-                ) -
-            # minus Re[\sigma_ij] * Im[\epsilon_ij]
-                (
-                    np.sum(np.real(stresses_at_mode[3:]) * np.imag(strains_at_mode[3:]), axis=0) +
-                    2. * np.sum(np.real(stresses_at_mode[3:]) * np.imag(strains_at_mode[3:]), axis=0)
-                )
-            )
 
-            # TODO: Without this abs term the resulting heating maps are very blotchy around
-            #    Europa book does have an abs at Equation 42, Page 102
-            stress_minus_strain_at_mode = np.abs(stress_minus_strain_at_mode)
+            # Stresses and strains used in heat calculation are added together.
+            # TODO: should this scale be w or w/2pi or w/2? w/2 seems to give the best comparison to homogen equation.
+            stresses_mode_scale += stresses_at_mode * (mode_frequency / 2.)
+            strains_mode_scale += strains_at_mode * (mode_frequency / 2.)
 
-            # TODO: I get very wrong heating results if I don't multiply by an additional factor of frequency.
-            #   (additional to the one that comes out of the orbit_average_results box below.
-            #   Is it because Heat ~ stress * strain both of which carry an orbit average freq?
-            stress_minus_strain_at_mode *= mode_frequency
-
-            if orbit_average_results:
+            # Estimate the "orbit" averaged response.
+            # TODO: I believe to calculate the orbit averaged response then we need to find Int_0^T 1/T f(t)dt
+            #   However, using the multi-mode approach, there are many different periods, T. So we will multiple all
+            #   relevant functions by 1/T_i where T_i is the period at this mode. Proceed with the summation and then
+            #   at the very end perform the integration for the average.
+            # Now we can scale other values by the mode frequency
+            if orbit_average_results and (mode_frequency > 1.0e-10):
                 period = 2. * np.pi / mode_frequency
                 period_inv = 1. / period
-                stress_minus_strain_at_mode *= period_inv
                 stresses_at_mode *= period_inv
                 strains_at_mode *= period_inv
                 tidal_potential_at_mode *= period_inv
 
-            # Stresses, strains, and potentials are added together.
-            stresses += stresses_at_mode
-            strains += strains_at_mode
-            tidal_potential += tidal_potential_at_mode
-            total_potential += tidal_potential_at_mode[np.newaxis, :, :, :] * \
-                               tidal_y_at_mode[4, :, np.newaxis, np. newaxis, np.newaxis]
-            stress_minus_strain += stress_minus_strain_at_mode
+        # Stresses, strains, and potentials are added together.
+        stresses += stresses_at_mode
+        strains += strains_at_mode
+        tidal_potential += tidal_potential_at_mode
+        total_potential += tidal_potential_at_mode[np.newaxis, :, :, :] * \
+                           tidal_y_at_mode[4, :, np.newaxis, np. newaxis, np.newaxis]
 
-            # The other parameters it is not clear what category they fall into.
-            # TODO: For now let's take the average of them. Should they also receive a similar 1/T treatment like the above
-            #     properties?
-            complex_shears_avg += complex_shears_at_mode
-            tidal_y_avg += tidal_y_at_mode
+        # The other parameters it is not clear what category they fall into.
+        # TODO: For now let's take the average of them. Should they also receive a similar 1/T treatment like the above
+        #     properties?
+        complex_shears_avg += complex_shears_at_mode
+        tidal_y_avg += tidal_y_at_mode
 
     # Finish taking the average of the avg parameters
     # TODO: see previous todo
     complex_shears_avg = complex_shears_avg / max((len(tidal_modes) - num_modes_skipped), 1)
     tidal_y_avg = tidal_y_avg / max((len(tidal_modes) - num_modes_skipped), 1)
 
+    # Calculate tidal heating
+    # This stress/strain term is used in the final calculation of tidal heating. It tracks a different coefficient
+    #   for frequency averaging (if stress and strain are used on their own then heating would be prop to T^{-2}
+    #   rather than T^{-1}
+    # Heating is equal to imag[o] * real[s] - real[o] * imag[s] but we need to multiply by two for the cross terms
+    #    since it is part of a symmetric matrix but only one side of the matrix is calculated in the previous steps.
+    # First calculate the trace terms which are not multiply by two.
+    volumetric_heating = (
+        # Im[\sigma_ij] * Re[\epsilon_ij]
+            (
+                np.sum(np.imag(stresses_mode_scale[:3]) * np.real(strains_mode_scale[:3]), axis=0) +
+        # Now add the cross terms where we do multiply by two
+                2. * np.sum(np.imag(stresses_mode_scale[:3]) * np.real(strains_mode_scale[:3]), axis=0)
+            ) -
+        # minus Re[\sigma_ij] * Im[\epsilon_ij]
+            (
+                np.sum(np.real(stresses_mode_scale[3:]) * np.imag(strains_mode_scale[3:]), axis=0) +
+                2. * np.sum(np.real(stresses_mode_scale[3:]) * np.imag(strains_mode_scale[3:]), axis=0)
+            )
+        )
+
+    # TODO: Without this abs term the resulting heating maps are very blotchy around
+    #    Europa book does have an abs at Equation 42, Page 102
+    volumetric_heating = np.abs(volumetric_heating)
+
     # Perform orbital averaging
     if orbit_average_results:
         strains = np.trapz(strains, time_domain, axis=-1)
         stresses = np.trapz(stresses, time_domain, axis=-1)
+        tidal_potential = np.trapz(tidal_potential, time_domain, axis=-1)
         total_potential = np.trapz(total_potential, time_domain, axis=-1)
-        stress_minus_strain = np.trapz(stress_minus_strain, time_domain, axis=-1)
-
-    # Calculate final tidal heating as a function of strains and stresses
-    # Heating is equal to imag[o] * real[s] - real[o] * imag[s] but we need to multiply by two for the cross terms
-    #    since it is part of a symmetric matrix but only one side of the matrix is calculated in the previous steps.
-    # First calculate the trace terms which are not multiply by two.
-    volumetric_heating = stress_minus_strain
+        volumetric_heating = np.trapz(volumetric_heating, time_domain, axis=-1)
 
     # To find the total heating (rather than volumetric) we need to multiply by the volume in each voxel.
     # The voxel_volume has a shape of (r_N, long_N, colat_N).
@@ -570,4 +556,4 @@ def collapse_multilayer_modes(
 
     return heating, volumetric_heating, strains, stresses,\
            total_potential, tidal_potential, complex_shears_avg, tidal_y_avg,\
-           (love_k_by_mode, love_h_by_mode, love_l_by_mode), modes_skipped
+           (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped

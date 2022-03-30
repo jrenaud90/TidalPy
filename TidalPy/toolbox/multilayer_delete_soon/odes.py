@@ -62,7 +62,7 @@ def dynamic_solid_ode(
     return y_derivatives
 
 
-@njit(cacheable=True)
+# @njit(cacheable=True)
 def static_solid_ode(
     radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,

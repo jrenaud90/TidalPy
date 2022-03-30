@@ -335,10 +335,13 @@ def tidal_y_solver(
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
-                solution = solve_ivp(
-                    diffeq, radial_span, initial_values, t_eval=layer_radii, args=diffeq_input,
-                    method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
-                    )
+                try:
+                    solution = solve_ivp(
+                        diffeq, radial_span, initial_values, t_eval=layer_radii, args=diffeq_input,
+                        method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
+                        )
+                except:
+                    import pdb; pdb.set_trace()
 
                 if solution.status != 0:
                     raise IntegrationFailed(

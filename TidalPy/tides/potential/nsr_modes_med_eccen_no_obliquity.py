@@ -129,7 +129,7 @@ def tidal_potential(
          cosine_2long_coeff_dphi2, sine_2long_coeff_dphi2),
         )
 
-    # Setup mode list used under this functions assumptions.
+    # Setup mode list used under this function's assumptions.
     mode_names = (
         'n',
         '2n',
@@ -248,8 +248,8 @@ def tidal_potential(
 
         # Pull out longitude coeffs for this mode
         cosine_coeff, sine_coeff, \
-        cosine_coeff_dphi, sine_coeff_dphi, \
-        cosine_coeff_dphi2, sine_coeff_dphi2 = longitude_coeffs[mode_longitude[mode_i]]
+            cosine_coeff_dphi, sine_coeff_dphi, \
+            cosine_coeff_dphi2, sine_coeff_dphi2 = longitude_coeffs[mode_longitude[mode_i]]
         longitude_coeff = (cosine_coeff * cos_mode + sine_coeff * sin_mode)
         longitude_coeff_dphi = (cosine_coeff_dphi * cos_mode + sine_coeff_dphi * sin_mode)
         longitude_coeff_dphi2 = (cosine_coeff_dphi2 * cos_mode + sine_coeff_dphi2 * sin_mode)

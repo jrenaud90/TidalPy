@@ -36,7 +36,11 @@ aliased_names = {
     'solid_liquid_solid'      : 'solid_liquid_solid',
     'sls'                     : 'solid_liquid_solid',
     'solid_solid_liquid_solid': 'solid_solid_liquid_solid',
-    'ssls'                    : 'solid_solid_liquid_solid'
+    'ssls'                    : 'solid_solid_liquid_solid',
+    'homogen-solid'           : 'homogeneous_solid',
+    'liquid-solid'            : 'liquid_solid',
+    'solid-liquid-solid'      : 'solid_liquid_solid',
+    'solid-solid-liquid-solid': 'solid_solid_liquid_solid',
     }
 
 

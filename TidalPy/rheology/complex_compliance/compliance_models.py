@@ -44,6 +44,11 @@ from ...utilities.performance.numba import find_factorial, njit
 from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
 
 
+# OPT: # TODO: @vectorize(['complex128(float64, float64, float64)'],nopython=True) seems to do everything we need for
+#    these functions and then we can return to the if/else version for frequency. speeds are better when dealing wit
+#    large arrays. The downside, and this is a big downside, is the speed is much slower for all float (non-arrays)
+#    which are important for differential equations.
+
 @njit(cacheable=True)
 def off(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Off
@@ -81,7 +86,7 @@ def off(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) ->
 def fixed_q(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     planet_beta: float = 3.443e11, quality_factor: float = 10.
-    ) -> complex:
+    ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Fixed-Q
 
     !TPY_args live: self.compliance, self.viscosity, self.beta, self.quality_factor
@@ -279,7 +284,7 @@ def burgers(
 
 
 @njit(cacheable=True)
-def andrade(
+def andrade_nofreq(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
@@ -295,6 +300,8 @@ def andrade(
     ~\omega^{-\alpha}. This model was originally developed for the stress-strain relationship in metals, but has been
     found to model planetary materials as well.
 
+    This version of the model will not transition into a Maxwell-like rheology at very low frequencies.
+
     References
     ----------
     - Gribb and Cooper (1998), JGR, DOI: 10.1029/98JB02786
@@ -338,10 +345,8 @@ def andrade(
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
-    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * 1.e100 + \
-                           ((np.abs(frequency) + shape) > float_eps) * real_j + \
-                           ((np.abs(frequency) + shape) <= float_eps) * 0.0j + \
-                           ((np.abs(frequency) + shape) > float_eps) * 1.0j * imag_j
+    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.e100 + 0.0j) + \
+                           ((np.abs(frequency) + shape) > float_eps) * (real_j + 1.0j * imag_j)
 
     maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
 
@@ -351,14 +356,14 @@ def andrade(
 
 
 @njit(cacheable=True)
-def andrade_freq(
+def andrade(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
-    alpha: float = 0.3, zeta: float = 1., critical_freq: float = 2.e-5
+    alpha: float = 0.3, zeta: float = 1., critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Andrade with a frequency-dependent zeta
 
     !TPY_args live: self.compliance, self.viscosity
-    !TPY_args const: alpha, zeta, critical_freq
+    !TPY_args const: alpha, zeta, critical_freq, critical_freq_falloff
 
     Notes
     -----
@@ -367,8 +372,11 @@ def andrade_freq(
     ~\omega^{-\alpha}. This model was originally developed for the stress-strain relationship in metals, but has been
     found to model planetary materials as well.
 
+    This version of the model will transition into a Maxwell-like rheology at very low frequencies.
+
     References
     ----------
+    - Karato and Spetzler (1990), RGeo, DOI: 10.1029/RG028i004p00399
     - Gribb and Cooper (1998), JGR, DOI: 10.1029/98JB02786
     - Efroimsky (2012), ApJ, DOI: 10.1088/0004-637X/746/2/150
     - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784
@@ -386,10 +394,13 @@ def andrade_freq(
     alpha : float
         Andrade exponent parameter
     zeta : float
-        Andrade timescale parameter
-    critical_freq : float
-        For forcing frequencies larger than the critical frequency, the Andrade component converges to
-            the Maxwell component [rads s-1]
+        Andrade timescale parameter equal to the Andrade characteristic timescale / Maxwell
+    critical_freq : float = 7.27221e-7
+        For forcing frequencies smaller than the critical frequency, the Andrade component converges to
+        the Maxwell component [rads s-1].
+        Default is 2 * pi / 100 days.
+    critical_freq_falloff : float = 30
+        Determines how quickly the Andrade rheology turns to Maxwell falls off after dropping below the critical freq.
 
     Returns
     -------
@@ -398,11 +409,14 @@ def andrade_freq(
     """
 
     # Update Zeta based on an additional frequency dependence.
-    freq_ratio = np.abs(critical_freq / frequency)
-    freq_ratio = (freq_ratio > float_lognat_max) * float_lognat_max + \
-                 (freq_ratio <= float_lognat_max) * freq_ratio
+    # We will say that zeta can not get above 1e100 (it would be Maxwell like well before that)
+    freq_ratio = np.abs(frequency / critical_freq)
+    exponent = -critical_freq_falloff * (freq_ratio - 1.)
+    exponent = (exponent >= 100.) * 100. + \
+               (exponent <= 0.) * 0. + \
+               (exponent > 0.) * (exponent < 100.) * exponent
 
-    zeta = zeta * np.exp(freq_ratio)
+    zeta = zeta * np.exp(exponent)
 
     # Continue on with regular Andrade calculation
     andrade_term = compliance * viscosity * frequency * zeta
@@ -413,20 +427,14 @@ def andrade_freq(
 
     shape = 0. * (andrade_term + alpha)
 
-    # TODO: Old version of TidalPy had real_j going large when freq is zero... why? Getting rid for now.
-    # if abs(frequency) <= float_eps:
-    #     real_j = 1.e100
-    #     imag_j = 0.
-
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
-    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * 1.e100 + \
-                           ((np.abs(frequency) + shape) > float_eps) * real_j + \
-                           ((np.abs(frequency) + shape) <= float_eps) * 0.0j + \
-                           ((np.abs(frequency) + shape) > float_eps) * 1.0j * imag_j
-
     maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
+
+    # If the frequency is near zero then rely on the maxwell comp.
+    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (0. + 0.0j) + \
+                           ((np.abs(frequency) + shape) > float_eps) * (real_j + 1.0j * imag_j)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -434,7 +442,7 @@ def andrade_freq(
 
 
 @njit(cacheable=True)
-def sundberg(
+def sundberg_nofreq(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.
@@ -449,6 +457,8 @@ def sundberg(
     The Sundberg-Cooper rheology is a linear sum of the Andrade and Burgers rheologies. However, even though its
     Parameters share the same symbol and names, they may differ from those used for either of its composite model.
 
+    This version of the model will not transition into a Burgers-like rheology at very low frequencies.
+
     References
     ----------
     - Sundberg and Cooper (2010), Philo. Mag., DOI: 10.1080/14786431003746656
@@ -479,7 +489,7 @@ def sundberg(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta)
+    andrade_complex_comp = andrade_nofreq(frequency, compliance, viscosity, alpha, zeta)
     voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
@@ -488,10 +498,10 @@ def sundberg(
 
 
 @njit(cacheable=True)
-def sundberg_freq(
+def sundberg(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
-    alpha: float = 0.3, zeta: float = 1., critical_freq: float = 2.e-5
+    alpha: float = 0.3, zeta: float = 1.,  critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Sundberg-Cooper with a frequency-dependent zeta
 
@@ -503,8 +513,11 @@ def sundberg_freq(
     The Sundberg-Cooper rheology is a linear sum of the Andrade and Burgers rheologies. However, even though its
     Parameters share the same symbol and names, they may differ from those used for either of its composite model.
 
+    This version of the model will transition into a Burgers-like rheology at very low frequencies.
+
     References
     ----------
+    - Karato and Spetzler (1990), RGeo, DOI: 10.1029/RG028i004p00399
     - Sundberg and Cooper (2010), Philo. Mag., DOI: 10.1080/14786431003746656
     - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784
 
@@ -525,10 +538,13 @@ def sundberg_freq(
     alpha : float
         Andrade exponent parameter
     zeta : float
-        Andrade timescale parameter
-    critical_freq : float
-        For forcing frequencies larger than the critical frequency, the Andrade component converges to
-            the Maxwell component [rads s-1]
+        Andrade timescale parameter equal to the Andrade characteristic timescale / Maxwell
+    critical_freq : float = 7.27221e-7
+        For forcing frequencies smaller than the critical frequency, the Andrade component converges to
+        the Maxwell component [rads s-1].
+        Default is 2 * pi / 100 days.
+    critical_freq_falloff : float = 30
+        Determines how quickly the Andrade rheology turns to Maxwell falls off after dropping below the critical freq.
 
     Returns
     -------
@@ -536,7 +552,7 @@ def sundberg_freq(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade_freq(frequency, compliance, viscosity, alpha, zeta, critical_freq)
+    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta, critical_freq, critical_freq_falloff)
     voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp

@@ -1,3 +1,4 @@
+* Custom RK integrator needs work as do the tests.
 * It looks like only surface potential is required. Change multilayer to only consider the surface radius.
 * Check if numba parallel=True will speed up the collapse functions in tides.multilayer.numerical_int.collapse
 * Change the stress-strain relationship in stress_strain.py to be a generic consistutive equation.

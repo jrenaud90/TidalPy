@@ -12,14 +12,12 @@ import numpy as np
 
 from ...utilities.performance import njit
 from ...utilities.types import NumArray
-from ...constants import G
 
 
 @njit(cacheable=True)
 def decompose(
-    tidal_y: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray, orb_freq, density_array,
-    complex_shear_modulus: np.ndarray, bulk_modulus: NumArray, host_mass, eccentricity, semi_major_axis,
-    order_l: int = 2
+    tidal_y: np.ndarray, tidal_y_derivative: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
+    complex_shear_modulus: np.ndarray, bulk_modulus: NumArray, order_l: int = 2
     ):
     """ Decomposes the tidal solution (y) into useful properties.
 
@@ -79,28 +77,7 @@ def decompose(
     #    ----ID Method----
     #        Calculate the gradient of y1
     #        dy1_dr_conj = (np.conj(y1_full[1:]) - np.conj(y1_full[:-1])) / (radius_array[1:] - radius_array[:-1])
-
-    # Convert compressibility parameters (the first lame parameter can be complex)
-    lame = (bulk_modulus - (2. / 3.) * complex_shear_modulus)
-
-    # Optimizations
-    lp1 = order_l + 1.
-    lm1 = order_l - 1.
-    llp1 = order_l * lp1
-    lame_2mu = lame + 2. * complex_shear_modulus
-    lame_2mu_inverse = 1. / lame_2mu
-    r_inverse = 1. / radius
-    two_shear_r_inv = 2. * complex_shear_modulus * r_inverse
-    density_gravity = density_array * gravity_array
-    dynamic_term = -orb_freq * orb_freq * density_array * radius
-    grav_term = 4. * np.pi * G * density_array
-    y1_y3_term = 2. * y1 - llp1 * y3
-
-    y_dot = lame_2mu_inverse * (
-            y1_y3_term * -lame * r_inverse +
-            y2
-    )
-    dy1_dr_conj = np.conj(y_dot)
+    dy1_dr_conj = np.conj(tidal_y_derivative[0, :])
 
     # Radial sensitivity to shear modulus (TB05 Eq. 33)
     #     ID flips y2 and y3 are inverted here, but we have already done that in propagate.py
@@ -131,25 +108,4 @@ def decompose(
     l_numbers = y3 * gravity_array
     love_numbers = (k_numbers, h_numbers, l_numbers)
 
-    world_radius = radius_array[-1]
-
-    # TODO: This term appears to contain all the information that could be upgraded in the future to eliminate some or
-    #    all of the assumptions mentioned in the doc strings.
-    portion_to_be_upgraded = (7. * eccentricity**2 * orb_freq)
-
-    # The below is modified from TB05. That reference assumed l=2 and that the tidal host's mass was much larger than
-    #    the target planet's mass. We have removed these restrictions in the below. The derivation was done by changing
-    #    Eq. 2 in TB05 to the general form and then proceeding with their derivations (Eqs. 35--37) except that we did
-    #    not set l=2.
-
-    # To keep things consistent with other parts of TidalPy and the references that it is built off of, we are defining
-    #    a few extra terms here. Some of their components are redundant and will be divided out shortly. We are choosing
-    #    consistency at a (very) slight performance hit.
-    tidal_susceptibility = (3. / 2.) * G * host_mass**2 * world_radius**5 / semi_major_axis**6
-
-    radial_tidal_heating = (tidal_susceptibility / world_radius) * \
-                           (G * radial_sensitivity_to_shear * np.imag(complex_shear_modulus) / (
-                                   (2. * order_l + 1.) * radius_array**2)) * \
-                           portion_to_be_upgraded
-
-    return radial_tidal_heating, love_numbers
+    return radial_sensitivity_to_shear, love_numbers

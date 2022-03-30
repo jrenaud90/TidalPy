@@ -7,7 +7,8 @@ complex_compliance_defaults = {
         'voigt_viscosity_offset' : .02,
         'alpha'                  : 1. / 3.,
         'zeta'                   : 1.,
-        'critical_freq'          : 2. * np.pi / (86400. * 3.)
+        'critical_freq'          : 2. * np.pi / (86400. * 100.),
+        'critical_freq_falloff'  : 30
         },
     'rock': {
         'model'                  : 'maxwell',
@@ -15,7 +16,8 @@ complex_compliance_defaults = {
         'voigt_viscosity_offset' : .02,
         'alpha'                  : 1. / 3.,
         'zeta'                   : 1.,
-        'critical_freq'          : 2. * np.pi / (86400. * 3.)
+        'critical_freq'          : 2. * np.pi / (86400. * 100.),
+        'critical_freq_falloff'  : 30
         },
     'iron': {
         'model'                  : 'maxwell',
@@ -23,6 +25,7 @@ complex_compliance_defaults = {
         'voigt_viscosity_offset' : .02,
         'alpha'                  : 1. / 3.,
         'zeta'                   : 1.,
-        'critical_freq'          : 2. * np.pi / (86400. * 3.)
+        'critical_freq'          : 2. * np.pi / (86400. * 100.),
+        'critical_freq_falloff'  : 30
         }
     }
