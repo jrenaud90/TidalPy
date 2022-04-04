@@ -36,10 +36,10 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> LiquidDynamicGuess:
         For the assumptions used in this model there will be two independent solutions.
     """
 
-    base_liquid_ys = (
+    base_liquid_ys = [
         liquid_layer_ys[0][:, -1],
         liquid_layer_ys[1][:, -1]
-        )
+        ]
     return base_liquid_ys
 
 
@@ -115,6 +115,6 @@ def both_static(liquid_layer_ys: LiquidStaticGuess) -> LiquidStaticGuess:
     """
 
     base_liquid_ys = liquid_layer_ys[0][:, -1]
-    base_liquid_ys = (base_liquid_ys,)
+    base_liquid_ys = [base_liquid_ys]
 
     return base_liquid_ys

@@ -6,7 +6,7 @@ from numpy.testing import assert_allclose
 from scipy.integrate import solve_ivp
 
 import TidalPy
-from TidalPy.utilities.integration.integrate import rk_integrator
+from TidalPy.utilities.integration.rk_integrator import rk_integrate
 from TidalPy.utilities.performance import njit
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -19,9 +19,9 @@ TEVAL_RTOL = 0.8
 def test_rk23_coeffs():
     """ Test that the RK23 coeffs are as expected. """
 
-    from TidalPy.utilities.integration.methods.rk import A_RK23 as A
-    from TidalPy.utilities.integration.methods.rk import B_RK23 as B
-    from TidalPy.utilities.integration.methods.rk import C_RK23 as C
+    from TidalPy.utilities.integration.rk_integrator import RK23_A as A
+    from TidalPy.utilities.integration.rk_integrator import RK23_B as B
+    from TidalPy.utilities.integration.rk_integrator import RK23_C as C
 
     assert_allclose(np.sum(B), 1, rtol=1e-15)
     assert_allclose(np.sum(A, axis=1), C, rtol=1e-14)
@@ -29,9 +29,9 @@ def test_rk23_coeffs():
 def test_rk45_coeffs():
     """ Test that the RK45 coeffs are as expected. """
 
-    from TidalPy.utilities.integration.methods.rk import A_RK45 as A
-    from TidalPy.utilities.integration.methods.rk import B_RK45 as B
-    from TidalPy.utilities.integration.methods.rk import C_RK45 as C
+    from TidalPy.utilities.integration.rk_integrator import RK45_A as A
+    from TidalPy.utilities.integration.rk_integrator import RK45_B as B
+    from TidalPy.utilities.integration.rk_integrator import RK45_C as C
 
     assert_allclose(np.sum(B), 1, rtol=1e-15)
     assert_allclose(np.sum(A, axis=1), C, rtol=1e-14)
@@ -48,14 +48,13 @@ def test_rk23_Yis1D_noTeval():
 
     initial_y = np.asarray([1.])
     t_span = (0., 100.)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=0, use_teval=False,
-            rtol=1.0e-3, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=0,
+            rtol=1.0e-3, atol=1.0e-6
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
@@ -84,17 +83,15 @@ def test_rk45_Yis1D_noTeval():
         y0 = y[0]
         dy0 = 0.5 * y0 - np.sin(2. * t)
         return np.asarray([dy0])
-
     initial_y = np.asarray([1.])
     t_span = (0., 100.)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=1, use_teval=False,
-            rtol=1.0e-5, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=1,
+            rtol=1.0e-5, atol=1.0e-6,
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
@@ -131,14 +128,13 @@ def test_rk23_Yis2D_noTeval():
 
     initial_y = np.asarray([1., (1. - 0.005), (1. - (1. - 0.005))])
     t_span = (0., 100.)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=0, use_teval=False,
-            rtol=1.0e-3, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=0,
+            rtol=1.0e-3, atol=1.0e-6,
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
@@ -174,14 +170,13 @@ def test_rk45_Yis2D_noTeval():
 
     initial_y = np.asarray([1., (1. - 0.005), (1. - (1. - 0.005))])
     t_span = (0., 100.)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=1, use_teval=False,
-            rtol=1.0e-3, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=1,
+            rtol=1.0e-3, atol=1.0e-6
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
@@ -220,14 +215,13 @@ def test_rk45_Yis2D_noTeval_complex():
     assert initial_y.dtype == np.complex128
 
     t_span = (0., 100.)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=1, use_teval=False,
-            rtol=1.0e-3, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=1,
+            rtol=1.0e-3, atol=1.0e-6,
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
@@ -261,14 +255,13 @@ def test_rk45_Yis2D_withTeval_smallerN():
     initial_y = np.asarray([10., 5.])
     t_span = (0., 15.)
     t_eval = np.linspace(0., 15., 25)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=1, t_eval_N=t_eval.size, t_eval_log=False, use_teval=True,
-            rtol=1.0e-3, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=1, t_eval=t_eval,
+            rtol=1.0e-3, atol=1.0e-6,
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
@@ -301,14 +294,13 @@ def test_rk45_Yis2D_withTeval_largerN():
     initial_y = np.asarray([10., 5.])
     t_span = (0., 15.)
     t_eval = np.linspace(0., 15., 80)
-    ts, ys, status, message, success = \
-        rk_integrator(
-            diffeq, t_span, initial_y, rk_method=1, t_eval_N=t_eval.size, t_eval_log=False, use_teval=True,
-            rtol=1.0e-3, atol=1.0e-6, verbose=False
+    ts, ys, success, message = \
+        rk_integrate(
+            diffeq, t_span, initial_y, rk_method=1, t_eval=t_eval,
+            rtol=1.0e-3, atol=1.0e-6,
             )
 
     assert success
-    assert status == 0
     assert type(message) == str
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)

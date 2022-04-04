@@ -65,8 +65,7 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
 
         base_solid_list.append(solution_values)
 
-    base_solid_ys = (base_solid_list[0], base_solid_list[1], base_solid_list[2])
-    return base_solid_ys
+    return base_solid_list
 
 
 @njit(cacheable=True)
@@ -132,8 +131,7 @@ def static_dynamic(
 
         base_solid_list.append(solution_values)
 
-    base_solid_ys = (base_solid_list[0], base_solid_list[1], base_solid_list[2])
-    return base_solid_ys
+    return base_solid_list
 
 
 @njit(cacheable=True)

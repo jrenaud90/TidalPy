@@ -5,7 +5,7 @@ description = "Toolbox for solving tidal dynamics and planetary interior problem
 authors = [
     "Joe P. Renaud <joseph.p.renaud@nasa.gov>"
 ]
-license = "CC BY-NC-SA 4.0"
+#license = "CC BY-NC-SA 4.0"
 readme = "README.md"
 python = "^3.8"
 homepage = "https://github.com/jrenaud90/TidalPy"
@@ -56,7 +56,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 160
-target_version = ['py38']
+target_version = ['py38', 'py39']
 include = '\.pyi?$'
 exclude = '''
 

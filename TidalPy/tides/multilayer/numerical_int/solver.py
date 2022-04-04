@@ -9,7 +9,7 @@ from .interfaces import find_interface_func
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ....constants import G
 from ....exceptions import AttributeNotSetError, IntegrationFailed
-from ....utilities.integration.integrate import rk_integrator
+from ....utilities.integration.rk_integrator import rk_integrate
 
 
 def tidal_y_solver(
@@ -21,9 +21,9 @@ def tidal_y_solver(
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
     use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-6, int_atol: float = 1.0e-4,
+    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
     scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, non_dimensionalize: bool = False, planet_bulk_density: float = None
+    verbose: bool = False, non_dimensionalize: bool = True, planet_bulk_density: float = None
     ) -> np.ndarray:
     """ Calculate the radial solution for a homogeneous, solid planet.
 
@@ -136,6 +136,8 @@ def tidal_y_solver(
         # The known radial function ODEs are stored by is the layer solid, and is the layer static (vs dynamic)
         layer_is_solid = is_solid_by_layer[layer_i]
         layer_is_static = is_static_by_layer[layer_i]
+        if frequency == 0.:
+            layer_is_static = True
         layer_ode = known_multilayer_odes[(layer_is_solid, layer_is_static)]
 
         if not layer_is_solid:
@@ -170,29 +172,12 @@ def tidal_y_solver(
         # Find the initial solution at the center of the planet
         if layer_i == 0:
             is_dynamic = not layer_is_static
-            initial_value_func = \
-                find_initial_guess(is_kamata=use_kamata, is_solid=layer_is_solid, is_dynamic=is_dynamic)
-            if layer_is_solid:
-                if layer_is_static:
-                    initial_value_tuple = initial_value_func(
-                        radius[0], shear_modulus[0], bulk_modulus[0], density[0],
-                        order_l=order_l, G_to_use=G_to_use
-                        )
-                else:
-                    initial_value_tuple = initial_value_func(
-                        radius[0], shear_modulus[0], bulk_modulus[0], density[0], frequency,
-                        order_l=order_l, G_to_use=G_to_use
-                        )
-            else:
-                if layer_is_static:
-                    initial_value_tuple = initial_value_func(
-                        radius[0], order_l=order_l, G_to_use=G_to_use
-                        )
-                else:
-                    initial_value_tuple = initial_value_func(
-                        radius[0], bulk_modulus[0], density[0], frequency,
-                        order_l=order_l, G_to_use=G_to_use
-                        )
+            initial_value_tuple = \
+                find_initial_guess(
+                    use_kamata, layer_is_solid, is_dynamic,
+                    radius[0], shear_modulus[0], bulk_modulus[0], density[0], frequency,
+                    order_l=order_l, G_to_use=G_to_use
+                    )
 
         # Determine the top interface for this layer
         if num_interfaces == 0:
@@ -308,16 +293,16 @@ def tidal_y_solver(
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
 
-                ts, ys, status, message, success = \
-                    rk_integrator(
+                ts, ys, success, message, = \
+                    rk_integrate(
                         diffeq, radial_span, initial_values,
                         args=diffeq_input,
                         rk_method=rk_method,
-                        t_eval_N=layer_radii.size, t_eval_log=False, use_teval=True,
-                        rtol=int_rtol, atol=int_atol, verbose=False
+                        t_eval=layer_radii,
+                        rtol=int_rtol, atol=int_atol
                         )
 
-                if status != 0:
+                if not success:
                     raise IntegrationFailed(
                         f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
                         f'\n\t{message}'
@@ -335,13 +320,10 @@ def tidal_y_solver(
                 print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
 
             for solution_num, initial_values in enumerate(initial_values_to_use):
-                try:
-                    solution = solve_ivp(
-                        diffeq, radial_span, initial_values, t_eval=layer_radii, args=diffeq_input,
-                        method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
-                        )
-                except:
-                    import pdb; pdb.set_trace()
+                solution = solve_ivp(
+                    diffeq, radial_span, initial_values, t_eval=layer_radii, args=diffeq_input,
+                    method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
+                    )
 
                 if solution.status != 0:
                     raise IntegrationFailed(

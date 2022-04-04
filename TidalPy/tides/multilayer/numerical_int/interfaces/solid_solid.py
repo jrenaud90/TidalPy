@@ -39,11 +39,11 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
+    base_solid_ys = [
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-        )
+        ]
     return base_solid_ys
 
 
@@ -68,11 +68,11 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
+    base_solid_ys = [
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-        )
+        ]
     return base_solid_ys
 
 
@@ -97,11 +97,11 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
+    base_solid_ys = [
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-        )
+        ]
     return base_solid_ys
 
 
@@ -126,9 +126,9 @@ def both_static(solid_layer_ys: SolidStaticGuess) -> SolidStaticGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
+    base_solid_ys = [
         solid_layer_ys[0][:, -1],
         solid_layer_ys[1][:, -1],
         solid_layer_ys[2][:, -1]
-        )
+        ]
     return base_solid_ys

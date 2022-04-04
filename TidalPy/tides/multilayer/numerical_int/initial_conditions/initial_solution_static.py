@@ -13,7 +13,7 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple
+from typing import List
 
 import numpy as np
 
@@ -24,8 +24,8 @@ from .....utilities.math.special import sqrt_neg
 from .....utilities.performance import njit
 from .....utilities.types import ComplexArray, FloatArray, NumArray
 
-SolidStaticGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
-LiquidStaticGuess = Tuple[ComplexArray]
+SolidStaticGuess = List[ComplexArray]
+LiquidStaticGuess = List[ComplexArray]
 
 
 @njit(cacheable=True)
@@ -155,7 +155,7 @@ def solid_guess_kamata(
     tidaly_s2 = np.stack((y1_s2, y2_s2, y3_s2, y4_s2, y5_s2, y6_s2))
     tidaly_s3 = np.stack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
 
-    return tidaly_s1, tidaly_s2, tidaly_s3
+    return [tidaly_s1, tidaly_s2, tidaly_s3]
 
 
 @njit(cacheable=True)
@@ -312,7 +312,7 @@ def solid_guess_takeuchi(
     tidaly_s2 = np.stack((y1_s2, y2_s2, y3_s2, y4_s2, y5_s2, y6_s2))
     tidaly_s3 = np.stack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
 
-    return tidaly_s1, tidaly_s2, tidaly_s3
+    return [tidaly_s1, tidaly_s2, tidaly_s3]
 
 
 @njit(cacheable=True)
@@ -367,4 +367,4 @@ def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G
     # There is only one solution for the static liquid layer initial condition. However, that outputting a single value
     # does not match the form of the other initial condition functions. So we will wrap the value in a tuple.
 
-    return (tidaly_s1,)
+    return [tidaly_s1]

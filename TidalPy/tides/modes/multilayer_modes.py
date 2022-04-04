@@ -6,9 +6,9 @@ This module contains functions to assist with calculating the response at each o
     the findings into a final value.
 
 """
-import pdb
-from typing import Callable, Dict, Tuple, List
+from typing import Dict, Tuple, List
 
+from numba import jit, prange
 import numpy as np
 
 from ..multilayer.stress_strain import calculate_strain_stress
@@ -17,39 +17,61 @@ from ..multilayer.numerical_int.solver import tidal_y_solver
 from ..potential import tidal_potential_nsr_modes, tidal_potential_simple, tidal_potential_nsr,\
     tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes
 
-# def _mode_post_process():
+# @njit(cache=True)
+# def _mode_post_process(mode_skipped, mode_frequency, orbit_average_results,
+#                        tidal_y_at_mode,
+#                        stresses_at_mode, strains_at_mode, tidal_potential_at_mode, complex_shears_at_mode,
+#                        stresses_mode_scale, strains_mode_scale, stresses, strains, tidal_potential, total_potential,
+#                        complex_shears_avg, tidal_y_avg
+#                        ):
 #
-#     # Collapse Modes
-#     # Add items defined for each mode to lists
-#     modes_skipped[mode_name] = mode_skipped
-#     love_k_by_mode[mode_name] = tidal_y_at_mode[4, -1] - 1.
-#     love_h_by_mode[mode_name] = tidal_y_at_mode[0, -1] * gravity_array[-1]
-#     love_l_by_mode[mode_name] = tidal_y_at_mode[2, -1] * gravity_array[-1]
+#     if not mode_skipped:
+#         # Stresses and strains used in heat calculation are added together.
+#         # TODO: should this scale be w or w/2pi or w/2? w/2 seems to give the best comparison to homogen equation.
+#         stresses_mode_scale += stresses_at_mode * (mode_frequency / 2.)
+#         strains_mode_scale += strains_at_mode * (mode_frequency / 2.)
 #
-#     # Estimate the "orbit" averaged response.
-#     # TODO: I believe to calculate the orbit averaged response then we need to find Int_0^T 1/T f(t)dt
-#     #   However, using the multi-mode approach, there are many different periods, T. So we will multiple all
-#     #   relevant functions by 1/T_i where T_i is the period at this mode. Proceed with the summation and then
-#     #   at the very end perform the integration for the average.
-#
-#     # OPT: Is it better to add these larger arrays together and then do the integration (via np.trapz) at the end
-#     #   or deal with smaller dimension arrays but have to preform the integration for each mode?
-#
-#     if orbit_average_results:
-#         period = 2. * np.pi / mode_frequency
-#         period_inv = 1. / period
-#         stresses_at_mode *= period_inv
-#         strains_at_mode *= period_inv
-#         tidal_potential_at_mode *= period_inv
+#         # Estimate the "orbit" averaged response.
+#         # TODO: I believe to calculate the orbit averaged response then we need to find Int_0^T 1/T f(t)dt
+#         #   However, using the multi-mode approach, there are many different periods, T. So we will multiple all
+#         #   relevant functions by 1/T_i where T_i is the period at this mode. Proceed with the summation and then
+#         #   at the very end perform the integration for the average.
+#         # Now we can scale other values by the mode frequency
+#         if orbit_average_results and (mode_frequency > 1.0e-10):
+#             period = 2. * np.pi / mode_frequency
+#             period_inv = 1. / period
+#             stresses_at_mode *= period_inv
+#             strains_at_mode *= period_inv
+#             tidal_potential_at_mode *= period_inv
 #
 #     # Stresses, strains, and potentials are added together.
 #     stresses += stresses_at_mode
 #     strains += strains_at_mode
 #     tidal_potential += tidal_potential_at_mode
-#     total_potential += tidal_potential_at_mode[np.newaxis, :, :, :] * \
-#                        tidal_y_at_mode[4, :, np.newaxis, np.newaxis, np.newaxis]
-
-
+#     # TODO: Numba does not support array dim expansion like array[:, :, np.newaxis] so we currently have to use
+#     #   np.expand_dims
+#     total_potential += np.expand_dims(tidal_potential_at_mode, axis=0) * \
+#                        np.expand_dims(np.expand_dims(np.expand_dims(tidal_y_at_mode[4, :], axis=-1), axis=-1), axis=-1)
+#
+#     # The other parameters it is not clear what category they fall into.
+#     # TODO: For now let's take the average of them. Should they also receive a similar 1/T treatment like the above
+#     #     properties?
+#     complex_shears_avg += complex_shears_at_mode
+#     tidal_y_avg += tidal_y_at_mode
+#
+#     return stresses_mode_scale, strains_mode_scale, stresses, strains, tidal_potential, total_potential, \
+#         complex_shears_avg, tidal_y_avg
+#
+#
+# stresses_mode_scale, strains_mode_scale, stresses, strains, tidal_potential, total_potential, \
+# complex_shears_avg, tidal_y_avg = \
+#     _mode_post_process(
+#         mode_skipped, mode_frequency, orbit_average_results,
+#         tidal_y_at_mode,
+#         stresses_at_mode, strains_at_mode, tidal_potential_at_mode, complex_shears_at_mode,
+#         stresses_mode_scale, strains_mode_scale, stresses, strains, tidal_potential, total_potential,
+#         complex_shears_avg, tidal_y_avg
+#         )
 
 def calculate_mode_response_coupled(
     interior_model_name: str, mode_frequency: float,
@@ -144,6 +166,9 @@ def calculate_mode_response_coupled(
     if tidal_y_integration_kwargs is None:
         tidal_y_integration_kwargs = dict()
 
+    if complex_compliance_input is None:
+        complex_compliance_input = tuple()
+
     # Calculate rheology and radial response
     if (not force_mode_calculation) and (mode_frequency < 1.0e-15):
         # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
@@ -185,9 +210,6 @@ def calculate_mode_response_coupled(
     return mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode
 
 
-# from numba import jit
-#
-# @jit
 def collapse_multilayer_modes(
     interior_model_name: str,
     orbital_frequency: float, spin_frequency: float, semi_major_axis: float,
@@ -423,6 +445,8 @@ def collapse_multilayer_modes(
         tidal_modes = {'n': orbital_frequency}
         tidal_potential_tuple_by_mode = {'n': potential_output}
 
+    tidal_frequencies_keys_list = list(tidal_frequencies.keys())
+
     # Record how many modes are skipped (used in average)
     num_modes_skipped = 0
 
@@ -437,8 +461,6 @@ def collapse_multilayer_modes(
     tidal_y_avg = np.zeros((6, *r_shape), dtype=np.complex128)
     stresses = np.zeros((6, *mixed_shape), dtype=np.complex128)
     strains = np.zeros((6, *mixed_shape), dtype=np.complex128)
-    stresses_mode_scale = np.zeros((6, *mixed_shape), dtype=np.complex128)
-    strains_mode_scale = np.zeros((6, *mixed_shape), dtype=np.complex128)
     tidal_potential = np.zeros(colat_shape, dtype=np.complex128)
     total_potential = np.zeros(mixed_shape, dtype=np.complex128)
 
@@ -477,8 +499,9 @@ def collapse_multilayer_modes(
 
             # Stresses and strains used in heat calculation are added together.
             # TODO: should this scale be w or w/2pi or w/2? w/2 seems to give the best comparison to homogen equation.
-            stresses_mode_scale += stresses_at_mode * (mode_frequency / 2.)
-            strains_mode_scale += strains_at_mode * (mode_frequency / 2.)
+            freq_half = mode_frequency / 2.
+            stresses_at_mode *= freq_half
+            strains_at_mode *= freq_half
 
             # Estimate the "orbit" averaged response.
             # TODO: I believe to calculate the orbit averaged response then we need to find Int_0^T 1/T f(t)dt
@@ -487,15 +510,20 @@ def collapse_multilayer_modes(
             #   at the very end perform the integration for the average.
             # Now we can scale other values by the mode frequency
             if orbit_average_results and (mode_frequency > 1.0e-10):
-                period = 2. * np.pi / mode_frequency
-                period_inv = 1. / period
-                stresses_at_mode *= period_inv
-                strains_at_mode *= period_inv
+                period_inv = freq_half / np.pi
                 tidal_potential_at_mode *= period_inv
+                # # TODO: The following two optimizations are not scaled by the same frequency. w/2 instead of w/2pi.
+                # #     How does that affect things? Is it worth the optimization?
+                # stresses_at_mode = stress_scaled_at_mode
+                # strains_at_mode = strain_scaled_at_mode
 
         # Stresses, strains, and potentials are added together.
+        # TODO: I was tracking two versions of stress and two of strain, one that got this multiplier and one that
+        #   didn't. but these arrays are large and really impact performance. We will try to track just one
+        #   and see how the results look.
         stresses += stresses_at_mode
         strains += strains_at_mode
+
         tidal_potential += tidal_potential_at_mode
         total_potential += tidal_potential_at_mode[np.newaxis, :, :, :] * \
                            tidal_y_at_mode[4, :, np.newaxis, np. newaxis, np.newaxis]
@@ -521,14 +549,14 @@ def collapse_multilayer_modes(
     volumetric_heating = (
         # Im[\sigma_ij] * Re[\epsilon_ij]
             (
-                np.sum(np.imag(stresses_mode_scale[:3]) * np.real(strains_mode_scale[:3]), axis=0) +
+                np.sum(np.imag(stresses[:3]) * np.real(strains[:3]), axis=0) +
         # Now add the cross terms where we do multiply by two
-                2. * np.sum(np.imag(stresses_mode_scale[:3]) * np.real(strains_mode_scale[:3]), axis=0)
+                2. * np.sum(np.imag(stresses[:3]) * np.real(strains[:3]), axis=0)
             ) -
         # minus Re[\sigma_ij] * Im[\epsilon_ij]
             (
-                np.sum(np.real(stresses_mode_scale[3:]) * np.imag(strains_mode_scale[3:]), axis=0) +
-                2. * np.sum(np.real(stresses_mode_scale[3:]) * np.imag(strains_mode_scale[3:]), axis=0)
+                np.sum(np.real(stresses[3:]) * np.imag(strains[3:]), axis=0) +
+                2. * np.sum(np.real(stresses[3:]) * np.imag(strains[3:]), axis=0)
             )
         )
 

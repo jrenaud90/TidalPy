@@ -40,6 +40,7 @@
     * Greatly increased performance of multilayer stress, strain, and potential calculations.
     * Refactored much of the multilayer functions from TidalPy.toolbox to TidalPy.tides.multilayer.numerical_int and sub
       modules
+    * Reworked numba-safe RK integrator. Does not reproduce scipy exactly for chaotic functions when numba is on.
 
 * Bug Fixes
   * Fixed issue that was causing some multilayer boundary calculations to be 10x slower.

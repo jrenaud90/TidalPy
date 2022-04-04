@@ -13,7 +13,7 @@ A.B.C.<desc>
 1.2.X        # Final Release (X are bug fixes and patches that do not fall on the regular release cycle)
 
 for example:
-version = '0.2.1-b3'
+version = '0.2.1.b3'
 
 """
 
@@ -28,7 +28,7 @@ with open(os.path.join(tidalpy_loc, 'version.txt'), 'r') as version_file:
             version = line.split('version =')[-1].strip()
             break
 
-_vers_major, _vers_minor, _vers_hotfix_dev_cycle = version.split('.')
+_vers_major, _vers_minor, _vers_bugfix, _vers_hotfix_dev_cycle = version.split('.')
 
 if 'dev' in _vers_hotfix_dev_cycle:
     _vers_hotfix, _vers_dev_cycle = _vers_hotfix_dev_cycle.split('dev')

@@ -52,7 +52,7 @@ def test_solid_solid_interface():
     i = 0
     for test_func, test_input in tests.items():
         result = test_func(*test_input)
-        assert type(result) == tuple
+        assert type(result) == list
         assert len(result) == 3
         for solution in range(3):
             assert result[solution].dtype == test_input[0][0].dtype
@@ -72,7 +72,7 @@ def test_liquid_liquid_interface():
     for test_func, test_input in tests.items():
         results = test_func(*test_input)
 
-        assert type(results) == tuple
+        assert type(results) == list
         for result in results:
             assert type(result.dtype) == type(test_input[0][0].dtype)
 
@@ -88,7 +88,7 @@ def test_liquid_solid_interface():
     for test_func, test_input in tests.items():
         results = test_func(*test_input)
 
-        assert type(results) == tuple
+        assert type(results) == list
         for result in results:
             assert type(result.dtype) == type(test_input[0][0].dtype)
 
@@ -104,6 +104,6 @@ def test_solid_liquid_interface():
     for test_func, test_input in tests.items():
         results = test_func(*test_input)
 
-        assert type(results) == tuple
+        assert type(results) == list
         for result in results:
             assert type(result.dtype) == type(test_input[0][0].dtype)

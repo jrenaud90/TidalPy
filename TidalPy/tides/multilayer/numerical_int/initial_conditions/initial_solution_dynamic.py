@@ -14,7 +14,7 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple
+from typing import List
 
 import numpy as np
 
@@ -24,8 +24,8 @@ from .....utilities.math.special import sqrt_neg
 from .....utilities.performance import njit
 from .....utilities.types import ComplexArray, FloatArray, NumArray
 
-SolidDynamicGuess = Tuple[ComplexArray, ComplexArray, ComplexArray]
-LiquidDynamicGuess = Tuple[ComplexArray, ComplexArray]
+SolidDynamicGuess = List[ComplexArray]
+LiquidDynamicGuess = List[ComplexArray]
 
 
 @njit(cacheable=True)
@@ -159,7 +159,7 @@ def solid_guess_kamata(
     tidaly_s2 = np.stack((y1_s2, y2_s2, y3_s2, y4_s2, y5_s2, y6_s2))
     tidaly_s3 = np.stack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
 
-    return tidaly_s1, tidaly_s2, tidaly_s3
+    return [tidaly_s1, tidaly_s2, tidaly_s3]
 
 
 @njit(cacheable=True)
@@ -248,7 +248,7 @@ def liquid_guess_kamata(
     tidaly_s1 = np.stack((y1_s1, y2_s1, y5_s1, y6_s1))
     tidaly_s2 = np.stack((y1_s2, y2_s2, y5_s2, y6_s2))
 
-    return tidaly_s1, tidaly_s2
+    return [tidaly_s1, tidaly_s2]
 
 
 @njit(cacheable=True)
@@ -409,7 +409,7 @@ def solid_guess_takeuchi(
     tidaly_s2 = np.stack((y1_s2, y2_s2, y3_s2, y4_s2, y5_s2, y6_s2))
     tidaly_s3 = np.stack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
 
-    return tidaly_s1, tidaly_s2, tidaly_s3
+    return [tidaly_s1, tidaly_s2, tidaly_s3]
 
 
 @njit(cacheable=True)
@@ -509,7 +509,7 @@ def liquid_guess_takeuchi(
     tidaly_s1 = np.stack((y1_s1, y2_s1, y5_s1, y6_s1))
     tidaly_s2 = np.stack((y1_s2, y2_s2, y5_s2, y6_s2))
 
-    return tidaly_s1, tidaly_s2
+    return [tidaly_s1, tidaly_s2]
 
 
 # @njit(cacheable=True)

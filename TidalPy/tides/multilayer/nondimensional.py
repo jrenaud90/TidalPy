@@ -72,9 +72,9 @@ def non_dimensionalize_physicals(
     # Setup conversions
     second2_conversion = 1. / (np.pi * G * bulk_density)
     second_conversion = np.sqrt(second2_conversion)
-    mass_conversion = bulk_density * mean_radius**3
     length_conversion = mean_radius
     density_conversion = bulk_density
+    mass_conversion = bulk_density * mean_radius**3
     pascal_conversion = mass_conversion / (length_conversion * second2_conversion)
 
     # Convert variables
@@ -147,6 +147,7 @@ def re_dimensionalize_physicals(
     mass_conversion = bulk_density * mean_radius**3
     length_conversion = mean_radius
     density_conversion = bulk_density
+    mass_conversion = bulk_density * mean_radius**3
     pascal_conversion = mass_conversion / (length_conversion * second2_conversion)
 
     # Convert variables
@@ -193,7 +194,7 @@ def re_dimensionalize_radial_func(
     #    y2, y4 are the radial and tangential stresses with units of [kg m-3]
     #    y5 is the tidal potential which is unitl ess and thus needs no conversion.
     #    y6 is a "potential stress" with units of [m-1]
-    tidal_y = np.zeros_like(tidal_y_prime)
+    tidal_y = np.empty_like(tidal_y_prime)
     tidal_y[0] = tidal_y_prime[0] * (second2_conversion / length_conversion)
     tidal_y[2] = tidal_y_prime[2] * (second2_conversion / length_conversion)
 
