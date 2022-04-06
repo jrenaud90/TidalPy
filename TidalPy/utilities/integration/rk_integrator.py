@@ -1,6 +1,8 @@
-import numpy as np
-from numba import njit
 from typing import Tuple
+
+import numpy as np
+
+from ..performance import njit
 
 # Multiply steps computed from asymptotic behaviour of errors by this.
 SAFETY = 0.9
@@ -13,59 +15,112 @@ EPS = np.finfo(np.float64).eps
 RK23_order = 3
 RK23_error_estimator_order = 2
 RK23_n_stages = 3
-RK23_C = np.array([0, 1/2, 3/4])
-RK23_A = np.array([
-    [0, 0, 0],
-    [1/2, 0, 0],
-    [0, 3/4, 0]
-])
-RK23_B = np.array([2/9, 1/3, 4/9])
-RK23_E = np.array([5/72, -1/12, -1/9, 1/8])
-RK23_P = np.array([[1, -4 / 3, 5 / 9],
-              [0, 1, -2/3],
-              [0, 4/3, -8/9],
-              [0, -1, 1]])
+RK23_C = np.array([0, 1 / 2, 3 / 4], order='C')
+RK23_A = np.array(
+    [
+        [0, 0, 0],
+        [1 / 2, 0, 0],
+        [0, 3 / 4, 0]
+        ], order='C'
+    )
+RK23_B = np.array([2 / 9, 1 / 3, 4 / 9], order='C')
+RK23_E = np.array([5 / 72, -1 / 12, -1 / 9, 1 / 8], order='C')
+RK23_P = np.array(
+    [[1, -4 / 3, 5 / 9],
+     [0, 1, -2 / 3],
+     [0, 4 / 3, -8 / 9],
+     [0, -1, 1]], order='C'
+    )
 
 RK45_order = 5
 RK45_error_estimator_order = 4
 RK45_n_stages = 6
-RK45_C = np.array([0, 1/5, 3/10, 4/5, 8/9, 1])
-RK45_A = np.array([
-    [0, 0, 0, 0, 0],
-    [1/5, 0, 0, 0, 0],
-    [3/40, 9/40, 0, 0, 0],
-    [44/45, -56/15, 32/9, 0, 0],
-    [19372/6561, -25360/2187, 64448/6561, -212/729, 0],
-    [9017/3168, -355/33, 46732/5247, 49/176, -5103/18656]
-])
-RK45_B = np.array([35/384, 0, 500/1113, 125/192, -2187/6784, 11/84])
-RK45_E = np.array([-71/57600, 0, 71/16695, -71/1920, 17253/339200, -22/525,
-              1/40])
+RK45_C = np.array([0, 1 / 5, 3 / 10, 4 / 5, 8 / 9, 1], order='C')
+RK45_A = np.array(
+    [
+        [0, 0, 0, 0, 0],
+        [1 / 5, 0, 0, 0, 0],
+        [3 / 40, 9 / 40, 0, 0, 0],
+        [44 / 45, -56 / 15, 32 / 9, 0, 0],
+        [19372 / 6561, -25360 / 2187, 64448 / 6561, -212 / 729, 0],
+        [9017 / 3168, -355 / 33, 46732 / 5247, 49 / 176, -5103 / 18656]
+        ], order='C'
+    )
+RK45_B = np.array([35 / 384, 0, 500 / 1113, 125 / 192, -2187 / 6784, 11 / 84], order='C')
+RK45_E = np.array(
+    [-71 / 57600, 0, 71 / 16695, -71 / 1920, 17253 / 339200, -22 / 525,
+     1 / 40], order='C'
+    )
 # Corresponds to the optimum value of c_6 from [2]_.
-RK45_P = np.array([
-    [1, -8048581381/2820520608, 8663915743/2820520608,
-     -12715105075/11282082432],
-    [0, 0, 0, 0],
-    [0, 131558114200/32700410799, -68118460800/10900136933,
-     87487479700/32700410799],
-    [0, -1754552775/470086768, 14199869525/1410260304,
-     -10690763975/1880347072],
-    [0, 127303824393/49829197408, -318862633887/49829197408,
-     701980252875 / 199316789632],
-    [0, -282668133/205662961, 2019193451/616988883, -1453857185/822651844],
-    [0, 40617522/29380423, -110615467/29380423, 69997945/29380423]])
+RK45_P = np.array(
+    [
+        [1, -8048581381 / 2820520608, 8663915743 / 2820520608,
+         -12715105075 / 11282082432],
+        [0, 0, 0, 0],
+        [0, 131558114200 / 32700410799, -68118460800 / 10900136933,
+         87487479700 / 32700410799],
+        [0, -1754552775 / 470086768, 14199869525 / 1410260304,
+         -10690763975 / 1880347072],
+        [0, 127303824393 / 49829197408, -318862633887 / 49829197408,
+         701980252875 / 199316789632],
+        [0, -282668133 / 205662961, 2019193451 / 616988883, -1453857185 / 822651844],
+        [0, 40617522 / 29380423, -110615467 / 29380423, 69997945 / 29380423]], order='C'
+    )
 
 
-
-@njit(cache=True)
+@njit(cacheable=True)
 def _norm(x):
     return np.linalg.norm(x) / np.sqrt(x.size)
 
-@njit(cache=True)
-def rk_integrate(diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, args: tuple = tuple(),
-                 rtol: float = 1.e-3, atol: float = 1.e-6,
-                 max_step: float = np.inf, first_step: float = None,
-                 rk_method: int = 1, t_eval: np.ndarray = np.empty(0, dtype=np.float64)):
+
+@njit(cacheable=True)
+def rk_integrate(
+    diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, args: tuple = tuple(),
+    rtol: float = 1.e-6, atol: float = 1.e-8,
+    max_step: float = np.inf, first_step: float = None,
+    rk_method: int = 1, t_eval: np.ndarray = np.empty(0, dtype=np.float64)
+    ):
+    """ A Numba-safe Rugge-Kutta Integrator based on Scipy's solve_ivp RK integrator.
+
+    Parameters
+    ----------
+    diffeq : callable
+        An njit-compiled function that defines the derivatives of the problem.
+    t_span : Tuple[float, float]
+        A tuple of the beginning and end of the integration domain's dependent variables.
+    y0 : np.ndarray
+        1D array of the initial values of the problem at t_span[0]
+    args : tuple = tuple()
+        Any additional arguments that are passed to dffeq.
+    rtol : float = 1.e-6
+        Integration relative tolerance used to determine optimal step size.
+    atol : float = 1.e-8
+        Integration absolute tolerance used to determine optimal step size.
+    max_step : float = np.inf
+        Maximum allowed step size.
+    first_step : float = None
+        Initial step size. If `None`, then the function will attempt to determine an appropriate initial step.
+    rk_method : int = 1
+        The type of RK method used for integration
+            0 = RK23
+            1 = RK45
+            # TODO NotImplemented 2 = DOP
+    t_eval : np.ndarray = None
+        If provided, then the function will interpolate the integration results to provide them at the
+            requested t-steps.
+
+    Returns
+    -------
+    time_results : np.ndarray
+        The final time domain. This is equal to t_eval if it was provided.
+    y_results : np.ndarray
+        The solution of the differential equation provided for each time_result.
+    success : bool
+        Final integration success flag.
+    message : str
+        Any integration messages, useful if success=False.
+
+    """
 
     # Clean up and interpret inputs
     t_start = t_span[0]
@@ -150,7 +205,7 @@ def rk_integrate(diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, 
             if d1 <= 1.e-15 and d2 <= 1.e-15:
                 h1 = max(1.e-6, h0 * 1.e-3)
             else:
-                h1 = (0.01 / max(d1, d2)) ** error_expo
+                h1 = (0.01 / max(d1, d2))**error_expo
 
             step_size = min(100. * h0, h1)
     else:
@@ -216,7 +271,9 @@ def rk_integrate(diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, 
             K[0] = dydt_now
             s = 1
             for a, c in zip(A[1:], C[1:]):
-                dy = np.dot(K[:s].T, a[:s]) * step
+                K_ = np.ascontiguousarray(K[:s].T)
+                a_ = np.ascontiguousarray(a[:s])
+                dy = np.dot(K_, a_) * step
                 K[s] = np.asarray(diffeq(t_now + c * step, y_now + dy, *args), dtype=dtype)
                 s += 1
 
@@ -233,8 +290,10 @@ def rk_integrate(diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, 
                 if error_norm == 0.:
                     step_factor = MAX_FACTOR
                 else:
-                    step_factor = min(MAX_FACTOR,
-                                      SAFETY * error_norm ** -error_expo)
+                    step_factor = min(
+                        MAX_FACTOR,
+                        SAFETY * error_norm**-error_expo
+                        )
 
                 if step_rejected:
                     # There were problems with this step size on the previous step loop. Make sure factor does
@@ -244,8 +303,10 @@ def rk_integrate(diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, 
                 step_size = step_size * step_factor
                 step_accepted = True
             else:
-                step_size = step_size * max(MIN_FACTOR,
-                                            SAFETY * error_norm ** -error_expo)
+                step_size = step_size * max(
+                    MIN_FACTOR,
+                    SAFETY * error_norm**-error_expo
+                    )
                 step_rejected = True
 
         if not step_accepted or step_error:
@@ -288,5 +349,9 @@ def rk_integrate(diffeq: callable, t_span: Tuple[float, float], y0: np.ndarray, 
         time_results = t_eval
 
     success = status == 1
+
+    # Make sure arrays are C-contiguous
+    y_results = np.ascontiguousarray(y_results)
+    time_results = np.ascontiguousarray(time_results)
 
     return time_results, y_results, success, message

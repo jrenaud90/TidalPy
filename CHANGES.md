@@ -23,6 +23,7 @@
     * TidalPy now defaults to using the frequency dependent zeta versions of Andrade and Sundberg rheologies.
         * This was done to avoid issues with real(complex_comp) at zero frequency which happens in multi mode
           calculations.
+    * Added numba-safe version of multilayer calc
 
 * Minor Changes
     * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius
@@ -45,6 +46,7 @@
 * Bug Fixes
   * Fixed issue that was causing some multilayer boundary calculations to be 10x slower.
   * Fixed issue where 2D arrays would not work on njited `neg_array_for_log_plot` function.
+  * Fixed issue where there could be negative love numbers with frequency is zero in multi-mode calculator
 
 ### Version 0.3.3 Alpha (Fall 2021)
 

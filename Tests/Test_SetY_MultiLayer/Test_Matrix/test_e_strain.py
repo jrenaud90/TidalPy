@@ -1,15 +1,14 @@
 """ Tests for calculating tidal strain tensor from the tidal potential and multi-layer solution.
 """
 
-import numpy as np
-
 import TidalPy
+import numpy as np
 from TidalPy.constants import G
+from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_orderl2
 from TidalPy.tides.multilayer.matrix.propagate import propagate
-from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
-from TidalPy.tides.potential import tidal_potential_simple, tidal_potential_nsr
+from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -62,8 +61,7 @@ def test_calc_displacements():
         )
 
     # Calculate tidal potential and its partial derivatives
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq,
@@ -71,9 +69,14 @@ def test_calc_displacements():
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
 
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+
     # Calculate displacements
     radial_displacement, polar_displacement, azimuthal_displacement = \
-        calculate_displacements(potential, potential_partial_theta, potential_partial_phi, tidal_y, colatitude=colat_mtx)
+        calculate_displacements(
+            potential, potential_partial_theta, potential_partial_phi, tidal_y, colatitude=colat_mtx
+            )
 
     # Check shapes
     shape = (*radius_array[1:].shape, *colat_mtx.shape)
@@ -109,14 +112,16 @@ def test_calc_strains_simple():
         )
 
     # Calculate tidal potential and its partial derivatives
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq,
             eccentricity=eccentricity,
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate strain tensor
     strain_components, stress_components = \
@@ -136,6 +141,7 @@ def test_calc_strains_simple():
     # Check type
     assert strain_components.dtype in [np.complex128, complex]
     assert stress_components.dtype in [np.complex128, complex]
+
 
 def test_calc_strains_nsr():
     # Calculate the fundamental matrix and its inverse
@@ -159,14 +165,16 @@ def test_calc_strains_nsr():
         )
 
     # Calculate tidal potential and its partial derivatives
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=5. * orbital_freq,
             eccentricity=eccentricity,
             host_mass=host_mass, semi_major_axis=semi_major_axis, use_static=False
             )
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate strain tensor
     strain_components, stress_components = \
@@ -186,4 +194,3 @@ def test_calc_strains_nsr():
     # Check type
     assert strain_components.dtype in [np.complex128, complex]
     assert stress_components.dtype in [np.complex128, complex]
-

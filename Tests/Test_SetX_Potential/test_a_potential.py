@@ -1,9 +1,8 @@
 """ Tests for extracting useful information out of a multilayer tidal propagation
 """
 
-import numpy as np
-
 import TidalPy
+import numpy as np
 from TidalPy.constants import G
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_obliquity_nsr, tidal_potential_simple
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
@@ -38,14 +37,23 @@ long_mtx, colat_mtx, time_mtx = np.meshgrid(longitude_array, colat_array, time_a
 def test_tidal_potential_simple():
     """ Test the basic tidal potential assuming low eccentricity, no obliquity, and synchronous rotation """
     # Test with floats
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
             orbital_frequency=orbital_freq,
             eccentricity=eccentricity,
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) in [float, np.float64]
     assert type(potential_partial_theta) in [float, np.float64]
@@ -55,14 +63,23 @@ def test_tidal_potential_simple():
     assert type(potential_partial2_theta_phi) in [float, np.float64]
 
     # Test with matrix
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq,
             eccentricity=eccentricity,
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -89,8 +106,7 @@ def test_tidal_potential_simple():
 def test_tidal_potential_nsr():
     """ Test the tidal potential equation assuming moderate eccentricity, no obliquity, and non-synchronous rotation """
     # Test with floats; static=False
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -98,6 +114,16 @@ def test_tidal_potential_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -121,8 +147,7 @@ def test_tidal_potential_nsr():
     assert potential_partial2_theta_phi.dtype in [float, np.float64]
 
     # Test with floats; static=True
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -130,6 +155,16 @@ def test_tidal_potential_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=True
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -153,8 +188,7 @@ def test_tidal_potential_nsr():
     assert potential_partial2_theta_phi.dtype in [float, np.float64]
 
     # Test with matrix; static=False
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -162,6 +196,16 @@ def test_tidal_potential_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -185,8 +229,7 @@ def test_tidal_potential_nsr():
     assert type(potential_partial2_theta_phi[0, 0, 0]) in [float, np.float64]
 
     # Test with matrix; static=True
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -194,6 +237,16 @@ def test_tidal_potential_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=True
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -220,8 +273,7 @@ def test_tidal_potential_nsr():
 def test_tidal_potential_obliquity_nsr():
     """ Test the tidal potential equation assuming moderate eccentricity, medium obliquity, and non-synchronous rotation """
     # Test with floats; static=False
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -229,6 +281,16 @@ def test_tidal_potential_obliquity_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -252,8 +314,7 @@ def test_tidal_potential_obliquity_nsr():
     assert potential_partial2_theta_phi.dtype in [float, np.float64]
 
     # Test with floats; static=True
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -261,6 +322,16 @@ def test_tidal_potential_obliquity_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=True
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -284,8 +355,7 @@ def test_tidal_potential_obliquity_nsr():
     assert potential_partial2_theta_phi.dtype in [float, np.float64]
 
     # Test with matrix; static=False
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -293,6 +363,16 @@ def test_tidal_potential_obliquity_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -316,8 +396,7 @@ def test_tidal_potential_obliquity_nsr():
     assert type(potential_partial2_theta_phi[0, 0, 0]) in [float, np.float64]
 
     # Test with matrix; static=True
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
@@ -325,6 +404,16 @@ def test_tidal_potential_obliquity_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=True
             )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     assert type(potential) == np.ndarray
     assert type(potential_partial_theta) == np.ndarray
@@ -355,14 +444,14 @@ def test_tidal_potential_simple_vs_nsr():
     #   ignoring the static portion of the potential
     eccen = 0.0001
     spin_rate = orbital_freq
-    potentials_simple = \
+    freqs, modes, potentials_simple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq,
             eccentricity=eccen,
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -370,6 +459,9 @@ def test_tidal_potential_simple_vs_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_simple = potentials_simple_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # import matplotlib.pyplot as plt
@@ -396,14 +488,14 @@ def test_tidal_potential_simple_vs_nsr():
     # Test large eccentricity
     eccen = 0.3
     spin_rate = orbital_freq
-    potentials_simple = \
+    freqs, modes, potentials_simple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq,
             eccentricity=eccen,
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -411,6 +503,9 @@ def test_tidal_potential_simple_vs_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_simple = potentials_simple_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # import matplotlib.pyplot as plt
@@ -436,14 +531,14 @@ def test_tidal_potential_simple_vs_nsr():
     # Test large nsr
     eccen = 0.0001
     spin_rate = orbital_freq * 1.5
-    potentials_simple = \
+    freqs, modes, potentials_simple_by_mode = \
         tidal_potential_simple(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq,
             eccentricity=eccen,
             host_mass=host_mass, semi_major_axis=semi_major_axis
             )
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -451,6 +546,9 @@ def test_tidal_potential_simple_vs_nsr():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_simple = potentials_simple_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # import matplotlib.pyplot as plt
@@ -481,7 +579,7 @@ def test_tidal_potential_nsr_vs_obliquity():
     eccen = 0.1
     obliq = np.radians(0.)
     spin_rate = orbital_freq
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -489,7 +587,7 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
-    potentials_obliquity = \
+    freqs, modes, potentials_obli_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -497,6 +595,9 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_obliquity = potentials_obli_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # cbdata = plt.contourf(longitude_array, colat_array, potentials_obliquity[0][:, :, 3])
@@ -517,7 +618,7 @@ def test_tidal_potential_nsr_vs_obliquity():
     eccen = 0.1
     obliq = np.radians(20.)
     spin_rate = orbital_freq
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -525,7 +626,7 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
-    potentials_obliquity = \
+    freqs, modes, potentials_obli_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -533,6 +634,9 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_obliquity = potentials_obli_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # import matplotlib.pyplot as plt
@@ -554,7 +658,7 @@ def test_tidal_potential_nsr_vs_obliquity():
     eccen = 0.1
     obliq = np.radians(0.)
     spin_rate = orbital_freq * 2.5
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -562,7 +666,7 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
-    potentials_obliquity = \
+    freqs, modes, potentials_obli_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -570,6 +674,9 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_obliquity = potentials_obli_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # import matplotlib.pyplot as plt
@@ -591,7 +698,7 @@ def test_tidal_potential_nsr_vs_obliquity():
     eccen = 0.1
     obliq = np.radians(20.)
     spin_rate = orbital_freq * 2.5
-    potentials_nsr = \
+    freqs, modes, potentials_nsr_by_mode = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -599,7 +706,7 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
-    potentials_obliquity = \
+    freqs, modes, potentials_obli_by_mode = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_rate,
@@ -607,6 +714,9 @@ def test_tidal_potential_nsr_vs_obliquity():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potentials_obliquity = potentials_obli_by_mode['n']
+    potentials_nsr = potentials_nsr_by_mode['n']
 
     # Uncomment below to show plot of the two potentials.
     # import matplotlib.pyplot as plt

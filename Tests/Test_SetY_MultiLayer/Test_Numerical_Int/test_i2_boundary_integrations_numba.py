@@ -4,7 +4,7 @@
 import TidalPy
 import numpy as np
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int.solver import tidal_y_solver
+from TidalPy.tides.multilayer.numerical_int.solver_numba import tidal_y_solver
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -39,9 +39,8 @@ def test_calculate_homogen():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -58,9 +57,8 @@ def test_calculate_homogen():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -87,9 +85,8 @@ def test_calculate_ls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -106,9 +103,8 @@ def test_calculate_ls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -128,9 +124,8 @@ def test_calculate_ls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -147,9 +142,8 @@ def test_calculate_ls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -177,9 +171,8 @@ def test_calculate_sls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -196,9 +189,8 @@ def test_calculate_sls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -218,9 +210,8 @@ def test_calculate_sls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -237,9 +228,8 @@ def test_calculate_sls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -268,9 +258,8 @@ def test_calculate_ssls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -287,9 +276,8 @@ def test_calculate_ssls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -309,9 +297,8 @@ def test_calculate_ssls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 
@@ -328,9 +315,8 @@ def test_calculate_ssls():
         order_l=2,
         surface_boundary_condition=None, solve_load_numbers=False,
         use_kamata=False,
-        use_julia=False, use_numba_integrator=False,
         int_rtol=1.0e-6, int_atol=1.0e-8,
-        scipy_int_method='RK45', julia_int_method='Tsit5',
+        rk_method=1,
         verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density
         )
 

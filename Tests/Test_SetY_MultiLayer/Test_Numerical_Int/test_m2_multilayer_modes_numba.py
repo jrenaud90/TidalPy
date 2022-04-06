@@ -2,11 +2,13 @@
 
 """
 
-import TidalPy
 import numpy as np
+
+from numba.typed.typeddict import Dict as nbDict
+import TidalPy
 from TidalPy.constants import G, mass_trap1
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
-from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
+from TidalPy.tides.modes.multilayer_modes_numba import collapse_multilayer_modes
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 
@@ -48,10 +50,10 @@ longitude_matrix, colatitude_matrix, time_matrix = \
     np.meshgrid(longitude, colatitude, time, indexing='ij')
 
 tidal_y_int_kwargs = {
-    'use_julia'           : False, 'use_kamata': False,
+    'rk_method': 1,
     'int_atol'            : 1.0e-8, 'int_rtol': 1.0e-6,
     'planet_bulk_density' : planet_bulk_density,
-    'use_numba_integrator': False, 'nondimensionalize': False
+    'nondimensionalize': False
     }
 
 input_kwargs = {
@@ -65,7 +67,7 @@ input_kwargs = {
     'is_solid_by_layer'          : [True], 'is_static_by_layer': [False], 'indices_by_layer': [layer_i],
     'obliquity'                  : obliquity,
     'surface_boundary_conditions': None, 'solve_load_numbers': False,
-    'complex_compliance_input'   : None, 'force_mode_calculation': False,
+    'complex_compliance_input'   : tuple(), 'force_mode_calculation': False,
     'order_l'                    : 2,
     'use_modes'                  : False, 'use_static_potential': False, 'use_simple_potential': False,
     'orbit_average_results'      : False,
@@ -103,9 +105,9 @@ def test_collapse_multilayer_modes_homogen_modesoff_noorbitavg():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     assert len(love_k_by_mode) == 1
@@ -124,7 +126,7 @@ def test_collapse_multilayer_modes_homogen_modesoff_noorbitavg():
     assert type(tidal_modes['n']) in [float, np.float64]
 
     # No modes should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 0
 
 
@@ -141,11 +143,11 @@ def test_collapse_multilayer_modes_homogen_modesoff():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -160,9 +162,9 @@ def test_collapse_multilayer_modes_homogen_modesoff():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     assert len(love_k_by_mode) == 1
@@ -181,7 +183,7 @@ def test_collapse_multilayer_modes_homogen_modesoff():
     assert type(tidal_modes['n']) in [float, np.float64]
 
     # No modes should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 0
 
 
@@ -202,11 +204,11 @@ def test_collapse_multilayer_modes_homogen_modeson():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -221,9 +223,9 @@ def test_collapse_multilayer_modes_homogen_modeson():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n')
@@ -244,7 +246,7 @@ def test_collapse_multilayer_modes_homogen_modeson():
         assert type(tidal_modes[mode]) in [float, np.float64]
 
     # For spin synch, one mode should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 1
 
 
@@ -265,11 +267,11 @@ def test_collapse_multilayer_modes_homogen_modeson_nonsor():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -284,9 +286,9 @@ def test_collapse_multilayer_modes_homogen_modeson_nonsor():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n')
@@ -307,7 +309,7 @@ def test_collapse_multilayer_modes_homogen_modeson_nonsor():
         assert type(tidal_modes[mode]) in [float, np.float64]
 
     # For non-SOR, no modes should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 0
 
 
@@ -328,11 +330,11 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_spin():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -347,9 +349,9 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_spin():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n')
@@ -370,7 +372,7 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_spin():
         assert type(tidal_modes[mode]) in [float, np.float64]
 
     # For O=-n, no modes should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 0
 
 
@@ -392,11 +394,11 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_n():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -411,9 +413,9 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_n():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n')
@@ -434,7 +436,7 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_n():
         assert type(tidal_modes[mode]) in [float, np.float64]
 
     # This is technically spin synch just with negative spin and orb motion, one mode should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 1
 
 
@@ -457,11 +459,11 @@ def test_collapse_multilayer_modes_homogen_modeson_obliquity():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -476,14 +478,14 @@ def test_collapse_multilayer_modes_homogen_modeson_obliquity():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = (
-        'n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n', 'o', '2o', 'o+n', 'o+2n', 'o-n', 'o-2n',
-        'o-3n', 'o-4n')
+    'n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n', 'o', '2o', 'o+n', 'o+2n', 'o-n', 'o-2n',
+    'o-3n', 'o-4n')
     assert len(love_k_by_mode) == len(modes_at_these_assumptions)
     assert len(love_h_by_mode) == len(modes_at_these_assumptions)
     assert len(love_l_by_mode) == len(modes_at_these_assumptions)
@@ -501,7 +503,7 @@ def test_collapse_multilayer_modes_homogen_modeson_obliquity():
         assert type(tidal_modes[mode]) in [float, np.float64]
 
     # For spin synch, two modes should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 2
 
 
@@ -531,11 +533,11 @@ def test_collapse_multilayer_modes_liquid_solid():
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
-    assert tidal_potential.shape == colatitude_matrix.shape[:2]
+    assert tidal_potential.shape == (*colatitude_matrix.shape[:2], 1)
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
     assert complex_shears_avg.shape == radius_array.shape
@@ -550,9 +552,9 @@ def test_collapse_multilayer_modes_liquid_solid():
     assert complex_shears_avg.dtype in [complex, np.complex128]
     assert tidal_y_avg.dtype in [complex, np.complex128]
 
-    assert type(love_k_by_mode) == dict
-    assert type(love_h_by_mode) == dict
-    assert type(love_l_by_mode) == dict
+    assert type(love_k_by_mode) in [dict, nbDict]
+    assert type(love_h_by_mode) in [dict, nbDict]
+    assert type(love_l_by_mode) in [dict, nbDict]
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n')
@@ -573,5 +575,5 @@ def test_collapse_multilayer_modes_liquid_solid():
         assert type(tidal_modes[mode]) in [float, np.float64]
 
     # For spin synch, one mode should have been skipped
-    assert type(modes_skipped) == dict
+    assert type(modes_skipped) in [dict, nbDict]
     assert len(modes_skipped) == 1

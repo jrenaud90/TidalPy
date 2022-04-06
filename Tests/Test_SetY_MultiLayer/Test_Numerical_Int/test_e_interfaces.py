@@ -1,9 +1,8 @@
 """ Tests for calculating the initial guess at the bottom of a liquid or solid layer for various types of interfaces
 """
 
-import numpy as np
-
 import TidalPy
+import numpy as np
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_ts72,
                                                                        liquid_static_guess_s74,
@@ -14,6 +13,7 @@ from TidalPy.tides.multilayer.numerical_int.interfaces import (interface_LDy_LDy
                                                                interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy,
                                                                interface_SDy_SSt, interface_SSt_LDy, interface_SSt_LSt,
                                                                interface_SSt_SDy, interface_SSt_SSt)
+from numba.typed.typedlist import List as nbTypedList
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -37,8 +37,10 @@ frequency = 2. * np.pi / (86400. * 1.)
 LDy_guess_l2 = liquid_dynamic_guess_ts72(radius_array_to_use, bulk_array, density_array, frequency, order_l=2)
 LSt_guess_l2 = liquid_static_guess_s74(radius_array_to_use, order_l=2)
 SSt_guess_l2 = solid_static_guess_ts72(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
-SDy_guess_l2 = solid_dynamic_guess_ts72(radius_array_to_use, shear_array, bulk_array, density_array, frequency,
-                                        order_l=2)
+SDy_guess_l2 = solid_dynamic_guess_ts72(
+    radius_array_to_use, shear_array, bulk_array, density_array, frequency,
+    order_l=2
+    )
 
 
 def test_solid_solid_interface():
@@ -52,7 +54,7 @@ def test_solid_solid_interface():
     i = 0
     for test_func, test_input in tests.items():
         result = test_func(*test_input)
-        assert type(result) == list
+        assert type(result) in [nbTypedList, list]
         assert len(result) == 3
         for solution in range(3):
             assert result[solution].dtype == test_input[0][0].dtype
@@ -72,7 +74,7 @@ def test_liquid_liquid_interface():
     for test_func, test_input in tests.items():
         results = test_func(*test_input)
 
-        assert type(results) == list
+        assert type(results) in [nbTypedList, list]
         for result in results:
             assert type(result.dtype) == type(test_input[0][0].dtype)
 
@@ -88,7 +90,7 @@ def test_liquid_solid_interface():
     for test_func, test_input in tests.items():
         results = test_func(*test_input)
 
-        assert type(results) == list
+        assert type(results) in [nbTypedList, list]
         for result in results:
             assert type(result.dtype) == type(test_input[0][0].dtype)
 
@@ -104,6 +106,6 @@ def test_solid_liquid_interface():
     for test_func, test_input in tests.items():
         results = test_func(*test_input)
 
-        assert type(results) == list
+        assert type(results) in [nbTypedList, list]
         for result in results:
             assert type(result.dtype) == type(test_input[0][0].dtype)

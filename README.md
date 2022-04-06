@@ -65,7 +65,7 @@ Read below for instructions on how to install and use TidalPy.
 *As of TidalPy v0.3.0a*:
 
 * **Win10**: *Installation & tests passed.*
-* **MacOS (Catalina)**: *TBD*
+* **MacOS (Catalina)**: *Installation & tests passed.*
 * **CentOS7**: *TBD*
 
 ### Simple Installation
@@ -174,9 +174,9 @@ The science used in TidalPy is described in the following papers (and references
     * [Tidal Evolution of the Keplerian Elements](https://ui.adsabs.harvard.edu/abs/2019CeMDA.131...30B/abstract)
 * Third Party Software:
     * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
-    * *Integration Routines*: [diffeqpy](https://github.com/SciML/diffeqpy)
-      , [Julia DiffEq](https://diffeq.sciml.ai/v2.0/)
+    * *Integration Routines*: [diffeqpy](https://github.com/SciML/diffeqpy), [Julia DiffEq](https://diffeq.sciml.ai/v2.0/)
     * *CVD Conscious Color Maps*: [Geodynamic Color Maps](http://doi.org/10.5281/zenodo.5501399)
+    * *Projection Maps*: [Cartopy](https://scitools.org.uk/cartopy/docs/latest/)
 
 ## Contribute
 

@@ -2,11 +2,17 @@
 """
 
 import TidalPy
+import numba.types
 import numpy as np
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_kmn15, liquid_dynamic_guess_ts72,
-                                                    liquid_static_guess_s74, solid_dynamic_guess_kmn15, solid_dynamic_guess_ts72,
-                                                    solid_static_guess_kmn15, solid_static_guess_ts72)
+from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_kmn15,
+                                                                       liquid_dynamic_guess_ts72,
+                                                                       liquid_static_guess_s74,
+                                                                       solid_dynamic_guess_kmn15,
+                                                                       solid_dynamic_guess_ts72,
+                                                                       solid_static_guess_kmn15,
+                                                                       solid_static_guess_ts72)
+from numba.typed.typedlist import List as nbTypedList
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -31,7 +37,7 @@ def test_static_solid_kmn15():
 
     # Test for order l = 2
     solid_guess = solid_static_guess_kmn15(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -41,7 +47,7 @@ def test_static_solid_kmn15():
 
     # Test for order l = 3
     solid_guess = solid_static_guess_kmn15(radius_array_to_use, shear_array, bulk_array, density_array, order_l=3)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -54,7 +60,7 @@ def test_static_solid_ts72():
     """ Tests the initial guess at the bottom of a static solid layer - TS method"""
     # Test TS method for order l = 2
     solid_guess = solid_static_guess_ts72(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -64,7 +70,7 @@ def test_static_solid_ts72():
 
     # Test TS method for order l = 3
     solid_guess = solid_static_guess_ts72(radius_array_to_use, shear_array, bulk_array, density_array, order_l=3)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -78,7 +84,7 @@ def test_dynamic_solid_kmn15():
 
     # Test for order l = 2
     solid_guess = solid_dynamic_guess_kmn15(radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=2)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -88,7 +94,7 @@ def test_dynamic_solid_kmn15():
 
     # Test for order l = 3
     solid_guess = solid_dynamic_guess_kmn15(radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=3)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -103,7 +109,7 @@ def test_dynamic_solid_kmn15():
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
     solid_guess = solid_dynamic_guess_kmn15(rad_mtx, shear_mtx, bulk_mtx, den_mtx, freq_mtx, order_l=2)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -121,7 +127,7 @@ def test_dynamic_solid_ts72():
         radius_array_to_use, shear_array, bulk_array, density_array, frequency,
         order_l=2
         )
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -134,7 +140,7 @@ def test_dynamic_solid_ts72():
         radius_array_to_use, shear_array, bulk_array, density_array, frequency,
         order_l=3
         )
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -149,7 +155,7 @@ def test_dynamic_solid_ts72():
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
     solid_guess = solid_dynamic_guess_ts72(rad_mtx, shear_mtx, bulk_mtx, den_mtx, freq_mtx, order_l=2)
-    assert type(solid_guess) == list
+    assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
         assert type(solid_guess[sn]) == np.ndarray
@@ -165,7 +171,7 @@ def test_static_liquid_s74():
     # Test for order l = 2
     # For the static liquid guess there is only one solution, therefore the output is NOT a tuple.
     liquid_guess = liquid_static_guess_s74(radius_array_to_use, order_l=2)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 1
     # Since there is no shear (or bulk) dependence for static liquid tides, then the results will be real not complex.
     #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
@@ -180,7 +186,7 @@ def test_static_liquid_s74():
 
     # Test for order l = 3
     liquid_guess = liquid_static_guess_s74(radius_array_to_use, order_l=3)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 1
     # Since there is no shear (or bulk) dependence for static liquid tides, then the results will be real not complex.
     #    The above is true, but in 0.3.0a5 a forced complex "asarray" was added.
@@ -199,7 +205,7 @@ def test_dynamic_liquid_kmn15():
 
     # Test for order l = 2
     liquid_guess = liquid_dynamic_guess_kmn15(radius_array_to_use, bulk_array, density_array, frequency, order_l=2)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray
@@ -212,7 +218,7 @@ def test_dynamic_liquid_kmn15():
 
     # Test for order l = 3
     liquid_guess = liquid_dynamic_guess_kmn15(radius_array_to_use, bulk_array, density_array, frequency, order_l=3)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray
@@ -229,7 +235,7 @@ def test_dynamic_liquid_kmn15():
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
     liquid_guess = liquid_dynamic_guess_kmn15(rad_mtx, bulk_mtx, den_mtx, freq_mtx, order_l=2)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray
@@ -247,7 +253,7 @@ def test_dynamic_liquid_TS():
 
     # Test for order l = 2
     liquid_guess = liquid_dynamic_guess_ts72(radius_array_to_use, bulk_array, density_array, frequency, order_l=2)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray
@@ -260,7 +266,7 @@ def test_dynamic_liquid_TS():
 
     # Test for order l = 3
     liquid_guess = liquid_dynamic_guess_ts72(radius_array_to_use, bulk_array, density_array, frequency, order_l=3)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray
@@ -277,7 +283,7 @@ def test_dynamic_liquid_TS():
     bulk_mtx, _ = np.meshgrid(bulk_array, freq_domain)
     den_mtx, _ = np.meshgrid(density_array, freq_domain)
     liquid_guess = liquid_dynamic_guess_ts72(rad_mtx, bulk_mtx, den_mtx, freq_mtx, order_l=2)
-    assert type(liquid_guess) == list
+    assert type(liquid_guess) in [list, numba.types.List, nbTypedList]
     assert len(liquid_guess) == 2
     for sn in range(2):
         assert type(liquid_guess[sn]) == np.ndarray

@@ -9,14 +9,17 @@ This module contains functions to assist with calculating the response at each o
 from typing import Dict, List, Tuple
 
 import numpy as np
-from numba.typed import List as nbList
+from numba.core import types
+from numba.typed import Dict as nbDict, List as nbList
 
-from ..multilayer.numerical_int.solver import tidal_y_solver
+from ..multilayer.numerical_int.solver_numba import tidal_y_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
+from ...utilities.performance import njit
 
 
+@njit(cacheable=True)
 def calculate_mode_response_coupled(
     interior_model_name: str, mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
@@ -24,12 +27,9 @@ def calculate_mode_response_coupled(
     tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
-    complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
-    order_l: int = 2,
-    use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+    complex_compliance_input: Tuple[float, ...] = tuple(), force_mode_calculation: bool = False,
+    order_l: int = 2, use_kamata: bool = False,
+    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
     verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
     ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Given a tidal frequency, this function will call on the interior integration routine with the proper inputs and
@@ -92,24 +92,15 @@ def calculate_mode_response_coupled(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
     int_rtol : float = 1.0e-6
         Integration relative error.
     int_atol : float = 1.0e-4
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
+    rk_method : int = 1
+        The type of RK method used for integration
+            0 = RK23
+            1 = RK45
+            # TODO NotImplemented 2 = DOP
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -136,9 +127,6 @@ def calculate_mode_response_coupled(
     # Setup flags
     mode_skipped = False
 
-    if complex_compliance_input is None:
-        complex_compliance_input = tuple()
-
     # Calculate rheology and radial response
     if (not force_mode_calculation) and (mode_frequency < 1.0e-15):
         # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
@@ -150,10 +138,7 @@ def calculate_mode_response_coupled(
     else:
         # Calculate Complex Compliance
         complex_compliances = \
-            complex_compliance_function(
-                mode_frequency, shear_array**(-1), viscosity_array,
-                *complex_compliance_input
-                )
+            complex_compliance_function(mode_frequency, shear_array**(-1), viscosity_array, *complex_compliance_input)
         complex_shears_at_mode = complex_compliances**(-1)
 
         # TODO: Calculate complex bulk modulus. (When bulk dissipation is added)
@@ -165,27 +150,34 @@ def calculate_mode_response_coupled(
             tidal_y_solver(
                 interior_model_name, radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
                 mode_frequency,
-                is_solid_by_layer=is_solid_by_layer, is_static_by_layer=is_static_by_layer,
-                indices_by_layer=indices_by_layer,
-                surface_boundary_condition=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
-                order_l=order_l, use_kamata=use_kamata,
-                use_julia=use_julia, use_numba_integrator=use_numba_integrator,
-                int_rtol=int_rtol, int_atol=int_atol,
-                scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density
+                is_solid_by_layer, is_static_by_layer, indices_by_layer,
+                order_l, surface_boundary_conditions,
+                solve_load_numbers, use_kamata,
+                int_rtol, int_atol, rk_method, verbose,
+                nondimensionalize, planet_bulk_density
                 )
+
+        tidal_potential, \
+        tidal_potential_partial_theta, tidal_potential_partial_phi, \
+        tidal_potential_partial2_theta2, tidal_potential_partial2_phi2, \
+        tidal_potential_partial2_theta_phi = \
+            tidal_potential_tuple
 
         # Calculate stresses and heating
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
-            *tidal_potential_tuple,
-            tidal_solution_y=tidal_y_at_mode,
-            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=shear_array, bulk_moduli=bulk_array,
-            frequency=mode_frequency, order_l=order_l
+            tidal_potential,
+            tidal_potential_partial_theta, tidal_potential_partial_phi,
+            tidal_potential_partial2_theta2, tidal_potential_partial2_phi2,
+            tidal_potential_partial2_theta_phi,
+            tidal_y_at_mode,
+            colatitude_matrix, radius_array, shear_array, bulk_array,
+            mode_frequency, order_l
             )
 
     return mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode
 
 
+@njit(cacheable=True)
 def collapse_multilayer_modes(
     interior_model_name: str,
     orbital_frequency: float, spin_frequency: float, semi_major_axis: float,
@@ -197,18 +189,17 @@ def collapse_multilayer_modes(
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
     obliquity: float = None,
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
-    complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
+    complex_compliance_input: Tuple[float, ...] = tuple(), force_mode_calculation: bool = False,
     order_l: int = 2,
     use_modes: bool = True, use_static_potential: bool = False, use_simple_potential: bool = False,
-    orbit_average_results: bool = True,
-    use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+    orbit_average_results: bool = True, use_kamata: bool = False,
+    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
     verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
     ):
     """ Calculate the multilayer tidal response of a planet over a range of applicable tidal modes. Collapse
     individual modal results into final heating distribution.
+
+    This is a numba-safe version of the function found in multilayer_modes.py
 
     Some of these variables are ndarrays the shape of the planet's radius array, N_r
     Others are multidimensional arrays the shape of (N_long, N_colat, N_time).
@@ -300,24 +291,15 @@ def collapse_multilayer_modes(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
     int_rtol : float = 1.0e-6
         Integration relative error.
     int_atol : float = 1.0e-4
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
+    rk_method : int = 1
+        The type of RK method used for integration
+            0 = RK23
+            1 = RK45
+            # TODO NotImplemented 2 = DOP
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -355,11 +337,6 @@ def collapse_multilayer_modes(
             (N_r, N_long, N_colat, N_time)
 
     """
-
-    # If no inputs to the complex compliance function were provided then set it equal to an empty tuple which
-    #    will cause the complex compliance function to resort to default.
-    if complex_compliance_input is None:
-        complex_compliance_input = tuple()
 
     # Clean up inputs
     is_solid_by_layer = nbList(is_solid_by_layer)
@@ -400,9 +377,9 @@ def collapse_multilayer_modes(
     #       l = range(2, max_l+1)
     #   The tricker part will be updating the tidal potential which is hardcoded for l=2 at the moment.
     if order_l != 2:
-        raise NotImplementedError(
-            'Multilayer tides (specifically the tidal potential) only works for '
-            'l=2 at the moment.'
+        raise Exception(
+            'Not Implemented:'
+            'Multilayer tides (specifically the tidal potential) only works for l=2 at the moment.'
             )
 
     # Setup tidal potential functions
@@ -450,10 +427,22 @@ def collapse_multilayer_modes(
     num_modes_skipped = 0
 
     # Build storages for all modes
-    modes_skipped = dict()
-    love_k_by_mode = dict()
-    love_h_by_mode = dict()
-    love_l_by_mode = dict()
+    modes_skipped = nbDict.empty(
+        key_type=types.unicode_type,
+        value_type=types.bool_
+        )
+    love_k_by_mode = nbDict.empty(
+        key_type=types.unicode_type,
+        value_type=types.complex128
+        )
+    love_h_by_mode = nbDict.empty(
+        key_type=types.unicode_type,
+        value_type=types.complex128
+        )
+    love_l_by_mode = nbDict.empty(
+        key_type=types.unicode_type,
+        value_type=types.complex128
+        )
 
     # Large arrays must be added to continuously to avoid memory overload
     complex_shears_avg = np.zeros(r_shape, dtype=np.complex128)
@@ -480,13 +469,11 @@ def collapse_multilayer_modes(
                 density_array, gravity_array, colatitude_matrix,
                 tidal_potential_tuple, complex_compliance_function,
                 is_solid_by_layer, is_static_by_layer, indices_by_layer,
-                surface_boundary_conditions=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
-                complex_compliance_input=complex_compliance_input, force_mode_calculation=force_mode_calculation,
-                order_l=order_l, use_kamata=use_kamata,
-                use_julia=use_julia, use_numba_integrator=use_numba_integrator,
-                int_rtol=int_rtol, int_atol=int_atol,
-                scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density
+                surface_boundary_conditions, solve_load_numbers,
+                complex_compliance_input, force_mode_calculation,
+                order_l, use_kamata,
+                int_rtol, int_atol, rk_method, verbose,
+                nondimensionalize, planet_bulk_density
                 )
 
         if mode_skipped:
@@ -531,8 +518,19 @@ def collapse_multilayer_modes(
         strains += strains_at_mode
 
         tidal_potential += tidal_potential_at_mode
-        total_potential += tidal_potential_at_mode[np.newaxis, :, :, :] * \
-                           tidal_y_at_mode[4, :, np.newaxis, np.newaxis, np.newaxis]
+        total_potential_at_mode = np.expand_dims(tidal_potential_at_mode, axis=0) * \
+                                  np.expand_dims(
+                                      np.expand_dims(
+                                          np.expand_dims(
+                                              tidal_y_at_mode[4, :],
+                                              axis=-1
+                                              ),
+                                          axis=-1
+                                          ),
+                                      axis=-1
+                                      )
+
+        total_potential += np.ascontiguousarray(total_potential_at_mode)
 
         # The other parameters it is not clear what category they fall into.
         # TODO: For now let's take the average of them. Should they also receive a similar 1/T treatment like the above
@@ -572,21 +570,33 @@ def collapse_multilayer_modes(
 
     # Perform orbital averaging
     if orbit_average_results:
-        strains = np.trapz(strains, time_domain, axis=-1)
-        stresses = np.trapz(stresses, time_domain, axis=-1)
-        tidal_potential = np.trapz(tidal_potential, time_domain, axis=-1)
-        total_potential = np.trapz(total_potential, time_domain, axis=-1)
-        volumetric_heating = np.trapz(volumetric_heating, time_domain, axis=-1)
+        # These trapz functions should have an axis=-1 as an additional argument but numba does not support it
+        #    and by default uses the last axis anyways so we should be fine.
+        strains_int = np.trapz(strains, time_domain)
+        stresses_int = np.trapz(stresses, time_domain)
+        tidal_potential_int = np.trapz(tidal_potential, time_domain)
+        total_potential_int = np.trapz(total_potential, time_domain)
+        volumetric_heating_int = np.trapz(volumetric_heating, time_domain)
+
+        # Numba does not like that orbit_average_results can change the dimensions of the returned values. So even
+        #   though we just collapsed a dimension with the trapz functions, let's add it back.
+        strains = np.expand_dims(strains_int, axis=-1)
+        stresses = np.expand_dims(stresses_int, axis=-1)
+        tidal_potential = np.expand_dims(tidal_potential_int, axis=-1)
+        total_potential = np.expand_dims(total_potential_int, axis=-1)
+        volumetric_heating = np.expand_dims(volumetric_heating_int, axis=-1)
+
+        # Now lets make sure that these arrays are ordered correctly
+        strains = np.ascontiguousarray(strains)
+        stresses = np.ascontiguousarray(stresses)
+        tidal_potential = np.ascontiguousarray(tidal_potential)
+        total_potential = np.ascontiguousarray(total_potential)
+        volumetric_heating = np.ascontiguousarray(volumetric_heating)
 
     # To find the total heating (rather than volumetric) we need to multiply by the volume in each voxel.
     # The voxel_volume has a shape of (r_N, long_N, colat_N).
-    if orbit_average_results:
-        heating = volumetric_heating * voxel_volume
-    else:
-        # If we do not orbit average then we need to expand the voxel volume dimensions to allow for
-        #   ndarray multiplication
-        voxel_volume_higher_dim = voxel_volume[:, :, :, np.newaxis]
-        heating = volumetric_heating * voxel_volume_higher_dim
+    voxel_volume_higher_dim = np.expand_dims(voxel_volume, axis=-1)
+    heating = volumetric_heating * voxel_volume_higher_dim
 
     # Put the love results into a tuple
     love_results = (love_k_by_mode, love_h_by_mode, love_l_by_mode)

@@ -5,6 +5,8 @@ References
 S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
+import numpy as np
+from numba.typed import List as nbList
 
 from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess
 from ..initial_conditions.initial_solution_static import LiquidStaticGuess
@@ -37,10 +39,10 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> LiquidDynamicGuess:
     """
 
     base_liquid_ys = [
-        liquid_layer_ys[0][:, -1],
-        liquid_layer_ys[1][:, -1]
+        np.ascontiguousarray(liquid_layer_ys[0][:, -1]),
+        np.ascontiguousarray(liquid_layer_ys[1][:, -1])
         ]
-    return base_liquid_ys
+    return nbList(base_liquid_ys)
 
 
 # @njit(cacheable=True)
@@ -115,6 +117,6 @@ def both_static(liquid_layer_ys: LiquidStaticGuess) -> LiquidStaticGuess:
     """
 
     base_liquid_ys = liquid_layer_ys[0][:, -1]
-    base_liquid_ys = [base_liquid_ys]
+    base_liquid_ys = nbList([np.ascontiguousarray(base_liquid_ys)])
 
     return base_liquid_ys

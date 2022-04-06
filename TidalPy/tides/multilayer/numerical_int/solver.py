@@ -23,7 +23,7 @@ def tidal_y_solver(
     use_julia: bool = False, use_numba_integrator: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
     scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, non_dimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
     ) -> np.ndarray:
     """ Calculate the radial solution for a homogeneous, solid planet.
 
@@ -79,7 +79,7 @@ def tidal_y_solver(
             `TidalPy.utilities.julia_helper.integration_methods.py`
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
-    non_dimensionalize : bool = False
+    nondimensionalize : bool = False
         If True, integration will use dimensionless variables. These will be converted back before output is given to
         the user.
     planet_bulk_density : float = None
@@ -94,7 +94,7 @@ def tidal_y_solver(
 
     # Non-dimensionalize inputs
     planet_radius = radius[-1]
-    if non_dimensionalize:
+    if nondimensionalize:
         if planet_bulk_density is None:
             raise AttributeNotSetError('Planet bulk density must be provided if non-dimensionalize is True.')
 
@@ -351,7 +351,7 @@ def tidal_y_solver(
     if verbose:
         print('Done!')
 
-    if non_dimensionalize:
+    if nondimensionalize:
         if verbose:
             print('Re-dimensionalizing Radial Functions.')
         tidal_y = re_dimensionalize_radial_func(tidal_y, planet_radius, planet_bulk_density)

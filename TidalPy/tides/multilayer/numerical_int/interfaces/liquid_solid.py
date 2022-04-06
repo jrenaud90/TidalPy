@@ -7,6 +7,7 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 """
 
 import numpy as np
+from numba.typed import List as nbList
 
 from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
 from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
@@ -44,11 +45,11 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
     """
 
     # For a dynamic solid layer there will be three independent solutions that we need an initial guess for.
-    base_solid_list = list()
+    base_solid_list = nbList()
 
     for solution in range(3):
         # For a dynamic solid layer there will be six y values used.
-        solution_values = np.zeros(6, dtype=liquid_layer_ys[0][:, -1].dtype)
+        solution_values = np.zeros(6, dtype=liquid_layer_ys[0].dtype)
 
         if solution in (0, 1):
             # For a dynamic liquid layer there will be two independent solutions at the top of the layer
@@ -99,7 +100,7 @@ def static_dynamic(
     """
 
     # For a dynamic solid layer there will be three independent solutions that we need an initial guess for.
-    base_solid_list = list()
+    base_solid_list = nbList()
 
     # For a dynamic liquid layer there will be one independent solutions at the top of the layer
     #   however for consistency this single solution is still stored in a tuple (of size 1) so we need to pull it out.

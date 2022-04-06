@@ -1,6 +1,6 @@
 import numpy as np
 
-from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialOutput
+from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput
 from ...constants import G
 from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
@@ -13,7 +13,7 @@ def tidal_potential(
     eccentricity: FloatArray, obliquity: FloatArray,
     host_mass: float, semi_major_axis: FloatArray,
     use_static: bool = False
-    ) -> TidalPotentialOutput:
+    ) -> TidalPotentialModeOutput:
     """ Tidal gravitational potential assuming moderate eccentricity, moderate obliquity, and non-synchronous rotation
 
     This version that allows for moderate obliquity is about 1.75 to 2x slower than the non-obliquity version found in:
@@ -46,18 +46,25 @@ def tidal_potential(
 
     Returns
     -------
-    potential : FloatArray
-        Tidal Potential
-    potential_partial_theta : FloatArray
-        Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial_phi : FloatArray
-        Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta2 : FloatArray
-        2nd Partial Derivative of the Tidal Potential wrt colatitude.
-    potential_partial2_phi2 : FloatArray
-        2nd Partial Derivative of the Tidal Potential wrt longitude.
-    potential_partial2_theta_phi : FloatArray
-        2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
+    tidal_frequencies : Dict[str, FloatArray]
+        Tidal frequencies, abs(modes) [radians s-1]
+    tidal_modes : Dict[str, FloatArray]
+        Tidal frequency modes [radians s-1]
+    potential_tuple_by_mode : PotentialTupleModeOutput
+        Storage for the tidal potential and its derivatives.
+
+        potential : FloatArray
+            Tidal Potential
+        potential_partial_theta : FloatArray
+            Partial Derivative of the Tidal Potential wrt colatitude.
+        potential_partial_phi : FloatArray
+            Partial Derivative of the Tidal Potential wrt longitude.
+        potential_partial2_theta2 : FloatArray
+            2nd Partial Derivative of the Tidal Potential wrt colatitude.
+        potential_partial2_phi2 : FloatArray
+            2nd Partial Derivative of the Tidal Potential wrt longitude.
+        potential_partial2_theta_phi : FloatArray
+            2nd Partial Derivative of the Tidal Potential wrt colatitude and longitude.
 
     See Also
     --------
@@ -362,5 +369,16 @@ def tidal_potential(
     potential_partial2_phi2 *= global_coefficient
     potential_partial2_theta_phi *= global_coefficient
 
-    return potential, potential_partial_theta, potential_partial_phi, \
-           potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi
+    # Store results for this "mode"
+    # Convert 'frequency' into real frequency and mode
+    mode = orbital_frequency
+    orbital_frequency = np.abs(orbital_frequency)
+    frequencies_by_name = {'n': orbital_frequency}
+    modes_by_name = {'n': mode}
+    potential_tuple_by_mode = {
+        'n':
+            (potential, potential_partial_theta, potential_partial_phi, potential_partial2_theta2,
+             potential_partial2_phi2, potential_partial2_theta_phi)
+        }
+
+    return frequencies_by_name, modes_by_name, potential_tuple_by_mode

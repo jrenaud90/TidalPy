@@ -1,11 +1,11 @@
 """ Tests for extracting useful information out of a multilayer tidal propagation
 """
 
-import numpy as np
-
 import TidalPy
+import numpy as np
 from TidalPy.constants import G
-from TidalPy.tides.potential import tidal_potential_nsr_modes, tidal_potential_obliquity_nsr_modes, tidal_potential_nsr, tidal_potential_obliquity_nsr
+from TidalPy.tides.potential import (tidal_potential_nsr, tidal_potential_nsr_modes, tidal_potential_obliquity_nsr,
+                                     tidal_potential_obliquity_nsr_modes)
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -34,6 +34,7 @@ time_array = np.linspace(0., 2. * np.pi / orbital_freq, 5)
 
 long_mtx, colat_mtx, time_mtx = np.meshgrid(longitude_array, colat_array, time_array)
 
+
 def test_tidal_potential_nsr_modes():
     """ Test the modal tidal potential assuming moderate eccentricity, no obliquity, and synchronous rotation """
     # Test arrays - Static=False
@@ -44,7 +45,8 @@ def test_tidal_potential_nsr_modes():
             orbital_freq, spin_freq,
             eccentricity,
             host_mass, semi_major_axis,
-            use_static=False)
+            use_static=False
+            )
 
     # Check mode frequency types
     assert len(modes) == 9
@@ -120,6 +122,7 @@ def test_tidal_potential_nsr_modes():
         assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
         assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
         assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
+
 
 def test_tidal_potential_obliquity_nsr_modes():
     """ Test the modal tidal potential assuming moderate eccentricity, moderate obliquity, and synchronous rotation """
@@ -131,7 +134,8 @@ def test_tidal_potential_obliquity_nsr_modes():
             orbital_freq, spin_freq,
             eccentricity, obliquity,
             host_mass, semi_major_axis,
-            use_static=False)
+            use_static=False
+            )
 
     # Check mode frequency types
     assert len(modes) == 17
@@ -207,6 +211,7 @@ def test_tidal_potential_obliquity_nsr_modes():
         assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
         assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
         assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
+
 
 def test_tidal_potential_nsr_modes_vs_non_mode():
     """ Test the modal tidal potential assuming moderate eccentricity, no obliquity, and synchronous rotation vs.
@@ -220,11 +225,11 @@ def test_tidal_potential_nsr_modes_vs_non_mode():
             orbital_freq, spin_freq,
             eccentricity,
             host_mass, semi_major_axis,
-            use_static=False)
+            use_static=False
+            )
 
     # Then calculate the non-mode version.
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    freqs_reg, modes_reg, potential_tuple_by_mode_reg = \
         tidal_potential_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_freq,
@@ -232,6 +237,9 @@ def test_tidal_potential_nsr_modes_vs_non_mode():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode_reg['n']
 
     for mode_pot, reg_pot in [(0, potential),
                               (1, potential_partial_theta),
@@ -249,6 +257,7 @@ def test_tidal_potential_nsr_modes_vs_non_mode():
         assert collapsed_mode_pot.shape == reg_pot.shape
         assert np.allclose(collapsed_mode_pot, reg_pot)
 
+
 def test_tidal_potential_obliquity_nsr_modes_vs_non_mode():
     """ Test the modal tidal potential assuming moderate eccentricity, moderate obliquity, and synchronous rotation vs.
         the non-modal version"""
@@ -261,11 +270,11 @@ def test_tidal_potential_obliquity_nsr_modes_vs_non_mode():
             orbital_freq, spin_freq,
             eccentricity, obliquity,
             host_mass, semi_major_axis,
-            use_static=False)
+            use_static=False
+            )
 
     # Then calculate the non-mode version.
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    freqs_reg, modes_reg, potential_tuple_by_mode_reg = \
         tidal_potential_obliquity_nsr(
             radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
             orbital_frequency=orbital_freq, rotation_frequency=spin_freq,
@@ -273,6 +282,9 @@ def test_tidal_potential_obliquity_nsr_modes_vs_non_mode():
             host_mass=host_mass, semi_major_axis=semi_major_axis,
             use_static=False
             )
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode_reg['n']
 
     for mode_pot, reg_pot in [(0, potential),
                               (1, potential_partial_theta),
