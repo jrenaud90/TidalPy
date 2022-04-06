@@ -1,11 +1,13 @@
 name: tidalpy_env
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - setuptools>=57.0.0
   - pip>=21.0.0
   - wheel>=0.36.0
   - pytest>=6.2.4
+  - coverage>=6.3
   - numpy>=1.19.5
   - pandas>=1.2.4
   - matplotlib>=3.4.2

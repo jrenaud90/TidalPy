@@ -48,7 +48,7 @@ jobs:
       - name: Run pytest
         run: $CONDA/bin/pytest --splits 5 --group ${{ matrix.group }}
       - name: Upload coverage
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: coverage${{ matrix.group }}
           path: .coverage
@@ -59,7 +59,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: codecov/codecov-action@v3.0.0
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
@@ -70,9 +69,10 @@ jobs:
           $CONDA/bin/conda env update --file environment.yml --name base
       - name: Download all artifacts
         # Downloads coverage1, coverage2, etc.
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
       - name: Run coverage
         run: |
           coverage combine coverage*/.coverage*
           coverage report --fail-under=50
           coverage xml
+      - uses: codecov/codecov-action@v3.0.0
