@@ -60,6 +60,7 @@ dependencies = [
     "numba>=0.53",
     "numpy>=1.19.5",
     "pytest>=6.2.4",
+    "pytest-cov>=3.0.0",
     "scipy>=1.6.3",
     "pandas>=1.2.4",
     "psutil>=5.8.0",
