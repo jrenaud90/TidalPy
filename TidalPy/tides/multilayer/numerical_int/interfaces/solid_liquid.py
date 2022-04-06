@@ -8,10 +8,10 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 import numpy as np
 
-from ..initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from ..initial_solution_static import LiquidStaticGuess, SolidStaticGuess
+from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 from .....constants import G
-from .....utilities.performance import njit
+from .....utilities.performance import njit, nbList
 
 
 # Note that there are 2 or 4 y's for the liquid layers and 6 for solid layers.
@@ -44,7 +44,7 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> LiquidDynamicGuess:
     """
 
     # For a dynamic liquid layer there will be two independent solutions
-    base_liquid_y_list = list()
+    base_liquid_y_list = nbList()
 
     for solution in range(2):
         lower_layer_top_solution = solid_layer_ys[solution][:, -1]
@@ -61,8 +61,7 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> LiquidDynamicGuess:
 
         base_liquid_y_list.append(solution_values)
 
-    base_liquid_ys = (base_liquid_y_list[0], base_liquid_y_list[1])
-    return base_liquid_ys
+    return base_liquid_y_list
 
 
 @njit(cacheable=True)
@@ -121,7 +120,7 @@ def dynamic_static(
     """
 
     # For a static liquid layer there will be one independent solution with 2 y's
-    base_liquid_ys = np.zeros(2, dtype=solid_layer_ys[0].dtype)
+    base_liquid_ys = np.empty(2, dtype=solid_layer_ys[0].dtype)
 
     y4_frac_1 = solid_layer_ys[0][3, -1] / solid_layer_ys[2][3, -1]
     y4_frac_2 = solid_layer_ys[1][3, -1] / solid_layer_ys[2][3, -1]
@@ -144,7 +143,7 @@ def dynamic_static(
     base_liquid_ys[1] = y_7_IC_0 - (gamma_1 / gamma_2) * y_7_IC_1 - \
                         (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * y_7_IC_2
 
-    return base_liquid_ys
+    return nbList([base_liquid_ys])
 
 
 @njit(cacheable=True)

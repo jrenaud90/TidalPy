@@ -1,15 +1,14 @@
 """ Tests for calculating tidal strain tensor from the tidal potential and multi-layer solution.
 """
 
-import numpy as np
-
 import TidalPy
+import numpy as np
 from TidalPy.constants import G
+from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_orderl2
 from TidalPy.tides.multilayer.matrix.propagate import propagate
-from TidalPy.tides.multilayer.stress_strain import calculate_displacements, calculate_strain_stress_heating
-from TidalPy.tides.potential import tidal_potential_simple, tidal_potential_nsr
+from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 TidalPy.config['stream_level'] = 'ERROR'
@@ -19,6 +18,9 @@ TidalPy.reinit()
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
 radius_array = np.linspace(0., 1.e6, 11)
+longitude_array = np.radians(np.linspace(0., 360., 12))
+colat_array = np.radians(np.linspace(0.5, 179.5, 13))
+
 volume_array = (4. / 3.) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
 mass_array = volume_array * density_array
 planet_mass = sum(mass_array)
@@ -26,10 +28,15 @@ mass_below = np.asarray([np.sum(mass_array[:i + 1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
 shear_array = 5.e10 * np.ones(10, dtype=np.complex)
 bulk_array = 10.e10 * np.ones(10, dtype=np.complex)
-host_mass = 10. * planet_mass
+host_mass = 50000. * planet_mass
 orbital_freq = (2. * np.pi / (86400. * 6.))
 semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
-eccentricity = 0.01
+eccentricity = 0.05
+obliquity = np.radians(15.)
+
+time_array = np.linspace(0., 2. * np.pi / orbital_freq, 5)
+
+long_mtx, colat_mtx, time_mtx = np.meshgrid(longitude_array, colat_array, time_array)
 
 
 def test_calc_displacements():
@@ -54,29 +61,36 @@ def test_calc_displacements():
         )
 
     # Calculate tidal potential and its partial derivatives
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
-            radius_array[-1], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
-            eccentricity=eccentricity, time=1000.
+            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+            orbital_frequency=orbital_freq,
+            eccentricity=eccentricity,
+            host_mass=host_mass, semi_major_axis=semi_major_axis
             )
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate displacements
     radial_displacement, polar_displacement, azimuthal_displacement = \
-        calculate_displacements(potential, potential_partial_theta, potential_partial_phi, tidal_y, colatitude=0.1)
+        calculate_displacements(
+            potential, potential_partial_theta, potential_partial_phi, tidal_y, colatitude=colat_mtx
+            )
 
     # Check shapes
-    assert radial_displacement.shape == (10,)
-    assert polar_displacement.shape == (10,)
-    assert azimuthal_displacement.shape == (10,)
+    shape = (*radius_array[1:].shape, *colat_mtx.shape)
+    assert radial_displacement.shape == shape
+    assert polar_displacement.shape == shape
+    assert azimuthal_displacement.shape == shape
 
     # Check types
-    assert type(radial_displacement[0]) in [np.complex, np.complex128, complex]
-    assert type(polar_displacement[0]) in [np.complex, np.complex128, complex]
-    assert type(azimuthal_displacement[0]) in [np.complex, np.complex128, complex]
+    assert radial_displacement.dtype in [np.complex128, complex]
+    assert polar_displacement.dtype in [np.complex128, complex]
+    assert azimuthal_displacement.dtype in [np.complex128, complex]
 
 
-def test_calc_strains_heating_simple():
+def test_calc_strains_simple():
     # Calculate the fundamental matrix and its inverse
     F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array, density_array, gravity_array)
 
@@ -98,41 +112,38 @@ def test_calc_strains_heating_simple():
         )
 
     # Calculate tidal potential and its partial derivatives
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
-            radius_array[1:], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
-            eccentricity=eccentricity, time=1000.
+            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+            orbital_frequency=orbital_freq,
+            eccentricity=eccentricity,
+            host_mass=host_mass, semi_major_axis=semi_major_axis
             )
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate strain tensor
-    strain_components, stress_components, vol_heating = \
-        calculate_strain_stress_heating(
+    strain_components, stress_components = \
+        calculate_strain_stress(
             potential, potential_partial_theta, potential_partial_phi,
             potential_partial2_theta2, potential_partial2_phi2,
-            potential_partial2_theta_phi, tidal_y, tidal_y_deriv,
-            colatitude=0.1, radius=radius_array[1:], shear_moduli=shear_array,
-            bulk_moduli=bulk_array, frequency=orbital_freq
+            potential_partial2_theta_phi, tidal_y,
+            colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
+            bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
             )
 
-    for strain_component in strain_components:
-        # Check shape
-        assert strain_component.shape == (10,)
+    shape = (6, *radius_array[1:].shape, *colat_mtx.shape)
+    # Check shape
+    assert strain_components.shape == shape
+    assert stress_components.shape == shape
 
-        # Check type
-        assert strain_component.dtype in [np.complex128, np.complex, complex]
+    # Check type
+    assert strain_components.dtype in [np.complex128, complex]
+    assert stress_components.dtype in [np.complex128, complex]
 
-    for stress_component in stress_components:
-        # Check shape
-        assert stress_component.shape == (10,)
 
-        # Check type
-        assert stress_component.dtype in [np.complex128, np.complex, complex]
-
-    assert vol_heating.shape == (10,)
-    assert vol_heating.dtype in [np.float64, np.float, float]
-
-def test_calc_strains_heating_nsr():
+def test_calc_strains_nsr():
     # Calculate the fundamental matrix and its inverse
     F, F_inv, deriv_mtx = fundamental_matrix_orderl2(radius_array[1:], shear_array, density_array, gravity_array)
 
@@ -154,37 +165,32 @@ def test_calc_strains_heating_nsr():
         )
 
     # Calculate tidal potential and its partial derivatives
-    potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = \
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
-            radius_array[1:], longitude=0.1, colatitude=0.1, orbital_frequency=orbital_freq,
-            eccentricity=eccentricity, time=1000., rotation_rate=5. * orbital_freq, world_radius=radius_array[-1],
+            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+            orbital_frequency=orbital_freq, rotation_frequency=5. * orbital_freq,
+            eccentricity=eccentricity,
             host_mass=host_mass, semi_major_axis=semi_major_axis, use_static=False
             )
 
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+
     # Calculate strain tensor
-    strain_components, stress_components, vol_heating = \
-        calculate_strain_stress_heating(
+    strain_components, stress_components = \
+        calculate_strain_stress(
             potential, potential_partial_theta, potential_partial_phi,
             potential_partial2_theta2, potential_partial2_phi2,
-            potential_partial2_theta_phi, tidal_y, tidal_y_deriv,
-            colatitude=0.1, radius=radius_array[1:], shear_moduli=shear_array,
-            bulk_moduli=bulk_array, frequency=orbital_freq
+            potential_partial2_theta_phi, tidal_y,
+            colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
+            bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
             )
 
-    for strain_component in strain_components:
-        # Check shape
-        assert strain_component.shape == (10,)
+    shape = (6, *radius_array[1:].shape, *colat_mtx.shape)
+    # Check shape
+    assert strain_components.shape == shape
+    assert stress_components.shape == shape
 
-        # Check type
-        assert strain_component.dtype in [np.complex128, np.complex, complex]
-
-    for stress_component in stress_components:
-        # Check shape
-        assert stress_component.shape == (10,)
-
-        # Check type
-        assert stress_component.dtype in [np.complex128, np.complex, complex]
-
-    assert vol_heating.shape == (10,)
-    assert vol_heating.dtype in [np.float64, np.float, float]
+    # Check type
+    assert strain_components.dtype in [np.complex128, complex]
+    assert stress_components.dtype in [np.complex128, complex]

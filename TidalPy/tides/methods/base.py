@@ -10,7 +10,7 @@ from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_r
 from ..eccentricity_funcs import EccenOutput
 from ..inclination_funcs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
-from ..mode_manipulation import DissipTermsArray, FreqSig, find_mode_manipulators
+from ..modes.mode_manipulation import DissipTermsArray, FreqSig, find_mode_manipulators
 from ... import log
 from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncompatibleModelError,
                            IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, NotYetImplementedError,

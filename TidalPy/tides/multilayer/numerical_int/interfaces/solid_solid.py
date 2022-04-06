@@ -5,10 +5,11 @@ References
 S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
+import numpy as np
 
-from ..initial_solution_dynamic import SolidDynamicGuess
-from ..initial_solution_static import SolidStaticGuess
-from .....utilities.performance import njit
+from ..initial_conditions.initial_solution_dynamic import SolidDynamicGuess
+from ..initial_conditions.initial_solution_static import SolidStaticGuess
+from .....utilities.performance import njit, nbList
 
 
 # For solid-solid layer interfaces all of the radial functions are continuous.
@@ -39,12 +40,12 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
-        solid_layer_ys[0][:, -1],
-        solid_layer_ys[1][:, -1],
-        solid_layer_ys[2][:, -1]
-        )
-    return base_solid_ys
+    base_solid_ys = [
+        np.ascontiguousarray(solid_layer_ys[0][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[1][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[2][:, -1])
+        ]
+    return nbList(base_solid_ys)
 
 
 @njit(cacheable=True)
@@ -68,12 +69,12 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
-        solid_layer_ys[0][:, -1],
-        solid_layer_ys[1][:, -1],
-        solid_layer_ys[2][:, -1]
-        )
-    return base_solid_ys
+    base_solid_ys = [
+        np.ascontiguousarray(solid_layer_ys[0][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[1][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[2][:, -1])
+        ]
+    return nbList(base_solid_ys)
 
 
 @njit(cacheable=True)
@@ -97,12 +98,12 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
-        solid_layer_ys[0][:, -1],
-        solid_layer_ys[1][:, -1],
-        solid_layer_ys[2][:, -1]
-        )
-    return base_solid_ys
+    base_solid_ys = [
+        np.ascontiguousarray(solid_layer_ys[0][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[1][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[2][:, -1])
+        ]
+    return nbList(base_solid_ys)
 
 
 @njit(cacheable=True)
@@ -126,9 +127,9 @@ def both_static(solid_layer_ys: SolidStaticGuess) -> SolidStaticGuess:
         For the assumptions used in this model there will be three independent solutions.
     """
 
-    base_solid_ys = (
-        solid_layer_ys[0][:, -1],
-        solid_layer_ys[1][:, -1],
-        solid_layer_ys[2][:, -1]
-        )
-    return base_solid_ys
+    base_solid_ys = [
+        np.ascontiguousarray(solid_layer_ys[0][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[1][:, -1]),
+        np.ascontiguousarray(solid_layer_ys[2][:, -1])
+        ]
+    return nbList(base_solid_ys)

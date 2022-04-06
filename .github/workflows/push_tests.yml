@@ -15,18 +15,17 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - name: Install deps
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install flake8
-          python -m pip install git+https://github.com/geodynamics/burnman.git@master
-          pip install -r requirements.txt
+          # $CONDA is an environment variable pointing to the root of the miniconda directory
+          $CONDA/bin/conda env update --file environment.yml --name base
       - name: Lint with flake8
         run: |
+          $CONDA/bin/conda install flake8
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          $CONDA/bin/flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          $CONDA/bin/flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
   # Run a test suite with numba off to somewhat test functionality but more to get coverage.
   test-no-numba:
@@ -42,14 +41,12 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - name: Install deps
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cov pytest-split
-          python -m pip install git+https://github.com/geodynamics/burnman.git@master
-          pip install -r requirements.txt
+          # $CONDA is an environment variable pointing to the root of the miniconda directory
+          $CONDA/bin/conda env update --file environment.yml --name base
       - name: Run pytest
-        run: python -m pytest --cov --splits 5 --group ${{ matrix.group }}
+        run: $CONDA/bin/pytest --splits 5 --group ${{ matrix.group }}
       - name: Upload coverage
         uses: actions/upload-artifact@v2
         with:
@@ -66,12 +63,10 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - name: Install deps
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cov pytest-split
-          python -m pip install git+https://github.com/geodynamics/burnman.git@master
-          pip install -r requirements.txt
+          # $CONDA is an environment variable pointing to the root of the miniconda directory
+          $CONDA/bin/conda env update --file environment.yml --name base
       - name: Download all artifacts
         # Downloads coverage1, coverage2, etc.
         uses: actions/download-artifact@v2

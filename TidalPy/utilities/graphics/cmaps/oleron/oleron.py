@@ -260,8 +260,7 @@ cm_data = [[0.10105, 0.15003, 0.35027],
            [0.98942, 0.98369, 0.8909],      
            [0.99049, 0.9902, 0.90023]]      
       
-oleron_map = LinearSegmentedColormap.from_list('oleron', cm_data)
-oleron_map_r = LinearSegmentedColormap.from_list('oleron_r', cm_data[::-1])
+oleron_map = LinearSegmentedColormap.from_list('oleron', cm_data)      
 # For use of "viscm view"      
 test_cm = oleron_map      
       

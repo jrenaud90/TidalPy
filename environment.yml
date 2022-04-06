@@ -12,6 +12,7 @@ dependencies:
   - scipy>=1.6.3
   - numba>=0.53
   - pytest>=6.2.4
+  - pytest-split>=0.7.0
   - ipympl>=0.7.0
   - ipython>=7.24.1
   - ipywidgets>=7.6.3
@@ -22,6 +23,9 @@ dependencies:
   - pathos>=0.2.0
   - ecos>=2.0.8
   - scs>=3.0.0
+  - proj>=8.0.0
+  - geos>=3.7.2
+  - cartopy>=0.18.0
   - pip:
     - pycddlib>=2.1
     - burnman>=1.0.1

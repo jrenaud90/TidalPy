@@ -42,16 +42,16 @@ def test_non_dimensionalize_physicals():
 
     for arr in [radius_prime, gravity_prime, density_prime]:
         assert type(arr) == np.ndarray
-        assert arr.dtype in [float, np.float, np.float64]
+        assert arr.dtype in [float, np.float64]
         assert arr.shape == (10,)
 
     for arr in [shear_modulus_prime, bulk_modulus_prime]:
         assert type(arr) == np.ndarray
-        assert arr.dtype in [complex, np.complex, np.complex128]
+        assert arr.dtype in [complex, np.complex128]
         assert arr.shape == (10,)
 
-    assert type(frequency_prime) in [float, np.float, np.float64]
-    assert type(newton_g_prime) in [float, np.float, np.float64]
+    assert type(frequency_prime) in [float, np.float64]
+    assert type(newton_g_prime) in [float, np.float64]
 
     # Try to redimensionalize them
     result = \
@@ -67,15 +67,15 @@ def test_non_dimensionalize_physicals():
     # Perform type checks
     for arr in [radius_dbl_prime, gravity_dbl_prime, density_dbl_prime]:
         assert type(arr) == np.ndarray
-        assert arr.dtype in [float, np.float, np.float64]
+        assert arr.dtype in [float, np.float64]
         assert arr.shape == (10,)
 
     for arr in [shear_modulus_dbl_prime, bulk_modulus_dbl_prime]:
         assert type(arr) == np.ndarray
-        assert arr.dtype in [complex, np.complex, np.complex128]
+        assert arr.dtype in [complex, np.complex128]
         assert arr.shape == (10,)
 
-    assert type(frequency_dbl_prime) in [float, np.float, np.float64]
+    assert type(frequency_dbl_prime) in [float, np.float64]
 
     # Compare results. If both functions worked correctly the double prime parameters should be equal to the initial input.
     np.testing.assert_allclose(radius_array[1:], radius_dbl_prime)
@@ -109,4 +109,4 @@ def test_non_dimensionalize_tidaly():
 
     assert type(result) == np.ndarray
     assert result.shape == (6, 10)
-    assert result.dtype in [float, np.float, np.float64]
+    assert result.dtype in [float, np.float64]

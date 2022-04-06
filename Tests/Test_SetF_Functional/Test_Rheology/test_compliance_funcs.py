@@ -7,7 +7,9 @@ TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
 TidalPy.reinit()
 
-from TidalPy.rheology.complex_compliance import known_models
+from TidalPy.rheology.complex_compliance import known_models, known_model_const_args, complex_compliance_defaults
+
+comp_defaults = complex_compliance_defaults['rock']
 
 
 def test_all_models():
@@ -59,4 +61,102 @@ def test_all_models():
         else:
             # Non array test
             res = model_func(0.001, 1.0, 2.0)
-            assert type(res) in [complex, np.complex, np.complex128]
+            assert type(res) in [complex, np.complex128]
+
+def test_complex_compliance_zero_freq():
+    """ Test that all complex compliance functions return the expected result for when frequency is zero"""
+
+    # Test floats
+    frequency = 0.
+    compliance = (50.e9)**(-1)
+    viscosity = 1.0e18
+    for model_name, model_func in known_models.items():
+
+        # Get the additional inputs for this compliance function
+        comp_inputs = tuple([comp_defaults[comp_input] for comp_input in known_model_const_args[model_name]])
+
+        if model_name == 'fixed_q':
+            complex_compliance = model_func(frequency, compliance, viscosity, planet_beta=10., quality_factor=100.)
+            test_value_real = -19. / (2. * 10.)
+        elif model_name in ['voigt']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            voigt_comp_offset = comp_inputs[0]
+            test_value_real = voigt_comp_offset * compliance
+        elif model_name in ['burgers', 'sundberg']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            voigt_comp_offset = comp_inputs[0]
+            test_value_real = (1. + voigt_comp_offset) * compliance
+        elif model_name in ['andrade_nofreq', 'sundberg_nofreq']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = 1.0e100
+        else:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = compliance
+
+        # For zero frequency the real part of the complex compliance should equal the regular compliance. Imag = 0.
+        assert np.real(complex_compliance) == test_value_real
+        assert np.imag(complex_compliance) == 0.
+
+    # Test arrays - comp / visc array
+    frequency = 0.
+    compliance = np.linspace(30.e9, 50.e9, 4, dtype=np.float64)
+    viscosity = np.logspace(22., 18., 4, dtype=np.float64)
+    for model_name, model_func in known_models.items():
+
+        # Get the additional inputs for this compliance function
+        comp_inputs = tuple([comp_defaults[comp_input] for comp_input in known_model_const_args[model_name]])
+
+        if model_name == 'fixed_q':
+            complex_compliance = model_func(frequency, compliance, viscosity, planet_beta=10., quality_factor=100.)
+            test_value_real = -19. / (2. * 10.) * np.ones_like(compliance)
+        elif model_name in ['voigt']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            voigt_comp_offset = comp_inputs[0]
+            test_value_real = voigt_comp_offset * compliance
+        elif model_name in ['burgers', 'sundberg']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            voigt_comp_offset = comp_inputs[0]
+            test_value_real = (1. + voigt_comp_offset) * compliance
+        elif model_name in ['andrade_nofreq', 'sundberg_nofreq']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = 1.0e100 * np.ones_like(compliance)
+        else:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = compliance
+
+        # For zero frequency the real part of the complex compliance should equal the regular compliance. Imag = 0.
+        assert np.allclose(np.real(complex_compliance), test_value_real)
+        assert np.all(np.imag(complex_compliance) == 0.)
+
+    # Test arrays - freq array
+    frequency = np.asarray((1.e-3, 1.e-6, 0., -1.e-6, -1.e-3))
+    compliance = 50.e9
+    viscosity = 1.e18
+    for model_name, model_func in known_models.items():
+
+        # Get the additional inputs for this compliance function
+        comp_inputs = tuple([comp_defaults[comp_input] for comp_input in known_model_const_args[model_name]])
+
+        if model_name == 'fixed_q':
+            complex_compliance = model_func(frequency, compliance, viscosity, planet_beta=10., quality_factor=100.)
+            test_value_real = -19. / (2. * 10.)
+        elif model_name in ['voigt']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            voigt_comp_offset = comp_inputs[0]
+            test_value_real = voigt_comp_offset * compliance
+        elif model_name in ['burgers', 'sundberg']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            voigt_comp_offset = comp_inputs[0]
+            test_value_real = (1. + voigt_comp_offset) * compliance
+        elif model_name in ['andrade_nofreq', 'sundberg_nofreq']:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = 1.0e100 * np.ones_like(compliance)
+        else:
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = compliance
+
+        # For zero frequency the real part of the complex compliance should equal the regular compliance. Imag = 0.
+        assert np.real(complex_compliance[frequency==0.]) == test_value_real
+        assert np.imag(complex_compliance[frequency==0.]) == 0.
+
+

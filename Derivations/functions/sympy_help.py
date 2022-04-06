@@ -46,8 +46,8 @@ periapsis = Symbol('\\omega', real=True, positive=True)
 mean_anon = Symbol('\\mathcal{M}', real=True, positive=True)
 node = Symbol('\\Omega', real=True, positive=True)
 sidereal_time = Symbol('\\Theta', real=True, positive=True)
-longitude = Symbol('\\lambda', real=True, positive=True)
-latitude = Symbol('\\phi', real=True)
+longitude = Symbol('\\phi', real=True, positive=True)
+latitude = Symbol('\\theta', real=True)
 def find_varpi(l: int, m: int, p: int, q: int):
 
     return (l - 2 * p) * periapsis + (l - 2 * p + q) * mean_anon + m * node

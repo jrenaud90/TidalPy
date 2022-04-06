@@ -7,7 +7,7 @@ import numpy as np
 
 from .base import TidesBase
 from .defaults import tide_defaults
-from ..mode_manipulation import DissipTermsArray
+from ..modes.mode_manipulation import DissipTermsArray
 from ...exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty)
 from ...utilities.types import FloatArray
 

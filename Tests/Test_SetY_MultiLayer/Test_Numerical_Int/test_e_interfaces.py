@@ -1,17 +1,19 @@
 """ Tests for calculating the initial guess at the bottom of a liquid or solid layer for various types of interfaces
 """
 
-import numpy as np
-
 import TidalPy
+import numpy as np
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int import (liquid_dynamic_guess, liquid_static_guess, solid_dynamic_guess,
-                                                    solid_static_guess)
+from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_ts72,
+                                                                       liquid_static_guess_s74,
+                                                                       solid_dynamic_guess_ts72,
+                                                                       solid_static_guess_ts72)
 from TidalPy.tides.multilayer.numerical_int.interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt,
                                                                interface_LSt_LSt, interface_LSt_SDy, interface_LSt_SSt,
                                                                interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy,
                                                                interface_SDy_SSt, interface_SSt_LDy, interface_SSt_LSt,
                                                                interface_SSt_SDy, interface_SSt_SSt)
+from numba.typed.typedlist import List as nbTypedList
 
 TidalPy.config['stream_level'] = 'ERROR'
 TidalPy.use_disk = False
@@ -32,10 +34,13 @@ frequency = 2. * np.pi / (86400. * 1.)
 
 # Find lower layer guesses
 # # l = 2
-LDy_guess_l2 = liquid_dynamic_guess(radius_array_to_use, bulk_array, density_array, frequency, order_l=2)
-LSt_guess_l2 = liquid_static_guess(radius_array_to_use, order_l=2)
-SSt_guess_l2 = solid_static_guess(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
-SDy_guess_l2 = solid_dynamic_guess(radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=2)
+LDy_guess_l2 = liquid_dynamic_guess_ts72(radius_array_to_use, bulk_array, density_array, frequency, order_l=2)
+LSt_guess_l2 = liquid_static_guess_s74(radius_array_to_use, order_l=2)
+SSt_guess_l2 = solid_static_guess_ts72(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
+SDy_guess_l2 = solid_dynamic_guess_ts72(
+    radius_array_to_use, shear_array, bulk_array, density_array, frequency,
+    order_l=2
+    )
 
 
 def test_solid_solid_interface():
@@ -49,7 +54,7 @@ def test_solid_solid_interface():
     i = 0
     for test_func, test_input in tests.items():
         result = test_func(*test_input)
-        assert type(result) == tuple
+        assert type(result) in [nbTypedList, list]
         assert len(result) == 3
         for solution in range(3):
             assert result[solution].dtype == test_input[0][0].dtype
@@ -66,22 +71,12 @@ def test_liquid_liquid_interface():
         # interface_LDy_LSt: (LDy_guess_l2,)
         }
 
-    i = 0
     for test_func, test_input in tests.items():
-        result = test_func(*test_input)
+        results = test_func(*test_input)
 
-        if i == 0:
-            # Static Result
-            assert type(result) == np.ndarray
-            assert result.dtype == test_input[0].dtype
-        else:
-            # Dynamic Result
-            assert type(result) == tuple
-            assert len(result) == 2
-            for solution in range(2):
-                assert result[solution].dtype == test_input[0][0].dtype
-
-        i += 1
+        assert type(results) in [nbTypedList, list]
+        for result in results:
+            assert type(result.dtype) == type(test_input[0][0].dtype)
 
 
 def test_liquid_solid_interface():
@@ -92,34 +87,12 @@ def test_liquid_solid_interface():
         interface_LDy_SSt: (LDy_guess_l2,)
         }
 
-    i = 0
     for test_func, test_input in tests.items():
-        result = test_func(*test_input)
+        results = test_func(*test_input)
 
-        if i in (0, 3):
-            # Static Result
-            assert type(result) == tuple
-            assert len(result) == 3
-            for solution in range(3):
-                if i in (0, 2):
-                    # Static Input
-                    assert result[solution].dtype == test_input[0].dtype
-                else:
-                    # Dynamic Input
-                    assert result[solution].dtype == test_input[0][0].dtype
-        else:
-            # Dynamic Result
-            assert type(result) == tuple
-            assert len(result) == 3
-            for solution in range(3):
-                if i in (0, 2):
-                    # Static Input
-                    assert result[solution].dtype == test_input[0].dtype
-                else:
-                    # Dynamic Input
-                    assert result[solution].dtype == test_input[0][0].dtype
-
-        i += 1
+        assert type(results) in [nbTypedList, list]
+        for result in results:
+            assert type(result.dtype) == type(test_input[0][0].dtype)
 
 
 def test_solid_liquid_interface():
@@ -130,29 +103,9 @@ def test_solid_liquid_interface():
         interface_SDy_LSt: (SDy_guess_l2, gravity_array[-1], density_array[-1])
         }
 
-    i = 0
     for test_func, test_input in tests.items():
-        result = test_func(*test_input)
+        results = test_func(*test_input)
 
-        if i in (0, 3):
-            # Static Result
-            assert type(result) == np.ndarray
-            if i in (0, 2):
-                # Static Input
-                assert result.dtype == test_input[0][0].dtype
-            else:
-                # Dynamic Input
-                assert result.dtype == test_input[0][0].dtype
-        else:
-            # Dynamic Result
-            assert type(result) == tuple
-            assert len(result) == 2
-            for solution in range(2):
-                if i in (0, 2):
-                    # Static Input
-                    assert result[solution].dtype == test_input[0][0].dtype
-                else:
-                    # Dynamic Input
-                    assert result[solution].dtype == test_input[0][0].dtype
-
-        i += 1
+        assert type(results) in [nbTypedList, list]
+        for result in results:
+            assert type(result.dtype) == type(test_input[0][0].dtype)

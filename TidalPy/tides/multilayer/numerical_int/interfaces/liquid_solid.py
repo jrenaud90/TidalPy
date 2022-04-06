@@ -8,10 +8,10 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 import numpy as np
 
-from ..initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from ..initial_solution_static import LiquidStaticGuess, SolidStaticGuess
+from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 from .....constants import G
-from .....utilities.performance import njit
+from .....utilities.performance import njit, nbList
 
 
 # Note that there are 2 or 4 y's for the liquid layers and 6 for solid layers.
@@ -44,11 +44,11 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
     """
 
     # For a dynamic solid layer there will be three independent solutions that we need an initial guess for.
-    base_solid_list = list()
+    base_solid_list = nbList()
 
     for solution in range(3):
         # For a dynamic solid layer there will be six y values used.
-        solution_values = np.zeros(6, dtype=liquid_layer_ys[0][:, -1].dtype)
+        solution_values = np.zeros(6, dtype=liquid_layer_ys[0].dtype)
 
         if solution in (0, 1):
             # For a dynamic liquid layer there will be two independent solutions at the top of the layer
@@ -65,8 +65,7 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
 
         base_solid_list.append(solution_values)
 
-    base_solid_ys = (base_solid_list[0], base_solid_list[1], base_solid_list[2])
-    return base_solid_ys
+    return base_solid_list
 
 
 @njit(cacheable=True)
@@ -100,10 +99,11 @@ def static_dynamic(
     """
 
     # For a dynamic solid layer there will be three independent solutions that we need an initial guess for.
-    base_solid_list = list()
+    base_solid_list = nbList()
 
     # For a dynamic liquid layer there will be one independent solutions at the top of the layer
-    liquid_sol = liquid_layer_ys[:, -1]
+    #   however for consistency this single solution is still stored in a tuple (of size 1) so we need to pull it out.
+    liquid_sol = liquid_layer_ys[0][:, -1]
 
     for solution in range(3):
         # For a dynamic solid layer there will be six y values used.
@@ -131,8 +131,7 @@ def static_dynamic(
 
         base_solid_list.append(solution_values)
 
-    base_solid_ys = (base_solid_list[0], base_solid_list[1], base_solid_list[2])
-    return base_solid_ys
+    return base_solid_list
 
 
 @njit(cacheable=True)

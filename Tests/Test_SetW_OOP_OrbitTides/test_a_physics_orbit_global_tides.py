@@ -100,13 +100,13 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_no_obliquity():
     assert world_cpl.eccentricity_truncation_lvl == 2
     assert world_cpl.max_tidal_order_lvl == 2
     assert world_cpl.spin_period == 50.
-    assert type(world_cpl.tidal_susceptibility) in [float, np.float, np.float64]
-    assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex, np.complex128]
-    assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_cpl.dUdM) in [float, np.float, np.float64]
-    assert type(world_cpl.dUdO) in [float, np.float, np.float64]
-    assert type(world_cpl.dUdw) in [float, np.float, np.float64]
+    assert type(world_cpl.tidal_susceptibility) in [float, np.float64]
+    assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex128]
+    assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float64]
+    assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float64]
+    assert type(world_cpl.dUdM) in [float, np.float64]
+    assert type(world_cpl.dUdO) in [float, np.float64]
+    assert type(world_cpl.dUdw) in [float, np.float64]
     assert type(world_cpl.tidal_heating_global) in [float, np.float, np.float64]
     # Check the orbital derivatives
     assert orbit._last_calc_used_dual_body == False
@@ -180,7 +180,7 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_with_obliquity():
     assert world_cpl.max_tidal_order_lvl == 2
     assert world_cpl.spin_period == 50.
     assert type(world_cpl.tidal_susceptibility) in [float, np.float, np.float64]
-    assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex, np.complex128]
+    assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex128]
     assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_cpl.dUdM) in [float, np.float, np.float64]
@@ -252,7 +252,7 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_with_eccen_oblique_ar
     assert world_cpl.max_tidal_order_lvl == 2
     assert world_cpl.spin_period == 50.
     assert type(world_cpl.tidal_susceptibility) in [float, np.float, np.float64]
-    assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex, np.complex128]
+    assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex128]
     assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_cpl.dUdM) == np.ndarray
@@ -298,7 +298,7 @@ def test_global_tidal_calculation_ctl_synchronous_rotation_with_obliquity():
     assert world_ctl.max_tidal_order_lvl == 2
     assert world_ctl.spin_period == 50.
     assert type(world_ctl.tidal_susceptibility) in [float, np.float, np.float64]
-    assert type(world_ctl.global_love_by_orderl[2]) in [complex, np.complex, np.complex128]
+    assert type(world_ctl.global_love_by_orderl[2]) in [complex, np.complex128]
     assert type(world_ctl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_ctl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_ctl.dUdM) in [float, np.float, np.float64]
@@ -370,7 +370,7 @@ def test_global_tidal_calculation_ctl_nsr_with_obliquity():
     assert world_ctl.max_tidal_order_lvl == 2
     assert world_ctl.spin_period == 10.
     assert type(world_ctl.tidal_susceptibility) in [float, np.float, np.float64]
-    assert type(world_ctl.global_love_by_orderl[2]) in [complex, np.complex, np.complex128]
+    assert type(world_ctl.global_love_by_orderl[2]) in [complex, np.complex128]
     assert type(world_ctl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_ctl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
     assert type(world_ctl.dUdM) in [float, np.float, np.float64]

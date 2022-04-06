@@ -1,6 +1,12 @@
-* rheology.viscosity.viscosity_models.py still has `_array` functions.
-* rheology.partial_melt.melting_models.py still has `_array` functions.
-* rheology.partial_melt.partialmelt.py still has `_array` functions.
+* Parts of the multilayer code (especially the numba-safe calc) do not seem to be fully utilizing numba caching. Reloads are very slow. 
+* Custom RK integrator needs work as do the tests.
+* It looks like only surface potential is required. Change multilayer to only consider the surface radius.
+* Check if numba parallel=True will speed up the collapse functions in tides.multilayer.numerical_int.collapse
+* Change the stress-strain relationship in stress_strain.py to be a generic consistutive equation.
+* Add more propagation type tests for multilayer mode calculator
+* Test rectilinear vs PlateChautee for surface map plotter.
+* Add a benchmark and performance checker for multilayer mode calculator
+* Can io_helper.py be moved into the proper utilities module? Or is it used early in the TidalPy.init?
 * A multilayer model has now been implemented, but it is not currently part of the OOP scheme.
 * Probably worth refactoring `burnman_interface` into the `utilities` module to match other 3rd party packages.
 * Add issue for logger not changing level if user changes tidalpy config after first load and calls reinit()

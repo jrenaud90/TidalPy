@@ -14,6 +14,7 @@ cache_numba = config['cache_numba']
 
 if use_numba:
     import numba
+    from numba.typed import Dict, List
 
 
     def njit(*args, **kwargs):
@@ -28,16 +29,23 @@ if use_numba:
 
 
     vectorize = numba.vectorize
+    complex128 = numba.complex128
     float64 = numba.float64
     int64 = numba.int64
     bool_ = numba.bool_
+    nbUnicode = numba.types.unicode_type
+    nbDict = Dict
+    nbList = List
 
 else:
     vectorize = np.vectorize
+    complex128 = np.complex128
     float64 = np.float64
     int64 = np.int64
     bool_ = np.bool
-
+    nbList = list
+    nbTuple = tuple
+    nbUnicode = str
 
     def njit(*args, **kwargs):
         def njit_inner(func):
@@ -45,9 +53,12 @@ else:
 
         return njit_inner
 
-
-    def nbTuple(*args):
-        return None
+    # Create fake function to allow for nbDict.empty() to still work
+    def nbDict(*args, **kwargs):
+        return dict(*args, **kwargs)
+    def nbDictEmpty(*args, **kwargs):
+        return dict()
+    nbDict.empty = nbDictEmpty
 
 # Special functions that work with njit
 # njit does not support wrapping around scipy's gamma function. Instead we use a lookup table technique. This actually

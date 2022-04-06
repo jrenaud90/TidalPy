@@ -11,7 +11,7 @@ use_numba = TidalPy.utilities.performance.numba.use_numba
 
 
 def test_eccentricity_multi_l_calc():
-    from TidalPy.tides.mode_calc_helper import eccentricity_functions_lookup
+    from TidalPy.tides.modes.mode_calc_helper import eccentricity_functions_lookup
 
     # Test a few truncation levels; these tests can take a long time to run so only doing a spot check on e^2 and e^10
     eccen_trunc_funcset_2 = eccentricity_functions_lookup[2]
@@ -27,7 +27,7 @@ def test_eccentricity_multi_l_calc():
                     assert type(p) in [int, np.int, np.int32]
                     for q, q_result in p_result.items():
                         assert type(q) in [int, np.int, np.int32]
-                        assert type(q_result) in [float, np.float, np.float64]
+                        assert type(q_result) in [float, np.float64]
 
             # Perform array calculation
             e_result_array = eccen_func(np.linspace(0.1, 0.9, 4))
@@ -38,7 +38,7 @@ def test_eccentricity_multi_l_calc():
 
 
 def test_inclination_multi_l_calc():
-    from TidalPy.tides.mode_calc_helper import inclination_functions_lookup
+    from TidalPy.tides.modes.mode_calc_helper import inclination_functions_lookup
 
     # Test a few truncation levels
     inclination_funcset_on = inclination_functions_lookup[True]
@@ -53,7 +53,7 @@ def test_inclination_multi_l_calc():
                 for (p, m), result in i_result_float[order_l].items():
                     assert type(p) in [int, np.int, np.int32]
                     assert type(m) in [int, np.int, np.int32]
-                    assert type(result) in [float, np.float, np.float64]
+                    assert type(result) in [float, np.float64]
 
             # Perform array calculation
             i_result_array = inclin_func(np.linspace(0.1, 0.9, 4))
@@ -88,8 +88,8 @@ tidal_susceptibility_array = tidal_susceptibility * np.ones_like(orbital_frequen
 
 def test_calculate_and_collapse_modes():
     from TidalPy.utilities.performance import njit
-    from TidalPy.tides.mode_manipulation import calculate_terms, collapse_modes
-    from TidalPy.tides.mode_calc_helper import inclination_functions_lookup, eccentricity_functions_lookup
+    from TidalPy.tides.modes.mode_manipulation import calculate_terms, collapse_modes
+    from TidalPy.tides.modes.mode_calc_helper import inclination_functions_lookup, eccentricity_functions_lookup
 
     # These tests can take a long time to run, so only doing a spot check on l=2,3 and e^2, e^10
     for order_l in [2, 3]:
@@ -165,19 +165,19 @@ def test_calculate_and_collapse_modes():
             tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
                 result_float
 
-            assert type(tidal_heating) in [float, np.float, np.float64]
-            assert type(dUdM) in [float, np.float, np.float64]
-            assert type(dUdw) in [float, np.float, np.float64]
-            assert type(dUdO) in [float, np.float, np.float64]
+            assert type(tidal_heating) in [float, np.float64]
+            assert type(dUdM) in [float, np.float64]
+            assert type(dUdw) in [float, np.float64]
+            assert type(dUdO) in [float, np.float64]
             assert type(love_number_by_orderl) in [dict, numba.typed.typeddict.Dict]
             assert len(love_number_by_orderl) == order_l - 2 + 1
-            assert type(love_number_by_orderl[2]) in [complex, np.complex, np.complex64]
+            assert type(love_number_by_orderl[2]) in [complex, np.complex64]
             assert type(negative_imk_by_orderl) in [dict, numba.typed.typeddict.Dict]
             assert len(negative_imk_by_orderl) == order_l - 2 + 1
-            assert type(negative_imk_by_orderl[2]) in [float, np.float, np.float64]
+            assert type(negative_imk_by_orderl[2]) in [float, np.float64]
             assert type(effective_q_by_orderl) in [dict, numba.typed.typeddict.Dict]
             assert len(effective_q_by_orderl) == order_l - 2 + 1
-            assert type(effective_q_by_orderl[2]) in [float, np.float, np.float64]
+            assert type(effective_q_by_orderl[2]) in [float, np.float64]
 
             result_array = \
                 collapse_modes(

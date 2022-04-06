@@ -50,8 +50,8 @@ def test_calc_fundamental_order2():
 
     # See if the types make sense
     for i in range(6):
-        assert type(tidal_y[i, 0]) in [np.complex128, np.complex, complex]
-        assert type(tidal_y_derivative[i, 0]) in [np.complex128, np.complex, complex]
+        assert type(tidal_y[i, 0]) in [np.complex128, complex]
+        assert type(tidal_y_derivative[i, 0]) in [np.complex128, complex]
 
 
 def test_calc_fundamental_order3():
@@ -81,5 +81,5 @@ def test_calc_fundamental_order3():
 
     # See if the types make sense
     for i in range(6):
-        assert type(tidal_y[i, 0]) in [np.complex128, np.complex, complex]
-        assert type(tidal_y_derivative[i, 0]) in [np.complex128, np.complex, complex]
+        assert type(tidal_y[i, 0]) in [np.complex128, complex]
+        assert type(tidal_y_derivative[i, 0]) in [np.complex128, complex]

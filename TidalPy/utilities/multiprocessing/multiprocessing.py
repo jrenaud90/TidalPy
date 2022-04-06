@@ -34,7 +34,7 @@ MultiprocessingOutput = namedtuple('MultiprocessingOutput',
 
 def multiprocessing_run(
     directory_name: str, study_name: str, study_function: callable, input_data: tuple,
-    postprocess_func: callable = None,
+    postprocess_func: callable = None, postprocess_args: tuple = None, postprocess_kwargs: dict = None,
     force_restart: bool = True, verbose: bool = True, max_procs: int = None,
     allow_low_procs: bool = False,
     perform_memory_check: bool = True, single_run_memory_gb: float = 1000.,
@@ -179,7 +179,7 @@ def multiprocessing_run(
         input_name = input_tuple.name
         input_start = input_tuple.start
         input_end = input_tuple.end
-        input_is_log = input_tuple.scale == 'log'
+        input_is_log = input_tuple.scale.lower() == 'log'
         input_must_include = input_tuple.must_include
         input_n = input_tuple.n
 
@@ -391,12 +391,20 @@ def multiprocessing_run(
 
         # Perform any post processing
         if postprocess_func is not None:
+
+            if postprocess_args is None:
+                postprocess_args = tuple()
+
+            if postprocess_kwargs is None:
+                postprocess_kwargs = dict()
+
             if verbose:
                 print('Multiprocessing Calculations Completed. Running Post-Processing Function.')
             post_proc_dir = os.path.join(dir_to_use, 'post_processing')
             if not os.path.isdir(post_proc_dir):
                 os.makedirs(post_proc_dir)
-                postprocess_func(post_proc_dir, mp_results, input_data_to_use)
+                postprocess_func(post_proc_dir, mp_results, input_data_to_use, input_arrays,
+                                 *postprocess_args, **postprocess_kwargs)
             else:
                 # Was post-process already run? Hard to check without knowing what the function is.
                 # So check to see if the user wants to force a re-run
@@ -405,7 +413,8 @@ def multiprocessing_run(
                 if force_post_process_rerun:
                     if verbose:
                         print('Rerunning Post-Processing.')
-                    postprocess_func(post_proc_dir, mp_results, input_data_to_use)
+                    postprocess_func(post_proc_dir, mp_results, input_data_to_use, input_arrays,
+                                     *postprocess_args, **postprocess_kwargs)
 
         # Close out log file.
         with open(mp_log_path, 'a') as mp_file:

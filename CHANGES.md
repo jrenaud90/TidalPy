@@ -1,6 +1,55 @@
 # TidalPy Major Change Log
 
+### Version 0.3.4 Alpha (Winter/Spring 2022)
+
+*Multilayer scripts based on 0.3.3 or earlier will likely break with this version!*
+
+* Major Changes
+    * Added `TidalPy.toolbox.multilayer.quick_calc.py` module to offer simplified calculation of multilayer tidal
+      heating.
+    * Added `GridPlot` class to quickly make grid-like matplotlib figures.
+      Checkout `TidalPy.utilities.graphics.grid_plot.py`
+    * Added `Cartopy` dependence.
+        * Can now make cool projection maps! Added basic functionality to `TidalPy.utilities.graphics.global_map.py`.
+        * New jupyter notebooks to showcase map projects and GridPlot functionality.
+    * Improved performance on both mode and non-mode tidal potential functions by at least a factor of 3. If used
+      correctly these can be nearly 100x faster.
+    * Added a new obliquity version of the mode version tidal potential.
+    * Stress and strain relationship for multi-layer tides now allows for arbitrary rheology.
+    * Created a single multilayer solver to handle an arbitrary layer structure.
+      See `TidalPy.tides.multilayer.numerical_int.solver.py`
+    * Stress & Strain relationship now accounts for arbitrary rheology.
+    * Created a single multi-mode solver for multilayer problems. See `TidalPy.tides.modes.multilayer_modes.py`
+    * TidalPy now defaults to using the frequency dependent zeta versions of Andrade and Sundberg rheologies.
+        * This was done to avoid issues with real(complex_comp) at zero frequency which happens in multi mode
+          calculations.
+    * Added numba-safe version of multilayer calc
+
+* Minor Changes
+    * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius
+      and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
+    * Added more colormaps, updated how reserved versions are constructed, updated old maps.
+    * Better support for post-multiprocessing function inputs.
+    * Refactored tidal mode calculation functions into a new TidalPy.tides.modes module.
+    * Added a voxel calculator to TidalPy.utilities.spherical_helper. Also, added related tests & benchmarking tools.
+    * Added a dictionary to track known color maps. It can be imported at `TidalPy.utilities.cmaps.KNOWN_CMAPS`
+    * Made some improvements to the unique_path function in io_helper.py
+    * Rearranged the tidal potential argument order.
+    * Added some sanity checks on the various kinds on both mode and non-mode tidal potentials to compare with one
+      another.
+    * Updated stress, strain, and displacement calculations to account for new low-memory calculation method.
+    * Greatly increased performance of multilayer stress, strain, and potential calculations.
+    * Refactored much of the multilayer functions from TidalPy.toolbox to TidalPy.tides.multilayer.numerical_int and sub
+      modules
+    * Reworked numba-safe RK integrator. Does not reproduce scipy exactly for chaotic functions when numba is on.
+
+* Bug Fixes
+  * Fixed issue that was causing some multilayer boundary calculations to be 10x slower.
+  * Fixed issue where 2D arrays would not work on njited `neg_array_for_log_plot` function.
+  * Fixed issue where there could be negative love numbers with frequency is zero in multi-mode calculator
+
 ### Version 0.3.3 Alpha (Fall 2021)
+
 * Major Changes
     * Updated to work with BurnMan v1.0 release.
     * Updated the NSR tidal potential for multilayer code to a multi-modal version
@@ -10,6 +59,7 @@
     * Removed the remaining `_array` functions
 
 ### Version 0.3.2 Alpha (Summer 2021)
+
 * Major Changes
     * Changes to setup to use released version of BurnMan.
 

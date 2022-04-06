@@ -39,27 +39,27 @@ def test_single_disp_floats():
     """ Test the three dynamic functions for float inputs """
 
     result = spin_rate_derivative(target_dRdO, target_moi, host_mass)
-    assert type(result) in [float, np.float, np.float64]
+    assert type(result) in [float, np.float64]
 
     result = eccentricity_derivative(
         semi_major_axis, orbital_freq, eccentricity,
         target_mass, target_dRdM, target_dRdw, host_mass
         )
-    assert type(result) in [float, np.float, np.float64]
+    assert type(result) in [float, np.float64]
 
     result = semi_major_axis_derivative(
         semi_major_axis, orbital_freq,
         target_mass, target_dRdM, host_mass
         )
-    assert type(result) in [float, np.float, np.float64]
+    assert type(result) in [float, np.float64]
 
     result = semia_eccen_derivatives(
         semi_major_axis, orbital_freq, eccentricity,
         target_mass, target_dRdM, target_dRdw, host_mass
         )
     assert type(result) == tuple
-    assert type(result[0]) in [float, np.float, np.float64]
-    assert type(result[1]) in [float, np.float, np.float64]
+    assert type(result[0]) in [float, np.float64]
+    assert type(result[1]) in [float, np.float64]
 
 
 def test_single_disp_arrays():
@@ -73,7 +73,7 @@ def test_single_disp_arrays():
 
     result = spin_rate_derivative(tdRdO, target_moi, host_mass)
     assert type(result) == np.ndarray
-    assert result.dtype in [float, np.float, np.float64]
+    assert result.dtype in [float, np.float64]
     assert result.shape == (10,)
 
     result = eccentricity_derivative(
@@ -81,7 +81,7 @@ def test_single_disp_arrays():
         target_mass, tdRdM, tdRdw, host_mass
         )
     assert type(result) == np.ndarray
-    assert result.dtype in [float, np.float, np.float64]
+    assert result.dtype in [float, np.float64]
     assert result.shape == (10,)
 
     result = semi_major_axis_derivative(
@@ -89,7 +89,7 @@ def test_single_disp_arrays():
         target_mass, tdRdM, host_mass
         )
     assert type(result) == np.ndarray
-    assert result.dtype in [float, np.float, np.float64]
+    assert result.dtype in [float, np.float64]
     assert result.shape == (10,)
 
     result = semia_eccen_derivatives(
@@ -98,7 +98,7 @@ def test_single_disp_arrays():
         )
     assert type(result) == tuple
     assert type(result[0]) == np.ndarray
-    assert result[0].dtype in [float, np.float, np.float64]
+    assert result[0].dtype in [float, np.float64]
     assert result[0].shape == (10,)
     assert type(result[1]) == np.ndarray
     assert result[1].dtype in [float, np.float, np.float64]

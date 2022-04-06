@@ -11,7 +11,7 @@ TidalPy.reinit()
 def test_find_factorial():
     # Test Load
     from TidalPy.utilities.performance.numba import find_factorial
-    assert type(find_factorial(1.)) in [float, np.float, np.float64]
+    assert type(find_factorial(1.)) in [float, np.float64]
 
     # Test Floats
     assert find_factorial(0.) == 1.

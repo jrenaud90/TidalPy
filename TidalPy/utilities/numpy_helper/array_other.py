@@ -109,11 +109,19 @@ def neg_array_for_log_plot(array_with_negatives: np.ndarray):
         Numpy array with original array's negatives set to positive
     """
 
-    array_positive = array_with_negatives.copy()
-    array_negative = array_with_negatives.copy()
+    # TODO: Numba currently does not support fancy indexing with 2+D arrays.
+    #    for now we will flatten and reshape the array.
+    org_shape = array_with_negatives.shape
+
+    array_positive = array_with_negatives.copy().flatten()
+    array_negative = array_with_negatives.copy().flatten()
 
     array_positive[array_positive <= 0.] = np.nan
     array_negative[array_negative >= 0.] = np.nan
     array_negative = np.abs(array_negative)
+
+    # Reshape
+    array_positive = array_positive.reshape(org_shape)
+    array_negative = array_negative.reshape(org_shape)
 
     return array_positive, array_negative

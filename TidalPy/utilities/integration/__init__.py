@@ -1,1 +1,1 @@
-from .integrate import rk_integrator
+from .rk_integrator import rk_integrate

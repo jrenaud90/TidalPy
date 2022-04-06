@@ -44,14 +44,14 @@ def test_dual_disp_floats():
         host_mass, host_dRdM, host_dRdw,
         target_mass, target_dRdM, target_dRdw
         )
-    assert type(result) in [float, np.float, np.float64]
+    assert type(result) in [float, np.float64]
 
     result = semi_major_axis_derivative(
         semi_major_axis, orbital_freq,
         host_mass, host_dRdM,
         target_mass, target_dRdM
         )
-    assert type(result) in [float, np.float, np.float64]
+    assert type(result) in [float, np.float64]
 
     result = semia_eccen_derivatives(
         semi_major_axis, orbital_freq, eccentricity,
@@ -59,8 +59,8 @@ def test_dual_disp_floats():
         target_mass, target_dRdM, target_dRdw
         )
     assert type(result) == tuple
-    assert type(result[0]) in [float, np.float, np.float64]
-    assert type(result[1]) in [float, np.float, np.float64]
+    assert type(result[0]) in [float, np.float64]
+    assert type(result[1]) in [float, np.float64]
 
 
 def test_dual_disp_arrays():
@@ -79,7 +79,7 @@ def test_dual_disp_arrays():
         target_mass, tdRdM, tdRdw
         )
     assert type(result) == np.ndarray
-    assert result.dtype in [float, np.float, np.float64]
+    assert result.dtype in [float, np.float64]
     assert result.shape == (10,)
 
     result = semi_major_axis_derivative(
@@ -88,7 +88,7 @@ def test_dual_disp_arrays():
         target_mass, tdRdM
         )
     assert type(result) == np.ndarray
-    assert result.dtype in [float, np.float, np.float64]
+    assert result.dtype in [float, np.float64]
     assert result.shape == (10,)
 
     result = semia_eccen_derivatives(
@@ -98,8 +98,8 @@ def test_dual_disp_arrays():
         )
     assert type(result) == tuple
     assert type(result[0]) == np.ndarray
-    assert result[0].dtype in [float, np.float, np.float64]
+    assert result[0].dtype in [float, np.float64]
     assert result[0].shape == (10,)
     assert type(result[1]) == np.ndarray
-    assert result[1].dtype in [float, np.float, np.float64]
+    assert result[1].dtype in [float, np.float64]
     assert result[1].shape == (10,)

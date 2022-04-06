@@ -1,7 +1,6 @@
 # 
 #         vik
 #                   www.fabiocrameri.ch/colourmaps
-#                   http://www.fabiocrameri.ch/vik.php
 from matplotlib.colors import LinearSegmentedColormap      
       
 cm_data = [[0.0013282, 0.069836, 0.37953],      
@@ -272,8 +271,7 @@ if __name__ == "__main__":
     try:      
         from viscm import viscm      
         viscm(vik_map)      
-    except ImportError:
-        viscm = None
+    except ImportError:      
         print("viscm not found, falling back on simple display")      
         plt.imshow(np.linspace(0, 100, 256)[None, :], aspect='auto',      
                    cmap=vik_map)      
