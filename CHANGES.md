@@ -5,7 +5,7 @@
 *Multilayer scripts based on 0.3.3 or earlier will likely break with this version!*
 
 * Major Changes
-    * Added `TidalPy.toolbox.multilayer.quick_calc.py` module to offer simplified calculation of multilayer tidal
+    * Added `TidalPy.modes.multilayer_modes.py` module to offer simplified calculation of multilayer tidal
       heating.
     * Added `GridPlot` class to quickly make grid-like matplotlib figures.
       Checkout `TidalPy.utilities.graphics.grid_plot.py`
