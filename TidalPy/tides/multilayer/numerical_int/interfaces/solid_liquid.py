@@ -7,12 +7,11 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 """
 
 import numpy as np
-from numba.typed import List as nbList
 
 from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
 from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 from .....constants import G
-from .....utilities.performance import njit
+from .....utilities.performance import njit, nbList
 
 
 # Note that there are 2 or 4 y's for the liquid layers and 6 for solid layers.

@@ -43,7 +43,7 @@ def test_eccentricity_func():
                 assert type(p) in [int, np.int, np.int32]
                 for q, q_result in p_result.items():
                     assert type(q) in [int, np.int, np.int32]
-                    assert type(q_result) in [float, np.float, np.float64]
+                    assert type(q_result) in [float, np.float64]
 
             # Perform array calculation
             e_result_array = e_func(np.linspace(0.1, 0.9, 4))
@@ -92,11 +92,11 @@ def test_inclination_func():
         for (p, m), result_off in obliqu_result_on_float.items():
             assert type(p) in [int, np.int, np.int32]
             assert type(m) in [int, np.int, np.int32]
-            assert type(result_off) in [float, np.float, np.float64]
+            assert type(result_off) in [float, np.float64]
         for (p, m), result_on in obliqu_result_off_float.items():
             assert type(p) in [int, np.int, np.int32]
             assert type(m) in [int, np.int, np.int32]
-            assert type(result_on) in [float, np.float, np.float64]
+            assert type(result_on) in [float, np.float64]
 
         # Perform array calculation
         obliqu_result_on_array = obliqu_func_on(np.linspace(0.1, 0.4, 4))

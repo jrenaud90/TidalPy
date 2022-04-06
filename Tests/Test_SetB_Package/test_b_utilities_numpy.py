@@ -21,9 +21,9 @@ def test_normalize_dict():
     result = normalize_dict(test_dict, pass_negatives=False, new_max=1.0, new_min=0.0)
 
     assert type(result) == dict
-    assert type(result['a']) in [float, np.float, np.float64]
-    assert type(result['b']) in [float, np.float, np.float64]
-    assert type(result['c']) in [float, np.float, np.float64]
+    assert type(result['a']) in [float, np.float64]
+    assert type(result['b']) in [float, np.float64]
+    assert type(result['c']) in [float, np.float64]
 
     np.testing.assert_allclose(result['b'], 1.0)
     np.testing.assert_allclose(result['c'] + 1.0, 1.0)

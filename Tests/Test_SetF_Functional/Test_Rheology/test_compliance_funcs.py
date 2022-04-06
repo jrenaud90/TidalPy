@@ -61,7 +61,7 @@ def test_all_models():
         else:
             # Non array test
             res = model_func(0.001, 1.0, 2.0)
-            assert type(res) in [complex, np.complex, np.complex128]
+            assert type(res) in [complex, np.complex128]
 
 def test_complex_compliance_zero_freq():
     """ Test that all complex compliance functions return the expected result for when frequency is zero"""

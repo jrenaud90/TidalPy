@@ -53,9 +53,9 @@ def test_calc_fundamental_order2():
 
     # Check types
     assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
-    assert type(k[0]) in [np.complex128, np.complex, complex]
-    assert type(h[0]) in [np.complex128, np.complex, complex]
-    assert type(l[0]) in [np.complex128, np.complex, complex]
+    assert type(k[0]) in [np.complex128, complex]
+    assert type(h[0]) in [np.complex128, complex]
+    assert type(l[0]) in [np.complex128, complex]
 
 
 def test_calc_fundamental_order3():
@@ -90,6 +90,6 @@ def test_calc_fundamental_order3():
 
     # Check types
     assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
-    assert type(k[0]) in [np.complex128, np.complex, complex]
-    assert type(h[0]) in [np.complex128, np.complex, complex]
-    assert type(l[0]) in [np.complex128, np.complex, complex]
+    assert type(k[0]) in [np.complex128, complex]
+    assert type(h[0]) in [np.complex128, complex]
+    assert type(l[0]) in [np.complex128, complex]

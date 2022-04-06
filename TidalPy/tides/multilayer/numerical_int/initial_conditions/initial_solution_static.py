@@ -16,13 +16,12 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 from typing import List
 
 import numpy as np
-from numba.typed import List as nbList
 
 from .functions import takeuchi_phi_psi
 from .initial_solution_dynamic import z_calc
 from .....constants import G, pi
 from .....utilities.math.special import sqrt_neg
-from .....utilities.performance import njit
+from .....utilities.performance import njit, nbList
 from .....utilities.types import ComplexArray, FloatArray, NumArray
 
 SolidStaticGuess = List[ComplexArray]

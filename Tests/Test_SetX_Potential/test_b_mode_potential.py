@@ -53,7 +53,7 @@ def test_tidal_potential_nsr_modes():
     assert len(freqs) == 9
     for mode_label, mode_freq in modes.items():
         assert type(mode_label) == str
-        assert type(mode_freq) in [float, np.float, np.float64]
+        assert type(mode_freq) in [float, np.float64]
 
         # Unpack potential tuple
         potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
@@ -96,7 +96,7 @@ def test_tidal_potential_nsr_modes():
     assert len(freqs) == 9
     for mode_label, mode_freq in modes.items():
         assert type(mode_label) == str
-        assert type(mode_freq) in [float, np.float, np.float64]
+        assert type(mode_freq) in [float, np.float64]
 
         # Unpack potential tuple
         potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
@@ -142,7 +142,7 @@ def test_tidal_potential_obliquity_nsr_modes():
     assert len(freqs) == 17
     for mode_label, mode_freq in modes.items():
         assert type(mode_label) == str
-        assert type(mode_freq) in [float, np.float, np.float64]
+        assert type(mode_freq) in [float, np.float64]
 
         # Unpack potential tuple
         potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
@@ -185,7 +185,7 @@ def test_tidal_potential_obliquity_nsr_modes():
     assert len(freqs) == 17
     for mode_label, mode_freq in modes.items():
         assert type(mode_label) == str
-        assert type(mode_freq) in [float, np.float, np.float64]
+        assert type(mode_freq) in [float, np.float64]
 
         # Unpack potential tuple
         potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \

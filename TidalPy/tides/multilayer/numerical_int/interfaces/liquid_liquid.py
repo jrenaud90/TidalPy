@@ -6,11 +6,10 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 import numpy as np
-from numba.typed import List as nbList
 
 from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess
 from ..initial_conditions.initial_solution_static import LiquidStaticGuess
-from .....utilities.performance import njit
+from .....utilities.performance import njit, nbList
 
 
 # For liquid-liquid layer interfaces all of the radial functions are continuous expect for if you are moving

@@ -82,23 +82,23 @@ def test_all_models():
 
     #    Testing `off` model
     off_visco, off_shear = off(melt_fraction, premelt_viscosity, premelt_shear)
-    assert type(off_visco) in [float, np.float, np.float64]
-    assert type(off_shear) in [float, np.float, np.float64]
+    assert type(off_visco) in [float, np.float64]
+    assert type(off_shear) in [float, np.float64]
     assert off_visco == premelt_viscosity
     assert off_shear == premelt_shear
 
     #    Testing `spohn` model
     spohn_visco, spohn_shear = spohn(melt_fraction, temperature, liquid_viscosity, *spohn_input)
-    assert type(spohn_visco) in [float, np.float, np.float64]
-    assert type(spohn_shear) in [float, np.float, np.float64]
+    assert type(spohn_visco) in [float, np.float64]
+    assert type(spohn_shear) in [float, np.float64]
 
     #    Testing `henning` model
     henn_visco, henn_shear = henning(
         melt_fraction, temperature, premelt_viscosity, liquid_viscosity, premelt_shear,
         *henning_input
         )
-    assert type(henn_visco) in [float, np.float, np.float64]
-    assert type(henn_shear) in [float, np.float, np.float64]
+    assert type(henn_visco) in [float, np.float64]
+    assert type(henn_shear) in [float, np.float64]
 
     # Test Array versions
     melt_fraction = 0.5 * np.ones(10)

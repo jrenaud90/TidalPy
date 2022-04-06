@@ -27,7 +27,7 @@ def test_eccentricity_multi_l_calc():
                     assert type(p) in [int, np.int, np.int32]
                     for q, q_result in p_result.items():
                         assert type(q) in [int, np.int, np.int32]
-                        assert type(q_result) in [float, np.float, np.float64]
+                        assert type(q_result) in [float, np.float64]
 
             # Perform array calculation
             e_result_array = eccen_func(np.linspace(0.1, 0.9, 4))
@@ -53,7 +53,7 @@ def test_inclination_multi_l_calc():
                 for (p, m), result in i_result_float[order_l].items():
                     assert type(p) in [int, np.int, np.int32]
                     assert type(m) in [int, np.int, np.int32]
-                    assert type(result) in [float, np.float, np.float64]
+                    assert type(result) in [float, np.float64]
 
             # Perform array calculation
             i_result_array = inclin_func(np.linspace(0.1, 0.9, 4))
@@ -165,19 +165,19 @@ def test_calculate_and_collapse_modes():
             tidal_heating, dUdM, dUdw, dUdO, love_number_by_orderl, negative_imk_by_orderl, effective_q_by_orderl = \
                 result_float
 
-            assert type(tidal_heating) in [float, np.float, np.float64]
-            assert type(dUdM) in [float, np.float, np.float64]
-            assert type(dUdw) in [float, np.float, np.float64]
-            assert type(dUdO) in [float, np.float, np.float64]
+            assert type(tidal_heating) in [float, np.float64]
+            assert type(dUdM) in [float, np.float64]
+            assert type(dUdw) in [float, np.float64]
+            assert type(dUdO) in [float, np.float64]
             assert type(love_number_by_orderl) in [dict, numba.typed.typeddict.Dict]
             assert len(love_number_by_orderl) == order_l - 2 + 1
-            assert type(love_number_by_orderl[2]) in [complex, np.complex, np.complex64]
+            assert type(love_number_by_orderl[2]) in [complex, np.complex64]
             assert type(negative_imk_by_orderl) in [dict, numba.typed.typeddict.Dict]
             assert len(negative_imk_by_orderl) == order_l - 2 + 1
-            assert type(negative_imk_by_orderl[2]) in [float, np.float, np.float64]
+            assert type(negative_imk_by_orderl[2]) in [float, np.float64]
             assert type(effective_q_by_orderl) in [dict, numba.typed.typeddict.Dict]
             assert len(effective_q_by_orderl) == order_l - 2 + 1
-            assert type(effective_q_by_orderl[2]) in [float, np.float, np.float64]
+            assert type(effective_q_by_orderl[2]) in [float, np.float64]
 
             result_array = \
                 collapse_modes(

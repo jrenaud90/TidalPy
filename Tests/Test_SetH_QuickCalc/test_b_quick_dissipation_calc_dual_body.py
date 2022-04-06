@@ -50,19 +50,19 @@ def test_quick_tidal_dissipation_fixedq_float():
     assert type(dissipation_results) == dict
     for obj_name in ['host', 'secondary']:
         world_results = dissipation_results[obj_name]
-        assert type(world_results['tidal_heating']) in [float, np.float, np.float64]
-        assert type(world_results['dUdM']) in [float, np.float, np.float64]
-        assert type(world_results['dUdw']) in [float, np.float, np.float64]
-        assert type(world_results['dUdO']) in [float, np.float, np.float64]
+        assert type(world_results['tidal_heating']) in [float, np.float64]
+        assert type(world_results['dUdM']) in [float, np.float64]
+        assert type(world_results['dUdw']) in [float, np.float64]
+        assert type(world_results['dUdO']) in [float, np.float64]
         assert type(world_results['love_number_by_orderl']) in [Dict, dict]
         assert type(world_results['negative_imk_by_orderl']) in [Dict, dict]
         assert type(world_results['effective_q_by_orderl']) in [Dict, dict]
         assert len(world_results['effective_q_by_orderl']) == 1
-        assert type(world_results['love_number_by_orderl'][2]) in [complex, np.complex, np.complex128]
-        assert type(world_results['negative_imk_by_orderl'][2]) in [float, np.float, np.float64]
-        assert type(world_results['effective_q_by_orderl'][2]) in [float, np.float, np.float64]
-    assert type(dissipation_results['eccentricity_derivative']) in [float, np.float, np.float64]
-    assert type(dissipation_results['semi_major_axis_derivative']) in [float, np.float, np.float64]
+        assert type(world_results['love_number_by_orderl'][2]) in [complex, np.complex128]
+        assert type(world_results['negative_imk_by_orderl'][2]) in [float, np.float64]
+        assert type(world_results['effective_q_by_orderl'][2]) in [float, np.float64]
+    assert type(dissipation_results['eccentricity_derivative']) in [float, np.float64]
+    assert type(dissipation_results['semi_major_axis_derivative']) in [float, np.float64]
 
 
 def test_quick_tidal_dissipation_fixedq_orbital_array():

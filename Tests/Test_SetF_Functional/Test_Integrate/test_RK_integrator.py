@@ -57,9 +57,9 @@ def test_rk23_Yis1D_noTeval():
     assert success
     assert type(message) == str
     assert type(ts) == np.ndarray
-    assert ts.dtype in (float, np.float, np.float64)
+    assert ts.dtype in (float, np.float64)
     assert type(ys) == np.ndarray
-    assert ys.dtype in (float, np.float, np.float64)
+    assert ys.dtype in (float, np.float64)
     np.testing.assert_almost_equal(ts[0], t_span[0])
     np.testing.assert_almost_equal(ts[-1], t_span[-1])
     assert ys.shape[0] == 1
@@ -94,9 +94,9 @@ def test_rk45_Yis1D_noTeval():
     assert success
     assert type(message) == str
     assert type(ts) == np.ndarray
-    assert ts.dtype in (float, np.float, np.float64)
+    assert ts.dtype in (float, np.float64)
     assert type(ys) == np.ndarray
-    assert ys.dtype in (float, np.float, np.float64)
+    assert ys.dtype in (float, np.float64)
     np.testing.assert_almost_equal(ts[0], t_span[0])
     np.testing.assert_almost_equal(ts[-1], t_span[-1])
     assert ys.shape[0] == 1
@@ -137,9 +137,9 @@ def test_rk23_Yis2D_noTeval():
     assert success
     assert type(message) == str
     assert type(ts) == np.ndarray
-    assert ts.dtype in (float, np.float, np.float64)
+    assert ts.dtype in (float, np.float64)
     assert type(ys) == np.ndarray
-    assert ys.dtype in (float, np.float, np.float64)
+    assert ys.dtype in (float, np.float64)
     np.testing.assert_almost_equal(ts[0], t_span[0])
     np.testing.assert_almost_equal(ts[-1], t_span[-1])
     assert ys.shape[0] == 3
@@ -179,9 +179,9 @@ def test_rk45_Yis2D_noTeval():
     assert success
     assert type(message) == str
     assert type(ts) == np.ndarray
-    assert ts.dtype in (float, np.float, np.float64)
+    assert ts.dtype in (float, np.float64)
     assert type(ys) == np.ndarray
-    assert ys.dtype in (float, np.float, np.float64)
+    assert ys.dtype in (float, np.float64)
     np.testing.assert_almost_equal(ts[0], t_span[0])
     np.testing.assert_almost_equal(ts[-1], t_span[-1])
     assert ys.shape[0] == 3
@@ -226,7 +226,7 @@ def test_rk45_Yis2D_noTeval_complex():
     assert type(ts) == np.ndarray
     assert ts.dtype in (float, np.float, np.float64)
     assert type(ys) == np.ndarray
-    assert ys.dtype in (complex, np.complex, np.complex128)
+    assert ys.dtype in (complex, np.complex128)
     np.testing.assert_almost_equal(ts[0], t_span[0])
     np.testing.assert_almost_equal(ts[-1], t_span[-1])
     assert ys.shape[0] == 3

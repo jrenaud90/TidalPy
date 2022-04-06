@@ -64,9 +64,9 @@ def test_calc_fundamental_order2():
     assert deriv_mtx.shape[2] == 10
 
     # See if the types make sense
-    assert type(F[0, 0, 0]) in [np.complex128, np.complex, complex]
-    assert type(F_inv[0, 0, 0]) in [np.complex128, np.complex, complex]
-    assert type(deriv_mtx[0, 0, 0]) in [np.complex128, np.complex, complex]
+    assert type(F[0, 0, 0]) in [np.complex128, complex]
+    assert type(F_inv[0, 0, 0]) in [np.complex128, complex]
+    assert type(deriv_mtx[0, 0, 0]) in [np.complex128, complex]
 
     # Check that the inverse is correct
     for i in range(10):
@@ -98,9 +98,9 @@ def test_calc_fundamental_orderl_l2():
     assert deriv_mtx2.shape[2] == 10
 
     # See if the types make sense
-    assert type(F[0, 0, 0]) in [np.complex128, np.complex, complex]
-    assert type(F_inv[0, 0, 0]) in [np.complex128, np.complex, complex]
-    assert type(deriv_mtx2[0, 0, 0]) in [np.complex128, np.complex, complex]
+    assert type(F[0, 0, 0]) in [np.complex128, complex]
+    assert type(F_inv[0, 0, 0]) in [np.complex128, complex]
+    assert type(deriv_mtx2[0, 0, 0]) in [np.complex128, complex]
 
     # Check that the inverse is correct
     for i in range(10):

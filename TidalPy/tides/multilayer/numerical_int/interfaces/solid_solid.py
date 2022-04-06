@@ -7,11 +7,9 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 """
 import numpy as np
 
-from numba.typed import List as nbList
-
 from ..initial_conditions.initial_solution_dynamic import SolidDynamicGuess
 from ..initial_conditions.initial_solution_static import SolidStaticGuess
-from .....utilities.performance import njit
+from .....utilities.performance import njit, nbList
 
 
 # For solid-solid layer interfaces all of the radial functions are continuous.

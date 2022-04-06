@@ -1,7 +1,6 @@
 from typing import List as ListType
 
 import numpy as np
-from numba.typed import List as nbList
 
 from .collapse import (collapse_homogen_solid, collapse_ls_dynamic_liq, collapse_ls_static_liq,
                        collapse_sls_dynamic_liq,
@@ -15,7 +14,7 @@ from .interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ....constants import G
 from ....utilities.integration.rk_integrator import rk_integrate
-from ....utilities.performance import njit
+from ....utilities.performance import njit, nbList
 
 
 @njit(cacheable=True)

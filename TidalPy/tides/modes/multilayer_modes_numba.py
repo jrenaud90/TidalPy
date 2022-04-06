@@ -9,14 +9,12 @@ This module contains functions to assist with calculating the response at each o
 from typing import Dict, List, Tuple
 
 import numpy as np
-from numba.core import types
-from numba.typed import Dict as nbDict, List as nbList
 
 from ..multilayer.numerical_int.solver_numba import tidal_y_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
-from ...utilities.performance import njit
+from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, float64, nbUnicode
 
 
 @njit(cacheable=True)
@@ -428,20 +426,20 @@ def collapse_multilayer_modes(
 
     # Build storages for all modes
     modes_skipped = nbDict.empty(
-        key_type=types.unicode_type,
-        value_type=types.bool_
+        key_type=nbUnicode,
+        value_type=bool_
         )
     love_k_by_mode = nbDict.empty(
-        key_type=types.unicode_type,
-        value_type=types.complex128
+        key_type=nbUnicode,
+        value_type=complex128
         )
     love_h_by_mode = nbDict.empty(
-        key_type=types.unicode_type,
-        value_type=types.complex128
+        key_type=nbUnicode,
+        value_type=complex128
         )
     love_l_by_mode = nbDict.empty(
-        key_type=types.unicode_type,
-        value_type=types.complex128
+        key_type=nbUnicode,
+        value_type=complex128
         )
 
     # Large arrays must be added to continuously to avoid memory overload

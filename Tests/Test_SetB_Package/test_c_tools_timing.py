@@ -18,7 +18,7 @@ def test_convert_hms():
     assert type(day) in [int, np.int, np.int32]
     assert type(hour) in [int, np.int, np.int32]
     assert type(minute) in [int, np.int, np.int32]
-    assert type(second) in [float, np.float, np.float64]
+    assert type(second) in [float, np.float64]
 
     assert day == 0
     assert hour == 0
