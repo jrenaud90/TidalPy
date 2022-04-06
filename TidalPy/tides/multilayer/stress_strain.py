@@ -29,7 +29,7 @@ def calculate_strain_stress(
     tidal_solution_y: np.ndarray,
     colatitude: FloatArray,
     radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-    frequency: FloatArray, order_l: int = 2,
+    frequency: FloatArray, order_l: int = 2
     ) -> Tuple[StrainType, StressType]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.

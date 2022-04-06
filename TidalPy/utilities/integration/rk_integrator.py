@@ -111,7 +111,7 @@ def rk_integrate(
 
     Returns
     -------
-    time_results : np.ndarray
+    time_domain : np.ndarray
         The final time domain. This is equal to t_eval if it was provided.
     y_results : np.ndarray
         The solution of the differential equation provided for each time_result.
@@ -130,7 +130,7 @@ def rk_integrate(
     y0 = np.asarray(y0)
     y_size = y0.size
     dtype = y0.dtype
-    time_results = [t_start]
+    time_domain = [t_start]
     y_results = y0.reshape(1, y_size)
 
     # Integrator Status Codes
@@ -325,13 +325,13 @@ def rk_integrate(
         dydt_now = dydt_new
 
         # Save data
-        time_results.append(t_now)
+        time_domain.append(t_now)
 
         # Numba does not support np.stack(x) if x is a list. So we have to continuously hstack as we go.
         y_new_array = y_now.reshape(1, y_size)
         y_results = np.concatenate((y_results, y_new_array))
 
-    time_results = np.asarray(time_results, dtype=np.float64)
+    time_domain = np.asarray(time_domain, dtype=np.float64)
     # To match the format that scipy follows, we will take the transpose of y.
     y_results = y_results.T
 
@@ -343,15 +343,15 @@ def rk_integrate(
 
         for i in range(y_size):
             # np.interp only works on 1D arrays so we must loop through each of the variables:
-            y_results_reduced[i, :] = np.interp(t_eval, time_results, y_results[i, :])
+            y_results_reduced[i, :] = np.interp(t_eval, time_domain, y_results[i, :])
 
         y_results = y_results_reduced
-        time_results = t_eval
+        time_domain = t_eval
 
     success = status == 1
 
     # Make sure arrays are C-contiguous
     y_results = np.ascontiguousarray(y_results)
-    time_results = np.ascontiguousarray(time_results)
+    time_domain = np.ascontiguousarray(time_domain)
 
-    return time_results, y_results, success, message
+    return time_domain, y_results, success, message
