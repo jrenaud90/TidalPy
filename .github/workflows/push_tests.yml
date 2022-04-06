@@ -72,7 +72,7 @@ jobs:
         uses: actions/download-artifact@v3
       - name: Run coverage
         run: |
-          coverage combine coverage*/.coverage*
-          coverage report --fail-under=50
-          coverage xml
+          $CONDA/bin/coverage combine coverage*/.coverage*
+          $CONDA/bin/coverage report --fail-under=50
+          $CONDA/bin/coverage xml
       - uses: codecov/codecov-action@v3.0.0
