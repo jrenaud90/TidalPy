@@ -512,6 +512,8 @@ def liquid_guess_takeuchi(
     return nbList([tidaly_s1, tidaly_s2])
 
 
+# TODO: Development paused on the Martens power series method
+"""
 # @njit(cacheable=True)
 def solid_guess_martens(
     radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
@@ -633,3 +635,5 @@ def solid_guess_martens(
     A_1_coeff = A_Matrix_inv @ LHS_vector
 
     return A_1_coeff
+
+"""
