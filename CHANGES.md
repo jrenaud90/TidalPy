@@ -4,6 +4,7 @@
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
+  * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.
 
 ### Version 0.3.5 Alpha (Spring 2022)
 

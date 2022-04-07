@@ -8,7 +8,7 @@ from ...utilities.performance.numba import njit
 from ...utilities.types import FloatArray
 
 
-@njit(cacheable=True)
+@njit(cacheable=True, parallel=True)
 def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp (assuming I=0) for l = 5"""
 
@@ -24,7 +24,7 @@ def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
     return inclination_results
 
 
-@njit(cacheable=True)
+@njit(cacheable=True, parallel=True)
 def calc_inclination(inclination: FloatArray) -> InclinOutput:
     """Calculate F^2_lmp for l = 5"""
 
@@ -38,9 +38,7 @@ def calc_inclination(inclination: FloatArray) -> InclinOutput:
     cos_i = np.cos(i)
     sin_i_half = np.sin(i_half)
     cos_i_half = np.cos(i_half)
-    sin_i_double = np.sin(i_double)
     cos_i_double = np.cos(i_double)
-    sin_i_triple = np.sin(i_triple)
     cos_i_triple = np.cos(i_triple)
 
     inclination_results = {

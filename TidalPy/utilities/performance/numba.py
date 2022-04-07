@@ -32,7 +32,15 @@ if use_numba:
     complex128 = numba.complex128
     float64 = numba.float64
     int64 = numba.int64
+    int32 = numba.int32
+    int16 = numba.int16
+    int8 = numba.int8
+    uint64 = numba.uint64
+    uint32 = numba.uint32
+    uint16 = numba.uint16
+    uint8 = numba.uint8
     bool_ = numba.bool_
+    prange = numba.prange
     nbUnicode = numba.types.unicode_type
     nbDict = Dict
     nbList = List
@@ -42,8 +50,16 @@ else:
     complex128 = np.complex128
     float64 = np.float64
     int64 = np.int64
+    int32 = np.int32
+    int16 = np.int16
+    int8 = np.int8
+    uint64 = np.uint64
+    uint32 = np.uint32
+    uint16 = np.uint16
+    uint8 = np.uint8
     bool_ = np.bool
     nbList = list
+    prange = range
     nbUnicode = str
 
     def njit(*args, **kwargs):
