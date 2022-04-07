@@ -67,8 +67,8 @@ def clean_config_for_json(dict_to_clean: dict, keys_to_skip: Tuple[str, ...] = (
             else:
                 input_item = item.tolist()
 
-        elif type(item) in [np.float, np.float32, np.float64,
-                            np.complex, np.complex64, np.complex128]:
+        elif type(item) in [np.float32, np.float64,
+                            np.complex64, np.complex128]:
             input_item = float(item)
         elif type(item) in [np.int8, np.int16, np.int32, np.int64,
                             np.uint8, np.uint16, np.uint32, np.uint64,

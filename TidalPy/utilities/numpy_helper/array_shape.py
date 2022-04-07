@@ -61,15 +61,15 @@ def reshape_help(
     if scalar is None:
         dtype = None
     else:
-        if type(scalar) in [complex, np.complex]:
-            dtype = np.complex
-        elif type(scalar) in [int, np.int]:
+        if type(scalar) in [complex, np.complex128]:
+            dtype = np.complex128
+        elif type(scalar) in [int, np.int64, np.int32]:
             if force_ints_to_floats:
-                dtype = np.float
+                dtype = np.float64
             else:
-                dtype = np.int
+                dtype = np.int64
         else:
-            dtype = np.float
+            dtype = np.float64
 
     if comparison_shape is not None:
         if comparison_shape == tuple():

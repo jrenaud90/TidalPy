@@ -24,9 +24,9 @@ def test_eccentricity_multi_l_calc():
             e_result_float = eccen_func(0.3)
             for order_l in range(2, tidal_order_l + 1):
                 for p, p_result in e_result_float[order_l].items():
-                    assert type(p) in [int, np.int, np.int32]
+                    assert type(p) in [int, np.int32]
                     for q, q_result in p_result.items():
-                        assert type(q) in [int, np.int, np.int32]
+                        assert type(q) in [int, np.int32]
                         assert type(q_result) in [float, np.float64]
 
             # Perform array calculation
@@ -51,16 +51,16 @@ def test_inclination_multi_l_calc():
             i_result_float = inclin_func(0.3)
             for order_l in range(2, tidal_order_l + 1):
                 for (p, m), result in i_result_float[order_l].items():
-                    assert type(p) in [int, np.int, np.int32]
-                    assert type(m) in [int, np.int, np.int32]
+                    assert type(p) in [int, np.int32]
+                    assert type(m) in [int, np.int32]
                     assert type(result) in [float, np.float64]
 
             # Perform array calculation
             i_result_array = inclin_func(np.linspace(0.1, 0.9, 4))
             for order_l in range(2, tidal_order_l + 1):
                 for (p, m), result in i_result_array[order_l].items():
-                    assert type(p) in [int, np.int, np.int32]
-                    assert type(m) in [int, np.int, np.int32]
+                    assert type(p) in [int, np.int32]
+                    assert type(m) in [int, np.int32]
                     assert type(result) is np.ndarray
 
 

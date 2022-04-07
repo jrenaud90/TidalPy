@@ -5,8 +5,6 @@ import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Colormap
-from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-
 
 from .helper import get_cmap
 from ...io_helper import unique_path
@@ -251,11 +249,12 @@ def projection_map(
     # Plot lat and long gridlines
     if show_grid_lines:
         gl = ax.gridlines(
-                          draw_labels=['x', 'y', 'bottom', 'left'], linestyle='-', alpha=0.35,
-                          xlocs=[-120, -60, 0, 60, 120],
-                          ylocs=[-60, -30, 0, 30, 60])
-        gl.right_labels  = False
-        gl.top_labels  = False
+            draw_labels=['x', 'y', 'bottom', 'left'], linestyle='-', alpha=0.35,
+            xlocs=[-120, -60, 0, 60, 120],
+            ylocs=[-60, -30, 0, 30, 60]
+            )
+        gl.right_labels = False
+        gl.top_labels = False
 
     # Set labels
     ax.set(xlabel=xlabel, ylabel=ylabel, title=title)

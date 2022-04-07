@@ -68,8 +68,8 @@ def test_single_body_derivative_calc():
     assert type(world_to_use.effective_q_by_orderl[2]) in [float, np.float64]
     assert type(world_to_use.dUdM) in [float, np.float64]
     assert type(world_to_use.dUdO) in [float, np.float64]
-    assert type(world_to_use.dUdw) in [float, np.float, np.float64]
-    assert type(world_to_use.tidal_heating_global) in [float, np.float, np.float64]
+    assert type(world_to_use.dUdw) in [float, np.float64]
+    assert type(world_to_use.tidal_heating_global) in [float, np.float64]
     # Check that dual body calculations were done.
     assert orbit._last_calc_used_dual_body == False
     assert orbit.get_orbital_motion_time_derivative(world_to_use) is \
@@ -79,9 +79,9 @@ def test_single_body_derivative_calc():
     assert orbit.get_semi_major_axis_time_derivative(world_to_use) is \
            orbit.get_semi_major_axis_time_derivative(star_to_use)
     # Check that types are as expected
-    assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) in [float, np.float, np.float64]
-    assert type(orbit.get_eccentricity_time_derivative(world_to_use)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) in [float, np.float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) in [float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_to_use)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -124,10 +124,10 @@ def test_dual_body_derivative_calc():
     #    once a frequency is set.
     host_to_use.mantle.temperature = 1400.
     world_to_use.mantle.temperature = 1200.
-    assert type(world_to_use.mantle.viscosity) in [float, np.float, np.float64]
-    assert type(world_to_use.mantle.shear_modulus) in [float, np.float, np.float64]
-    assert type(host_to_use.mantle.viscosity) in [float, np.float, np.float64]
-    assert type(host_to_use.mantle.shear_modulus) in [float, np.float, np.float64]
+    assert type(world_to_use.mantle.viscosity) in [float, np.float64]
+    assert type(world_to_use.mantle.shear_modulus) in [float, np.float64]
+    assert type(host_to_use.mantle.viscosity) in [float, np.float64]
+    assert type(host_to_use.mantle.shear_modulus) in [float, np.float64]
 
     # Test Floats
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -139,14 +139,14 @@ def test_dual_body_derivative_calc():
         assert world_to_check.tides_on
         assert world_to_check.eccentricity_truncation_lvl == 2
         assert world_to_check.max_tidal_order_lvl == 2
-        assert type(world_to_check.tidal_susceptibility) in [float, np.float, np.float64]
+        assert type(world_to_check.tidal_susceptibility) in [float, np.float64]
         assert type(world_to_check.global_love_by_orderl[2]) in [complex, np.complex128]
-        assert type(world_to_check.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-        assert type(world_to_check.effective_q_by_orderl[2]) in [float, np.float, np.float64]
-        assert type(world_to_check.dUdM) in [float, np.float, np.float64]
-        assert type(world_to_check.dUdO) in [float, np.float, np.float64]
-        assert type(world_to_check.dUdw) in [float, np.float, np.float64]
-        assert type(world_to_check.tidal_heating_global) in [float, np.float, np.float64]
+        assert type(world_to_check.global_negative_imk_by_orderl[2]) in [float, np.float64]
+        assert type(world_to_check.effective_q_by_orderl[2]) in [float, np.float64]
+        assert type(world_to_check.dUdM) in [float, np.float64]
+        assert type(world_to_check.dUdO) in [float, np.float64]
+        assert type(world_to_check.dUdw) in [float, np.float64]
+        assert type(world_to_check.tidal_heating_global) in [float, np.float64]
     # Check that dual body calculations were done.
     assert orbit._last_calc_used_dual_body == True
     assert orbit.get_orbital_motion_time_derivative(world_to_use) is \
@@ -156,9 +156,9 @@ def test_dual_body_derivative_calc():
     assert orbit.get_semi_major_axis_time_derivative(world_to_use) is \
            orbit.get_semi_major_axis_time_derivative(host_to_use)
     # Check that types are as expected
-    assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) in [float, np.float, np.float64]
-    assert type(orbit.get_eccentricity_time_derivative(world_to_use)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) in [float, np.float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) in [float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_to_use)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -203,10 +203,10 @@ def test_dual_body_derivative_calc_temperature_array():
     #    once a frequency is set.
     host_to_use.mantle.temperature = 1400.
     world_to_use.mantle.temperature = 1200.
-    assert type(world_to_use.mantle.viscosity) in [float, np.float, np.float64]
-    assert type(world_to_use.mantle.shear_modulus) in [float, np.float, np.float64]
-    assert type(host_to_use.mantle.viscosity) in [float, np.float, np.float64]
-    assert type(host_to_use.mantle.shear_modulus) in [float, np.float, np.float64]
+    assert type(world_to_use.mantle.viscosity) in [float, np.float64]
+    assert type(world_to_use.mantle.shear_modulus) in [float, np.float64]
+    assert type(host_to_use.mantle.viscosity) in [float, np.float64]
+    assert type(host_to_use.mantle.shear_modulus) in [float, np.float64]
 
     # Test Floats
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -218,14 +218,14 @@ def test_dual_body_derivative_calc_temperature_array():
         assert world_to_check.tides_on
         assert world_to_check.eccentricity_truncation_lvl == 2
         assert world_to_check.max_tidal_order_lvl == 2
-        assert type(world_to_check.tidal_susceptibility) in [float, np.float, np.float64]
+        assert type(world_to_check.tidal_susceptibility) in [float, np.float64]
         assert type(world_to_check.global_love_by_orderl[2]) in [complex, np.complex128]
-        assert type(world_to_check.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-        assert type(world_to_check.effective_q_by_orderl[2]) in [float, np.float, np.float64]
-        assert type(world_to_check.dUdM) in [float, np.float, np.float64]
-        assert type(world_to_check.dUdO) in [float, np.float, np.float64]
-        assert type(world_to_check.dUdw) in [float, np.float, np.float64]
-        assert type(world_to_check.tidal_heating_global) in [float, np.float, np.float64]
+        assert type(world_to_check.global_negative_imk_by_orderl[2]) in [float, np.float64]
+        assert type(world_to_check.effective_q_by_orderl[2]) in [float, np.float64]
+        assert type(world_to_check.dUdM) in [float, np.float64]
+        assert type(world_to_check.dUdO) in [float, np.float64]
+        assert type(world_to_check.dUdw) in [float, np.float64]
+        assert type(world_to_check.tidal_heating_global) in [float, np.float64]
     # Check that dual body calculations were done.
     assert orbit._last_calc_used_dual_body == True
     assert orbit.get_orbital_motion_time_derivative(world_to_use) is \
@@ -235,9 +235,9 @@ def test_dual_body_derivative_calc_temperature_array():
     assert orbit.get_semi_major_axis_time_derivative(world_to_use) is \
            orbit.get_semi_major_axis_time_derivative(host_to_use)
     # Check that types are as expected
-    assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) in [float, np.float, np.float64]
-    assert type(orbit.get_eccentricity_time_derivative(world_to_use)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) in [float, np.float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_to_use)) in [float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_to_use)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_to_use)) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -249,7 +249,7 @@ def test_dual_body_derivative_calc_temperature_array():
         assert world_to_check.tides_on
         assert world_to_check.eccentricity_truncation_lvl == 2
         assert world_to_check.max_tidal_order_lvl == 2
-        assert type(world_to_check.tidal_susceptibility) in [float, np.float, np.float64]
+        assert type(world_to_check.tidal_susceptibility) in [float, np.float64]
         assert type(world_to_check.global_love_by_orderl[2]) == np.ndarray
         assert type(world_to_check.global_negative_imk_by_orderl[2]) == np.ndarray
         assert type(world_to_check.effective_q_by_orderl[2]) == np.ndarray

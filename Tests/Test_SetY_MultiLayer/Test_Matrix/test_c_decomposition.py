@@ -21,7 +21,7 @@ mass_array = volume_array * density_array
 planet_mass = sum(mass_array)
 mass_below = np.asarray([np.sum(mass_array[:i + 1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
-shear_array = 5.e10 * np.ones(10, dtype=np.complex)
+shear_array = 5.e10 * np.ones(10, dtype=np.complex128)
 
 
 def test_calc_fundamental_order2():
@@ -52,7 +52,7 @@ def test_calc_fundamental_order2():
     assert l.shape == (10,)
 
     # Check types
-    assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
+    assert type(sensitivity_to_shear[0]) in [np.float64, float]
     assert type(k[0]) in [np.complex128, complex]
     assert type(h[0]) in [np.complex128, complex]
     assert type(l[0]) in [np.complex128, complex]
@@ -89,7 +89,7 @@ def test_calc_fundamental_order3():
     assert l.shape == (10,)
 
     # Check types
-    assert type(sensitivity_to_shear[0]) in [np.float, np.float64, float]
+    assert type(sensitivity_to_shear[0]) in [np.float64, float]
     assert type(k[0]) in [np.complex128, complex]
     assert type(h[0]) in [np.complex128, complex]
     assert type(l[0]) in [np.complex128, complex]

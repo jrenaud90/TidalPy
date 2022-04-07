@@ -107,12 +107,12 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_no_obliquity():
     assert type(world_cpl.dUdM) in [float, np.float64]
     assert type(world_cpl.dUdO) in [float, np.float64]
     assert type(world_cpl.dUdw) in [float, np.float64]
-    assert type(world_cpl.tidal_heating_global) in [float, np.float, np.float64]
+    assert type(world_cpl.tidal_heating_global) in [float, np.float64]
     # Check the orbital derivatives
     assert orbit._last_calc_used_dual_body == False
-    assert type(orbit.get_eccentricity_time_derivative(world_cpl)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) in [float, np.float, np.float64]
-    assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) in [float, np.float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_cpl)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) in [float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) in [float, np.float64]
     # Check the tidal body's orbital derivatives match the hosts
     assert orbit.get_eccentricity_time_derivative(world_cpl) is orbit.get_eccentricity_time_derivative(star)
     assert orbit.get_semi_major_axis_time_derivative(world_cpl) is orbit.get_semi_major_axis_time_derivative(star)
@@ -179,18 +179,18 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_with_obliquity():
     assert world_cpl.eccentricity_truncation_lvl == 2
     assert world_cpl.max_tidal_order_lvl == 2
     assert world_cpl.spin_period == 50.
-    assert type(world_cpl.tidal_susceptibility) in [float, np.float, np.float64]
+    assert type(world_cpl.tidal_susceptibility) in [float, np.float64]
     assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex128]
-    assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_cpl.dUdM) in [float, np.float, np.float64]
-    assert type(world_cpl.dUdO) in [float, np.float, np.float64]
-    assert type(world_cpl.dUdw) in [float, np.float, np.float64]
-    assert type(world_cpl.tidal_heating_global) in [float, np.float, np.float64]
+    assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float64]
+    assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float64]
+    assert type(world_cpl.dUdM) in [float, np.float64]
+    assert type(world_cpl.dUdO) in [float, np.float64]
+    assert type(world_cpl.dUdw) in [float, np.float64]
+    assert type(world_cpl.tidal_heating_global) in [float, np.float64]
     # Check the orbital derivatives
-    assert type(orbit.get_eccentricity_time_derivative(world_cpl)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) in [float, np.float, np.float64]
-    assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) in [float, np.float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_cpl)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_cpl)) in [float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_cpl)) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -251,10 +251,10 @@ def test_global_tidal_calculation_cpl_synchronous_rotation_with_eccen_oblique_ar
     assert world_cpl.eccentricity_truncation_lvl == 2
     assert world_cpl.max_tidal_order_lvl == 2
     assert world_cpl.spin_period == 50.
-    assert type(world_cpl.tidal_susceptibility) in [float, np.float, np.float64]
+    assert type(world_cpl.tidal_susceptibility) in [float, np.float64]
     assert type(world_cpl.global_love_by_orderl[2]) in [complex, np.complex128]
-    assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
+    assert type(world_cpl.global_negative_imk_by_orderl[2]) in [float, np.float64]
+    assert type(world_cpl.effective_q_by_orderl[2]) in [float, np.float64]
     assert type(world_cpl.dUdM) == np.ndarray
     assert type(world_cpl.dUdO) == np.ndarray
     assert type(world_cpl.dUdw) == np.ndarray
@@ -297,18 +297,18 @@ def test_global_tidal_calculation_ctl_synchronous_rotation_with_obliquity():
     assert world_ctl.eccentricity_truncation_lvl == 2
     assert world_ctl.max_tidal_order_lvl == 2
     assert world_ctl.spin_period == 50.
-    assert type(world_ctl.tidal_susceptibility) in [float, np.float, np.float64]
+    assert type(world_ctl.tidal_susceptibility) in [float, np.float64]
     assert type(world_ctl.global_love_by_orderl[2]) in [complex, np.complex128]
-    assert type(world_ctl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_ctl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_ctl.dUdM) in [float, np.float, np.float64]
-    assert type(world_ctl.dUdO) in [float, np.float, np.float64]
-    assert type(world_ctl.dUdw) in [float, np.float, np.float64]
-    assert type(world_ctl.tidal_heating_global) in [float, np.float, np.float64]
+    assert type(world_ctl.global_negative_imk_by_orderl[2]) in [float, np.float64]
+    assert type(world_ctl.effective_q_by_orderl[2]) in [float, np.float64]
+    assert type(world_ctl.dUdM) in [float, np.float64]
+    assert type(world_ctl.dUdO) in [float, np.float64]
+    assert type(world_ctl.dUdw) in [float, np.float64]
+    assert type(world_ctl.tidal_heating_global) in [float, np.float64]
     # Check the orbital derivatives
-    assert type(orbit.get_eccentricity_time_derivative(world_ctl)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_ctl)) in [float, np.float, np.float64]
-    assert type(orbit.get_orbital_motion_time_derivative(world_ctl)) in [float, np.float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_ctl)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_ctl)) in [float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_ctl)) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.
@@ -369,18 +369,18 @@ def test_global_tidal_calculation_ctl_nsr_with_obliquity():
     assert world_ctl.eccentricity_truncation_lvl == 2
     assert world_ctl.max_tidal_order_lvl == 2
     assert world_ctl.spin_period == 10.
-    assert type(world_ctl.tidal_susceptibility) in [float, np.float, np.float64]
+    assert type(world_ctl.tidal_susceptibility) in [float, np.float64]
     assert type(world_ctl.global_love_by_orderl[2]) in [complex, np.complex128]
-    assert type(world_ctl.global_negative_imk_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_ctl.effective_q_by_orderl[2]) in [float, np.float, np.float64]
-    assert type(world_ctl.dUdM) in [float, np.float, np.float64]
-    assert type(world_ctl.dUdO) in [float, np.float, np.float64]
-    assert type(world_ctl.dUdw) in [float, np.float, np.float64]
-    assert type(world_ctl.tidal_heating_global) in [float, np.float, np.float64]
+    assert type(world_ctl.global_negative_imk_by_orderl[2]) in [float, np.float64]
+    assert type(world_ctl.effective_q_by_orderl[2]) in [float, np.float64]
+    assert type(world_ctl.dUdM) in [float, np.float64]
+    assert type(world_ctl.dUdO) in [float, np.float64]
+    assert type(world_ctl.dUdw) in [float, np.float64]
+    assert type(world_ctl.tidal_heating_global) in [float, np.float64]
     # Check the orbital derivatives
-    assert type(orbit.get_eccentricity_time_derivative(world_ctl)) in [float, np.float, np.float64]
-    assert type(orbit.get_semi_major_axis_time_derivative(world_ctl)) in [float, np.float, np.float64]
-    assert type(orbit.get_orbital_motion_time_derivative(world_ctl)) in [float, np.float, np.float64]
+    assert type(orbit.get_eccentricity_time_derivative(world_ctl)) in [float, np.float64]
+    assert type(orbit.get_semi_major_axis_time_derivative(world_ctl)) in [float, np.float64]
+    assert type(orbit.get_orbital_motion_time_derivative(world_ctl)) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.

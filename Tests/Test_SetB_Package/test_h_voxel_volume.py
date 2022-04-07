@@ -37,9 +37,9 @@ def test_voxel_volume_numpy():
     """ Test the voxel volume calculation using the numpy version of the func.
     Check that the results match expectations. """
 
-    radius_array = np.linspace(0., planet_radius, 50)
+    radius_array = np.linspace(0., planet_radius, 20)
     longitude_array_deg = np.linspace(0., 360., 20)
-    colatitude_array_deg = np.linspace(0., 180., 25)
+    colatitude_array_deg = np.linspace(0., 180., 20)
     longitude_array = np.radians(longitude_array_deg)
     colatitude_array = np.radians(colatitude_array_deg)
 
@@ -63,8 +63,8 @@ def test_voxel_volume_numba_higherN():
     """ See if using a higher N will result in better results. """
 
     radius_array = np.linspace(0., planet_radius, 400)
-    longitude_array_deg = np.linspace(0., 360., 400)
-    colatitude_array_deg = np.linspace(0., 180., 400)
+    longitude_array_deg = np.linspace(0., 360., 100)
+    colatitude_array_deg = np.linspace(0., 180., 100)
     longitude_array = np.radians(longitude_array_deg)
     colatitude_array = np.radians(colatitude_array_deg)
 
