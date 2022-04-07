@@ -63,6 +63,7 @@ jobs:
       - name: Install Dependencies
         run: |
           # $CONDA is an environment variable pointing to the root of the miniconda directory
+          python -m pip install --upgrade pip
           python -m pip install pytest pytest-cov pytest-split
           $CONDA/bin/conda env update --file environment.yml --name base
       - name: Run pytest
