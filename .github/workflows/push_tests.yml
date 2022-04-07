@@ -43,10 +43,9 @@ jobs:
           python-version: 3.9
       - name: Install Dependencies
         run: |
-          # $CONDA is an environment variable pointing to the root of the miniconda directory
           python -m pip install --upgrade pip
           python -m pip install pytest pytest-cov pytest-split
-          $CONDA/bin/conda env update --file environment.yml --name base
+          pip install -r requirements.txt
       - name: Run pytest
         run: python -m pytest --cov=TidalPy --splits 5 --group ${{ matrix.group }}
       - name: Upload coverage
