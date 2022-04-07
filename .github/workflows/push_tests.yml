@@ -17,15 +17,15 @@ jobs:
           python-version: 3.9
       - name: Install Dependencies
         run: |
-          # $CONDA is an environment variable pointing to the root of the miniconda directory
-          $CONDA/bin/conda env update --file environment.yml --name base
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-split
+          pip install -r requirements.txt
       - name: Lint with flake8
         run: |
-          $CONDA/bin/conda install flake8
           # stop the build if there are Python syntax errors or undefined names
-          $CONDA/bin/flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          $CONDA/bin/flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
   # Run a test suite with numba off to somewhat test functionality but more to get coverage.
   test-no-numba:
@@ -66,14 +66,15 @@ jobs:
           python-version: 3.9
       - name: Install Dependencies
         run: |
-          # $CONDA is an environment variable pointing to the root of the miniconda directory
-          $CONDA/bin/conda env update --file environment.yml --name base
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-split
+          pip install -r requirements.txt
       - name: Download all artifacts
         # Downloads coverage1, coverage2, etc.
         uses: actions/download-artifact@v3
       - name: Run coverage
         run: |
-          $CONDA/bin/coverage combine coverage*/.coverage*
-          $CONDA/bin/coverage report --fail-under=50
-          $CONDA/bin/coverage xml
+          coverage combine coverage*/.coverage*
+          coverage report --fail-under=50
+          coverage xml
       - uses: codecov/codecov-action@v3.0.0
