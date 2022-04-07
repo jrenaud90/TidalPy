@@ -84,6 +84,19 @@ _Note: As of TidalPy v0.3.4, if you do not install via anaconda then you will ne
 (before installing TidalPy. Otherwise, the project map graphic utility may not work. 
 [Read more here](https://scitools.org.uk/cartopy/docs/latest/installing.html)_ 
 
+### Accessing Jupyter Notebooks
+There are several jupyter notebooks with TidalPy demos found in the /Demos/ and /Derivative/ directories.
+In order to access these you will need to make sure you install Jupyter and a few related packages:
+
+`pip install ipympl ipython ipywidgets jupyter`
+
+or 
+
+`conda install ipympl ipython ipywidgets jupyter`
+
+Then you can navigate to these directories in a terminal and access the notebooks by using the command,
+`jupyter notebook`.
+
 ### Advanced Installation
 
 It is highly recommended that you use the [Anaconda](https://www.anaconda.com/distribution/) distribution of Python.
