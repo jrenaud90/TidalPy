@@ -1,10 +1,19 @@
+import importlib.util
+from typing import Dict, List, Tuple, Union
+
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-from ...io_helper import unique_path
-from .global_map import KNOWN_PROJECTIONS
-from typing import Union, List, Tuple, Dict
-from ..classes.base import TidalPyClass
 
+from ..classes.base import TidalPyClass
+from ...io_helper import unique_path
+
+# Cartopy is usually not installed during testing which is fine. But this module will throw an error when tests are run
+#    and Cartopy is not installed. So check if it is installed before using projections.
+CARTOPY_INSTALLED = False
+KNOWN_PROJECTIONS = None
+if (spec := importlib.util.find_spec('cartopy')) is not None:
+    from .global_map import KNOWN_PROJECTIONS
+    CARTOPY_INSTALLED = True
 
 AxisReferencedInputStr = Union[str,
                                List[str],
@@ -23,17 +32,63 @@ AxisReferencedOutput = Union[Dict[Tuple[int, int], str],
                              Dict[Tuple[int, int], bool],
                              Dict[Tuple[int, int], Tuple[float, float]]]
 
+
 class GridPlot(TidalPyClass):
 
-    def __init__(self, nrows: int, ncols: int,
-                 make_colorbars: bool = False, colorbar_ratio: float = 0.1,
-                 projections: Union[str, List[str]] = None,
-                 figure_scale: float = 1., aspect_ratio: float = 2.,
-                 hspace: float = 0.25, wspace: float = 0.3, use_tight_layout: bool = True,
-                 suptitle: str = None, titles: AxisReferencedInputStr = None,
-                 xlabels: AxisReferencedInputStr = None, xscales: AxisReferencedInputStr = None,
-                 ylabels: AxisReferencedInputStr = None, yscales: AxisReferencedInputStr = None,
-                 label_kwargs: dict = None):
+    def __init__(
+        self, nrows: int, ncols: int,
+        make_colorbars: bool = False, colorbar_ratio: float = 0.1,
+        projections: Union[str, List[str]] = None,
+        figure_scale: float = 1., aspect_ratio: float = 2.,
+        hspace: float = 0.25, wspace: float = 0.3, use_tight_layout: bool = True,
+        suptitle: str = None, titles: AxisReferencedInputStr = None,
+        xlabels: AxisReferencedInputStr = None, xscales: AxisReferencedInputStr = None,
+        ylabels: AxisReferencedInputStr = None, yscales: AxisReferencedInputStr = None,
+        label_kwargs: dict = None
+        ):
+        """ Helper function to quickly make a figure of plots in a grid.
+
+        Built off of matplotlib's gridspec
+
+        Parameters
+        ----------
+        nrows : int
+            Number of rows in the grid
+        ncols : int
+            Number of columns in the grid
+        make_colorbars : bool = False
+            If `True`, then an additional set of colorbar columns will be added to the plots
+        colorbar_ratio : float = 0.1
+            Relative size of the colorbar axes compared to the figure size
+        projections : Union[str, List[str]] = None
+            List of optional projections applied to each subplot
+        figure_scale : float = 1.
+            Size of the figure
+        aspect_ratio : float = 2.
+            Aspect ratio of the figure
+        hspace : float = 0.25
+            Vertical space between subplots
+        wspace : float = 0.3
+            Horizontal space between subplots
+        use_tight_layout : bool = True
+            If `True`, then matplotlib's tight_layout feature will be used
+        suptitle : str = None
+            Optional super title for the figure
+        titles : AxisReferencedInputStr = None
+            Optional list of titles for each subplot
+        xlabels : AxisReferencedInputStr = None
+            Optional list of x labels for each subplot
+        xscales : AxisReferencedInputStr = None
+            Optional list of x scales for each subplot
+        ylabels : AxisReferencedInputStr = None
+            Optional list of y labels for each subplot
+        yscales : AxisReferencedInputStr = None
+            Optional list of y scales for each subplot
+        label_kwargs : dict
+            Any additional keyword arguments passed to matplotlib's Text class for labels and titles
+            Used to change font size, color, font family, etc.
+
+        """
 
         # TODO: Right now you can not have a different number of colorbars on different rows. Row 1 colorbar layout
         #    must be the same as row N.
@@ -91,32 +146,38 @@ class GridPlot(TidalPyClass):
         # Build gridspec
         figure_size = (figure_scale * aspect_ratio * 2. * self.ncols, figure_scale * 2. * self.nrows)
         self._figure = plt.figure(figsize=figure_size, tight_layout=use_tight_layout)
-        self._gridspec = GridSpec(real_nrows, real_ncols, figure=self.figure, width_ratios=width_ratios,
-                                 hspace=hspace, wspace=wspace)
+        self._gridspec = GridSpec(
+            real_nrows, real_ncols, figure=self.figure, width_ratios=width_ratios,
+            hspace=hspace, wspace=wspace
+            )
 
         # Determine if any projections are used.
         if projections is None:
             # No projections provided. Assume rectilinear for all plots.
             projections = [None] * self.nsubplots
-        elif type(projections) is str:
-            # One projection provided. Assume it is the same for all subplots
-            if not projections.lower() in KNOWN_PROJECTIONS:
-                raise KeyError(f'Unknown projection provided for GridPlot: {projections}.')
-            projections = [projections] * self.nsubplots
-        elif type(projections) is list:
-            # Assume that one projection provided for each subplot
-            if len(projections) != self.nsubplots:
-                raise ValueError('Unexpected number of projections provided given the number of subplots.')
-            try:
-                ['rectilinear' if projection_name is None else
-                 KNOWN_PROJECTIONS[projection_name.lower()] for projection_name in projections]
-            except KeyError:
-                raise KeyError('One or more unknown projections.')
         else:
-            raise AttributeError('Unexpected attributed provided for GridPlot projections.')
+            if not CARTOPY_INSTALLED:
+                raise ImportError('Projection provided but Cartopy not installed.')
 
-        projections = ['rectilinear' if projection_name is None else
-                       KNOWN_PROJECTIONS[projection_name.lower()] for projection_name in projections]
+            if type(projections) is str:
+                # One projection provided. Assume it is the same for all subplots
+                if not projections.lower() in KNOWN_PROJECTIONS:
+                    raise KeyError(f'Unknown projection provided for GridPlot: {projections}.')
+                projections = [projections] * self.nsubplots
+            elif type(projections) is list:
+                # Assume that one projection provided for each subplot
+                if len(projections) != self.nsubplots:
+                    raise ValueError('Unexpected number of projections provided given the number of subplots.')
+                try:
+                    ['rectilinear' if projection_name is None else
+                     KNOWN_PROJECTIONS[projection_name.lower()] for projection_name in projections]
+                except KeyError:
+                    raise KeyError('One or more unknown projections.')
+            else:
+                raise AttributeError('Unexpected attributed provided for GridPlot projections.')
+
+            projections = ['rectilinear' if projection_name is None else
+                           KNOWN_PROJECTIONS[projection_name.lower()] for projection_name in projections]
 
         # Build and add axes
         self.axes_by_rowcol = dict()
@@ -132,12 +193,17 @@ class GridPlot(TidalPyClass):
                 # Add subplot from gridspec to figure
 
                 # Determine if there are any projections for this subplot
-                projection = projections[subplot_num]
-                if projection is not None:
-                    if type(projection) is not str:
-                        projection = projection()
-                    ax = self.figure.add_subplot(self.gridspec[row_i, real_col_i],
-                                                 projection=projection)
+                if projections is not None:
+                    projection = projections[subplot_num]
+                    if projection is not None:
+                        if type(projection) is not str:
+                            projection = projection()
+                        ax = self.figure.add_subplot(
+                            self.gridspec[row_i, real_col_i],
+                            projection=projection
+                            )
+                    else:
+                        ax = self.figure.add_subplot(self.gridspec[row_i, real_col_i])
                 else:
                     ax = self.figure.add_subplot(self.gridspec[row_i, real_col_i])
                 real_axes.append(ax)
@@ -162,10 +228,12 @@ class GridPlot(TidalPyClass):
         # Set subplot scales and labels if provided.
         if label_kwargs is None:
             label_kwargs = dict()
-        self.set(suptitle=suptitle, titles=titles,
-                 xlabels=xlabels, xscales=xscales,
-                 ylabels=ylabels, yscales=yscales,
-                 reset_values=False, **label_kwargs)
+        self.set(
+            suptitle=suptitle, titles=titles,
+            xlabels=xlabels, xscales=xscales,
+            ylabels=ylabels, yscales=yscales,
+            reset_values=False, **label_kwargs
+            )
 
         # Allow axes to reference the GridPlot class instance
         for ax in self.axes:
@@ -193,11 +261,13 @@ class GridPlot(TidalPyClass):
 
         return self
 
-    def _convert_input_to_dict(self, inputs: AxisReferencedInput,
-                               row_priority: bool = False,
-                               col_priority: bool = False,
-                               bottom_row_col_priority: bool = False,
-                               input_type: str = 'str') -> AxisReferencedOutput:
+    def _convert_input_to_dict(
+        self, inputs: AxisReferencedInput,
+        row_priority: bool = False,
+        col_priority: bool = False,
+        bottom_row_col_priority: bool = False,
+        input_type: str = 'str'
+        ) -> AxisReferencedOutput:
         """ The user may offer a variety of input structures for various GridPlot methods. This function cleans the
         input and returns a dictionary with axis indices as keys.
 
@@ -506,10 +576,12 @@ class GridPlot(TidalPyClass):
 
         return self
 
-    def set(self, suptitle: str = None, titles: AxisReferencedInputStr = None,
-            xlabels: AxisReferencedInputStr = None, xscales: AxisReferencedInputStr = None,
-            ylabels: AxisReferencedInputStr = None, yscales: AxisReferencedInputStr = None,
-            reset_values: bool = False, **text_kwargs):
+    def set(
+        self, suptitle: str = None, titles: AxisReferencedInputStr = None,
+        xlabels: AxisReferencedInputStr = None, xscales: AxisReferencedInputStr = None,
+        ylabels: AxisReferencedInputStr = None, yscales: AxisReferencedInputStr = None,
+        reset_values: bool = False, **text_kwargs
+        ):
         """ Set various labels or scales for selected subplots
 
         Parameters
@@ -639,7 +711,6 @@ class GridPlot(TidalPyClass):
     def figure(self, value):
         raise AttributeError('Property `figure` can not be changed after GridPlot instance has been created.')
 
-
     # # Aliased properties
     @property
     def gs(self) -> GridSpec:
@@ -658,7 +729,6 @@ class GridPlot(TidalPyClass):
     @fig.setter
     def fig(self, value):
         self.figure = value
-
 
     # # Dunder methods
     def items(self):
@@ -683,10 +753,3 @@ class GridPlot(TidalPyClass):
 
     def __iter__(self):
         return iter(self.axes)
-
-
-
-
-
-
-

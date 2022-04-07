@@ -2,12 +2,12 @@
 
 ### Version 0.3.5 Alpha (Spring 2022)
 
-* Major Changes
 * Minor Changes
   * Removed the soon-to-be deprecated np.float, np.complex, np.int references.
+  * Added a check to see if cartopy is installed before functions that depend on it are imported.
 * Bug Fixes
-  * Fixed coverage problem with github actions
-  * Fixed issue importing nbTuple
+  * Fixed coverage problem with github actions.
+  * Fixed issue importing nbTuple.
 
 ### Version 0.3.4 Alpha (Winter/Spring 2022)
 
