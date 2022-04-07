@@ -50,9 +50,8 @@ jobs:
       - name: Upload coverage
         uses: actions/upload-artifact@v3
         with:
-          name: coverage-data
-          path: ".coverage.*"
-          if-no-files-found: ignore
+          name: coverage${{ matrix.group }}
+          path: .coverage
 
   # Combine and upload coverage reports.
   coverage:
@@ -64,15 +63,16 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - run: $CONDA/bin/conda env update coverage
+      - name: Install Dependencies
+        run: |
+          # $CONDA is an environment variable pointing to the root of the miniconda directory
+          $CONDA/bin/conda env update pytest pytest-cov pytest-split coverage --name base
       - name: Download all artifacts
         # Downloads coverage1, coverage2, etc.
         uses: actions/download-artifact@v3
-        with:
-          name: coverage-data
       - name: Run coverage
         run: |
-          $CONDA/bin/coverage combine
+          $CONDA/bin/coverage combine coverage*/.coverage*
           $CONDA/bin/coverage report --fail-under=50
           $CONDA/bin/coverage xml
       - uses: codecov/codecov-action@v3.0.0

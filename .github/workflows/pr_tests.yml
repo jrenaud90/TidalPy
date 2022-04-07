@@ -85,7 +85,7 @@ jobs:
       - name: Install Dependencies
         run: |
           # $CONDA is an environment variable pointing to the root of the miniconda directory
-          $CONDA/bin/conda env update --file environment.yml --name base
+          $CONDA/bin/conda env update pytest pytest-cov pytest-split coverage --name base
       - name: Download all artifacts
         # Downloads coverage1, coverage2, etc.
         uses: actions/download-artifact@v3
