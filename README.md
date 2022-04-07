@@ -78,6 +78,11 @@ following in a terminal:
 However, there can be several gotchas that come with this simple installation process. It is recommended to use the
 advanced installation described in the next section.
 
+_Note: As of TidalPy v0.3.4, if you do not install via anaconda then you will need to manually install 
+[proj v8.0.0+](https://proj.org/install.html) and [geos 3.7.2+](https://anaconda.org/conda-forge/geos) 
+(before installing TidalPy. Otherwise, the project map graphic utility may not work. 
+[Read more here](https://scitools.org.uk/cartopy/docs/latest/installing.html)_ 
+
 ### Advanced Installation
 
 It is highly recommended that you use the [Anaconda](https://www.anaconda.com/distribution/) distribution of Python.

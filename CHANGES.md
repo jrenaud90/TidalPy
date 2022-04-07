@@ -7,6 +7,7 @@
   * Removed the soon-to-be deprecated np.float, np.complex, np.int references.
 * Bug Fixes
   * Fixed coverage problem with github actions
+  * Fixed issue importing nbTuple
 
 ### Version 0.3.4 Alpha (Winter/Spring 2022)
 

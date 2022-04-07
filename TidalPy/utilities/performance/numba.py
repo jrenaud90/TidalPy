@@ -44,7 +44,6 @@ else:
     int64 = np.int64
     bool_ = np.bool
     nbList = list
-    nbTuple = tuple
     nbUnicode = str
 
     def njit(*args, **kwargs):
