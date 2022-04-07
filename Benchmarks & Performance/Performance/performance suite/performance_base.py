@@ -140,15 +140,18 @@ class PerformanceTrackBase:
             'numba': [is_numba],
             'TidalPy Vers': [self.tidalpy_version],
             'Performance Vers (class)': [self.version],
-            'Notes': [note]
+            'Notes': [note],
         }
 
         if is_numba:
             new_data['Min Time (numba - ms)'] = [float(f'{min_time_numba*1000:0.6f}')]
             new_data['Median Time (numba - ms)'] = [float(f'{median_time_numba*1000:0.6f}')]
+            new_data['Numba worse than python'] = [np.average((min_time_numba, median_time_numba)) >=
+                                                   np.average((min_time_py, median_time_py))]
         else:
             new_data['Min Time (numba - ms)'] = [None]
             new_data['Median Time (numba - ms)'] = [None]
+            new_data['Numba worse than python'] = [None]
 
         new_data = pd.DataFrame(new_data)
         try:

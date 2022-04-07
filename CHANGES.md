@@ -1,5 +1,10 @@
 # TidalPy Major Change Log
 
+### Version 0.3.6 Alpha (Spring 2022)
+
+* Minor Changes
+  * Added newer functions to the performance recording suite.
+
 ### Version 0.3.5 Alpha (Spring 2022)
 
 * Minor Changes

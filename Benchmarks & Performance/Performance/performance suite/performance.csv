@@ -1,0 +1,107 @@
+Test Num,Date,Test Name,Func Name,Min Time (numba - ms),Median Time (numba - ms),Min Time (python - ms),Median Time (python - ms),Number (timeit),Repeat (timeit),array_N,numba,TidalPy Vers,Performance Vers (class),Notes,Numba worse than python
+0,9/23/2020,Build World - Burnman,build_world,,,1240.36349,1244.86584,10,3,,False,0.2.1.dev7,0.1.0,,
+2,9/23/2020,Build World - Layered,build_world,,,4.16827,4.19515,10,3,,False,0.2.1.dev7,0.1.0,,
+3,9/23/2020,Build World - Star,build_world,,,1.11289,1.12333,10,3,,False,0.2.1.dev7,0.1.0,,
+23,9/23/2020,Calc Tides - One Layer - Maxwell - Array,<lambda>,,,17.70179,19.280685,20,3,10000.0,False,0.2.1.dev7,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+25,9/23/2020,Calc Tides - One Layer - Maxwell - Array,<lambda>,,,14.588677,14.656007,500,10,10000.0,False,0.2.1.dev7,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+22,9/23/2020,Calc Tides - One Layer - Maxwell - Float,<lambda>,,,0.77301,0.80641,20,3,,False,0.2.1.dev7,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+24,9/23/2020,Calc Tides - One Layer - Maxwell - Float,<lambda>,,,0.754045,0.756924,500,10,,False,0.2.1.dev7,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+4,9/23/2020,Complex Compliance - Andrade - Array,andrade_array,0.388293,0.38962,0.414019,0.41551,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+5,9/23/2020,Complex Compliance - Andrade - Float,andrade,0.027409,0.027718,0.008855,0.008925,1000,10,,True,0.2.1.dev7,0.1.0,,
+6,9/23/2020,Complex Compliance - Maxwell - Array,maxwell_array,0.021173,0.021339,0.05508,0.055325,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+7,9/23/2020,Complex Compliance - Maxwell - Float,maxwell,0.00021,0.000212,0.000544,0.000555,1000,10,,True,0.2.1.dev7,0.1.0,,
+8,9/23/2020,Complex Compliance - Sundberg - Array,sundberg_array,0.439015,0.44135,0.387844,0.390569,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+9,9/23/2020,Complex Compliance - Sundberg - Float,sundberg,0.038512,0.039089,0.002122,0.002133,1000,10,,True,0.2.1.dev7,0.1.0,,
+10,9/23/2020,"Eccentricity Func (l=2, e^10) - Array",eccentricity_funcs_trunc10,0.255906,0.256567,1.358371,1.362467,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+11,9/23/2020,"Eccentricity Func (l=2, e^10) - Float",eccentricity_funcs_trunc10,0.047223,0.047667,0.006533,0.00656,1000,10,,True,0.2.1.dev7,0.1.0,,
+14,9/23/2020,"Eccentricity Func (l=2, e^2) - Array",eccentricity_funcs_trunc2,0.084396,0.084577,0.367423,0.369157,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+15,9/23/2020,"Eccentricity Func (l=2, e^2) - Float",eccentricity_funcs_trunc2,0.044534,0.044706,0.001675,0.001679,1000,10,,True,0.2.1.dev7,0.1.0,,
+12,9/23/2020,"Eccentricity Func (l=2, e^20) - Array",eccentricity_funcs_trunc20,0.709315,0.71062,3.981775,4.002641,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+13,9/23/2020,"Eccentricity Func (l=2, e^20) - Float",eccentricity_funcs_trunc20,0.049992,0.050518,0.014928,0.015003,1000,10,,True,0.2.1.dev7,0.1.0,,
+16,9/23/2020,"Eccentricity Func (l=4, e^10) - Array",eccentricity_funcs_trunc10,0.255852,0.256158,1.34878,1.363053,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+17,9/23/2020,"Eccentricity Func (l=4, e^10) - Float",eccentricity_funcs_trunc10,0.04987,0.050573,0.00652,0.006599,1000,10,,True,0.2.1.dev7,0.1.0,,
+20,9/23/2020,"Eccentricity Func (l=4, e^2) - Array",eccentricity_funcs_trunc2,0.084456,0.084636,0.369835,0.370245,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+21,9/23/2020,"Eccentricity Func (l=4, e^2) - Float",eccentricity_funcs_trunc2,0.0451,0.046035,0.001692,0.00172,1000,10,,True,0.2.1.dev7,0.1.0,,
+18,9/23/2020,"Eccentricity Func (l=4, e^20) - Array",eccentricity_funcs_trunc20,0.695195,0.701656,3.928676,3.937934,1000,10,10000.0,True,0.2.1.dev7,0.1.0,,
+19,9/23/2020,"Eccentricity Func (l=4, e^20) - Float",eccentricity_funcs_trunc20,0.050343,0.050916,0.014772,0.014969,1000,10,,True,0.2.1.dev7,0.1.0,,
+26,9/28/2020,"Quick Dissip (l=2, e^2) - Andrade - Array",Unknown Func Name (might be Partial),,,1.969885,2.014255,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+28,9/28/2020,"Quick Dissip (l=2, e^2) - Andrade - Float",Unknown Func Name (might be Partial),,,0.442301,0.44421,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+30,9/28/2020,"Quick Dissip (l=2, e^2) - CPL - Array",Unknown Func Name (might be Partial),,,1.008378,1.020166,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+31,9/28/2020,"Quick Dissip (l=2, e^2) - CPL - Float",Unknown Func Name (might be Partial),,,0.398767,0.403917,1000,10,,False,0.2.1.dev9,0.1.0,,
+27,9/28/2020,"Quick Dissip (l=3, e^10) - Andrade - Array",Unknown Func Name (might be Partial),,,9.075536,9.148543,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+29,9/28/2020,"Quick Dissip (l=3, e^10) - Andrade - Float",Unknown Func Name (might be Partial),,,0.645115,0.649689,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+32,10/28/2020,"Quick Dissip (l=2, e^2) - Andrade - Array",Unknown Func Name (might be Partial),,,2.037085,2.084217,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+34,10/28/2020,"Quick Dissip (l=2, e^2) - Andrade - Float",Unknown Func Name (might be Partial),,,0.451004,0.458033,1000,10,,False,0.2.1.dev9,0.1.0,,
+36,10/28/2020,"Quick Dissip (l=2, e^2) - CPL - Array",Unknown Func Name (might be Partial),,,1.025159,1.032295,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+37,10/28/2020,"Quick Dissip (l=2, e^2) - CPL - Float",Unknown Func Name (might be Partial),,,0.406251,0.407277,1000,10,,False,0.2.1.dev9,0.1.0,,
+33,10/28/2020,"Quick Dissip (l=3, e^10) - Andrade - Array",Unknown Func Name (might be Partial),,,10.035651,10.31,1000,10,1000.0,False,0.2.1.dev9,0.1.0,,
+35,10/28/2020,"Quick Dissip (l=3, e^10) - Andrade - Float",Unknown Func Name (might be Partial),,,0.655915,0.65853,1000,10,,False,0.2.1.dev9,0.1.0,,
+36,6/8/2021,Build World - Burnman,build_world,,,1203.48469,1203.56385,10,3,,False,0.3.0dev9,0.1.0,,
+37,6/8/2021,Build World - Layered,build_world,,,3.89729,3.95094,10,3,,False,0.3.0dev9,0.1.0,,
+38,6/8/2021,Build World - Star,build_world,,,1.03909,1.03918,10,3,,False,0.3.0dev9,0.1.0,,
+39,6/8/2021,Complex Compliance - Andrade - Array,andrade,0.272457,0.272918,0.593461,0.593748,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+40,6/8/2021,Complex Compliance - Andrade - Float,andrade,0.060937,0.061564,0.030859,0.030998,1000,10,,True,0.3.0dev9,0.1.0,,
+41,6/8/2021,Complex Compliance - Maxwell - Array,maxwell,0.044418,0.044556,0.173047,0.173456,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+42,6/8/2021,Complex Compliance - Maxwell - Float,maxwell,0.000188,0.000189,0.014701,0.01498,1000,10,,True,0.3.0dev9,0.1.0,,
+43,6/8/2021,Complex Compliance - Sundberg - Array,sundberg,0.341453,0.341715,0.251844,0.251973,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+44,6/8/2021,Complex Compliance - Sundberg - Float,sundberg,0.072987,0.073425,0.001783,0.001811,1000,10,,True,0.3.0dev9,0.1.0,,
+45,6/8/2021,"Eccentricity Func (l=2, e^10) - Array",eccentricity_funcs_trunc10,0.130599,0.130761,1.248232,1.249,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+46,6/8/2021,"Eccentricity Func (l=2, e^10) - Float",eccentricity_funcs_trunc10,0.007072,0.007129,0.005959,0.005997,1000,10,,True,0.3.0dev9,0.1.0,,
+47,6/8/2021,"Eccentricity Func (l=2, e^20) - Array",eccentricity_funcs_trunc20,0.508493,0.508832,3.553278,3.558142,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+48,6/8/2021,"Eccentricity Func (l=2, e^20) - Float",eccentricity_funcs_trunc20,0.008908,0.008975,0.014607,0.014743,1000,10,,True,0.3.0dev9,0.1.0,,
+49,6/8/2021,"Eccentricity Func (l=2, e^2) - Array",eccentricity_funcs_trunc2,0.028571,0.02878,0.355234,0.355781,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+50,6/8/2021,"Eccentricity Func (l=2, e^2) - Float",eccentricity_funcs_trunc2,0.004736,0.005097,0.001477,0.001496,1000,10,,True,0.3.0dev9,0.1.0,,
+51,6/8/2021,"Eccentricity Func (l=4, e^10) - Array",eccentricity_funcs_trunc10,0.128275,0.12858,1.242998,1.244759,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+52,6/8/2021,"Eccentricity Func (l=4, e^10) - Float",eccentricity_funcs_trunc10,0.008343,0.008409,0.006058,0.006081,1000,10,,True,0.3.0dev9,0.1.0,,
+53,6/8/2021,"Eccentricity Func (l=4, e^20) - Array",eccentricity_funcs_trunc20,0.506188,0.506686,3.55619,3.652162,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+54,6/8/2021,"Eccentricity Func (l=4, e^20) - Float",eccentricity_funcs_trunc20,0.011842,0.012051,0.014672,0.014794,1000,10,,True,0.3.0dev9,0.1.0,,
+55,6/8/2021,"Eccentricity Func (l=4, e^2) - Array",eccentricity_funcs_trunc2,0.028284,0.02869,0.358098,0.358519,1000,10,10000.0,True,0.3.0dev9,0.1.0,,
+56,6/8/2021,"Eccentricity Func (l=4, e^2) - Float",eccentricity_funcs_trunc2,0.004895,0.004926,0.001503,0.001511,1000,10,,True,0.3.0dev9,0.1.0,,
+57,6/8/2021,Calc Tides - One Layer - Maxwell - Float,<lambda>,,,0.585927,0.589429,500,10,,False,0.3.0dev9,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+58,6/8/2021,Calc Tides - One Layer - Maxwell - Array,<lambda>,,,13.716227,13.814525,300,10,10000.0,False,0.3.0dev9,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+59,6/8/2021,"Quick Dissip (l=2, e^2) - Andrade - Array",Unknown Func Name (might be Partial),,,1.191017,1.195546,1000,10,1000.0,False,0.3.0dev9,0.1.0,,
+60,6/8/2021,"Quick Dissip (l=3, e^10) - Andrade - Array",Unknown Func Name (might be Partial),,,7.618672,7.641489,1000,10,1000.0,False,0.3.0dev9,0.1.0,,
+61,6/8/2021,"Quick Dissip (l=2, e^2) - Andrade - Float",Unknown Func Name (might be Partial),,,0.115286,0.116026,1000,10,,False,0.3.0dev9,0.1.0,,
+62,6/8/2021,"Quick Dissip (l=3, e^10) - Andrade - Float",Unknown Func Name (might be Partial),,,0.273486,0.274846,1000,10,,False,0.3.0dev9,0.1.0,,
+63,6/8/2021,"Quick Dissip (l=2, e^2) - CPL - Array",Unknown Func Name (might be Partial),,,0.598821,0.599904,1000,10,1000.0,False,0.3.0dev9,0.1.0,,
+64,6/8/2021,"Quick Dissip (l=2, e^2) - CPL - Float",Unknown Func Name (might be Partial),,,0.081284,0.08229,1000,10,,False,0.3.0dev9,0.1.0,,
+65,04/07/2022,Build World - Burnman,build_world,,,1135.68104,1137.08404,10,3,,False,0.3.6.dev0,0.1.0,,
+66,04/07/2022,Build World - Layered,build_world,,,3.60117,3.60557,10,3,,False,0.3.6.dev0,0.1.0,,
+67,04/07/2022,Build World - Star,build_world,,,0.85339,0.85371,10,3,,False,0.3.6.dev0,0.1.0,,
+68,04/07/2022,Build World - Burnman,build_world,,,1130.37257,1146.74024,10,3,,False,0.3.6.dev0,0.1.0,,
+69,04/07/2022,Build World - Layered,build_world,,,3.61234,3.64553,10,3,,False,0.3.6.dev0,0.1.0,,
+70,04/07/2022,Build World - Star,build_world,,,0.85397,0.87753,10,3,,False,0.3.6.dev0,0.1.0,,
+71,04/07/2022,Complex Compliance - Andrade - Array,andrade,0.356687,0.361122,0.665023,0.668459,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+72,04/07/2022,Complex Compliance - Andrade - Float,andrade,0.075383,0.077083,0.03474,0.034879,1000,10,,True,0.3.6.dev0,0.1.0,,True
+73,04/07/2022,Complex Compliance - Maxwell - Array,maxwell,0.044856,0.045097,0.168773,0.169573,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+74,04/07/2022,Complex Compliance - Maxwell - Float,maxwell,0.000189,0.000191,0.013633,0.013716,1000,10,,True,0.3.6.dev0,0.1.0,,False
+75,04/07/2022,Complex Compliance - Sundberg - Array,sundberg,0.422801,0.424454,0.300384,0.303721,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,True
+76,04/07/2022,Complex Compliance - Sundberg - Float,sundberg,0.086747,0.087616,0.001933,0.001954,1000,10,,True,0.3.6.dev0,0.1.0,,True
+77,04/07/2022,"Eccentricity Func (l=2, e^10) - Array",eccentricity_funcs_trunc10,0.134631,0.135387,1.256455,1.263016,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+78,04/07/2022,"Eccentricity Func (l=2, e^10) - Float",eccentricity_funcs_trunc10,0.007106,0.007285,0.005876,0.005896,1000,10,,True,0.3.6.dev0,0.1.0,,True
+79,04/07/2022,"Eccentricity Func (l=2, e^20) - Array",eccentricity_funcs_trunc20,0.51274,0.519327,3.614656,3.633063,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+80,04/07/2022,"Eccentricity Func (l=2, e^20) - Float",eccentricity_funcs_trunc20,0.009128,0.0093,0.013847,0.01394,1000,10,,True,0.3.6.dev0,0.1.0,,False
+81,04/07/2022,"Eccentricity Func (l=2, e^2) - Array",eccentricity_funcs_trunc2,0.029918,0.030036,0.356623,0.359199,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+82,04/07/2022,"Eccentricity Func (l=2, e^2) - Float",eccentricity_funcs_trunc2,0.005076,0.005104,0.001474,0.001514,1000,10,,True,0.3.6.dev0,0.1.0,,True
+83,04/07/2022,"Eccentricity Func (l=4, e^10) - Array",eccentricity_funcs_trunc10,0.134219,0.13472,1.252425,1.257049,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+84,04/07/2022,"Eccentricity Func (l=4, e^10) - Float",eccentricity_funcs_trunc10,0.007021,0.007084,0.005941,0.005996,1000,10,,True,0.3.6.dev0,0.1.0,,True
+85,04/07/2022,"Eccentricity Func (l=4, e^20) - Array",eccentricity_funcs_trunc20,0.505172,0.512713,3.593366,3.614703,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+86,04/07/2022,"Eccentricity Func (l=4, e^20) - Float",eccentricity_funcs_trunc20,0.009033,0.009087,0.013837,0.013885,1000,10,,True,0.3.6.dev0,0.1.0,,False
+87,04/07/2022,"Eccentricity Func (l=4, e^2) - Array",eccentricity_funcs_trunc2,0.030205,0.030282,0.354802,0.359345,1000,10,10000.0,True,0.3.6.dev0,0.1.0,,False
+88,04/07/2022,"Eccentricity Func (l=4, e^2) - Float",eccentricity_funcs_trunc2,0.004868,0.005132,0.001461,0.001468,1000,10,,True,0.3.6.dev0,0.1.0,,True
+89,04/07/2022,Calc Tides - One Layer - Maxwell - Float,<lambda>,,,0.606912,0.613527,500,10,,False,0.3.6.dev0,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+90,04/07/2022,Calc Tides - One Layer - Maxwell - Array,<lambda>,,,14.129501,14.460429,300,10,10000.0,False,0.3.6.dev0,0.1.0,"Eccentricity Truc: 6, Tidal Order l: 2.",
+91,04/07/2022,"Quick Dissip (l=2, e^2) - Andrade - Array",Unknown Func Name (might be Partial),,,1.36705,1.3859,1000,10,1000.0,False,0.3.6.dev0,0.1.0,,
+92,04/07/2022,"Quick Dissip (l=3, e^10) - Andrade - Array",Unknown Func Name (might be Partial),,,8.485088,8.519193,1000,10,1000.0,False,0.3.6.dev0,0.1.0,,
+93,04/07/2022,"Quick Dissip (l=2, e^2) - Andrade - Float",Unknown Func Name (might be Partial),,,0.116131,0.116871,1000,10,,False,0.3.6.dev0,0.1.0,,
+94,04/07/2022,"Quick Dissip (l=3, e^10) - Andrade - Float",Unknown Func Name (might be Partial),,,0.272054,0.273106,1000,10,,False,0.3.6.dev0,0.1.0,,
+95,04/07/2022,"Quick Dissip (l=2, e^2) - CPL - Array",Unknown Func Name (might be Partial),,,0.627617,0.632312,1000,10,1000.0,False,0.3.6.dev0,0.1.0,,
+96,04/07/2022,"Quick Dissip (l=2, e^2) - CPL - Float",Unknown Func Name (might be Partial),,,0.076503,0.077179,1000,10,,False,0.3.6.dev0,0.1.0,,
+97,04/07/2022,Tidal-y Calc - Homogen-Solid - Dynamic - Numba-RK45,tidal_y_solver,,,1.67986,1.72699,10,3,,False,0.3.6.dev0,0.1.0,,
+98,04/07/2022,Tidal-y Calc - Homogen-Solid - Static - Numba-RK45,tidal_y_solver,,,1.64427,1.6787,10,3,,False,0.3.6.dev0,0.1.0,,
+99,04/07/2022,Tidal-y Calc - Liquid-Solid - Static-Static - Numba-RK45,tidal_y_solver,,,5.94817,5.99445,10,3,,False,0.3.6.dev0,0.1.0,,
+100,04/07/2022,Tidal-y Calc - Liquid-Solid - Static-Dynamic - Numba-RK45,tidal_y_solver,,,5.94684,6.03128,10,3,,False,0.3.6.dev0,0.1.0,,
+101,04/07/2022,Collapse Multilayer Modes (Numba) - Liquid-Solid - Static-Dynamic - ObliquityOff,collapse_multilayer_modes,183.668,185.11347,142.03991,143.77722,10,3,,True,0.3.6.dev0,0.1.0,,True
+102,04/07/2022,Collapse Multilayer Modes (Numba) - Liquid-Solid - Static-Dynamic - ObliquityOn,collapse_multilayer_modes,310.59712,314.77699,248.44621,250.10708,10,3,,True,0.3.6.dev0,0.1.0,,True
+103,04/07/2022,Collapse Multilayer Modes - Liquid-Solid - Static-Dynamic - ObliquityOff,collapse_multilayer_modes,,,157.53941,158.24866,10,3,,False,0.3.6.dev0,0.1.0,,
+104,04/07/2022,Collapse Multilayer Modes - Liquid-Solid - Static-Dynamic - ObliquityOn,collapse_multilayer_modes,,,275.16267,279.11649,10,3,,False,0.3.6.dev0,0.1.0,,
