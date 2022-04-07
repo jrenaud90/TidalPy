@@ -8,6 +8,7 @@
 * Bug Fixes
   * Fixed coverage problem with github actions.
   * Fixed issue importing nbTuple.
+  * Fixed issues with GitHub actions and coverage.
 
 ### Version 0.3.4 Alpha (Winter/Spring 2022)
 
