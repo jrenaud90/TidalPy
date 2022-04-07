@@ -1,10 +1,11 @@
-<h1 align="center">TidalPy</h1>
-<h3 align="center">v0.3 Alpha</h3>
+<h1 style="text-align: center">TidalPy</h1>
+<h3 style="text-align: center">v0.3.5 Beta</h3>
 
-<p align="center">
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml?query=branch%3Amaster" /><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml/badge.svg?branch=master" /></a> <a href="https://codecov.io/gh/jrenaud90/TidalPy"><img src="https://codecov.io/gh/jrenaud90/TidalPy/branch/master/graph/badge.svg?token=35OY4ZLOA5"/></a><br />
-    <a href="https://mybinder.org/v2/gh/jrenaud90/TidalPy/master?filepath=%2FCookbooks%2F"><img src="https://mybinder.org/badge_logo.svg" /></a>
-    <a href="https://gitter.im/TidalPy/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/TidalPy/community.svg" /></a>
+<p style="text-align: center">
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml?query=branch%3Amaster"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml/badge.svg?branch=master" alt="Push Test Pass/Fail" /></a>
+    <a href="https://codecov.io/gh/jrenaud90/TidalPy"><img src="https://codecov.io/gh/jrenaud90/TidalPy/branch/master/graph/badge.svg?token=35OY4ZLOA5" alt="Code Coverage"/></a><br />
+    <a href="https://mybinder.org/v2/gh/jrenaud90/TidalPy/master?filepath=%2FCookbooks%2F"><img src="https://mybinder.org/badge_logo.svg" alt="Binder" /></a>
+    <a href="https://gitter.im/TidalPy/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img src="https://badges.gitter.im/TidalPy/community.svg" alt="Gitter" /></a>
 </p>
 
 ## Purpose

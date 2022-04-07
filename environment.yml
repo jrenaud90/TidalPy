@@ -28,7 +28,10 @@ dependencies:
   - geos>=3.7.2
   - cartopy>=0.18.0
   - pip:
+    # The pytests are in here under both conda and pip because TidalPy uses conda to run coverage and python to run tests
+    - pytest>=6.2.4
+    - pytest-cov>=3.0.0
+    - pytest-split>=0.7.0
     - pycddlib>=2.1
     - burnman>=1.0.1
-    - pytest-split>=0.7.0
     - .
