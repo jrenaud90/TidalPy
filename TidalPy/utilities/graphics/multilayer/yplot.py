@@ -127,7 +127,7 @@ def yplot(
         RN08_C = 'b'
         RN08_data = np.loadtxt(os.path.join(FILE_PATH, 'RN08-Data.csv'), skiprows=1, delimiter=',', dtype=str)
         RN08_data[RN08_data == ''] = np.nan
-        RN08_data = RN08_data.astype(np.float)
+        RN08_data = RN08_data.astype(np.float64)
         ax_y1.scatter(RN08_data[:, 0], RN08_data[:, 1] / 1000., label='RN08-HG', c=RN08_C, marker='.', s=20)
         ax_y1.scatter(RN08_data[:, 2], RN08_data[:, 3] / 1000., label='RN08-LC0', c=RN08_C, marker='+', s=20)
 
@@ -144,7 +144,7 @@ def yplot(
         T05_C = 'r'
         T05_data = np.loadtxt(os.path.join(FILE_PATH, 'T05-Data.csv'), skiprows=1, delimiter=',', dtype=str)
         T05_data[T05_data == ''] = np.nan
-        T05_data = T05_data.astype(np.float)
+        T05_data = T05_data.astype(np.float64)
         ax_y1.scatter(T05_data[:, 0], T05_data[:, 1] / 1000., label='T05-HG', c=T05_C, marker='.', s=20)
         ax_y1.scatter(T05_data[:, 2], T05_data[:, 3] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
         ax_y1.scatter(T05_data[:, 4], T05_data[:, 5] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)

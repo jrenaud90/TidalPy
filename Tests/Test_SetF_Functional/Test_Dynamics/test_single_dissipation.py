@@ -101,5 +101,5 @@ def test_single_disp_arrays():
     assert result[0].dtype in [float, np.float64]
     assert result[0].shape == (10,)
     assert type(result[1]) == np.ndarray
-    assert result[1].dtype in [float, np.float, np.float64]
+    assert result[1].dtype in [float, np.float64]
     assert result[1].shape == (10,)

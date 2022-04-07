@@ -16,9 +16,9 @@ TidalPy.reinit()
 
 def test_sec2myr():
     # Build arrays for testing
-    zero_array = np.zeros(10, dtype=np.float)
-    one_array = np.ones(10, dtype=np.float)
-    sec_array = 3.154e13 * np.ones(10, dtype=np.float)
+    zero_array = np.zeros(10, dtype=np.float64)
+    one_array = np.ones(10, dtype=np.float64)
+    sec_array = 3.154e13 * np.ones(10, dtype=np.float64)
 
     # Test sec2myr - Floats
     assert sec2myr(0.) == 0.
@@ -43,9 +43,9 @@ def test_sec2myr():
 
 def test_Au2m():
     # Build arrays for testing
-    zero_array = np.zeros(10, dtype=np.float)
-    one_array = np.ones(10, dtype=np.float)
-    meter_array = 1.496e11 * np.ones(10, dtype=np.float)
+    zero_array = np.zeros(10, dtype=np.float64)
+    one_array = np.ones(10, dtype=np.float64)
+    meter_array = 1.496e11 * np.ones(10, dtype=np.float64)
 
     # Test m2Au - Floats
     assert m2Au(0.) == 0.
@@ -71,10 +71,10 @@ def test_Au2m():
 def test_rads2days():
     # Build arrays for testing
     day_to_radians = 2. * np.pi / 86400.
-    zero_array = np.zeros(10, dtype=np.float)
-    inf_array = np.inf * np.ones(10, dtype=np.float)
-    one_array = np.ones(10, dtype=np.float)
-    radian_array = day_to_radians * np.ones(10, dtype=np.float)
+    zero_array = np.zeros(10, dtype=np.float64)
+    inf_array = np.inf * np.ones(10, dtype=np.float64)
+    one_array = np.ones(10, dtype=np.float64)
+    radian_array = day_to_radians * np.ones(10, dtype=np.float64)
 
     # Test rads2days - Floats
     with pytest.raises(ZeroDivisionError) as e_info:
@@ -106,9 +106,9 @@ def test_semi_a2orbital_motion():
     sun_mass = 1.988435e30  # kg
     earth_orb_motion = (G * (earth_mass + sun_mass) / earth_distance**3)**(1 / 2)  # radians second-1
 
-    zero_array = np.zeros(10, dtype=np.float)
-    distance_array = earth_distance * np.ones(10, dtype=np.float)
-    frequency_array = earth_orb_motion * np.ones(10, dtype=np.float)
+    zero_array = np.zeros(10, dtype=np.float64)
+    distance_array = earth_distance * np.ones(10, dtype=np.float64)
+    frequency_array = earth_orb_motion * np.ones(10, dtype=np.float64)
 
     # Test semi_a2orbital_motion - Floats
     with pytest.raises(ZeroDivisionError) as e_info:

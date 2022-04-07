@@ -67,8 +67,8 @@ def test_layered_tide_model_maxwell_rheology():
     assert type(world_tidal.effective_q_by_orderl[2]) in [float, np.float64]
     assert type(world_tidal.dUdM) in [float, np.float64]
     assert type(world_tidal.dUdO) in [float, np.float64]
-    assert type(world_tidal.dUdw) in [float, np.float, np.float64]
-    assert type(world_tidal.tidal_heating_global) in [float, np.float, np.float64]
+    assert type(world_tidal.dUdw) in [float, np.float64]
+    assert type(world_tidal.tidal_heating_global) in [float, np.float64]
 
     # Test arrays
     # Set orbital frequency and eccentricity - check that spin locking worked.

@@ -40,9 +40,9 @@ def test_eccentricity_func():
             # Perform float calculation
             e_result_float = e_func(0.3)
             for p, p_result in e_result_float.items():
-                assert type(p) in [int, np.int, np.int32]
+                assert type(p) in [int, np.int32]
                 for q, q_result in p_result.items():
-                    assert type(q) in [int, np.int, np.int32]
+                    assert type(q) in [int, np.int32]
                     assert type(q_result) in [float, np.float64]
 
             # Perform array calculation
@@ -90,12 +90,12 @@ def test_inclination_func():
             assert type(obliqu_result_off_float) is dict
 
         for (p, m), result_off in obliqu_result_on_float.items():
-            assert type(p) in [int, np.int, np.int32]
-            assert type(m) in [int, np.int, np.int32]
+            assert type(p) in [int, np.int32]
+            assert type(m) in [int, np.int32]
             assert type(result_off) in [float, np.float64]
         for (p, m), result_on in obliqu_result_off_float.items():
-            assert type(p) in [int, np.int, np.int32]
-            assert type(m) in [int, np.int, np.int32]
+            assert type(p) in [int, np.int32]
+            assert type(m) in [int, np.int32]
             assert type(result_on) in [float, np.float64]
 
         # Perform array calculation
@@ -110,10 +110,10 @@ def test_inclination_func():
             assert type(obliqu_result_off_float) is dict
 
         for (p, m), result_off in obliqu_result_on_array.items():
-            assert type(p) in [int, np.int, np.int32]
-            assert type(m) in [int, np.int, np.int32]
+            assert type(p) in [int, np.int32]
+            assert type(m) in [int, np.int32]
             assert type(result_off) is np.ndarray
         for (p, m), result_on in obliqu_result_off_array.items():
-            assert type(p) in [int, np.int, np.int32]
-            assert type(m) in [int, np.int, np.int32]
+            assert type(p) in [int, np.int32]
+            assert type(m) in [int, np.int32]
             assert type(result_on) is np.ndarray

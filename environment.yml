@@ -12,7 +12,6 @@ dependencies:
   - scipy>=1.6.3
   - numba>=0.53
   - pytest>=6.2.4
-  - pytest-split>=0.7.0
   - pytest-cov>=3.0.0
   - coverage>=6.3
   - ipympl>=0.7.0
@@ -31,4 +30,5 @@ dependencies:
   - pip:
     - pycddlib>=2.1
     - burnman>=1.0.1
+    - pytest-split>=0.7.0
     - .

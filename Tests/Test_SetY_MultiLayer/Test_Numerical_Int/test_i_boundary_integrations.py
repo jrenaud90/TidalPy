@@ -46,7 +46,7 @@ def test_calculate_homogen():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test dynamic
     tidal_y = tidal_y_solver(
@@ -65,7 +65,7 @@ def test_calculate_homogen():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
 
 ls_layer_0_indx = radius_array_to_use <= R / 2.
@@ -94,7 +94,7 @@ def test_calculate_ls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
     tidal_y = tidal_y_solver(
@@ -113,10 +113,10 @@ def test_calculate_ls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
     tidal_y = tidal_y_solver(
@@ -135,7 +135,7 @@ def test_calculate_ls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
     tidal_y = tidal_y_solver(
@@ -154,7 +154,7 @@ def test_calculate_ls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
 
 sls_layer_0_indx = radius_array_to_use <= R / 3.
@@ -184,7 +184,7 @@ def test_calculate_sls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
     tidal_y = tidal_y_solver(
@@ -203,10 +203,10 @@ def test_calculate_sls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
     tidal_y = tidal_y_solver(
@@ -225,7 +225,7 @@ def test_calculate_sls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
     tidal_y = tidal_y_solver(
@@ -244,7 +244,7 @@ def test_calculate_sls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
 
 ssls_layer_0_indx = radius_array_to_use <= R / 4.
@@ -275,7 +275,7 @@ def test_calculate_ssls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
     tidal_y = tidal_y_solver(
@@ -294,10 +294,10 @@ def test_calculate_ssls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
     tidal_y = tidal_y_solver(
@@ -316,7 +316,7 @@ def test_calculate_ssls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
     tidal_y = tidal_y_solver(
@@ -335,4 +335,4 @@ def test_calculate_ssls():
         )
 
     assert tidal_y.shape == (6, 10)
-    assert tidal_y.dtype in [np.complex, np.complex128, complex]
+    assert tidal_y.dtype in [np.complex128, complex]

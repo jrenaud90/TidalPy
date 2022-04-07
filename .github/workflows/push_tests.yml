@@ -46,7 +46,7 @@ jobs:
           # $CONDA is an environment variable pointing to the root of the miniconda directory
           $CONDA/bin/conda env update --file environment.yml --name base
       - name: Run pytest
-        run: $CONDA/bin/pytest --cov --splits 5 --group ${{ matrix.group }}
+        run: $CONDA/bin/pytest --cov=TidalPy --splits 5 --group ${{ matrix.group }}
       - name: Upload coverage
         uses: actions/upload-artifact@v3
         with:

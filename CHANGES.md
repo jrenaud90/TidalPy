@@ -1,5 +1,13 @@
 # TidalPy Major Change Log
 
+### Version 0.3.5 Alpha (Spring 2022)
+
+* Major Changes
+* Minor Changes
+  * Removed the soon-to-be deprecated np.float, np.complex, np.int references.
+* Bug Fixes
+  * Fixed coverage problem with github actions
+
 ### Version 0.3.4 Alpha (Winter/Spring 2022)
 
 *Multilayer scripts based on 0.3.3 or earlier will likely break with this version!*

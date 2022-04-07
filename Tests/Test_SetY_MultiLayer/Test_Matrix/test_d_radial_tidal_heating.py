@@ -23,7 +23,7 @@ mass_array = volume_array * density_array
 planet_mass = sum(mass_array)
 mass_below = np.asarray([np.sum(mass_array[:i + 1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
-shear_array = 5.e10 * np.ones(10, dtype=np.complex)
+shear_array = 5.e10 * np.ones(10, dtype=np.complex128)
 host_mass = 10. * planet_mass
 orbital_freq = (2. * np.pi / (86400. * 6.))
 semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
@@ -62,7 +62,7 @@ def test_calc_fundamental_order2():
     assert radial_tidal_heating.shape == (10,)
 
     # Check types
-    assert type(radial_tidal_heating[0]) in [np.float, np.float64, float]
+    assert type(radial_tidal_heating[0]) in [np.float64, float]
 
 
 def test_calc_fundamental_order3():
@@ -100,4 +100,4 @@ def test_calc_fundamental_order3():
     assert radial_tidal_heating.shape == (10,)
 
     # Check types
-    assert type(radial_tidal_heating[0]) in [np.float, np.float64, float]
+    assert type(radial_tidal_heating[0]) in [np.float64, float]
