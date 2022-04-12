@@ -7,7 +7,7 @@ from ..eccentricity_funcs import EccenOutput
 from ..inclination_funcs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..universal_coeffs import get_universal_coeffs
-from ...utilities.performance.numba import njit
+from ...utilities.performance.numba import njit, prange
 from ...utilities.types import ComplexArray, FloatArray, NoneType
 
 FreqSig = Tuple[int, int]
@@ -16,7 +16,7 @@ DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
 
-@njit(cacheable=True)
+@njit(cacheable=True, parallel=True)
 def calculate_terms(
     spin_frequency: FloatArray, orbital_frequency: FloatArray,
     semi_major_axis: FloatArray, radius: float,
@@ -70,9 +70,9 @@ def calculate_terms(
     max_order_l_eccen = 1 + len(eccentricity_results_byorderl)
     max_order_l_obliquity = 1 + len(obliquity_results_byorderl)
     if max_order_l_eccen != max_order_l_obliquity:
-        # The maximum order l should be the same for obliquity and eccentricity results.
-        #    Mismatch in eccentricity obliquity function?
-        raise Exception
+        raise Exception("The maximum order l should be the same for obliquity and eccentricity results."
+                        "Mismatch in eccentricity obliquity function?")
+
     max_order_l = max_order_l_eccen
 
     # Storage for results by unique frequency signature. Must provide fake data structures and values so that numba

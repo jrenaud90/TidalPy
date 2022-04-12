@@ -1,5 +1,3 @@
-from typing import List as ListType
-
 import numpy as np
 
 from .collapse import (collapse_homogen_solid, collapse_ls_dynamic_liq, collapse_ls_static_liq,
@@ -12,7 +10,6 @@ from .interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt
                          interface_SSt_LDy,
                          interface_SSt_LSt, interface_SSt_SDy, interface_SSt_SSt)
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
-from ....constants import G
 from ....utilities.integration.rk_integrator import rk_integrate
 from ....utilities.performance import njit, nbList
 
@@ -137,7 +134,7 @@ def _single_layer_integrate(
     solution_num = 0
     layer_solutions = nbList()
     for initial_values in initial_values_to_use:
-        initial_values_copy = initial_values.copy()
+        initial_values_copy = np.ascontiguousarray(initial_values.copy())
 
         if layer_is_solid:
             if layer_is_static:
@@ -196,7 +193,7 @@ def tidal_y_solver(
     model_name: str,
     radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
     density: np.ndarray, gravity: np.ndarray, frequency: float,
-    is_solid_by_layer: ListType[bool], is_static_by_layer: ListType[bool], indices_by_layer: ListType[np.ndarray],
+    is_solid_by_layer: tuple[bool, ...], is_static_by_layer: tuple[bool, ...], indices_by_layer: tuple[np.ndarray, ...],
     order_l: int = 2,
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
@@ -273,7 +270,8 @@ def tidal_y_solver(
                 mean_radius=planet_radius, bulk_density=planet_bulk_density
                 )
     else:
-        G_to_use = G
+        # Gravitational Constant
+        G_to_use = 6.6743e-11
 
     # Find solution at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
@@ -294,6 +292,8 @@ def tidal_y_solver(
 
     # Dummy variables for compile
     layer_below_ys = nbList([np.empty((6, 1), dtype=np.complex128)])
+    liquid_indices = np.zeros_like(indices_by_layer[0], dtype=np.bool_)
+    is_liquid_static = True
 
     # Ready to solve the viscoelastic-gravitational problem for each layer, obtaining multiple solutions per layer
     #    which will later be collapsed via a linear combination (subjected to boundary conditions) into one solution
@@ -354,8 +354,9 @@ def tidal_y_solver(
         layer_below_ys = \
             _single_layer_integrate(
                 layer_is_solid, layer_is_static, radial_span, initial_values_to_use, frequency,
-                layer_radii, layer_shear, layer_bulk, layer_density,
-                layer_gravity, order_l, G_to_use, rk_method, int_rtol, int_atol
+                np.ascontiguousarray(layer_radii.copy()), np.ascontiguousarray(layer_shear.copy()),
+                np.ascontiguousarray(layer_bulk.copy()), np.ascontiguousarray(layer_density.copy()),
+                np.ascontiguousarray(layer_gravity.copy()), order_l, G_to_use, rk_method, int_rtol, int_atol
                 )
 
         # Add solutions to outer list
@@ -363,6 +364,7 @@ def tidal_y_solver(
 
         if verbose:
             print('\nIntegration Done!')
+    solutions_by_layer = solutions_by_layer
 
     # Collapse the multiple solutions per layer into a single solution for the planet based on the boundary condition.
     if verbose:
