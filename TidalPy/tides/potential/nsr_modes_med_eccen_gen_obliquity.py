@@ -1,6 +1,8 @@
+from typing import Dict
+
 import numpy as np
 
-from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput
+from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput, PotentialTupleModeOutput
 from ...constants import G
 from ...utilities.performance import bool_, njit
 from ...utilities.types import FloatArray
@@ -16,8 +18,11 @@ def tidal_potential(
     ) -> TidalPotentialModeOutput:
     """ Tidal gravitational potential assuming moderate eccentricity, moderate obliquity, and non-synchronous rotation
 
-    This version that allows for moderate obliquity is about 1.75 to 2x slower than the non-obliquity version found in:
-        TidalPy.tides.potential.nsr_med_eccen_no_obliquity.py
+    This function will keep the subcomponents of the potential separate for each tidal mode so that they may
+       be collapsed later on (e.g., after combining with different frequency response at each mode).
+
+    This version, which allows for obliquity, is about 2.5 times slower than the version that does not.
+        TidalPy.tides.potential.nsr_modes_med_eccen_no_obliquity.py
 
     Parameters
     ----------
@@ -68,7 +73,7 @@ def tidal_potential(
 
     See Also
     --------
-    TidalPy.tides.potential.nsr_med_eccen_no_obliquity.py
+    TidalPy.tides.potential.nsr_modes_med_eccen_no_obliquity.py
     """
 
     # Optimizations
@@ -87,9 +92,19 @@ def tidal_potential(
     e3 = eccentricity * e2
     n = orbital_frequency
     o = rotation_frequency
-    ob = obliquity
-    ob2 = obliquity * obliquity
-    ob3 = obliquity * ob2
+    obliquity_half = obliquity / 2.
+
+    sin_ob = np.sin(obliquity_half)
+    sin_2_ob = sin_ob * sin_ob
+    sin_3_ob = sin_2_ob * sin_ob
+    sin_4_ob = sin_3_ob * sin_ob
+
+    cos_ob = np.cos(obliquity_half)
+    cos_2_ob = cos_ob * cos_ob
+    cos_3_ob = cos_2_ob * cos_ob
+    cos_4_ob = cos_3_ob * cos_ob
+
+
 
     # Associated Legendre Functions and their partial derivatives
     p_20 = (1. / 2.) * (3. * cos2_lat - 1.)
@@ -108,7 +123,7 @@ def tidal_potential(
     legendre_coeffs = (
         # P_20
         (p_20, dp_20_dtheta, dp2_20_dtheta2),
-        # P_21: P_21 is unused in this truncation. set its values to zero.
+        # P_21
         (p_21, dp_21_dtheta, dp2_21_dtheta2),
         # P_22
         (p_22, dp_22_dtheta, dp2_22_dtheta2)
@@ -150,11 +165,44 @@ def tidal_potential(
         )
 
     # Setup mode list used under this functions assumptions.
+    mode_names = (
+        'n',
+        '2n',
+        '3n',
+        '2o+n',
+        '2o+2n',
+        '2o+3n',
+        '2o+4n',
+        '2o+5n',
+        '2o-n',
+        '2o-2n',
+        '2o-3n',
+        '2o-4n',
+        '2o-5n',
+        'o',
+        '2o',
+        'o+n',
+        'o+2n',
+        'o+3n',
+        'o+4n',
+        'o+5n',
+        'o-n',
+        'o-2n',
+        'o-3n',
+        'o-4n',
+        'o-5n'
+        )
+
+    # Setup mode list used under this functions assumptions.
     modes = (
         n,
         2. * n,
         3. * n,
         2. * o + n,
+        2. * o + 2. * n,
+        2. * o + 3. * n,
+        2. * o + 4. * n,
+        2. * o + 5. * n,
         2. * o - n,
         2. * o - 2. * n,
         2. * o - 3. * n,
@@ -164,12 +212,16 @@ def tidal_potential(
         2. * o,
         o + n,
         o + 2. * n,
+        o + 3. * n,
+        o + 4. * n,
+        o + 5. * n,
         o - n,
         o - 2. * n,
         o - 3. * n,
-        o - 4. * n
+        o - 4. * n,
+        o - 5. * n
         )
-    num_modes = 17
+    num_modes = 25
 
     # Indicate which legendre polynomial is associated with which mode. The number here refers to the m integer
     mode_legendre = (
@@ -180,6 +232,14 @@ def tidal_potential(
         # 3n
         0,
         # 2o + n
+        2,
+        # 2o + 2n
+        2,
+        # 2o + 3n
+        2,
+        # 2o + 4n
+        2,
+        # 2o + 5n
         2,
         # 2o - n
         2,
@@ -199,6 +259,12 @@ def tidal_potential(
         1,
         # o + 2n
         1,
+        # o + 3n
+        1,
+        # o + 4n
+        1,
+        # o + 5n
+        1,
         # o - n
         1,
         # o - 2n
@@ -206,6 +272,8 @@ def tidal_potential(
         # o - 3n
         1,
         # o - 4n
+        1,
+        # o - 5n
         1
         )
 
@@ -218,6 +286,14 @@ def tidal_potential(
         0,
         # 2o + n
         2,
+        # 2o + 2n
+        2,
+        # 2o + 3n
+        2,
+        # 2o + 4n
+        2,
+        # 2o + 5n
+        2,
         # 2o - n
         2,
         # 2o - 2n
@@ -236,6 +312,12 @@ def tidal_potential(
         1,
         # o + 2n
         1,
+        # o + 3n
+        1,
+        # o + 4n
+        1,
+        # o + 5n
+        1,
         # o - n
         1,
         # o - 2n
@@ -243,20 +325,25 @@ def tidal_potential(
         # o - 3n
         1,
         # o - 4n
+        1,
+        # o - 5n
         1
         )
 
     # Coefficients for each mode
     mode_coeffs = (
         # n
-        -e - (9. / 8.) * e3 + (7. / 4.) * e * ob2,
+        e * (-cos_p_sin_ob - sin_4_ob + 5. * sin_2_ob * cos_2_ob) + e3 * (-(9. / 8) * cos_4_ob - (9. / 8.) * sin_4),
         # 2n
         -(3. / 2.) * e2 - (1. / 2.) * ob2,
         # 3n
         -(53. / 24.) * e3 - (7. / 4.) * e * ob2,
         # 2o + n
         (1. / 288.) * e3 + (1. / 8.) * ob2 * e,
-        # 2o - n
+        # 2o + 2n
+        # 2o + 3n
+        # 2o + 4n
+        # 2o + 5n
         (-1. / 12.) * e + (1. / 96.) * e3 + (1. / 6.) * e * ob2,
         # 2o - 2n
         (1. / 6.) - (5. / 12.) * e2 - (1. / 12.) * ob2,
@@ -274,6 +361,9 @@ def tidal_potential(
         (1. / 2.) * e * ob,
         # o + 2n
         (3. / 4.) * e2 * ob + (1. / 12.) * ob3,
+        # o + 3n
+        # o + 4n
+        # o + 5n
         # o - n
         (2. / 3.) * ob * e,
         # o - 2n
@@ -282,16 +372,23 @@ def tidal_potential(
         -(7. / 6.) * ob * e,
         # o - 4n
         -(17. / 6.) * ob * e2
+        # o - 5n
         )
 
-    # Build storage for the potential and its derivatives
-    shape = colatitude + o + e + n
-    potential = np.zeros_like(shape, dtype=np.float64)
-    potential_partial_theta = np.zeros_like(shape, dtype=np.float64)
-    potential_partial_phi = np.zeros_like(shape, dtype=np.float64)
-    potential_partial2_theta2 = np.zeros_like(shape, dtype=np.float64)
-    potential_partial2_phi2 = np.zeros_like(shape, dtype=np.float64)
-    potential_partial2_theta_phi = np.zeros_like(shape, dtype=np.float64)
+    # Prepare static coeff
+    static_coeff = (-1. / 3.) - (1. / 2.) * e2 + (1. / 2.) * ob
+    static_term = static_coeff * p_20
+    static_term_partial_theta = static_coeff * dp_20_dtheta
+    static_term_partial2_theta2 = static_coeff * dp2_20_dtheta2
+
+    # Prepare global coefficient
+    global_coefficient = (3. / 2.) * G * host_mass * radius**2 / semi_major_axis**3
+
+    # Build storage for the potential and its derivatives by mode
+    oen_shape = o + e + n
+    frequencies_by_name = dict()  # type: Dict[str, FloatArray]
+    modes_by_name = dict()  # type: Dict[str, FloatArray]
+    potential_tuple_by_mode = dict()  # type: PotentialTupleModeOutput
 
     # Go through modes and add their contribution to the potential and its derivatives.
     for mode_i in range(num_modes):
@@ -315,7 +412,7 @@ def tidal_potential(
         # Switches
         # There will be terms that are non-zero even though they do not carry a time dependence. This switch will
         #   ensure all non-time dependence --> zero unless the user sets `use_static` = True.
-        mode_switch = np.ones_like(shape, dtype=bool_)
+        mode_switch = np.ones_like(oen_shape, dtype=bool_)
         if not use_static:
             # Use static is False (default). Switches depend on the value of n and o
             # The orbital motion only nodes will always be on (unless n = 0 but that is not really possible).
@@ -325,60 +422,53 @@ def tidal_potential(
         switch_coeff = mode_switch * mode_coeffs[mode_i]
 
         # Solve for the potential and its partial derivatives
-        potential += switch_coeff * \
-                     longitude_coeff * \
-                     legendre
+        potential = switch_coeff * \
+                    longitude_coeff * \
+                    legendre
 
-        potential_partial_theta += switch_coeff * \
-                                   longitude_coeff * \
-                                   legendre_dtheta
+        potential_partial_theta = switch_coeff * \
+                                  longitude_coeff * \
+                                  legendre_dtheta
 
-        potential_partial_phi += switch_coeff * \
-                                 longitude_coeff_dphi * \
-                                 legendre
+        potential_partial_phi = switch_coeff * \
+                                longitude_coeff_dphi * \
+                                legendre
 
-        potential_partial2_theta2 += switch_coeff * \
-                                     longitude_coeff * \
-                                     legendre_dtheta2
+        potential_partial2_theta2 = switch_coeff * \
+                                    longitude_coeff * \
+                                    legendre_dtheta2
 
-        potential_partial2_phi2 += switch_coeff * \
-                                   longitude_coeff_dphi2 * \
-                                   legendre
+        potential_partial2_phi2 = switch_coeff * \
+                                  longitude_coeff_dphi2 * \
+                                  legendre
 
-        potential_partial2_theta_phi += switch_coeff * \
-                                        longitude_coeff_dphi * \
-                                        legendre_dtheta
+        potential_partial2_theta_phi = switch_coeff * \
+                                       longitude_coeff_dphi * \
+                                       legendre_dtheta
 
-    # # Deal with static portion of the potential
-    # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
-    if use_static:
-        static_coeff = (-1. / 3.) - (1. / 2.) * e2 + (1. / 2.) * ob
-        # The static portion for these assumptions does not depend on longitude so the partial with respect to phi is 0
-        #    don't bother adding anything to those partial derivatives.
-        potential += static_coeff * p_20
-        potential_partial_theta += static_coeff * dp_20_dtheta
-        potential_partial2_theta2 += static_coeff * dp2_20_dtheta2
+        # # Deal with static portion of the potential
+        # TODO: Is this used? It is absent from other authors definitions. For now I am including it for this function
+        if use_static:
+            # The static portion for these assumptions does not depend on longitude so the partial with respect to phi is 0
+            #    don't bother adding anything to those partial derivatives.
+            potential += static_term
+            potential_partial_theta += static_term_partial_theta
+            potential_partial2_theta2 += static_term_partial2_theta2
 
-    # Multiply by the outer coefficients
-    global_coefficient = (3. / 2.) * G * host_mass * radius**2 / semi_major_axis**3
+        # Multiply by the outer coefficients
+        potential *= global_coefficient
+        potential_partial_theta *= global_coefficient
+        potential_partial_phi *= global_coefficient
+        potential_partial2_theta2 *= global_coefficient
+        potential_partial2_phi2 *= global_coefficient
+        potential_partial2_theta_phi *= global_coefficient
 
-    potential *= global_coefficient
-    potential_partial_theta *= global_coefficient
-    potential_partial_phi *= global_coefficient
-    potential_partial2_theta2 *= global_coefficient
-    potential_partial2_phi2 *= global_coefficient
-    potential_partial2_theta_phi *= global_coefficient
-
-    # Store results for this "mode"
-    # Convert 'frequency' into real frequency and mode
-    mode = orbital_frequency
-    orbital_frequency = np.abs(orbital_frequency)
-    frequencies_by_name = {'n': orbital_frequency}
-    modes_by_name = {'n': mode}
-    potential_tuple_by_mode = {
-        'n':
+        # Store results for this mode
+        mode_name = mode_names[mode_i]
+        frequencies_by_name[mode_name] = freq
+        modes_by_name[mode_name] = mode
+        potential_tuple_by_mode[mode_name] = \
             (potential, potential_partial_theta, potential_partial_phi, potential_partial2_theta2,
              potential_partial2_phi2, potential_partial2_theta_phi)
-        }
 
     return frequencies_by_name, modes_by_name, potential_tuple_by_mode
