@@ -2,6 +2,9 @@
 
 ### Version 0.3.6 Alpha (Spring 2022)
 
+* Major Changes 
+  * Added a multilayer tidal potential that allows for arbitrary obliquity.
+
 * Minor Changes
   * Added newer functions to the performance recording suite.
   * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.

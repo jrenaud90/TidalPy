@@ -14,6 +14,7 @@ from ...utilities.performance import nbList
 from ..multilayer.numerical_int.solver import tidal_y_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
+                         tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
 
 
@@ -195,7 +196,7 @@ def collapse_multilayer_modes(
     longitude_matrix: np.ndarray, colatitude_matrix: np.ndarray, time_matrix: np.ndarray, voxel_volume: np.ndarray,
     complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
-    obliquity: float = None,
+    obliquity: float = None, use_general_obliquity: bool = False,
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
     complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
     order_l: int = 2,
@@ -272,6 +273,9 @@ def collapse_multilayer_modes(
     obliquity : float = None
         If not None then the tidal potential that accounts for obliquity will be used.
         Obliquity is relative to the orbital plane [rad]
+    use_general_obliquity : bool = False
+        If True, and `obliquity` is not None, then this function will use the tidal potential that allows for an
+            arbitrary obliquity (otherwise a small angle approximation will be used). This impacts performance.
     surface_boundary_conditions : np.ndarray = None
         Surface conditions applied to the radial function solutions at the top of the planet.
         If equal to None then the function will calculate the surface boundary conditions of either the tidal or load
@@ -413,15 +417,27 @@ def collapse_multilayer_modes(
         if use_simple_potential:
             raise Exception('The simple version of the tidal potential does not account for a non-zero obliquity')
         elif use_modes:
-            potential_output = tidal_potential_obliquity_nsr_modes(
-                planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
-                spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
-                )
+            if use_general_obliquity:
+                potential_output = tidal_potential_gen_obliquity_nsr_modes(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
+            else:
+                potential_output = tidal_potential_obliquity_nsr_modes(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
         else:
-            potential_output = tidal_potential_obliquity_nsr(
-                planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
-                spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
-                )
+            if use_general_obliquity:
+                potential_output = tidal_potential_gen_obliquity_nsr(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
+            else:
+                potential_output = tidal_potential_obliquity_nsr(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
     else:
         # Obliquity is not used. pick the appropriate potentials
         if use_simple_potential:

@@ -12,4 +12,6 @@ from .synchronous_low_e import tidal_potential as tidal_potential_simple
 from .nsr_modes_med_eccen_no_obliquity import tidal_potential as tidal_potential_nsr_modes
 from .nsr_med_eccen_no_obliquity import tidal_potential as tidal_potential_nsr
 from .nsr_med_eccen_med_obliquity import tidal_potential as tidal_potential_obliquity_nsr
+from .nsr_med_eccen_gen_obliquity import tidal_potential as tidal_potential_gen_obliquity_nsr
 from .nsr_modes_med_eccen_med_obliquity import tidal_potential as tidal_potential_obliquity_nsr_modes
+from .nsr_modes_med_eccen_gen_obliquity import tidal_potential as tidal_potential_gen_obliquity_nsr_modes
