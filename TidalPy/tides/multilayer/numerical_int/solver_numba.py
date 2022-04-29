@@ -277,8 +277,12 @@ def tidal_y_solver(
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
     if surface_boundary_condition is None:
         if solve_load_numbers:
-            # TODO
-            raise Exception('Not Implemented.')
+            if planet_bulk_density is None:
+                raise Exception('Planet bulk density must be provided if calculating load Love numbers.')
+            # Based on Eq. 6 of Beuthe (2015; Icarus)
+            surface_boundary_condition = np.zeros(3, dtype=np.complex128)
+            surface_boundary_condition[0] = -(2. * order_l + 1.) * planet_bulk_density / 3.
+            surface_boundary_condition[2] = (2. * order_l + 1.) / radius[-1]
         else:
             surface_boundary_condition = np.zeros(3, dtype=np.complex128)
             surface_boundary_condition[2] = (2. * order_l + 1.) / radius[-1]

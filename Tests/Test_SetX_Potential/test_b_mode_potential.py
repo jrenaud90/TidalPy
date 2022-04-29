@@ -5,6 +5,7 @@ import TidalPy
 import numpy as np
 from TidalPy.constants import G
 from TidalPy.tides.potential import (tidal_potential_nsr, tidal_potential_nsr_modes, tidal_potential_obliquity_nsr,
+                                     tidal_potential_gen_obliquity_low_e_nsr_modes,
                                      tidal_potential_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr_modes)
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
@@ -212,6 +213,93 @@ def test_tidal_potential_obliquity_nsr_modes():
         assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
         assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
 
+def test_tidal_potential_general_obliquity_low_e_nsr_modes():
+    """ Test the modal tidal potential assuming low eccentricity, general obliquity, and synchronous rotation """
+    # Test arrays - Static=False
+    spin_freq = 1.5 * orbital_freq
+    freqs, modes, potential_tuple_by_mode = \
+        tidal_potential_gen_obliquity_low_e_nsr_modes(
+            radius_array[-1], long_mtx, colat_mtx, time_mtx,
+            orbital_freq, spin_freq,
+            eccentricity, obliquity,
+            host_mass, semi_major_axis,
+            use_static=False
+            )
+
+    # Check mode frequency types
+    assert len(modes) == 17
+    assert len(freqs) == 17
+    for mode_label, mode_freq in modes.items():
+        assert type(mode_label) == str
+        assert type(mode_freq) in [float, np.float64]
+
+        # Unpack potential tuple
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_tuple_by_mode[mode_label]
+
+        assert type(potential) == np.ndarray
+        assert type(potential_dtheta) == np.ndarray
+        assert type(potential_dphi) == np.ndarray
+        assert type(potential_d2theta) == np.ndarray
+        assert type(potential_d2phi) == np.ndarray
+        assert type(potential_dtheta_dphi) == np.ndarray
+
+        assert potential.shape == long_mtx.shape
+        assert potential_dtheta.shape == long_mtx.shape
+        assert potential_dphi.shape == long_mtx.shape
+        assert potential_d2theta.shape == long_mtx.shape
+        assert potential_d2phi.shape == long_mtx.shape
+        assert potential_dtheta_dphi.shape == long_mtx.shape
+
+        assert type(potential[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dphi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
+
+    # Test arrays - Static=True
+    spin_freq = 1.5 * orbital_freq
+    freqs, modes, potential_tuple_by_mode = \
+        tidal_potential_gen_obliquity_low_e_nsr_modes(
+            radius_array[-1], long_mtx, colat_mtx, time_mtx,
+            orbital_freq, spin_freq,
+            eccentricity, obliquity,
+            host_mass, semi_major_axis,
+            use_static=True
+            )
+
+    # Check mode frequency types
+    assert len(modes) == 17
+    assert len(freqs) == 17
+    for mode_label, mode_freq in modes.items():
+        assert type(mode_label) == str
+        assert type(mode_freq) in [float, np.float64]
+
+        # Unpack potential tuple
+        potential, potential_dtheta, potential_dphi, potential_d2theta, potential_d2phi, potential_dtheta_dphi = \
+            potential_tuple_by_mode[mode_label]
+
+        assert type(potential) == np.ndarray
+        assert type(potential_dtheta) == np.ndarray
+        assert type(potential_dphi) == np.ndarray
+        assert type(potential_d2theta) == np.ndarray
+        assert type(potential_d2phi) == np.ndarray
+        assert type(potential_dtheta_dphi) == np.ndarray
+
+        assert potential.shape == long_mtx.shape
+        assert potential_dtheta.shape == long_mtx.shape
+        assert potential_dphi.shape == long_mtx.shape
+        assert potential_d2theta.shape == long_mtx.shape
+        assert potential_d2phi.shape == long_mtx.shape
+        assert potential_dtheta_dphi.shape == long_mtx.shape
+
+        assert type(potential[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dphi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2theta[0, 0, 0]) in [float, np.float64]
+        assert type(potential_d2phi[0, 0, 0]) in [float, np.float64]
+        assert type(potential_dtheta_dphi[0, 0, 0]) in [float, np.float64]
 
 def test_tidal_potential_general_obliquity_nsr_modes():
     """ Test the modal tidal potential assuming moderate eccentricity, general obliquity, and synchronous rotation """
