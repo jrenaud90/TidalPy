@@ -112,12 +112,13 @@ class GridPlot(TidalPyClass):
             for col_i in range(self.ncols):
                 self.axis_keys.append((row_i, col_i))
 
+        real_nrows = self.nrows
+        self._nsubplots = self.nrows * self.ncols
+
         # Clean up the colorbar input
         make_colorbars = self._convert_input_to_dict(make_colorbars, input_type='bool')
 
         # Create width ratio array
-        real_nrows = self.nrows
-        self._nsubplots = self.nrows * self.ncols
         if make_colorbars:
             num_colorbars = sum(list(make_colorbars.values()))
 
@@ -655,11 +656,11 @@ class GridPlot(TidalPyClass):
         filepath = filename[:-4]
 
         # Save figure pdf (scalable graphics)
-        self.figure.savefig(filepath + '.pdf')
+        self.figure.savefig(filepath + '.pdf', bbox_inches='tight')
 
         # Save figure png
         if save_png:
-            self.figure.savefig(filepath + '.png', dpi=png_dpi)
+            self.figure.savefig(filepath + '.png', dpi=png_dpi, bbox_inches='tight')
 
     @staticmethod
     def show():

@@ -10,6 +10,9 @@
   * Added newer functions to the performance recording suite.
   * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.
 
+* Bug Fixes
+  * Fixed bug in GridPlot related to number of subplots.
+
 ### Version 0.3.5 Alpha (Spring 2022)
 
 * Minor Changes

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union, Tuple
 
 import numpy as np
 
@@ -16,7 +16,9 @@ def tidal_y_solver(
     model_name: str,
     radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
     density: np.ndarray, gravity: np.ndarray, frequency: float,
-    is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
+    is_solid_by_layer: Union[List[bool], Tuple[bool, ...]],
+    is_static_by_layer: Union[List[bool], Tuple[bool, ...]],
+    indices_by_layer: Union[List[bool], Tuple[bool, ...]],
     order_l: int = 2,
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
@@ -65,9 +67,9 @@ def tidal_y_solver(
     use_numba_integrator : bool = False
         If True, TidalPy's numba-safe RK-based integrator will be used.
         Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
-    int_rtol : float = 1.0e-6
+    int_rtol : float = 1.0e-8
         Integration relative error.
-    int_atol : float = 1.0e-4
+    int_atol : float = 1.0e-12
         Integration absolute error.
     scipy_int_method : str = 'RK45'
         Integration method for the Scipy integration scheme.

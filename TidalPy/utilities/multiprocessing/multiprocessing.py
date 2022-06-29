@@ -296,7 +296,7 @@ def multiprocessing_run(
             except Exception as e:
                 result = None
                 failed_run = True
-                error_message = f'TidalPy MultiProcessor Error. ' \
+                error_message = f'  TidalPy MultiProcessor Error. ' \
                                 f'Run: {this_run_num} failed due to the following exception:\n\t{e}'
                 warnings.warn(error_message)
                 with open(os.path.join(this_run_dir, 'error.log'), 'w') as error_log:
@@ -307,7 +307,7 @@ def multiprocessing_run(
 
         if not failed_run:
             # Save something to disk to mark that this was completed successfully
-            success_text = f'Run: {this_run_num} completed successfully. ' \
+            success_text = f'  Run: {this_run_num} completed successfully. ' \
                            f'Taking {time.time() - run_time_init:0.2f} seconds.\n'
             with open(os.path.join(this_run_dir, 'mp_success.log'), 'w') as success_file:
                 success_file.write(success_text)
