@@ -31,7 +31,8 @@ def calculate_mode_response_coupled(
     use_julia: bool = False, use_numba_integrator: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
     scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Given a tidal frequency, this function will call on the interior integration routine with the proper inputs and
         collect the results as well as calculate tidal stress, strain, and heating as a
@@ -118,6 +119,8 @@ def calculate_mode_response_coupled(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -173,7 +176,8 @@ def calculate_mode_response_coupled(
                 use_julia=use_julia, use_numba_integrator=use_numba_integrator,
                 int_rtol=int_rtol, int_atol=int_atol,
                 scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density
+                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density,
+                incompressible=incompressible
                 )
 
         # Calculate stresses and heating
@@ -206,7 +210,8 @@ def collapse_multilayer_modes(
     use_julia: bool = False, use_numba_integrator: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
     scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ):
     """ Calculate the multilayer tidal response of a planet over a range of applicable tidal modes. Collapse
     individual modal results into final heating distribution.
@@ -329,6 +334,8 @@ def collapse_multilayer_modes(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -502,7 +509,8 @@ def collapse_multilayer_modes(
                 use_julia=use_julia, use_numba_integrator=use_numba_integrator,
                 int_rtol=int_rtol, int_atol=int_atol,
                 scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density
+                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density,
+                incompressible=incompressible
                 )
 
         if mode_skipped:

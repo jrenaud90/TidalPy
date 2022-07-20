@@ -25,7 +25,8 @@ def tidal_y_solver(
     use_julia: bool = False, use_numba_integrator: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
     scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ) -> np.ndarray:
     """ Calculate the radial solution for a homogeneous, solid planet.
 
@@ -86,6 +87,8 @@ def tidal_y_solver(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -163,16 +166,18 @@ def tidal_y_solver(
         if layer_is_solid:
             if layer_is_static:
                 ode_input = (radius[layer_indices], shear_modulus[layer_indices], bulk_modulus[layer_indices],
-                             density[layer_indices], gravity[layer_indices], order_l, G_to_use)
+                             density[layer_indices], gravity[layer_indices], order_l, G_to_use, incompressible)
             else:
                 ode_input = (radius[layer_indices], shear_modulus[layer_indices], bulk_modulus[layer_indices],
-                             density[layer_indices], gravity[layer_indices], frequency, order_l, G_to_use)
+                             density[layer_indices], gravity[layer_indices], frequency, order_l, G_to_use,
+                             incompressible)
         else:
             if layer_is_static:
-                ode_input = (radius[layer_indices], density[layer_indices], gravity[layer_indices], order_l, G_to_use)
+                ode_input = (radius[layer_indices], density[layer_indices], gravity[layer_indices], order_l, G_to_use,
+                             incompressible)
             else:
                 ode_input = (radius[layer_indices], bulk_modulus[layer_indices], density[layer_indices],
-                             gravity[layer_indices], frequency, order_l, G_to_use)
+                             gravity[layer_indices], frequency, order_l, G_to_use, incompressible)
 
         # Store model info for this layer
         radial_odes.append(layer_ode)

@@ -5,6 +5,7 @@
 * Major Changes 
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
   * Added in load Love number calculations to the multilayer code.
+  * Added in true incompressible model for multilayer code.
 
 * Minor Changes
   * Added newer functions to the performance recording suite.

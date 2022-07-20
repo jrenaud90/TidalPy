@@ -129,7 +129,7 @@ def _get_initial_values(
 def _single_layer_integrate(
     layer_is_solid, layer_is_static, radial_span, initial_values_to_use, frequency,
     radius_array, shear_modulus_array, bulk_modulus_array, density_array,
-    gravity_array, order_l, G_to_use, rk_method, int_rtol, int_atol
+    gravity_array, order_l, G_to_use, incompressible, rk_method, int_rtol, int_atol
     ):
     solution_num = 0
     layer_solutions = nbList()
@@ -142,7 +142,7 @@ def _single_layer_integrate(
                     rk_integrate(
                         static_solid_ode, radial_span, initial_values_copy,
                         args=(radius_array, shear_modulus_array, bulk_modulus_array,
-                              density_array, gravity_array, order_l, G_to_use),
+                              density_array, gravity_array, order_l, G_to_use, incompressible),
                         rk_method=rk_method,
                         t_eval=radius_array,
                         rtol=int_rtol, atol=int_atol
@@ -152,7 +152,7 @@ def _single_layer_integrate(
                     rk_integrate(
                         dynamic_solid_ode, radial_span, initial_values_copy,
                         args=(radius_array, shear_modulus_array, bulk_modulus_array,
-                              density_array, gravity_array, frequency, order_l, G_to_use),
+                              density_array, gravity_array, frequency, order_l, G_to_use, incompressible),
                         rk_method=rk_method,
                         t_eval=radius_array,
                         rtol=int_rtol, atol=int_atol
@@ -163,7 +163,7 @@ def _single_layer_integrate(
                     rk_integrate(
                         static_liquid_ode, radial_span, initial_values_copy,
                         args=(radius_array, density_array,
-                              gravity_array, order_l, G_to_use),
+                              gravity_array, order_l, G_to_use, incompressible),
                         rk_method=rk_method,
                         t_eval=radius_array,
                         rtol=int_rtol, atol=int_atol
@@ -173,7 +173,7 @@ def _single_layer_integrate(
                     rk_integrate(
                         dynamic_liquid_ode, radial_span, initial_values_copy,
                         args=(radius_array, bulk_modulus_array, density_array,
-                              gravity_array, frequency, order_l, G_to_use),
+                              gravity_array, frequency, order_l, G_to_use, incompressible),
                         rk_method=rk_method,
                         t_eval=radius_array,
                         rtol=int_rtol, atol=int_atol
@@ -198,7 +198,8 @@ def tidal_y_solver(
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ) -> np.ndarray:
     """ Calculate the radial solution for a homogeneous, solid planet.
 
@@ -250,6 +251,8 @@ def tidal_y_solver(
         the user.
     planet_bulk_density : float = None
         Must be provided if nondimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -360,7 +363,8 @@ def tidal_y_solver(
                 layer_is_solid, layer_is_static, radial_span, initial_values_to_use, frequency,
                 np.ascontiguousarray(layer_radii.copy()), np.ascontiguousarray(layer_shear.copy()),
                 np.ascontiguousarray(layer_bulk.copy()), np.ascontiguousarray(layer_density.copy()),
-                np.ascontiguousarray(layer_gravity.copy()), order_l, G_to_use, rk_method, int_rtol, int_atol
+                np.ascontiguousarray(layer_gravity.copy()), order_l, G_to_use,
+                incompressible, rk_method, int_rtol, int_atol
                 )
 
         # Add solutions to outer list

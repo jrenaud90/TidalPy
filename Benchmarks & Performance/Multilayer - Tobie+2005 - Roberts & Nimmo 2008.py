@@ -19,15 +19,16 @@ from TidalPy.utilities.graphics.multilayer import yplot
 
 # Switches
 show_shooting_method_technique = True
-show_propagation_matrix_technique = False
+show_propagation_matrix_technique = True
 use_static_liquid_core = False
 use_julia_integrator = True
 use_numba_integrator = False
 use_non_dimensional_solver = False
 use_kamata_starting_values = True
 # Set the following two switches to true for comparison to Roberts and Nimmo.
-use_static_mantle = True
-use_incompressible_limit = False
+use_static_mantle = False
+use_fake_incompressible_limit = False
+use_real_incompressible_limit = False
 
 # Integration properties
 scipy_integration_method = 'RK45'
@@ -53,9 +54,9 @@ viscosity_core = 1.e13 / 1.e9
 # shear_core = 4.e9 / 1.e6
 shear_core = 0.
 
-if use_incompressible_limit:
-    bulk_mantle = 1.e50
-    bulk_core = 1.e50
+if use_fake_incompressible_limit:
+    bulk_mantle = 1.e15
+    bulk_core = 1.e15
 else:
     bulk_mantle = 1.2210e11
     bulk_core = 2.88e11
@@ -138,6 +139,7 @@ for model_name, (core_density, mantle_density) in models.items():
         print('Solving with shooting method...')
         if R_core is None:
             # Use homogeneous method
+            continue
             tidal_y_shoot = \
                 tidal_y_solver(
                     'homogeneous_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
@@ -145,8 +147,9 @@ for model_name, (core_density, mantle_density) in models.items():
                     is_static_by_layer=[use_static_mantle],
                     indices_by_layer=[mantle_radii], order_l=2, surface_boundary_condition=None,
                     solve_load_numbers=False, use_kamata=False, use_julia=False, use_numba_integrator=False,
-                    int_rtol=1.e-6, int_atol=1.0e-4, scipy_int_method='RK45', julia_int_method='Tsit5',
-                    verbose=False, non_dimensionalize=False, planet_bulk_density=planet_bulk_density
+                    int_rtol=1.e-10, int_atol=1.0e-12, scipy_int_method='RK45', julia_int_method='Tsit5',
+                    verbose=False, nondimensionalize=False, planet_bulk_density=planet_bulk_density,
+                    incompressible=use_real_incompressible_limit
                     )
         else:
             # Use liquid-solid method
@@ -156,9 +159,10 @@ for model_name, (core_density, mantle_density) in models.items():
                     orbital_freq, is_solid_by_layer=[False, True],
                     is_static_by_layer=[use_static_liquid_core, use_static_mantle],
                     indices_by_layer=[core_radii, mantle_radii], order_l=2, surface_boundary_condition=None,
-                    solve_load_numbers=False, use_kamata=False, use_julia=False, use_numba_integrator=False,
-                    int_rtol=1.e-6, int_atol=1.0e-4, scipy_int_method='RK45', julia_int_method='Tsit5',
-                    verbose=False, non_dimensionalize=False, planet_bulk_density=planet_bulk_density
+                    solve_load_numbers=False, use_kamata=False, use_julia=False, use_numba_integrator=True,
+                    int_rtol=1.e-10, int_atol=1.0e-12, scipy_int_method='RK45', julia_int_method='Tsit5',
+                    verbose=False, nondimensionalize=True, planet_bulk_density=planet_bulk_density,
+                    incompressible=use_real_incompressible_limit
                     )
 
         model_radii.append(radius_array)

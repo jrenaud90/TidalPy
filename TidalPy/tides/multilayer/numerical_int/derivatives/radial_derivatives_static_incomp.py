@@ -24,13 +24,13 @@ from .....utilities.types import ComplexArray, FloatArray, NumArray
 def radial_derivatives_solid_general(
     radius: FloatArray,
     radial_functions: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
-    shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
+    shear_modulus: NumArray, density: FloatArray,
     gravity: FloatArray,
     order_l: int = 2, G_to_use: float = G
     ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
     """ Calculates the derivatives of the radial functions using the static assumption - for solid layers.
 
-    Allows for compressibility.
+    Assumes incompressible and static tides.
     Dynamic tides are not permitted (w=0)
     Tidal harmonic l is allowed to be >= 2.
 
@@ -46,8 +46,6 @@ def radial_derivatives_solid_general(
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
-    bulk_modulus : NumArray
-        Bulk modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
     density : FloatArray
         Density at `radius` [kg m-3; or dimensionless]
     gravity : FloatArray
@@ -68,14 +66,14 @@ def radial_derivatives_solid_general(
     y1, y2, y3, y4, y5, y6 = radial_functions
 
     # Convert compressibility parameters (the first lame parameter can be complex)
-    lame = (bulk_modulus - (2. / 3.) * shear_modulus)
+    #lame = (bulk_modulus - (2. / 3.) * shear_modulus)
 
     # Optimizations
     lp1 = order_l + 1.
     lm1 = order_l - 1.
     llp1 = order_l * lp1
-    lame_2mu = lame + 2. * shear_modulus
-    lame_2mu_inverse = 1. / lame_2mu
+    #lame_2mu = lame + 2. * shear_modulus
+    #lame_2mu_inverse = 1. / lame_2mu
     r_inverse = 1. / radius
     two_shear_r_inv = 2. * shear_modulus * r_inverse
     density_gravity = density * gravity
@@ -86,19 +84,14 @@ def radial_derivatives_solid_general(
     #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
     # The static case just sets all frequency dependence in these equations to zero.
     # dy2 and dy4 contain all three of: dynamic, viscoelastic, and gravitational terms.
-    dy1 = lame_2mu_inverse * (
-            y1_y3_term * -lame * r_inverse +
-            y2
-    )
+    dy1 = y1_y3_term * -1. * r_inverse
 
     dy2 = r_inverse * (
-            y1 * -2. * density_gravity +
-            y2 * -2. +
+            y1 * (12. * shear_modulus * r_inverse - 4. * density_gravity) +
+            y3 * llp1 * (density_gravity - 6. * shear_modulus * r_inverse) +
             y4 * llp1 +
             y5 * density * lp1 +
-            y6 * -density * radius +
-            dy1 * 2. * lame +
-            y1_y3_term * (2. * (lame + shear_modulus) * r_inverse - density_gravity)
+            y6 * -density * radius
     )
 
     dy3 = \
@@ -107,12 +100,11 @@ def radial_derivatives_solid_general(
         y4 * (1. / shear_modulus)
 
     dy4 = r_inverse * (
-            y1 * (density_gravity + two_shear_r_inv) +
-            y3 * -two_shear_r_inv +
+            y1 * (density_gravity - 3. * two_shear_r_inv) +
+            y2 * -1. +
+            y3 * (two_shear_r_inv * (2. * llp1 - 1.)) +
             y4 * -3. +
-            y5 * -density +
-            dy1 * -lame +
-            y1_y3_term * -lame_2mu * r_inverse
+            y5 * -density
     )
 
     dy5 = \
@@ -137,7 +129,7 @@ def radial_derivatives_liquid_general(
     ) -> Tuple[ComplexArray, ComplexArray]:
     """ Calculates the derivatives of the radial functions using the static assumption - for liquid layers (mu = 0).
 
-    Allows for compressibility (technically, but bulk mod is not used in this equations).
+    Assumes incompressible and static tides.
     Dynamic tides are not permitted (w=0)
     Tidal harmonic l is allowed to be >= 2.
 

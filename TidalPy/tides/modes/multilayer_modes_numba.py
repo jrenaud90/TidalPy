@@ -29,7 +29,8 @@ def calculate_mode_response_coupled(
     complex_compliance_input: Tuple[float, ...] = tuple(), force_mode_calculation: bool = False,
     order_l: int = 2, use_kamata: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Given a tidal frequency, this function will call on the interior integration routine with the proper inputs and
         collect the results as well as calculate tidal stress, strain, and heating as a
@@ -107,6 +108,8 @@ def calculate_mode_response_coupled(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -153,7 +156,7 @@ def calculate_mode_response_coupled(
                 order_l, surface_boundary_conditions,
                 solve_load_numbers, use_kamata,
                 int_rtol, int_atol, rk_method, verbose,
-                nondimensionalize, planet_bulk_density
+                nondimensionalize, planet_bulk_density, incompressible
                 )
 
         tidal_potential, \
@@ -193,7 +196,8 @@ def collapse_multilayer_modes(
     use_modes: bool = True, use_static_potential: bool = False, use_simple_potential: bool = False,
     orbit_average_results: bool = True, use_kamata: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ):
     """ Calculate the multilayer tidal response of a planet over a range of applicable tidal modes. Collapse
     individual modal results into final heating distribution.
@@ -309,6 +313,8 @@ def collapse_multilayer_modes(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -487,7 +493,7 @@ def collapse_multilayer_modes(
                 complex_compliance_input, force_mode_calculation,
                 order_l, use_kamata,
                 int_rtol, int_atol, rk_method, verbose,
-                nondimensionalize, planet_bulk_density
+                nondimensionalize, planet_bulk_density, incompressible
                 )
 
         if mode_skipped:

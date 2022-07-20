@@ -161,7 +161,7 @@ def yplot(
         ax_y4.scatter(T05_data[:, 20], T05_data[:, 21] / 1000., label='T05-LC0', c=T05_C, marker='+', s=20)
         ax_y4.scatter(T05_data[:, 22], T05_data[:, 23] / 1000., label='T05-LC1', c=T05_C, marker='1', s=20)
 
-    fig_tidal_y.tight_layout()
+    #fig_tidal_y.tight_layout()
     if show_plot:
         plt.show()
 

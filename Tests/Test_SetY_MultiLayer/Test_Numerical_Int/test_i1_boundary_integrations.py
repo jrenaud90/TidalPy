@@ -418,3 +418,85 @@ def test_calculate_ssls():
 
     assert tidal_y.shape == (6, 10)
     assert tidal_y.dtype in [np.complex128, complex]
+
+def test_calculate_ssls_incomp():
+    """ Test the solution calculation for solid-solid-liquid-solid planet structure using the incompressible assumption """
+
+    # Test all static
+    tidal_y = tidal_y_solver(
+        model_name='solid_solid_liquid_solid',
+        radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
+        density=density_array, gravity=gravity_array, frequency=frequency,
+        is_solid_by_layer=[True, True, False, True], is_static_by_layer=[True, True, True, True],
+        indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+        order_l=2,
+        surface_boundary_condition=None, solve_load_numbers=False,
+        use_kamata=False,
+        use_julia=False, use_numba_integrator=False,
+        int_rtol=1.0e-6, int_atol=1.0e-8,
+        scipy_int_method='RK45', julia_int_method='Tsit5',
+        verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density, incompressible=True
+        )
+
+    assert tidal_y.shape == (6, 10)
+    assert tidal_y.dtype in [np.complex128, complex]
+
+    # Test all dynamic
+    tidal_y = tidal_y_solver(
+        model_name='solid_solid_liquid_solid',
+        radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
+        density=density_array, gravity=gravity_array, frequency=frequency,
+        is_solid_by_layer=[True, True, False, True], is_static_by_layer=[False, False, False, False],
+        indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+        order_l=2,
+        surface_boundary_condition=None, solve_load_numbers=False,
+        use_kamata=False,
+        use_julia=False, use_numba_integrator=False,
+        int_rtol=1.0e-6, int_atol=1.0e-8,
+        scipy_int_method='RK45', julia_int_method='Tsit5',
+        verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density, incompressible=True
+        )
+
+    assert tidal_y.shape == (6, 10)
+    assert tidal_y.dtype in [np.complex128, complex]
+
+    assert tidal_y.shape == (6, 10)
+    assert tidal_y.dtype in [np.complex128, complex]
+
+    # Test mix liq=Static
+    tidal_y = tidal_y_solver(
+        model_name='solid_solid_liquid_solid',
+        radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
+        density=density_array, gravity=gravity_array, frequency=frequency,
+        is_solid_by_layer=[True, True, False, True], is_static_by_layer=[False, False, True, False],
+        indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+        order_l=2,
+        surface_boundary_condition=None, solve_load_numbers=False,
+        use_kamata=False,
+        use_julia=False, use_numba_integrator=False,
+        int_rtol=1.0e-6, int_atol=1.0e-8,
+        scipy_int_method='RK45', julia_int_method='Tsit5',
+        verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density, incompressible=True
+        )
+
+    assert tidal_y.shape == (6, 10)
+    assert tidal_y.dtype in [np.complex128, complex]
+
+    # Test mix liq=Dynamic
+    tidal_y = tidal_y_solver(
+        model_name='solid_solid_liquid_solid',
+        radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
+        density=density_array, gravity=gravity_array, frequency=frequency,
+        is_solid_by_layer=[True, True, False, True], is_static_by_layer=[True, False, True, True],
+        indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+        order_l=2,
+        surface_boundary_condition=None, solve_load_numbers=False,
+        use_kamata=False,
+        use_julia=False, use_numba_integrator=False,
+        int_rtol=1.0e-6, int_atol=1.0e-8,
+        scipy_int_method='RK45', julia_int_method='Tsit5',
+        verbose=False, nondimensionalize=False, planet_bulk_density=bulk_density, incompressible=True
+        )
+
+    assert tidal_y.shape == (6, 10)
+    assert tidal_y.dtype in [np.complex128, complex]
