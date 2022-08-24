@@ -19,7 +19,7 @@ def _get_initial_values(
     layer_i, layer_is_solid, layer_is_static, layer_below_is_solid, layer_below_is_static,
     layer_below_top_density, last_below_ys,
     radius_array, shear_mod_array, bulk_mod_array, density_array, gravity_array, frequency,
-    order_l, G_to_use, use_kamata
+    order_l, G_to_use, use_kamata, incompressible
     ):
     initial_values_to_use = nbList([np.empty(6, dtype=np.complex128)])
     if layer_i == 0:
@@ -27,7 +27,7 @@ def _get_initial_values(
         is_dynamic = not layer_is_static
         initial_values_to_use = \
             find_initial_guess(
-                use_kamata, layer_is_solid, is_dynamic,
+                use_kamata, layer_is_solid, is_dynamic, incompressible,
                 radius_array[0], shear_mod_array[0], bulk_mod_array[0], density_array[0], frequency,
                 order_l=order_l, G_to_use=G_to_use
                 )
@@ -351,7 +351,7 @@ def tidal_y_solver(
                 layer_i, layer_is_solid, layer_is_static, layer_below_is_solid, layer_below_is_static,
                 layer_below_top_density, layer_below_ys,
                 layer_radii, layer_shear, layer_bulk, layer_density, layer_gravity, frequency,
-                order_l, G_to_use, use_kamata
+                order_l, G_to_use, use_kamata, incompressible
                 )
 
         # Start integration routine

@@ -188,7 +188,7 @@ def tidal_y_solver(
             is_dynamic = not layer_is_static
             initial_value_tuple = \
                 find_initial_guess(
-                    use_kamata, layer_is_solid, is_dynamic,
+                    use_kamata, layer_is_solid, is_dynamic, incompressible,
                     radius[0], shear_modulus[0], bulk_modulus[0], density[0], frequency,
                     order_l=order_l, G_to_use=G_to_use
                     )

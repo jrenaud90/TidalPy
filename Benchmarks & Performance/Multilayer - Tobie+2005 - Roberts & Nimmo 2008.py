@@ -20,22 +20,22 @@ from TidalPy.utilities.graphics.multilayer import yplot
 # Switches
 show_shooting_method_technique = True
 show_propagation_matrix_technique = True
-use_static_liquid_core = False
-use_julia_integrator = True
-use_numba_integrator = False
-use_non_dimensional_solver = False
+use_static_liquid_core = True
+use_julia_integrator = False
+use_numba_integrator = True
+nondimensionalize_during_integration = True
 use_kamata_starting_values = True
 # Set the following two switches to true for comparison to Roberts and Nimmo.
 use_static_mantle = False
 use_fake_incompressible_limit = False
-use_real_incompressible_limit = False
+use_real_incompressible_limit = True
 
 # Integration properties
 scipy_integration_method = 'RK45'
 # scipy_integration_method = 'DOP853'
 julia_integration_method = 'Tsit5'
-r_tol = 1.0e-6
-a_tol = 1.0e-4
+r_tol = 1.e-8
+a_tol = 1.e-10
 
 # Plot switches
 plot_tobie = True
@@ -134,42 +134,6 @@ for model_name, (core_density, mantle_density) in models.items():
     complex_compliance_array = maxwell(orbital_freq, shear_array**(-1), viscosity_array)
     complex_shear_array = complex_compliance_array**(-1)
 
-    # Solve for radial functions using a numerical shooting method
-    if show_shooting_method_technique:
-        print('Solving with shooting method...')
-        if R_core is None:
-            # Use homogeneous method
-            continue
-            tidal_y_shoot = \
-                tidal_y_solver(
-                    'homogeneous_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
-                    orbital_freq, is_solid_by_layer=[True],
-                    is_static_by_layer=[use_static_mantle],
-                    indices_by_layer=[mantle_radii], order_l=2, surface_boundary_condition=None,
-                    solve_load_numbers=False, use_kamata=False, use_julia=False, use_numba_integrator=False,
-                    int_rtol=1.e-10, int_atol=1.0e-12, scipy_int_method='RK45', julia_int_method='Tsit5',
-                    verbose=False, nondimensionalize=False, planet_bulk_density=planet_bulk_density,
-                    incompressible=use_real_incompressible_limit
-                    )
-        else:
-            # Use liquid-solid method
-            tidal_y_shoot = \
-                tidal_y_solver(
-                    'liquid_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
-                    orbital_freq, is_solid_by_layer=[False, True],
-                    is_static_by_layer=[use_static_liquid_core, use_static_mantle],
-                    indices_by_layer=[core_radii, mantle_radii], order_l=2, surface_boundary_condition=None,
-                    solve_load_numbers=False, use_kamata=False, use_julia=False, use_numba_integrator=True,
-                    int_rtol=1.e-10, int_atol=1.0e-12, scipy_int_method='RK45', julia_int_method='Tsit5',
-                    verbose=False, nondimensionalize=True, planet_bulk_density=planet_bulk_density,
-                    incompressible=use_real_incompressible_limit
-                    )
-
-        model_radii.append(radius_array)
-        model_names.append(model_name + '-Shooting')
-        model_results.append(tidal_y_shoot)
-        model_colors.append('k')
-
     if show_propagation_matrix_technique:
         print('Solving with propagation matrix...')
         if R_core is None:
@@ -199,6 +163,47 @@ for model_name, (core_density, mantle_density) in models.items():
         model_names.append(model_name + '-PropMtx')
         model_results.append(tidal_y_prop)
         model_colors.append('orange')
+
+    # Solve for radial functions using a numerical shooting method
+    if show_shooting_method_technique:
+        print('Solving with shooting method...')
+        if R_core is None:
+            # Use homogeneous method
+            tidal_y_shoot = \
+                tidal_y_solver(
+                    'homogeneous_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
+                    orbital_freq, is_solid_by_layer=[True],
+                    is_static_by_layer=[use_static_mantle],
+                    indices_by_layer=[mantle_radii], order_l=2, surface_boundary_condition=None,
+                    solve_load_numbers=False, use_kamata=use_kamata_starting_values,
+                    use_julia=use_julia_integrator, use_numba_integrator=use_numba_integrator,
+                    int_rtol=r_tol, int_atol=a_tol, scipy_int_method=scipy_integration_method,
+                    julia_int_method=julia_integration_method,
+                    verbose=False, nondimensionalize=nondimensionalize_during_integration,
+                    planet_bulk_density=planet_bulk_density,
+                    incompressible=use_real_incompressible_limit
+                    )
+        else:
+            # Use liquid-solid method
+            tidal_y_shoot = \
+                tidal_y_solver(
+                    'liquid_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
+                    orbital_freq, is_solid_by_layer=[False, True],
+                    is_static_by_layer=[use_static_liquid_core, use_static_mantle],
+                    indices_by_layer=[core_radii, mantle_radii], order_l=2, surface_boundary_condition=None,
+                    solve_load_numbers=False, use_kamata=use_kamata_starting_values,
+                    use_julia=use_julia_integrator, use_numba_integrator=use_numba_integrator,
+                    int_rtol=r_tol, int_atol=a_tol, scipy_int_method=scipy_integration_method,
+                    julia_int_method=julia_integration_method,
+                    verbose=False, nondimensionalize=nondimensionalize_during_integration,
+                    planet_bulk_density=planet_bulk_density,
+                    incompressible=use_real_incompressible_limit
+                    )
+
+        model_radii.append(radius_array)
+        model_names.append(model_name + '-Shooting')
+        model_results.append(tidal_y_shoot)
+        model_colors.append('k')
 
     print(f'\n\nModel {model_name} Completed!. Taking {time.time() - t0:0.3f}s\n------------------')
 

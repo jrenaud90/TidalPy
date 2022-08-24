@@ -511,206 +511,205 @@ def liquid_guess_takeuchi(
 
     return nbList([tidaly_s1, tidaly_s2])
 
-@njit(cacheable=True)
-def solid_guess_power(
-    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
-    density: FloatArray, frequency: FloatArray,
-    order_l: int = 2, G_to_use: float = G
-    ) -> SolidDynamicGuess:
-    """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
-
-    This function uses the power series described in MartensThesis
-
-    Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
-
-    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
-       bulk and shear dissipation.
-
-    References
-    ----------
-    MartensThesis
-
-    Parameters
-    ----------
-    radius : FloatArray
-        Radius where the radial functions are calculated. [m]
-    shear_modulus : NumArray
-        Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : NumArray
-        Bulk modulus (can be complex for dissipation) at `radius` [Pa]
-    density : FloatArray
-        Density at `radius` [kg m-3]
-    frequency : FloatArray
-        Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
-    order_l : int = 2
-        Tidal harmonic order.
-    G_to_use : float = G
-        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
-
-    Returns
-    -------
-    solid_guesses : SolidDynamicGuess
-        The three independent solid guesses (sn1, sn2, sn3)
-
-    """
-
-    # Check for model problems
-    if order_l < 2:
-        raise Exception('Model not designed for l=0,1. See Smylie 2013.')
-
-    # Convert compressibility parameters
-    lame = bulk_modulus - (2. / 3.) * shear_modulus
-
-    # Constants (See Eqs. B13-B16 of KMN15)
-    dynamic_term = frequency * frequency
-    alpha2 = (lame + 2. * shear_modulus) / density
-    beta2 = shear_modulus / density
-    gamma = 4. * pi * G_to_use * density / 3.
-
-    # Optimizations
-    r_inverse = 1. / radius
-    r2 = radius * radius
-    r4 = r2 * r2
-
-    # Other functions
-    k2 = order_l * (order_l + 1.)
-    lame = (bulk_modulus - (2. / 3.) * shear_modulus)
-    grav_term = G_to_use * 4. * pi * density
-    gamma = grav_term / 3.
-    zeta = 1. / (lame + 2. * shear_modulus)
-    delta = 2. * shear_modulus * (3. * lame + 2. * shear_modulus) * zeta
-    epsilon = 4. * k2 * shear_modulus * (lame + shear_modulus) * zeta - 2. * shear_modulus
-
-    # # See Martens Eqs. 4.98 and 4.99
-    p1 = 2. * order_l * (order_l * (order_l + 2.) * lame + (order_l * (order_l + 2) - 1.) * shear_modulus)
-    q1 = (order_l * (order_l + 1.) + order_l * (order_l + 3.)) * lame + 2. * order_l * (order_l + 1.) * shear_modulus
-    p2 = order_l * (order_l + 5) + (lame * order_l * (order_l + 3.)) / shear_modulus
-    q2 = 2. * (order_l + 1.) + (lame * (order_l + 3.) / shear_modulus)
-
-    # # First solution
-    # Set the values of the arbitrary coefficients
-    A_11 = 1.
-    B_61 = 1.
-    C_40 = 1.
-
-    # Solve for the dependent coefficients (Martens Eq. 4.97)
-    A_33 = A_11 * density * ((3. - order_l) * gamma + dynamic_term) / p1
-    A_13 = A_33 * -order_l
-    A_22 = A_33 * -q1
-    A_42 = 0.
-    A_54 = grav_term * ((order_l + 3.) * A_13 - k2 * A_33) / (2. * (2. * order_l + 3.))
-    A_63 = (order_l + 2.) * A_54 - grav_term * A_13
-
-    # Eq. 4.102
-    B_33 = B_61 * density / p1
-    B_13 = B_33 * -order_l
-    B_22 = B_33 * -q1
-    B_42 = 0.
-    B_54 = (grav_term / (2. * (2. * order_l + 3.))) * ((order_l + 3.) * B_13 - k2 * B_33)
-    B_63 = (order_l + 2.) * B_54 - grav_term * B_13
-
-    # Eq. 4.104
-    p_ratio = p2 / p1
-    C_11 = C_40 * (1. / shear_modulus - order_l * p_ratio)
-    C_20 = C_40 * (q2 - q1 * p_ratio)
-    C_31 = C_40 * p_ratio
-    C_52 = (grav_term / (2. * (2. * order_l + 3.))) * ((order_l + 3.) * C_11 - k2 * C_31)
-    C_61 = (order_l + 2.) * C_52 - grav_term * C_11
-
-    # Solve for other coefficients which requires matrix operations
-    # Matrix 1 defined in Eq. 4.100
-    matrix_1 = np.asarray(
-        [
-            [2. * lame * zeta + order_l + 3., -zeta, -k2 * lame * zeta, 0., 0., 0.        ],
-            [-2. * delta, 4 * shear_modulus * zeta + order_l + 2., k2 * delta, -k2, 0., 0.],
-            [1., 0., order_l + 2., -(1. / shear_modulus), 0., 0.                          ],
-            [delta, lame * zeta, -epsilon, order_l + 5., 0., 0.],
-            [-3. * gamma, 0., 0., 0., order_l + 4., -1.],
-            [0., 0., 3. * gamma * k2, 0., -k2, order_l + 5.],
-            ]
-        )
-    matrix_2 = matrix_1 + 2. * np.eye(6, dtype=matrix_1.dtype)
-
-    # Perform matrix inversions
-    matrix_1_inv = np.linalg.inv(matrix_1)
-    matrix_2_inv = np.linalg.inv(matrix_2)
-
-    # Solve for Solution 1, r^4 coefficients. Eq. 4.100
-    A4_vector = np.asarray(
-        [
-            [0.],
-            [density * (-(4. * gamma + dynamic_term) * A_13 + (k2 * gamma) * A_33 - A_63)],
-            [0.],
-            [density * (gamma * A_13 - dynamic_term * A_33 - A_54)],
-            [0.],
-            [0.]
-            ]
-        )
-    A_15, A_24, A_35, A_44, A_56, A_65 = (matrix_1_inv @ A4_vector)[:, 0]
-
-    # Solve for Solution 2, r^4 coefficients - The LHS has the same form as solution 1s. Eq. 4.100
-    B4_vector = np.asarray(
-        [
-            [0.],
-            [density * (-(4. * gamma + dynamic_term) * B_13 + (k2 * gamma) * B_33 - B_63)],
-            [0.],
-            [density * (gamma * B_13 - dynamic_term * B_33 - B_54)],
-            [0.],
-            [0.]
-        ]
-    )
-    B_15, B_24, B_35, B_44, B_56, B_65 = (matrix_1_inv @ B4_vector)[:, 0]
-
-    # Solve for Solution 3, r^2 coefficients. Eq. 4.107
-    C2_vector = np.asarray(
-        [
-            [0.],
-            [density * (-(4. * gamma + dynamic_term) * C_11 + (k2 * gamma) * C_31 - C_61)],
-            [0.],
-            [density * (gamma * C_11 - dynamic_term * C_31 - C_52)],
-            [0.],
-            [0.]
-        ]
-    )
-    C_13, C_22, C_33, C_42, C_54, C_63 = (matrix_1_inv @ C2_vector)[:, 0]
-
-    # Solve for Solution 3, r^4 coefficients. Eq. 4.108
-    C4_vector = np.asarray(
-        [
-            [0.],
-            [density * (-(4. * gamma + dynamic_term) * C_13 + (k2 * gamma) * C_33 - C_63)],
-            [0.],
-            [density * (gamma * C_13 - dynamic_term * C_33 - C_54)],
-            [0.],
-            [0.]
-        ]
-    )
-    C_15, C_24, C_35, C_44, C_56, C_65 = (matrix_2_inv @ C4_vector)[:, 0]
-
-    # Find z functions based on the coefficients
-
-    # Solution 1
-    z1_sol1 = A_11 + A_13 * r2 + A_15 * r4
-    z2_sol1 = 2. * (order_l - 1.) * shear_modulus * A_11 + A_22 * r2 + A_24 * r4
-    z3_sol1 = (1. / order_l) * A_11 + A_33 * r2 + A_35 * r4
-    # LEFTOFF
-
-    # Solution 2
-    z1_sol2 = -order_l * (density / p1) * B_61 * r2 + B_15 * r4
-    z2_sol2 = -(q1 / p1) * density * B_61 * r2 + B_24 * r4
-    z3_sol2 = (density / p1) * B_61 * r2 + B_35 * r4
-    z4_sol2 = B_44 * r4
-    z5_sol2 = (1. / order_l) * B_61 + B_54 * r2 + B_56 * r4
-    z6_sol2 = B_61 + B_63 * r2 + B_65 * r4
-
-    # Solution 3
-    z1_sol3 = ((1. / shear_modulus) - order_l * p_ratio) * C_40 + C_13 * r2 + C_15 * r4
-    z2_sol3 = (q2 - q1 * p_ratio) * C_40 + C_22 * r2 + C_24 * r4
-    z3_sol3 = p_ratio * C_40 + C_33 * r2 + C_35 * r4
-    z4_sol3 = C_40 + C_42 * r2 + C_44 * r4
-    z5_sol3 = C_52 + C_54 * r2 + C_56 * r4
-    z6_sol3 = C_61 + C_63 * r2 + C_65 * r4
-
-    return A_1_coeff
-
-"""
+#
+# @njit(cacheable=True)
+# def solid_guess_power(
+#     radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
+#     density: FloatArray, frequency: FloatArray,
+#     order_l: int = 2, G_to_use: float = G
+#     ) -> SolidDynamicGuess:
+#     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
+#
+#     This function uses the power series described in MartensThesis
+#
+#     Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
+#
+#     These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
+#        bulk and shear dissipation.
+#
+#     References
+#     ----------
+#     MartensThesis
+#
+#     Parameters
+#     ----------
+#     radius : FloatArray
+#         Radius where the radial functions are calculated. [m]
+#     shear_modulus : NumArray
+#         Shear modulus (can be complex for dissipation) at `radius` [Pa]
+#     bulk_modulus : NumArray
+#         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
+#     density : FloatArray
+#         Density at `radius` [kg m-3]
+#     frequency : FloatArray
+#         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
+#     order_l : int = 2
+#         Tidal harmonic order.
+#     G_to_use : float = G
+#         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
+#
+#     Returns
+#     -------
+#     solid_guesses : SolidDynamicGuess
+#         The three independent solid guesses (sn1, sn2, sn3)
+#
+#     """
+#
+#     # Check for model problems
+#     if order_l < 2:
+#         raise Exception('Model not designed for l=0,1. See Smylie 2013.')
+#
+#     # Convert compressibility parameters
+#     lame = bulk_modulus - (2. / 3.) * shear_modulus
+#
+#     # Constants (See Eqs. B13-B16 of KMN15)
+#     dynamic_term = frequency * frequency
+#     alpha2 = (lame + 2. * shear_modulus) / density
+#     beta2 = shear_modulus / density
+#     gamma = 4. * pi * G_to_use * density / 3.
+#
+#     # Optimizations
+#     r_inverse = 1. / radius
+#     r2 = radius * radius
+#     r4 = r2 * r2
+#
+#     # Other functions
+#     k2 = order_l * (order_l + 1.)
+#     lame = (bulk_modulus - (2. / 3.) * shear_modulus)
+#     grav_term = G_to_use * 4. * pi * density
+#     gamma = grav_term / 3.
+#     zeta = 1. / (lame + 2. * shear_modulus)
+#     delta = 2. * shear_modulus * (3. * lame + 2. * shear_modulus) * zeta
+#     epsilon = 4. * k2 * shear_modulus * (lame + shear_modulus) * zeta - 2. * shear_modulus
+#
+#     # # See Martens Eqs. 4.98 and 4.99
+#     p1 = 2. * order_l * (order_l * (order_l + 2.) * lame + (order_l * (order_l + 2) - 1.) * shear_modulus)
+#     q1 = (order_l * (order_l + 1.) + order_l * (order_l + 3.)) * lame + 2. * order_l * (order_l + 1.) * shear_modulus
+#     p2 = order_l * (order_l + 5) + (lame * order_l * (order_l + 3.)) / shear_modulus
+#     q2 = 2. * (order_l + 1.) + (lame * (order_l + 3.) / shear_modulus)
+#
+#     # # First solution
+#     # Set the values of the arbitrary coefficients
+#     A_11 = 1.
+#     B_61 = 1.
+#     C_40 = 1.
+#
+#     # Solve for the dependent coefficients (Martens Eq. 4.97)
+#     A_33 = A_11 * density * ((3. - order_l) * gamma + dynamic_term) / p1
+#     A_13 = A_33 * -order_l
+#     A_22 = A_33 * -q1
+#     A_42 = 0.
+#     A_54 = grav_term * ((order_l + 3.) * A_13 - k2 * A_33) / (2. * (2. * order_l + 3.))
+#     A_63 = (order_l + 2.) * A_54 - grav_term * A_13
+#
+#     # Eq. 4.102
+#     B_33 = B_61 * density / p1
+#     B_13 = B_33 * -order_l
+#     B_22 = B_33 * -q1
+#     B_42 = 0.
+#     B_54 = (grav_term / (2. * (2. * order_l + 3.))) * ((order_l + 3.) * B_13 - k2 * B_33)
+#     B_63 = (order_l + 2.) * B_54 - grav_term * B_13
+#
+#     # Eq. 4.104
+#     p_ratio = p2 / p1
+#     C_11 = C_40 * (1. / shear_modulus - order_l * p_ratio)
+#     C_20 = C_40 * (q2 - q1 * p_ratio)
+#     C_31 = C_40 * p_ratio
+#     C_52 = (grav_term / (2. * (2. * order_l + 3.))) * ((order_l + 3.) * C_11 - k2 * C_31)
+#     C_61 = (order_l + 2.) * C_52 - grav_term * C_11
+#
+#     # Solve for other coefficients which requires matrix operations
+#     # Matrix 1 defined in Eq. 4.100
+#     matrix_1 = np.asarray(
+#         [
+#             [2. * lame * zeta + order_l + 3., -zeta, -k2 * lame * zeta, 0., 0., 0.        ],
+#             [-2. * delta, 4 * shear_modulus * zeta + order_l + 2., k2 * delta, -k2, 0., 0.],
+#             [1., 0., order_l + 2., -(1. / shear_modulus), 0., 0.                          ],
+#             [delta, lame * zeta, -epsilon, order_l + 5., 0., 0.],
+#             [-3. * gamma, 0., 0., 0., order_l + 4., -1.],
+#             [0., 0., 3. * gamma * k2, 0., -k2, order_l + 5.],
+#             ]
+#         )
+#     matrix_2 = matrix_1 + 2. * np.eye(6, dtype=matrix_1.dtype)
+#
+#     # Perform matrix inversions
+#     matrix_1_inv = np.linalg.inv(matrix_1)
+#     matrix_2_inv = np.linalg.inv(matrix_2)
+#
+#     # Solve for Solution 1, r^4 coefficients. Eq. 4.100
+#     A4_vector = np.asarray(
+#         [
+#             [0.],
+#             [density * (-(4. * gamma + dynamic_term) * A_13 + (k2 * gamma) * A_33 - A_63)],
+#             [0.],
+#             [density * (gamma * A_13 - dynamic_term * A_33 - A_54)],
+#             [0.],
+#             [0.]
+#             ]
+#         )
+#     A_15, A_24, A_35, A_44, A_56, A_65 = (matrix_1_inv @ A4_vector)[:, 0]
+#
+#     # Solve for Solution 2, r^4 coefficients - The LHS has the same form as solution 1s. Eq. 4.100
+#     B4_vector = np.asarray(
+#         [
+#             [0.],
+#             [density * (-(4. * gamma + dynamic_term) * B_13 + (k2 * gamma) * B_33 - B_63)],
+#             [0.],
+#             [density * (gamma * B_13 - dynamic_term * B_33 - B_54)],
+#             [0.],
+#             [0.]
+#         ]
+#     )
+#     B_15, B_24, B_35, B_44, B_56, B_65 = (matrix_1_inv @ B4_vector)[:, 0]
+#
+#     # Solve for Solution 3, r^2 coefficients. Eq. 4.107
+#     C2_vector = np.asarray(
+#         [
+#             [0.],
+#             [density * (-(4. * gamma + dynamic_term) * C_11 + (k2 * gamma) * C_31 - C_61)],
+#             [0.],
+#             [density * (gamma * C_11 - dynamic_term * C_31 - C_52)],
+#             [0.],
+#             [0.]
+#         ]
+#     )
+#     C_13, C_22, C_33, C_42, C_54, C_63 = (matrix_1_inv @ C2_vector)[:, 0]
+#
+#     # Solve for Solution 3, r^4 coefficients. Eq. 4.108
+#     C4_vector = np.asarray(
+#         [
+#             [0.],
+#             [density * (-(4. * gamma + dynamic_term) * C_13 + (k2 * gamma) * C_33 - C_63)],
+#             [0.],
+#             [density * (gamma * C_13 - dynamic_term * C_33 - C_54)],
+#             [0.],
+#             [0.]
+#         ]
+#     )
+#     C_15, C_24, C_35, C_44, C_56, C_65 = (matrix_2_inv @ C4_vector)[:, 0]
+#
+#     # Find z functions based on the coefficients
+#
+#     # Solution 1
+#     z1_sol1 = A_11 + A_13 * r2 + A_15 * r4
+#     z2_sol1 = 2. * (order_l - 1.) * shear_modulus * A_11 + A_22 * r2 + A_24 * r4
+#     z3_sol1 = (1. / order_l) * A_11 + A_33 * r2 + A_35 * r4
+#     # LEFTOFF
+#
+#     # Solution 2
+#     z1_sol2 = -order_l * (density / p1) * B_61 * r2 + B_15 * r4
+#     z2_sol2 = -(q1 / p1) * density * B_61 * r2 + B_24 * r4
+#     z3_sol2 = (density / p1) * B_61 * r2 + B_35 * r4
+#     z4_sol2 = B_44 * r4
+#     z5_sol2 = (1. / order_l) * B_61 + B_54 * r2 + B_56 * r4
+#     z6_sol2 = B_61 + B_63 * r2 + B_65 * r4
+#
+#     # Solution 3
+#     z1_sol3 = ((1. / shear_modulus) - order_l * p_ratio) * C_40 + C_13 * r2 + C_15 * r4
+#     z2_sol3 = (q2 - q1 * p_ratio) * C_40 + C_22 * r2 + C_24 * r4
+#     z3_sol3 = p_ratio * C_40 + C_33 * r2 + C_35 * r4
+#     z4_sol3 = C_40 + C_42 * r2 + C_44 * r4
+#     z5_sol3 = C_52 + C_54 * r2 + C_56 * r4
+#     z6_sol3 = C_61 + C_63 * r2 + C_65 * r4
+#
+#     return A_1_coeff

@@ -36,16 +36,16 @@ def solid_guess_kamata(
     ) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic and incompressible assumption.
 
-    This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
+    This function uses the Kamata et al (2015; JGR:P) equations (Eq. B17-B28).
 
     Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
 
-    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
+    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), incompressible, and
        bulk and shear dissipation.
 
     References
     ----------
-    KMN15 Eqs. B1-B16
+    KMN15 Eqs. B17-28
 
     Parameters
     ----------
@@ -74,7 +74,6 @@ def solid_guess_kamata(
 
     # Constants (See Eqs. B13-B16 of KMN15)
     dynamic_term = frequency * frequency
-    #alpha2 = (lame + 2. * shear_modulus) / density
     beta2 = shear_modulus / density
     gamma = 4. * pi * G_to_use * density / 3.
 
@@ -95,7 +94,7 @@ def solid_guess_kamata(
     y1_s2 = 0.
     y1_s3 = order_l * r_inverse
 
-    y2_s1 = order_l * (order_l + 1.) * (-density * gamma + 2. * shear_modulus * z_k2_pos * r_inverse**2)
+    y2_s1 = order_l * (order_l + 1.) * (-density * gamma + 2. * shear_modulus * z_k2_pos * r2_inverse)
     y2_s2 = density * ((dynamic_term / gamma) * (dynamic_term + 4. * gamma) - order_l * (order_l + 1.) * gamma)
     y2_s3 = 2. * shear_modulus * order_l * (order_l - 1) * r2_inverse
 
@@ -158,7 +157,7 @@ def liquid_guess_kamata(
 
     Using the dynamic assumption in a liquid layer results in two independent solutions for the radial derivatives.
 
-    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
+    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), incompressible, and
        bulk dissipation (no shear dissipation within liquid layers).
 
     References
@@ -188,7 +187,6 @@ def liquid_guess_kamata(
     # Optimizations
     dynamic_term = frequency * frequency
     r_inverse = 1. / radius
-    r2 = radius * radius
 
     # Helper functions
     gamma = (4. * pi * G_to_use * density / 3.)
@@ -200,7 +198,7 @@ def liquid_guess_kamata(
     y1_s2 = order_l * r_inverse
 
     y2_s1 = -density * (f * (dynamic_term + 4 * gamma) + order_l * (order_l + 1) * gamma)
-    y2_s2 = 0. * radius
+    y2_s2 = 0.
 
     y5_s1 = 3. * gamma * f - h * (order_l * gamma - dynamic_term)
     y5_s2 = order_l * gamma - dynamic_term
@@ -274,7 +272,7 @@ def solid_guess_takeuchi(
     raise Exception('Not Implemented for the Incompressible Assumption')
 
     # Convert compressibility parameters
-    lame = bulk_modulus - (2. / 3.) * shear_modulus
+    #lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants (See Eqs. B13-B16 of KMN15)
     dynamic_term = frequency * frequency

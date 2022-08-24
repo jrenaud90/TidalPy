@@ -10,6 +10,8 @@
 * Minor Changes
   * Added newer functions to the performance recording suite.
   * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.
+  * Added TidalPy to Zenodo. DOI added to readme.
+  * Removed Gitter account for now.
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.
