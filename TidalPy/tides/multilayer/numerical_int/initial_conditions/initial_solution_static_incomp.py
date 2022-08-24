@@ -17,8 +17,7 @@ from typing import List
 
 import numpy as np
 
-from .functions import takeuchi_phi_psi
-from .initial_solution_dynamic import z_calc
+from .functions import takeuchi_phi_psi, z_calc
 from .....constants import G, pi
 from .....utilities.math.special import sqrt_neg
 from .....utilities.performance import njit, nbList

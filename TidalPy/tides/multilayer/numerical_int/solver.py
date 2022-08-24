@@ -97,7 +97,7 @@ def tidal_y_solver(
 
     """
 
-    # Non-dimensionalize inputs
+    # Nondimensionalize inputs
     planet_radius = radius[-1]
     if nondimensionalize:
         if planet_bulk_density is None:

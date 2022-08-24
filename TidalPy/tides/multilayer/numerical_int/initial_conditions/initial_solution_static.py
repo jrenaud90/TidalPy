@@ -17,8 +17,7 @@ from typing import List
 
 import numpy as np
 
-from .functions import takeuchi_phi_psi
-from .initial_solution_dynamic import z_calc
+from .functions import takeuchi_phi_psi, z_calc
 from .....constants import G, pi
 from .....utilities.math.special import sqrt_neg
 from .....utilities.performance import njit, nbList
@@ -212,12 +211,12 @@ def solid_guess_takeuchi(
 
     # Helper functions
     k2_quad_pos = + (4. * gamma / alpha_2)
-    k2_quad_neg = - (4. * gamma / alpha_2)
-    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha_2 * beta_2))
+    k2_quad = k2_quad_pos**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha_2 * beta_2))
+    k2_quad_sqrt = np.sqrt(k2_quad)
 
     # TODO: TS74 has these flipped compared to KMN15. Going with TS74 for this func.
-    k2_pos = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
-    k2_neg = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
+    k2_pos = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
+    k2_neg = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
 
     f_k2_pos = (beta_2 * k2_pos) / gamma
     f_k2_neg = (beta_2 * k2_neg) / gamma
