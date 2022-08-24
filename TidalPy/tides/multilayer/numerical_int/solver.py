@@ -58,7 +58,9 @@ def tidal_y_solver(
         The surface boundary condition, for tidal solutions y2, y4, y6, = (0, 0, (2l+1)/R)
             Tidal solution or load solution will be the default if `None` is provided.
     solve_load_numbers : bool = False
-        If True, then the load solution will be used instead of tidal if surface_boundary_condition = None.
+        If True, then the load Love numbers will be calculated alongside the tidal. This changes the output signature
+         of this function. If _only_ the load Love numbers are required then it will be more efficient to set this to
+         False and change the `surface_boundary_condition` to the appropriate format.
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
@@ -94,6 +96,8 @@ def tidal_y_solver(
     -------
     tidal_y : np.ndarray
         The radial solution throughout the entire planet.
+    (optional) load_y : np.ndarray
+        The radial load solution throughout the entire planet.
 
     """
 
@@ -114,22 +118,11 @@ def tidal_y_solver(
     # Find solution at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
     if surface_boundary_condition is None:
-        if solve_load_numbers:
-            if planet_bulk_density is None:
-                raise AttributeNotSetError('Planet bulk density must be provided if calculating load Love numbers.')
-            # Based on Eq. 6 of Beuthe (2015; Icarus)
-            surface_boundary_condition = np.zeros(3, dtype=np.complex128)
-            if nondimensionalize:
-                surface_boundary_condition[0] = -(2. * order_l + 1.) * 1. / 3.
-            else:
-                surface_boundary_condition[0] = -(2. * order_l + 1.) * planet_bulk_density / 3.
-            surface_boundary_condition[2] = (2. * order_l + 1.) / radius[-1]
+        surface_boundary_condition = np.zeros(3, dtype=np.complex128)
+        if nondimensionalize:
+            surface_boundary_condition[2] = (2. * order_l + 1.) / 1.
         else:
-            surface_boundary_condition = np.zeros(3, dtype=np.complex128)
-            if nondimensionalize:
-                surface_boundary_condition[2] = (2. * order_l + 1.) / 1.
-            else:
-                surface_boundary_condition[2] = (2. * order_l + 1.) / radius[-1]
+            surface_boundary_condition[2] = (2. * order_l + 1.) / radius[-1]
 
     # Determine layer structure
     num_layers = len(is_solid_by_layer)
@@ -239,6 +232,27 @@ def tidal_y_solver(
             is_liquid_static=is_liquid_static, radius_array=radius, gravity_array=gravity,
             density_array=density, liquid_layer_indices=liquid_indices, frequency=frequency
             )
+
+    collapse_function_load = None
+    collapse_input_load = None
+    if solve_load_numbers:
+        if planet_bulk_density is None:
+            raise AttributeNotSetError('Planet bulk density must be provided if calculating load Love numbers.')
+        # Based on Eq. 6 of Beuthe (2015; Icarus)
+        surface_boundary_condition_load = np.zeros(3, dtype=np.complex128)
+        if nondimensionalize:
+            surface_boundary_condition_load[0] = -(2. * order_l + 1.) * 1. / 3.
+            surface_boundary_condition_load[2] = (2. * order_l + 1.) / 1.
+        else:
+            surface_boundary_condition_load[0] = -(2. * order_l + 1.) * planet_bulk_density / 3.
+            surface_boundary_condition_load[2] = (2. * order_l + 1.) / radius[-1]
+
+        collapse_function_load, collapse_input_load = \
+            find_collapse_func(
+                model_name, surface_boundary_condition_load,
+                is_liquid_static=is_liquid_static, radius_array=radius, gravity_array=gravity,
+                density_array=density, liquid_layer_indices=liquid_indices, frequency=frequency
+                )
 
     # Ready to solve the viscoelastic-gravitational problem for each layer, obtaining multiple solutions per layer
     #    which will later be collapsed via a linear combination (subjected to boundary conditions) into one solution
@@ -365,12 +379,27 @@ def tidal_y_solver(
 
     tidal_y = collapse_function(solutions_by_layer, *collapse_input)
 
-    if verbose:
-        print('Done!')
-
     if nondimensionalize:
         if verbose:
             print('Re-dimensionalizing Radial Functions.')
         tidal_y = re_dimensionalize_radial_func(tidal_y, planet_radius, planet_bulk_density)
 
-    return tidal_y
+    # Calculate load numbers too
+    if solve_load_numbers:
+        if verbose:
+            print('Collapsing load solutions...')
+
+        tidal_y_load = collapse_function_load(solutions_by_layer, *collapse_input_load)
+        if nondimensionalize:
+            if verbose:
+                print('Re-dimensionalizing Radial (Load) Functions.')
+            tidal_y_load = re_dimensionalize_radial_func(tidal_y_load, planet_radius, planet_bulk_density)
+
+        output_ = (tidal_y, tidal_y_load)
+    else:
+        output_ = tidal_y
+
+    if verbose:
+        print('Done!')
+
+    return output_

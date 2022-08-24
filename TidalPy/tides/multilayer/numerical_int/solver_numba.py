@@ -232,6 +232,8 @@ def tidal_y_solver(
             Tidal solution or load solution will be the default if `None` is provided.
     solve_load_numbers : bool = False
         If True, then the load solution will be used instead of tidal if surface_boundary_condition = None.
+        OPT: Unlike the non-numba version, this function is not able to calculate the tidal and load numbers
+         simultaneously. This is only due to the return signature would be different like the non-numba function.
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
