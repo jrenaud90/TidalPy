@@ -6,8 +6,7 @@
 low_pressure_ice_eos = 'bm3'
 high_pressure_ice_eos = 'mgd3'
 
-from burnman.classes.mineral import Mineral
-from burnman.tools.chemistry import dictionarize_formula, formula_mass
+from . import burnman_installed, Mineral, dictionarize_formula, formula_mass
 
 from .constant import ConstantMaterial
 
@@ -15,6 +14,10 @@ from .constant import ConstantMaterial
 class LowPressureIceConst(ConstantMaterial):
 
     def __init__(self):
+
+        if not burnman_installed:
+            raise ImportError('Burnman package not found.')
+
         self.params = {
             'name'               : 'ice_lp',
             'equation_of_state'  : low_pressure_ice_eos,

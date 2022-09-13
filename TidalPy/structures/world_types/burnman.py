@@ -1,6 +1,18 @@
 from typing import Tuple
+from warnings import warn
 
-import burnman
+burnman_installed = True
+try:
+    import burnman
+except ImportError:
+
+    burnman_installed = False
+
+    # Build fake class so type checking passes.
+    class burnman:
+        Planet = None
+        Layer = None
+        Material = None
 
 from .layered import LayeredWorld
 from ...exceptions import InitiatedPropertyChangeError
@@ -41,6 +53,9 @@ class BurnManWorld(LayeredWorld):
         initialize : bool = True
             Determines if initial reinit should be performed on the world (loading in data from world_config).
         """
+
+        if not burnman_installed:
+            warn('Burnman package not found. BurnmanWorld will have limited functionality.')
 
         # Store BurnMan information in state properties
         self._bm_world = burnman_world

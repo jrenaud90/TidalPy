@@ -1,8 +1,8 @@
 from typing import Tuple
 
-import burnman
 import numpy as np
 
+from . import burnman
 from .defaults import default_burnman_layer_params
 from .material.helper import find_material
 from .. import configurations, debug_mode, log
@@ -27,6 +27,12 @@ def build_layer(layer_name: str, layer_config: dict) -> burnman.Layer:
     layer : burnman.Layer
         An initialized burnman layer
     """
+
+    # Record information
+    log.debug(f'Burnman layer {layer_name} being built.')
+    if not burnman_installed:
+        log.debug(f"Burnman install not found.")
+        raise ImportError('Burnman package not found.')
 
     # Load in defaults
     layer_config = {**default_burnman_layer_params, **layer_config}
@@ -120,6 +126,10 @@ def build_burnman_world(planet_config: dict, verbose: bool = False) -> Tuple[bur
     """
 
     log.debug(f"Building BurnMan world: {planet_config['name']}")
+
+    if not burnman_installed:
+        log.debug(f"Burnman install not found.")
+        raise ImportError('Burnman package not found.')
 
     # Store Layer information
     try:

@@ -510,7 +510,6 @@ def liquid_guess_takeuchi(
     tidaly_s2 = np.stack((y1_s2, y2_s2, y5_s2, y6_s2))
 
     return nbList([tidaly_s1, tidaly_s2])
-
 #
 # @njit(cacheable=True)
 # def solid_guess_power(
@@ -713,3 +712,5 @@ def liquid_guess_takeuchi(
 #     z6_sol3 = C_61 + C_63 * r2 + C_65 * r4
 #
 #     return A_1_coeff
+#
+# """
