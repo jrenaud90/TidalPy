@@ -144,7 +144,6 @@ def re_dimensionalize_physicals(
     # Setup conversions
     second2_conversion = 1. / (np.pi * G * bulk_density)
     second_conversion = np.sqrt(second2_conversion)
-    mass_conversion = bulk_density * mean_radius**3
     length_conversion = mean_radius
     density_conversion = bulk_density
     mass_conversion = bulk_density * mean_radius**3

@@ -389,13 +389,13 @@ def tidal_y_solver(
         if verbose:
             print('Collapsing load solutions...')
 
-        tidal_y_load = collapse_function_load(solutions_by_layer, *collapse_input_load)
+        load_y = collapse_function_load(solutions_by_layer, *collapse_input_load)
         if nondimensionalize:
             if verbose:
                 print('Re-dimensionalizing Radial (Load) Functions.')
-            tidal_y_load = re_dimensionalize_radial_func(tidal_y_load, planet_radius, planet_bulk_density)
+            load_y = re_dimensionalize_radial_func(load_y, planet_radius, planet_bulk_density)
 
-        output_ = (tidal_y, tidal_y_load)
+        output_ = (tidal_y, load_y)
     else:
         output_ = tidal_y
 

@@ -1,6 +1,6 @@
 [project]
 name = "TidalPy"
-version = "0.3.5.b0"
+version = "0.3.6.a"
 description = "Toolbox for solving tidal dynamics and planetary interior problems."
 authors = [
     {name = "Joe P. Renaud", email = "joseph.p.renaud@nasa.gov"}

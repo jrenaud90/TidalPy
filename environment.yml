@@ -22,6 +22,7 @@ dependencies:
   - proj>=8.0.0
   - geos>=3.7.2
   - cartopy>=0.18.0
+  - cmcrameri>=1.4
   - pip:
     - pycddlib>=2.1
     - burnman>=1.0.1
