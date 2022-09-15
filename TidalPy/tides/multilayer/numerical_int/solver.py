@@ -22,7 +22,7 @@ def tidal_y_solver(
     order_l: int = 2,
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
+    use_julia: bool = False, use_numba_integrator: bool = False, use_cyrk_integrator: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
     scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
     verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
@@ -68,8 +68,10 @@ def tidal_y_solver(
         If True, the Julia `diffeqpy` integration tools will be used.
         Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
     use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
+        If True, TidalPy's numba-based RK integrator will be used.
         Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
+    use_cyrk_integrator : bool = False
+        If True, CyRK's Cython-based RK integrator will be used.
     int_rtol : float = 1.0e-8
         Integration relative error.
     int_atol : float = 1.0e-12
@@ -331,6 +333,51 @@ def tidal_y_solver(
                         rk_method=rk_method,
                         t_eval=layer_radii,
                         rtol=int_rtol, atol=int_atol
+                        )
+
+                if not success:
+                    raise IntegrationFailed(
+                        f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
+                        f'\n\t{message}'
+                        )
+
+                solutions_by_layer[layer_i].append(ys)
+
+            if verbose:
+                print('\nIntegration Done!')
+
+        elif use_cyrk_integrator:
+
+            def diffeq_cyrk(t, y, dydt, *args):
+                # Julia integrator flips the order of the variables for the differential equation.
+
+                dydt_out = diffeq(t, y, *args)
+                dydt = dydt_out
+
+            try:
+                from CyRK import cyrk_ode
+            except ImportError:
+                raise ImportError('CyRK package was not found.')
+
+            if scipy_int_method.lower() in ['rk23']:
+                rk_method = 0
+            elif scipy_int_method.lower() in ['rk45']:
+                rk_method = 1
+            else:
+                raise NotImplementedError
+
+            if verbose:
+                print(f"Solving Layer {layer_i + 1} (with TidalPy's Numba integrator, using {scipy_int_method})...")
+
+            for solution_num, initial_values in enumerate(initial_values_to_use):
+
+                ts, ys, success, message, = \
+                    cyrk_ode(
+                        diffeq, radial_span, initial_values,
+                        args=diffeq_input,
+                        rtol=int_rtol, atol=int_atol,
+                        rk_method=rk_method,
+                        t_eval=layer_radii,
                         )
 
                 if not success:
