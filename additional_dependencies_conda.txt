@@ -1,0 +1,5 @@
+pyproj>=3.3.0
+shapely>=1.6.4,<=1.8.4
+pyshp>=2.1
+geos>=3.7.2
+cartopy>=0.18.0
