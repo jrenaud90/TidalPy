@@ -6,41 +6,42 @@ from setuptools import find_packages, setup
 
 SETUP_FILE_PATH = pathlib.Path(__file__).parent.absolute()
 
-# TODO: Update development status
-CLASSIFIERS = """\
-Development Status :: 3 - Alpha
-Operating System :: Microsoft :: Windows :: Windows 10
-Operating System :: MacOS :: MacOS X
-Operating System :: Unix
-Operating System :: POSIX :: Linux
-Programming Language :: Python
-Programming Language :: Python :: 3
-Programming Language :: Python :: 3.8
-Programming Language :: Python :: 3.9
-Programming Language :: Python :: 3 :: Only
-Programming Language :: Python :: Implementation :: CPython
-Intended Audience :: Science/Research
-Intended Audience :: Developers
-Intended Audience :: Education
-Topic :: Scientific/Engineering
-Topic :: Scientific/Engineering :: Astronomy
-Topic :: Scientific/Engineering :: Physics
-Natural Language :: English
-License :: OSI Approved :: GNU General Public License v3 (GPLv3)
-"""
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Unix",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Natural Language :: English",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
+]
 
-# Get version number
-version = None
-with open(os.path.join('TidalPy', 'version.txt'), 'r') as version_file:
-    for line in version_file:
+# Find TidalPy Directory
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
+# Find long description
+long_description = ''
+with open(os.path.join(dir_path, "README.md"), 'r') as f:
+    long_description = f.read()
+
+# Find version number
+version = ''
+with open(os.path.join(dir_path, "TidalPy", "_version.py"), 'r') as f:
+    for line in f:
         if 'version =' in line:
-            version = line.split('version =')[-1].strip()
-            break
-
-# Get long description
-with open('README.md', 'r') as readme:
-    long_desc = readme.read()
-
+            version = line.split('=')[-1].strip().replace("'", '').replace('"', '')
 
 # Read requirements file.
 def get_requirements(remove_links=False):
@@ -69,13 +70,21 @@ def get_requirements(remove_links=False):
     return requirements_
 
 
+# Find runtime requirements
 requirements = get_requirements(remove_links=True)
+
+# Define setup requirements
+setup_requirements = [
+    'setuptools>=57.0.0',
+    'pip>=21.0.0',
+    'wheel>=0.36.0'
+    ]
 
 setup_kwargs = {
     'name'                         : 'TidalPy',
     'version'                      : version,
     'description'                  : 'Planetary Tidal Evolution Software made with Python',
-    'long_description'             : long_desc,
+    'long_description'             : long_description,
     'long_description_content_type': 'text/markdown',
     'url'                          : 'http://github.com/jrenaud90/TidalPy',
     'download_url'                 : 'http://github.com/jrenaud90/TidalPy.git',
@@ -89,17 +98,15 @@ setup_kwargs = {
     'maintainer'                   : 'TidalPy Community',
     'maintainer_email'             : 'TidalPy@gmail.com',
     'license'                      : 'CC BY-NC-SA 4.0',
-    'classifiers'                  : [_f for _f in CLASSIFIERS.split('\n') if _f],
+    'classifiers'                  : classifiers,
     'keywords'                     : 'scientific modeling, tidal dynamics, planetary science, habitability, '
                                      'astrophysics, tides, orbital mechanics, exoplanets, planets',
     'platforms'                    : ["Windows", "MacOS", "CentOS"],
     'packages'                     : find_packages() + ['TidalPy.WorldConfigs'],
     'include_package_data'         : True,
-    'extras_require'               : {
-        'dev': ['sympy', 'julia', 'diffeqpy']
-        },
     'python_requires'              : '>=3.8',
     'install_requires'             : requirements,
+    'setup_requires'               : setup_requirements
     }
 
 setup(**setup_kwargs)

@@ -16,7 +16,7 @@ def initialize_tidalpy():
     import TidalPy
 
     from .logger import log_setup
-    from .version import version
+    from ._version import version
     from .io_helper import timestamped_str, unique_path
 
     # Are we in a Jupyter Notebook?

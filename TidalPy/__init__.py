@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 init_time = time.time()
 
 # Version information
-from .version import version
+from ._version import version
 __version__ = version
 
 # Load configuration dictionary

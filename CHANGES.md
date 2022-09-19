@@ -6,12 +6,16 @@
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
   * Added in load Love number calculations to the multilayer code.
   * Added in true incompressible model for multilayer code.
+  * Removed a lot of 3rd-party dependencies to make TidalPy's install leaner
+  * 
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
   * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.
   * Added TidalPy to Zenodo. DOI added to readme.
   * Removed Gitter account for now.
+  * Added files and functions to quickly install additional 3rd party applications
+  * Improvements to GitHub workflows
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.

@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
-from . import burnman
+from . import burnman, burnman_installed
 from .defaults import default_burnman_layer_params
 from .material.helper import find_material
 from .. import configurations, debug_mode, log

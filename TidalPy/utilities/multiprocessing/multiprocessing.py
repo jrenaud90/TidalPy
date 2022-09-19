@@ -12,19 +12,10 @@ from datetime import datetime
 from typing import List
 
 import numpy as np
-import psutil
 
+from . import psutil, psutil_installed, pathos_mp, pathos_installed
 from ..numpy_helper.array_other import find_nearest
 from ... import version
-
-PATHOS_INSTALLED = False
-try:
-    from pathos import multiprocessing as pathos_mp
-
-    PATHOS_INSTALLED = True
-except ImportError:
-    # Pathos is not installed. Use Python's multiprocessing instead.
-    pathos_mp = None
 
 MultiprocessingInput = namedtuple('MultiprocessingInput',
                                   ('name', 'nice_name', 'start', 'end', 'scale', 'must_include', 'n'))
@@ -41,6 +32,10 @@ def multiprocessing_run(
     avoid_crashes: bool = True,
     force_post_process_rerun: bool = True
     ) -> List[MultiprocessingOutput]:
+
+    # Check if dependencies are installed
+    if not psutil_installed:
+        raise ImportError('The `psutil` package was not found and is required for TidalPy multiprocessing.')
 
     # Initial housekeeping
     start_time = datetime.now()
@@ -322,7 +317,7 @@ def multiprocessing_run(
 
     # Perform multiprocessing study
     if len(cases) > 0:
-        if PATHOS_INSTALLED:
+        if pathos_installed:
             # Use pathos
             if verbose:
                 print('Using Pathos for Multiprocessing.')

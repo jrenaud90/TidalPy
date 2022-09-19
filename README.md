@@ -131,6 +131,16 @@ made with `conda create -n <name> python=3.9` and switched to with `conda activa
         * Run `python` and then try to `import TidalPy`; if that works try the command `TidalPy.version` if you do not
           get any import errors, and the version number is as you expect, then TidalPy was successfully installed.
 
+### Additional Dependencies
+
+TidalPy will only install 3rd-party packages that are absolutely needed to run the majority of 
+its functionality. However, there are some functions throughout TidalPy that take advantage of
+additional packages. You can install these additional packages by calling,
+
+`pip install -r additional_dependencies.txt`
+
+This command should be run from an elevated terminal to avoid permission issues.
+
 ### Installation Troubleshooting
 
 * The `setuptools` package is required before TidalPy can be installed. Usually it is automatically installed, but if
