@@ -47,6 +47,7 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Install Additional Dependencies
         run: |
+          sudo apt-get install libgeos-dev
           python -m pip install -r additional_dependencies.txt
       - name: Run pytest
         run: python -m pytest --cov=TidalPy --splits 5 --group ${{ matrix.group }}
