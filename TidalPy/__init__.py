@@ -49,8 +49,6 @@ else:
 # Bring up various functionality to top-level
 #    Performance / Basic functionality
 from .utilities.performance import clear_cache
-#    Graphics
-from .utilities.graphics import cmaps
 #    Physics
 
 #    OOP

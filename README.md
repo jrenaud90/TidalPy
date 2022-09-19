@@ -135,11 +135,22 @@ made with `conda create -n <name> python=3.9` and switched to with `conda activa
 
 TidalPy will only install 3rd-party packages that are absolutely needed to run the majority of 
 its functionality. However, there are some functions throughout TidalPy that take advantage of
-additional packages. You can install these additional packages by calling,
+additional packages. You can install these additional packages by calling (note you need to install
+cartopy's dependencies first --- see the next section),
 
 `pip install -r additional_dependencies.txt`
 
 This command should be run from an elevated terminal to avoid permission issues.
+
+#### Cartopy
+
+TidalPy utilizes the [cartopy](https://scitools.org.uk/cartopy/docs/latest/index.html) package for some of 
+3d projection map plotting. In turn, cartopy relies on [GEOS](https://trac.osgeo.org/geos/) which is not a python
+package and must be installed outside of pip.
+
+**Windows:** [Follow instructions here](https://trac.osgeo.org/osgeo4w/)
+**On Ubuntu:** `sudo apt-get install libgeos-dev`
+**On MacOS:** `brew install geos`
 
 ### Installation Troubleshooting
 

@@ -9,6 +9,5 @@ shapely>=1.6.4,<=1.8.4
 pyshp>=2.1
 cartopy>=0.18.0
 
-cmcrameri>=1.4
 psutil>=5.8.0
 pathos>=0.2.0

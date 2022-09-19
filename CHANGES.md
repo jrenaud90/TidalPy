@@ -16,6 +16,7 @@
   * Removed Gitter account for now.
   * Added files and functions to quickly install additional 3rd party applications
   * Improvements to GitHub workflows
+  * Switched over to using the 3rd party `cmcrameri` package rather than trying to maintain it within tidalpy
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.
