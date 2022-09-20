@@ -1,5 +1,8 @@
 # MANIFEST.in
 include setup.py
+include requirements.txt
+include additional_dependencies.txt
+include additional_dependencies_conda.txt
 include README.md
 include CHANGES.md
 include LICENSE.txt

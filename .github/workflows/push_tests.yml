@@ -84,7 +84,7 @@ jobs:
 
   # Run a test suite with numba off to somewhat test functionality but more to get coverage.
   other_os_tests:
-    name: TidalPy Test ${{ matrix.os }} - Python v${{ matrix.version }}
+    name: TidalPy Test ${{ matrix.os }} - Python v${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     env:
       NUMBA_DISABLE_JIT: 1
