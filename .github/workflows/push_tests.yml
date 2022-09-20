@@ -81,3 +81,30 @@ jobs:
           coverage report --fail-under=50
           coverage xml
       - uses: codecov/codecov-action@v3.0.0
+
+  # Run a test suite with numba off to somewhat test functionality but more to get coverage.
+  other_os_tests:
+    name: TidalPy Test ${{ matrix.os }} - Python v${{ matrix.version }}
+    runs-on: ${{ matrix.os }}
+    env:
+      NUMBA_DISABLE_JIT: 1
+    strategy:
+      matrix:
+        python-version: [ "3.7", "3.8", "3.9" ]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          python -m pip install -r requirements.txt
+      - name: Install Additional Dependencies
+        run: | 
+          python -m pip install -r additional_dependencies.txt
+          conda install -c conda-forge --file additional_dependencies_conda.txt
+      - name: Run pytest
+        run: python -m pytest
