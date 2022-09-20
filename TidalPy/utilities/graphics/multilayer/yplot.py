@@ -39,6 +39,10 @@ def yplot(
         If True, plt.show() will be called.
     use_tobie_limits : bool = False
         If True, then plot will be made using Tobie2005 axis limits.
+    plot_tobie: bool = False
+        If True, then data from Tobie+ (2005) will be plotted alongside input data (good for benchmarking)
+    plot_roberts: bool = False
+        If True, then data from Roberts & Nimmo (2008) will be plotted alongside input data (good for benchmarking)
 
     Returns
     -------

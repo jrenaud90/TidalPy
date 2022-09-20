@@ -4,7 +4,6 @@ import numpy as np
 
 from ..performance.numba import njit
 from ..types import FloatArray, NumericalType, float_eps
-from ...exceptions import BadArrayShape
 
 
 def normalize_dict(

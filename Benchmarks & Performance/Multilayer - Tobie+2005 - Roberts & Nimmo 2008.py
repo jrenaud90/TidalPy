@@ -21,8 +21,6 @@ from TidalPy.utilities.graphics.multilayer import yplot
 show_shooting_method_technique = True
 show_propagation_matrix_technique = True
 use_static_liquid_core = True
-use_julia_integrator = False
-use_numba_integrator = True
 nondimensionalize_during_integration = True
 use_kamata_starting_values = True
 # Set the following two switches to true for comparison to Roberts and Nimmo.
@@ -31,9 +29,10 @@ use_fake_incompressible_limit = False
 use_real_incompressible_limit = True
 
 # Integration properties
-scipy_integration_method = 'RK45'
+integrator = 'numba'
+integration_method = 'RK45'
 # scipy_integration_method = 'DOP853'
-julia_integration_method = 'Tsit5'
+# julia_integration_method = 'Tsit5'
 r_tol = 1.e-8
 a_tol = 1.e-10
 
@@ -176,9 +175,9 @@ for model_name, (core_density, mantle_density) in models.items():
                     is_static_by_layer=[use_static_mantle],
                     indices_by_layer=[mantle_radii], order_l=2, surface_boundary_condition=None,
                     solve_load_numbers=False, use_kamata=use_kamata_starting_values,
-                    use_julia=use_julia_integrator, use_numba_integrator=use_numba_integrator,
-                    int_rtol=r_tol, int_atol=a_tol, scipy_int_method=scipy_integration_method,
-                    julia_int_method=julia_integration_method,
+                    integrator=integrator,
+                    integration_method=integration_method,
+                    integration_rtol=r_tol, integration_atol=a_tol,
                     verbose=False, nondimensionalize=nondimensionalize_during_integration,
                     planet_bulk_density=planet_bulk_density,
                     incompressible=use_real_incompressible_limit
@@ -192,9 +191,9 @@ for model_name, (core_density, mantle_density) in models.items():
                     is_static_by_layer=[use_static_liquid_core, use_static_mantle],
                     indices_by_layer=[core_radii, mantle_radii], order_l=2, surface_boundary_condition=None,
                     solve_load_numbers=False, use_kamata=use_kamata_starting_values,
-                    use_julia=use_julia_integrator, use_numba_integrator=use_numba_integrator,
-                    int_rtol=r_tol, int_atol=a_tol, scipy_int_method=scipy_integration_method,
-                    julia_int_method=julia_integration_method,
+                    integrator=integrator,
+                    integration_method=integration_method,
+                    integration_rtol=r_tol, integration_atol=a_tol,
                     verbose=False, nondimensionalize=nondimensionalize_during_integration,
                     planet_bulk_density=planet_bulk_density,
                     incompressible=use_real_incompressible_limit

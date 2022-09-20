@@ -37,7 +37,7 @@ class GridPlot(TidalPyClass):
 
     def __init__(
         self, nrows: int, ncols: int,
-        make_colorbars: bool = False, colorbar_ratio: float = 0.1,
+        make_colorbars: Union[bool, List[bool]] = False, colorbar_ratio: float = 0.1,
         projections: Union[str, List[str]] = None,
         figure_scale: float = 1., aspect_ratio: float = 2.,
         hspace: float = 0.25, wspace: float = 0.3, use_tight_layout: bool = True,
@@ -367,6 +367,8 @@ class GridPlot(TidalPyClass):
         ----------
         references : AxisReferencedInput
             New references for selected axes.
+        reset_values : bool = False
+            If True, then all the axis references will be reset before adding the new ones provided.
 
         Returns
         -------

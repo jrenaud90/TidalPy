@@ -1,1 +1,114 @@
-from .rk_integrator import rk_integrate
+cyrk_installed = False
+try:
+    from CyRK import cyrk_ode as _cyrk_ode, nbrk_ode as _nbrk_ode
+
+    cyrk_installed = True
+except ImportError:
+    _cyrk_ode = lambda x: None
+    _nbrk_ode = lambda x: None
+
+scipy_installed = False
+try:
+    from scipy.integrate import solve_ivp as _solve_ivp
+
+    scipy_installed = True
+except ImportError:
+    _solve_ivp = None
+
+julia_installed = False
+try:
+    from diffeqpy import de as _de, ode as _ode
+
+    julia_installed = True
+except ImportError:
+    _de = None
+    _ode = None
+
+# Load helpers
+from .julia_helper import get_julia_solver, known_integration_methods as known_integration_methods_julia
+from .cyrk_helper import nbrk_solver, cyrk_solver
+from .scipy_helper import solve_ivp
+
+
+def get_integrator(integrator_name: str, integration_method: str = 'RK45'):
+    """ Return the desired integration function based on user input.
+
+    Parameters
+    ----------
+    integrator_name : str
+        Name of the integration suite. Options:
+            'scipy'
+            'cython'
+            'numba'
+            'julia'
+    integration_method : str = 'RK45'
+        Name of the specific integration method (available methods vary by integrator)
+
+    Returns
+    -------
+    integrator : callable
+        Desired integrator function
+    """
+    """ Return the integration method based on the users input """
+
+    integrator_name = integrator_name.lower()
+
+    if integration_method is not None:
+        integration_method = integration_method.lower()
+
+    if integrator_name in ('scipy'):
+        if not scipy_installed:
+            raise ImportError('SciPy integrator requested but the package can not be found.')
+
+        # Find integration method
+        if integration_method is None:
+            # Use default for this method
+            integration_method = 'rk45'
+
+        if integration_method not in ('rk45', 'rk23', 'dop853', 'radau', 'bdf', 'lsoda'):
+            raise ValueError(f'Unknown integration method, {integration_method}, for integrator: {integrator_name}.')
+
+        integrator = solve_ivp
+        cleaned_int_method = integration_method.upper()
+
+    elif integrator_name in ('cython', 'cyrk', 'numba', 'nbrk'):
+        if not cyrk_installed:
+            raise ImportError('CyRK integrator requested but the package can not be found.')
+
+        # Find integration method
+        if integration_method is None:
+            # Use default for this method
+            integration_method = 'rk45'
+
+        if integration_method == 'rk23':
+            cleaned_int_method = 0
+        elif integration_method == 'rk45':
+            cleaned_int_method = 1
+        elif integration_method == 'dop853':
+            cleaned_int_method = 2
+        else:
+            raise ValueError(f'Unknown integration method, {integration_method}, for integrator: {integrator_name}.')
+
+        if integrator_name in ('cython', 'cyrk'):
+            integrator = cyrk_solver
+        else:
+            integrator = nbrk_solver
+
+    elif integrator_name in ('julia', 'diffeqpy'):
+
+        if integration_method is None:
+            # Use default for this method
+            integration_method = 'Tsit5'
+
+        # Find integration method
+        if integration_method not in known_integration_methods_julia:
+            raise ValueError(f'Unknown integration method, {integration_method}, for integrator: {integrator_name}.')
+
+        # Setup Julia integrator
+        integrator = get_julia_solver(integration_method)
+        cleaned_int_method = integration_method
+
+    else:
+        raise ValueError(f'Unknown integrator: {integrator_name}.')
+
+    return integrator, cleaned_int_method

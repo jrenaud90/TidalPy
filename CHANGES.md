@@ -1,13 +1,16 @@
 # TidalPy Major Change Log
 
-### Version 0.3.6 Alpha (Spring 2022)
+### Version 0.3.6 Alpha (Summer 2022)
 
 * Major Changes 
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
   * Added in load Love number calculations to the multilayer code.
   * Added in true incompressible model for multilayer code.
-  * Removed a lot of 3rd-party dependencies to make TidalPy's install leaner
-  * 
+  * Removed a lot of 3rd-party dependencies to make TidalPy's install lean.
+  * Switched over to using CyRK's integrators rather than TidalPys
+    * Changed the signature of the numerical-int multilayer solver - this will break old code.
+    * Can now use a cython implementation along with scipys, numba, and julia
+  * Issue with Numba 0.55 and dictionary updates. This restricts TidalPy to Python version 3.9 or lower.
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
@@ -17,9 +20,13 @@
   * Added files and functions to quickly install additional 3rd party applications
   * Improvements to GitHub workflows
   * Switched over to using the 3rd party `cmcrameri` package rather than trying to maintain it within tidalpy
+  * Added a delta time to HH:MM:SS converter to utilities.string_helper
+  * Made improvements to multiprocessing user info
+  * Cleaned up & added some docstrings and type hints
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.
+  * Fixed bug in global variable for world config loader
 
 ### Version 0.3.5 Alpha (Spring 2022)
 

@@ -136,7 +136,7 @@ made with `conda create -n <name> python=3.9` and switched to with `conda activa
 TidalPy will only install 3rd-party packages that are absolutely needed to run the majority of 
 its functionality. However, there are some functions throughout TidalPy that take advantage of
 additional packages. You can install these additional packages by calling (note you need to install
-cartopy's dependencies first --- see the next section),
+cartopy and julia's dependencies first --- see the next few sections),
 
 `pip install -r additional_dependencies.txt`
 
@@ -148,9 +148,34 @@ TidalPy utilizes the [cartopy](https://scitools.org.uk/cartopy/docs/latest/index
 3d projection map plotting. In turn, cartopy relies on [GEOS](https://trac.osgeo.org/geos/) which is not a python
 package and must be installed outside of pip.
 
+The easiest way to install cartopy is using an Anaconda environment by,
+
+`conda install -c conda-forge pyproj shapely pyshp cartopy`
+
+If you are not using a conda environment then you will need to find and install the GEOS binaries manually:
+
 **Windows:** [Follow instructions here](https://trac.osgeo.org/osgeo4w/)
 **On Ubuntu:** `sudo apt-get install libgeos-dev`
 **On MacOS:** `brew install geos`
+
+After GEOS is installed you can pip install the rest,
+
+`pip install pyproj shapely pyshp cartopy`
+
+#### Diffeqpy / Julia
+
+TidalPy provides the option to use the [Julia](https://julialang.org/) programing language's differential equation 
+solver for python: [diffeqpy](https://github.com/SciML/diffeqpy). To utilize this package you first need to ensure
+that Julia is installed on your machine and available via the system's environment path.
+
+* Install the Julia language from [https://julialang.org/downloads/](https://julialang.org/downloads/)
+* Add Julia's directory and its `bin` subdirectory to your system's path.
+* Open an elevated ("as administrator") terminal, command prompt, or powershell.
+    * If you are using a virtual Python environment make sure it is active.
+* Install `julia` and `diffeqpy` for python using pip
+    * Run `pip install julia diffeqpy`
+* Open Python on your elevated terminal (the following steps may take a while to compile). 
+  * Run `import julia; julia.install(); import diffeqpy; diffeqpy.install()`
 
 ### Installation Troubleshooting
 
@@ -162,30 +187,6 @@ package and must be installed outside of pip.
   recommended that you run it from an IDE and/or install it as
   an [editable package](https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs). If you do not wish to
   install as an editable package then please remove all `-e` flags.
-
-#### Installing `Julia` and `diffeqpy` (time integration suite)
-
-By default, TidalPy will utilize the `SciPy.integrate` package for solving differential equations. However, it may be
-more optimal to use the `Julia` language which has ODE integrators that can be called directly from Python. In order to
-use this functionality you will need to install `Julia` and the `diffeqpy` package.
-
-* Install the Julia language from [https://julialang.org/downloads/](https://julialang.org/downloads/)
-* Add Julia's directory and its `bin` subdirectory to your system's path.
-* Open an elevated ("as administrator") terminal, command prompt, or powershell.
-    * If you are using a virtual Python environment make sure it is active.
-
-*As of TidalPy v0.3.0, the `diffeqpy` that is available from pypi is not up-to-date with the version found on the
-project's github page. TidalPy uses functionality that is only available from this new version. If you would like to use
-Julia with TidalPy you must clone the github version. Keep in mind this is an unreleased version so more bugs are
-likely.*
-
-* Create a new directory to clone the `diffeqpy` repository.
-    * Run `git clone https://github.com/SciML/diffeqpy`
-    * With your browser navigated to the directory that contains `setup.py`, run `pip install .` (the trailing period is
-      important).
-* Open Python on your elevated terminal (the following steps may take a while to compile).
-    * Run `import diffeqpy; diffeqpy.install()`
-    * Run `import julia; julia.install()`
 
 ## How to Use
 

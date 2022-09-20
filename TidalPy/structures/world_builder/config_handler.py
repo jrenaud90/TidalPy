@@ -103,7 +103,7 @@ def _cfgpath_to_json():
 
 
 def get_world_configs():
-    global known_planets_cfg
+    global known_worlds_cfg
     global _configs_loaded
 
     if not _configs_loaded:

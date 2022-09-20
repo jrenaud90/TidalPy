@@ -1,8 +1,7 @@
 numpy>=1.19.5
-pandas>=1.2.4
 matplotlib>=3.4.2
 scipy>=1.6.3
-numba>=0.53
+numba>=0.53,<=0.54.1
 json5>=0.9.5
 dill>=0.3.2
 cmcrameri>=1.4

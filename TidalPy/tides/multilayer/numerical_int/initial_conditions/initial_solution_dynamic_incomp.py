@@ -250,8 +250,6 @@ def solid_guess_takeuchi(
         Radius where the radial functions are calculated. [m]
     shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : NumArray
-        Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
     frequency : FloatArray
@@ -412,8 +410,6 @@ def liquid_guess_takeuchi(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    bulk_modulus : NumArray
-        Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
     frequency : FloatArray

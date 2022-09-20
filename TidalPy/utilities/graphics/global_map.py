@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Colormap
 
-from .helper import get_cmap
 from ...io_helper import unique_path
 
 ROTATED_POLE_DEFAULT_INPUT = {
@@ -63,7 +62,7 @@ def projection_map(
     cmap: Union[str, Colormap] = 'vik',
     xlabel: str = 'Longitude [deg.]', ylabel: str = 'Latitude [deg.]',
     zlabel: str = '', title: str = '', zlog: bool = False,
-    zticks: list = None, ztick_labels: list = None,
+    zticks: list = None, ztick_labels: list = None, horizontal_cbar: bool = False,
     projection: str = 'Mollweide', original_data_projection: str = 'PlateCarree',
     show_earth_coast: bool = False, show_grid_lines: bool = True,
     ax: plt.Axes = None, cbax: plt.Axes = None,
@@ -137,6 +136,8 @@ def projection_map(
         If provided, these ticks will be used for the colorbar over matplotlib's default.
     ztick_labels : list = None
         If provided, these tick labels will be used for the colorbar over matplotlib's default.
+    horizontal_cbar: bool = False
+        If True, then the colorbar will be placed underneath the plot, horizontally.
     projection : str = 'Mollweide'
         Desired map projection. See function description for options.
     original_data_projection : str = 'PlateCarree'
@@ -149,6 +150,8 @@ def projection_map(
     ax : plt.Axes = None
         If a matplotlib figure axis is provided then the function will use it rather than creating a new figure.
         Note, this disables saving and show figure.
+    cbax : plt.Axes = None
+        Colorbar axis
     auto_save : bool = True
         If True, the figure will be saved to disk.
     auto_show : bool = True
@@ -195,9 +198,6 @@ def projection_map(
         rotated_pole_input = None
         projection_instance = projection()
 
-    # Find color map
-    cmap = get_cmap(cmap)
-
     # Make figure
     if ax is None:
         fig = plt.figure(figsize=(figure_scale * aspect_ratio * 4., figure_scale * 4.))
@@ -237,8 +237,13 @@ def projection_map(
             )
 
     # Make colorbar
+    if horizontal_cbar:
+        location = 'bottom'
+    else:
+        location = 'right'
+
     if cbax is None:
-        colorbar = plt.colorbar(cbdata, ax=ax)
+        colorbar = plt.colorbar(cbdata, ax=ax, location=location)
     else:
         colorbar = plt.colorbar(cbdata, cax=cbax)
     if zticks is not None:

@@ -58,6 +58,8 @@ def find_interface_func(
     interface_gravity : float = None
         Depending on the layer types and assumptions, the acceleration of gravity
         at the interface may be required [m s-2].
+    G_to_use : float = G
+        Gravitational constant (allowed to be different than standard G if non-dimensionalized)
 
     Returns
     -------

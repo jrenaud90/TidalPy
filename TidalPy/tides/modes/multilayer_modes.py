@@ -28,9 +28,8 @@ def calculate_mode_response_coupled(
     complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
     order_l: int = 2,
     use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+    integrator: str = 'scipy', integration_method: str = None,
+    integration_rtol: float = 1.0e-6, integration_atol: float = 1.0e-8,
     verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
     incompressible: bool = False
     ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -94,24 +93,20 @@ def calculate_mode_response_coupled(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
-    int_rtol : float = 1.0e-6
+    integrator : str = 'scipy'
+        Integrator used for solving the system of ODE's. Depending on which packages are installed, the available
+        options are:
+            `scipy` : SciPy's solve_ivp method
+            `cython`: CyRK's cython-based cyrk_ode method
+            `numba` : CyRK's numba-based nbrk_ode method
+            `julia` : Diffeqpy's Julia-based DifferentialEquations method
+    integration_method : str = None
+        Integration method used in conjunction with the chosen integrator. If None, then the default for each integrator
+        will be used (usually RK45)
+    integration_rtol : float = 1.0e-6
         Integration relative error.
-    int_atol : float = 1.0e-4
+    integration_atol : float = 1.0e-8
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -173,9 +168,8 @@ def calculate_mode_response_coupled(
                 indices_by_layer=indices_by_layer,
                 surface_boundary_condition=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
                 order_l=order_l, use_kamata=use_kamata,
-                use_julia=use_julia, use_numba_integrator=use_numba_integrator,
-                int_rtol=int_rtol, int_atol=int_atol,
-                scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
+                integrator=integrator, integration_method=integration_method,
+                integration_rtol=integration_rtol, integration_atol=integration_atol,
                 verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density,
                 incompressible=incompressible
                 )
@@ -207,9 +201,8 @@ def collapse_multilayer_modes(
     use_modes: bool = True, use_static_potential: bool = False, use_simple_potential: bool = False,
     orbit_average_results: bool = True,
     use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+    integrator: str = 'scipy', integration_method: str = None,
+    integration_rtol: float = 1.0e-6, integration_atol: float = 1.0e-8,
     verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
     incompressible: bool = False
     ):
@@ -309,24 +302,20 @@ def collapse_multilayer_modes(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
-    int_rtol : float = 1.0e-6
+    integrator : str = 'scipy'
+        Integrator used for solving the system of ODE's. Depending on which packages are installed, the available
+        options are:
+            `scipy` : SciPy's solve_ivp method
+            `cython`: CyRK's cython-based cyrk_ode method
+            `numba` : CyRK's numba-based nbrk_ode method
+            `julia` : Diffeqpy's Julia-based DifferentialEquations method
+    integration_method : str = None
+        Integration method used in conjunction with the chosen integrator. If None, then the default for each integrator
+        will be used (usually RK45)
+    integration_rtol : float = 1.0e-6
         Integration relative error.
-    int_atol : float = 1.0e-4
+    integration_atol : float = 1.0e-8
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -506,9 +495,8 @@ def collapse_multilayer_modes(
                 surface_boundary_conditions=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
                 complex_compliance_input=complex_compliance_input, force_mode_calculation=force_mode_calculation,
                 order_l=order_l, use_kamata=use_kamata,
-                use_julia=use_julia, use_numba_integrator=use_numba_integrator,
-                int_rtol=int_rtol, int_atol=int_atol,
-                scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
+                integrator=integrator, integration_method=integration_method,
+                integration_rtol=integration_rtol, integration_atol=integration_atol,
                 verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density,
                 incompressible=incompressible
                 )

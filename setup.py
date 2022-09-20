@@ -104,7 +104,7 @@ setup_kwargs = {
     'platforms'                    : ["Windows", "MacOS", "CentOS"],
     'packages'                     : find_packages() + ['TidalPy.WorldConfigs'],
     'include_package_data'         : True,
-    'python_requires'              : '>=3.8',
+    'python_requires'              : '>=3.8,<=3.9',
     'install_requires'             : requirements,
     'setup_requires'               : setup_requirements
     }

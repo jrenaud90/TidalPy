@@ -10,8 +10,8 @@ from .interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt
                          interface_SSt_LDy,
                          interface_SSt_LSt, interface_SSt_SDy, interface_SSt_SSt)
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
-from ....utilities.integration.rk_integrator import rk_integrate
-from ....utilities.performance import njit, nbList
+from ....utilities.integration import _nbrk_ode
+from ....utilities.performance import nbList, njit
 
 
 @njit(cacheable=True)
@@ -139,7 +139,7 @@ def _single_layer_integrate(
         if layer_is_solid:
             if layer_is_static:
                 ts, ys, success, message, = \
-                    rk_integrate(
+                    _nbrk_ode(
                         static_solid_ode, radial_span, initial_values_copy,
                         args=(radius_array, shear_modulus_array, bulk_modulus_array,
                               density_array, gravity_array, order_l, G_to_use, incompressible),
@@ -149,7 +149,7 @@ def _single_layer_integrate(
                         )
             else:
                 ts, ys, success, message, = \
-                    rk_integrate(
+                    _nbrk_ode(
                         dynamic_solid_ode, radial_span, initial_values_copy,
                         args=(radius_array, shear_modulus_array, bulk_modulus_array,
                               density_array, gravity_array, frequency, order_l, G_to_use, incompressible),
@@ -160,7 +160,7 @@ def _single_layer_integrate(
         else:
             if layer_is_static:
                 ts, ys, success, message, = \
-                    rk_integrate(
+                    _nbrk_ode(
                         static_liquid_ode, radial_span, initial_values_copy,
                         args=(radius_array, density_array,
                               gravity_array, order_l, G_to_use, incompressible),
@@ -170,7 +170,7 @@ def _single_layer_integrate(
                         )
             else:
                 ts, ys, success, message, = \
-                    rk_integrate(
+                    _nbrk_ode(
                         dynamic_liquid_ode, radial_span, initial_values_copy,
                         args=(radius_array, bulk_modulus_array, density_array,
                               gravity_array, frequency, order_l, G_to_use, incompressible),

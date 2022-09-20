@@ -13,4 +13,4 @@
 # Note that a particular *version* of TidalPy may be in alpha, beta, dev, etc. that does not necessarily
 #   reflect the state of TidalPy as a whole project (which is currently still in Alpha).
 
-version = '0.3.6.dev12'
+version = '0.3.6.dev13'

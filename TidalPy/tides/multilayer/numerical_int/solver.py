@@ -9,7 +9,7 @@ from .interfaces import find_interface_func
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ....constants import G
 from ....exceptions import AttributeNotSetError, IntegrationFailed
-from ....utilities.integration.rk_integrator import rk_integrate
+from ....utilities.integration import get_integrator
 
 
 def tidal_y_solver(
@@ -22,9 +22,8 @@ def tidal_y_solver(
     order_l: int = 2,
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False, use_cyrk_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
+    integrator: str = 'scipy', integration_method: str = None,
+    integration_rtol: float = 1.0e-6, integration_atol: float = 1.0e-8,
     verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
     incompressible: bool = False
     ) -> np.ndarray:
@@ -64,26 +63,20 @@ def tidal_y_solver(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-based RK integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
-    use_cyrk_integrator : bool = False
-        If True, CyRK's Cython-based RK integrator will be used.
-    int_rtol : float = 1.0e-8
+    integrator : str = 'scipy'
+        Integrator used for solving the system of ODE's. Depending on which packages are installed, the available
+        options are:
+            `scipy` : SciPy's solve_ivp method
+            `cython`: CyRK's cython-based cyrk_ode method
+            `numba` : CyRK's numba-based nbrk_ode method
+            `julia` : Diffeqpy's Julia-based DifferentialEquations method
+    integration_method : str = None
+        Integration method used in conjunction with the chosen integrator. If None, then the default for each integrator
+        will be used (usually RK45)
+    integration_rtol : float = 1.0e-6
         Integration relative error.
-    int_atol : float = 1.0e-12
+    integration_atol : float = 1.0e-8
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -102,6 +95,9 @@ def tidal_y_solver(
         The radial load solution throughout the entire planet.
 
     """
+
+    # Find integrator function
+    integrator, integrator_method = get_integrator(integrator, integration_method)
 
     # Nondimensionalize inputs
     planet_radius = radius[-1]
@@ -283,139 +279,24 @@ def tidal_y_solver(
             # Initial values are based on the previous layer's results and the interface function.
             initial_values_to_use = bottom_interface(solutions_by_layer[layer_i - 1], *bottom_interface_input)
 
-        # Start integration routine
-        if use_julia:
-            def diffeq_julia(u, p, r):
-                # Julia integrator flips the order of the variables for the differential equation.
-                output = diffeq(r, u, *p)
-                return list(output)
+        if verbose:
+            print(f'Solving Layer {layer_i + 1} (using {integrator} with {integrator_method})...')
 
-            # Import Julia's Diffeqpy and reinit the problem
-            from ....utilities.julia_helper.integration_methods import get_julia_solver
-            ode, solver = get_julia_solver(julia_int_method)
+        # Integrate over each solution
+        for solution_num, initial_values in enumerate(initial_values_to_use):
+            # Start integration routine
+            time_domain, y_results, success, message = \
+                integrator(diffeq, radial_span, initial_values, args=diffeq_input,
+                           rtol=integration_rtol, atol=integration_atol, method=integrator_method, t_eval=layer_radii)
 
-            if verbose:
-                print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
+            if not success:
+                raise IntegrationFailed(f'Integration Solution Failed for layer {layer_i} at solution #{solution_num}.'
+                                        f'\n\t{message}')
 
-            for solution_num, initial_values in enumerate(initial_values_to_use):
-                problem = ode.ODEProblem(diffeq_julia, initial_values, radial_span, diffeq_input)
-                solution = ode.solve(problem, solver(), abstol=int_atol, reltol=int_rtol)
+            solutions_by_layer[layer_i].append(y_results)
 
-                # Julia does not have the same t_eval. There is the "saveat" keyword but can cause issues.
-                #    So perform an interpolation for the desired radii
-                u_T = np.transpose(solution.u)
-                u = np.zeros((u_T.shape[0], layer_radii.size), dtype=np.complex128)
-                for i in range(u_T.shape[0]):
-                    u[i, :] = np.interp(layer_radii, solution.t, u_T[i, :])
-                solutions_by_layer[layer_i].append(u)
-
-            if verbose:
-                print('\nIntegration Done!')
-
-        elif use_numba_integrator:
-
-            if scipy_int_method.lower() in ['rk23']:
-                rk_method = 0
-            elif scipy_int_method.lower() in ['rk45']:
-                rk_method = 1
-            else:
-                raise NotImplementedError
-
-            if verbose:
-                print(f"Solving Layer {layer_i + 1} (with TidalPy's Numba integrator, using {scipy_int_method})...")
-
-            for solution_num, initial_values in enumerate(initial_values_to_use):
-
-                ts, ys, success, message, = \
-                    rk_integrate(
-                        diffeq, radial_span, initial_values,
-                        args=diffeq_input,
-                        rk_method=rk_method,
-                        t_eval=layer_radii,
-                        rtol=int_rtol, atol=int_atol
-                        )
-
-                if not success:
-                    raise IntegrationFailed(
-                        f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
-                        f'\n\t{message}'
-                        )
-
-                solutions_by_layer[layer_i].append(ys)
-
-            if verbose:
-                print('\nIntegration Done!')
-
-        elif use_cyrk_integrator:
-
-            def diffeq_cyrk(t, y, dydt, *args):
-                # Julia integrator flips the order of the variables for the differential equation.
-
-                dydt_out = diffeq(t, y, *args)
-                dydt = dydt_out
-
-            try:
-                from CyRK import cyrk_ode
-            except ImportError:
-                raise ImportError('CyRK package was not found.')
-
-            if scipy_int_method.lower() in ['rk23']:
-                rk_method = 0
-            elif scipy_int_method.lower() in ['rk45']:
-                rk_method = 1
-            else:
-                raise NotImplementedError
-
-            if verbose:
-                print(f"Solving Layer {layer_i + 1} (with TidalPy's Numba integrator, using {scipy_int_method})...")
-
-            for solution_num, initial_values in enumerate(initial_values_to_use):
-
-                ts, ys, success, message, = \
-                    cyrk_ode(
-                        diffeq, radial_span, initial_values,
-                        args=diffeq_input,
-                        rtol=int_rtol, atol=int_atol,
-                        rk_method=rk_method,
-                        t_eval=layer_radii,
-                        )
-
-                if not success:
-                    raise IntegrationFailed(
-                        f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
-                        f'\n\t{message}'
-                        )
-
-                solutions_by_layer[layer_i].append(ys)
-
-            if verbose:
-                print('\nIntegration Done!')
-
-        else:
-            from scipy.integrate import solve_ivp
-
-            if verbose:
-                print(f'Solving Layer {layer_i + 1} (with SciPy, using {scipy_int_method})...')
-
-            for solution_num, initial_values in enumerate(initial_values_to_use):
-                solution = solve_ivp(
-                    diffeq, radial_span, initial_values, t_eval=layer_radii, args=diffeq_input,
-                    method=scipy_int_method, vectorized=False, rtol=int_rtol, atol=int_atol
-                    )
-
-                if solution.status != 0:
-                    raise IntegrationFailed(
-                        f'Integration Solution Failed for {layer_i} at solution #{solution_num}.'
-                        f'\n\t{solution.message}'
-                        )
-
-                solutions_by_layer[layer_i].append(solution.y)
-
-            if verbose:
-                print('\nIntegration Done!')
-
-        # Done with layer, turn the inner list into a tuple.
-        solutions_by_layer[layer_i] = tuple(solutions_by_layer[layer_i])
+        if verbose:
+            print('\nIntegration Done!')
 
     # Done with all layers, turn the outer list into a tuple.
     solutions_by_layer = tuple(solutions_by_layer)

@@ -48,10 +48,13 @@ longitude_matrix, colatitude_matrix, time_matrix = \
     np.meshgrid(longitude, colatitude, time, indexing='ij')
 
 tidal_y_int_kwargs = {
-    'use_julia'           : False, 'use_kamata': False,
-    'int_atol'            : 1.0e-8, 'int_rtol': 1.0e-6,
-    'planet_bulk_density' : planet_bulk_density,
-    'use_numba_integrator': False, 'nondimensionalize': False
+    'use_kamata'         : False,
+    'planet_bulk_density': planet_bulk_density,
+    'nondimensionalize'  : False,
+    'integrator'         : 'scipy',
+    'integration_method' : None,
+    'integration_rtol'   : 1.0e-6,
+    'integration_atol'   : 1.0e-8
     }
 
 input_kwargs = {

@@ -13,14 +13,19 @@ from typing import List
 
 import numpy as np
 
-from . import psutil, psutil_installed, pathos_mp, pathos_installed
+from . import pathos_installed, pathos_mp, psutil, psutil_installed
 from ..numpy_helper.array_other import find_nearest
+from ..string_helper import convert_time_to_hhmmss
 from ... import version
 
-MultiprocessingInput = namedtuple('MultiprocessingInput',
-                                  ('name', 'nice_name', 'start', 'end', 'scale', 'must_include', 'n'))
-MultiprocessingOutput = namedtuple('MultiprocessingOutput',
-                                   ('case_number', 'input_index', 'result'))
+MultiprocessingInput = namedtuple(
+    'MultiprocessingInput',
+    ('name', 'nice_name', 'start', 'end', 'scale', 'must_include', 'n')
+    )
+MultiprocessingOutput = namedtuple(
+    'MultiprocessingOutput',
+    ('case_number', 'input_index', 'result')
+    )
 
 
 def multiprocessing_run(
@@ -39,6 +44,7 @@ def multiprocessing_run(
 
     # Initial housekeeping
     start_time = datetime.now()
+    init_time = time.time()
     study_crashed = False
     if verbose:
         print(f'Running a TidalPy Multiprocessing Study in:\n\t{directory_name}')
@@ -272,8 +278,8 @@ def multiprocessing_run(
         char_n_current = len(str(this_run_num))
         extra_spaces = ' ' * max(0, char_n_total - char_n_current)
         case_text = f'MP Study:: Working on Case {extra_spaces}{this_run_num} of {total_runs_to_do}. ' \
-                    f'Index: {run_indicies}'
-        print(case_text)
+                    f'Index: {run_indicies}\n'
+        print(case_text, end='')
         with open(mp_log_path, 'a') as mp_file:
             mp_file.write(case_text)
 
@@ -316,6 +322,7 @@ def multiprocessing_run(
         return MultiprocessingOutput(case_number=run_num, input_index=run_indicies, result=result)
 
     # Perform multiprocessing study
+    study_error = None
     if len(cases) > 0:
         if pathos_installed:
             # Use pathos
@@ -325,9 +332,11 @@ def multiprocessing_run(
                 with pathos_mp.ProcessingPool(nodes=procs_to_use) as pool:
                     patho_func = lambda x: func_to_use(*x)
                     mp_results = pool.map(patho_func, cases, chunksize=chunksize)
-            except Exception as e:
+            except Exception as study_error_:
+                study_error = study_error_
                 warnings.warn(
-                    f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n'
+                    f'Study had critical error and could not be completed. Post processing did not occur.\n'
+                    f'{study_error}\n'
                     )
                 study_crashed = True
         else:
@@ -337,14 +346,21 @@ def multiprocessing_run(
             try:
                 with python_mp.Pool(processes=procs_to_use) as pool:
                     mp_results = pool.starmap(func_to_use, cases, chunksize=chunksize)
-            except Exception as e:
+            except Exception as study_error_:
+                study_error = study_error_
                 warnings.warn(
-                    f'Study had critical error and could not be completed. Post processing did not occur.\n{e}\n'
+                    f'Study had critical error and could not be completed. Post processing did not occur.\n'
+                    f'{study_error}\n'
                     )
                 study_crashed = True
     else:
         # No cases to run.
         mp_results = list()
+
+    # Record how long main multiprocessing function took
+    mp_time_taken = time.time() - init_time
+    return_days = mp_time_taken >= 86400.
+    mp_time_taken_str = convert_time_to_hhmmss(mp_time_taken, return_days=return_days)
 
     # Wrap up the multiprocessing study
     if not study_crashed:
@@ -398,8 +414,10 @@ def multiprocessing_run(
             post_proc_dir = os.path.join(dir_to_use, 'post_processing')
             if not os.path.isdir(post_proc_dir):
                 os.makedirs(post_proc_dir)
-                postprocess_func(post_proc_dir, mp_results, input_data_to_use, input_arrays,
-                                 *postprocess_args, **postprocess_kwargs)
+                postprocess_func(
+                    post_proc_dir, mp_results, input_data_to_use, input_arrays,
+                    *postprocess_args, **postprocess_kwargs
+                    )
             else:
                 # Was post-process already run? Hard to check without knowing what the function is.
                 # So check to see if the user wants to force a re-run
@@ -408,17 +426,41 @@ def multiprocessing_run(
                 if force_post_process_rerun:
                     if verbose:
                         print('Rerunning Post-Processing.')
-                    postprocess_func(post_proc_dir, mp_results, input_data_to_use, input_arrays,
-                                     *postprocess_args, **postprocess_kwargs)
+                    postprocess_func(
+                        post_proc_dir, mp_results, input_data_to_use, input_arrays,
+                        *postprocess_args, **postprocess_kwargs
+                        )
 
-        # Close out log file.
         with open(mp_log_path, 'a') as mp_file:
-            date_time_str = datetime.now().strftime('%Y/%m/%d, %H:%M:%S')
-            mp_file.write(f'Study successfully completed on: {date_time_str}.\n')
+            mp_file.write(f'\n\nStudy successfully completed.\n')
 
         if verbose:
             print('Multiprocessing Study Completed.')
 
-        return mp_results
+    else:
+        mp_results = None
+        with open(mp_log_path, 'a') as mp_file:
+            mp_file.write(
+                f'\n\nStudy unsuccessfully concluded.\n'
+                f'Error Message:\n'
+                f'{study_error}.\n'
+                )
+        if verbose:
+            print('Multiprocessing Study Finished Unsuccessfully.')
 
-    return None
+    # Close out log file.
+    with open(mp_log_path, 'a') as mp_file:
+        # Record how long full mp call took
+        total_time_taken = time.time() - init_time
+        return_days = total_time_taken >= 86400.
+        total_time_taken_str = convert_time_to_hhmmss(total_time_taken, return_days=return_days)
+
+        date_time_str = datetime.now().strftime('%Y/%m/%d, %H:%M:%S')
+        mp_file.write(
+            f'\nStudy completed on: {date_time_str}.'
+            f'\nMP Run time : {mp_time_taken_str}.'
+            f'\nTotal time  : {total_time_taken_str}.'
+            f'\nEnd.'
+            )
+
+    return mp_results
