@@ -32,7 +32,7 @@ try:
     from diffeqpy import de as _de, ode as _ode
 
     julia_installed = True
-except ImportError:
+except Exception:
     _de = None
     _ode = None
 
