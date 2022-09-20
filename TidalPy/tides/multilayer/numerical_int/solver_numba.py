@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 
 from .collapse import (collapse_homogen_solid, collapse_ls_dynamic_liq, collapse_ls_static_liq,
@@ -10,7 +12,7 @@ from .interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt
                          interface_SSt_LDy,
                          interface_SSt_LSt, interface_SSt_SDy, interface_SSt_SSt)
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
-from ....utilities.integration import _nbrk_ode
+from ....utilities.integration import _nbrk_ode, cyrk_installed
 from ....utilities.performance import nbList, njit
 
 
@@ -21,7 +23,7 @@ def _get_initial_values(
     radius_array, shear_mod_array, bulk_mod_array, density_array, gravity_array, frequency,
     order_l, G_to_use, use_kamata, incompressible
     ):
-    initial_values_to_use = nbList([np.empty(6, dtype=np.complex128)])
+    initial_values_to_use = nbList([np.empty((6,0), dtype=np.complex128)])
     if layer_i == 0:
         # Find the initial solution at the center of the planet
         is_dynamic = not layer_is_static
@@ -193,7 +195,7 @@ def tidal_y_solver(
     model_name: str,
     radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
     density: np.ndarray, gravity: np.ndarray, frequency: float,
-    is_solid_by_layer: tuple[bool, ...], is_static_by_layer: tuple[bool, ...], indices_by_layer: tuple[np.ndarray, ...],
+    is_solid_by_layer: Tuple[bool, ...], is_static_by_layer: Tuple[bool, ...], indices_by_layer: Tuple[np.ndarray, ...],
     order_l: int = 2,
     surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
     use_kamata: bool = False,
@@ -262,6 +264,9 @@ def tidal_y_solver(
         The radial solution throughout the entire planet.
 
     """
+
+    if not cyrk_installed:
+        raise Exception('CyRK package is required for the numba-based solver.')
 
     # Non-dimensionalize inputs
     planet_radius = radius[-1]
@@ -365,7 +370,8 @@ def tidal_y_solver(
 
         # Start integration routine
         if verbose:
-            print(f"Solving Layer {layer_i + 1} (with TidalPy's Numba integrator)...")
+            msg = 'Solving Layer ' + str(layer_i + 1) + " (with TidalPy's Numba integrator)..."
+            print(msg)
 
         layer_below_ys = \
             _single_layer_integrate(

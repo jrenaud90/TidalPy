@@ -67,6 +67,7 @@ def solid_guess_kamata(
 
     # TODO
     raise Exception('Not Implemented for the Incompressible Assumption')
+    bulk_modulus = 0.  # Just something temp so the linter does not break.
 
     # Convert compressibility parameters
     lame = bulk_modulus - (2. / 3.) * shear_modulus
@@ -198,6 +199,7 @@ def solid_guess_takeuchi(
 
     # TODO
     raise Exception('Not Implemented for the Incompressible Assumption')
+    bulk_modulus = 0.  # Just something temp so the linter does not break.
 
     # Convert compressibility parameters
     lame = bulk_modulus - (2. / 3.) * shear_modulus

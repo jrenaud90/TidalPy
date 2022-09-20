@@ -35,10 +35,8 @@ def test_multiprocessing():
 
     try:
         # Run multiprocessing test
-        mp_results = multiprocessing_run(
-            dir_path, 'test', func, (i1, i2), max_procs=NUM_PROC,
-            allow_low_procs=True, avoid_crashes=False
-            )
+        mp_results = multiprocessing_run(dir_path, 'test', func, (i1, i2), max_procs=NUM_PROC,
+                                         allow_low_procs=True, avoid_crashes=False)
         assert mp_results is not None
         assert type(mp_results) == list
         assert isinstance(mp_results[0], MultiprocessingOutput)
@@ -90,13 +88,6 @@ def test_multiprocessing():
         # Get rid of references to loaded items so we can delete them
         del case0_result, case5_result
 
-    except Exception as e:
-        # Make sure that the directory is deleted.
+    finally:
         # Delete temp directory
         shutil.rmtree(dir_path)
-
-        # And then reraise error
-        raise e
-
-    # Delete temp directory
-    shutil.rmtree(dir_path)

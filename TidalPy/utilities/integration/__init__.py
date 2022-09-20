@@ -1,3 +1,6 @@
+import numpy as np
+from numba import njit
+
 cyrk_installed = False
 try:
     from CyRK import cyrk_ode as _cyrk_ode, nbrk_ode as _nbrk_ode
@@ -5,7 +8,16 @@ try:
     cyrk_installed = True
 except ImportError:
     _cyrk_ode = lambda x: None
-    _nbrk_ode = lambda x: None
+
+    @njit
+    def _nbrk_ode(static_solid_ode, radial_span, initial_values_copy,
+                  args=tuple(),
+                  rk_method=1,
+                  t_eval=np.zeros((0,)),
+                  rtol=1.0, atol=1.0):
+
+        return np.zeros((0,)), np.zeros((0,)), False, 'message'
+
 
 scipy_installed = False
 try:

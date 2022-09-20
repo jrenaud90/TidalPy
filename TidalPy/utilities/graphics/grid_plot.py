@@ -11,7 +11,8 @@ from ...io_helper import unique_path
 #    and Cartopy is not installed. So check if it is installed before using projections.
 CARTOPY_INSTALLED = False
 KNOWN_PROJECTIONS = None
-if (spec := importlib.util.find_spec('cartopy')) is not None:
+if importlib.util.find_spec('cartopy') is not None:
+    spec = importlib.util.find_spec('cartopy')
     from .global_map import KNOWN_PROJECTIONS
     CARTOPY_INSTALLED = True
 

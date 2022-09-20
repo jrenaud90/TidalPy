@@ -446,7 +446,7 @@ def multiprocessing_run(
                 f'{study_error}.\n'
                 )
         if verbose:
-            print('Multiprocessing Study Finished Unsuccessfully.')
+            print(f'Multiprocessing Study Finished Unsuccessfully.\n{study_error}')
 
     # Close out log file.
     with open(mp_log_path, 'a') as mp_file:

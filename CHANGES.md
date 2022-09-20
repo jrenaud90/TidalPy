@@ -26,7 +26,9 @@
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.
-  * Fixed bug in global variable for world config loader
+  * Fixed bug in global variable for world config loader.
+  * Fixed type hint bug in the numba-based tidal y solver.
+  * Fixed bug that caused numba-based tidal y solver to not compile.
 
 ### Version 0.3.5 Alpha (Spring 2022)
 
