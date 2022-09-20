@@ -1,6 +1,6 @@
 # TidalPy Major Change Log
 
-### Version 0.3.6 Alpha (Summer 2022)
+### Version 0.4.0 Alpha (Summer 2022)
 
 * Major Changes 
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
