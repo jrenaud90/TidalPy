@@ -150,7 +150,7 @@ package and must be installed outside of pip.
 
 The easiest way to install cartopy is using an Anaconda environment by,
 
-`conda install -c conda-forge pyproj shapely pyshp cartopy`
+`conda install -c conda-forge cartopy`
 
 If you are not using a conda environment then you will need to find and install the GEOS binaries manually:
 
