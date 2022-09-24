@@ -2,6 +2,7 @@
 from typing import List, Union
 
 import cartopy.crs as ccrs
+from cartopy.mpl.gridliner import Gridliner
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Colormap
@@ -67,7 +68,8 @@ def projection_map(
     show_earth_coast: bool = False, show_grid_lines: bool = True,
     ax: plt.Axes = None, cbax: plt.Axes = None,
     auto_save: bool = False, auto_show: bool = True, save_png: bool = False,
-    png_dpi: int = 300, filename: str = 'unknown_projection_plot', rotated_pole_input: dict = None
+    png_dpi: int = 300, filename: str = 'unknown_projection_plot', rotated_pole_input: dict = None,
+    central_longitude: float = 0., dark_mode: bool = False
     ):
     """ Quickly plot surface maps using various kinds of latitude and longitude projections.
 
@@ -164,6 +166,8 @@ def projection_map(
         Save name for the image. Can include a directory path.
     rotated_pole_input : dict = None
         Optional inputs for the Rotated Pole projection.
+    central_longitude: float = 0.
+        Longitude at the center of the plot.
 
     Returns
     -------
@@ -173,6 +177,10 @@ def projection_map(
         Image matplotlib axis.
 
     """
+
+    # Dark mode
+    if dark_mode:
+        plt.style.use('dark_background')
 
     # Find projection
     if projection.lower() not in KNOWN_PROJECTIONS:
@@ -190,13 +198,13 @@ def projection_map(
             rotated_pole_input = ROTATED_POLE_DEFAULT_INPUT
         else:
             rotated_pole_input = {**ROTATED_POLE_DEFAULT_INPUT, **rotated_pole_input}
-        projection_instance = projection(**rotated_pole_input)
+        projection_instance = projection(central_longitude=central_longitude, **rotated_pole_input)
     elif projection is None:
         rotated_pole_input = None
         projection_instance = None
     else:
         rotated_pole_input = None
-        projection_instance = projection()
+        projection_instance = projection(central_longitude=central_longitude)
 
     # Make figure
     if ax is None:
@@ -251,19 +259,21 @@ def projection_map(
     if ztick_labels is not None:
         colorbar.ax.set_yticklabels(ztick_labels)
 
-    # Plot lat and long gridlines
-    if show_grid_lines:
-        gl = ax.gridlines(
-            draw_labels=['x', 'y', 'bottom', 'left'], linestyle='-', alpha=0.35,
-            xlocs=[-120, -60, 0, 60, 120],
-            ylocs=[-60, -30, 0, 30, 60]
-            )
-        gl.right_labels = False
-        gl.top_labels = False
-
     # Set labels
     ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
     colorbar.set_label(zlabel)
+
+    # Plot lat and long gridlines
+    if show_grid_lines:
+        gl = ax.gridlines(
+            draw_labels={'x': True, 'left':True, 'bottom':True}, linestyle='-', alpha=0.35,
+            xlocs=[-120, -60, 0, 60, 120],
+            ylocs=[-60, -30, 0, 30, 60]
+            )
+        # gl.rotate_labels = False
+        # gl.xlabel_style = {'color': 'white'}
+        # gl.right_labels = False
+        # gl.top_labels = False
 
     # Save figure
     if auto_save and not premade_ax:

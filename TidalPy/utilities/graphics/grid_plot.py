@@ -45,7 +45,7 @@ class GridPlot(TidalPyClass):
         suptitle: str = None, titles: AxisReferencedInputStr = None,
         xlabels: AxisReferencedInputStr = None, xscales: AxisReferencedInputStr = None,
         ylabels: AxisReferencedInputStr = None, yscales: AxisReferencedInputStr = None,
-        label_kwargs: dict = None
+        label_kwargs: dict = None, dark_mode: bool = False
         ):
         """ Helper function to quickly make a figure of plots in a grid.
 
@@ -93,6 +93,10 @@ class GridPlot(TidalPyClass):
 
         # TODO: Right now you can not have a different number of colorbars on different rows. Row 1 colorbar layout
         #    must be the same as row N.
+
+        # Dark mode
+        if dark_mode:
+            plt.style.use('dark_background')
 
         # Initialize various flags
         self._has_suptitle = False
@@ -147,7 +151,7 @@ class GridPlot(TidalPyClass):
 
         # Build gridspec
         figure_size = (figure_scale * aspect_ratio * 2. * self.ncols, figure_scale * 2. * self.nrows)
-        self._figure = plt.figure(figsize=figure_size, tight_layout=use_tight_layout)
+        self._figure = plt.figure(figsize=figure_size, constrained_layout=use_tight_layout)
         self._gridspec = GridSpec(
             real_nrows, real_ncols, figure=self.figure, width_ratios=width_ratios,
             hspace=hspace, wspace=wspace
@@ -659,11 +663,11 @@ class GridPlot(TidalPyClass):
         filepath = filename[:-4]
 
         # Save figure pdf (scalable graphics)
-        self.figure.savefig(filepath + '.pdf', bbox_inches='tight')
+        self.figure.savefig(filepath + '.pdf')
 
         # Save figure png
         if save_png:
-            self.figure.savefig(filepath + '.png', dpi=png_dpi, bbox_inches='tight')
+            self.figure.savefig(filepath + '.png', dpi=png_dpi)
 
     @staticmethod
     def show():
