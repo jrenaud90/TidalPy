@@ -188,9 +188,24 @@ class BaseWorld(PhysicalObjSpherical):
         eccentricity_changed: bool = False, obliquity_changed: bool = False,
         call_orbit_dissipation: bool = True
         ):
-        """ The world's orbit, spin, and/or obliquity has changed. Make any necessary updates """
+        """ The world's orbit, spin, and/or obliquity has changed. Make any necessary updates
 
-        log.debug(f'Orbit, spin, and/or obliquity changed called for {self}.')
+        Parameters
+        ----------
+        orbital_freq_changed : bool = False
+            Set to True if the orbital frequency has changed.
+        spin_freq_changed : bool = False
+            Set to True if the world's rotation frequency has changed.
+        eccentricity_changed : bool = False
+            Set to True if the eccentricity has changed.
+        obliquity_changed : bool = False
+            Set to True if the world's obliquity has changed.
+        call_orbit_dissipation : bool = True
+            If True, then the Orbit class' dissipation method will be called.
+
+        """
+
+        log.debug(f'Method orbit_spin_changed called for {self}.')
 
         # More updates implemented by child classes.
 
@@ -203,7 +218,7 @@ class BaseWorld(PhysicalObjSpherical):
             Flag to avoid recursive loops between surface temperature and cooling.
         """
 
-        log.debug(f'Surface temperature changed for {self}.')
+        log.debug(f'Method surface_temperature_changed called for {self}.')
 
         # More updates implemented by child classes.
 
@@ -381,6 +396,8 @@ class BaseWorld(PhysicalObjSpherical):
             If `True`, method will call the update time method.
         """
 
+        log.debug(f'Method set_time called for {self}.')
+
         if self.orbit is None:
             self._time = time
             if call_updates:
@@ -398,6 +415,8 @@ class BaseWorld(PhysicalObjSpherical):
         call_updates : bool = True
             If `True`, method will call the update tides method.
         """
+
+        log.debug(f'Method set_spin_frequency called for {self}.')
 
         if debug_mode:
             if np.any(np.abs(spin_frequency) > 1.e-3):
@@ -422,6 +441,8 @@ class BaseWorld(PhysicalObjSpherical):
             If `True`, method will call the update tides method.
         """
 
+        log.debug(f'Method set_spin_period called for {self}.')
+
         spin_frequency = days2rads(spin_period)
 
         self.set_spin_frequency(spin_frequency, call_updates=call_updates)
@@ -445,6 +466,8 @@ class BaseWorld(PhysicalObjSpherical):
         call_updates : bool = True
             If `True`, method will not call the update tides method.
         """
+
+        log.debug(f'Method set_obliquity called for {self}.')
 
         if debug_mode:
             if np.any(obliquity > 7.):
@@ -472,6 +495,8 @@ class BaseWorld(PhysicalObjSpherical):
             Heating received from a stellar host [W]
         """
 
+        log.debug(f'Method set_insolation_heating called for {self}.')
+
         self._insolation_heating = insolation_heating
 
         # Now recalculate the surface equilibrium temperature
@@ -485,6 +510,8 @@ class BaseWorld(PhysicalObjSpherical):
         internal_heating_to_surface : Union[NoneType, FloatArray]
             Amount of heating that is reaching the surface [W]
         """
+
+        log.debug(f'Method get_internal_heating_to_surface called for {self}.')
 
         internal_heating_to_surface = None
 

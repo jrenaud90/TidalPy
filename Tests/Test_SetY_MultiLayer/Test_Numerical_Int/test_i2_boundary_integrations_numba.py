@@ -1,14 +1,12 @@
 """ Tests for calculating the radial solution across the interior of a planet
 """
+import numpy as np
 
 import TidalPy
-import numpy as np
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.numerical_int.solver_numba import tidal_y_solver
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

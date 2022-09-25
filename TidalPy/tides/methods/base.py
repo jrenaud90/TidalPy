@@ -1,16 +1,16 @@
 """ Base Tides Module
 """
 
-from typing import Dict, TYPE_CHECKING, Tuple
-
 import numpy as np
+from typing import Dict, TYPE_CHECKING, Tuple
 
 from .defaults import tide_defaults
 from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from ..eccentricity_funcs import EccenOutput
 from ..inclination_funcs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
-from ..modes.mode_manipulation import DissipTermsArray, FreqSig, find_mode_manipulators
+from ..modes.mode_manipulation import (DissipTermsArray, FreqSig, ResultsByFreqType, UniqueFreqType,
+                                       find_mode_manipulators)
 from ... import log
 from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncompatibleModelError,
                            IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, NotYetImplementedError,
@@ -32,27 +32,31 @@ class TidesBase(WorldConfigHolder):
     Tides class stores model parameters and methods for calculating tidal heating and tidal potential derivatives
         which are general functions of (T, P, melt_frac, w, e, obliquity)
 
-    Properties
+    Attributes
     ----------
-    thermal_set : bool
-        Flag - If world's thermal state (can calculate complex compliance) has been set or not.
-        Initialized Property
-    orbit_set : bool
-        Flag - If the world's orbital state has been set or not.
-        Initialized Property
-    tidal_susceptibility : FloatArray
-        Tidal susceptibility for the world [N m].
-        State Property
-    tidal_susceptibility_reduced : FloatArray
-        Reduced tidal susceptibility for the world (no semi-major axis dependence).
-        State Property
-    unique_tidal_frequencies : Dict[freq_sig, FloatArray]
-        Unique tidal forcing frequencies experienced by the world
-            (combination of orbital motion and spin frequency).
-        State Property
-    tidal_terms_by_frequency : Dict[freq_sig, Dict[int, FloatArray]]
-        Coefficients for each tidal Love number (at each unique frequency).
-        State Property
+    eccentricity_truncation_lvl
+    max_tidal_order_lvl
+    use_obliquity_tides
+    multiply_modes_by_sign
+    eccentricity_results
+    obliquity_results
+    tidal_susceptibility_reduced
+    tidal_susceptibility
+    unique_tidal_frequencies
+    tidal_terms_by_frequency
+    tidal_heating_global
+    global_negative_imk_by_orderl
+    global_love_by_orderl
+    effective_q_by_orderl
+    dUdM
+    dUdw
+    dUdO
+    fixed_q
+    fixed_dt
+    fixed_k2
+    thermal_set
+    orbit_set
+
     """
 
     model = 'base'
@@ -94,6 +98,8 @@ class TidesBase(WorldConfigHolder):
         self._effective_q_by_orderl = None
         self._global_negative_imk_by_orderl = None
         self._global_love_by_orderl = None
+        self._need_to_collapse_modes = False
+        self._new_tidal_frequencies = False
 
         # Model configurations that will be set in reinit
         self._eccentricity_truncation_lvl = None
@@ -126,26 +132,35 @@ class TidesBase(WorldConfigHolder):
         ----------
         initial_init : bool = False
             This should be set to True the first time reinit is called.
+
+        Raises
+        ------
+        NotYetImplementedError
+        ParameterValueError
+
         """
 
         if initial_init:
             log.debug(f'Initializing tides class: {self}.')
         else:
             log.debug(f'Reinit called for {self}.')
+            self.clear_state()
+
+            # Reset configurations
+            self._eccentricity_truncation_lvl = None
+            self._max_tidal_order_lvl = None
+            self._use_obliquity_tides = None
+            self._multiply_modes_by_sign = None
 
         # Load in configurations
-        self._use_obliquity_tides = self.config['obliquity_tides_on']
-        self._multiply_modes_by_sign = self.config['multiply_modes_by_sign']
-        self._max_tidal_order_lvl = self.config['max_tidal_order_l']
         self._eccentricity_truncation_lvl = self.config['eccentricity_truncation_lvl']
-
-        # Setup functions
-        self.calculate_modes_func, self.collapse_modes_func, self.eccentricity_func, self.obliquity_func = \
-            find_mode_manipulators(self.max_tidal_order_lvl, self.eccentricity_truncation_lvl, self.use_obliquity_tides)
+        self._max_tidal_order_lvl         = self.config['max_tidal_order_l']
+        self._use_obliquity_tides         = self.config['obliquity_tides_on']
+        self._multiply_modes_by_sign      = self.config['multiply_modes_by_sign']
 
         # Ensure the tidal order and orbital truncation levels make sense
         if self.max_tidal_order_lvl > 7:
-            raise NotYetImplementedError(f'Tidal order {self.max_tidal_order_lvl} has not been implemented yet.')
+            raise NotYetImplementedError(f'Tidal order {self.max_tidal_order_lvl} has not been implemented.')
         if self.eccentricity_truncation_lvl % 2 != 0:
             raise ParameterValueError('Orbital truncation level must be an even integer.')
         if self.eccentricity_truncation_lvl < 2:
@@ -156,35 +171,48 @@ class TidesBase(WorldConfigHolder):
                 pass
             else:
                 raise NotYetImplementedError(
-                    f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not '
-                    f'been implemented yet.'
+                    f'Orbital truncation level of {self.eccentricity_truncation_lvl} has not been implemented.'
                     )
 
+        # Setup functions
+        self.calculate_modes_func, self.collapse_modes_func, self.eccentricity_func, self.obliquity_func = \
+            find_mode_manipulators(self.max_tidal_order_lvl, self.eccentricity_truncation_lvl, self.use_obliquity_tides)
+
     def post_orbit_initialize(self):
-        """ Initialize various tidal parameters once a tidal host is connected to the world (via an orbit class). """
+        """ Initialize various tidal parameters once a tidal host is connected to the world (via an orbit class).
+
+        Raises
+        ------
+        AttributeNotSetError
+
+        """
 
         log.debug(f'Post-orbit tidal initialization started for {self}.')
 
-        if self.tidal_host is None:
+        # Pull out parameters that are called multiple times in this method
+        tidal_host = self.tidal_host
+        world_radius = self.world.radius
+        semi_major_axis = self.semi_major_axis
+
+        if tidal_host is None:
             raise AttributeNotSetError('Tidal host must be connected to target body in order to initialize tides.')
 
-        # Try to update properties that depend on orbit and tidal host
+        # Try to update properties that depend on the orbit and tidal host
         self._tidal_susceptibility_reduced = \
-            calc_tidal_susceptibility_reduced(self.tidal_host.mass, self.world.radius)
+            calc_tidal_susceptibility_reduced(tidal_host.mass, world_radius)
 
-        if self.semi_major_axis is not None:
+        if semi_major_axis is not None:
             self._tidal_susceptibility = calc_tidal_susceptibility(
-                self.tidal_host.mass, self.world.radius,
-                self.semi_major_axis
+                tidal_host.mass, world_radius, semi_major_axis
                 )
 
     def orbit_spin_changed(
         self, eccentricity_change: bool = True, obliquity_change: bool = True,
         orbital_freq_changed: bool = True, spin_freq_changed: bool = True,
+        force_obliquity_update: bool = False,
         call_world_frequency_changed: bool = True,
         call_collapse_modes: bool = True
-        ) -> \
-            Tuple[Dict[FreqSig, FloatArray], Dict[FreqSig, Dict[int, DissipTermsArray]]]:
+        ) -> Tuple[UniqueFreqType, ResultsByFreqType]:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
         This will also calculate new unique tidal frequencies which must then be digested by the rheological model
@@ -203,79 +231,112 @@ class TidesBase(WorldConfigHolder):
             If there was no change in the orbital frequency set this to False for a performance boost.
         spin_freq_changed : bool = True
             If there was no change in the spin frequency set this to False.
+        force_obliquity_update : bool = False
+            If True, then this method will call the obliquity update function even if it would otherwise skip it
+            due to obliquity dependence being turned off.
         call_world_frequency_changed : bool = True
-            If `True`, then the method will call the world's complex compliance calculator.
+            If True, then the method will call the world's complex compliance calculator.
             This flag is set to False for the CPL method.
         call_collapse_modes : bool = True
-            If `True`, then this method will call collapse modes (if needed).
+            If True, then this method will call collapse modes (if needed).
 
         Returns
         -------
-        unique_tidal_frequencies : Dict[FreqSig, FloatArray]
-            Each unique frequency stored as a signature (orbital motion and spin-rate coeffs), and the calculated frequency
-                (combo of orbital motion and spin-rate) [rad s-1]
-        tidal_terms_by_frequency : Dict[FreqSig, Dict[int, DissipTermsArray]]
+        unique_tidal_frequencies : UniqueFreqType
+            Each unique frequency stored as a signature (orbital motion and spin-rate coeffs),
+            and the calculated frequency (combo of orbital motion and spin-rate) [rad s-1]
+        tidal_terms_by_frequency : ResultsByFreqType
             Results for tidal heating, dU/dM, dU/dw, dU/dO are stored in a tuple for each tidal harmonic l and
-                unique frequency.
+            unique frequency.
 
         See Also
         --------
         TidalPy.tides.dissipation.mode_collapse
-        """
-        mode_collapse_already_called = False
-        need_to_collapse_modes = False
-        new_tidal_frequencies = False
 
+        """
+
+        log.debug(f'Method orbit_spin_changed called for {self}.')
+
+        self._need_to_collapse_modes = False
+        self._new_tidal_frequencies = False
+
+        # Pull out parameters that are called multiple times in the method.
+        eccentricity = self.eccentricity
+        obliquity = self.obliquity
+        world_radius = self.world.radius
+        semi_major_axis = self.semi_major_axis
+        spin_frequency = self.spin_frequency
+        orbital_frequency = self.orbital_frequency
+
+        # Make updates
         if orbital_freq_changed:
             # Orbital changes may have changed the tidal susceptibility
             self._tidal_susceptibility = calc_tidal_susceptibility(
-                self.tidal_host.mass, self.world.radius,
-                self.semi_major_axis
+                self.tidal_host.mass, world_radius,
+                semi_major_axis
                 )
 
         # Check if we need to calculate new eccentricity results
-        if self.eccentricity is not None:
+        if eccentricity is not None:
             if eccentricity_change or self.eccentricity_results is None:
-                self._eccentricity_results = self.eccentricity_func(self.eccentricity)
-                need_to_collapse_modes = True
+                self._eccentricity_results = self.eccentricity_func(eccentricity)
+                self._need_to_collapse_modes = True
 
-        if obliquity_change or self.obliquity_results is None:
-            if self.obliquity is None:
-                # TODO: This is pretty messy way to do things.
-                # OPT: See above
-                self._obliquity_results = self.obliquity_func(np.zeros_like(self.eccentricity))
-                need_to_collapse_modes = True
-            else:
-                self._obliquity_results = self.obliquity_func(self.obliquity)
-                need_to_collapse_modes = True
 
-        if self.obliquity_results is not None and self.eccentricity_results is not None:
-            # Check that obliquity and eccentricity results have the same length (same max_l used).
-            if len(self.obliquity_results) != len(self.eccentricity_results):
+        # Check if we need to update obliquity results
+        if self.use_obliquity_tides:
+            if obliquity is not None:
+                if obliquity_change or self.obliquity_results is None:
+                    self._obliquity_results = self.obliquity_func(obliquity)
+                    self._need_to_collapse_modes = True
+        else:
+            # We assume that the obliquity has the same shape of eccentricity even when it is not being used.
+            # OPT: Check to see if we can universally get away with having this just be a scalar rather than a
+            #  potentially large array.
+            if eccentricity is not None:
+                zero_obliquity = np.zeros_like(eccentricity)
+
+                # Since obliquity tides are not used they will never change. So do not call the function unless forced
+                #  to do so.
+                if self.obliquity_results is None or force_obliquity_update:
+                    self._obliquity_results = self.obliquity_func(zero_obliquity)
+                    self._need_to_collapse_modes = True
+
+        obliquity_results = self.obliquity_results
+        eccentricity_results = self.eccentricity_results
+
+        # Check the shape of the eccentricity and obliquity results
+        if obliquity_results is not None and eccentricity_results is not None:
+            # Check that obliquity and eccentricity results have the same size (same max_l used).
+            if len(obliquity_results) != len(eccentricity_results):
                 raise IncompatibleModelError(
-                    'Obliquity and Eccentricity results do not have the same length.'
-                    'max_tidal_l may not have been set the same for the functions.'
+                    'Obliquity and Eccentricity results do not have the same size.'
+                    'max_tidal_l may not be equal for both functions.'
                     )
 
+        # Determine if new tidal frequencies need to be calculated
         if spin_freq_changed or orbital_freq_changed:
-            if self.eccentricity_results is not None and self.obliquity_results is not None and \
-                    self.spin_frequency is not None and self.orbital_frequency is not None:
+            if eccentricity_results is not None and obliquity_results is not None and \
+                    spin_frequency is not None and orbital_frequency is not None:
+                # Update the tidal frequencies and terms using the new orbital frequency
                 self._unique_tidal_frequencies, self._tidal_terms_by_frequency = \
                     self.calculate_modes_func(
-                        self.spin_frequency, self.orbital_frequency, self.semi_major_axis,
-                        self.radius, self.eccentricity_results, self.obliquity_results,
+                        spin_frequency, orbital_frequency, semi_major_axis,
+                        world_radius, eccentricity_results, obliquity_results,
                         self.multiply_modes_by_sign
                         )
                 # Now that there are new frequencies, tell the world so that new complex compliances can be calculated.
-                new_tidal_frequencies = True
-                need_to_collapse_modes = True
+                self._new_tidal_frequencies = True
+                self._need_to_collapse_modes = True
 
-        if new_tidal_frequencies and call_world_frequency_changed:
+        # Tell the planet to make any updates due to a potential frequency change.
+        if self._new_tidal_frequencies and call_world_frequency_changed:
             # Updating the tidal frequencies will automatically call the tide's collapse_modes method. The
             #    collapse_tidal_modes flag prevents that method from being called more than once.
             self.world.tidal_frequencies_changed(collapse_tidal_modes=False)
 
-        if call_collapse_modes and need_to_collapse_modes:
+        # Collapse tidal modes
+        if self._need_to_collapse_modes and call_collapse_modes:
             self.collapse_modes()
 
         # Return frequencies and tidal terms
@@ -284,7 +345,7 @@ class TidesBase(WorldConfigHolder):
     def fixed_q_dt_changed(self):
         """ The fixed tidal dissipation parameters (fixed-q or fixed-dt) have changed. Make any necessary updates. """
 
-        log.debug(f'Fixed-Q and/or Fixed-dt changed for {self}.')
+        log.debug(f'Method fixed_q_dt_changed called for {self}.')
 
         # Updates done by child classes
 
@@ -293,17 +354,19 @@ class TidesBase(WorldConfigHolder):
 
         super().clear_state()
 
-        self._eccentricity_results = None
-        self._obliquity_results = None
-        self._tidal_susceptibility = None
-        self._tidal_susceptibility_reduced = None
-        self._unique_tidal_frequencies = None
-        self._tidal_terms_by_frequency = None
-        self._tidal_heating_global = None
+        self._eccentricity_results          = None
+        self._obliquity_results             = None
+        self._tidal_susceptibility          = None
+        self._tidal_susceptibility_reduced  = None
+        self._unique_tidal_frequencies      = None
+        self._tidal_terms_by_frequency      = None
+        self._tidal_heating_global          = None
         self._global_negative_imk_by_orderl = None
         self._dUdM = None
         self._dUdw = None
         self._dUdO = None
+        self._need_to_collapse_modes = False
+        self._new_tidal_frequencies = False
 
     def set_fixed_q(self, fixed_q: float, run_updates: bool = True):
         """ Set a new global tidal dissipation efficiency or 'fixed-Q' for the world
@@ -323,6 +386,8 @@ class TidesBase(WorldConfigHolder):
             If `True`, this method will call the update tides method.
         """
 
+        log.debug(f'Method set_fixed_q called for {self}.')
+
         self._fixed_q = fixed_q
 
         if run_updates:
@@ -341,7 +406,35 @@ class TidesBase(WorldConfigHolder):
             If `True`, this method will call the update tides method.
         """
 
+        log.debug(f'Method set_fixed_dt called for {self}.')
+
         self._fixed_dt = fixed_dt
+
+        if run_updates:
+            self.fixed_q_dt_changed()
+
+    def set_state(self, fixed_q: float = None, fixed_dt: float = None, run_updates: bool = True):
+        """ Change the state of the Tides class
+
+        This is more efficient than calling the individual setters.
+
+        Parameters
+        ----------
+        fixed_q : float (optional)
+            New dissipation efficiency.
+        fixed_dt : float (optional)
+            New dissipation efficiency frequency scale [s].
+        run_updates : bool = True
+            If `True`, this method will call the update tides method.
+        """
+
+        log.debug(f'Method set_state called for {self}.')
+
+        if fixed_q is not None:
+            self.set_fixed_q(fixed_q, run_updates=False)
+
+        if fixed_dt is not None:
+            self.set_fixed_dt(fixed_dt, run_updates=False)
 
         if run_updates:
             self.fixed_q_dt_changed()
@@ -372,107 +465,14 @@ class TidesBase(WorldConfigHolder):
         TidalPy.tides.Tides.orbit_spin_changed
         """
 
-        self.world.dissipation_changed()
+        log.debug(f'Method collapse_modes called for {self}.')
 
         # Most of mode_collapse is implemented by a child class of TidesBase
-
-    @staticmethod
-    def calculate_tidal_susceptibility(
-        host_mass: float, target_radius: float,
-        semi_major_axis: FloatArray
-        ) -> FloatArray:
-        """ Calculate the tidal susceptibility for a target object orbiting
-
-        Wrapper for TidalPy.tides.dissipation.calc_tidal_susceptibility
-
-        Parameters
-        ----------
-        host_mass : float
-            Tidal host's mass [kg]
-        target_radius : float
-            Target body's mean radius [m]
-        semi_major_axis : FloatArray
-            Orbital separation between the target and host [m]
-
-        Returns
-        -------
-        tidal_susceptibility : FloatArray
-            Tidal Susceptibility [N m]
-        """
-
-        tidal_susceptibility = calc_tidal_susceptibility(host_mass, target_radius, semi_major_axis)
-        return tidal_susceptibility
-
-    @staticmethod
-    def calculate_effective_rigidity(
-        shear_modulus: FloatArray, gravity: float, radius: float, bulk_density: float,
-        tidal_order_l: int = 2
-        ) -> FloatArray:
-        """ Calculate the effective rigidity of a layer or planet
-
-        Wrapper for TidalPy.tides.love1d.effective_rigidity_general
-
-        Parameters
-        ----------
-        shear_modulus : FloatArray
-            Shear modulus of a layer/planet [Pa]
-        gravity : float
-            Acceleration of gravity at the surface of a layer/planet [m s-2]
-        radius : float
-            Radius at the top of a layer/planet [m]
-        bulk_density : float
-            Bulk density of a layer/planet [kg m-3]
-        tidal_order_l : int = 2
-            Tidal harmonic order integer
-
-        Returns
-        -------
-        effective_rigidity : FloatArray
-            Effective rigidity of the layer/planet [Pa Pa-1]
-        """
-
-        effective_rigidity = effective_rigidity_general(
-            shear_modulus, gravity, radius, bulk_density,
-            order_l=tidal_order_l
-            )
-        return effective_rigidity
-
-    @staticmethod
-    def calculate_complex_love_number(
-        shear_modulus: FloatArray, complex_compliance: ComplexArray,
-        effective_rigidity: FloatArray, tidal_order_l: int = 2
-        ) -> ComplexArray:
-        """ Calculate the complex Love number of a layer or planet
-
-        Wrapper for TidalPy.tides.love1d.complex_love_general
-
-        Parameters
-        ----------
-        shear_modulus : FloatArray
-            Shear modulus of a layer/planet [Pa]
-        complex_compliance : ComplexArray
-            Complex compliance of a layer/planet [Pa -1]
-        effective_rigidity : FloatArray
-            Effective rigidity of a layer/planet [Pa Pa-1]
-            See: Tides.calculate_effective_rigidity
-        tidal_order_l : int = 2
-            Tidal harmonic order integer
-
-        Returns
-        -------
-        complex_love_number : ComplexArray
-            Complex Love number for the layer/planet
-        """
-
-        complex_love_number = complex_love_general(
-            complex_compliance, shear_modulus, effective_rigidity,
-            order_l=tidal_order_l
-            )
-        return complex_love_number
 
     # # Initialized properties
     @property
     def thermal_set(self) -> bool:
+        """ Flag to check if a Thermal Class has been initialized in the tide class host world. """
         return self._thermal_set
 
     @thermal_set.setter
@@ -481,7 +481,7 @@ class TidesBase(WorldConfigHolder):
 
     @property
     def orbit_set(self) -> bool:
-        """ Flag for if an orbit has been set on the tide's host world """
+        """ Flag to check if an Orbit Class has been initialized in the tide class host world. """
         return self._orbit_set
 
     @orbit_set.setter
@@ -515,8 +515,8 @@ class TidesBase(WorldConfigHolder):
 
         Notes
         -----
-        .. Setting this to False leads to more efficient calculations than if the obliquity of a world is simply set to
-            zero.
+        - Setting this to False leads to more efficient calculations than if the obliquity of a world is simply set to
+        zero.
         """
 
         return self._use_obliquity_tides
@@ -763,3 +763,98 @@ class TidesBase(WorldConfigHolder):
             str_ += f' ({self.world})'
 
         return str_
+
+    # # Static Methods
+    @staticmethod
+    def calculate_tidal_susceptibility(
+        host_mass: float, target_radius: float,
+        semi_major_axis: FloatArray
+        ) -> FloatArray:
+        """ Calculate the tidal susceptibility for a target object orbiting
+
+        Wrapper for TidalPy.tides.dissipation.calc_tidal_susceptibility
+
+        Parameters
+        ----------
+        host_mass : float
+            Tidal host's mass [kg]
+        target_radius : float
+            Target body's mean radius [m]
+        semi_major_axis : FloatArray
+            Orbital separation between the target and host [m]
+
+        Returns
+        -------
+        tidal_susceptibility : FloatArray
+            Tidal Susceptibility [N m]
+        """
+
+        tidal_susceptibility = calc_tidal_susceptibility(host_mass, target_radius, semi_major_axis)
+        return tidal_susceptibility
+
+    @staticmethod
+    def calculate_effective_rigidity(
+        shear_modulus: FloatArray, gravity: float, radius: float, bulk_density: float,
+        tidal_order_l: int = 2
+        ) -> FloatArray:
+        """ Calculate the effective rigidity of a layer or planet
+
+        Wrapper for TidalPy.tides.love1d.effective_rigidity_general
+
+        Parameters
+        ----------
+        shear_modulus : FloatArray
+            Shear modulus of a layer/planet [Pa]
+        gravity : float
+            Acceleration of gravity at the surface of a layer/planet [m s-2]
+        radius : float
+            Radius at the top of a layer/planet [m]
+        bulk_density : float
+            Bulk density of a layer/planet [kg m-3]
+        tidal_order_l : int = 2
+            Tidal harmonic order integer
+
+        Returns
+        -------
+        effective_rigidity : FloatArray
+            Effective rigidity of the layer/planet [Pa Pa-1]
+        """
+
+        effective_rigidity = effective_rigidity_general(
+            shear_modulus, gravity, radius, bulk_density,
+            order_l=tidal_order_l
+            )
+        return effective_rigidity
+
+    @staticmethod
+    def calculate_complex_love_number(
+        shear_modulus: FloatArray, complex_compliance: ComplexArray,
+        effective_rigidity: FloatArray, tidal_order_l: int = 2
+        ) -> ComplexArray:
+        """ Calculate the complex Love number of a layer or planet
+
+        Wrapper for TidalPy.tides.love1d.complex_love_general
+
+        Parameters
+        ----------
+        shear_modulus : FloatArray
+            Shear modulus of a layer/planet [Pa]
+        complex_compliance : ComplexArray
+            Complex compliance of a layer/planet [Pa -1]
+        effective_rigidity : FloatArray
+            Effective rigidity of a layer/planet [Pa Pa-1]
+            See: Tides.calculate_effective_rigidity
+        tidal_order_l : int = 2
+            Tidal harmonic order integer
+
+        Returns
+        -------
+        complex_love_number : ComplexArray
+            Complex Love number for the layer/planet
+        """
+
+        complex_love_number = complex_love_general(
+            complex_compliance, shear_modulus, effective_rigidity,
+            order_l=tidal_order_l
+            )
+        return complex_love_number

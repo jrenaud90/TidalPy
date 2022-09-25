@@ -5,16 +5,15 @@
 import numpy as np
 
 from numba.typed.typeddict import Dict as nbDict
+
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G, mass_trap1
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.tides.modes.multilayer_modes_numba import collapse_multilayer_modes
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

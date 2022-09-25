@@ -2,10 +2,7 @@ import numba
 import numpy as np
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 use_numba = TidalPy.utilities.performance.numba.use_numba
 

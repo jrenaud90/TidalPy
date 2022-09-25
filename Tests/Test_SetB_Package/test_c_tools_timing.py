@@ -1,12 +1,9 @@
 import numpy as np
 
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.toolbox.timing import convert_to_hms
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
-
 
 def test_convert_hms():
     """ Test the convert_to_hms function """

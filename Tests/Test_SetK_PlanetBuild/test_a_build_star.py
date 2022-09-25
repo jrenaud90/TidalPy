@@ -4,10 +4,7 @@ import numpy as np
 from scipy.constants import G
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 cancri_star_config = {
     "name"      : "55-Cancri",

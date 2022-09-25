@@ -3,16 +3,15 @@
 
 import numpy as np
 
+
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.numerical_int.derivatives import (radial_derivatives_liquid_dynamic,
                                                                 radial_derivatives_liquid_static,
                                                                 radial_derivatives_solid_dynamic,
                                                                 radial_derivatives_solid_static)
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

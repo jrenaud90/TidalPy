@@ -11,6 +11,7 @@
     * Changed the signature of the numerical-int multilayer solver - this will break old code.
     * Can now use a cython implementation along with scipys, numba, and julia
   * Issue with Numba 0.55 and dictionary updates. This restricts TidalPy to Python version 3.9 or lower.
+  * Started a lot of prep work for a move to sphinx or similar for documentation (this will be a 0.5.0 feature).
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
@@ -23,12 +24,18 @@
   * Added a delta time to HH:MM:SS converter to utilities.string_helper
   * Made improvements to multiprocessing user info
   * Cleaned up & added some docstrings and type hints
+  * Tidal y solver for the prop matrix method no longer returns the y-derivatives.
+    * dy1/dr is now calculated directly in the decompose() function.
+  * Created a config helper function `TidalPy.test_mode()` to quickly setup TidalPy configs for pytest'ing
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.
   * Fixed bug in global variable for world config loader.
   * Fixed type hint bug in the numba-based tidal y solver.
   * Fixed bug that caused numba-based tidal y solver to not compile.
+  * Fixed bug that was causing full TidalPy log to print while in a Jupyter Notebook environment.
+    * If you would like the log to print in a notebook then use `TidalPy.toggle_log_print_in_jupyter()` or set the
+`print_log_in_jupyter` to `True` in the "configurations.py" file.
 
 ### Version 0.3.5 Alpha (Spring 2022)
 

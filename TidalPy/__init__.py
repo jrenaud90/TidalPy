@@ -35,6 +35,9 @@ from .initialize import initialize_tidalpy as reinitialize
 reinit = reinitialize
 reinit()
 
+# Load in config helpers
+from .config_helpers import toggle_log_print_in_jupyter, test_mode
+
 # Try and find the world configurations data folder (if it has not been removed)
 world_config_folder_found = False
 world_config_loc = os.path.join(tidalpy_loc, 'WorldConfigs')

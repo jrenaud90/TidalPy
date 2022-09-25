@@ -1,10 +1,7 @@
 import numpy as np
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 from TidalPy import build_world, build_from_world
 from TidalPy.structures.orbit import PhysicsOrbit

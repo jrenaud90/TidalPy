@@ -2,10 +2,8 @@
 import numpy as np
 
 import TidalPy
+TidalPy.test_mode()
 
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 from TidalPy.dynamics.single_dissipation import (spin_rate_derivative, eccentricity_derivative,
                                                  semi_major_axis_derivative,
                                                  semia_eccen_derivatives)

@@ -1,11 +1,9 @@
 import numpy as np
 
 import TidalPy
-from TidalPy.utilities.numpy_helper.array_other import find_nearest, neg_array_for_log_plot, normalize_dict, value_np_cleanup
+TidalPy.test_mode()
 
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+from TidalPy.utilities.numpy_helper.array_other import find_nearest, neg_array_for_log_plot, normalize_dict, value_np_cleanup
 
 
 def test_normalize_dict():

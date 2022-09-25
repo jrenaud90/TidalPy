@@ -4,16 +4,14 @@
 import numpy as np
 
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.multilayer.heating import calc_radial_tidal_heating
 from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_generic, fundamental_matrix_orderl2
 from TidalPy.tides.multilayer.matrix.propagate import propagate
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -43,11 +41,11 @@ def test_calc_fundamental_order2():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y, tidal_y_deriv = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
+    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
     sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, tidal_y_deriv, radius_array[1:], gravity_array,
+        tidal_y, radius_array[1:], gravity_array,
         shear_array, bulk_modulus=200.0e9, order_l=2
         )
 
@@ -81,11 +79,11 @@ def test_calc_fundamental_order3():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y, tidal_y_deriv = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=3)
+    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=3)
 
     # Decompose the results
     sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, tidal_y_deriv, radius_array[1:], gravity_array,
+        tidal_y, radius_array[1:], gravity_array,
         shear_array, bulk_modulus=200.0e9, order_l=3
         )
 

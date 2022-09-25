@@ -1,12 +1,10 @@
 import pytest
 
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.exceptions import ModelException
 from TidalPy.utilities.classes.model.functionalUtils import is_function, parse_model_docstring
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 
 def test_parse_model_docstring():

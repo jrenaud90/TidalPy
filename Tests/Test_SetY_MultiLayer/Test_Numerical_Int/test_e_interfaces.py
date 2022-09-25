@@ -1,8 +1,12 @@
 """ Tests for calculating the initial guess at the bottom of a liquid or solid layer for various types of interfaces
 """
 
-import TidalPy
 import numpy as np
+from numba.typed.typedlist import List as nbTypedList
+
+import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_ts72,
                                                                        liquid_static_guess_s74,
@@ -13,11 +17,6 @@ from TidalPy.tides.multilayer.numerical_int.interfaces import (interface_LDy_LDy
                                                                interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy,
                                                                interface_SDy_SSt, interface_SSt_LDy, interface_SSt_LSt,
                                                                interface_SSt_SDy, interface_SSt_SSt)
-from numba.typed.typedlist import List as nbTypedList
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

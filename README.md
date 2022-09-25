@@ -1,5 +1,5 @@
 <h1 align="center">TidalPy</h1>
-<h3 align="center">v0.3.5 Beta</h3>
+<h3 align="center">v0.4.0 Beta</h3>
 
 <p align="center">
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml?query=branch%3Amaster"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests.yml/badge.svg?branch=master" alt="Push Test Pass/Fail" /></a>
@@ -65,9 +65,9 @@ Read below for instructions on how to install and use TidalPy.
 
 *As of TidalPy v0.3.0a*:
 
-* **Win10**: *Installation & tests passed.*
-* **MacOS (Catalina)**: *Installation & tests passed.*
-* **CentOS7**: *TBD*
+* **Windows-Latest**: *Installation & tests passed.*
+* **MacOS-Latest**: *Installation & tests passed.*
+* **Ubuntu-Latest**: *Installation & tests passed.*
 
 ### Simple Installation
 

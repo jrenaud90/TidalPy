@@ -1,17 +1,15 @@
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy import config
 from TidalPy.configurations import configurations
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 
 def test_load_configs():
     # Load configurations and make sure they have all the needed parameters
     assert config is configurations
 
-    needed_params = ['debug_mode', 'save_to_disk', 'save_dir', 'save_to_disk_in_jupyter',
+    needed_params = ['debug_mode', 'save_to_disk', 'save_dir',
                      'auto_save_object_config_to_rundir', 'auto_save_object_config_to_tidalpydir', 'overwrite_configs',
                      'give_configs_subscript', 'save_burnman_planets_to_tidalpy_dir',
                      'save_burnman_planets_to_run_folder', 'raise_on_changed_config', 'force_burnman_quiet',

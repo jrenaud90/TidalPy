@@ -1,0 +1,7 @@
+sphinx
+rst-to-myst[sphinx]
+myst-parser
+sphinx-autobuild
+furo
+nbsphinx
+sphinxcontrib-napoleon

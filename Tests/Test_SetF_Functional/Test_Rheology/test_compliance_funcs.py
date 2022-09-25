@@ -2,10 +2,7 @@ import numba
 import numpy as np
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 from TidalPy.rheology.complex_compliance import known_models, known_model_const_args, complex_compliance_defaults
 

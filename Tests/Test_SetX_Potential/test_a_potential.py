@@ -1,16 +1,14 @@
 """ Tests for extracting useful information out of a multilayer tidal propagation
 """
+import numpy as np
 
 import TidalPy
-import numpy as np
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_obliquity_nsr, \
     tidal_potential_gen_obliquity_nsr, tidal_potential_simple
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

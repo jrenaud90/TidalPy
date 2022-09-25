@@ -1,13 +1,11 @@
 import pytest
 
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy import version
 from TidalPy.exceptions import ParameterMissingError
 from TidalPy.utilities.classes import ConfigHolder, TidalPyClass
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 
 class ConfigHolderSubClass(ConfigHolder):

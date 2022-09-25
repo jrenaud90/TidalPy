@@ -5,11 +5,9 @@ import pathlib
 import numpy as np
 
 import TidalPy
-from TidalPy.utilities.multiprocessing import MultiprocessingInput, MultiprocessingOutput, multiprocessing_run
+TidalPy.test_mode()
 
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+from TidalPy.utilities.multiprocessing import MultiprocessingInput, MultiprocessingOutput, multiprocessing_run
 
 NUM_PROC = os.cpu_count()
 if NUM_PROC is None:
