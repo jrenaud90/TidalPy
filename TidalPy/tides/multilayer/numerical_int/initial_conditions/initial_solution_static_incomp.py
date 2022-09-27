@@ -1,7 +1,8 @@
 """ Functions to calculate the initial guess for radial functions at the bottom of a solid or liquid layer
 
-These functions do not allow for dynamic tides (w=0):
+These functions are the most general and allow for:
     - Compressibility
+    - Dynamic (non-static) Tides
     - Liquid layer propagation
 
 References
@@ -30,20 +31,21 @@ LiquidStaticGuess = List[ComplexArray]
 @njit(cacheable=True)
 def solid_guess_kamata(
     radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray, order_l: int = 2, G_to_use: float = G
+    density: FloatArray,
+    order_l: int = 2, G_to_use: float = G
     ) -> SolidStaticGuess:
-    """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
+    """ Calculate the initial guess at the bottom of a solid layer using the static and incompressible assumption.
 
-    This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
+    This function uses the Kamata et al (2015; JGR:P) equations (Eq. B17-B28).
 
-    Using the static assumption in a solid layer results in three independent solutions for the radial derivatives.
+    Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
 
-    These independent solutions allow for a general tidal harmonic l, for static tides (w = 0), compressibility, and
+    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), incompressible, and
        bulk and shear dissipation.
 
     References
     ----------
-    KMN15
+    KMN15 Eqs. B17-28
 
     Parameters
     ----------
@@ -65,16 +67,13 @@ def solid_guess_kamata(
 
     """
 
-    # TODO
-    raise Exception('Not Implemented for the Incompressible Assumption')
-    bulk_modulus = 0.  # Just something temp so the linter does not break.
+    raise NotImplemented
 
     # Convert compressibility parameters
-    lame = bulk_modulus - (2. / 3.) * shear_modulus
+    #lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants (See Eqs. B13-B16 of KMN15)
-    alpha_2 = (lame + 2. * shear_modulus) / density
-    beta_2 = shear_modulus / density
+    beta2 = shear_modulus / density
     gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
@@ -82,47 +81,33 @@ def solid_guess_kamata(
     r2_inverse = r_inverse * r_inverse
     r2 = radius * radius
 
-    # Helper functions
-    k2_quad_pos = + (4. * gamma / alpha_2)
-    k2_quad_neg = - (4. * gamma / alpha_2)
-    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1) * gamma**2) / (alpha_2 * beta_2))
-
-    # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
+    # TODO: TS74 (eq. 99) has these flipped compared to KMN15. Going with KMN for this func.
     #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
-    k2_pos = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
-    k2_neg = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
-
-    f_k2_pos = beta_2 * k2_pos / gamma
-    f_k2_neg = beta_2 * k2_neg / gamma
-
-    h_k2_pos = f_k2_pos - (order_l + 1.)
+    k2_pos = dynamic_term / beta2
+    f_k2_neg = -dynamic_term / gamma
     h_k2_neg = f_k2_neg - (order_l + 1.)
+    z_k2_pos = z_calc(k2_pos * r2, order_l=order_l, init_l=0, raise_l_error=True)
 
-    z_k2_pos = z_calc(k2_pos * r2, order_l=order_l)
-    z_k2_neg = z_calc(k2_neg * r2, order_l=order_l)
-
-    # See Eqs. B1-B12 of KMN15
-    y1_s1 = -f_k2_pos * z_k2_pos * r_inverse
-    y1_s2 = -f_k2_neg * z_k2_neg * r_inverse
+    # See Eqs. B17-B28 of KMN15
+    y1_s1 = 0.
+    y1_s2 = 0.
     y1_s3 = order_l * r_inverse
 
-    y2_s1 = -density * f_k2_pos * alpha_2 * k2_pos + \
-            (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + order_l * (order_l + 1.)) * z_k2_pos
-    y2_s2 = -density * f_k2_neg * alpha_2 * k2_neg + \
-            (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + order_l * (order_l + 1.)) * z_k2_neg
+    y2_s1 = order_l * (order_l + 1.) * (-density * gamma + 2. * shear_modulus * z_k2_pos * r2_inverse)
+    y2_s2 = density * ((dynamic_term / gamma) * (dynamic_term + 4. * gamma) - order_l * (order_l + 1.) * gamma)
     y2_s3 = 2. * shear_modulus * order_l * (order_l - 1) * r2_inverse
 
     y3_s1 = z_k2_pos * r_inverse
-    y3_s2 = z_k2_neg * r_inverse
+    y3_s2 = 0.
     y3_s3 = r_inverse
 
-    y4_s1 = shear_modulus * k2_pos - (2. * shear_modulus * r2_inverse) * (f_k2_pos + 1.) * z_k2_pos
-    y4_s2 = shear_modulus * k2_neg - (2. * shear_modulus * r2_inverse) * (f_k2_neg + 1.) * z_k2_neg
+    y4_s1 = shear_modulus * (dynamic_term / beta2 - 2. * r2_inverse * z_k2_pos)
+    y4_s2 = 0.
     y4_s3 = 2. * shear_modulus * (order_l - 1.) * r2_inverse
 
-    y5_s1 = 3. * gamma * f_k2_pos - h_k2_pos * (order_l * gamma)
-    y5_s2 = 3. * gamma * f_k2_neg - h_k2_neg * (order_l * gamma)
-    y5_s3 = order_l * gamma
+    y5_s1 = (order_l + 1.) * (order_l * gamma - dynamic_term)
+    y5_s2 = (h_k2_neg - 3.) * dynamic_term - h_k2_neg * order_l * gamma
+    y5_s3 = order_l * gamma - dynamic_term
 
     y6_s1 = (2. * order_l + 1.) * y5_s1 * r_inverse
     y6_s2 = (2. * order_l + 1.) * y5_s2 * r_inverse
@@ -162,15 +147,16 @@ def solid_guess_kamata(
 @njit(cacheable=True)
 def solid_guess_takeuchi(
     radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray, order_l: int = 2, G_to_use: float = G
+    density: FloatArray, frequency: FloatArray,
+    order_l: int = 2, G_to_use: float = G
     ) -> SolidStaticGuess:
-    """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
+    """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
 
-    Using the static assumption in a solid layer results in two independent solutions for the radial derivative.
+    Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
 
-    These independent solutions allow for a general tidal harmonic l, for static tides (w = 0), compressibility, and
+    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
        bulk and shear dissipation.
 
     References
@@ -185,6 +171,8 @@ def solid_guess_takeuchi(
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at  at `radius` [kg m-3]
+    frequency : FloatArray
+        Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
     G_to_use : float = G
@@ -192,21 +180,22 @@ def solid_guess_takeuchi(
 
     Returns
     -------
-    solid_guesses : SolidDynamicGuess
+    solid_guesses : SolidStaticGuess
         The three independent solid guesses (sn1, sn2, sn3)
 
     """
 
     # TODO
     raise Exception('Not Implemented for the Incompressible Assumption')
-    bulk_modulus = 0.  # Just something temp so the linter does not break.
+    lame = 0.  # Just something temp so the linter does not break.
 
     # Convert compressibility parameters
-    lame = bulk_modulus - (2. / 3.) * shear_modulus
+    #lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants (See Eqs. B13-B16 of KMN15)
-    alpha_2 = (lame + 2. * shear_modulus) / density
-    beta_2 = shear_modulus / density
+    dynamic_term = frequency * frequency
+    alpha2 = (lame + 2. * shear_modulus) / density
+    beta2 = shear_modulus / density
     gamma = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
@@ -214,16 +203,16 @@ def solid_guess_takeuchi(
     r2 = radius * radius
 
     # Helper functions
-    k2_quad_pos = + (4. * gamma / alpha_2)
-    k2_quad_neg = - (4. * gamma / alpha_2)
-    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha_2 * beta_2))
+    k2_quad_pos = (dynamic_term / beta2) + ((dynamic_term + 4. * gamma) / alpha2)
+    k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4. * gamma) / alpha2)
+    k2_quad = k2_quad_neg**2 + ((4. * order_l * (order_l + 1.) * gamma**2) / (alpha2 * beta2))
 
     # TODO: TS74 has these flipped compared to KMN15. Going with TS74 for this func.
     k2_pos = (1. / 2.) * (k2_quad_pos - sqrt_neg(k2_quad, is_real=True))
     k2_neg = (1. / 2.) * (k2_quad_pos + sqrt_neg(k2_quad, is_real=True))
 
-    f_k2_pos = (beta_2 * k2_pos) / gamma
-    f_k2_neg = (beta_2 * k2_neg) / gamma
+    f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma
+    f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma
 
     h_k2_pos = f_k2_pos - (order_l + 1.)
     h_k2_neg = f_k2_neg - (order_l + 1.)
@@ -273,11 +262,11 @@ def solid_guess_takeuchi(
     y4_s3 = 2. * shear_modulus * (order_l - 1.) * radius**(order_l - 2.)
 
     # # y5 solutions
-    y5_s1 = radius**(order_l + 2.) * ((alpha_2 * f_k2_pos - (order_l + 1.) * beta_2) / r2 -
+    y5_s1 = radius**(order_l + 2.) * ((alpha2 * f_k2_pos - (order_l + 1.) * beta2) / r2 -
                                       (3. * gamma * f_k2_pos / (2. * (2. * order_l + 3.))) * psi_k2_pos)
-    y5_s2 = radius**(order_l + 2.) * ((alpha_2 * f_k2_neg - (order_l + 1.) * beta_2) / r2 -
+    y5_s2 = radius**(order_l + 2.) * ((alpha2 * f_k2_neg - (order_l + 1.) * beta2) / r2 -
                                       (3. * gamma * f_k2_neg / (2. * (2. * order_l + 3.))) * psi_k2_neg)
-    y5_s3 = order_l * gamma * radius**order_l
+    y5_s3 = (order_l * gamma - dynamic_term) * radius**order_l
 
     # # y6 solutions
     y6_s1 = (2. * order_l + 1.) * r_inverse * y5_s1 + \

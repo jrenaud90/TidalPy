@@ -6,8 +6,8 @@ if TYPE_CHECKING:
     from ...structures.layers import PhysicalLayerType
 
 
-class LayeredLove(LayeredTides):
-    """ LayeredLove
+class MultilayerTides(LayeredTides):
+    """ MultilayerTides
     Class used for layered planets (icy or rocky world_types)
 
     Utilizes shooting or propagation method to solve the viscoelastic-gravitational problem to find a planet's

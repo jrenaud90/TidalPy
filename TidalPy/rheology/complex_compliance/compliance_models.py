@@ -284,7 +284,7 @@ def burgers(
 
 
 @njit(cacheable=True)
-def andrade_nofreq(
+def andrade(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
@@ -356,7 +356,7 @@ def andrade_nofreq(
 
 
 @njit(cacheable=True)
-def andrade(
+def andrade_freq(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     alpha: float = 0.3, zeta: float = 1., critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
@@ -442,7 +442,7 @@ def andrade(
 
 
 @njit(cacheable=True)
-def sundberg_nofreq(
+def sundberg(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.
@@ -489,7 +489,7 @@ def sundberg_nofreq(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade_nofreq(frequency, compliance, viscosity, alpha, zeta)
+    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta)
     voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
@@ -498,7 +498,7 @@ def sundberg_nofreq(
 
 
 @njit(cacheable=True)
-def sundberg(
+def sundberg_freq(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.,  critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30

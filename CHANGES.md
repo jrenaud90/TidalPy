@@ -1,6 +1,6 @@
 # TidalPy Major Change Log
 
-### Version 0.4.0 Alpha (Summer 2022)
+### Version 0.4.0 Alpha (Summer/Fall 2022)
 
 * Major Changes 
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
@@ -25,7 +25,7 @@
   * Made improvements to multiprocessing user info
   * Cleaned up & added some docstrings and type hints
   * Tidal y solver for the prop matrix method no longer returns the y-derivatives.
-    * dy1/dr is now calculated directly in the decompose() function.
+    * dy1/dr is now calculated directly in the `decompose()` function.
   * Created a config helper function `TidalPy.test_mode()` to quickly setup TidalPy configs for pytest'ing
 
 * Bug Fixes

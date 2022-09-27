@@ -2,6 +2,7 @@
 from typing import List, Union
 
 import cartopy.crs as ccrs
+from ..numpy_helper import find_nearest
 from cartopy.mpl.gridliner import Gridliner
 import matplotlib.pyplot as plt
 import numpy as np
@@ -266,14 +267,15 @@ def projection_map(
     # Plot lat and long gridlines
     if show_grid_lines:
         gl = ax.gridlines(
-            draw_labels={'x': True, 'left':True, 'bottom':True}, linestyle='-', alpha=0.35,
+            draw_labels={'left':True, 'bottom':True}, linestyle='-', alpha=0.35,
             xlocs=[-120, -60, 0, 60, 120],
             ylocs=[-60, -30, 0, 30, 60]
             )
         # gl.rotate_labels = False
         # gl.xlabel_style = {'color': 'white'}
-        # gl.right_labels = False
-        # gl.top_labels = False
+        gl.right_labels = False
+        gl.top_labels = False
+
 
     # Save figure
     if auto_save and not premade_ax:
