@@ -151,7 +151,7 @@ class GridPlot(TidalPyClass):
 
         # Build gridspec
         figure_size = (figure_scale * aspect_ratio * 2. * self.ncols, figure_scale * 2. * self.nrows)
-        self._figure = plt.figure(figsize=figure_size, constrained_layout=use_tight_layout)
+        self._figure = plt.figure(figsize=figure_size)
         self._gridspec = GridSpec(
             real_nrows, real_ncols, figure=self.figure, width_ratios=width_ratios,
             hspace=hspace, wspace=wspace

@@ -172,7 +172,7 @@ def calculate_mode_response_coupled(
             tidal_potential_partial2_theta2, tidal_potential_partial2_phi2,
             tidal_potential_partial2_theta_phi,
             tidal_y_at_mode,
-            colatitude_matrix, radius_array, shear_array, bulk_array,
+            colatitude_matrix, radius_array, complex_shears_at_mode, bulk_array,
             mode_frequency, order_l
             )
 

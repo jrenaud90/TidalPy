@@ -158,8 +158,6 @@ def calculate_mode_response_coupled(
         # TODO: Calculate complex bulk modulus. (When bulk dissipation is added)
 
         # Calculate the radial functions using a shooting integration method.
-        # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
-        #   being njited.
         tidal_y_at_mode = \
             tidal_y_solver(
                 interior_model_name, radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
@@ -178,7 +176,7 @@ def calculate_mode_response_coupled(
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
             *tidal_potential_tuple,
             tidal_solution_y=tidal_y_at_mode,
-            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=shear_array, bulk_moduli=bulk_array,
+            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=complex_shears_at_mode, bulk_moduli=bulk_array,
             frequency=mode_frequency, order_l=order_l
             )
 
@@ -563,20 +561,21 @@ def collapse_multilayer_modes(
     #   rather than T^{-1}
     # Heating is equal to imag[o] * real[s] - real[o] * imag[s] but we need to multiply by two for the cross terms
     #    since it is part of a symmetric matrix but only one side of the matrix is calculated in the previous steps.
-    # First calculate the trace terms which are not multiply by two.
     volumetric_heating = (
-        # Im[\sigma_ij] * Re[\epsilon_ij]
-            (
-                    np.sum(np.imag(stresses[:3]) * np.real(strains[:3]), axis=0) +
-                    # Now add the cross terms where we do multiply by two
-                    2. * np.sum(np.imag(stresses[:3]) * np.real(strains[:3]), axis=0)
-            ) -
-            # minus Re[\sigma_ij] * Im[\epsilon_ij]
-            (
-                    np.sum(np.real(stresses[3:]) * np.imag(strains[3:]), axis=0) +
-                    2. * np.sum(np.real(stresses[3:]) * np.imag(strains[3:]), axis=0)
-            )
+        # Im[s_rr] Re[e_rr] - Re[s_rr] Im[e_rr]
+        np.imag(stresses[0]) * np.real(strains[0]) - np.real(stresses[0]) * np.imag(strains[0]) +
+        # Im[s_thth] Re[e_thth] - Re[s_thth] Im[e_thth]
+        np.imag(stresses[1]) * np.real(strains[1]) - np.real(stresses[1]) * np.imag(strains[1]) +
+        # Im[s_phiphi] Re[e_phiphi] - Re[s_phiphi] Im[e_phiphi]
+        np.imag(stresses[2]) * np.real(strains[2]) - np.real(stresses[2]) * np.imag(strains[2]) +
+        # Im[s_rth] Re[e_rth] - Re[s_rth] Im[e_rth]
+        2. * (np.imag(stresses[3]) * np.real(strains[3]) - np.real(stresses[3]) * np.imag(strains[3])) +
+        # Im[s_rphi] Re[e_rphi] - Re[s_rphi] Im[e_rphi]
+        2. * (np.imag(stresses[4]) * np.real(strains[4]) - np.real(stresses[4]) * np.imag(strains[4])) +
+        # Im[s_thphi] Re[e_thphi] - Re[s_thphi] Im[e_thphi]
+        2. * (np.imag(stresses[5]) * np.real(strains[5]) - np.real(stresses[5]) * np.imag(strains[5]))
     )
+
 
     # TODO: Without this abs term the resulting heating maps are very blotchy around
     #    Europa book does have an abs at Equation 42, Page 102

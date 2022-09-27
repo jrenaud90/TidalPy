@@ -36,6 +36,9 @@
   * Fixed bug that was causing full TidalPy log to print while in a Jupyter Notebook environment.
     * If you would like the log to print in a notebook then use `TidalPy.toggle_log_print_in_jupyter()` or set the
 `print_log_in_jupyter` to `True` in the "configurations.py" file.
+  * Fixed an error in the multimode volumetric heating calculation where "_rr", "_thth", "_phiphi" were being double
+counted
+  * Fixed an error in the stress/strain calculations where the static, instead of complex, shear was being used.
 
 ### Version 0.3.5 Alpha (Spring 2022)
 
