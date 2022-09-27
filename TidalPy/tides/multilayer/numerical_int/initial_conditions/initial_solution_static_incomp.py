@@ -67,7 +67,7 @@ def solid_guess_kamata(
 
     """
 
-    raise NotImplemented
+    raise Exception('Not Implemented for the Incompressible Assumption')
 
     # Convert compressibility parameters
     #lame = bulk_modulus - (2. / 3.) * shear_modulus
@@ -147,7 +147,7 @@ def solid_guess_kamata(
 @njit(cacheable=True)
 def solid_guess_takeuchi(
     radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray, frequency: FloatArray,
+    density: FloatArray,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.

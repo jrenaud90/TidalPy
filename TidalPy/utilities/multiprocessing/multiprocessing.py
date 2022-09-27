@@ -35,8 +35,11 @@ def multiprocessing_run(
     allow_low_procs: bool = False,
     perform_memory_check: bool = True, single_run_memory_gb: float = 1000.,
     avoid_crashes: bool = True,
-    force_post_process_rerun: bool = True
+    force_post_process_rerun: bool = True, ignore_warnings: bool = True
     ) -> List[MultiprocessingOutput]:
+
+    if ignore_warnings:
+        warnings.filterwarnings("ignore")
 
     # Check if dependencies are installed
     if not psutil_installed:
