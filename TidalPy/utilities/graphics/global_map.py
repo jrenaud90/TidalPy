@@ -267,14 +267,18 @@ def projection_map(
     # Plot lat and long gridlines
     if show_grid_lines:
         gl = ax.gridlines(
-            draw_labels={'left':True, 'bottom':True}, linestyle='-', alpha=0.35,
+            draw_labels={'left':True, 'bottom':False, 'geo':True}, linestyle='-', alpha=0.35, x_inline=False,
             xlocs=[-120, -60, 0, 60, 120],
             ylocs=[-60, -30, 0, 30, 60]
             )
         # gl.rotate_labels = False
-        # gl.xlabel_style = {'color': 'white'}
+        if dark_mode:
+            gl.xlabel_style = {'color': 'black'}
+        else:
+            gl.xlabel_style = {'color': 'white'}
         gl.right_labels = False
         gl.top_labels = False
+        gl.bottom_labels = False
 
 
     # Save figure
