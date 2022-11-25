@@ -136,38 +136,38 @@ def calculate_strain_stress(
         y1_r_tidal_potential = y1_r_ * tidal_potential
 
         # \epsilon_{rr}
-        strains[0, ri, :, :, :] = dy1dr_ * tidal_potential
+        strains[0, ri] = dy1dr_ * tidal_potential
         # \epsilon_{\theta\theta}
-        strains[1, ri, :, :, :] = y3_r_ * tidal_potential_partial2_theta2 + y1_r_tidal_potential
+        strains[1, ri] = y3_r_ * tidal_potential_partial2_theta2 + y1_r_tidal_potential
         # \epsilon_{\phi\phi}
         # There is a typo in Tobie+2005 with in both the \theta,\phi and \phi\phi components of the strain tensor,
         #    as pointed out in Kervazo et al (2021; A&A) Appendix D
-        strains[2, ri, :, :, :] = y1_r_tidal_potential + y3_r_ * s2_t1
+        strains[2, ri] = y1_r_tidal_potential + y3_r_ * s2_t1
 
         # TODO: "Note that the non-diagonal strains (eh/, e/r, erh)in Takeuchi and Saito (1972)
         #  must be multiplied by 1/2 if they are to be the components of the strain tensor" Is this right?
         #  adding in the 1/2s now...
         # \epsilon_{r\theta}
-        strains[3, ri, :, :, :] = y4_shear_ * tidal_potential_partial_theta / 2.
+        strains[3, ri] = y4_shear_ * tidal_potential_partial_theta / 2.
         # \epsilon_{r\phi}
-        strains[4, ri, :, :, :] = y4_shear_ * s4_t0 / 2.
+        strains[4, ri] = y4_shear_ * s4_t0 / 2.
         # \epsilon_{\theta\phi}
-        strains[5, ri, :, :, :] = y3_r_ * s5_t0 / 2.
+        strains[5, ri] = y3_r_ * s5_t0 / 2.
 
         # Calculate stress assuming isotropic media (Takeuchi & Saito (1972))
         # First calculate the trace of strain \epsilon_{rr} + \epsilon_{\theta\theta} + \epsilon_{\phi\phi}
-        strain_trace = strains[0, ri, :, :, :] + strains[1, ri, :, :, :] + strains[2, ri, :, :, :]
+        strain_trace = strains[0, ri] + strains[1, ri] + strains[2, ri]
         strain_trace_lame = lame_ * strain_trace
 
         # Constitutive equation: \sigma_{ij} = 2\bar{\mu} \epsilon_{ij} + \bar{\lambda}\epsilon_{kk}\delta_{ij}
-        stresses[:, ri, :, :, :] = (2. * shear_) * strains[:, ri, :, :, :]
+        stresses[:, ri] = (2. * shear_) * strains[:, ri]
 
         # \epsilon_{rr}
-        stresses[0, ri, :, :, :] += strain_trace_lame
+        stresses[0, ri] += strain_trace_lame
         # \epsilon_{\theta\theta}
-        stresses[1, ri, :, :, :] += strain_trace_lame
+        stresses[1, ri] += strain_trace_lame
         # \epsilon_{\phi\phi}
-        stresses[2, ri, :, :, :] += strain_trace_lame
+        stresses[2, ri] += strain_trace_lame
 
     # Calculate Tidal Heating
     # TODO: Does this frequency imply orbit average? There is still a time dependence...
