@@ -337,15 +337,11 @@ def andrade(
 
     shape = 0. * (andrade_term + alpha)
 
-    # TODO: Old version of TidalPy had real_j going large when freq is zero... why? Getting rid for now.
-    # if abs(frequency) <= float_eps:
-    #     real_j = 1.e100
-    #     imag_j = 0.
-
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
-    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.e100 + 0.0j) + \
+    # If the frequency is at zero then the real value goes to +infinity. Set to large value instead. Imag -> 0.
+    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.0e100 + 0.0j) + \
                            ((np.abs(frequency) + shape) > float_eps) * (real_j + 1.0j * imag_j)
 
     maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
@@ -416,10 +412,10 @@ def andrade_freq(
                (exponent <= 0.) * 0. + \
                (exponent > 0.) * (exponent < 100.) * exponent
 
-    zeta = zeta * np.exp(exponent)
+    updated_zeta = zeta * np.exp(exponent)
 
     # Continue on with regular Andrade calculation
-    andrade_term = compliance * viscosity * frequency * zeta
+    andrade_term = compliance * viscosity * frequency * updated_zeta
     andrade_term = (np.abs(andrade_term) <= float_eps) * 1.0e-100 + \
                    (np.abs(andrade_term) > float_eps) * andrade_term
 
@@ -430,11 +426,11 @@ def andrade_freq(
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
-    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
-
-    # If the frequency is near zero then rely on the maxwell comp.
-    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (0. + 0.0j) + \
+    # If the frequency is at zero then the real value goes to +infinity. Set to large value instead. Imag -> 0.
+    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.0e100 + 0.0j) + \
                            ((np.abs(frequency) + shape) > float_eps) * (real_j + 1.0j * imag_j)
+
+    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -489,8 +485,11 @@ def sundberg(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta)
-    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_complex_comp = \
+        andrade(frequency, compliance, viscosity, alpha, zeta)
+
+    voigt_complex_comp = \
+        voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 
@@ -552,10 +551,13 @@ def sundberg_freq(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta, critical_freq, critical_freq_falloff)
-    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_freq_complex_comp = \
+        andrade_freq(frequency, compliance, viscosity, alpha, zeta, critical_freq, critical_freq_falloff)
 
-    complex_compliance = voigt_complex_comp + andrade_complex_comp
+    voigt_complex_comp = \
+        voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+
+    complex_compliance = voigt_complex_comp + andrade_freq_complex_comp
 
     return complex_compliance
 

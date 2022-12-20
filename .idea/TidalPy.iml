@@ -13,7 +13,7 @@
       <excludeFolder url="file://$MODULE_DIR$/Demos/A6Rp_LockOn_P10C20_e5_tEnd10Myr_l3_BothOn" />
       <excludeFolder url="file://$MODULE_DIR$/Demos/.ipynb_checkpoints" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.9 (arpy)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="py38" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

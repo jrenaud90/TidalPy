@@ -27,6 +27,7 @@
   * Tidal y solver for the prop matrix method no longer returns the y-derivatives.
     * dy1/dr is now calculated directly in the `decompose()` function.
   * Created a config helper function `TidalPy.test_mode()` to quickly setup TidalPy configs for pytest'ing
+  * Cleaned up comments and reordered items in multilayer.numerical_int.collapse. 
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.

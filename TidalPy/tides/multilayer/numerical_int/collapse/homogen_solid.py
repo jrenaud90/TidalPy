@@ -37,6 +37,8 @@ def collapse_homogen_solid(solid_solutions: Tuple[Tuple[np.ndarray, np.ndarray, 
             [solid_solutions[0][5, -1], solid_solutions[1][5, -1], solid_solutions[2][5, -1]]
             ]
         )
+
+    # Solve for the layer's constants
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_vector = sol_surf_mtx_inv @ surface_solution
 

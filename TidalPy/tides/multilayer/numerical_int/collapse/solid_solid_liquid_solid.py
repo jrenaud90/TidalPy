@@ -54,14 +54,17 @@ def collapse_ssls_static_liq(
             [tidal_y_layer3[0][5, -1], tidal_y_layer3[1][5, -1], tidal_y_layer3[2][5, -1]]
             ]
         )
+
+    # Solve for the upper layer's (solid) constants
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_layer3_vector = sol_surf_mtx_inv @ surface_solution
 
-    # Solve for the liquid layer's constants
+    # Solve for the second layer's (liquid) constants
     C_layer2_vector = np.empty(1, dtype=np.complex128)
     C_layer2_vector[0] = C_layer3_vector[0]
+    tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0]
 
-    # Solve for layer 1's constants
+    # Solve for the third layer's (solid) constants
     C_layer1_vector = np.empty(3, dtype=np.complex128)
 
     y4_frac_1 = tidal_y_layer1[0][3, -1] / tidal_y_layer1[2][3, -1]
@@ -80,14 +83,18 @@ def collapse_ssls_static_liq(
     C_layer1_vector[1] = (-gamma_1 / gamma_2) * C_layer1_vector[0]
     C_layer1_vector[2] = -y4_frac_1 * C_layer1_vector[0] - y4_frac_2 * C_layer1_vector[1]
 
-    # Solve for the innermost layers constants
+    # Solve for the lower layer's (solid) constants
     C_layer0_vector = np.empty(3, dtype=np.complex128)
     C_layer0_vector[0] = C_layer1_vector[0]
     C_layer0_vector[1] = C_layer1_vector[1]
     C_layer0_vector[2] = C_layer1_vector[2]
 
-    # Solve for the liquid layer's y's
-    tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0]
+    # Solve for total planet y's
+    tidal_y_layer0 = C_layer0_vector[0] * tidal_y_layer0[0] + C_layer0_vector[1] * tidal_y_layer0[1] + \
+                     C_layer0_vector[2] * tidal_y_layer0[2]
+
+    tidal_y_layer1 = C_layer1_vector[0] * tidal_y_layer1[0] + C_layer1_vector[1] * tidal_y_layer1[1] + \
+                     C_layer1_vector[2] * tidal_y_layer1[2]
 
     shape = tidal_y_layer2[0, :].shape
     layer2_ys = (
@@ -98,15 +105,7 @@ def collapse_ssls_static_liq(
         tidal_y_layer2[0, :],
         np.full(shape, np.nan, dtype=np.complex128),
         )
-
     tidal_y_layer2_full = np.vstack(layer2_ys)
-
-    # Solve for total planet y's
-    tidal_y_layer0 = C_layer0_vector[0] * tidal_y_layer0[0] + C_layer0_vector[1] * tidal_y_layer0[1] + \
-                     C_layer0_vector[2] * tidal_y_layer0[2]
-
-    tidal_y_layer1 = C_layer1_vector[0] * tidal_y_layer1[0] + C_layer1_vector[1] * tidal_y_layer1[1] + \
-                     C_layer1_vector[2] * tidal_y_layer1[2]
 
     tidal_y_layer3 = C_layer3_vector[0] * tidal_y_layer3[0] + C_layer3_vector[1] * tidal_y_layer3[1] + \
                      C_layer3_vector[2] * tidal_y_layer3[2]
@@ -165,15 +164,23 @@ def collapse_ssls_dynamic_liq(
             [tidal_y_layer3[0][5, -1], tidal_y_layer3[1][5, -1], tidal_y_layer3[2][5, -1]]
             ]
         )
+
+    # Solve for the upper layer's (solid) constants
     sol_surf_mtx_inv = np.linalg.inv(sol_surf_mtx)
     C_layer3_vector = sol_surf_mtx_inv @ surface_solution
 
-    # Solve for the liquid layer constants
+    # Solve for the second layer's (liquid) constants
     C_layer2_vector = np.empty(2, dtype=np.complex128)
     C_layer2_vector[0] = C_layer3_vector[0]
     C_layer2_vector[1] = C_layer3_vector[1]
+    tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0] + C_layer2_vector[1] * tidal_y_layer2[1]
+    # A dynamic liquid layer will be missing two y's, fix that now.
+    y3_layer2 = \
+        (1. / (frequency**2 * liquid_density_array * liquid_radii)) * \
+        (liquid_radii * liquid_gravity_array * tidal_y_layer2[0, :] -
+         tidal_y_layer2[1, :] - liquid_density_array * tidal_y_layer2[2, :])
 
-    # Solve for the layer 1 constants
+    # Solve for the third layer's (solid) constants
     C_layer1_vector = np.empty(3, dtype=np.complex128)
     C_layer1_vector[0] = C_layer2_vector[0]
     C_layer1_vector[1] = C_layer2_vector[1]
@@ -181,20 +188,18 @@ def collapse_ssls_dynamic_liq(
     y4_frac_2_layer_1 = tidal_y_layer1[1][3, -1] / tidal_y_layer1[2][3, -1]
     C_layer1_vector[2] = -y4_frac_1_layer_1 * C_layer1_vector[0] - y4_frac_2_layer_1 * C_layer1_vector[1]
 
-    # Solve for the innermost layers constants
+    # Solve for the lower layer's (solid) constants
     C_layer0_vector = np.empty(3, dtype=np.complex128)
     C_layer0_vector[0] = C_layer1_vector[0]
     C_layer0_vector[1] = C_layer1_vector[1]
     C_layer0_vector[2] = C_layer1_vector[1]
 
-    # Solve for the liquid layer's y's
-    tidal_y_layer2 = C_layer2_vector[0] * tidal_y_layer2[0] + C_layer2_vector[1] * tidal_y_layer2[1]
+    # Solve for total planet y's
+    tidal_y_layer0 = C_layer0_vector[0] * tidal_y_layer0[0] + C_layer0_vector[1] * tidal_y_layer0[1] + \
+                     C_layer0_vector[2] * tidal_y_layer0[2]
 
-    # Liquid layer is missing two y's, fix that now.
-    y3_layer2 = \
-        (1. / (frequency**2 * liquid_density_array * liquid_radii)) * \
-        (liquid_radii * liquid_gravity_array * tidal_y_layer2[0, :] -
-         tidal_y_layer2[1, :] - liquid_density_array * tidal_y_layer2[2, :])
+    tidal_y_layer1 = C_layer1_vector[0] * tidal_y_layer1[0] + C_layer1_vector[1] * tidal_y_layer1[1] + \
+                     C_layer1_vector[2] * tidal_y_layer1[2]
 
     shape = tidal_y_layer2[0, :].shape
     layer2_ys = (
@@ -205,15 +210,7 @@ def collapse_ssls_dynamic_liq(
         tidal_y_layer2[2, :],
         tidal_y_layer2[3, :]
         )
-
     tidal_y_layer2_full = np.vstack(layer2_ys)
-
-    # Solve for total planet y's
-    tidal_y_layer0 = C_layer0_vector[0] * tidal_y_layer0[0] + C_layer0_vector[1] * tidal_y_layer0[1] + \
-                     C_layer0_vector[2] * tidal_y_layer0[2]
-
-    tidal_y_layer1 = C_layer1_vector[0] * tidal_y_layer1[0] + C_layer1_vector[1] * tidal_y_layer1[1] + \
-                     C_layer1_vector[2] * tidal_y_layer1[2]
 
     tidal_y_layer3 = C_layer3_vector[0] * tidal_y_layer3[0] + C_layer3_vector[1] * tidal_y_layer3[1] + \
                      C_layer3_vector[2] * tidal_y_layer3[2]
