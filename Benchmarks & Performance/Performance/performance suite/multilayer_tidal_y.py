@@ -7,7 +7,7 @@ from performance_base import PerformanceTrackBase
 import TidalPy
 TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.reinit()
-from TidalPy.tides.multilayer.numerical_int.solver import tidal_y_solver
+from TidalPy.tides.multilayer.numerical_int.solver import radial_solver
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays
@@ -64,7 +64,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Homogen-Solid - Static - Numba-RK45', tidal_y_solver,
+        self.record_performance('Tidal-y Calc - Homogen-Solid - Static - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
     def run_perform_tidal_y_homogen_solid_dynamic(self):
@@ -75,7 +75,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Homogen-Solid - Dynamic - Numba-RK45', tidal_y_solver,
+        self.record_performance('Tidal-y Calc - Homogen-Solid - Dynamic - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
     def run_perform_tidal_y_liquid_solid_allstatic(self):
@@ -86,7 +86,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Static - Numba-RK45', tidal_y_solver,
+        self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Static - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
     def run_perform_tidal_y_liquid_solid_dynamicsolid(self):
@@ -97,7 +97,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Dynamic - Numba-RK45', tidal_y_solver,
+        self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Dynamic - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
 

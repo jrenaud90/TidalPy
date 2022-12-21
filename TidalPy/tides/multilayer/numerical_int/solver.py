@@ -12,7 +12,7 @@ from ....exceptions import AttributeNotSetError, IntegrationFailed
 from ....utilities.integration import get_integrator
 
 
-def tidal_y_solver(
+def radial_solver(
     radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
     density: np.ndarray, gravity: np.ndarray, frequency: float, planet_bulk_density: float,
     is_solid_by_layer: Union[List[bool], Tuple[bool, ...]],
@@ -76,7 +76,7 @@ def tidal_y_solver(
     integration_atol : float = 1.0e-8
         Integration absolute error.
     verbose: bool = False
-        If True, the function will print some information to console during calculation (may cause a slow down).
+        If True, the function will print some information to console during calculation (may cause a slow-down).
     nondimensionalize : bool = False
         If True, integration will use dimensionless variables. These will be converted back before output is given to
         the user.

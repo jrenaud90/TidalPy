@@ -8,7 +8,7 @@ TidalPy.test_mode()
 
 from TidalPy.constants import G
 from TidalPy.utilities.spherical_helper import calculate_mass_gravity_arrays
-from TidalPy.tides.multilayer.numerical_int.solver_numba import tidal_y_solver
+from TidalPy.tides.multilayer.numerical_int.solver_numba import radial_solver
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -30,7 +30,7 @@ def test_calculate_homogen():
     """ Test the solution calculation for homogeneous planet """
 
     # Test static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True], is_static_by_layer=[True],
@@ -47,7 +47,7 @@ def test_calculate_homogen():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True], is_static_by_layer=[False],
@@ -74,7 +74,7 @@ def test_calculate_ls():
     """ Test the solution calculation for liquid-solid planet structure """
 
     # Test all static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[True, True],
@@ -91,7 +91,7 @@ def test_calculate_ls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[False, False],
@@ -111,7 +111,7 @@ def test_calculate_ls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[True, False],
@@ -128,7 +128,7 @@ def test_calculate_ls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[False, True],
@@ -149,7 +149,7 @@ def test_calculate_ls_load_number():
     """ Test the solution calculation for liquid-solid planet structure """
 
     # Test all static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[True, True],
@@ -166,7 +166,7 @@ def test_calculate_ls_load_number():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[False, False],
@@ -186,7 +186,7 @@ def test_calculate_ls_load_number():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[True, False],
@@ -203,7 +203,7 @@ def test_calculate_ls_load_number():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[False, True], is_static_by_layer=[False, True],
@@ -231,7 +231,7 @@ def test_calculate_sls():
     """ Test the solution calculation for solid-liquid-solid planet structure """
 
     # Test all static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, False, True], is_static_by_layer=[True, True, True],
@@ -248,7 +248,7 @@ def test_calculate_sls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, False, True], is_static_by_layer=[False, False, False],
@@ -268,7 +268,7 @@ def test_calculate_sls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, False, True], is_static_by_layer=[False, True, False],
@@ -285,7 +285,7 @@ def test_calculate_sls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, False, True], is_static_by_layer=[True, False, True],
@@ -314,7 +314,7 @@ def test_calculate_ssls():
     """ Test the solution calculation for solid-solid-liquid-solid planet structure """
 
     # Test all static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, True, False, True], is_static_by_layer=[True, True, True, True],
@@ -331,7 +331,7 @@ def test_calculate_ssls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test all dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, True, False, True], is_static_by_layer=[False, False, False, False],
@@ -351,7 +351,7 @@ def test_calculate_ssls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Static
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, True, False, True], is_static_by_layer=[False, False, True, False],
@@ -368,7 +368,7 @@ def test_calculate_ssls():
     assert tidal_y.dtype in [np.complex128, complex]
 
     # Test mix liq=Dynamic
-    tidal_y = tidal_y_solver(
+    tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
             is_solid_by_layer=[True, True, False, True], is_static_by_layer=[True, False, True, True],
@@ -433,7 +433,7 @@ def test_calculate_lsls():
     planet_bulk_density = mass / ((4. / 3.) * np.pi * R**3)
     complex_shear_array = shear_array + 0.5j
 
-    solution = tidal_y_solver(
+    solution = radial_solver(
             radius_array, complex_shear_array, bulk_array,
             density_array, gravity_array, orbital_freq, planet_bulk_density,
             is_solid_by_layer,
@@ -486,7 +486,7 @@ def test_calculate_sl_static():
     planet_bulk_density = mass / ((4. / 3.) * np.pi * R**3)
     complex_shear_array = shear_array + 0.5j
 
-    solution = tidal_y_solver(
+    solution = radial_solver(
             radius_array, complex_shear_array, bulk_array,
             density_array, gravity_array, orbital_freq, planet_bulk_density,
             is_solid_by_layer,
@@ -539,7 +539,7 @@ def test_calculate_sl_dynamic():
     planet_bulk_density = mass / ((4. / 3.) * np.pi * R**3)
     complex_shear_array = shear_array + 0.5j
 
-    solution = tidal_y_solver(
+    solution = radial_solver(
             radius_array, complex_shear_array, bulk_array,
             density_array, gravity_array, orbital_freq, planet_bulk_density,
             is_solid_by_layer,

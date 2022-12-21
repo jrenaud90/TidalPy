@@ -13,7 +13,7 @@ from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 
 # Load TidalPy's multilayer functions
-from TidalPy.tides.multilayer.numerical_int.solver import tidal_y_solver
+from TidalPy.tides.multilayer.numerical_int.solver import radial_solver
 from TidalPy.tides.multilayer.matrix import fundamental_matrix_orderl2, propagate
 from TidalPy.utilities.graphics.multilayer import yplot
 
@@ -167,7 +167,7 @@ for model_name, (core_density, mantle_density) in models.items():
         if R_core is None:
             # Use homogeneous method
             tidal_y_shoot = \
-                tidal_y_solver(
+                radial_solver(
                     radius_array, shear_array, bulk_array, density_array, gravity_array,
                     orbital_freq, planet_bulk_density, is_solid_by_layer=[True],
                     is_static_by_layer=[use_static_mantle],
@@ -182,7 +182,7 @@ for model_name, (core_density, mantle_density) in models.items():
         else:
             # Use liquid-solid method
             tidal_y_shoot = \
-                tidal_y_solver(
+                radial_solver(
                     radius_array, shear_array, bulk_array, density_array, gravity_array,
                     orbital_freq, planet_bulk_density, is_solid_by_layer=[False, True],
                     is_static_by_layer=[use_static_liquid_core, use_static_mantle],

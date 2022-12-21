@@ -183,7 +183,7 @@ def _single_layer_integrate(
 
 
 @njit(cacheable=True)
-def tidal_y_solver(
+def radial_solver(
         radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
         density: np.ndarray, gravity: np.ndarray, frequency: float, planet_bulk_density: float,
         is_solid_by_layer: Tuple[bool, ...], is_static_by_layer: Tuple[bool, ...],

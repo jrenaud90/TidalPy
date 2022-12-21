@@ -11,7 +11,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from ...utilities.performance import nbList
-from ..multilayer.numerical_int.solver import tidal_y_solver
+from ..multilayer.numerical_int.solver import radial_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
@@ -156,7 +156,7 @@ def calculate_mode_response_coupled(
 
         # Calculate the radial functions using a shooting integration method.
         tidal_y_at_mode = \
-            tidal_y_solver(
+            radial_solver(
                 radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
                 mode_frequency,
                 planet_bulk_density,

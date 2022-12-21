@@ -1,6 +1,6 @@
 # TidalPy Major Change Log
 
-### Version 0.4.0 Alpha (Summer/Fall 2022)
+### Version 0.4.0 Alpha (Winter 2022/2023)
 
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
@@ -23,13 +23,15 @@
     * Removed the old code that handled individual cases.
   * Interfaces between multiple liquid layers are now supported (but not well tested).
     * Two liquid layers of different types can be next to one another (dynamic-static; static-dynamic).
-  * y-solvers functional argument signature has changed
+  * y-solvers functional argument signature has changed (both regular and numba versions)
     * **Breaks Old Code**
     * Numerical integrator declaration has changed.
     * Planet_bulk_density is now a required argument.
     * Modified several other TidalPy functions to match this new call signature for the y-solver.
   * Removed the y-derivative return from the propagation matrix (to match the output format of the numerical int)
     * **Breaks Old Code**
+  * Refactored `tidal_y_solver` to `radial_solver` since non-tidal calculations can be made with it.
+    * **Breaks Old Code (pre v0.4.0.dev11)**
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
@@ -38,7 +40,7 @@
   * Removed Gitter account for now.
   * Added files and functions to quickly install additional 3rd party applications
   * Improvements to GitHub workflows
-  * Switched over to using the 3rd party `cmcrameri` package rather than trying to maintain it within tidalpy
+  * Switched over to using the 3rd party `cmcrameri` colormap package rather than trying to maintain it within tidalpy
   * Added a delta time to HH:MM:SS converter to utilities.string_helper
   * Made improvements to multiprocessing user info
   * Cleaned up & added some docstrings and type hints

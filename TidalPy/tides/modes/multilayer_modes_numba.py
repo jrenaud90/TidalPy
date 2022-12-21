@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ..multilayer.numerical_int.solver_numba import tidal_y_solver
+from ..multilayer.numerical_int.solver_numba import radial_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
@@ -149,14 +149,14 @@ def calculate_mode_response_coupled(
         # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
         #   being njited.
         tidal_y_at_mode = \
-            tidal_y_solver(radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
-                mode_frequency, planet_bulk_density,
-                is_solid_by_layer, is_static_by_layer, indices_by_layer,
-                order_l, surface_boundary_conditions,
-                solve_load_numbers, use_kamata,
-                int_rtol, int_atol, rk_method, verbose,
-                nondimensionalize, incompressible
-                )
+            radial_solver(radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
+                          mode_frequency, planet_bulk_density,
+                          is_solid_by_layer, is_static_by_layer, indices_by_layer,
+                          order_l, surface_boundary_conditions,
+                          solve_load_numbers, use_kamata,
+                          int_rtol, int_atol, rk_method, verbose,
+                          nondimensionalize, incompressible
+                          )
 
         tidal_potential, \
         tidal_potential_partial_theta, tidal_potential_partial_phi, \
