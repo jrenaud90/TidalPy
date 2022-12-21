@@ -15,7 +15,6 @@ from .....utilities.performance import njit, nbList
 # For solid-solid layer interfaces all of the radial functions are continuous.
 # Since the solid solutions do not lose a y or an independent solution when moving from dynamic to static: Then the
 #    interfaces between static-dynamic or dynamic-static will also fully continuous.
-# TODO: Is this true for layers that experience a density jump/drop?
 # In all likely hood you probably will not want to use these as true interfaces. Instead just combining all adjacent
 #    "solid" layers into one super layer.
 

@@ -56,7 +56,6 @@ tidal_y_int_kwargs = {
     }
 
 input_kwargs = {
-    'interior_model_name'        : 'homogeneous_solid',
     'orbital_frequency'          : orbital_frequency, 'spin_frequency': spin_frequency,
     'semi_major_axis'            : semi_major_axis, 'eccentricity': eccentricity, 'host_mass': host_mass,
     'radius_array'               : radius_array, 'shear_array': shear_array, 'bulk_array': bulk_array,
@@ -521,7 +520,6 @@ def test_collapse_multilayer_modes_liquid_solid():
     r_core = radius_array[-1] / 2.
     core_index = radius_array <= r_core
     mantle_index = radius_array > r_core
-    input_kwargs_to_use['interior_model_name'] = 'liquid_solid'
     input_kwargs_to_use['shear_array'][core_index] = 0.
     input_kwargs_to_use['is_solid_by_layer'] = [False, True]
     input_kwargs_to_use['is_static_by_layer'] = [True, False]

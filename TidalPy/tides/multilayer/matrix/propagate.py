@@ -19,7 +19,7 @@ def propagate(
     fundamental_matrix: np.ndarray, fundamental_matrix_inverse: np.ndarray, derivative_matrix: np.ndarray,
     inner_boundary_condition: np.ndarray, world_radius: float,
     order_l: int = 2
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
     """ This function will propagate the incompressible tidal equations, via the fundamental matrix, through a world or
     layers sub-shells.
 
@@ -49,8 +49,6 @@ def propagate(
     -------
     tidal_y : np.ndarray
         Matrix [6 x N] of tidal solutions. See decompression.py on how useful information is extracted.
-    tidal_y_derivative : np.ndarray
-        Matrix [6 x N] of the derivative of the tidal solutions with respect to radius.
 
     """
     num_shells = fundamental_matrix.shape[2]

@@ -2,16 +2,34 @@
 
 ### Version 0.4.0 Alpha (Summer/Fall 2022)
 
+* In-Dev Changes
+  * Added in true incompressible model for multilayer code.
+  * Can now use a cython implementation along with scipys, numba, and julia (this is not working atm)
+
 * Major Changes 
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
   * Added in load Love number calculations to the multilayer code.
-  * Added in true incompressible model for multilayer code.
-  * Removed a lot of 3rd-party dependencies to make TidalPy's install lean.
+  * Removed a lot of 3rd-party dependencies to make TidalPy's install more lean.
   * Switched over to using CyRK's integrators rather than TidalPys
-    * Changed the signature of the numerical-int multilayer solver - this will break old code.
-    * Can now use a cython implementation along with scipys, numba, and julia
+    * Changed the signature of the numerical-int multilayer solver.
+      * **Breaks Old Code**
   * Issue with Numba 0.55 and dictionary updates. This restricts TidalPy to Python version 3.9 or lower.
   * Started a lot of prep work for a move to sphinx or similar for documentation (this will be a 0.5.0 feature).
+  * Created a generalized multi-layer collapse function in `TidalPy.tides.multilayer.numerical_int.collapse`.
+    * This will likely break old code. It was introduced in v0.4.0.dev10.
+    * Arbitrary layer structures can now be fed into the y-solver. e.g., liquid-solid, solid-liquid, liquid-solid-liquid-solid, etc.
+      * Note: Multiple dynamic liquid layers will likely lead to stability problems.
+    * y-solver no longer requires a `model_name` variable. The function will automatically utilize the correct model based on the `is_layer_solid` and `is_layer_static` lists.
+    * Removed the old code that handled individual cases.
+  * Interfaces between multiple liquid layers are now supported (but not well tested).
+    * Two liquid layers of different types can be next to one another (dynamic-static; static-dynamic).
+  * y-solvers functional argument signature has changed
+    * **Breaks Old Code**
+    * Numerical integrator declaration has changed.
+    * Planet_bulk_density is now a required argument.
+    * Modified several other TidalPy functions to match this new call signature for the y-solver.
+  * Removed the y-derivative return from the propagation matrix (to match the output format of the numerical int)
+    * **Breaks Old Code**
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
@@ -27,7 +45,7 @@
   * Tidal y solver for the prop matrix method no longer returns the y-derivatives.
     * dy1/dr is now calculated directly in the `decompose()` function.
   * Created a config helper function `TidalPy.test_mode()` to quickly setup TidalPy configs for pytest'ing
-  * Cleaned up comments and reordered items in multilayer.numerical_int.collapse. 
+  * Cleaned up comments and reordered items in `multilayer.numerical_int.collapse`.
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.

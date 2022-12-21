@@ -505,7 +505,7 @@ def sundberg_freq(
     """ Calculates the complex compliance utilizing the model: Sundberg-Cooper with a frequency-dependent zeta
 
     !TPY_args live: self.compliance, self.viscosity
-    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, critical_freq
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, critical_freq, critical_freq_falloff
 
     Notes
     -----

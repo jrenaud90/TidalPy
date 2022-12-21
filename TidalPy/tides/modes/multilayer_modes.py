@@ -19,7 +19,7 @@ from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potent
 
 
 def calculate_mode_response_coupled(
-    interior_model_name: str, mode_frequency: float,
+    mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
     density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
     tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
@@ -39,9 +39,6 @@ def calculate_mode_response_coupled(
 
     Parameters
     ----------
-    interior_model_name : str
-        Interior model used in the calculation of the radial functions.
-        See options in TidalPy.tides.multilayer.numerical_int.collapse.
     mode_frequency : float
         Tidal forcing frequency at this mode [rad]
     radius_array : np.ndarray
@@ -160,16 +157,17 @@ def calculate_mode_response_coupled(
         # Calculate the radial functions using a shooting integration method.
         tidal_y_at_mode = \
             tidal_y_solver(
-                interior_model_name, radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
+                radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
                 mode_frequency,
+                planet_bulk_density,
                 is_solid_by_layer=is_solid_by_layer, is_static_by_layer=is_static_by_layer,
                 indices_by_layer=indices_by_layer,
+                order_l=order_l,
                 surface_boundary_condition=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
-                order_l=order_l, use_kamata=use_kamata,
+                use_kamata=use_kamata,
                 integrator=integrator, integration_method=integration_method,
                 integration_rtol=integration_rtol, integration_atol=integration_atol,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density,
-                incompressible=incompressible
+                verbose=verbose, nondimensionalize=nondimensionalize, incompressible=incompressible
                 )
 
         # Calculate stresses and heating
@@ -184,7 +182,6 @@ def calculate_mode_response_coupled(
 
 
 def collapse_multilayer_modes(
-    interior_model_name: str,
     orbital_frequency: float, spin_frequency: float, semi_major_axis: float,
     eccentricity: float, host_mass: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
@@ -213,9 +210,6 @@ def collapse_multilayer_modes(
 
     Parameters
     ----------
-    interior_model_name : str
-        Interior model used in the calculation of the radial functions.
-        See options in TidalPy.tides.multilayer.numerical_int.collapse.
     orbital_frequency : float
         Orbital mean motion [rad s-1]
     spin_frequency : float
@@ -485,7 +479,7 @@ def collapse_multilayer_modes(
         # Calculate response at mode
         mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode = \
             calculate_mode_response_coupled(
-                interior_model_name, mode_frequency,
+                mode_frequency,
                 radius_array, shear_array, bulk_array, viscosity_array,
                 density_array, gravity_array, colatitude_matrix,
                 tidal_potential_tuple, complex_compliance_function,

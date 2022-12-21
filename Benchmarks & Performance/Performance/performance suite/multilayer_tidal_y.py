@@ -59,10 +59,10 @@ class TidalYPerformance(PerformanceTrackBase):
     def run_perform_tidal_y_homogen_solid_static(self):
 
         tidal_y_inputs = (
-            'homogeneous_solid', radius, complex_shear, bulk,
-            density, gravity, orb_freq, [True], [True], [layer_1],
-            2, None, False, False, False, True, 1.0e-8, 1.e-12, 'RK45', 'Tsit5',
-            False, True, planet_bulk_density)
+            radius, complex_shear, bulk,
+            density, gravity, orb_freq, planet_bulk_density, [True], [True], [layer_1],
+            2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
+            False, True)
 
         self.record_performance('Tidal-y Calc - Homogen-Solid - Static - Numba-RK45', tidal_y_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
@@ -70,10 +70,10 @@ class TidalYPerformance(PerformanceTrackBase):
     def run_perform_tidal_y_homogen_solid_dynamic(self):
 
         tidal_y_inputs = (
-            'homogeneous_solid', radius, complex_shear, bulk,
-            density, gravity, orb_freq, [True], [False], [layer_1],
-            2, None, False, False, False, True, 1.0e-8, 1.e-12, 'RK45', 'Tsit5',
-            False, True, planet_bulk_density)
+            radius, complex_shear, bulk,
+            density, gravity, orb_freq, planet_bulk_density, [True], [False], [layer_1],
+            2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
+            False, True)
 
         self.record_performance('Tidal-y Calc - Homogen-Solid - Dynamic - Numba-RK45', tidal_y_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
@@ -81,10 +81,10 @@ class TidalYPerformance(PerformanceTrackBase):
     def run_perform_tidal_y_liquid_solid_allstatic(self):
 
         tidal_y_inputs = (
-            'liquid_solid', radius, complex_shear, bulk, density,
-            gravity, orb_freq, [False, True], [True, True], [layer_0, layer_1],
-            2, None, False, False, False, True, 1.0e-8, 1.e-12, 'RK45', 'Tsit5',
-            False, True, planet_bulk_density)
+            radius, complex_shear, bulk,
+            density, gravity, orb_freq, planet_bulk_density, [False, True], [True, True], [layer_0, layer_1],
+            2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
+            False, True)
 
         self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Static - Numba-RK45', tidal_y_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
@@ -92,10 +92,10 @@ class TidalYPerformance(PerformanceTrackBase):
     def run_perform_tidal_y_liquid_solid_dynamicsolid(self):
 
         tidal_y_inputs = (
-            'liquid_solid', radius, complex_shear, bulk, density,
-            gravity, orb_freq, [False, True], [True, False], [layer_0, layer_1],
-            2, None, False, False, False, True, 1.0e-8, 1.e-12, 'RK45', 'Tsit5',
-            False, True, planet_bulk_density)
+            radius, complex_shear, bulk,
+            density, gravity, orb_freq, planet_bulk_density, [False, True], [True, False], [layer_0, layer_1],
+            2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
+            False, True)
 
         self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Dynamic - Numba-RK45', tidal_y_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)

@@ -61,7 +61,7 @@ def projection_map(
     longitude: np.ndarray, colatitude: np.ndarray, data: np.ndarray,
     cpoints: Union[int, List[float]] = 30,
     figure_scale: float = 1., aspect_ratio: float = 2.,
-    cmap: Union[str, Colormap] = 'vik',
+    cmap: Union[str, Colormap] = 'Blues',
     xlabel: str = 'Longitude [deg.]', ylabel: str = 'Latitude [deg.]',
     zlabel: str = '', title: str = '', zlog: bool = False,
     zticks: list = None, ztick_labels: list = None, horizontal_cbar: bool = False,
@@ -199,7 +199,11 @@ def projection_map(
             rotated_pole_input = ROTATED_POLE_DEFAULT_INPUT
         else:
             rotated_pole_input = {**ROTATED_POLE_DEFAULT_INPUT, **rotated_pole_input}
-        projection_instance = projection(central_longitude=central_longitude, **rotated_pole_input)
+        try:
+            # Some versions of cartopy do not have the central longitude argument.
+            projection_instance = projection(central_longitude=central_longitude, **rotated_pole_input)
+        except TypeError:
+            projection_instance = projection(**rotated_pole_input)
     elif projection is None:
         rotated_pole_input = None
         projection_instance = None

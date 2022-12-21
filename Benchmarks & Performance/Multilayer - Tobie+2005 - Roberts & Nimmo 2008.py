@@ -20,19 +20,17 @@ from TidalPy.utilities.graphics.multilayer import yplot
 # Switches
 show_shooting_method_technique = True
 show_propagation_matrix_technique = True
-use_static_liquid_core = True
+use_static_liquid_core = False
 nondimensionalize_during_integration = True
 use_kamata_starting_values = True
 # Set the following two switches to true for comparison to Roberts and Nimmo.
 use_static_mantle = False
 use_fake_incompressible_limit = False
-use_real_incompressible_limit = True
+use_real_incompressible_limit = False
 
 # Integration properties
-integrator = 'numba'
+integrator = 'scipy'
 integration_method = 'RK45'
-# scipy_integration_method = 'DOP853'
-# julia_integration_method = 'Tsit5'
 r_tol = 1.e-8
 a_tol = 1.e-10
 
@@ -155,7 +153,7 @@ for model_name, (core_density, mantle_density) in models.items():
         central_boundary_condition[1, 1] = 0.01
         central_boundary_condition[5, 2] = 1.
 
-        tidal_y_prop, tidal_y_deriv_prop = \
+        tidal_y_prop = \
             propagate(Y, Y_inv, derivative_mtx, central_boundary_condition, R_planet, order_l=2)
 
         model_radii.append(radius_used)
@@ -170,8 +168,8 @@ for model_name, (core_density, mantle_density) in models.items():
             # Use homogeneous method
             tidal_y_shoot = \
                 tidal_y_solver(
-                    'homogeneous_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
-                    orbital_freq, is_solid_by_layer=[True],
+                    radius_array, shear_array, bulk_array, density_array, gravity_array,
+                    orbital_freq, planet_bulk_density, is_solid_by_layer=[True],
                     is_static_by_layer=[use_static_mantle],
                     indices_by_layer=[mantle_radii], order_l=2, surface_boundary_condition=None,
                     solve_load_numbers=False, use_kamata=use_kamata_starting_values,
@@ -179,15 +177,14 @@ for model_name, (core_density, mantle_density) in models.items():
                     integration_method=integration_method,
                     integration_rtol=r_tol, integration_atol=a_tol,
                     verbose=False, nondimensionalize=nondimensionalize_during_integration,
-                    planet_bulk_density=planet_bulk_density,
                     incompressible=use_real_incompressible_limit
                     )
         else:
             # Use liquid-solid method
             tidal_y_shoot = \
                 tidal_y_solver(
-                    'liquid_solid', radius_array, shear_array, bulk_array, density_array, gravity_array,
-                    orbital_freq, is_solid_by_layer=[False, True],
+                    radius_array, shear_array, bulk_array, density_array, gravity_array,
+                    orbital_freq, planet_bulk_density, is_solid_by_layer=[False, True],
                     is_static_by_layer=[use_static_liquid_core, use_static_mantle],
                     indices_by_layer=[core_radii, mantle_radii], order_l=2, surface_boundary_condition=None,
                     solve_load_numbers=False, use_kamata=use_kamata_starting_values,
@@ -195,7 +192,6 @@ for model_name, (core_density, mantle_density) in models.items():
                     integration_method=integration_method,
                     integration_rtol=r_tol, integration_atol=a_tol,
                     verbose=False, nondimensionalize=nondimensionalize_during_integration,
-                    planet_bulk_density=planet_bulk_density,
                     incompressible=use_real_incompressible_limit
                     )
 

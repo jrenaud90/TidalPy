@@ -4,6 +4,7 @@ import numpy as np
 from TidalPy.tides.modes.collapse_modes import collapse_modes
 from numba.core import types
 from numba.typed import Dict
+from numba.typed.typeddict import Dict as TypedDict
 from numba.typed import List
 
 
@@ -38,7 +39,7 @@ def test_collapse_mode():
     collapsed_modes = collapse_modes(test_modes, unique_frequencies=False)
 
     # Check types
-    assert type(collapsed_modes) is Dict
+    assert type(collapsed_modes) in [dict, TypedDict]
     for mode_name, mode_data in collapsed_modes.items():
         assert type(mode_data) == tuple or isinstance(mode_data, types.Tuple)
         assert len(mode_data) == 3
@@ -87,7 +88,7 @@ def test_collapse_mode_unique_freqs():
     collapsed_modes = collapse_modes(test_modes, unique_frequencies=True)
 
     # Check types
-    assert type(collapsed_modes) is Dict
+    assert type(collapsed_modes) in [dict, TypedDict]
     for mode_name, mode_data in collapsed_modes.items():
         assert type(mode_data) == tuple or isinstance(mode_data, types.Tuple)
         assert len(mode_data) == 3

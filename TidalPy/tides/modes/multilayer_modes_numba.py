@@ -20,7 +20,7 @@ from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, fl
 
 @njit(cacheable=True)
 def calculate_mode_response_coupled(
-    interior_model_name: str, mode_frequency: float,
+    mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
     density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
     tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
@@ -149,14 +149,13 @@ def calculate_mode_response_coupled(
         # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
         #   being njited.
         tidal_y_at_mode = \
-            tidal_y_solver(
-                interior_model_name, radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
-                mode_frequency,
+            tidal_y_solver(radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
+                mode_frequency, planet_bulk_density,
                 is_solid_by_layer, is_static_by_layer, indices_by_layer,
                 order_l, surface_boundary_conditions,
                 solve_load_numbers, use_kamata,
                 int_rtol, int_atol, rk_method, verbose,
-                nondimensionalize, planet_bulk_density, incompressible
+                nondimensionalize, incompressible
                 )
 
         tidal_potential, \
@@ -181,7 +180,6 @@ def calculate_mode_response_coupled(
 
 @njit(cacheable=True)
 def collapse_multilayer_modes(
-    interior_model_name: str,
     orbital_frequency: float, spin_frequency: float, semi_major_axis: float,
     eccentricity: float, host_mass: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
@@ -484,7 +482,7 @@ def collapse_multilayer_modes(
         # Calculate response at mode
         mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode = \
             calculate_mode_response_coupled(
-                interior_model_name, mode_frequency,
+                mode_frequency,
                 radius_array, shear_array, bulk_array, viscosity_array,
                 density_array, gravity_array, colatitude_matrix,
                 tidal_potential_tuple, complex_compliance_function,

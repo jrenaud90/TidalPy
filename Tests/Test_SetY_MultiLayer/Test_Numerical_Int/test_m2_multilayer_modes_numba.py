@@ -7,6 +7,7 @@ import numpy as np
 from numba.typed.typeddict import Dict as nbDict
 
 import TidalPy
+
 TidalPy.test_mode()
 
 from TidalPy.constants import G, mass_trap1
@@ -49,14 +50,14 @@ longitude_matrix, colatitude_matrix, time_matrix = \
     np.meshgrid(longitude, colatitude, time, indexing='ij')
 
 tidal_y_int_kwargs = {
-    'rk_method': 1,
-    'int_atol'            : 1.0e-8, 'int_rtol': 1.0e-6,
-    'planet_bulk_density' : planet_bulk_density,
-    'nondimensionalize': False
+    'rk_method'          : 1,
+    'int_atol'           : 1.0e-8,
+    'int_rtol'           : 1.0e-6,
+    'planet_bulk_density': planet_bulk_density,
+    'nondimensionalize'  : False
     }
 
 input_kwargs = {
-    'interior_model_name'        : 'homogeneous_solid',
     'orbital_frequency'          : orbital_frequency, 'spin_frequency': spin_frequency,
     'semi_major_axis'            : semi_major_axis, 'eccentricity': eccentricity, 'host_mass': host_mass,
     'radius_array'               : radius_array, 'shear_array': shear_array, 'bulk_array': bulk_array,
@@ -81,8 +82,8 @@ def test_collapse_multilayer_modes_homogen_modesoff_noorbitavg():
     # Test non-orbit averaged
     input_kwargs_to_use = {**input_kwargs}
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape)
@@ -138,8 +139,8 @@ def test_collapse_multilayer_modes_homogen_modesoff():
     input_kwargs_to_use = {**input_kwargs}
     input_kwargs_to_use['orbit_average_results'] = True
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
@@ -199,8 +200,8 @@ def test_collapse_multilayer_modes_homogen_modeson():
     input_kwargs_to_use['spin_frequency'] = input_kwargs_to_use['orbital_frequency']
 
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
@@ -262,8 +263,8 @@ def test_collapse_multilayer_modes_homogen_modeson_nonsor():
     input_kwargs_to_use['spin_frequency'] = 0.7 * input_kwargs_to_use['orbital_frequency']
 
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
@@ -325,8 +326,8 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_spin():
     input_kwargs_to_use['spin_frequency'] = -1. * input_kwargs_to_use['orbital_frequency']
 
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
@@ -389,8 +390,8 @@ def test_collapse_multilayer_modes_homogen_modeson_negative_n():
     input_kwargs_to_use['spin_frequency'] = input_kwargs_to_use['orbital_frequency']
 
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
@@ -454,8 +455,8 @@ def test_collapse_multilayer_modes_homogen_modeson_obliquity():
     input_kwargs_to_use['obliquity'] = np.radians(45.)
 
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
@@ -483,8 +484,8 @@ def test_collapse_multilayer_modes_homogen_modeson_obliquity():
 
     # For modes off we expect there top be only one mode
     modes_at_these_assumptions = (
-    'n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n', 'o', '2o', 'o+n', 'o+2n', 'o-n', 'o-2n',
-    'o-3n', 'o-4n')
+        'n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n', 'o', '2o', 'o+n', 'o+2n', 'o-n', 'o-2n',
+        'o-3n', 'o-4n')
     assert len(love_k_by_mode) == len(modes_at_these_assumptions)
     assert len(love_h_by_mode) == len(modes_at_these_assumptions)
     assert len(love_l_by_mode) == len(modes_at_these_assumptions)
@@ -521,15 +522,14 @@ def test_collapse_multilayer_modes_liquid_solid():
     r_core = radius_array[-1] / 2.
     core_index = radius_array <= r_core
     mantle_index = radius_array > r_core
-    input_kwargs_to_use['interior_model_name'] = 'liquid_solid'
     input_kwargs_to_use['shear_array'][core_index] = 0.
     input_kwargs_to_use['is_solid_by_layer'] = [False, True]
     input_kwargs_to_use['is_static_by_layer'] = [True, False]
     input_kwargs_to_use['indices_by_layer'] = [core_index, mantle_index]
 
     heating, volumetric_heating, strains, stresses, \
-    total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
-    (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
+        total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
+        (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
     expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2], 1)
