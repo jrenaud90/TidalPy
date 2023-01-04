@@ -63,7 +63,7 @@ Read below for instructions on how to install and use TidalPy.
 
 ### Compatibility
 
-*As of TidalPy v0.3.0a*:
+*As of TidalPy v0.4.0*:
 
 * **Windows-Latest**: *Installation & tests passed.*
 * **MacOS-Latest**: *Installation & tests passed.*

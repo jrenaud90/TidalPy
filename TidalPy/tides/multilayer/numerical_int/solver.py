@@ -1,6 +1,7 @@
 from typing import List, Union, Tuple
 
 import numpy as np
+import time
 
 from .collapse import collapse_solutions
 from .derivatives import known_multilayer_odes
@@ -9,7 +10,7 @@ from .interfaces import find_interface_func
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 from ....constants import G
 from ....exceptions import AttributeNotSetError, IntegrationFailed
-from ....utilities.integration import get_integrator
+from ....utilities.integration import get_integrator, _nb2cy, cyrk_solver
 
 
 def radial_solver(
@@ -159,6 +160,10 @@ def radial_solver(
             else:
                 ode_input = (radius[layer_indices], bulk_modulus[layer_indices], density[layer_indices],
                              gravity[layer_indices], frequency, order_l, G_to_use, incompressible)
+
+        # If cython solver is used, convert function type now
+        if integrator is cyrk_solver:
+            layer_ode = _nb2cy(layer_ode, use_njit=True, cache_njit=True)
 
         # Store model info for this layer
         radial_odes.append(layer_ode)

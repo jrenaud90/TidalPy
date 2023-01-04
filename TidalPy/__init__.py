@@ -1,3 +1,8 @@
+# Find Version Number
+import importlib.metadata
+__version__ = importlib.metadata.version("CyRK")
+version = __version__
+
 import time
 import os
 from typing import TYPE_CHECKING
@@ -7,10 +12,6 @@ if TYPE_CHECKING:
 
 # Initial Runtime
 init_time = time.time()
-
-# Version information
-from ._version import version
-__version__ = version
 
 # Load configuration dictionary
 from .configurations import configurations

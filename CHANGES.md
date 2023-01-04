@@ -10,7 +10,7 @@
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
   * Added in load Love number calculations to the multilayer code.
   * Removed a lot of 3rd-party dependencies to make TidalPy's install more lean.
-  * Switched over to using CyRK's integrators rather than TidalPys
+  * Switched over to using the integrators from the new `CyRK` package
     * Changed the signature of the numerical-int multilayer solver.
       * **Breaks Old Code**
   * Issue with Numba 0.55 and dictionary updates. This restricts TidalPy to Python version 3.9 or lower.
@@ -32,6 +32,10 @@
     * **Breaks Old Code**
   * Refactored `tidal_y_solver` to `radial_solver` since non-tidal calculations can be made with it.
     * **Breaks Old Code (pre v0.4.0.dev11)**
+  * Switched from `setup.py` to a streamlined `pyproject.toml` installation process.
+
+* Performance Improvements
+  * Improved the performance of the pure-numba radial solve by ~10%
 
 * Minor Changes
   * Added newer functions to the performance recording suite.
@@ -48,6 +52,9 @@
     * dy1/dr is now calculated directly in the `decompose()` function.
   * Created a config helper function `TidalPy.test_mode()` to quickly setup TidalPy configs for pytest'ing
   * Cleaned up comments and reordered items in `multilayer.numerical_int.collapse`.
+  * Fixed a bug when using SciPy's Radau integrator method.
+  * The version number is now checked with importlib in TidalPy.__init__. Version number should only be changed in the pyproject.toml.
+  * Updated the pure-numba version of the radial solver's argument signature to better match the python implementation.
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.

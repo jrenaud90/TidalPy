@@ -19,8 +19,8 @@ from ....utilities.performance import nbList, njit
 def _get_initial_values(
         layer_i, layer_is_solid, layer_is_static, layer_below_is_solid, layer_below_is_static,
         last_below_ys,
-        radius_array, shear_mod_array, bulk_mod_array, density_array, gravity_array, frequency,
-        interface_gravity, liquid_density,
+        radius_at_bottom, shear_mod_at_bottom, bulk_mod_at_bottom, density_at_bottom, gravity_at_bottom,
+        frequency, interface_gravity, liquid_density,
         order_l, G_to_use, use_kamata, incompressible
         ):
     initial_values_to_use = nbList([np.empty((6, 0), dtype=np.complex128)])
@@ -30,7 +30,7 @@ def _get_initial_values(
         initial_values_to_use = \
             find_initial_guess(
                     use_kamata, layer_is_solid, is_dynamic, incompressible,
-                    radius_array[0], shear_mod_array[0], bulk_mod_array[0], density_array[0], frequency,
+                    radius_at_bottom, shear_mod_at_bottom, bulk_mod_at_bottom, density_at_bottom, frequency,
                     order_l=order_l, G_to_use=G_to_use
                     )
     else:
@@ -123,7 +123,7 @@ def _get_initial_values(
 def _single_layer_integrate(
         layer_is_solid, layer_is_static, radial_span, initial_values_to_use, frequency,
         radius_array, shear_modulus_array, bulk_modulus_array, density_array,
-        gravity_array, order_l, G_to_use, incompressible, rk_method, int_rtol, int_atol
+        gravity_array, order_l, G_to_use, incompressible, integration_rtol, integration_atol, rk_method
         ):
     solution_num = 0
     layer_solutions = nbList()
@@ -139,7 +139,7 @@ def _single_layer_integrate(
                                   density_array, gravity_array, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
                             t_eval=radius_array,
-                            rtol=int_rtol, atol=int_atol
+                            rtol=integration_rtol, atol=integration_atol
                             )
             else:
                 ts, ys, success, message, = \
@@ -149,7 +149,7 @@ def _single_layer_integrate(
                                   density_array, gravity_array, frequency, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
                             t_eval=radius_array,
-                            rtol=int_rtol, atol=int_atol
+                            rtol=integration_rtol, atol=integration_atol
                             )
         else:
             if layer_is_static:
@@ -160,7 +160,7 @@ def _single_layer_integrate(
                                   gravity_array, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
                             t_eval=radius_array,
-                            rtol=int_rtol, atol=int_atol
+                            rtol=integration_rtol, atol=integration_atol
                             )
             else:
                 ts, ys, success, message, = \
@@ -170,7 +170,7 @@ def _single_layer_integrate(
                                   gravity_array, frequency, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
                             t_eval=radius_array,
-                            rtol=int_rtol, atol=int_atol
+                            rtol=integration_rtol, atol=integration_atol
                             )
 
         if not success:
@@ -191,7 +191,7 @@ def radial_solver(
         order_l: int = 2,
         surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
         use_kamata: bool = False,
-        int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
+        integration_rtol: float = 1.0e-8, integration_atol: float = 1.0e-12, integration_method: int = 1,
         verbose: bool = False, nondimensionalize: bool = True,
         incompressible: bool = False
         ) -> np.ndarray:
@@ -231,15 +231,15 @@ def radial_solver(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    int_rtol : float = 1.0e-6
+    integration_rtol : float = 1.0e-6
         Integration relative error.
-    int_atol : float = 1.0e-4
+    integration_atol : float = 1.0e-4
         Integration absolute error.
-    rk_method : int = 1
+    integration_method : int = 1
     The type of RK method used for integration
         0 = RK23
         1 = RK45
-        # TODO NotImplemented 2 = DOP
+        2 = DOP
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -404,8 +404,8 @@ def radial_solver(
             _get_initial_values(
                     layer_i, layer_is_solid, layer_is_static, layer_below_is_solid, layer_below_is_static,
                     layer_below_ys,
-                    layer_radii, layer_shear, layer_bulk, layer_density, layer_gravity, frequency,
-                    interface_gravity, static_liquid_density,
+                    layer_radii[0], layer_shear[0], layer_bulk[0], layer_density[0], layer_gravity[0],
+                    frequency, interface_gravity, static_liquid_density,
                     order_l, G_to_use, use_kamata, incompressible
                     )
 
@@ -417,10 +417,10 @@ def radial_solver(
         layer_below_ys = \
             _single_layer_integrate(
                     layer_is_solid, layer_is_static, radial_span, initial_values_to_use, frequency,
-                    np.ascontiguousarray(layer_radii.copy()), np.ascontiguousarray(layer_shear.copy()),
-                    np.ascontiguousarray(layer_bulk.copy()), np.ascontiguousarray(layer_density.copy()),
-                    np.ascontiguousarray(layer_gravity.copy()), order_l, G_to_use,
-                    incompressible, rk_method, int_rtol, int_atol
+                    layer_radii, layer_shear,
+                    layer_bulk, layer_density,
+                    layer_gravity, order_l, G_to_use,
+                    incompressible, integration_rtol, integration_atol, integration_method
                     )
 
         # Add solutions to outer list

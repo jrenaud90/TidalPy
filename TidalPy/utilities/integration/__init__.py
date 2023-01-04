@@ -3,11 +3,16 @@ from numba import njit
 
 cyrk_installed = False
 try:
-    from CyRK import cyrk_ode as _cyrk_ode, nbrk_ode as _nbrk_ode
+    from CyRK import cyrk_ode as _cyrk_ode, nbrk_ode as _nbrk_ode, nb2cy as _nb2cy, cy2nb as _cy2nb
 
     cyrk_installed = True
 except ImportError:
-    _cyrk_ode = lambda x: None
+    @njit
+    def _nb2cy(func):
+        return func
+    @njit
+    def _cy2nb(func):
+        return func
 
     @njit
     def _nbrk_ode(static_solid_ode, radial_span, initial_values_copy,
@@ -16,7 +21,18 @@ except ImportError:
                   t_eval=np.zeros((0,)),
                   rtol=1.0, atol=1.0):
 
-        return np.zeros((0,)), np.zeros((0,)), False, 'message'
+        return np.zeros((0,)), np.zeros((0,)), False, 'CyRK Not Installed'
+
+    @njit
+    def _cyrk_ode(
+            static_solid_ode, radial_span, initial_values_copy,
+            args=tuple(),
+            rk_method=1,
+            t_eval=np.zeros((0,)),
+            rtol=1.0, atol=1.0
+            ):
+
+        return np.zeros((0,)), np.zeros((0,)), False, 'CyRK Not Installed'
 
 
 scipy_installed = False
@@ -30,7 +46,6 @@ except ImportError:
 julia_installed = False
 try:
     from diffeqpy import de as _de, ode as _ode
-
     julia_installed = True
 except Exception:
     _de = None
@@ -81,7 +96,11 @@ def get_integrator(integrator_name: str, integration_method: str = 'RK45'):
             raise ValueError(f'Unknown integration method, {integration_method}, for integrator: {integrator_name}.')
 
         integrator = solve_ivp
-        cleaned_int_method = integration_method.upper()
+        if integration_method == 'radau':
+            # SciPy has this one in title case rather than upper.
+            cleaned_int_method = 'Radau'
+        else:
+            cleaned_int_method = integration_method.upper()
 
     elif integrator_name in ('cython', 'cyrk', 'numba', 'nbrk'):
         if not cyrk_installed:

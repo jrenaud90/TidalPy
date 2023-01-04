@@ -134,7 +134,7 @@ def collapse_solutions(
             if is_solid:
                 if layer_above_is_solid:
                     # Both layers are solid. Constants are the same.
-                    constant_vector = layer_above_constants
+                    constant_vector = np.copy(layer_above_constants)
                 else:
                     constant_vector = np.empty(3, dtype=np.complex128)
 
@@ -181,7 +181,7 @@ def collapse_solutions(
                         # Liquid layer above
                         if layer_above_is_static:
                             # Both layers are static liquids. Constants are the same.
-                            constant_vector = layer_above_constants
+                            constant_vector = np.copy(layer_above_constants)
                         else:
                             # Dynamic liquid above
                             # JPR decided to follow a similar approach as Eq. 20 in S74:
@@ -212,7 +212,7 @@ def collapse_solutions(
                             constant_vector[1] = (-lambda_1 / lambda_2) * constant_vector[0]
                         else:
                             # Both layers are dynamic liquids. Constants are the same.
-                            constant_vector = layer_above_constants
+                            constant_vector = np.copy(layer_above_constants)
                     else:
                         # Solid layer above
                         # TS72 Eqs. 148-149

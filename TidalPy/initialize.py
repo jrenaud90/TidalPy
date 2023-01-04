@@ -27,8 +27,8 @@ def initialize_tidalpy():
     """
     import TidalPy
 
+    from . import version
     from .logger import log_setup
-    from ._version import version
     from .io_helper import timestamped_str, unique_path
 
     # Reset initialization status

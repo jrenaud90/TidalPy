@@ -193,7 +193,9 @@ def radial_derivatives_liquid_general(
     lame_inverse = 1. / lame
     r_inverse = 1. / radius
     density_gravity = density * gravity
-    dynamic_term = -frequency * frequency * density * radius
+    f2 = frequency * frequency
+    dynamic_term_no_r = -f2 * density
+    dynamic_term = dynamic_term_no_r * radius
     grav_term = 4. * pi * G_to_use * density
 
     # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
@@ -206,27 +208,43 @@ def radial_derivatives_liquid_general(
     # We will use TS72 eq. 87 to allow for a generic rheology and bulk dissipation.
     # # dy2 contain all three of: dynamic, viscoelastic, and gravitational terms.
     dy1 = \
-        y2 * lame_inverse + \
-        y1_y3_term * -r_inverse
+        y2 * lame_inverse - \
+        y1_y3_term * r_inverse
 
-    dy2 = r_inverse * (
-            y1 * (dynamic_term - 2. * density_gravity) +
-            y5 * density * lp1 +
-            y6 * -density * radius +
-            # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
-            #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
-            y1_y3_term * -density_gravity
-    )
+    # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
+    #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
+    dy2 = \
+        y1 * (dynamic_term_no_r - 2. * density_gravity * r_inverse) + \
+        y5 * density * lp1 * r_inverse - \
+        y6 * density - \
+        y1_y3_term * density_gravity * r_inverse
 
     dy5 = \
-        y1 * grav_term + \
-        y5 * -lp1 * r_inverse + \
+        y1 * grav_term - \
+        y5 * lp1 * r_inverse + \
         y6
 
     dy6 = r_inverse * (
-            y1 * grav_term * lm1 +
-            y6 * lm1 +
+            lm1 * (y1 * grav_term + y6) +
             y1_y3_term * grav_term
     )
+
+    # dy1 = y1 * (-2. * r_inverse + llp1 * gravity / (frequency**2 * radius**2)) + \
+    #     y2 * (lame_inverse - llp1 / (frequency**2 * density * radius**2)) - \
+    #     y5 * llp1 / (frequency**2 * radius**2)
+    #
+    # dy2 = y1 * (-frequency**2 * density - 4. * density * gravity / radius + llp1 * density * gravity**2 / (frequency**2 * radius**2)) - \
+    #     y2 * llp1 * gravity / (frequency**2 * radius**2) + \
+    #     y5 * (lp1 * density / radius) * (1. - order_l * gravity / (frequency**2 * radius)) - \
+    #     y6 * density
+    #
+    # dy5 = y1 * (4. * pi * G_to_use * density) - \
+    #     y5 * (lp1 / radius) + \
+    #     y6
+    #
+    # dy6 = y1 * (4. * pi * lp1 * G_to_use * density / radius) * (1. - order_l * gravity / (frequency**2 * radius)) + \
+    #     y2 * (4. * pi * llp1 * G_to_use / (frequency**2 * radius**2)) + \
+    #     y5 * (4. * pi * llp1 * density * G_to_use / (frequency**2 * radius**2)) + \
+    #     y6 * (lm1 / radius)
 
     return dy1, dy2, dy5, dy6

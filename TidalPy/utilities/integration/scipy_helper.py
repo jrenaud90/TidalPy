@@ -10,7 +10,7 @@ from . import _solve_ivp
 def solve_ivp(
     diffeq, time_span: Tuple[float, float], initial_condition: np.ndarray, args: Tuple = None,
     rtol: float = 1.0e-6, atol: float = 1.0e-8, max_step: float = np.inf,
-    first_step: float = None, method: int = 'RK45', t_eval: np.ndarray = np.empty((0,), dtype=np.float64)
+    first_step: float = None, method: str = 'RK45', t_eval: np.ndarray = np.empty((0,), dtype=np.float64)
     ):
 
     # Solve the ode
