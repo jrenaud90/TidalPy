@@ -4,7 +4,6 @@ from numba import njit
 cyrk_installed = False
 try:
     from CyRK import cyrk_ode as _cyrk_ode, nbrk_ode as _nbrk_ode, nb2cy as _nb2cy, cy2nb as _cy2nb
-
     cyrk_installed = True
 except ImportError:
     @njit
@@ -13,7 +12,6 @@ except ImportError:
     @njit
     def _cy2nb(func):
         return func
-
     @njit
     def _nbrk_ode(static_solid_ode, radial_span, initial_values_copy,
                   args=tuple(),
@@ -33,6 +31,19 @@ except ImportError:
             ):
 
         return np.zeros((0,)), np.zeros((0,)), False, 'CyRK Not Installed'
+
+
+numbalsoda_installed = False
+try:
+    from numbalsoda import lsoda_sig, lsoda
+    numbalsoda_installed = True
+
+except ImportError:
+    def lsoda_sig(func):
+        return func
+
+    def lsoda(diffeq, y0, t_eval, params):
+        return None, None
 
 
 scipy_installed = False
@@ -55,6 +66,7 @@ except Exception:
 from .julia_helper import get_julia_solver, known_integration_methods as known_integration_methods_julia
 from .cyrk_helper import nbrk_solver, cyrk_solver
 from .scipy_helper import solve_ivp
+from .numbalsoda_helper import numbalsoda_solver
 
 
 def get_integrator(integrator_name: str, integration_method: str = 'RK45'):
@@ -68,6 +80,7 @@ def get_integrator(integrator_name: str, integration_method: str = 'RK45'):
             'cython'
             'numba'
             'julia'
+            'numbalsoda'
     integration_method : str = 'RK45'
         Name of the specific integration method (available methods vary by integrator)
 
@@ -125,7 +138,16 @@ def get_integrator(integrator_name: str, integration_method: str = 'RK45'):
         else:
             integrator = nbrk_solver
 
+    elif integrator_name in ('numbalsoda'):
+        if not numbalsoda_installed:
+            raise ImportError('NumbaLSODA integrator requested but the package can not be found.')
+
+        integrator = numbalsoda_solver
+        cleaned_int_method = 'none'
+
     elif integrator_name in ('julia', 'diffeqpy'):
+        if not julia_installed:
+            raise ImportError('Julia integrator requested but the package can not be found.')
 
         if integration_method is None:
             # Use default for this method

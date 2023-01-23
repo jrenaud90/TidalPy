@@ -63,7 +63,12 @@ def radial_derivatives_solid_general(
 
     """
 
-    y1, y2, y3, y4, y5, y6 = radial_functions
+    y1 = radial_functions[0]
+    y2 = radial_functions[1]
+    y3 = radial_functions[2]
+    y4 = radial_functions[3]
+    y5 = radial_functions[4]
+    y6 = radial_functions[5]
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     #lame = (bulk_modulus - (2. / 3.) * shear_modulus)
@@ -161,7 +166,8 @@ def radial_derivatives_liquid_general(
     """
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y1 and y2 are not defined uniquely
-    y5, y7 = radial_functions
+    y5 = radial_functions[0]
+    y7 = radial_functions[1]
 
     # Optimizations
     r_inverse = 1. / radius

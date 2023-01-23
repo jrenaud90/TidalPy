@@ -68,7 +68,12 @@ def radial_derivatives_solid_general(
 
     """
 
-    y1, y2, y3, y4, y5, y6 = radial_functions
+    y1 = radial_functions[0]
+    y2 = radial_functions[1]
+    y3 = radial_functions[2]
+    y4 = radial_functions[3]
+    y5 = radial_functions[4]
+    y6 = radial_functions[5]
 
     # Optimizations
     lp1 = order_l + 1.
@@ -164,7 +169,10 @@ def radial_derivatives_liquid_general(
     """
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
-    y1, y2, y5, y6 = radial_functions
+    y1 = radial_functions[0]
+    y2 = radial_functions[1]
+    y5 = radial_functions[2]
+    y6 = radial_functions[3]
 
     # Optimizations
     lp1 = order_l + 1.
