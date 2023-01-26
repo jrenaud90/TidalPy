@@ -83,7 +83,8 @@ dev = [
 
 graphics = [
     "cmcrameri>=1.4",
-    "matplotlib>=3.4.2"
+    "matplotlib>=3.4.2",
+    "ipympl>=0.8.7"
 ]
 
 julia = [
