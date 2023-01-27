@@ -27,18 +27,18 @@ from .....utilities.types import FloatArray, NumArray
 @njit(cacheable=True)
 def dynamic_solid_ode(
     radius: FloatArray,
-    y_vector: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
+    y_vector: np.ndarray,
     radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
     densities: np.ndarray, gravities: np.ndarray, frequency: float,
     order_l: int = 2, G_to_use: float = G, incompressible: bool = False
-    ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for static, solid layers.
 
     Parameters
     ----------
     radius : FloatArray
         Requested radius to at which the radial derivatives are calculated [m]
-    y_vector : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    y_vector : np.ndarray
         The radial functions at (or near) the provided radius. Used to estimate the derivatives.
     radii : np.ndarray
         Array of radii for the interior of a planet or layer where this radial derivative function is valid.
@@ -62,7 +62,7 @@ def dynamic_solid_ode(
 
     Returns
     -------
-    solid_dyn_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    solid_dyn_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a solid layer under the dynamic assumption.
     """
 
@@ -91,18 +91,18 @@ def dynamic_solid_ode(
 
 @njit(cacheable=True)
 def static_solid_ode(
-    radius: FloatArray, y_vector: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
+    radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
     densities: np.ndarray, gravities: np.ndarray,
     order_l: int = 2, G_to_use: float = G, incompressible: bool = False
-    ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for static, solid layers.
 
     Parameters
     ----------
     radius : FloatArray
         Requested radius to at which the radial derivatives are calculated [m]
-    y_vector : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    y_vector : np.ndarray
         The radial functions at (or near) the provided radius. Used to estimate the derivatives.
     radii : np.ndarray
         Array of radii for the interior of a planet or layer where this radial derivative function is valid.
@@ -124,7 +124,7 @@ def static_solid_ode(
 
     Returns
     -------
-    solid_static_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    solid_static_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a solid layer under the static assumption.
     """
 
@@ -153,11 +153,11 @@ def static_solid_ode(
 
 @njit(cacheable=True)
 def dynamic_liquid_ode(
-    radius: FloatArray, y_vector: Tuple[NumArray, NumArray, NumArray, NumArray],
+    radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, bulk_moduli: np.ndarray,
     densities: np.ndarray, gravities: np.ndarray, frequency: float,
     order_l: int = 2, G_to_use: float = G, incompressible: bool = False
-    ) -> callable:
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for dynamic, liquid layers.
 
     Parameters
@@ -186,7 +186,7 @@ def dynamic_liquid_ode(
 
     Returns
     -------
-    liquid_dyn_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray]
+    liquid_dyn_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a liquid layer under the dynamic assumption.
     """
 
@@ -212,17 +212,17 @@ def dynamic_liquid_ode(
 
 @njit(cacheable=True)
 def static_liquid_ode(
-    radius: FloatArray, y_vector: Tuple[NumArray, NumArray],
+    radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, densities: np.ndarray, gravities: np.ndarray,
     order_l: int = 2, G_to_use: float = G, incompressible: bool = False
-    ) -> Tuple[NumArray, NumArray]:
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for static, liquid layers.
 
     Parameters
     ----------
     radius : FloatArray
         Requested radius to at which the radial derivatives are calculated [m]
-    y_vector : Tuple[NumArray, NumArray]
+    y_vector : np.ndarray
         The radial functions at (or near) the provided radius. Used to estimate the derivatives.
     radii : np.ndarray
         Array of radii for the interior of a planet or layer where this radial derivative function is valid.
@@ -240,7 +240,7 @@ def static_liquid_ode(
 
     Returns
     -------
-    liquid_static_derivatives : Tuple[NumArray, NumArray]
+    liquid_static_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a liquid layer under the static assumption.
     """
 

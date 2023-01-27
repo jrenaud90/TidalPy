@@ -282,9 +282,16 @@ def radial_solver(
 
         # Integrate over each solution
         for solution_num, initial_values in enumerate(initial_values_to_use):
+            # Convert initial values to floats
+            num_init_values = initial_values.size
+            initial_values_float = np.empty(2 * num_init_values, dtype=np.float64)
+            for i in num_init_values:
+                initial_values_float[2 * i] = np.real(initial_values[i])
+                initial_values_float[2 * i + 1] = np.imag(initial_values[i])
+
             # Start integration routine
             time_domain, y_results, success, message = \
-                integrator(diffeq, radial_span, initial_values, args=diffeq_input,
+                integrator(diffeq, radial_span, initial_values_float, args=diffeq_input,
                            rtol=integration_rtol, atol=integration_atol, method=integrator_method, t_eval=layer_radii)
 
             if not success:
