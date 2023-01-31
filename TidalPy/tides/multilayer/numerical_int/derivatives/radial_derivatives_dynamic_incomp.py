@@ -21,7 +21,7 @@ from .....utilities.performance import njit
 from .....utilities.types import FloatArray, NumArray
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def radial_derivatives_solid_general(
     radius: FloatArray,
     radial_functions: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
@@ -126,7 +126,7 @@ def radial_derivatives_solid_general(
     return dy1, dy2, dy3, dy4, dy5, dy6
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def radial_derivatives_liquid_general(
     radius: FloatArray,
     radial_functions: Tuple[NumArray, NumArray, NumArray, NumArray],
