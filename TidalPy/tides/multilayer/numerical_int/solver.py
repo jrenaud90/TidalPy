@@ -285,12 +285,12 @@ def radial_solver(
             # Convert initial values to floats
             num_init_values = initial_values.size
             initial_values_float = np.empty(2 * num_init_values, dtype=np.float64)
-            for i in num_init_values:
-                initial_values_float[2 * i] = np.real(initial_values[i])
-                initial_values_float[2 * i + 1] = np.imag(initial_values[i])
+            for y_i in range(num_init_values):
+                initial_values_float[2 * y_i]     = np.real(initial_values[y_i])
+                initial_values_float[2 * y_i + 1] = np.imag(initial_values[y_i])
 
             # Start integration routine
-            time_domain, y_results, success, message = \
+            time_domain, y_results_float, success, message = \
                 integrator(diffeq, radial_span, initial_values_float, args=diffeq_input,
                            rtol=integration_rtol, atol=integration_atol, method=integrator_method, t_eval=layer_radii)
 
@@ -298,6 +298,13 @@ def radial_solver(
                 raise IntegrationFailed(f'Integration Solution Failed for layer {layer_i} at solution #{solution_num}.'
                                         f'\n\t{message}')
 
+            # Convert floats back to complex
+            len_t = time_domain.size
+            y_results = np.empty((num_init_values, len_t), dtype=np.complex128)
+            for y_i in range(num_init_values):
+                y_results[y_i, :] = y_results_float[2 * y_i, :] + 1.0j * y_results_float[2 * y_i + 1, :]
+
+            # Store result for layer
             solutions_by_layer[layer_i].append(y_results)
 
         # solutions_by_layer[layer_i] = tuple(solutions_by_layer[layer_i])

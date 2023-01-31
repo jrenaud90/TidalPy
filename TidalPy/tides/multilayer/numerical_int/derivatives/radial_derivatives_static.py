@@ -153,7 +153,7 @@ def radial_derivatives_solid_general(
     dy3_real = np.real(dy3)
     dy3_imag = np.imag(dy3)
     dy4_real = np.real(dy4)
-    dy4_imag = np.imag(dy5)
+    dy4_imag = np.imag(dy4)
     dy5_real = np.real(dy5)
     dy5_imag = np.imag(dy5)
     dy6_real = np.real(dy6)
