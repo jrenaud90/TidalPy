@@ -14,7 +14,7 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple
+import numpy as np
 
 from .....constants import G, pi
 from .....utilities.performance import njit
@@ -24,11 +24,11 @@ from .....utilities.types import FloatArray, NumArray
 @njit(cacheable=False)
 def radial_derivatives_solid_general(
     radius: FloatArray,
-    radial_functions: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
+    radial_functions: np.ndarray,
     shear_modulus: NumArray, bulk_modulus: NumArray, density: FloatArray,
     gravity: FloatArray, frequency: FloatArray,
     order_l: int = 2, G_to_use: float = G
-    ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
+    ) -> np.ndarray:
     """ Calculates the radial derivative of the radial functions in the most general form - for solid layers.
 
     Allows for compressibility and dynamic tides.
@@ -45,7 +45,7 @@ def radial_derivatives_solid_general(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    radial_functions : np.ndarray
         Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
     shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
@@ -65,33 +65,47 @@ def radial_derivatives_solid_general(
 
     Returns
     -------
-    radial_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    radial_derivatives : np.ndarray
         The derivatives of the radial functions for a solid layer (dynamic assumption)
 
     """
 
-    y1 = radial_functions[0]
-    y2 = radial_functions[1]
-    y3 = radial_functions[2]
-    y4 = radial_functions[3]
-    y5 = radial_functions[4]
-    y6 = radial_functions[5]
+    y1_real = radial_functions[0]
+    y1_imag = radial_functions[1]
+    y2_real = radial_functions[2]
+    y2_imag = radial_functions[3]
+    y3_real = radial_functions[4]
+    y3_imag = radial_functions[5]
+    y4_real = radial_functions[6]
+    y4_imag = radial_functions[7]
+    y5_real = radial_functions[8]
+    y5_imag = radial_functions[9]
+    y6_real = radial_functions[10]
+    y6_imag = radial_functions[11]
+
+    # Convert floats to complex
+    y1 = y1_real + 1.0j * y1_imag
+    y2 = y2_real + 1.0j * y2_imag
+    y3 = y3_real + 1.0j * y3_imag
+    y4 = y4_real + 1.0j * y4_imag
+    y5 = y5_real + 1.0j * y5_imag
+    y6 = y6_real + 1.0j * y6_imag
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     lame = (bulk_modulus - (2. / 3.) * shear_modulus)
 
     # Optimizations
-    lp1 = order_l + 1.
-    lm1 = order_l - 1.
-    llp1 = order_l * lp1
-    lame_2mu = lame + 2. * shear_modulus
+    lp1              = order_l + 1.
+    lm1              = order_l - 1.
+    llp1             = order_l * lp1
+    lame_2mu         = lame + 2. * shear_modulus
     lame_2mu_inverse = 1. / lame_2mu
-    r_inverse = 1. / radius
-    two_shear_r_inv = 2. * shear_modulus * r_inverse
-    density_gravity = density * gravity
-    dynamic_term = -frequency * frequency * density * radius
-    grav_term = 4. * pi * G_to_use * density
-    y1_y3_term = 2. * y1 - llp1 * y3
+    r_inverse        = 1. / radius
+    two_shear_r_inv  = 2. * shear_modulus * r_inverse
+    density_gravity  = density * gravity
+    dynamic_term     = -frequency * frequency * density * radius
+    grav_term        = 4. * pi * G_to_use * density
+    y1_y3_term       = 2. * y1 - llp1 * y3
 
     # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
     #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
@@ -136,17 +150,36 @@ def radial_derivatives_solid_general(
             y1_y3_term * grav_term
     )
 
-    return dy1, dy2, dy3, dy4, dy5, dy6
+    # Convert back to floats
+    dy1_real = np.real(dy1)
+    dy1_imag = np.imag(dy1)
+    dy2_real = np.real(dy2)
+    dy2_imag = np.imag(dy2)
+    dy3_real = np.real(dy3)
+    dy3_imag = np.imag(dy3)
+    dy4_real = np.real(dy4)
+    dy4_imag = np.imag(dy4)
+    dy5_real = np.real(dy5)
+    dy5_imag = np.imag(dy5)
+    dy6_real = np.real(dy6)
+    dy6_imag = np.imag(dy6)
+
+    dy = np.asarray(
+            (dy1_real, dy1_imag, dy2_real, dy2_imag, dy3_real, dy3_imag,
+             dy4_real, dy4_imag, dy5_real, dy5_imag, dy6_real, dy6_imag),
+            dtype=np.float64)
+
+    return dy
 
 
 @njit(cacheable=False)
 def radial_derivatives_liquid_general(
     radius: FloatArray,
-    radial_functions: Tuple[NumArray, NumArray, NumArray, NumArray],
+    radial_functions: np.ndarray,
     bulk_modulus: NumArray, density: FloatArray,
     gravity: FloatArray, frequency: FloatArray,
     order_l: int = 2, G_to_use: float = G
-    ) -> Tuple[NumArray, NumArray, NumArray, NumArray]:
+    ) -> np.ndarray:
     """ Calculates the radial derivative of the radial functions in the most general form - for liquid layers.
 
     Allows for compressibility and dynamic tides.
@@ -160,7 +193,7 @@ def radial_derivatives_liquid_general(
     ----------
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
-    radial_functions : Tuple[ComplexArray, ComplexArray, ComplexArray, ComplexArray]
+    radial_functions : np.ndarray
         Tuple of radial functions for a solid layer (y1, y2, y5, y6)
     bulk_modulus : NumArray
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
@@ -178,16 +211,26 @@ def radial_derivatives_liquid_general(
 
     Returns
     -------
-    radial_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray]
+    radial_derivatives : np.ndarray
         The derivatives of the radial functions for a liquid layer (dynamic assumption)
 
     """
 
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
-    y1 = radial_functions[0]
-    y2 = radial_functions[1]
-    y5 = radial_functions[2]
-    y6 = radial_functions[3]
+    y1_real = radial_functions[0]
+    y1_imag = radial_functions[1]
+    y2_real = radial_functions[2]
+    y2_imag = radial_functions[3]
+    y5_real = radial_functions[4]
+    y5_imag = radial_functions[5]
+    y6_real = radial_functions[6]
+    y6_imag = radial_functions[7]
+
+    # Convert floats to complex
+    y1 = y1_real + 1.0j * y1_imag
+    y2 = y2_real + 1.0j * y2_imag
+    y5 = y5_real + 1.0j * y5_imag
+    y6 = y6_real + 1.0j * y6_imag
 
     # Convert compressibility parameters (the first lame parameter can be complex)
     # For the liquid layer it is assumed that the shear modulus is zero so the lame parameter simply
@@ -195,20 +238,20 @@ def radial_derivatives_liquid_general(
     lame = bulk_modulus
 
     # Optimizations
-    lp1 = order_l + 1.
-    lm1 = order_l - 1.
-    llp1 = order_l * lp1
-    lame_inverse = 1. / lame
-    r_inverse = 1. / radius
-    density_gravity = density * gravity
-    f2 = frequency * frequency
+    lp1               = order_l + 1.
+    lm1               = order_l - 1.
+    llp1              = order_l * lp1
+    lame_inverse      = 1. / lame
+    r_inverse         = 1. / radius
+    density_gravity   = density * gravity
+    f2                = frequency * frequency
     dynamic_term_no_r = -f2 * density
-    dynamic_term = dynamic_term_no_r * radius
-    grav_term = 4. * pi * G_to_use * density
+    dynamic_term      = dynamic_term_no_r * radius
+    grav_term         = 4. * pi * G_to_use * density
 
     # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
     #   other derivatives.
-    y3 = (1. / dynamic_term) * (y2 - density_gravity * y1 + density * y5)
+    y3         = (1. / dynamic_term) * (y2 - density_gravity * y1 + density * y5)
     y1_y3_term = 2. * y1 - llp1 * y3
 
     # Eqs. 11--14 in KMN15 equations look like they don't match TS72 because they applied the rheology already.
@@ -255,4 +298,17 @@ def radial_derivatives_liquid_general(
     #     y5 * (4. * pi * llp1 * density * G_to_use / (frequency**2 * radius**2)) + \
     #     y6 * (lm1 / radius)
 
-    return dy1, dy2, dy5, dy6
+    # Convert back to floats
+    dy1_real = np.real(dy1)
+    dy1_imag = np.imag(dy1)
+    dy2_real = np.real(dy2)
+    dy2_imag = np.imag(dy2)
+    dy5_real = np.real(dy5)
+    dy5_imag = np.imag(dy5)
+    dy6_real = np.real(dy6)
+    dy6_imag = np.imag(dy6)
+
+    dy = np.asarray((dy1_real, dy1_imag, dy2_real, dy2_imag, dy5_real, dy5_imag, dy6_real, dy6_imag),
+                    dtype=np.float64)
+
+    return dy
