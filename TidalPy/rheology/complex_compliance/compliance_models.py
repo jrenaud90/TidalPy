@@ -40,7 +40,7 @@ of tides.
 
 import numpy as np
 
-from ...utilities.performance.numba import find_factorial, njit
+from ...utilities.performance import find_factorial, njit
 from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
 
 

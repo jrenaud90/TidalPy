@@ -35,7 +35,7 @@ except ImportError:
 
 numbalsoda_installed = False
 try:
-    from numbalsoda import lsoda_sig, lsoda
+    from numbalsoda import lsoda_sig, lsoda, dop853 as ns_dop853
     numbalsoda_installed = True
 
 except ImportError:
@@ -43,6 +43,9 @@ except ImportError:
         return func
 
     def lsoda(diffeq, y0, t_eval, params):
+        return None, None
+
+    def ns_dop853(diffeq, y0, t_eval, params):
         return None, None
 
 

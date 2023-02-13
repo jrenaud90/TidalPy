@@ -43,7 +43,8 @@ def radial_derivatives_solid_general(
     radius : FloatArray
         Radius where the radial functions are calculated. [m; or dimensionless]
     radial_functions : np.ndarray
-        Tuple of radial functions for a solid layer (y1, y2, y3, y4, y5, y6)
+        Tuple of radial functions for a solid layer broken up into real and imaginary portions.
+        (y1_real, y1_imag, y2_real, y2_imag, y3_real, y3_imag, y4_real, y4_imag, y5_real, y5_imag, y6_real, y6_imag)
     shear_modulus : NumArray
         Shear modulus (can be complex for dissipation) at `radius` [Pa; or dimensionless]
     bulk_modulus : NumArray
@@ -145,24 +146,22 @@ def radial_derivatives_solid_general(
             y1_y3_term * grav_term
     )
 
-    # Convert back to floats
-    dy1_real = np.real(dy1)
-    dy1_imag = np.imag(dy1)
-    dy2_real = np.real(dy2)
-    dy2_imag = np.imag(dy2)
-    dy3_real = np.real(dy3)
-    dy3_imag = np.imag(dy3)
-    dy4_real = np.real(dy4)
-    dy4_imag = np.imag(dy4)
-    dy5_real = np.real(dy5)
-    dy5_imag = np.imag(dy5)
-    dy6_real = np.real(dy6)
-    dy6_imag = np.imag(dy6)
+    # Build output
+    dy = np.empty(12, dtype=np.float64)
 
-    dy = np.asarray(
-            (dy1_real, dy1_imag, dy2_real, dy2_imag, dy3_real, dy3_imag,
-             dy4_real, dy4_imag, dy5_real, dy5_imag, dy6_real, dy6_imag),
-            dtype=np.float64)
+    # Convert back to floats
+    dy[0] = np.real(dy1)
+    dy[1] = np.imag(dy1)
+    dy[2] = np.real(dy2)
+    dy[3] = np.imag(dy2)
+    dy[4] = np.real(dy3)
+    dy[5] = np.imag(dy3)
+    dy[6] = np.real(dy4)
+    dy[7] = np.imag(dy4)
+    dy[8] = np.real(dy5)
+    dy[9] = np.imag(dy5)
+    dy[10] = np.real(dy6)
+    dy[11] = np.imag(dy6)
 
     return dy
 
@@ -188,7 +187,8 @@ def radial_derivatives_liquid_general(
     radius : FloatArray
         Radius where the radial functions are calculated. [m]
     radial_functions : np.ndarray
-        Tuple of radial functions for a solid layer (y5, y7)
+        Tuple of radial functions for a solid layer broken up into real and imaginary portions.
+        (y5_real, y5_imag, y7_real, y6_imag)
     density : FloatArray
         Density at `radius` [kg m-3]
     gravity : FloatArray
@@ -229,14 +229,13 @@ def radial_derivatives_liquid_general(
         y5 * 2. * (order_l - 1.) * r_inverse * grav_term + \
         y7 * ((order_l - 1.) * r_inverse - grav_term)
 
-    # Convert back to floats
-    dy5_real = np.real(dy5)
-    dy5_imag = np.imag(dy5)
-    dy7_real = np.real(dy7)
-    dy7_imag = np.imag(dy7)
+    # Build output
+    dy = np.empty(4, dtype=np.float64)
 
-    dy = np.asarray(
-            (dy5_real, dy5_imag, dy7_real, dy7_imag),
-            dtype=np.float64)
+    # Convert back to floats
+    dy[0] = np.real(dy5)
+    dy[1] = np.imag(dy5)
+    dy[2] = np.real(dy7)
+    dy[3] = np.imag(dy7)
 
     return dy

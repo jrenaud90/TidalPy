@@ -1,10 +1,9 @@
 # TidalPy Major Change Log
 
-### Version 0.4.0 Alpha (Winter 2022/2023)
-
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
-  * Can now use a cython implementation along with scipys, numba, and julia (this is not working atm)
+
+### Version 0.4.0 Alpha (Winter 2022/2023)
 
 * Major Changes 
   * Added a multilayer tidal potential that allows for arbitrary obliquity.
@@ -33,6 +32,12 @@
   * Refactored `tidal_y_solver` to `radial_solver` since non-tidal calculations can be made with it.
     * **Breaks Old Code (pre v0.4.0.dev11)**
   * Switched from `setup.py` to a streamlined `pyproject.toml` installation process.
+  * Changes to radial ODE's
+    * Input arguments and output diffeqs are now passed as numpy arrays rather than tuples.
+    * Input and outputs are now passed as floats not complex (doubling the number of terms)
+  * Added `numba-scipy` dependence to allow the use of scipy's special functions. 
+    * Removed the pre-calculated factorial method. Using scipy's gamma now.
+    * TODO: Note the numba-scipy package on github is not updated to the newest version of scipy. Packaging numba-scipy with TidalPy for now.
 
 * Performance Improvements
   * Improved the performance of the pure-numba radial solve by ~10%
@@ -55,6 +60,7 @@
   * Fixed a bug when using SciPy's Radau integrator method.
   * The version number is now checked with importlib in TidalPy.__init__. Version number should only be changed in the pyproject.toml.
   * Updated the pure-numba version of the radial solver's argument signature to better match the python implementation.
+  * Updated Github Actions
 
 * Bug Fixes
   * Fixed bug in GridPlot related to number of subplots.

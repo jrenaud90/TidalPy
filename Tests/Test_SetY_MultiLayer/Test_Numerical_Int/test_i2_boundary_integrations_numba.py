@@ -33,14 +33,13 @@ def test_calculate_homogen():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True], is_static_by_layer=[True],
-            indices_by_layer=[np.ones(radius_array_to_use.shape, dtype=np.bool)],
+            is_solid_by_layer=(True,), is_static_by_layer=(True,),
+            indices_by_layer=(np.ones(radius_array_to_use.shape, dtype=np.bool),),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -50,14 +49,13 @@ def test_calculate_homogen():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True], is_static_by_layer=[False],
-            indices_by_layer=[np.ones(radius_array_to_use.shape, dtype=np.bool)],
+            is_solid_by_layer=(True,), is_static_by_layer=(False,),
+            indices_by_layer=(np.ones(radius_array_to_use.shape, dtype=np.bool),),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -77,14 +75,13 @@ def test_calculate_ls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[True, True],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(True, True),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -94,14 +91,13 @@ def test_calculate_ls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[False, False],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(False, False),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -114,14 +110,13 @@ def test_calculate_ls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[True, False],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(True, False),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -131,14 +126,13 @@ def test_calculate_ls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[False, True],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(False, True),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -152,14 +146,13 @@ def test_calculate_ls_load_number():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[True, True],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(True, True),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=True,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -169,14 +162,13 @@ def test_calculate_ls_load_number():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[False, False],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(False, False),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=True,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -189,14 +181,13 @@ def test_calculate_ls_load_number():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[True, False],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(True, False),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=True,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -206,14 +197,13 @@ def test_calculate_ls_load_number():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[False, True], is_static_by_layer=[False, True],
-            indices_by_layer=[ls_layer_0_indx, ls_layer_1_indx],
+            is_solid_by_layer=(False, True), is_static_by_layer=(False, True),
+            indices_by_layer=(ls_layer_0_indx, ls_layer_1_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=True,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -234,14 +224,13 @@ def test_calculate_sls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, False, True], is_static_by_layer=[True, True, True],
-            indices_by_layer=[sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx],
+            is_solid_by_layer=(True, False, True), is_static_by_layer=(True, True, True),
+            indices_by_layer=(sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -251,14 +240,13 @@ def test_calculate_sls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, False, True], is_static_by_layer=[False, False, False],
-            indices_by_layer=[sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx],
+            is_solid_by_layer=(True, False, True), is_static_by_layer=(False, False, False),
+            indices_by_layer=(sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -271,14 +259,13 @@ def test_calculate_sls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, False, True], is_static_by_layer=[False, True, False],
-            indices_by_layer=[sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx],
+            is_solid_by_layer=(True, False, True), is_static_by_layer=(False, True, False),
+            indices_by_layer=(sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False,
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True,
             )
 
     assert tidal_y.shape == (6, 10)
@@ -288,14 +275,13 @@ def test_calculate_sls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_sls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, False, True], is_static_by_layer=[True, False, True],
-            indices_by_layer=[sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx],
+            is_solid_by_layer=(True, False, True), is_static_by_layer=(True, False, True),
+            indices_by_layer=(sls_layer_0_indx, sls_layer_1_indx, sls_layer_2_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -317,14 +303,13 @@ def test_calculate_ssls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, True, False, True], is_static_by_layer=[True, True, True, True],
-            indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+            is_solid_by_layer=(True, True, False, True), is_static_by_layer=(True, True, True, True),
+            indices_by_layer=(ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -334,14 +319,13 @@ def test_calculate_ssls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, True, False, True], is_static_by_layer=[False, False, False, False],
-            indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+            is_solid_by_layer=(True, True, False, True), is_static_by_layer=(False, False, False, False),
+            indices_by_layer=(ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -354,14 +338,13 @@ def test_calculate_ssls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, True, False, True], is_static_by_layer=[False, False, True, False],
-            indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+            is_solid_by_layer=(True, True, False, True), is_static_by_layer=(False, False, True, False),
+            indices_by_layer=(ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False,
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True,
             )
 
     assert tidal_y.shape == (6, 10)
@@ -371,14 +354,13 @@ def test_calculate_ssls():
     tidal_y = radial_solver(
             radius=radius_array_to_use, shear_modulus=shear_array_ssls, bulk_modulus=bulk_array,
             density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=bulk_density,
-            is_solid_by_layer=[True, True, False, True], is_static_by_layer=[True, False, True, True],
-            indices_by_layer=[ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx],
+            is_solid_by_layer=(True, True, False, True), is_static_by_layer=(True, False, True, True),
+            indices_by_layer=(ssls_layer_0_indx, ssls_layer_1_indx, ssls_layer_2_indx, ssls_layer_3_indx),
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -442,9 +424,8 @@ def test_calculate_lsls():
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False,
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True,
             incompressible=False
             )
 
@@ -495,9 +476,8 @@ def test_calculate_sl_static():
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False,
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True,
             incompressible=False
             )
 
@@ -548,9 +528,8 @@ def test_calculate_sl_dynamic():
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            int_rtol=1.0e-6, int_atol=1.0e-8,
-            rk_method=1,
-            verbose=False, nondimensionalize=False,
+            integration_rtol=1.0e-8, integration_atol=1.0e-9, integration_method=1,
+            verbose=False, nondimensionalize=True,
             incompressible=False
             )
 

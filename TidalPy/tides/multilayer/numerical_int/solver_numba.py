@@ -125,16 +125,23 @@ def _single_layer_integrate(
         radius_array, shear_modulus_array, bulk_modulus_array, density_array,
         gravity_array, order_l, G_to_use, incompressible, integration_rtol, integration_atol, rk_method
         ):
+
+    len_r = radius_array.size
     solution_num = 0
     layer_solutions = nbList()
     for initial_values in initial_values_to_use:
-        initial_values_copy = np.ascontiguousarray(initial_values.copy())
+        # Convert initial values from n complex numbers to 2n floats
+        num_initial_values = initial_values.size
+        initial_values_float = np.empty(2 * num_initial_values, dtype=np.float64)
+        for y_i in range(num_initial_values):
+            initial_values_float[2 * y_i]     = np.real(initial_values[y_i])
+            initial_values_float[2 * y_i + 1] = np.imag(initial_values[y_i])
 
         if layer_is_solid:
             if layer_is_static:
                 ts, ys, success, message, = \
                     _nbrk_ode(
-                            static_solid_ode, radial_span, initial_values_copy,
+                            static_solid_ode, radial_span, initial_values_float,
                             args=(radius_array, shear_modulus_array, bulk_modulus_array,
                                   density_array, gravity_array, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
@@ -144,7 +151,7 @@ def _single_layer_integrate(
             else:
                 ts, ys, success, message, = \
                     _nbrk_ode(
-                            dynamic_solid_ode, radial_span, initial_values_copy,
+                            dynamic_solid_ode, radial_span, initial_values_float,
                             args=(radius_array, shear_modulus_array, bulk_modulus_array,
                                   density_array, gravity_array, frequency, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
@@ -155,7 +162,7 @@ def _single_layer_integrate(
             if layer_is_static:
                 ts, ys, success, message, = \
                     _nbrk_ode(
-                            static_liquid_ode, radial_span, initial_values_copy,
+                            static_liquid_ode, radial_span, initial_values_float,
                             args=(radius_array, density_array,
                                   gravity_array, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
@@ -165,7 +172,7 @@ def _single_layer_integrate(
             else:
                 ts, ys, success, message, = \
                     _nbrk_ode(
-                            dynamic_liquid_ode, radial_span, initial_values_copy,
+                            dynamic_liquid_ode, radial_span, initial_values_float,
                             args=(radius_array, bulk_modulus_array, density_array,
                                   gravity_array, frequency, order_l, G_to_use, incompressible),
                             rk_method=rk_method,
@@ -174,9 +181,17 @@ def _single_layer_integrate(
                             )
 
         if not success:
+            print(message)
             raise Exception('Integration Solution Failed.')
 
-        layer_solutions.append(ys)
+        # Convert floats back to complex
+        ys_complex = np.empty((num_initial_values, len_r), dtype=np.complex128)
+        for y_i in range(num_initial_values):
+            for r_i in range(len_r):
+                ys_complex[y_i, r_i] = ys[2 * y_i, r_i] + 1.0j * ys[2 * y_i + 1, r_i]
+
+        # Store solution
+        layer_solutions.append(ys_complex)
         solution_num += 1
 
     return layer_solutions

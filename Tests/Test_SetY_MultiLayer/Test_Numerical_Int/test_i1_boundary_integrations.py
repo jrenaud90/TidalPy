@@ -40,7 +40,7 @@ def test_calculate_homogen():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -57,7 +57,7 @@ def test_calculate_homogen():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -84,7 +84,7 @@ def test_calculate_ls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -101,7 +101,7 @@ def test_calculate_ls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -121,7 +121,7 @@ def test_calculate_ls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -138,7 +138,7 @@ def test_calculate_ls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -159,7 +159,7 @@ def test_calculate_ls_load_numbers():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -178,7 +178,7 @@ def test_calculate_ls_load_numbers():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -197,7 +197,7 @@ def test_calculate_ls_load_numbers():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -216,7 +216,7 @@ def test_calculate_ls_load_numbers():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -246,7 +246,7 @@ def test_calculate_sls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -263,7 +263,7 @@ def test_calculate_sls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -283,7 +283,7 @@ def test_calculate_sls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -300,7 +300,7 @@ def test_calculate_sls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -329,7 +329,7 @@ def test_calculate_ssls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -346,7 +346,7 @@ def test_calculate_ssls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -366,7 +366,7 @@ def test_calculate_ssls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -383,7 +383,7 @@ def test_calculate_ssls():
             use_kamata=False,
             integrator='scipy', integration_method=None,
             integration_rtol=1.0e-6, integration_atol=1.0e-8,
-            verbose=False, nondimensionalize=False
+            verbose=False, nondimensionalize=True
             )
 
     assert tidal_y.shape == (6, 10)
@@ -447,9 +447,9 @@ def test_calculate_lsls():
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            integrator='numba', integration_method=None,
+            integrator='scipy', integration_method=None,
             integration_rtol=1.0e-9, integration_atol=1.0e-10,
-            verbose=False, nondimensionalize=False,
+            verbose=False, nondimensionalize=True,
             incompressible=False
             )
 
@@ -500,9 +500,9 @@ def test_calculate_sl_static():
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            integrator='numba', integration_method=None,
+            integrator='scipy', integration_method=None,
             integration_rtol=1.0e-9, integration_atol=1.0e-10,
-            verbose=False, nondimensionalize=False,
+            verbose=False, nondimensionalize=True,
             incompressible=False
             )
 
@@ -553,9 +553,9 @@ def test_calculate_sl_dynamic():
             order_l=2,
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=False,
-            integrator='numba', integration_method=None,
+            integrator='scipy', integration_method=None,
             integration_rtol=1.0e-12, integration_atol=1.0e-13,
-            verbose=False, nondimensionalize=False,
+            verbose=False, nondimensionalize=True,
             incompressible=False
             )
 

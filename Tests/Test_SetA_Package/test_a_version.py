@@ -3,6 +3,6 @@ def test_version():
     import TidalPy
     TidalPy.test_mode()
 
-    from TidalPy._version import version
+    from TidalPy import version
 
     assert version is not None

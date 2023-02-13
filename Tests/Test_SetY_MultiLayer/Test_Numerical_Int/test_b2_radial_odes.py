@@ -27,15 +27,8 @@ frequency = 2. * np.pi / (86400. * 1.)
 def test_derivatives_solid_static():
     """ Tests the calculation of radial ODE for a solid layer using the static assumption """
 
-    # Initialize 6 fake radial function solutions
-    radial_funcs = (
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j
-        )
+    # Initialize 6 (increased to 12 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(12, dtype=np.float64)
 
     # Test for l=2
     solid_derivative = static_solid_ode(
@@ -43,10 +36,10 @@ def test_derivatives_solid_static():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, order_l=2
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     solid_derivative = static_solid_ode(
@@ -54,23 +47,16 @@ def test_derivatives_solid_static():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, order_l=3
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
 def test_derivatives_solid_static_incomp():
     """ Tests the calculation of radial ODE for a solid layer using the static and incompressible assumption """
 
-    # Initialize 6 fake radial function solutions
-    radial_funcs = (
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j,
-            10. + 1.j
-        )
+    # Initialize 6 (increased to 12 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(12, dtype=np.float64)
 
     # Test for l=2
     solid_derivative = static_solid_ode(
@@ -78,10 +64,10 @@ def test_derivatives_solid_static_incomp():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, order_l=2, incompressible=True
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     solid_derivative = static_solid_ode(
@@ -89,24 +75,17 @@ def test_derivatives_solid_static_incomp():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, order_l=3, incompressible=True
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
 
 def test_derivatives_solid_dynamic():
     """ Tests the calculation of radial derivatives for a solid layer using the dynamic assumption """
 
-    # Initialize 6 fake radial function solutions
-    radial_funcs = (
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j
-        )
+    # Initialize 6 (increased to 12 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(12, dtype=np.float64)
 
     # Test for l=2
     solid_derivative = dynamic_solid_ode(
@@ -114,10 +93,10 @@ def test_derivatives_solid_dynamic():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, frequency, order_l=2
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     solid_derivative = dynamic_solid_ode(
@@ -125,23 +104,16 @@ def test_derivatives_solid_dynamic():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, frequency, order_l=3
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
 def test_derivatives_solid_dynamic_incomp():
     """ Tests the calculation of radial derivatives for a solid layer using the dynamic and incompressible assumption """
 
-    # Initialize 6 fake radial function solutions
-    radial_funcs = (
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j
-        )
+    # Initialize 6 (increased to 12 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(12, dtype=np.float64)
 
     # Test for l=2
     solid_derivative = dynamic_solid_ode(
@@ -149,10 +121,10 @@ def test_derivatives_solid_dynamic_incomp():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, frequency, order_l=2, incompressible=True
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     solid_derivative = dynamic_solid_ode(
@@ -160,19 +132,16 @@ def test_derivatives_solid_dynamic_incomp():
         radius_array_to_use, shear_array, bulk_array,
         density_array, gravity_array, frequency, order_l=3, incompressible=True
         )
-    assert type(solid_derivative) == tuple
-    assert len(solid_derivative) == 6
-    for y_i in range(6):
-        assert type(solid_derivative[y_i]) in [complex, np.complex128]
+    assert type(solid_derivative) == np.ndarray
+    assert len(solid_derivative) == 12
+    for y_i in range(12):
+        assert type(solid_derivative[y_i]) in [float, np.float64]
 
 def test_derivatives_liquid_static():
     """ Tests the calculation of radial derivatives for a liquid layer using the static assumption """
 
-    # Initialize 2 fake radial function solutions
-    radial_funcs = (
-        10. + 1.j,
-        10. + 1.j
-        )
+    # Initialize 2 (increased to 4 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(4, dtype=np.float64)
 
     # Test for l=2
     liquid_derivative = static_liquid_ode(
@@ -180,10 +149,10 @@ def test_derivatives_liquid_static():
         radius_array_to_use, density_array, gravity_array,
         order_l=2
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 2
-    for y_i in range(2):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 4
+    for y_i in range(4):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     liquid_derivative = static_liquid_ode(
@@ -191,19 +160,16 @@ def test_derivatives_liquid_static():
         radius_array_to_use, density_array, gravity_array,
         order_l=3
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 2
-    for y_i in range(2):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 4
+    for y_i in range(4):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
 def test_derivatives_liquid_static_incomp():
     """ Tests the calculation of radial derivatives for a liquid layer using the static and incompressible assumption """
 
-    # Initialize 2 fake radial function solutions
-    radial_funcs = (
-        10. + 1.j,
-        10. + 1.j
-        )
+    # Initialize 2 (increased to 4 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(4, dtype=np.float64)
 
     # Test for l=2
     liquid_derivative = static_liquid_ode(
@@ -211,10 +177,10 @@ def test_derivatives_liquid_static_incomp():
         radius_array_to_use, density_array, gravity_array,
         order_l=2, incompressible=True
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 2
-    for y_i in range(2):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 4
+    for y_i in range(4):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     liquid_derivative = static_liquid_ode(
@@ -222,21 +188,16 @@ def test_derivatives_liquid_static_incomp():
         radius_array_to_use, density_array, gravity_array,
         order_l=3, incompressible=True
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 2
-    for y_i in range(2):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 4
+    for y_i in range(4):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
 def test_derivatives_liquid_dynamic():
     """ Tests the calculation of radial derivatives for a liquid layer using the dynamic assumption """
 
-    # Initialize 4 fake radial function solutions
-    radial_funcs = (
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j
-        )
+    # Initialize 4 (increased to 8 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(8, dtype=np.float64)
 
     # Test for l=2
     liquid_derivative = dynamic_liquid_ode(
@@ -244,10 +205,10 @@ def test_derivatives_liquid_dynamic():
         radius_array_to_use, bulk_array, density_array,
         gravity_array, frequency, order_l=2
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 4
-    for y_i in range(4):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 8
+    for y_i in range(8):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     liquid_derivative = dynamic_liquid_ode(
@@ -255,21 +216,16 @@ def test_derivatives_liquid_dynamic():
         radius_array_to_use, bulk_array,
         density_array, gravity_array, frequency, order_l=3
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 4
-    for y_i in range(4):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 8
+    for y_i in range(8):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
 def test_derivatives_liquid_dynamic_incomp():
     """ Tests the calculation of radial derivatives for a liquid layer using the dynamic and incompressible assumption """
 
-    # Initialize 4 fake radial function solutions
-    radial_funcs = (
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j,
-        10. + 1.j
-        )
+    # Initialize 4 (increased to 8 for complex->float) fake radial function solutions
+    radial_funcs = (10. + 1.0j) * np.ones(8, dtype=np.float64)
 
     # Test for l=2
     liquid_derivative = dynamic_liquid_ode(
@@ -277,10 +233,10 @@ def test_derivatives_liquid_dynamic_incomp():
         radius_array_to_use, bulk_array, density_array,
         gravity_array, frequency, order_l=2, incompressible=True
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 4
-    for y_i in range(4):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 8
+    for y_i in range(8):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
 
     # Test for l=3
     liquid_derivative = dynamic_liquid_ode(
@@ -288,7 +244,7 @@ def test_derivatives_liquid_dynamic_incomp():
         radius_array_to_use, bulk_array,
         density_array, gravity_array, frequency, order_l=3, incompressible=True
         )
-    assert type(liquid_derivative) == tuple
-    assert len(liquid_derivative) == 4
-    for y_i in range(4):
-        assert type(liquid_derivative[y_i]) in [complex, np.complex128]
+    assert type(liquid_derivative) == np.ndarray
+    assert len(liquid_derivative) == 8
+    for y_i in range(8):
+        assert type(liquid_derivative[y_i]) in [float, np.float64]
