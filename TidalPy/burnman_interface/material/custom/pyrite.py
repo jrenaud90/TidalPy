@@ -1,9 +1,13 @@
-from burnman.classes.mineral import Mineral
+from . import burnman_installed, Mineral
 
 
 class Pyrite(Mineral):
 
     def __init__(self):
+
+        if not burnman_installed:
+            raise ImportError('Burnman package not found.')
+
         """ Parameters from Thompson et al, 2016 in American Mineralogist Vol 101, Page 1046"""
         self.params = {
             'formula'          : {'Fe': 1., 'Si': 2.},

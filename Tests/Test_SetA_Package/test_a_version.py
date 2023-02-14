@@ -1,5 +1,8 @@
 def test_version():
     # Test Load
-    from TidalPy.version import version
+    import TidalPy
+    TidalPy.test_mode()
+
+    from TidalPy import version
 
     assert version is not None

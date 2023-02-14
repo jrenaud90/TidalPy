@@ -4,14 +4,12 @@
 import numpy as np
 
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.nondimensional import (non_dimensionalize_physicals,
                                                      re_dimensionalize_physicals, re_dimensionalize_radial_func)
 from TidalPy.utilities.types import float_eps
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

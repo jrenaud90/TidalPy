@@ -1,5 +1,79 @@
 # TidalPy Major Change Log
 
+* In-Dev Changes
+  * Added in true incompressible model for multilayer code.
+
+### Version 0.4.0 Alpha (Winter 2022/2023)
+
+* Major Changes 
+  * Added a multilayer tidal potential that allows for arbitrary obliquity.
+  * Added in load Love number calculations to the multilayer code.
+  * Removed a lot of 3rd-party dependencies to make TidalPy's install more lean.
+  * Switched over to using the integrators from the new `CyRK` package
+    * Changed the signature of the numerical-int multilayer solver.
+      * **Breaks Old Code**
+  * Issue with Numba 0.55 and dictionary updates. This restricts TidalPy to Python version 3.9 or lower.
+  * Started a lot of prep work for a move to sphinx or similar for documentation (this will be a 0.5.0 feature).
+  * Created a generalized multi-layer collapse function in `TidalPy.tides.multilayer.numerical_int.collapse`.
+    * This will likely break old code. It was introduced in v0.4.0.dev10.
+    * Arbitrary layer structures can now be fed into the y-solver. e.g., liquid-solid, solid-liquid, liquid-solid-liquid-solid, etc.
+      * Note: Multiple dynamic liquid layers will likely lead to stability problems.
+    * y-solver no longer requires a `model_name` variable. The function will automatically utilize the correct model based on the `is_layer_solid` and `is_layer_static` lists.
+    * Removed the old code that handled individual cases.
+  * Interfaces between multiple liquid layers are now supported (but not well tested).
+    * Two liquid layers of different types can be next to one another (dynamic-static; static-dynamic).
+  * y-solvers functional argument signature has changed (both regular and numba versions)
+    * **Breaks Old Code**
+    * Numerical integrator declaration has changed.
+    * Planet_bulk_density is now a required argument.
+    * Modified several other TidalPy functions to match this new call signature for the y-solver.
+  * Removed the y-derivative return from the propagation matrix (to match the output format of the numerical int)
+    * **Breaks Old Code**
+  * Refactored `tidal_y_solver` to `radial_solver` since non-tidal calculations can be made with it.
+    * **Breaks Old Code (pre v0.4.0.dev11)**
+  * Switched from `setup.py` to a streamlined `pyproject.toml` installation process.
+  * Changes to radial ODE's
+    * Input arguments and output diffeqs are now passed as numpy arrays rather than tuples.
+    * Input and outputs are now passed as floats not complex (doubling the number of terms)
+  * Added `numba-scipy` dependence to allow the use of scipy's special functions. 
+    * Removed the pre-calculated factorial method. Using scipy's gamma now.
+    * TODO: Note the numba-scipy package on github is not updated to the newest version of scipy. Packaging numba-scipy with TidalPy for now.
+
+* Performance Improvements
+  * Improved the performance of the pure-numba radial solve by ~10%
+
+* Minor Changes
+  * Added newer functions to the performance recording suite.
+  * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.
+  * Added TidalPy to Zenodo. DOI added to readme.
+  * Removed Gitter account for now.
+  * Added files and functions to quickly install additional 3rd party applications
+  * Improvements to GitHub workflows
+  * Switched over to using the 3rd party `cmcrameri` colormap package rather than trying to maintain it within tidalpy
+  * Added a delta time to HH:MM:SS converter to utilities.string_helper
+  * Made improvements to multiprocessing user info
+  * Cleaned up & added some docstrings and type hints
+  * Tidal y solver for the prop matrix method no longer returns the y-derivatives.
+    * dy1/dr is now calculated directly in the `decompose()` function.
+  * Created a config helper function `TidalPy.test_mode()` to quickly setup TidalPy configs for pytest'ing
+  * Cleaned up comments and reordered items in `multilayer.numerical_int.collapse`.
+  * Fixed a bug when using SciPy's Radau integrator method.
+  * The version number is now checked with importlib in TidalPy.__init__. Version number should only be changed in the pyproject.toml.
+  * Updated the pure-numba version of the radial solver's argument signature to better match the python implementation.
+  * Updated Github Actions
+
+* Bug Fixes
+  * Fixed bug in GridPlot related to number of subplots.
+  * Fixed bug in global variable for world config loader.
+  * Fixed type hint bug in the numba-based tidal y solver.
+  * Fixed bug that caused numba-based tidal y solver to not compile.
+  * Fixed bug that was causing full TidalPy log to print while in a Jupyter Notebook environment.
+    * If you would like the log to print in a notebook then use `TidalPy.toggle_log_print_in_jupyter()` or set the
+`print_log_in_jupyter` to `True` in the "configurations.py" file.
+  * Fixed an error in the multimode volumetric heating calculation where "_rr", "_thth", "_phiphi" were being double
+counted
+  * Fixed an error in the stress/strain calculations where the static, instead of complex, shear was being used.
+
 ### Version 0.3.5 Alpha (Spring 2022)
 
 * Minor Changes

@@ -2,11 +2,12 @@
 from typing import List, Union
 
 import cartopy.crs as ccrs
+from ..numpy_helper import find_nearest
+from cartopy.mpl.gridliner import Gridliner
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Colormap
 
-from .helper import get_cmap
 from ...io_helper import unique_path
 
 ROTATED_POLE_DEFAULT_INPUT = {
@@ -60,15 +61,16 @@ def projection_map(
     longitude: np.ndarray, colatitude: np.ndarray, data: np.ndarray,
     cpoints: Union[int, List[float]] = 30,
     figure_scale: float = 1., aspect_ratio: float = 2.,
-    cmap: Union[str, Colormap] = 'vik',
+    cmap: Union[str, Colormap] = 'Blues',
     xlabel: str = 'Longitude [deg.]', ylabel: str = 'Latitude [deg.]',
     zlabel: str = '', title: str = '', zlog: bool = False,
-    zticks: list = None, ztick_labels: list = None,
+    zticks: list = None, ztick_labels: list = None, horizontal_cbar: bool = False,
     projection: str = 'Mollweide', original_data_projection: str = 'PlateCarree',
     show_earth_coast: bool = False, show_grid_lines: bool = True,
     ax: plt.Axes = None, cbax: plt.Axes = None,
     auto_save: bool = False, auto_show: bool = True, save_png: bool = False,
-    png_dpi: int = 300, filename: str = 'unknown_projection_plot', rotated_pole_input: dict = None
+    png_dpi: int = 300, filename: str = 'unknown_projection_plot', rotated_pole_input: dict = None,
+    central_longitude: float = 0., dark_mode: bool = False
     ):
     """ Quickly plot surface maps using various kinds of latitude and longitude projections.
 
@@ -137,6 +139,8 @@ def projection_map(
         If provided, these ticks will be used for the colorbar over matplotlib's default.
     ztick_labels : list = None
         If provided, these tick labels will be used for the colorbar over matplotlib's default.
+    horizontal_cbar: bool = False
+        If True, then the colorbar will be placed underneath the plot, horizontally.
     projection : str = 'Mollweide'
         Desired map projection. See function description for options.
     original_data_projection : str = 'PlateCarree'
@@ -149,6 +153,8 @@ def projection_map(
     ax : plt.Axes = None
         If a matplotlib figure axis is provided then the function will use it rather than creating a new figure.
         Note, this disables saving and show figure.
+    cbax : plt.Axes = None
+        Colorbar axis
     auto_save : bool = True
         If True, the figure will be saved to disk.
     auto_show : bool = True
@@ -161,6 +167,8 @@ def projection_map(
         Save name for the image. Can include a directory path.
     rotated_pole_input : dict = None
         Optional inputs for the Rotated Pole projection.
+    central_longitude: float = 0.
+        Longitude at the center of the plot.
 
     Returns
     -------
@@ -170,6 +178,10 @@ def projection_map(
         Image matplotlib axis.
 
     """
+
+    # Dark mode
+    if dark_mode:
+        plt.style.use('dark_background')
 
     # Find projection
     if projection.lower() not in KNOWN_PROJECTIONS:
@@ -187,16 +199,17 @@ def projection_map(
             rotated_pole_input = ROTATED_POLE_DEFAULT_INPUT
         else:
             rotated_pole_input = {**ROTATED_POLE_DEFAULT_INPUT, **rotated_pole_input}
-        projection_instance = projection(**rotated_pole_input)
+        try:
+            # Some versions of cartopy do not have the central longitude argument.
+            projection_instance = projection(central_longitude=central_longitude, **rotated_pole_input)
+        except TypeError:
+            projection_instance = projection(**rotated_pole_input)
     elif projection is None:
         rotated_pole_input = None
         projection_instance = None
     else:
         rotated_pole_input = None
-        projection_instance = projection()
-
-    # Find color map
-    cmap = get_cmap(cmap)
+        projection_instance = projection(central_longitude=central_longitude)
 
     # Make figure
     if ax is None:
@@ -237,8 +250,13 @@ def projection_map(
             )
 
     # Make colorbar
+    if horizontal_cbar:
+        location = 'bottom'
+    else:
+        location = 'right'
+
     if cbax is None:
-        colorbar = plt.colorbar(cbdata, ax=ax)
+        colorbar = plt.colorbar(cbdata, ax=ax, location=location)
     else:
         colorbar = plt.colorbar(cbdata, cax=cbax)
     if zticks is not None:
@@ -246,19 +264,26 @@ def projection_map(
     if ztick_labels is not None:
         colorbar.ax.set_yticklabels(ztick_labels)
 
-    # Plot lat and long gridlines
-    if show_grid_lines:
-        gl = ax.gridlines(
-            draw_labels=['x', 'y', 'bottom', 'left'], linestyle='-', alpha=0.35,
-            xlocs=[-120, -60, 0, 60, 120],
-            ylocs=[-60, -30, 0, 30, 60]
-            )
-        gl.right_labels = False
-        gl.top_labels = False
-
     # Set labels
     ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
     colorbar.set_label(zlabel)
+
+    # Plot lat and long gridlines
+    if show_grid_lines:
+        gl = ax.gridlines(
+            draw_labels={'left':True, 'bottom':False, 'geo':True}, linestyle='-', alpha=0.35, x_inline=False,
+            xlocs=[-120, -60, 0, 60, 120],
+            ylocs=[-60, -30, 0, 30, 60]
+            )
+        # gl.rotate_labels = False
+        if dark_mode:
+            gl.xlabel_style = {'color': 'black'}
+        else:
+            gl.xlabel_style = {'color': 'white'}
+        gl.right_labels = False
+        gl.top_labels = False
+        gl.bottom_labels = False
+
 
     # Save figure
     if auto_save and not premade_ax:

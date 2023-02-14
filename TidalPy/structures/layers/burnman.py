@@ -1,6 +1,17 @@
 from typing import TYPE_CHECKING
+from warnings import warn
 
-import burnman
+burnman_installed = True
+try:
+    import burnman
+except ImportError:
+    burnman_installed = False
+    # Build fake class so type checking passes.
+    class burnman:
+        Planet = None
+        Layer = None
+        Material = None
+
 import numpy as np
 
 from .physics import PhysicsLayer
@@ -49,6 +60,9 @@ class BurnmanLayer(PhysicsLayer):
         initialize : bool = True
             If `True`, then the Layer's reinit is called at the end of the constructor.
         """
+
+        if not burnman_installed:
+            warn('Burnman package not found. BurnmanLayer will have limited functionality.')
 
         super().__init__(layer_name, layer_index, world, layer_config, is_top_layer, initialize=False)
 

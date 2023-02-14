@@ -46,12 +46,12 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> LiquidDynamicGuess:
     # For a dynamic liquid layer there will be two independent solutions
     base_liquid_y_list = nbList()
 
-    for solution in range(2):
+    for solution in (0, 1):
         lower_layer_top_solution = solid_layer_ys[solution][:, -1]
         # For a dynamic liquid layer there will be four y values used.
-        solution_values = np.zeros(4, dtype=lower_layer_top_solution.dtype)
+        solution_values = np.empty(4, dtype=lower_layer_top_solution.dtype)
 
-        # Solve for y_1, y_2, y_5, y_6
+        # Solve for y^liq_1, y^liq_2, y^liq_5, y^liq_6 (TS72 Eq. 143)
         #    Note that the liquid solution does not have y_3, y_4 which are index 2, 3 for solid solution.
         solution_frac = lower_layer_top_solution[3] / solid_layer_ys[2][3, -1]
         solution_values[0] = lower_layer_top_solution[0] - solution_frac * solid_layer_ys[2][0, -1]
@@ -91,15 +91,15 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> LiquidDynamicGuess:
 
 @njit(cacheable=True)
 def dynamic_static(
-    solid_layer_ys: SolidDynamicGuess,
-    interface_gravity: float, liquid_density: float, G_to_use: float = G
-    ) -> LiquidStaticGuess:
+        solid_layer_ys: SolidDynamicGuess,
+        interface_gravity: float, liquid_density: float, G_to_use: float = G
+        ) -> LiquidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a liquid layer that is above a solid
     surface. Assumes dynamic tides in the lower solid layer and static tides in the liquid layer.
 
     References
     ----------
-    Eq. 20 in S74
+    Eq. 21 in S74
 
     Parameters
     ----------
@@ -122,35 +122,42 @@ def dynamic_static(
     # For a static liquid layer there will be one independent solution with 2 y's
     base_liquid_ys = np.empty(2, dtype=solid_layer_ys[0].dtype)
 
-    y4_frac_1 = solid_layer_ys[0][3, -1] / solid_layer_ys[2][3, -1]
-    y4_frac_2 = solid_layer_ys[1][3, -1] / solid_layer_ys[2][3, -1]
+    y4_frac_1 = -solid_layer_ys[0][3, -1] / solid_layer_ys[2][3, -1]
+    y4_frac_2 = -solid_layer_ys[1][3, -1] / solid_layer_ys[2][3, -1]
 
     # gamma_j = (y_2j - f_j y_23) - rho( g(y_1j - f_j y_13) - (y_5j - f_j y_53))
-    gamma_1 = (solid_layer_ys[0][1, -1] - y4_frac_1 * solid_layer_ys[2][1, -1]) - \
-              liquid_density * (interface_gravity * (solid_layer_ys[0][0, -1] - y4_frac_1 * solid_layer_ys[2][0, -1]) -
-                                (solid_layer_ys[0][4, -1] - y4_frac_1 * solid_layer_ys[2][4, -1]))
-    gamma_2 = (solid_layer_ys[1][1, -1] - y4_frac_2 * solid_layer_ys[2][1, -1]) - \
-              liquid_density * (interface_gravity * (solid_layer_ys[1][0, -1] - y4_frac_2 * solid_layer_ys[2][0, -1]) -
-                                (solid_layer_ys[1][4, -1] - y4_frac_2 * solid_layer_ys[2][4, -1]))
+    gamma_1 = (solid_layer_ys[0][1, -1] + y4_frac_1 * solid_layer_ys[2][1, -1]) - \
+              liquid_density * (interface_gravity * (solid_layer_ys[0][0, -1] + y4_frac_1 * solid_layer_ys[2][0, -1]) -
+                                (solid_layer_ys[0][4, -1] + y4_frac_1 * solid_layer_ys[2][4, -1]))
+    gamma_2 = (solid_layer_ys[1][1, -1] + y4_frac_2 * solid_layer_ys[2][1, -1]) - \
+              liquid_density * (interface_gravity * (solid_layer_ys[1][0, -1] + y4_frac_2 * solid_layer_ys[2][0, -1]) -
+                                (solid_layer_ys[1][4, -1] + y4_frac_2 * solid_layer_ys[2][4, -1]))
 
-    base_liquid_ys[0] = solid_layer_ys[0][4, -1] - (gamma_1 / gamma_2) * solid_layer_ys[1][4, -1] - \
-                        (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * solid_layer_ys[2][4, -1]
+    # Set the first coefficient to 1. It will be solved for later on during the collapse phase.
+    coeff_1 = 1.
+    # The other two coefficients are related to 1 via...
+    coeff_2 = -(gamma_1 / gamma_2) * coeff_1
+    coeff_3 = y4_frac_1 * coeff_1 + y4_frac_2 * coeff_2
 
-    y_7_IC_0 = solid_layer_ys[0][5, -1] + (4. * np.pi * G_to_use / interface_gravity) * solid_layer_ys[0][1, -1]
-    y_7_IC_1 = solid_layer_ys[1][5, -1] + (4. * np.pi * G_to_use / interface_gravity) * solid_layer_ys[1][1, -1]
-    y_7_IC_2 = solid_layer_ys[2][5, -1] + (4. * np.pi * G_to_use / interface_gravity) * solid_layer_ys[2][1, -1]
+    y_7_const = (4. * np.pi * G_to_use / interface_gravity)
+    y_7_IC_0 = solid_layer_ys[0][5, -1] + y_7_const * solid_layer_ys[0][1, -1]
+    y_7_IC_1 = solid_layer_ys[1][5, -1] + y_7_const * solid_layer_ys[1][1, -1]
+    y_7_IC_2 = solid_layer_ys[2][5, -1] + y_7_const * solid_layer_ys[2][1, -1]
 
-    base_liquid_ys[1] = y_7_IC_0 - (gamma_1 / gamma_2) * y_7_IC_1 - \
-                        (y4_frac_1 - (gamma_1 / gamma_2) * y4_frac_2) * y_7_IC_2
+    # y^liq_5 = C^sol_1 * y^sol_5,1 + C^sol_2 * y^sol_5,2 + C^sol_3 * y^sol_5,3
+    base_liquid_ys[0] = coeff_1 * solid_layer_ys[0][4, -1] + coeff_2 * solid_layer_ys[1][4, -1] + coeff_3 * \
+                        solid_layer_ys[2][4, -1]
+    # y^liq_7 = C^sol_1 * y^sol_7,1 + C^sol_2 * y^sol_7,2 + C^sol_3 * y^sol_7,3
+    base_liquid_ys[1] = coeff_1 * y_7_IC_0 + coeff_2 * y_7_IC_1 + coeff_3 * y_7_IC_2
 
     return nbList([base_liquid_ys])
 
 
 @njit(cacheable=True)
 def both_static(
-    solid_layer_ys: SolidStaticGuess,
-    interface_gravity: float, liquid_density: float, G_to_use: float = G
-    ) -> LiquidStaticGuess:
+        solid_layer_ys: SolidStaticGuess,
+        interface_gravity: float, liquid_density: float, G_to_use: float = G
+        ) -> LiquidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a liquid layer that is above a solid
     surface. Assumes static tides in both the liquid and solid layers.
 

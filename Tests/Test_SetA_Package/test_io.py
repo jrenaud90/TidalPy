@@ -1,10 +1,7 @@
 from datetime import datetime
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 from TidalPy.io_helper import timestamped_str, unique_path
 

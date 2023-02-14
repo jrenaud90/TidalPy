@@ -11,13 +11,12 @@ B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 from typing import Tuple
 
 import numpy as np
-from numba import prange
 
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def calculate_displacements(
     tidal_potential: FloatArray,
     tidal_potential_partial_theta: FloatArray, tidal_potential_partial_phi: FloatArray,
@@ -61,7 +60,7 @@ def calculate_displacements(
     polar_displacement = np.empty(shape, dtype=np.complex128)
     azimuthal_displacement = np.empty(shape, dtype=np.complex128)
 
-    for ri in prange(radius_n):
+    for ri in range(radius_n):
 
         # Pull out radius dependent values
         y1_ = y1[ri]

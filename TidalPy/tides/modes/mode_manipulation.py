@@ -7,23 +7,24 @@ from ..eccentricity_funcs import EccenOutput
 from ..inclination_funcs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..universal_coeffs import get_universal_coeffs
-from ...utilities.performance.numba import njit
+from ...utilities.performance.numba import njit, prange
 from ...utilities.types import ComplexArray, FloatArray, NoneType
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]
 DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
+UniqueFreqType = Dict[FreqSig, FloatArray]
+ResultsByFreqType = Dict[FreqSig, Dict[int, DissipTermsMix]]
 
-
-@njit(cacheable=True)
+@njit(cacheable=True, parallel=True)
 def calculate_terms(
     spin_frequency: FloatArray, orbital_frequency: FloatArray,
     semi_major_axis: FloatArray, radius: float,
     eccentricity_results_byorderl: Dict[int, EccenOutput],
     obliquity_results_byorderl: Dict[int, InclinOutput],
     multiply_modes_by_sign: bool = True
-    ):
+    ) -> Tuple[UniqueFreqType, ResultsByFreqType]:
     """ Calculate tidal dissipation terms and frequencies based on the current orbital and spin state.
 
     Requires the user to provide the correct eccentricity and inclination functions. This is generally done by the
@@ -52,10 +53,10 @@ def calculate_terms(
 
     Returns
     -------
-    unique_frequencies : Dict[FreqSig, FloatArray]
+    unique_frequencies : UniqueFreqType
         Unique frequency signature and calculate frequency [rad s-1]
         Frequencies are integer combinations of orbital motion and spin-rate.
-    results_by_frequency : Dict[FreqSig, Dict[int, DissipTermsMix]]
+    results_by_frequency : ResultsByFreqType
         Tidal dissipation terms stored for each unique frequency and tidal harmonic order-l.
         At each frequency dissipation terms are stored as:
             heating_term, dUdM_term, dUdw_term, dUdO_term
@@ -63,16 +64,16 @@ def calculate_terms(
 
     See Also
     --------
-    TidalPy.tides.dissipation.calculate_terms
+    TidalPy.tides.dissipation.collapse_modes
     """
 
     # Determine the maximum order l from the eccentricity and obliquity results
     max_order_l_eccen = 1 + len(eccentricity_results_byorderl)
     max_order_l_obliquity = 1 + len(obliquity_results_byorderl)
     if max_order_l_eccen != max_order_l_obliquity:
-        # The maximum order l should be the same for obliquity and eccentricity results.
-        #    Mismatch in eccentricity obliquity function?
-        raise Exception
+        raise Exception("The maximum order l should be the same for obliquity and eccentricity results."
+                        "Mismatch in eccentricity obliquity function?")
+
     max_order_l = max_order_l_eccen
 
     # Storage for results by unique frequency signature. Must provide fake data structures and values so that numba
@@ -207,7 +208,7 @@ def collapse_modes(
     ) -> \
         Tuple[FloatArray, FloatArray, FloatArray, FloatArray,
               Dict[int, ComplexArray], Dict[int, FloatArray], Dict[int, FloatArray]]:
-    """ Collapses the tidal terms calculated by calculate_modes() combined with rheological information from the layer.
+    """ Collapses the tidal terms calculated by calculate_terms() combined with rheological information from the layer.
 
     Parameters
     ----------
@@ -263,8 +264,8 @@ def collapse_modes(
 
     See Also
     --------
-    TidalPy.tides.dissipation.calculate_modes
-    TidalPy.tides.tides.Tides
+    TidalPy.tides.modes.calculate_terms
+    TidalPy.tides.methods.TidesBase
 
     """
 
@@ -429,6 +430,31 @@ def collapse_modes(
 
 
 def find_mode_manipulators(max_order_l: int = 2, eccentricity_truncation_lvl: int = 8, use_obliquity: bool = True):
+    """ Find eccentricity and obliquity functions based on user's desired maximum harmonic order, eccentricity
+    truncation level, and if obliquity tides will be calculated.
+
+    Parameters
+    ----------
+    max_order_l : int = 2
+        Maximum tidal harmonic level.
+    eccentricity_truncation_lvl : int = 8
+        Eccentricity truncation level.
+    use_obliquity : bool = True
+        If True, then obliquity tides will be considered.
+
+    Returns
+    -------
+    calculate_terms : callable
+        Function to calculate tidal dissipation terms and frequencies based on the current orbital and spin state.
+    collapse_modes : callable
+        Collapses the tidal terms calculated by calculate_terms() combined with rheological information from the layer.
+    eccentricity_func : callable
+        Function to calculate the eccentricity function (squared) using the planet's eccentricity.
+    inclination_func : callable
+        Function to calculate the inclination function (squared) using the planet's obliquity.
+
+    """
+
     # Find Eccentricity and Obliquity Functions
     eccentricity_func = eccentricity_functions_lookup[eccentricity_truncation_lvl][max_order_l]
     inclination_func = inclination_functions_lookup[use_obliquity][max_order_l]

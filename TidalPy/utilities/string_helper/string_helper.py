@@ -1,4 +1,58 @@
 from datetime import datetime
+from math import floor
+
+
+def convert_time_to_hhmmss(time: float, return_days: bool = False):
+    """ Convert time from seconds to hours, minutes, seconds
+
+    Parameters
+    ----------
+    time : float
+        Time in seconds
+    return_days : bool = False
+        If True, then days will be calculated in addition to hh, mm, ss
+
+    Returns
+    -------
+    hhmmss_str : str
+        str with hours minutes and seconds
+
+    """
+
+    # Make sure input is a float
+    time = float(time)
+
+    output_str = ''
+
+    # Find number of days
+    if return_days:
+        days = floor(time / (24 * 86400))
+        day_remainder = time % (24 * 86400)
+        output_str += f'{days:02.0f} Days - '
+    else:
+        day_remainder = time
+
+    # Find Hours
+    hours = floor(day_remainder / (60 * 60))
+    hour_remainder = day_remainder % (60 * 60)
+    output_str += f'{hours:02.0f}::'
+
+    # Find Minutes
+    minutes = floor(hour_remainder / 60)
+    minute_remainder = hour_remainder % 60
+    output_str += f'{minutes:02.0f}:'
+
+    # Find Seconds
+    seconds = floor(minute_remainder)
+    seconds_remainder = minute_remainder % 1
+    output_str += f'{seconds:02.0f}:'
+
+    # This function likely won't be called for runs that take less than a second or if it is that info will not
+    #  be particularly helpful to the user (there are better ways to do high performance time tracking).
+    #  So lets just drop everything less than a second.
+    del seconds_remainder
+
+    return output_str
 
 
 def timestamped_str(

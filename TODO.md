@@ -1,3 +1,11 @@
+* Move to yaml format 
+  * For planets
+  * Make a way to yaml whole orbits
+* Convert e^2 and I^2 funcs to precompiled e and I
+* Move Love calculations to own module
+
+
+
 * Parts of the multilayer code (especially the numba-safe calc) do not seem to be fully utilizing numba caching. Reloads are very slow. 
 * Custom RK integrator needs work as do the tests.
 * It looks like only surface potential is required. Change multilayer to only consider the surface radius.

@@ -171,7 +171,7 @@ def tidal_potential(
         )
     num_modes = 17
 
-    # Indicate which legendre polynomial is associated with which mode. The number here refers to the l and the m
+    # Indicate which legendre polynomial is associated with which mode. The number here refers to the m integer
     mode_legendre = (
         # n
         0,

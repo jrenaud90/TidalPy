@@ -29,5 +29,11 @@ tide_defaults = {
         'obliquity_tides_on'             : True,
         'use_planet_params_for_love_calc': False,
         'multiply_modes_by_sign'         : True
+        },
+    'multilayer': {
+        'eccentricity_truncation_lvl'    : 6,
+        'max_tidal_order_l'              : 2,
+        'obliquity_tides_on'             : True,
+        'multiply_modes_by_sign'         : True
         }
     }

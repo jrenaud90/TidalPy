@@ -1,6 +1,5 @@
-import burnman
-
 from . import custom as tidalpy_materials
+from . import burnman_installed, burnman
 from .custom.constant import ConstantMaterial
 from ...exceptions import UnknownModelError
 
@@ -17,6 +16,9 @@ def setup_material_lists():
 
     global known_materials
     global known_materials_sourceless
+
+    if not burnman_installed:
+        raise ImportError('Burnman package not found.')
 
     # Load in official BurnMan materials
     ignore_list = ['__name__', '__doc__', '__package__', '__loader__', '__spec__', '__path__',
@@ -79,6 +81,9 @@ def find_material(material_name: str, material_source: str = None):
 
     :return: returns an un-initialized burnman.material class
     """
+
+    if not burnman_installed:
+        raise ImportError('Burnman package not found.')
 
     if known_materials is None or known_materials_sourceless is None:
         setup_material_lists()

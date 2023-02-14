@@ -35,7 +35,8 @@ class LevelFilter(logging.Filter):
         return False
 
 
-def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_jupyter: bool = False):
+def log_setup(write_to_disk: bool = False, write_locale: str = None,
+              running_in_jupyter: bool = False, print_log_in_jupyter: bool = False):
     """ Setup Python's logging module based on user provided information as well as built-in TidalPy settings
 
     Look at TidalPy.config or the /configurations.py file for switches that control the logging level and if the log
@@ -49,7 +50,9 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         Location that the logger will attempt to save to.
         If set to None, the logger will save to the current working directory.
     running_in_jupyter : bool = False
-        If `True`, then the logger will not get a console handler (no logs printed to console)
+        If True, then the logger will not get a console handler (no logs printed to console)
+    print_log_in_jupyter : bool = False
+        If True, then the log will be forced to print even if TidalPy is running in a notebook.
 
     Returns
     -------
@@ -66,7 +69,7 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         f'----------------------------------------------------------------------------------',
         f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
         f'Version: {__version__}',
-        f'Primary Development by Joe Renaud, ca. 2016--2020',
+        f'Primary Development by Joe Renaud, ca. 2016--2022',
         f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
         f'----------------------------------------------------------------------------------',
         f'Run made on {now_str}.',
@@ -101,7 +104,7 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
 
     # Setup handlers
     #    Console printer
-    if not running_in_jupyter:
+    if not running_in_jupyter or print_log_in_jupyter:
         # We do not want to print to console when we are running in a jupyter notebook
         reg_stream_handler = logging.StreamHandler(stream=sys.stdout)
         reg_stream_handler.setFormatter(stream_formatter)
@@ -117,6 +120,10 @@ def log_setup(write_to_disk: bool = False, write_locale: str = None, running_in_
         err_stream_handler.setFormatter(stream_formatter)
         err_stream_handler.setLevel(config['stream_err_level'])
         tidalpy_log.addHandler(err_stream_handler)
+
+        warnings.filterwarnings("default")
+        tidalpy_log.propagate = True
+        tidalpy_log.disabled = False
     else:
         # Suppress warnings to console
         warnings.filterwarnings("ignore")

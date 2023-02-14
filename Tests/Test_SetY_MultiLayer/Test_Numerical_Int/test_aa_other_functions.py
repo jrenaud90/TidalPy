@@ -1,12 +1,11 @@
 import numpy as np
 
+
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.tides.multilayer.numerical_int.initial_conditions.functions import (takeuchi_phi_psi,
                                                                                  takeuchi_phi_psi_general, z_calc)
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 
 def test_takeuchi_general():

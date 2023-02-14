@@ -15,27 +15,30 @@ from typing import Tuple
 import numpy as np
 
 from . import (radial_derivatives_liquid_dynamic, radial_derivatives_liquid_static,
-               radial_derivatives_solid_dynamic, radial_derivatives_solid_static)
+               radial_derivatives_solid_dynamic, radial_derivatives_solid_static,
+               radial_derivatives_liquid_dynamic_incomp, radial_derivatives_liquid_static_incomp,
+               radial_derivatives_solid_dynamic_incomp, radial_derivatives_solid_static_incomp
+               )
 from .....constants import G
 from .....utilities.performance import njit
 from .....utilities.types import FloatArray, NumArray
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def dynamic_solid_ode(
     radius: FloatArray,
-    y_vector: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
+    y_vector: np.ndarray,
     radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
     densities: np.ndarray, gravities: np.ndarray, frequency: float,
-    order_l: int = 2, G_to_use: float = G
-    ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
+    order_l: int = 2, G_to_use: float = G, incompressible: bool = False
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for static, solid layers.
 
     Parameters
     ----------
     radius : FloatArray
         Requested radius to at which the radial derivatives are calculated [m]
-    y_vector : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    y_vector : np.ndarray
         The radial functions at (or near) the provided radius. Used to estimate the derivatives.
     radii : np.ndarray
         Array of radii for the interior of a planet or layer where this radial derivative function is valid.
@@ -54,43 +57,52 @@ def dynamic_solid_ode(
         Tidal harmonic order
     G_to_use : float = G
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
-    solid_dyn_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    solid_dyn_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a solid layer under the dynamic assumption.
     """
 
     # These physical parameters are generally given in a coarser resolution than what is required during integration.
     #    Therefore, we interpolate their values at the integrator's requested `radius`.
     shear_modulus = np.interp(radius, radii, shear_moduli)
-    bulk_modulus = np.interp(radius, radii, bulk_moduli)
     density = np.interp(radius, radii, densities)
     gravity = np.interp(radius, radii, gravities)
 
-    solid_dyn_derivatives = \
-        radial_derivatives_solid_dynamic(
-            radius, y_vector, shear_modulus, bulk_modulus, density, gravity, frequency,
-            order_l=order_l, G_to_use=G_to_use
-            )
+    if incompressible:
+        solid_dyn_derivatives = \
+            radial_derivatives_solid_dynamic_incomp(
+                radius, y_vector, shear_modulus, density, gravity, frequency,
+                order_l=order_l, G_to_use=G_to_use
+                )
+    else:
+        bulk_modulus = np.interp(radius, radii, bulk_moduli)
+        solid_dyn_derivatives = \
+            radial_derivatives_solid_dynamic(
+                radius, y_vector, shear_modulus, bulk_modulus, density, gravity, frequency,
+                order_l=order_l, G_to_use=G_to_use
+                )
 
     return solid_dyn_derivatives
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def static_solid_ode(
-    radius: FloatArray, y_vector: Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray],
+    radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
     densities: np.ndarray, gravities: np.ndarray,
-    order_l: int = 2, G_to_use: float = G
-    ) -> Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]:
+    order_l: int = 2, G_to_use: float = G, incompressible: bool = False
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for static, solid layers.
 
     Parameters
     ----------
     radius : FloatArray
         Requested radius to at which the radial derivatives are calculated [m]
-    y_vector : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    y_vector : np.ndarray
         The radial functions at (or near) the provided radius. Used to estimate the derivatives.
     radii : np.ndarray
         Array of radii for the interior of a planet or layer where this radial derivative function is valid.
@@ -107,36 +119,45 @@ def static_solid_ode(
         Tidal harmonic order
     G_to_use : float = G
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
-    solid_static_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray, NumArray, NumArray]
+    solid_static_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a solid layer under the static assumption.
     """
 
     # These physical parameters are generally given in a coarser resolution than what is required during integration.
     #    Therefore, we interpolate their values at the integrator's requested `radius`.
     shear_modulus = np.interp(radius, radii, shear_moduli)
-    bulk_modulus = np.interp(radius, radii, bulk_moduli)
     density = np.interp(radius, radii, densities)
     gravity = np.interp(radius, radii, gravities)
 
-    solid_static_derivatives = \
-        radial_derivatives_solid_static(
-            radius, y_vector, shear_modulus, bulk_modulus, density, gravity,
-            order_l=order_l, G_to_use=G_to_use
-            )
+    if incompressible:
+        solid_static_derivatives = \
+            radial_derivatives_solid_static_incomp(
+                radius, y_vector, shear_modulus, density, gravity,
+                order_l=order_l, G_to_use=G_to_use
+                )
+    else:
+        bulk_modulus = np.interp(radius, radii, bulk_moduli)
+        solid_static_derivatives = \
+            radial_derivatives_solid_static(
+                radius, y_vector, shear_modulus, bulk_modulus, density, gravity,
+                order_l=order_l, G_to_use=G_to_use
+                )
 
     return solid_static_derivatives
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def dynamic_liquid_ode(
-    radius: FloatArray, y_vector: Tuple[NumArray, NumArray, NumArray, NumArray],
+    radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, bulk_moduli: np.ndarray,
     densities: np.ndarray, gravities: np.ndarray, frequency: float,
-    order_l: int = 2, G_to_use: float = G
-    ) -> callable:
+    order_l: int = 2, G_to_use: float = G, incompressible: bool = False
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for dynamic, liquid layers.
 
     Parameters
@@ -160,40 +181,48 @@ def dynamic_liquid_ode(
         Tidal harmonic order
     G_to_use : float = G
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
-    liquid_dyn_derivatives : Tuple[NumArray, NumArray, NumArray, NumArray]
+    liquid_dyn_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a liquid layer under the dynamic assumption.
     """
 
     # These physical parameters are generally given in a coarser resolution than what is required during integration.
     #    Therefore, we interpolate their values at the integrator's requested `radius`.
-    bulk_modulus = np.interp(radius, radii, bulk_moduli)
     density = np.interp(radius, radii, densities)
     gravity = np.interp(radius, radii, gravities)
 
-    liquid_dyn_derivatives = radial_derivatives_liquid_dynamic(
-        radius, y_vector, bulk_modulus, density, gravity, frequency,
-        order_l=order_l, G_to_use=G_to_use
-        )
+    if incompressible:
+        liquid_dyn_derivatives = radial_derivatives_liquid_dynamic_incomp(
+            radius, y_vector, density, gravity, frequency,
+            order_l=order_l, G_to_use=G_to_use
+            )
+    else:
+        bulk_modulus = np.interp(radius, radii, bulk_moduli)
+        liquid_dyn_derivatives = radial_derivatives_liquid_dynamic(
+            radius, y_vector, bulk_modulus, density, gravity, frequency,
+            order_l=order_l, G_to_use=G_to_use
+            )
 
     return liquid_dyn_derivatives
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def static_liquid_ode(
-    radius: FloatArray, y_vector: Tuple[NumArray, NumArray],
+    radius: FloatArray, y_vector: np.ndarray,
     radii: np.ndarray, densities: np.ndarray, gravities: np.ndarray,
-    order_l: int = 2, G_to_use: float = G
-    ) -> Tuple[NumArray, NumArray]:
+    order_l: int = 2, G_to_use: float = G, incompressible: bool = False
+    ) -> np.ndarray:
     """ A njit-safe radial derivative function for static, liquid layers.
 
     Parameters
     ----------
     radius : FloatArray
         Requested radius to at which the radial derivatives are calculated [m]
-    y_vector : Tuple[NumArray, NumArray]
+    y_vector : np.ndarray
         The radial functions at (or near) the provided radius. Used to estimate the derivatives.
     radii : np.ndarray
         Array of radii for the interior of a planet or layer where this radial derivative function is valid.
@@ -206,10 +235,12 @@ def static_liquid_ode(
         Tidal harmonic order
     G_to_use : float = G
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
-    liquid_static_derivatives : Tuple[NumArray, NumArray]
+    liquid_static_derivatives : np.ndarray
         The radial derivatives estimated using the provided radius for a liquid layer under the static assumption.
     """
 
@@ -218,9 +249,15 @@ def static_liquid_ode(
     density = np.interp(radius, radii, densities)
     gravity = np.interp(radius, radii, gravities)
 
-    liquid_static_derivatives = radial_derivatives_liquid_static(
-        radius, y_vector, density, gravity,
-        order_l=order_l, G_to_use=G_to_use
-        )
+    if incompressible:
+        liquid_static_derivatives = radial_derivatives_liquid_static_incomp(
+            radius, y_vector, density, gravity,
+            order_l=order_l, G_to_use=G_to_use
+            )
+    else:
+        liquid_static_derivatives = radial_derivatives_liquid_static(
+            radius, y_vector, density, gravity,
+            order_l=order_l, G_to_use=G_to_use
+            )
 
     return liquid_static_derivatives

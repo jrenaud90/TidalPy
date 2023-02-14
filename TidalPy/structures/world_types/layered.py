@@ -220,7 +220,7 @@ class LayeredWorld(TidalWorld):
                 build_slices=False
                 )
 
-        # Setup the tides model
+        # Set up the tides model
         if self.tides_on:
             if setup_simple_tides:
                 self._tides = GlobalApproxTides(self, store_config_in_world=self.config['store_tides_config_in_world'])
@@ -281,8 +281,13 @@ class LayeredWorld(TidalWorld):
             If `True`, then the world will tell its tides model to collapse tidal modes.
         """
 
-        # This is called from bottom-to-top starting in the ComplexCompliances class inside Rheology.
-        self.tides.complex_compliances_changed(collapse_tidal_modes=collapse_tidal_modes)
+        log.debug(f'Method complex_compliances_changed called for {self}.')
+
+        if self.tides is not None:
+            # This is called from bottom-to-top starting in the ComplexCompliances class inside Rheology.
+            self.tides.complex_compliances_changed(collapse_tidal_modes=collapse_tidal_modes)
+        else:
+            log.debug('\tTides class not initialized. Skipping update.')
 
     def dissipation_changed(self):
         """ Tidal dissipation has changed. Make any necessary updates. """

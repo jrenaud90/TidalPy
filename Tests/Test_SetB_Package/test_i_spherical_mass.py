@@ -2,6 +2,9 @@
 
 import numpy as np
 
+import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays
 

@@ -5,5 +5,6 @@ import importlib.util
 from .grid_plot import GridPlot
 from .planet_plot import geotherm_plot
 
-if (spec := importlib.util.find_spec('cartopy')) is not None:
+if importlib.util.find_spec('cartopy') is not None:
+    spec = importlib.util.find_spec('cartopy')
     from .global_map import projection_map

@@ -16,7 +16,7 @@ from ...utilities.types import NumArray
 
 @njit(cacheable=True)
 def decompose(
-    tidal_y: np.ndarray, tidal_y_derivative: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
+    tidal_y: np.ndarray, radius_array: np.ndarray, gravity_array: np.ndarray,
     complex_shear_modulus: np.ndarray, bulk_modulus: NumArray, order_l: int = 2
     ):
     """ Decomposes the tidal solution (y) into useful properties.
@@ -32,8 +32,6 @@ def decompose(
     ----------
     tidal_y : np.ndarray
         Tidal propagation solution (Matrix: 6 x N) found via the propagation technique.
-    tidal_y_derivative : np.ndarray
-        Derivatives of the tidal propagation solutions with respect to radius (Matrix: 6 x N)
     radius_array : np.ndarray
         Radii of the world (N) [m]
     gravity_array : np.ndarray
@@ -77,7 +75,10 @@ def decompose(
     #    ----ID Method----
     #        Calculate the gradient of y1
     #        dy1_dr_conj = (np.conj(y1_full[1:]) - np.conj(y1_full[:-1])) / (radius_array[1:] - radius_array[:-1])
-    dy1_dr_conj = np.conj(tidal_y_derivative[0, :])
+
+    # From Kamata Eq. A1
+    tidal_y1_derivative = - (2. / radius) * y1 + (llp1 / radius) * y3
+    dy1_dr_conj = np.conj(tidal_y1_derivative)
 
     # Radial sensitivity to shear modulus (TB05 Eq. 33)
     #     ID flips y2 and y3 are inverted here, but we have already done that in propagate.py

@@ -2,12 +2,10 @@ import numpy as np
 from numba.typed.typeddict import Dict
 
 import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.toolbox.quick_tides import (dual_dissipation_from_dict_or_world_instance,
                                          quick_dual_body_tidal_dissipation)
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 
 def test_quick_tidal_dissipation_fixedq_float():

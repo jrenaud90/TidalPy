@@ -1,4 +1,4 @@
-from ...version import version
+from ... import version
 
 
 class TidalPyClass:

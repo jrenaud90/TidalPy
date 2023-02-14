@@ -1,9 +1,13 @@
 """ Tests for calculating the initial guess at the bottom of a liquid or solid layer for numerical integration models
 """
 
-import TidalPy
 import numba.types
 import numpy as np
+from numba.typed.typedlist import List as nbTypedList
+
+import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_kmn15,
                                                                        liquid_dynamic_guess_ts72,
@@ -12,11 +16,6 @@ from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dy
                                                                        solid_dynamic_guess_ts72,
                                                                        solid_static_guess_kmn15,
                                                                        solid_static_guess_ts72)
-from numba.typed.typedlist import List as nbTypedList
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

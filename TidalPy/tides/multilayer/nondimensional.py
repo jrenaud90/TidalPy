@@ -86,7 +86,7 @@ def non_dimensionalize_physicals(
     frequency_prime = frequency / (1. / second_conversion)
 
     # Calculations will also need the universal gravitational constant to be non-dim
-    newton_g_prime = 1. / np.pi
+    newton_g_prime = G / (length_conversion**3 / (mass_conversion * second2_conversion))
 
     return radius_prime, gravity_prime, density_prime, shear_modulus_prime, bulk_modulus_prime, frequency_prime, \
            newton_g_prime
@@ -144,7 +144,6 @@ def re_dimensionalize_physicals(
     # Setup conversions
     second2_conversion = 1. / (np.pi * G * bulk_density)
     second_conversion = np.sqrt(second2_conversion)
-    mass_conversion = bulk_density * mean_radius**3
     length_conversion = mean_radius
     density_conversion = bulk_density
     mass_conversion = bulk_density * mean_radius**3

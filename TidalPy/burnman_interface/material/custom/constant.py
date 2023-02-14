@@ -1,5 +1,6 @@
 import numpy as np
-from burnman.classes.material import Material, material_property
+
+from . import burnman_installed, Material, material_property
 
 
 class ConstantMaterial(Material):
@@ -8,6 +9,10 @@ class ConstantMaterial(Material):
     """
 
     def __init__(self):
+
+        if not burnman_installed:
+            raise ImportError('Burnman package not found.')
+
         super().__init__()
 
     @material_property

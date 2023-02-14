@@ -113,7 +113,7 @@ def tidal_potential(
     legendre_coeffs = (
         # P_20
         (p_20, dp_20_dtheta, dp2_20_dtheta2),
-        # P_21: P_21 is unused in this truncation. set its values to zero.
+        # P_21
         (p_21, dp_21_dtheta, dp2_21_dtheta2),
         # P_22
         (p_22, dp_22_dtheta, dp2_22_dtheta2)
@@ -144,7 +144,7 @@ def tidal_potential(
         (one_long, zero_long,  # The 1 is needed in the first position otherwise the frequency dependence is lost.
          zero_long, zero_long,  # all the partials will remain zero.
          zero_long, zero_long),
-        # 1*phi is unused in this truncation, set it equal to zero
+        # 1*phi
         (cosine_1long_coeff, sine_1long_coeff,
          cosine_1long_coeff_dphi, sine_1long_coeff_dphi,
          cosine_1long_coeff_dphi2, sine_1long_coeff_dphi2),
@@ -197,7 +197,7 @@ def tidal_potential(
         )
     num_modes = 17
 
-    # Indicate which legendre polynomial is associated with which mode. The number here refers to the l and the m
+    # Indicate which legendre polynomial is associated with which mode. The number here refers to the m integer
     mode_legendre = (
         # n
         0,

@@ -10,16 +10,17 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ..multilayer.numerical_int.solver_numba import tidal_y_solver
+from ..multilayer.numerical_int.solver_numba import radial_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
+                         tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
 from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, float64, nbUnicode
 
 
 @njit(cacheable=True)
 def calculate_mode_response_coupled(
-    interior_model_name: str, mode_frequency: float,
+    mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
     density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
     tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
@@ -28,7 +29,8 @@ def calculate_mode_response_coupled(
     complex_compliance_input: Tuple[float, ...] = tuple(), force_mode_calculation: bool = False,
     order_l: int = 2, use_kamata: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Given a tidal frequency, this function will call on the interior integration routine with the proper inputs and
         collect the results as well as calculate tidal stress, strain, and heating as a
@@ -106,6 +108,8 @@ def calculate_mode_response_coupled(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -145,15 +149,14 @@ def calculate_mode_response_coupled(
         # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
         #   being njited.
         tidal_y_at_mode = \
-            tidal_y_solver(
-                interior_model_name, radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
-                mode_frequency,
-                is_solid_by_layer, is_static_by_layer, indices_by_layer,
-                order_l, surface_boundary_conditions,
-                solve_load_numbers, use_kamata,
-                int_rtol, int_atol, rk_method, verbose,
-                nondimensionalize, planet_bulk_density
-                )
+            radial_solver(radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
+                          mode_frequency, planet_bulk_density,
+                          is_solid_by_layer, is_static_by_layer, indices_by_layer,
+                          order_l, surface_boundary_conditions,
+                          solve_load_numbers, use_kamata,
+                          int_rtol, int_atol, rk_method, verbose,
+                          nondimensionalize, incompressible
+                          )
 
         tidal_potential, \
         tidal_potential_partial_theta, tidal_potential_partial_phi, \
@@ -168,7 +171,7 @@ def calculate_mode_response_coupled(
             tidal_potential_partial2_theta2, tidal_potential_partial2_phi2,
             tidal_potential_partial2_theta_phi,
             tidal_y_at_mode,
-            colatitude_matrix, radius_array, shear_array, bulk_array,
+            colatitude_matrix, radius_array, complex_shears_at_mode, bulk_array,
             mode_frequency, order_l
             )
 
@@ -177,7 +180,6 @@ def calculate_mode_response_coupled(
 
 @njit(cacheable=True)
 def collapse_multilayer_modes(
-    interior_model_name: str,
     orbital_frequency: float, spin_frequency: float, semi_major_axis: float,
     eccentricity: float, host_mass: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
@@ -185,14 +187,15 @@ def collapse_multilayer_modes(
     longitude_matrix: np.ndarray, colatitude_matrix: np.ndarray, time_matrix: np.ndarray, voxel_volume: np.ndarray,
     complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
-    obliquity: float = None,
+    obliquity: float = None, use_general_obliquity: bool = False,
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
     complex_compliance_input: Tuple[float, ...] = tuple(), force_mode_calculation: bool = False,
     order_l: int = 2,
     use_modes: bool = True, use_static_potential: bool = False, use_simple_potential: bool = False,
     orbit_average_results: bool = True, use_kamata: bool = False,
     int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12, rk_method: int = 1,
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ):
     """ Calculate the multilayer tidal response of a planet over a range of applicable tidal modes. Collapse
     individual modal results into final heating distribution.
@@ -261,6 +264,9 @@ def collapse_multilayer_modes(
     obliquity : float = None
         If not None then the tidal potential that accounts for obliquity will be used.
         Obliquity is relative to the orbital plane [rad]
+    use_general_obliquity : bool = False
+        If True, and `obliquity` is not None, then this function will use the tidal potential that allows for an
+            arbitrary obliquity (otherwise a small angle approximation will be used). This impacts performance.
     surface_boundary_conditions : np.ndarray = None
         Surface conditions applied to the radial function solutions at the top of the planet.
         If equal to None then the function will calculate the surface boundary conditions of either the tidal or load
@@ -305,6 +311,8 @@ def collapse_multilayer_modes(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -388,15 +396,27 @@ def collapse_multilayer_modes(
         if use_simple_potential:
             raise Exception('The simple version of the tidal potential does not account for a non-zero obliquity')
         elif use_modes:
-            potential_output = tidal_potential_obliquity_nsr_modes(
-                planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
-                spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
-                )
+            if use_general_obliquity:
+                potential_output = tidal_potential_gen_obliquity_nsr_modes(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
+            else:
+                potential_output = tidal_potential_obliquity_nsr_modes(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
         else:
-            potential_output = tidal_potential_obliquity_nsr(
-                planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
-                spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
-                )
+            if use_general_obliquity:
+                potential_output = tidal_potential_gen_obliquity_nsr(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
+            else:
+                potential_output = tidal_potential_obliquity_nsr(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
     else:
         # Obliquity is not used. pick the appropriate potentials
         if use_simple_potential:
@@ -462,7 +482,7 @@ def collapse_multilayer_modes(
         # Calculate response at mode
         mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode = \
             calculate_mode_response_coupled(
-                interior_model_name, mode_frequency,
+                mode_frequency,
                 radius_array, shear_array, bulk_array, viscosity_array,
                 density_array, gravity_array, colatitude_matrix,
                 tidal_potential_tuple, complex_compliance_function,
@@ -471,7 +491,7 @@ def collapse_multilayer_modes(
                 complex_compliance_input, force_mode_calculation,
                 order_l, use_kamata,
                 int_rtol, int_atol, rk_method, verbose,
-                nondimensionalize, planet_bulk_density
+                nondimensionalize, planet_bulk_density, incompressible
                 )
 
         if mode_skipped:

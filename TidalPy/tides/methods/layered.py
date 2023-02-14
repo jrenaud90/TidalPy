@@ -8,7 +8,7 @@ import numpy as np
 from .base import TidesBase
 from .defaults import tide_defaults
 from ..modes.mode_manipulation import DissipTermsArray
-from ...exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty)
+from ...exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty, MissingAttributeError)
 from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
@@ -23,6 +23,11 @@ class LayeredTides(TidesBase):
     Tides class stores model parameters and methods for heating and torque which are functions of
         (T, P, melt_frac, w, e, theata)
 
+    Attributes
+    ----------
+    tidal_heating_by_layer
+    negative_imk_by_layer_by_orderl
+
     See Also
     --------
     TidalPy.tides.methods.TidesBase
@@ -32,7 +37,7 @@ class LayeredTides(TidesBase):
     default_config = tide_defaults['layered']
 
     def __init__(self, world: 'LayeredWorld', store_config_in_world: bool = True, initialize: bool = True):
-        """ Constructor for TidesBase class
+        """ Constructor for LayeredTides class
 
         Parameters
         ----------
@@ -66,28 +71,38 @@ class LayeredTides(TidesBase):
 
         Parameters
         ----------
-        self
         initial_init : bool = False
             This should be set to True the first time reinit is called.
+
+        Raises
+        ------
+        BadAttributeValueError
+
         """
 
         super().reinit(initial_init)
 
+        # Reset configuration properties
+        if not initial_init:
+            self._tidal_input_getters_by_layer = dict()
+            self._world_tidal_input_getters = None
+
         # Pull out tidal inputs
         for layer in self.world:
             if layer.is_tidal:
-                tidal_scale = lambda: layer.tidal_scale
+                get_tidal_scale = lambda: layer.tidal_scale
                 # This system assumes that density, radius, and gravity will not change after initialization
-                radius = lambda: layer.radius
-                bulk_density = lambda: layer.density_bulk
-                gravity_surf = lambda: layer.gravity_surface
+                get_radius = lambda: layer.radius
+                get_bulk_density = lambda: layer.density_bulk
+                get_surf_gravity = lambda: layer.gravity_surface
 
-                for param in [tidal_scale, radius, bulk_density, gravity_surf]:
+                for param in [get_tidal_scale, get_radius, get_bulk_density, get_surf_gravity]:
                     if param is None:
                         # How did that happen?
                         raise BadAttributeValueError
 
-                self._tidal_input_getters_by_layer[layer] = (tidal_scale, radius, bulk_density, gravity_surf)
+                self._tidal_input_getters_by_layer[layer] = \
+                    (get_tidal_scale, get_radius, get_bulk_density, get_surf_gravity)
             else:
                 # Layer does not contribute to tides. This will be marked by a None in this list
                 self._tidal_input_getters_by_layer[layer] = None
@@ -97,10 +112,10 @@ class LayeredTides(TidesBase):
             # TODO: These are used to calculate the effective rigidity. Should these be for the layer or for the planet
             #    as a whole?
             # TODO: Tidal scale for world? -> planet_tidal_scale = lambda: self.world.tidal
-            world_radius = lambda: self.world.radius
-            world_density = lambda: self.world.density_bulk
-            world_gravity = lambda: self.world.gravity_surface
-            self._world_tidal_input_getters = (world_radius, world_density, world_gravity)
+            get_world_radius = lambda: self.world.radius
+            get_world_density = lambda: self.world.density_bulk
+            get_world_gravity = lambda: self.world.gravity_surface
+            self._world_tidal_input_getters = (get_world_radius, get_world_density, get_world_gravity)
 
     def complex_compliances_changed(self, collapse_tidal_modes: bool = True):
         """ The complex compliances have changed. Make any necessary updates.
@@ -135,21 +150,27 @@ class LayeredTides(TidesBase):
         -------
         tidal_heating : np.ndarray
             Tidal heating [W]
-            This could potentially restricted to a layer or for an entire planet.
+            This may be restricted to a specific layer or for an entire planet.
         dUdM : np.ndarray
             Tidal potential derivative with respect to the mean anomaly [J kg-1 radians-1]
-            This could potentially restricted to a layer or for an entire planet.
+            This may be restricted to a specific layer or for an entire planet.
         dUdw : np.ndarray
             Tidal potential derivative with respect to the pericentre [J kg-1 radians-1]
-            This could potentially restricted to a layer or for an entire planet.
+            This may be restricted to a specific layer or for an entire planet.
         dUdO : np.ndarray
             Tidal potential derivative with respect to the planet's node [J kg-1 radians-1]
-            This could potentially restricted to a layer or for an entire planet.
+            This may be restricted to a specific layer or for an entire planet.
+
+        Raises
+        ------
+        MissingAttributeError
 
         See Also
         --------
         TidalPy.tides.Tides.orbit_spin_changed
         """
+
+        super().collapse_modes()
 
         # Check to see if all the needed state properties are present and then begin calculations
         if self.tidal_terms_by_frequency is not None:
@@ -185,8 +206,9 @@ class LayeredTides(TidesBase):
                     dUdO_by_layer[layer] = None
 
                 else:
+                    # Find getter functions
                     tidal_scale_getter, radius_getter, bulk_density_getter, gravity_surf_getter = other_inputs
-                    tidal_scale = tidal_scale_getter()
+
                     if self._world_tidal_input_getters is None:
                         # Use layer properties - set above do nothing here
                         pass
@@ -194,7 +216,9 @@ class LayeredTides(TidesBase):
                         # Use world properties
                         radius_getter, bulk_density_getter, gravity_surf_getter = self._world_tidal_input_getters
 
-                    radius = radius_getter()
+                    # Use getters to find key parameters
+                    tidal_scale  = tidal_scale_getter()
+                    radius       = radius_getter()
                     bulk_density = bulk_density_getter()
                     gravity_surf = gravity_surf_getter()
 
@@ -213,8 +237,7 @@ class LayeredTides(TidesBase):
                     effective_q_by_orderl = \
                         self.collapse_modes_func(
                             gravity_surf, radius, bulk_density, shear_modulus,
-                            tidal_scale,
-                            self.tidal_host.mass, self.tidal_susceptibility,
+                            tidal_scale, self.tidal_host.mass, self.tidal_susceptibility,
                             complex_compliances_by_frequency_list,
                             self.tidal_terms_by_frequency, self.max_tidal_order_lvl,
                             cpl_ctl_method=False
@@ -268,7 +291,14 @@ class LayeredTides(TidesBase):
                             )
 
                 # Now tell other methods to update now that derivatives and heating has been altered
-                super().collapse_modes()
+                self.world.dissipation_changed()
+
+            else:
+                # Broke out from the layer loop for some reason. Likely because this function was called when not
+                #  everything was set.
+                # Let it go.
+                pass
+                # raise MissingAttributeError
 
         # Return tidal heating and derivatives
         return self.tidal_heating_global, self.dUdM, self.dUdw, self.dUdO

@@ -1,15 +1,14 @@
 """ Tests for extracting useful information out of a multilayer tidal propagation
 """
+import numpy as np
 
 import TidalPy
-import numpy as np
-from TidalPy.constants import G
-from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_obliquity_nsr, tidal_potential_simple
-from TidalPy.toolbox.conversions import orbital_motion2semi_a
+TidalPy.test_mode()
 
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+from TidalPy.constants import G
+from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_obliquity_nsr, \
+    tidal_potential_gen_obliquity_nsr, tidal_potential_simple
+from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -436,6 +435,172 @@ def test_tidal_potential_obliquity_nsr():
     assert type(potential_partial2_phi2[0, 0, 0]) in [float, np.float64]
     assert type(potential_partial2_theta_phi[0, 0, 0]) in [float, np.float64]
 
+
+def test_tidal_potential_general_obliquity_nsr():
+    """ Test the tidal potential equation assuming moderate eccentricity, general obliquity, and non-synchronous rotation """
+    # Test with floats; static=False
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
+        tidal_potential_gen_obliquity_nsr(
+            radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
+            orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
+            eccentricity=eccentricity, obliquity=obliquity,
+            host_mass=host_mass, semi_major_axis=semi_major_axis,
+            use_static=False
+            )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+
+    assert type(potential) == np.ndarray
+    assert type(potential_partial_theta) == np.ndarray
+    assert type(potential_partial_phi) == np.ndarray
+    assert type(potential_partial2_theta2) == np.ndarray
+    assert type(potential_partial2_phi2) == np.ndarray
+    assert type(potential_partial2_theta_phi) == np.ndarray
+
+    assert potential.shape == tuple()
+    assert potential_partial_theta.shape == tuple()
+    assert potential_partial_phi.shape == tuple()
+    assert potential_partial2_theta2.shape == tuple()
+    assert potential_partial2_phi2.shape == tuple()
+    assert potential_partial2_theta_phi.shape == tuple()
+
+    assert potential.dtype in [float, np.float64]
+    assert potential_partial_theta.dtype in [float, np.float64]
+    assert potential_partial_phi.dtype in [float, np.float64]
+    assert potential_partial2_theta2.dtype in [float, np.float64]
+    assert potential_partial2_phi2.dtype in [float, np.float64]
+    assert potential_partial2_theta_phi.dtype in [float, np.float64]
+
+    # Test with floats; static=True
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
+        tidal_potential_gen_obliquity_nsr(
+            radius_array[-1], longitude=0.1, colatitude=0.1, time=1000.,
+            orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
+            eccentricity=eccentricity, obliquity=obliquity,
+            host_mass=host_mass, semi_major_axis=semi_major_axis,
+            use_static=True
+            )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+
+    assert type(potential) == np.ndarray
+    assert type(potential_partial_theta) == np.ndarray
+    assert type(potential_partial_phi) == np.ndarray
+    assert type(potential_partial2_theta2) == np.ndarray
+    assert type(potential_partial2_phi2) == np.ndarray
+    assert type(potential_partial2_theta_phi) == np.ndarray
+
+    assert potential.shape == tuple()
+    assert potential_partial_theta.shape == tuple()
+    assert potential_partial_phi.shape == tuple()
+    assert potential_partial2_theta2.shape == tuple()
+    assert potential_partial2_phi2.shape == tuple()
+    assert potential_partial2_theta_phi.shape == tuple()
+
+    assert potential.dtype in [float, np.float64]
+    assert potential_partial_theta.dtype in [float, np.float64]
+    assert potential_partial_phi.dtype in [float, np.float64]
+    assert potential_partial2_theta2.dtype in [float, np.float64]
+    assert potential_partial2_phi2.dtype in [float, np.float64]
+    assert potential_partial2_theta_phi.dtype in [float, np.float64]
+
+    # Test with matrix; static=False
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
+        tidal_potential_gen_obliquity_nsr(
+            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+            orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
+            eccentricity=eccentricity, obliquity=obliquity,
+            host_mass=host_mass, semi_major_axis=semi_major_axis,
+            use_static=False
+            )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+
+    assert type(potential) == np.ndarray
+    assert type(potential_partial_theta) == np.ndarray
+    assert type(potential_partial_phi) == np.ndarray
+    assert type(potential_partial2_theta2) == np.ndarray
+    assert type(potential_partial2_phi2) == np.ndarray
+    assert type(potential_partial2_theta_phi) == np.ndarray
+
+    assert potential.shape == long_mtx.shape
+    assert potential_partial_theta.shape == long_mtx.shape
+    assert potential_partial_phi.shape == long_mtx.shape
+    assert potential_partial2_theta2.shape == long_mtx.shape
+    assert potential_partial2_phi2.shape == long_mtx.shape
+    assert potential_partial2_theta_phi.shape == long_mtx.shape
+
+    assert type(potential[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial_theta[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial_phi[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial2_theta2[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial2_phi2[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial2_theta_phi[0, 0, 0]) in [float, np.float64]
+
+    # Test with matrix; static=True
+    frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
+        tidal_potential_gen_obliquity_nsr(
+            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+            orbital_frequency=orbital_freq, rotation_frequency=1.5 * orbital_freq,
+            eccentricity=eccentricity, obliquity=obliquity,
+            host_mass=host_mass, semi_major_axis=semi_major_axis,
+            use_static=True
+            )
+
+    assert len(frequencies_by_name) == 1
+    assert len(modes_by_name) == 1
+    assert len(potential_tuple_by_mode) == 1
+    assert 'n' in frequencies_by_name
+    assert 'n' in modes_by_name
+    assert 'n' in potential_tuple_by_mode
+
+    potential, potential_partial_theta, potential_partial_phi, \
+    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+
+    assert type(potential) == np.ndarray
+    assert type(potential_partial_theta) == np.ndarray
+    assert type(potential_partial_phi) == np.ndarray
+    assert type(potential_partial2_theta2) == np.ndarray
+    assert type(potential_partial2_phi2) == np.ndarray
+    assert type(potential_partial2_theta_phi) == np.ndarray
+
+    assert potential.shape == long_mtx.shape
+    assert potential_partial_theta.shape == long_mtx.shape
+    assert potential_partial_phi.shape == long_mtx.shape
+    assert potential_partial2_theta2.shape == long_mtx.shape
+    assert potential_partial2_phi2.shape == long_mtx.shape
+    assert potential_partial2_theta_phi.shape == long_mtx.shape
+
+    assert type(potential[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial_theta[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial_phi[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial2_theta2[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial2_phi2[0, 0, 0]) in [float, np.float64]
+    assert type(potential_partial2_theta_phi[0, 0, 0]) in [float, np.float64]
 
 def test_tidal_potential_simple_vs_nsr():
     """ Test to see if the simple potential and nsr potential can reproduce one another in certain domains."""

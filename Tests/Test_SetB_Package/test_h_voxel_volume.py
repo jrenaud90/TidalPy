@@ -2,6 +2,9 @@
 
 import numpy as np
 
+import TidalPy
+TidalPy.test_mode()
+
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes, calculate_voxel_volumes_npy
 
 planet_radius = 6300.0e3

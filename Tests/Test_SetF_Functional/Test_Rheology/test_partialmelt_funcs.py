@@ -1,10 +1,7 @@
 import numpy as np
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 solidus = 1600.
 liquidus = 2000.

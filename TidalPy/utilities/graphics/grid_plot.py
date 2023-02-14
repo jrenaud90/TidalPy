@@ -11,7 +11,8 @@ from ...io_helper import unique_path
 #    and Cartopy is not installed. So check if it is installed before using projections.
 CARTOPY_INSTALLED = False
 KNOWN_PROJECTIONS = None
-if (spec := importlib.util.find_spec('cartopy')) is not None:
+if importlib.util.find_spec('cartopy') is not None:
+    spec = importlib.util.find_spec('cartopy')
     from .global_map import KNOWN_PROJECTIONS
     CARTOPY_INSTALLED = True
 
@@ -37,14 +38,14 @@ class GridPlot(TidalPyClass):
 
     def __init__(
         self, nrows: int, ncols: int,
-        make_colorbars: bool = False, colorbar_ratio: float = 0.1,
+        make_colorbars: Union[bool, List[bool]] = False, colorbar_ratio: float = 0.1,
         projections: Union[str, List[str]] = None,
         figure_scale: float = 1., aspect_ratio: float = 2.,
         hspace: float = 0.25, wspace: float = 0.3, use_tight_layout: bool = True,
         suptitle: str = None, titles: AxisReferencedInputStr = None,
         xlabels: AxisReferencedInputStr = None, xscales: AxisReferencedInputStr = None,
         ylabels: AxisReferencedInputStr = None, yscales: AxisReferencedInputStr = None,
-        label_kwargs: dict = None
+        label_kwargs: dict = None, dark_mode: bool = False
         ):
         """ Helper function to quickly make a figure of plots in a grid.
 
@@ -93,6 +94,10 @@ class GridPlot(TidalPyClass):
         # TODO: Right now you can not have a different number of colorbars on different rows. Row 1 colorbar layout
         #    must be the same as row N.
 
+        # Dark mode
+        if dark_mode:
+            plt.style.use('dark_background')
+
         # Initialize various flags
         self._has_suptitle = False
 
@@ -112,12 +117,13 @@ class GridPlot(TidalPyClass):
             for col_i in range(self.ncols):
                 self.axis_keys.append((row_i, col_i))
 
+        real_nrows = self.nrows
+        self._nsubplots = self.nrows * self.ncols
+
         # Clean up the colorbar input
         make_colorbars = self._convert_input_to_dict(make_colorbars, input_type='bool')
 
         # Create width ratio array
-        real_nrows = self.nrows
-        self._nsubplots = self.nrows * self.ncols
         if make_colorbars:
             num_colorbars = sum(list(make_colorbars.values()))
 
@@ -145,7 +151,7 @@ class GridPlot(TidalPyClass):
 
         # Build gridspec
         figure_size = (figure_scale * aspect_ratio * 2. * self.ncols, figure_scale * 2. * self.nrows)
-        self._figure = plt.figure(figsize=figure_size, tight_layout=use_tight_layout)
+        self._figure = plt.figure(figsize=figure_size)
         self._gridspec = GridSpec(
             real_nrows, real_ncols, figure=self.figure, width_ratios=width_ratios,
             hspace=hspace, wspace=wspace
@@ -366,6 +372,8 @@ class GridPlot(TidalPyClass):
         ----------
         references : AxisReferencedInput
             New references for selected axes.
+        reset_values : bool = False
+            If True, then all the axis references will be reset before adding the new ones provided.
 
         Returns
         -------

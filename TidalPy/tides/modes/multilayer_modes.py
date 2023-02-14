@@ -11,14 +11,15 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from ...utilities.performance import nbList
-from ..multilayer.numerical_int.solver import tidal_y_solver
+from ..multilayer.numerical_int.solver import radial_solver
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
+                         tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
 
 
 def calculate_mode_response_coupled(
-    interior_model_name: str, mode_frequency: float,
+    mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
     density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
     tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
@@ -27,10 +28,10 @@ def calculate_mode_response_coupled(
     complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
     order_l: int = 2,
     use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    integrator: str = 'scipy', integration_method: str = None,
+    integration_rtol: float = 1.0e-6, integration_atol: float = 1.0e-8,
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ) -> Tuple[bool, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """ Given a tidal frequency, this function will call on the interior integration routine with the proper inputs and
         collect the results as well as calculate tidal stress, strain, and heating as a
@@ -38,9 +39,6 @@ def calculate_mode_response_coupled(
 
     Parameters
     ----------
-    interior_model_name : str
-        Interior model used in the calculation of the radial functions.
-        See options in TidalPy.tides.multilayer.numerical_int.collapse.
     mode_frequency : float
         Tidal forcing frequency at this mode [rad]
     radius_array : np.ndarray
@@ -92,24 +90,20 @@ def calculate_mode_response_coupled(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
-    int_rtol : float = 1.0e-6
+    integrator : str = 'scipy'
+        Integrator used for solving the system of ODE's. Depending on which packages are installed, the available
+        options are:
+            `scipy` : SciPy's solve_ivp method
+            `cython`: CyRK's cython-based cyrk_ode method
+            `numba` : CyRK's numba-based nbrk_ode method
+            `julia` : Diffeqpy's Julia-based DifferentialEquations method
+    integration_method : str = None
+        Integration method used in conjunction with the chosen integrator. If None, then the default for each integrator
+        will be used (usually RK45)
+    integration_rtol : float = 1.0e-6
         Integration relative error.
-    int_atol : float = 1.0e-4
+    integration_atol : float = 1.0e-8
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -117,6 +111,8 @@ def calculate_mode_response_coupled(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -159,27 +155,26 @@ def calculate_mode_response_coupled(
         # TODO: Calculate complex bulk modulus. (When bulk dissipation is added)
 
         # Calculate the radial functions using a shooting integration method.
-        # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
-        #   being njited.
         tidal_y_at_mode = \
-            tidal_y_solver(
-                interior_model_name, radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
+            radial_solver(
+                radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
                 mode_frequency,
+                planet_bulk_density,
                 is_solid_by_layer=is_solid_by_layer, is_static_by_layer=is_static_by_layer,
                 indices_by_layer=indices_by_layer,
+                order_l=order_l,
                 surface_boundary_condition=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
-                order_l=order_l, use_kamata=use_kamata,
-                use_julia=use_julia, use_numba_integrator=use_numba_integrator,
-                int_rtol=int_rtol, int_atol=int_atol,
-                scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density
+                use_kamata=use_kamata,
+                integrator=integrator, integration_method=integration_method,
+                integration_rtol=integration_rtol, integration_atol=integration_atol,
+                verbose=verbose, nondimensionalize=nondimensionalize, incompressible=incompressible
                 )
 
         # Calculate stresses and heating
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
             *tidal_potential_tuple,
             tidal_solution_y=tidal_y_at_mode,
-            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=shear_array, bulk_moduli=bulk_array,
+            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=complex_shears_at_mode, bulk_moduli=bulk_array,
             frequency=mode_frequency, order_l=order_l
             )
 
@@ -187,7 +182,6 @@ def calculate_mode_response_coupled(
 
 
 def collapse_multilayer_modes(
-    interior_model_name: str,
     orbital_frequency: float, spin_frequency: float, semi_major_axis: float,
     eccentricity: float, host_mass: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
@@ -195,17 +189,17 @@ def collapse_multilayer_modes(
     longitude_matrix: np.ndarray, colatitude_matrix: np.ndarray, time_matrix: np.ndarray, voxel_volume: np.ndarray,
     complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
-    obliquity: float = None,
+    obliquity: float = None, use_general_obliquity: bool = False,
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
     complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
     order_l: int = 2,
     use_modes: bool = True, use_static_potential: bool = False, use_simple_potential: bool = False,
     orbit_average_results: bool = True,
     use_kamata: bool = False,
-    use_julia: bool = False, use_numba_integrator: bool = False,
-    int_rtol: float = 1.0e-8, int_atol: float = 1.0e-12,
-    scipy_int_method: str = 'RK45', julia_int_method: str = 'Tsit5',
-    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None
+    integrator: str = 'scipy', integration_method: str = None,
+    integration_rtol: float = 1.0e-6, integration_atol: float = 1.0e-8,
+    verbose: bool = False, nondimensionalize: bool = True, planet_bulk_density: float = None,
+    incompressible: bool = False
     ):
     """ Calculate the multilayer tidal response of a planet over a range of applicable tidal modes. Collapse
     individual modal results into final heating distribution.
@@ -216,9 +210,6 @@ def collapse_multilayer_modes(
 
     Parameters
     ----------
-    interior_model_name : str
-        Interior model used in the calculation of the radial functions.
-        See options in TidalPy.tides.multilayer.numerical_int.collapse.
     orbital_frequency : float
         Orbital mean motion [rad s-1]
     spin_frequency : float
@@ -272,6 +263,9 @@ def collapse_multilayer_modes(
     obliquity : float = None
         If not None then the tidal potential that accounts for obliquity will be used.
         Obliquity is relative to the orbital plane [rad]
+    use_general_obliquity : bool = False
+        If True, and `obliquity` is not None, then this function will use the tidal potential that allows for an
+            arbitrary obliquity (otherwise a small angle approximation will be used). This impacts performance.
     surface_boundary_conditions : np.ndarray = None
         Surface conditions applied to the radial function solutions at the top of the planet.
         If equal to None then the function will calculate the surface boundary conditions of either the tidal or load
@@ -300,24 +294,20 @@ def collapse_multilayer_modes(
     use_kamata : bool = False
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
-    use_julia : bool = False
-        If True, the Julia `diffeqpy` integration tools will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or TidalPy's numba-safe integrator will be used.
-    use_numba_integrator : bool = False
-        If True, TidalPy's numba-safe RK-based integrator will be used.
-        Otherwise, `scipy.integrate.solve_ivp` or Julia `diffeqpy` integrator will be used.
-    int_rtol : float = 1.0e-6
+    integrator : str = 'scipy'
+        Integrator used for solving the system of ODE's. Depending on which packages are installed, the available
+        options are:
+            `scipy` : SciPy's solve_ivp method
+            `cython`: CyRK's cython-based cyrk_ode method
+            `numba` : CyRK's numba-based nbrk_ode method
+            `julia` : Diffeqpy's Julia-based DifferentialEquations method
+    integration_method : str = None
+        Integration method used in conjunction with the chosen integrator. If None, then the default for each integrator
+        will be used (usually RK45)
+    integration_rtol : float = 1.0e-6
         Integration relative error.
-    int_atol : float = 1.0e-4
+    integration_atol : float = 1.0e-8
         Integration absolute error.
-    scipy_int_method : str = 'RK45'
-        Integration method for the Scipy integration scheme.
-        See options here (note some do not work for complex numbers):
-            https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
-    julia_int_method : str = 'Tsit5'
-        Integration method for the Julia integration scheme.
-        See options here (note some do not work for complex numbers):
-            `TidalPy.utilities.julia_helper.integration_methods.py`
     verbose: bool = False
         If True, the function will print some information to console during calculation (may cause a slow down).
     nondimensionalize : bool = False
@@ -325,6 +315,8 @@ def collapse_multilayer_modes(
         the user.
     planet_bulk_density : float = None
         Must be provided if non_dimensionalize is True. Bulk density of the planet.
+    incompressible : bool = False
+        If `True`, the incompressible assumption will be used.
 
     Returns
     -------
@@ -413,15 +405,27 @@ def collapse_multilayer_modes(
         if use_simple_potential:
             raise Exception('The simple version of the tidal potential does not account for a non-zero obliquity')
         elif use_modes:
-            potential_output = tidal_potential_obliquity_nsr_modes(
-                planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
-                spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
-                )
+            if use_general_obliquity:
+                potential_output = tidal_potential_gen_obliquity_nsr_modes(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
+            else:
+                potential_output = tidal_potential_obliquity_nsr_modes(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
         else:
-            potential_output = tidal_potential_obliquity_nsr(
-                planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
-                spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
-                )
+            if use_general_obliquity:
+                potential_output = tidal_potential_gen_obliquity_nsr(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
+            else:
+                potential_output = tidal_potential_obliquity_nsr(
+                    planet_radius, longitude_matrix, colatitude_matrix, time_matrix, orbital_frequency,
+                    spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis, use_static_potential
+                    )
     else:
         # Obliquity is not used. pick the appropriate potentials
         if use_simple_potential:
@@ -475,7 +479,7 @@ def collapse_multilayer_modes(
         # Calculate response at mode
         mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode = \
             calculate_mode_response_coupled(
-                interior_model_name, mode_frequency,
+                mode_frequency,
                 radius_array, shear_array, bulk_array, viscosity_array,
                 density_array, gravity_array, colatitude_matrix,
                 tidal_potential_tuple, complex_compliance_function,
@@ -483,10 +487,10 @@ def collapse_multilayer_modes(
                 surface_boundary_conditions=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
                 complex_compliance_input=complex_compliance_input, force_mode_calculation=force_mode_calculation,
                 order_l=order_l, use_kamata=use_kamata,
-                use_julia=use_julia, use_numba_integrator=use_numba_integrator,
-                int_rtol=int_rtol, int_atol=int_atol,
-                scipy_int_method=scipy_int_method, julia_int_method=julia_int_method,
-                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density
+                integrator=integrator, integration_method=integration_method,
+                integration_rtol=integration_rtol, integration_atol=integration_atol,
+                verbose=verbose, nondimensionalize=nondimensionalize, planet_bulk_density=planet_bulk_density,
+                incompressible=incompressible
                 )
 
         if mode_skipped:
@@ -551,20 +555,21 @@ def collapse_multilayer_modes(
     #   rather than T^{-1}
     # Heating is equal to imag[o] * real[s] - real[o] * imag[s] but we need to multiply by two for the cross terms
     #    since it is part of a symmetric matrix but only one side of the matrix is calculated in the previous steps.
-    # First calculate the trace terms which are not multiply by two.
     volumetric_heating = (
-        # Im[\sigma_ij] * Re[\epsilon_ij]
-            (
-                    np.sum(np.imag(stresses[:3]) * np.real(strains[:3]), axis=0) +
-                    # Now add the cross terms where we do multiply by two
-                    2. * np.sum(np.imag(stresses[:3]) * np.real(strains[:3]), axis=0)
-            ) -
-            # minus Re[\sigma_ij] * Im[\epsilon_ij]
-            (
-                    np.sum(np.real(stresses[3:]) * np.imag(strains[3:]), axis=0) +
-                    2. * np.sum(np.real(stresses[3:]) * np.imag(strains[3:]), axis=0)
-            )
+        # Im[s_rr] Re[e_rr] - Re[s_rr] Im[e_rr]
+        np.imag(stresses[0]) * np.real(strains[0]) - np.real(stresses[0]) * np.imag(strains[0]) +
+        # Im[s_thth] Re[e_thth] - Re[s_thth] Im[e_thth]
+        np.imag(stresses[1]) * np.real(strains[1]) - np.real(stresses[1]) * np.imag(strains[1]) +
+        # Im[s_phiphi] Re[e_phiphi] - Re[s_phiphi] Im[e_phiphi]
+        np.imag(stresses[2]) * np.real(strains[2]) - np.real(stresses[2]) * np.imag(strains[2]) +
+        # Im[s_rth] Re[e_rth] - Re[s_rth] Im[e_rth]
+        2. * (np.imag(stresses[3]) * np.real(strains[3]) - np.real(stresses[3]) * np.imag(strains[3])) +
+        # Im[s_rphi] Re[e_rphi] - Re[s_rphi] Im[e_rphi]
+        2. * (np.imag(stresses[4]) * np.real(strains[4]) - np.real(stresses[4]) * np.imag(strains[4])) +
+        # Im[s_thphi] Re[e_thphi] - Re[s_thphi] Im[e_thphi]
+        2. * (np.imag(stresses[5]) * np.real(strains[5]) - np.real(stresses[5]) * np.imag(strains[5]))
     )
+
 
     # TODO: Without this abs term the resulting heating maps are very blotchy around
     #    Europa book does have an abs at Equation 42, Page 102

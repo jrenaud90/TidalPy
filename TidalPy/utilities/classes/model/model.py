@@ -63,7 +63,7 @@ class ModelHolder(ConfigHolder):
         self._live_arg_names = None
         # Calculation properties and methods
         self._debug_mode_on = False
-        self._calc_to_use = None  # type: Callable
+        self._calc_to_use = None  # type: Union[None, Callable]
 
         if initialize:
             self.reinit(initial_init=True)

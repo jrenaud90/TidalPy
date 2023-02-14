@@ -1,3 +1,8 @@
+# Find Version Number
+import importlib.metadata
+__version__ = importlib.metadata.version("CyRK")
+version = __version__
+
 import time
 import os
 from typing import TYPE_CHECKING
@@ -7,10 +12,6 @@ if TYPE_CHECKING:
 
 # Initial Runtime
 init_time = time.time()
-
-# Version information
-from .version import version
-__version__ = version
 
 # Load configuration dictionary
 from .configurations import configurations
@@ -35,6 +36,9 @@ from .initialize import initialize_tidalpy as reinitialize
 reinit = reinitialize
 reinit()
 
+# Load in config helpers
+from .config_helpers import toggle_log_print_in_jupyter, test_mode
+
 # Try and find the world configurations data folder (if it has not been removed)
 world_config_folder_found = False
 world_config_loc = os.path.join(tidalpy_loc, 'WorldConfigs')
@@ -49,8 +53,6 @@ else:
 # Bring up various functionality to top-level
 #    Performance / Basic functionality
 from .utilities.performance import clear_cache
-#    Graphics
-from .utilities.graphics import cmaps
 #    Physics
 
 #    OOP

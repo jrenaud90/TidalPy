@@ -114,7 +114,7 @@ def geotherm_plot(
                 if depth_plot:
                     pos = (0.05, 0.9)
                 else:
-                    pos = (0.05, 0.9)
+                    pos = (0.25, 0.15)
                 ax.text(
                     *pos, f'surf = {gravitys[-1]:0.2f}',
                     horizontalalignment='left', verticalalignment='center', transform=ax.transAxes

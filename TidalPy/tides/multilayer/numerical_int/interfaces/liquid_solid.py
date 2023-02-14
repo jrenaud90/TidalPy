@@ -46,9 +46,9 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
     # For a dynamic solid layer there will be three independent solutions that we need an initial guess for.
     base_solid_list = nbList()
 
-    for solution in range(3):
+    for solution in (0, 1, 2):
         # For a dynamic solid layer there will be six y values used.
-        solution_values = np.zeros(6, dtype=liquid_layer_ys[0].dtype)
+        solution_values = np.empty(6, dtype=liquid_layer_ys[0].dtype)
 
         if solution in (0, 1):
             # For a dynamic liquid layer there will be two independent solutions at the top of the layer
@@ -58,10 +58,17 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
             solution_values[4] = liquid_sol[2]
             solution_values[5] = liquid_sol[3]
 
-            # For solutions 1 and 2 y_3 and y_4 for the solid layer are zero (already set by np.zeros)
+            # For solutions 1 and 2 y_3 and y_4 for the solid layer are zero
+            solution_values[2] = 0.
+            solution_values[3] = 0.
         else:
             # For the third solid solution all the y's are set to zero (already set by np.zeros) except y_3
+            solution_values[0] = 0.
+            solution_values[1] = 0.
             solution_values[2] = 1.
+            solution_values[3] = 0.
+            solution_values[4] = 0.
+            solution_values[5] = 0.
 
         base_solid_list.append(solution_values)
 
@@ -70,9 +77,9 @@ def both_dynamic(liquid_layer_ys: LiquidDynamicGuess) -> SolidDynamicGuess:
 
 @njit(cacheable=True)
 def static_dynamic(
-    liquid_layer_ys: LiquidStaticGuess,
-    interface_gravity: float, liquid_density: float, G_to_use: float = G
-    ) -> SolidDynamicGuess:
+        liquid_layer_ys: LiquidStaticGuess,
+        interface_gravity: float, liquid_density: float, G_to_use: float = G
+        ) -> SolidDynamicGuess:
     """ Calculated the starting values for the radial functions at the bottom of a solid layer that is above a liquid
     surface. Assumes dynamic tides in the solid layer and static tides in the lower liquid layer.
 
@@ -101,17 +108,20 @@ def static_dynamic(
     # For a dynamic solid layer there will be three independent solutions that we need an initial guess for.
     base_solid_list = nbList()
 
-    # For a dynamic liquid layer there will be one independent solutions at the top of the layer
+    # For a static liquid layer there will be one independent solutions at the top of the layer
     #   however for consistency this single solution is still stored in a tuple (of size 1) so we need to pull it out.
     liquid_sol = liquid_layer_ys[0][:, -1]
 
     for solution in range(3):
         # For a dynamic solid layer there will be six y values used.
-        solution_values = np.zeros(6, dtype=liquid_sol.dtype)
+        solution_values = np.empty(6, dtype=liquid_sol.dtype)
 
         if solution == 0:
+            solution_values[0] = 0.
             # y_2_sol = -rho * y_5_liq
             solution_values[1] = -liquid_density * liquid_sol[0]
+            solution_values[2] = 0.
+            solution_values[3] = 0.
             # y_5_sol = y_5_liq
             solution_values[4] = liquid_sol[0]
             # y_6_sol = y_7_liq + (4 pi G rho / g) y_5_liq
@@ -122,12 +132,20 @@ def static_dynamic(
             solution_values[0] = 1.
             # y_2_sol = rho * g * y_1_sol
             solution_values[1] = liquid_density * interface_gravity * solution_values[0]
+            solution_values[2] = 0.
+            solution_values[3] = 0.
+            solution_values[4] = 0.
             # y_6_sol = -4 pi G rho y_1_sol
             solution_values[5] = -4. * np.pi * G_to_use * liquid_density * solution_values[0]
 
         else:
+            solution_values[0] = 0.
+            solution_values[1] = 0.
             # y_3_sol = 1.
             solution_values[2] = 1.
+            solution_values[3] = 0.
+            solution_values[4] = 0.
+            solution_values[5] = 0.
 
         base_solid_list.append(solution_values)
 
@@ -161,9 +179,9 @@ def dynamic_static(liquid_layer_ys: LiquidDynamicGuess) -> SolidStaticGuess:
 
 @njit(cacheable=True)
 def both_static(
-    liquid_layer_ys: LiquidStaticGuess,
-    interface_gravity: float, liquid_density: float, G_to_use: float = G
-    ) -> SolidStaticGuess:
+        liquid_layer_ys: LiquidStaticGuess,
+        interface_gravity: float, liquid_density: float, G_to_use: float = G
+        ) -> SolidStaticGuess:
     """ Calculated the starting values for the radial functions at the bottom of a solid layer that is above a liquid
     surface. Assumes static tides in both layers.
 

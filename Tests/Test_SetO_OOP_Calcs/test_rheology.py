@@ -1,8 +1,5 @@
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 from TidalPy import build_world
 

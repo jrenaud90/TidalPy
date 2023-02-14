@@ -40,7 +40,7 @@ of tides.
 
 import numpy as np
 
-from ...utilities.performance.numba import find_factorial, njit
+from ...utilities.performance import find_factorial, njit
 from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
 
 
@@ -284,7 +284,7 @@ def burgers(
 
 
 @njit(cacheable=True)
-def andrade_nofreq(
+def andrade(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
@@ -337,15 +337,11 @@ def andrade_nofreq(
 
     shape = 0. * (andrade_term + alpha)
 
-    # TODO: Old version of TidalPy had real_j going large when freq is zero... why? Getting rid for now.
-    # if abs(frequency) <= float_eps:
-    #     real_j = 1.e100
-    #     imag_j = 0.
-
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
-    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.e100 + 0.0j) + \
+    # If the frequency is at zero then the real value goes to +infinity. Set to large value instead. Imag -> 0.
+    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.0e100 + 0.0j) + \
                            ((np.abs(frequency) + shape) > float_eps) * (real_j + 1.0j * imag_j)
 
     maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
@@ -356,7 +352,7 @@ def andrade_nofreq(
 
 
 @njit(cacheable=True)
-def andrade(
+def andrade_freq(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     alpha: float = 0.3, zeta: float = 1., critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
@@ -416,10 +412,10 @@ def andrade(
                (exponent <= 0.) * 0. + \
                (exponent > 0.) * (exponent < 100.) * exponent
 
-    zeta = zeta * np.exp(exponent)
+    updated_zeta = zeta * np.exp(exponent)
 
     # Continue on with regular Andrade calculation
-    andrade_term = compliance * viscosity * frequency * zeta
+    andrade_term = compliance * viscosity * frequency * updated_zeta
     andrade_term = (np.abs(andrade_term) <= float_eps) * 1.0e-100 + \
                    (np.abs(andrade_term) > float_eps) * andrade_term
 
@@ -430,11 +426,11 @@ def andrade(
     real_j = np.cos(alpha * np.pi / 2.) * const_term
     imag_j = -np.sin(alpha * np.pi / 2.) * const_term
 
-    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
-
-    # If the frequency is near zero then rely on the maxwell comp.
-    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (0. + 0.0j) + \
+    # If the frequency is at zero then the real value goes to +infinity. Set to large value instead. Imag -> 0.
+    andrade_complex_comp = ((np.abs(frequency) + shape) <= float_eps) * (1.0e100 + 0.0j) + \
                            ((np.abs(frequency) + shape) > float_eps) * (real_j + 1.0j * imag_j)
+
+    maxwell_complex_comp = maxwell(frequency, compliance, viscosity)
 
     complex_compliance = maxwell_complex_comp + andrade_complex_comp
 
@@ -442,7 +438,7 @@ def andrade(
 
 
 @njit(cacheable=True)
-def sundberg_nofreq(
+def sundberg(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.
@@ -489,8 +485,11 @@ def sundberg_nofreq(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade_nofreq(frequency, compliance, viscosity, alpha, zeta)
-    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_complex_comp = \
+        andrade(frequency, compliance, viscosity, alpha, zeta)
+
+    voigt_complex_comp = \
+        voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
 
     complex_compliance = voigt_complex_comp + andrade_complex_comp
 
@@ -498,7 +497,7 @@ def sundberg_nofreq(
 
 
 @njit(cacheable=True)
-def sundberg(
+def sundberg_freq(
     frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.,  critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
@@ -506,7 +505,7 @@ def sundberg(
     """ Calculates the complex compliance utilizing the model: Sundberg-Cooper with a frequency-dependent zeta
 
     !TPY_args live: self.compliance, self.viscosity
-    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, critical_freq
+    !TPY_args const: voigt_compliance_offset, voigt_viscosity_offset, alpha, zeta, critical_freq, critical_freq_falloff
 
     Notes
     -----
@@ -552,10 +551,13 @@ def sundberg(
         Complex compliance (complex number) [Pa-1]
     """
 
-    andrade_complex_comp = andrade(frequency, compliance, viscosity, alpha, zeta, critical_freq, critical_freq_falloff)
-    voigt_complex_comp = voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+    andrade_freq_complex_comp = \
+        andrade_freq(frequency, compliance, viscosity, alpha, zeta, critical_freq, critical_freq_falloff)
 
-    complex_compliance = voigt_complex_comp + andrade_complex_comp
+    voigt_complex_comp = \
+        voigt(frequency, compliance, viscosity, voigt_compliance_offset, voigt_viscosity_offset)
+
+    complex_compliance = voigt_complex_comp + andrade_freq_complex_comp
 
     return complex_compliance
 

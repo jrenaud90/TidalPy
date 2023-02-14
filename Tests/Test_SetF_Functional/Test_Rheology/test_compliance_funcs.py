@@ -2,10 +2,7 @@ import numba
 import numpy as np
 
 import TidalPy
-
-TidalPy.config['stream_level'] = 'ERROR'
-TidalPy.use_disk = False
-TidalPy.reinit()
+TidalPy.test_mode()
 
 from TidalPy.rheology.complex_compliance import known_models, known_model_const_args, complex_compliance_defaults
 
@@ -76,15 +73,15 @@ def test_complex_compliance_zero_freq():
         if model_name == 'fixed_q':
             complex_compliance = model_func(frequency, compliance, viscosity, planet_beta=10., quality_factor=100.)
             test_value_real = -19. / (2. * 10.)
-        elif model_name in ['voigt']:
+        elif model_name in ('voigt',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             voigt_comp_offset = comp_inputs[0]
             test_value_real = voigt_comp_offset * compliance
-        elif model_name in ['burgers', 'sundberg']:
+        elif model_name in ('burgers',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             voigt_comp_offset = comp_inputs[0]
             test_value_real = (1. + voigt_comp_offset) * compliance
-        elif model_name in ['andrade_nofreq', 'sundberg_nofreq']:
+        elif model_name in ('andrade', 'sundberg', 'andrade_freq', 'sundberg_freq'):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = 1.0e100
         else:
@@ -107,15 +104,15 @@ def test_complex_compliance_zero_freq():
         if model_name == 'fixed_q':
             complex_compliance = model_func(frequency, compliance, viscosity, planet_beta=10., quality_factor=100.)
             test_value_real = -19. / (2. * 10.) * np.ones_like(compliance)
-        elif model_name in ['voigt']:
+        elif model_name in ('voigt',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             voigt_comp_offset = comp_inputs[0]
             test_value_real = voigt_comp_offset * compliance
-        elif model_name in ['burgers', 'sundberg']:
+        elif model_name in ('burgers',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             voigt_comp_offset = comp_inputs[0]
             test_value_real = (1. + voigt_comp_offset) * compliance
-        elif model_name in ['andrade_nofreq', 'sundberg_nofreq']:
+        elif model_name in ('andrade', 'sundberg', 'andrade_freq', 'sundberg_freq',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = 1.0e100 * np.ones_like(compliance)
         else:
@@ -138,17 +135,17 @@ def test_complex_compliance_zero_freq():
         if model_name == 'fixed_q':
             complex_compliance = model_func(frequency, compliance, viscosity, planet_beta=10., quality_factor=100.)
             test_value_real = -19. / (2. * 10.)
-        elif model_name in ['voigt']:
+        elif model_name in ('voigt',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             voigt_comp_offset = comp_inputs[0]
             test_value_real = voigt_comp_offset * compliance
-        elif model_name in ['burgers', 'sundberg']:
+        elif model_name in ('burgers',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             voigt_comp_offset = comp_inputs[0]
             test_value_real = (1. + voigt_comp_offset) * compliance
-        elif model_name in ['andrade_nofreq', 'sundberg_nofreq']:
+        elif model_name in ('andrade', 'sundberg', 'andrade_freq', 'sundberg_freq'):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
-            test_value_real = 1.0e100 * np.ones_like(compliance)
+            test_value_real = 1.0e100
         else:
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = compliance

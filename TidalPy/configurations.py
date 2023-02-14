@@ -14,13 +14,12 @@ configurations = {
     'debug_mode'                           : True,
 
     # Save to Disk Preferences
-    'save_to_disk'                         : False,  # Can TidalPy save data to disk
+    # # Can TidalPy save data to disk
+    'save_to_disk'                         : False,
+    # # Which directory should TidalPy use? If `None`, then TidalPy will make a new directory in the CWD
     'save_dir'                             : None,
-    # Which directory should TidalPy use? If `None`, then TidalPy will make a new directory in the CWD
-    'save_to_disk_in_jupyter'              : False,
-    # Overrides the above save_to_disk if TidalPy is being used in a Jupyter Notebook
 
-    #    Object/Planet save preferences
+    # Object/Planet save preferences
     'auto_save_object_config_to_rundir'    : True,
     'auto_save_object_config_to_tidalpydir': False,
     'overwrite_configs'                    : False,
@@ -48,10 +47,10 @@ configurations = {
     'exit_planets'                         : True,
 
     # Logger Config
-    #    Determines if log will be printed to console or saved to drive when TidalPy is being used in a Jupyter Notebook
+    # # Determines if log will be printed to console or saved to drive when TidalPy is being used in a Jupyter Notebook
     'print_log_in_jupyter'                 : False,
     'write_log_in_jupyter'                 : True,
-    #    Logging levels (set to 'DEBUG' during development)
+    # # Logging levels (set to 'DEBUG' during development)
     'stream_level'                         : 'DEBUG',
     'stream_err_level'                     : 'WARNING',
     'error_logfile_level'                  : 'WARNING',

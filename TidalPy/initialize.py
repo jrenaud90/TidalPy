@@ -7,6 +7,18 @@ import json5
 import numpy as np
 
 
+def is_notebook() -> bool:
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
 def initialize_tidalpy():
     """ Initialize TidalPy based on information stored in TidalPy.config
 
@@ -15,19 +27,15 @@ def initialize_tidalpy():
     """
     import TidalPy
 
+    from . import version
     from .logger import log_setup
-    from .version import version
     from .io_helper import timestamped_str, unique_path
 
+    # Reset initialization status
+    TidalPy._tidalpy_init = False
+
     # Are we in a Jupyter Notebook?
-    running_in_jupyter = False
-    for path in sys.path:
-        if 'ipython' in path.lower():
-            running_in_jupyter = True
-            break
-        elif 'jupyter' in path.lower():
-            running_in_jupyter = True
-            break
+    running_in_jupyter = is_notebook()
     TidalPy.running_in_jupyter = running_in_jupyter
 
     # Load configurations into the TidalPy.__init__
@@ -49,7 +57,7 @@ def initialize_tidalpy():
     save_to_disk = False
     if TidalPy.config['save_to_disk']:
         save_to_disk = True
-        if running_in_jupyter and not TidalPy.config['save_to_disk_in_jupyter:']:
+        if running_in_jupyter and not TidalPy.config['write_log_in_jupyter:']:
             save_to_disk = False
 
     # Create directories
@@ -79,7 +87,8 @@ def initialize_tidalpy():
             json5.dump(TidalPy.config, config_file, indent=4)
 
     # Initialize the loggers
-    tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc, running_in_jupyter=running_in_jupyter)
+    tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc, running_in_jupyter=running_in_jupyter,
+                            print_log_in_jupyter=TidalPy.config['print_log_in_jupyter'])
     TidalPy.log = tidalpy_log
 
     # Finish initialization
