@@ -1,5 +1,3 @@
-from functools import partial
-
 import numpy as np
 
 from performance_base import PerformanceTrackBase
@@ -7,7 +5,7 @@ from performance_base import PerformanceTrackBase
 import TidalPy
 TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.reinit()
-from TidalPy.tides.multilayer.numerical_int.solver import radial_solver
+from tides.multilayer.numerical_int import radial_solver
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays

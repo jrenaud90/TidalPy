@@ -9,8 +9,8 @@ TidalPy.test_mode()
 
 from TidalPy.constants import G
 from TidalPy.tides.multilayer.decompose import decompose
-from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_generic, fundamental_matrix_orderl2
-from TidalPy.tides.multilayer.matrix.propagate import propagate
+from TidalPy.radial_solver.matrix import fundamental_matrix_generic, fundamental_matrix_orderl2
+from TidalPy.radial_solver.matrix import matrix_propagate
 
 
 # Model planet - 2layers
@@ -37,7 +37,7 @@ def test_calc_fundamental_order2():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
+    tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
     sensitivity_to_shear, (k, h, l) = decompose(
@@ -74,7 +74,7 @@ def test_calc_fundamental_order3():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=3)
+    tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=3)
 
     # Decompose the results
     sensitivity_to_shear, (k, h, l) = decompose(

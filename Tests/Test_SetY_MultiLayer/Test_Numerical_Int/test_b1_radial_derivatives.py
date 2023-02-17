@@ -3,15 +3,16 @@
 
 import numpy as np
 
-
 import TidalPy
+
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int.derivatives import (radial_derivatives_liquid_dynamic,
-                                                                radial_derivatives_liquid_static,
-                                                                radial_derivatives_solid_dynamic,
-                                                                radial_derivatives_solid_static)
+from TidalPy.radial_solver.numerical.derivatives import (
+    radial_derivatives_liquid_dynamic,
+    radial_derivatives_liquid_static,
+    radial_derivatives_solid_dynamic,
+    radial_derivatives_solid_static)
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -36,18 +37,18 @@ def test_derivatives_solid_static():
 
     # Test for l=2
     solid_derivative = radial_derivatives_solid_static(
-        radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
-        density_array[0], gravity_array[0], order_l=2
-        )
+            radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
+            density_array[0], gravity_array[0], order_l=2
+            )
     assert type(solid_derivative) == np.ndarray
     assert solid_derivative.size == 12
     assert solid_derivative.dtype == np.float64
 
     # Test for l=3
     solid_derivative = radial_derivatives_solid_static(
-        radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
-        density_array[0], gravity_array[0], order_l=3
-        )
+            radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
+            density_array[0], gravity_array[0], order_l=3
+            )
     assert type(solid_derivative) == np.ndarray
     assert solid_derivative.size == 12
     assert solid_derivative.dtype == np.float64
@@ -62,18 +63,18 @@ def test_derivatives_solid_dynamic():
 
     # Test for l=2
     solid_derivative = radial_derivatives_solid_dynamic(
-        radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
-        density_array[0], gravity_array[0], frequency, order_l=2
-        )
+            radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
+            density_array[0], gravity_array[0], frequency, order_l=2
+            )
     assert type(solid_derivative) == np.ndarray
     assert solid_derivative.size == 12
     assert solid_derivative.dtype == np.float64
 
     # Test for l=3
     solid_derivative = radial_derivatives_solid_dynamic(
-        radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
-        density_array[0], gravity_array[0], frequency, order_l=3
-        )
+            radius_array_to_use[0], radial_funcs, shear_array[0], bulk_array[0],
+            density_array[0], gravity_array[0], frequency, order_l=3
+            )
     assert type(solid_derivative) == np.ndarray
     assert solid_derivative.size == 12
     assert solid_derivative.dtype == np.float64
@@ -88,18 +89,18 @@ def test_derivatives_liquid_static():
 
     # Test for l=2
     liquid_derivative = radial_derivatives_liquid_static(
-        radius_array_to_use[0], radial_funcs, density_array[0], gravity_array[0],
-        order_l=2
-        )
+            radius_array_to_use[0], radial_funcs, density_array[0], gravity_array[0],
+            order_l=2
+            )
     assert type(liquid_derivative) == np.ndarray
     assert liquid_derivative.size == 4
     assert liquid_derivative.dtype == np.float64
 
     # Test for l=3
     liquid_derivative = radial_derivatives_liquid_static(
-        radius_array_to_use[0], radial_funcs, density_array[0], gravity_array[0],
-        order_l=3
-        )
+            radius_array_to_use[0], radial_funcs, density_array[0], gravity_array[0],
+            order_l=3
+            )
     assert type(liquid_derivative) == np.ndarray
     assert liquid_derivative.size == 4
     assert liquid_derivative.dtype == np.float64
@@ -114,18 +115,18 @@ def test_derivatives_liquid_dynamic():
 
     # Test for l=2
     liquid_derivative = radial_derivatives_liquid_dynamic(
-        radius_array_to_use[0], radial_funcs, bulk_array[0], density_array[0],
-        gravity_array[0], frequency, order_l=2
-        )
+            radius_array_to_use[0], radial_funcs, bulk_array[0], density_array[0],
+            gravity_array[0], frequency, order_l=2
+            )
     assert type(liquid_derivative) == np.ndarray
     assert liquid_derivative.size == 8
     assert liquid_derivative.dtype == np.float64
 
     # Test for l=3
     liquid_derivative = radial_derivatives_liquid_dynamic(
-        radius_array_to_use[0], radial_funcs, bulk_array[0],
-        density_array[0], gravity_array[0], frequency, order_l=3
-        )
+            radius_array_to_use[0], radial_funcs, bulk_array[0],
+            density_array[0], gravity_array[0], frequency, order_l=3
+            )
     assert type(liquid_derivative) == np.ndarray
     assert liquid_derivative.size == 8
     assert liquid_derivative.dtype == np.float64

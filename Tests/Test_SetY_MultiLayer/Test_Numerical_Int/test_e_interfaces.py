@@ -5,18 +5,21 @@ import numpy as np
 from numba.typed.typedlist import List as nbTypedList
 
 import TidalPy
+
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_ts72,
-                                                                       liquid_static_guess_s74,
-                                                                       solid_dynamic_guess_ts72,
-                                                                       solid_static_guess_ts72)
-from TidalPy.tides.multilayer.numerical_int.interfaces import (interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt,
-                                                               interface_LSt_LSt, interface_LSt_SDy, interface_LSt_SSt,
-                                                               interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy,
-                                                               interface_SDy_SSt, interface_SSt_LDy, interface_SSt_LSt,
-                                                               interface_SSt_SDy, interface_SSt_SSt)
+from TidalPy.radial_solver.numerical.initial_conditions import (
+    liquid_dynamic_guess_ts72,
+    liquid_static_guess_s74,
+    solid_dynamic_guess_ts72,
+    solid_static_guess_ts72)
+from TidalPy.radial_solver.numerical.interfaces import (
+    interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt,
+    interface_LSt_LSt, interface_LSt_SDy, interface_LSt_SSt,
+    interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy,
+    interface_SDy_SSt, interface_SSt_LDy, interface_SSt_LSt,
+    interface_SSt_SDy, interface_SSt_SSt)
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -37,9 +40,9 @@ LDy_guess_l2 = liquid_dynamic_guess_ts72(radius_array_to_use, bulk_array, densit
 LSt_guess_l2 = liquid_static_guess_s74(radius_array_to_use, order_l=2)
 SSt_guess_l2 = solid_static_guess_ts72(radius_array_to_use, shear_array, bulk_array, density_array, order_l=2)
 SDy_guess_l2 = solid_dynamic_guess_ts72(
-    radius_array_to_use, shear_array, bulk_array, density_array, frequency,
-    order_l=2
-    )
+        radius_array_to_use, shear_array, bulk_array, density_array, frequency,
+        order_l=2
+        )
 
 
 def test_solid_solid_interface():

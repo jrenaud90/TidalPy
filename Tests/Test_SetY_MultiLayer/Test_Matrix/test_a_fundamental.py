@@ -4,11 +4,11 @@
 import numpy as np
 
 import TidalPy
+
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_generic, fundamental_matrix_orderl2
-
+from TidalPy.radial_solver.matrix import fundamental_matrix_generic, fundamental_matrix_orderl2
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -45,9 +45,9 @@ shear_array = 5.e10 * np.ones(10, dtype=np.complex128)
 
 def test_calc_fundamental_order2():
     F, F_inv, deriv_mtx = fundamental_matrix_orderl2(
-        radius_array[1:], shear_array,
-        density_array, gravity_array
-        )
+            radius_array[1:], shear_array,
+            density_array, gravity_array
+            )
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -75,13 +75,13 @@ def test_calc_fundamental_order2():
 
 def test_calc_fundamental_orderl_l2():
     F2, F2_inv, deriv_mtx2 = fundamental_matrix_orderl2(
-        radius_array[1:], shear_array,
-        density_array, gravity_array
-        )
+            radius_array[1:], shear_array,
+            density_array, gravity_array
+            )
     F, F_inv, deriv_mtx = fundamental_matrix_generic(
-        radius_array[1:], shear_array,
-        density_array, gravity_array, order_l=2
-        )
+            radius_array[1:], shear_array,
+            density_array, gravity_array, order_l=2
+            )
 
     # Check that the shapes are correct
     assert F.shape[0] == 6
@@ -115,9 +115,9 @@ def test_calc_fundamental_orderl_l2():
 
 def test_calc_fundamental_orderl_l3():
     F, F_inv, deriv_mtx = fundamental_matrix_generic(
-        radius_array[1:], shear_array,
-        density_array, gravity_array, order_l=3
-        )
+            radius_array[1:], shear_array,
+            density_array, gravity_array, order_l=3
+            )
 
     # Check that the shapes are correct
     assert F.shape[0] == 6

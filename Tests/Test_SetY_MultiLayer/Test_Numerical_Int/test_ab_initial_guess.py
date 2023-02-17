@@ -6,16 +6,18 @@ import numpy as np
 from numba.typed.typedlist import List as nbTypedList
 
 import TidalPy
+
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.numerical_int.initial_conditions import (liquid_dynamic_guess_kmn15,
-                                                                       liquid_dynamic_guess_ts72,
-                                                                       liquid_static_guess_s74,
-                                                                       solid_dynamic_guess_kmn15,
-                                                                       solid_dynamic_guess_ts72,
-                                                                       solid_static_guess_kmn15,
-                                                                       solid_static_guess_ts72)
+from TidalPy.radial_solver.numerical.initial_conditions import (
+    liquid_dynamic_guess_kmn15,
+    liquid_dynamic_guess_ts72,
+    liquid_static_guess_s74,
+    solid_dynamic_guess_kmn15,
+    solid_dynamic_guess_ts72,
+    solid_static_guess_kmn15,
+    solid_static_guess_ts72)
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)
@@ -82,7 +84,8 @@ def test_dynamic_solid_kmn15():
     """ Tests the initial guess at the bottom of a dynamic solid layer """
 
     # Test for order l = 2
-    solid_guess = solid_dynamic_guess_kmn15(radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=2)
+    solid_guess = solid_dynamic_guess_kmn15(
+        radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=2)
     assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
@@ -92,7 +95,8 @@ def test_dynamic_solid_kmn15():
         assert solid_guess[sn].shape == (6, 10)
 
     # Test for order l = 3
-    solid_guess = solid_dynamic_guess_kmn15(radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=3)
+    solid_guess = solid_dynamic_guess_kmn15(
+        radius_array_to_use, shear_array, bulk_array, density_array, frequency, order_l=3)
     assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
@@ -123,9 +127,9 @@ def test_dynamic_solid_ts72():
 
     # Test for order l = 2
     solid_guess = solid_dynamic_guess_ts72(
-        radius_array_to_use, shear_array, bulk_array, density_array, frequency,
-        order_l=2
-        )
+            radius_array_to_use, shear_array, bulk_array, density_array, frequency,
+            order_l=2
+            )
     assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):
@@ -136,9 +140,9 @@ def test_dynamic_solid_ts72():
 
     # Test for order l = 3
     solid_guess = solid_dynamic_guess_ts72(
-        radius_array_to_use, shear_array, bulk_array, density_array, frequency,
-        order_l=3
-        )
+            radius_array_to_use, shear_array, bulk_array, density_array, frequency,
+            order_l=3
+            )
     assert type(solid_guess) in [list, numba.types.List, nbTypedList]
     assert len(solid_guess) == 3
     for sn in range(3):

@@ -8,7 +8,7 @@ TidalPy.test_mode()
 
 from TidalPy.constants import G
 from TidalPy.utilities.spherical_helper import calculate_mass_gravity_arrays
-from TidalPy.tides.multilayer.numerical_int.solver import radial_solver
+from TidalPy.radial_solver.numerical import radial_solver
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

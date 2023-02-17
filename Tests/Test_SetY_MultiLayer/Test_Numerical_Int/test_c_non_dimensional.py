@@ -7,8 +7,8 @@ import TidalPy
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.nondimensional import (non_dimensionalize_physicals,
-                                                     re_dimensionalize_physicals, re_dimensionalize_radial_func)
+from TidalPy.radial_solver.nondimensional import (non_dimensionalize_physicals,
+                                          re_dimensionalize_physicals, re_dimensionalize_radial_func)
 from TidalPy.utilities.types import float_eps
 
 # Model planet - 2layers

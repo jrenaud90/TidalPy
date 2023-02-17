@@ -1,11 +1,10 @@
 import numpy as np
 
-
 import TidalPy
+
 TidalPy.test_mode()
 
-from TidalPy.tides.multilayer.numerical_int.initial_conditions.functions import (takeuchi_phi_psi,
-                                                                                 takeuchi_phi_psi_general, z_calc)
+from TidalPy.radial_solver.numerical.initial_conditions import (takeuchi_phi_psi, takeuchi_phi_psi_general, z_calc)
 
 
 def test_takeuchi_general():
