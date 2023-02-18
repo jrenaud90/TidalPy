@@ -18,8 +18,8 @@ import numpy as np
 
 from TidalPy.utilities.performance import njit, nbList
 
-from ..initial_conditions.initial_solution_dynamic import SolidDynamicGuess
-from ..initial_conditions.initial_solution_static import SolidStaticGuess
+from ..initial.initial_solution_dynamic import SolidDynamicGuess
+from ..initial.initial_solution_static import SolidStaticGuess
 
 @njit(cacheable=True)
 def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:

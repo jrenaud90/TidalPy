@@ -9,7 +9,7 @@ from TidalPy.utilities.performance import nbList
 
 from .collapse import collapse_solutions
 from .derivatives import known_multilayer_odes
-from .initial_conditions import find_initial_guess
+from .initial import find_initial_guess
 from .interfaces import find_interface_func
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 
@@ -172,10 +172,9 @@ def radial_solver(
 
         # Find the initial solution at the center of the planet
         if layer_i == 0:
-            is_dynamic = not layer_is_static
             initial_value_tuple = \
                 find_initial_guess(
-                        use_kamata, layer_is_solid, is_dynamic, incompressible,
+                        layer_is_solid, layer_is_static, incompressible, use_kamata,
                         radius[0], shear_modulus[0], bulk_modulus[0], density[0], frequency,
                         order_l=order_l, G_to_use=G_to_use
                         )

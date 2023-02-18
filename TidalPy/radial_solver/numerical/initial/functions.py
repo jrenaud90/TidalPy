@@ -38,7 +38,8 @@ def takeuchi_phi_psi_general(z: NumArray, order_l: int = 2) -> Tuple[NumArray, N
     Parameters
     ----------
     z : NumArray
-        Input scalar or array.
+        Input scalar or array that is already squared.
+        This can be complex or real-valued.
     order_l : int = 2
         Tidal harmonic order.
 
@@ -74,7 +75,8 @@ def takeuchi_phi_psi(z_squared: NumArray, order_l: int = 2) -> Tuple[NumArray, N
     Parameters
     ----------
     z_squared : NumArray
-        Input scalar or array. squared.
+        Input scalar or array that is already squared.
+        This can be complex or real-valued.
     order_l : int = 2
         Tidal harmonic order.
 
@@ -185,7 +187,9 @@ def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error
     if max_l_might_be_too_small and raise_l_error:
         # Max l may be too small for convergence on large values of x_squared.
         #   Perform tests and then you can set raise_l_error=False to avoid this error.
-        raise Exception
+        raise Exception("Max degree l may be too small for `z_calc` convergence.\n"
+                        "The `z_calc` function attempted to use a pre-calculated table to find an appropriate Max l,"
+                        "but magnitude of x_squared falls outside of the pre-calculated table.")
 
     z = x_squared / (2. * max_l_to_use + 3.)
     for l_fake in range(order_l, max_l_to_use + 1):
@@ -194,5 +198,35 @@ def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error
         z = x_squared / ((2. * l + 1.) - z)
 
     # print(max_l_to_use)
+
+    return z
+
+def z_calc_general(x_squared: NumArray, order_l: int = 2) -> NumArray:
+    """ Calculates the z function using spherical Bessel function, see Eq. B14 of KMN15.
+
+    References
+    ----------
+    TS72 Eqs. 96, 97
+    KMN15 Eq. B14
+
+    Parameters
+    ----------
+    x_squared : NumArray
+        Expression passed to the Bessel function.
+    order_l : int = 2
+        Tidal harmonic order.
+
+    Returns
+    -------
+    z : NumArray
+        Result of the recursive calculation
+
+    """
+
+    x = np.sqrt(x_squared)
+
+    numerator   = x * spherical_jn(order_l + 1, x)
+    denominator = spherical_jn(order_l, x)
+    z = numerator / denominator
 
     return z

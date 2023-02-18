@@ -2,8 +2,9 @@
 
 import TidalPy
 TidalPy.test_mode()
+
 def test_radial_solver_numerical_interfaces_package():
-    """ Test radial_solver.numerical import. """
+    """ Test radial_solver.numerical.interfaces import. """
 
     from TidalPy.radial_solver.numerical.interfaces import (interface_LDy_LDy, interface_LSt_LSt, interface_LDy_LSt,
                                                             interface_LSt_LDy, interface_LDy_SDy, interface_LSt_SSt,

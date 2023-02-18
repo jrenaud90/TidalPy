@@ -4,7 +4,7 @@ import numpy as np
 
 from .collapse import collapse_solutions
 from .derivatives import dynamic_liquid_ode, dynamic_solid_ode, static_liquid_ode, static_solid_ode
-from .initial_conditions import find_initial_guess
+from .initial import find_initial_guess
 from .interfaces import (
     interface_LDy_LDy, interface_LDy_SDy, interface_LDy_SSt, interface_LSt_LSt, interface_LSt_SDy,
     interface_LSt_SSt, interface_SDy_LDy, interface_SDy_LSt, interface_SDy_SDy, interface_SDy_SSt,
@@ -26,10 +26,9 @@ def _get_initial_values(
     initial_values_to_use = nbList([np.empty((6, 0), dtype=np.complex128)])
     if layer_i == 0:
         # Find the initial solution at the center of the planet
-        is_dynamic = not layer_is_static
         initial_values_to_use = \
             find_initial_guess(
-                    use_kamata, layer_is_solid, is_dynamic, incompressible,
+                    layer_is_solid, layer_is_static, incompressible, use_kamata,
                     radius_at_bottom, shear_mod_at_bottom, bulk_mod_at_bottom, density_at_bottom, frequency,
                     order_l=order_l, G_to_use=G_to_use
                     )

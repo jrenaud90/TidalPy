@@ -19,8 +19,8 @@ import numpy as np
 from TidalPy.constants import G
 from TidalPy.utilities.performance import njit, nbList
 
-from ..initial_conditions.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from ..initial_conditions.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
+from ..initial.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+from ..initial.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 
 
 @njit(cacheable=True)

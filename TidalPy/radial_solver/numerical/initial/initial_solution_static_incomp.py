@@ -14,22 +14,22 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import List
+from typing import Union
 
 import numpy as np
 
 from TidalPy.constants import G
 from TidalPy.utilities.performance import njit, nbList
-from TidalPy.utilities.types import ComplexArray, FloatArray, NumArray
+from TidalPy.utilities.types import ComplexArray
 
-SolidStaticGuess = List[ComplexArray]
-LiquidStaticGuess = List[ComplexArray]
+SolidStaticGuess = nbList[ComplexArray]
+LiquidStaticGuess = nbList[ComplexArray]
 
 
 @njit(cacheable=True)
 def solid_guess_kamata(
-    radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray,
+    radius: float, shear_modulus: Union[float, complex],
+    density: float,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the static and incompressible assumption.
@@ -47,12 +47,12 @@ def solid_guess_kamata(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
-    shear_modulus : NumArray
+    shear_modulus : Union[float, complex]
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    density : FloatArray
-        Density at  at `radius` [kg m-3]
+    density : float
+        Density at `radius` [kg m-3]
     order_l : int = 2
         Tidal harmonic order.
     G_to_use : float = G
@@ -70,8 +70,8 @@ def solid_guess_kamata(
 
 @njit(cacheable=True)
 def solid_guess_takeuchi(
-    radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray,
+    radius: float, shear_modulus: Union[float, complex],
+    density: float,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidStaticGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
@@ -89,14 +89,12 @@ def solid_guess_takeuchi(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
-    shear_modulus : NumArray
+    shear_modulus : Union[float, complex]
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    density : FloatArray
-        Density at  at `radius` [kg m-3]
-    frequency : FloatArray
-        Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
+    density : float
+        Density at `radius` [kg m-3]
     order_l : int = 2
         Tidal harmonic order.
     G_to_use : float = G
@@ -114,7 +112,7 @@ def solid_guess_takeuchi(
 
 
 @njit(cacheable=True)
-def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G) -> LiquidStaticGuess:
+def liquid_guess_saito(radius: float, order_l: int = 2, G_to_use: float = G) -> LiquidStaticGuess:
     """ Calculate the initial guess at the bottom of a liquid layer using the static assumption.
 
     This function uses the Saito 1974 equations (Eq. 19).
@@ -131,7 +129,7 @@ def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
     order_l : int = 2
         Tidal harmonic order.
@@ -153,14 +151,9 @@ def liquid_guess_saito(radius: FloatArray, order_l: int = 2, G_to_use: float = G
     y7_s1 = 2. * (order_l - 1.) * radius**(order_l - 1.)
 
     # Since there is no bulk or shear dependence then the y's in this function will be strictly real
-
-    # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
-    #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
-    y5_s1 = np.asarray(y5_s1, dtype=np.complex128)
-    y7_s1 = np.asarray(y7_s1, dtype=np.complex128)
-
-    # Combine the three solutions
-    tidaly_s1 = np.stack((y5_s1, y7_s1))
+    tidaly_s1 = np.empty(2, dtype=np.complex128)
+    tidaly_s1[0] = y5_s1
+    tidaly_s1[1] = y7_s1
 
     # There is only one solution for the static liquid layer initial condition. However, that outputting a single value
     # does not match the form of the other initial condition functions. So we will wrap the value in a tuple.

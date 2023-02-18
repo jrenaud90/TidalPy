@@ -14,28 +14,28 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import List
+from typing import Union
 
 import numpy as np
 
 from .functions import takeuchi_phi_psi, z_calc
 from TidalPy.constants import G, pi
 from TidalPy.utilities.performance import njit, nbList
-from TidalPy.utilities.types import ComplexArray, FloatArray, NumArray
+from TidalPy.utilities.types import ComplexArray
 
-SolidDynamicGuess = List[ComplexArray]
-LiquidDynamicGuess = List[ComplexArray]
+SolidDynamicGuess = nbList[ComplexArray]
+LiquidDynamicGuess = nbList[ComplexArray]
 
 
 @njit(cacheable=True)
 def solid_guess_kamata(
-    radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray, frequency: FloatArray,
+    radius: float, shear_modulus: Union[float, complex],
+    density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic and incompressible assumption.
 
-    This function uses the Kamata et al (2015; JGR:P) equations (Eq. B17-B28).
+    This function uses the Kamata et al. (2015; JGR:P) equations (Eq. B17-B28).
 
     Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
 
@@ -48,13 +48,13 @@ def solid_guess_kamata(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
-    shear_modulus : NumArray
+    shear_modulus : Union[float, complex]
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    density : FloatArray
-        Density at  at `radius` [kg m-3]
-    frequency : FloatArray
+    density : float
+        Density at `radius` [kg m-3]
+    frequency : float
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
@@ -113,46 +113,42 @@ def solid_guess_kamata(
     y6_s2 = (2. * order_l + 1.) * y5_s2 * r_inverse
     y6_s3 = (2. * order_l + 1.) * y5_s3 * r_inverse - (3. * order_l * gamma * r_inverse)
 
-    # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
-    #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
-    y1_s1 = np.asarray(y1_s1, dtype=np.complex128)
-    y2_s1 = np.asarray(y2_s1, dtype=np.complex128)
-    y3_s1 = np.asarray(y3_s1, dtype=np.complex128)
-    y4_s1 = np.asarray(y4_s1, dtype=np.complex128)
-    y5_s1 = np.asarray(y5_s1, dtype=np.complex128)
-    y6_s1 = np.asarray(y6_s1, dtype=np.complex128)
+    tidaly_s1 = np.empty(6, dtype=np.complex128)
+    tidaly_s1[0] = y1_s1
+    tidaly_s1[1] = y2_s1
+    tidaly_s1[2] = y3_s1
+    tidaly_s1[3] = y4_s1
+    tidaly_s1[4] = y5_s1
+    tidaly_s1[5] = y6_s1
 
-    y1_s2 = np.asarray(y1_s2, dtype=np.complex128)
-    y2_s2 = np.asarray(y2_s2, dtype=np.complex128)
-    y3_s2 = np.asarray(y3_s2, dtype=np.complex128)
-    y4_s2 = np.asarray(y4_s2, dtype=np.complex128)
-    y5_s2 = np.asarray(y5_s2, dtype=np.complex128)
-    y6_s2 = np.asarray(y6_s2, dtype=np.complex128)
+    tidaly_s2 = np.empty(6, dtype=np.complex128)
+    tidaly_s2[0] = y1_s2
+    tidaly_s2[1] = y2_s2
+    tidaly_s2[2] = y3_s2
+    tidaly_s2[3] = y4_s2
+    tidaly_s2[4] = y5_s2
+    tidaly_s2[5] = y6_s2
 
-    y1_s3 = np.asarray(y1_s3, dtype=np.complex128)
-    y2_s3 = np.asarray(y2_s3, dtype=np.complex128)
-    y3_s3 = np.asarray(y3_s3, dtype=np.complex128)
-    y4_s3 = np.asarray(y4_s3, dtype=np.complex128)
-    y5_s3 = np.asarray(y5_s3, dtype=np.complex128)
-    y6_s3 = np.asarray(y6_s3, dtype=np.complex128)
-
-    # Combine the three solutions
-    tidaly_s1 = np.stack((y1_s1, y2_s1, y3_s1, y4_s1, y5_s1, y6_s1))
-    tidaly_s2 = np.stack((y1_s2, y2_s2, y3_s2, y4_s2, y5_s2, y6_s2))
-    tidaly_s3 = np.stack((y1_s3, y2_s3, y3_s3, y4_s3, y5_s3, y6_s3))
+    tidaly_s3 = np.empty(6, dtype=np.complex128)
+    tidaly_s3[0] = y1_s3
+    tidaly_s3[1] = y2_s3
+    tidaly_s3[2] = y3_s3
+    tidaly_s3[3] = y4_s3
+    tidaly_s3[4] = y5_s3
+    tidaly_s3[5] = y6_s3
 
     return nbList([tidaly_s1, tidaly_s2, tidaly_s3])
 
 
 @njit(cacheable=True)
 def liquid_guess_kamata(
-    radius: FloatArray,
-    density: FloatArray, frequency: FloatArray,
+    radius: float,
+    density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> LiquidDynamicGuess:
     """  Calculate the initial guess at the bottom of a liquid layer using the dynamic and incompressible assumption.
 
-    This function uses the Kamata et al (2015; JGR:P) equations (Eq. B29-B37).
+    This function uses the Kamata et al. (2015; JGR:P) equations (Eq. B29-B37).
 
     Using the dynamic assumption in a liquid layer results in two independent solutions for the radial derivatives.
 
@@ -165,11 +161,11 @@ def liquid_guess_kamata(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
-    density : FloatArray
-        Density at  at `radius` [kg m-3]
-    frequency : FloatArray
+    density : float
+        Density at `radius` [kg m-3]
+    frequency : float
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
@@ -205,29 +201,25 @@ def liquid_guess_kamata(
     y6_s1 = (2. * order_l + 1.) * y5_s1 * r_inverse
     y6_s2 = ((2. * order_l + 1.) * y5_s2 * r_inverse) - ((3. * order_l * gamma) * r_inverse)
 
-    # TODO: Right now numba does not support np.stack for purely scalar inputs. A temp fix is to make sure all the
-    #    inputs are cast into arrays. See the github issue here: https://github.com/numba/numba/issues/7002
-    y1_s1 = np.asarray(y1_s1, dtype=np.complex128)
-    y2_s1 = np.asarray(y2_s1, dtype=np.complex128)
-    y5_s1 = np.asarray(y5_s1, dtype=np.complex128)
-    y6_s1 = np.asarray(y6_s1, dtype=np.complex128)
+    tidaly_s1 = np.empty(4, dtype=np.complex128)
+    tidaly_s1[0] = y1_s1
+    tidaly_s1[1] = y2_s1
+    tidaly_s1[2] = y5_s1
+    tidaly_s1[3] = y6_s1
 
-    y1_s2 = np.asarray(y1_s2, dtype=np.complex128)
-    y2_s2 = np.asarray(y2_s2, dtype=np.complex128)
-    y5_s2 = np.asarray(y5_s2, dtype=np.complex128)
-    y6_s2 = np.asarray(y6_s2, dtype=np.complex128)
-
-    # Combine the two solutions
-    tidaly_s1 = np.stack((y1_s1, y2_s1, y5_s1, y6_s1))
-    tidaly_s2 = np.stack((y1_s2, y2_s2, y5_s2, y6_s2))
+    tidaly_s2 = np.empty(4, dtype=np.complex128)
+    tidaly_s2[0] = y1_s2
+    tidaly_s2[1] = y2_s2
+    tidaly_s2[2] = y5_s2
+    tidaly_s2[3] = y6_s2
 
     return nbList([tidaly_s1, tidaly_s2])
 
 
 @njit(cacheable=True)
 def solid_guess_takeuchi(
-    radius: FloatArray, shear_modulus: NumArray,
-    density: FloatArray, frequency: FloatArray,
+    radius: float, shear_modulus: Union[float, complex],
+    density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidDynamicGuess:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
@@ -245,13 +237,13 @@ def solid_guess_takeuchi(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
-    shear_modulus : NumArray
+    shear_modulus : Union[float, complex]
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    density : FloatArray
-        Density at  at `radius` [kg m-3]
-    frequency : FloatArray
+    density : float
+        Density at `radius` [kg m-3]
+    frequency : float
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
@@ -271,8 +263,8 @@ def solid_guess_takeuchi(
 
 @njit(cacheable=True)
 def liquid_guess_takeuchi(
-    radius: FloatArray,
-    density: FloatArray, frequency: FloatArray,
+    radius: float,
+    density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> LiquidDynamicGuess:
     """ Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
@@ -290,11 +282,11 @@ def liquid_guess_takeuchi(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
-    density : FloatArray
-        Density at  at `radius` [kg m-3]
-    frequency : FloatArray
+    density : float
+        Density at `radius` [kg m-3]
+    frequency : float
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
@@ -316,8 +308,8 @@ def liquid_guess_takeuchi(
 """
 # @njit(cacheable=True)
 def solid_guess_martens(
-    radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
-    density: FloatArray, frequency: FloatArray,
+    radius: float, shear_modulus: Union[float, complex], bulk_modulus: Union[float, complex],
+    density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidDynamicGuess:
 
