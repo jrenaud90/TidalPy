@@ -18,7 +18,7 @@ from TidalPy.utilities.performance import nbList, njit
 @njit(cacheable=True)
 def _get_initial_values(
         layer_i, layer_is_solid, layer_is_static, layer_below_is_solid, layer_below_is_static,
-        last_below_ys,
+        layer_below_y_solutions,
         radius_at_bottom, shear_mod_at_bottom, bulk_mod_at_bottom, density_at_bottom, gravity_at_bottom,
         frequency, interface_gravity, liquid_density,
         order_l, G_to_use, use_kamata, incompressible
@@ -34,87 +34,90 @@ def _get_initial_values(
                     order_l=order_l, G_to_use=G_to_use
                     )
     else:
+        # Find solutions from the top of the layer below.
+        layer_below_y_solutions_top = nbList([layer_below_y[:, -1] for layer_below_y in layer_below_y_solutions])
+
         # For interfaces between liquid layers we need the liquid density at the interface.
         if layer_below_is_solid:
             if layer_is_solid:
                 if layer_below_is_static:
                     if layer_is_static:
                         # Solid-Solid, Static-Static
-                        initial_values_to_use = interface_SSt_SSt(last_below_ys)
+                        initial_values_to_use = interface_SSt_SSt(layer_below_y_solutions_top)
                     else:
                         # Solid-Solid, Static-Dynamic
-                        initial_values_to_use = interface_SSt_SDy(last_below_ys)
+                        initial_values_to_use = interface_SSt_SDy(layer_below_y_solutions_top)
                 else:
                     if layer_is_static:
                         # Solid-Solid, Dynamic-Static
-                        initial_values_to_use = interface_SDy_SSt(last_below_ys)
+                        initial_values_to_use = interface_SDy_SSt(layer_below_y_solutions_top)
                     else:
                         # Solid-Solid, Dynamic-Dynamic
-                        initial_values_to_use = interface_SDy_SDy(last_below_ys)
+                        initial_values_to_use = interface_SDy_SDy(layer_below_y_solutions_top)
             else:
                 if layer_below_is_static:
                     if layer_is_static:
                         # Solid-Liquid, Static-Static
                         initial_values_to_use = interface_SSt_LSt(
-                                last_below_ys,
+                                layer_below_y_solutions_top,
                                 interface_gravity, liquid_density, G_to_use
                                 )
                     else:
                         # Solid-Liquid, Static-Dynamic
-                        initial_values_to_use = interface_SSt_LDy(last_below_ys)
+                        initial_values_to_use = interface_SSt_LDy(layer_below_y_solutions_top)
                 else:
                     if layer_is_static:
                         # Solid-Liquid, Dynamic-Static
                         initial_values_to_use = interface_SDy_LSt(
-                                last_below_ys,
+                                layer_below_y_solutions_top,
                                 interface_gravity, liquid_density, G_to_use
                                 )
                     else:
                         # Solid-Liquid, Dynamic-Dynamic
-                        initial_values_to_use = interface_SDy_LDy(last_below_ys)
+                        initial_values_to_use = interface_SDy_LDy(layer_below_y_solutions_top)
         else:
             if layer_is_solid:
                 if layer_below_is_static:
                     if layer_is_static:
                         # Liquid-Solid, Static-Static
                         initial_values_to_use = interface_LSt_SSt(
-                                last_below_ys,
+                                layer_below_y_solutions_top,
                                 interface_gravity, liquid_density, G_to_use
                                 )
                     else:
                         # Liquid-Solid, Static-Dynamic
                         initial_values_to_use = interface_LSt_SDy(
-                                last_below_ys,
+                                layer_below_y_solutions_top,
                                 interface_gravity, liquid_density, G_to_use
                                 )
                 else:
                     if layer_is_static:
                         # Liquid-Solid, Dynamic-Static
-                        initial_values_to_use = interface_LDy_SSt(last_below_ys)
+                        initial_values_to_use = interface_LDy_SSt(layer_below_y_solutions_top)
                     else:
                         # Liquid-Solid, Dynamic-Dynamic
-                        initial_values_to_use = interface_LDy_SDy(last_below_ys)
+                        initial_values_to_use = interface_LDy_SDy(layer_below_y_solutions_top)
             else:
                 if layer_below_is_static:
                     if layer_is_static:
                         # Liquid-Liquid, Static-Static
-                        initial_values_to_use = interface_LSt_LSt(last_below_ys)
+                        initial_values_to_use = interface_LSt_LSt(layer_below_y_solutions_top)
                     else:
                         # Liquid-Liquid, Static-Dynamic
                         initial_values_to_use = interface_LSt_LDy(
-                                last_below_ys,
+                                layer_below_y_solutions_top,
                                 interface_gravity, liquid_density, G_to_use
                                 )
                 else:
                     if layer_is_static:
                         # Liquid-Liquid, Dynamic-Static
                         initial_values_to_use = interface_LDy_LSt(
-                                last_below_ys,
+                                layer_below_y_solutions_top,
                                 interface_gravity, liquid_density, G_to_use
                                 )
                     else:
                         # Liquid-Liquid, Dynamic-Dynamic
-                        initial_values_to_use = interface_LDy_LDy(last_below_ys)
+                        initial_values_to_use = interface_LDy_LDy(layer_below_y_solutions_top)
 
     return initial_values_to_use
 

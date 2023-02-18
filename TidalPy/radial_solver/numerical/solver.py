@@ -2,14 +2,16 @@ from typing import List, Union, Tuple
 
 import numpy as np
 
+from TidalPy.constants import G
+from TidalPy.exceptions import AttributeNotSetError, IntegrationFailed
+from TidalPy.utilities.integration import get_integrator, _nb2cy, cyrk_solver
+from TidalPy.utilities.performance import nbList
+
 from .collapse import collapse_solutions
 from .derivatives import known_multilayer_odes
 from .initial_conditions import find_initial_guess
 from .interfaces import find_interface_func
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
-from TidalPy.constants import G
-from TidalPy.exceptions import AttributeNotSetError, IntegrationFailed
-from TidalPy.utilities.integration import get_integrator, _nb2cy, cyrk_solver
 
 
 def radial_solver(
@@ -274,7 +276,10 @@ def radial_solver(
             initial_values_to_use = initial_value_tuple
         else:
             # Initial values are based on the previous layer's results and the interface function.
-            initial_values_to_use = bottom_interface(solutions_by_layer[layer_i - 1], *bottom_interface_input)
+            lower_layer_top_solutions = nbList()
+            for lower_layer_solution in solutions_by_layer[layer_i - 1]:
+                lower_layer_top_solutions.append(lower_layer_solution[:, -1])
+            initial_values_to_use = bottom_interface(lower_layer_top_solutions, *bottom_interface_input)
 
         if verbose:
             print(f'Solving Layer {layer_i + 1} (using {integrator} with {integrator_method})...')

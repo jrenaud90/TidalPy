@@ -13,6 +13,7 @@
 
 * Minor Changes
   * Updated and added to `radial_solver` test suite.
+  * Changed `radial_solver.interfaces` functions to only require the top most value of the radial solutions rather than the whole array.
 
 ### Version 0.4.0 Alpha (Winter 2022/2023)
 

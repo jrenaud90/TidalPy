@@ -12,20 +12,19 @@ from TidalPy.radial_solver.numerical.interfaces import find_interface_func
 
 static_liquid_density, interface_gravity, G_to_use = 4000., 7.5, G
 
-N = 5
 lower_layer_ys_dict = {
     # Stored by is_lower_solid, is_lower_static
-    (True, True):   nbList([(10. - 1.j) * np.ones((6, N), dtype=np.complex128),
-                            (15. - 2.j) * np.ones((6, N), dtype=np.complex128),
-                            (12. - 3.j) * np.ones((6, N), dtype=np.complex128)]),
-    (True, False):  nbList([(13. - 4.j) * np.ones((6, N), dtype=np.complex128),
-                            (18. - 5.j) * np.ones((6, N), dtype=np.complex128),
-                            (15. - 6.j) * np.ones((6, N), dtype=np.complex128)]),
+    (True, True):   nbList([(10. - 1.j) * np.ones(6, dtype=np.complex128),
+                            (15. - 2.j) * np.ones(6, dtype=np.complex128),
+                            (12. - 3.j) * np.ones(6, dtype=np.complex128)]),
+    (True, False):  nbList([(13. - 4.j) * np.ones(6, dtype=np.complex128),
+                            (18. - 5.j) * np.ones(6, dtype=np.complex128),
+                            (15. - 6.j) * np.ones(6, dtype=np.complex128)]),
     # Dynamic liquid layer only has 2 solutions with 4 ys defined.
-    (False, False): nbList([(112. - 7.j) * np.ones((4, N), dtype=np.complex128),
-                            (17. - 8.j) * np.ones((4, N), dtype=np.complex128)]),
+    (False, False): nbList([(112. - 7.j) * np.ones(4, dtype=np.complex128),
+                            (17. - 8.j) * np.ones(4, dtype=np.complex128)]),
     # Static liquid layer only has 1 solution with 2 ys defined.
-    (False, True):  nbList([(183. - 9.j) * np.ones((2, N), dtype=np.complex128)]),
+    (False, True):  nbList([(183. - 9.j) * np.ones(2, dtype=np.complex128)]),
     }
 
 @pytest.mark.parametrize('is_lower_solid', (True, False))
@@ -69,10 +68,10 @@ def test_interface_functions(is_lower_solid, is_upper_solid, is_lower_static, is
         if is_lower_static and is_upper_static:
             if is_lower_solid and is_upper_solid:
                 # The lower and upper ys should be the same
-                assert np.all(upper_layer_ys == lower_layer_ys[:, -1])
+                assert np.all(upper_layer_ys == lower_layer_ys)
 
             if not is_lower_solid and not is_upper_solid:
                 # The lower and upper ys should be the same
-                assert np.all(upper_layer_ys == lower_layer_ys[:, -1])
+                assert np.all(upper_layer_ys == lower_layer_ys)
 
 
