@@ -8,6 +8,9 @@
 * Major Changes
   * Moved `radial_solver` to a top-level module of TidalPy.
 
+* Minor Changes
+  * Updated and added to `radial_solver` test suite.
+
 ### Version 0.4.0 Alpha (Winter 2022/2023)
 
 * Major Changes 

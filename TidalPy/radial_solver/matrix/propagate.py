@@ -81,23 +81,23 @@ def propagate(
     surface_solution = surface_matrix_inv @ surface_bc
 
     # Using the aggregate matrix, solve for the tidal "y"s
-    tidal_y_sv = np.zeros((6, num_shells), dtype=np.complex128)
-    tidal_y_derivative_sv = np.zeros((6, num_shells), dtype=np.complex128)
+    y_sv = np.empty((6, num_shells), dtype=np.complex128)
+    y_derivative_sv = np.empty((6, num_shells), dtype=np.complex128)
     for i in range(num_shells):
-        tidal_y_sv[:, i] = propagation_mtx[:, :, i] @ surface_solution
+        y_sv[:, i] = propagation_mtx[:, :, i] @ surface_solution
 
         # Calculate the derivatives of the tidal solution with radius
-        tidal_y_derivative_sv[:, i] = derivative_matrix[:, :, i] @ tidal_y_sv[:, i]
+        y_derivative_sv[:, i] = derivative_matrix[:, :, i] @ y_sv[:, i]
 
     # As discussed in B13 (discussed near their equation 7), SVC16 (and the earlier 2004 book) use a different
     #    convention for tidal_y than is used by Takeuchi and Saito (1972). Since a good chunk of the field follows the
     #    latter, we will do the same. Below are the conversions from SVC16 to TS72
-    tidal_y = np.zeros_like(tidal_y_sv)
-    tidal_y[0, :] = tidal_y_sv[0, :]
-    tidal_y[1, :] = tidal_y_sv[2, :]  # Flip y3 and y2
-    tidal_y[2, :] = tidal_y_sv[1, :]  # Flip y3 and y2
-    tidal_y[3, :] = tidal_y_sv[3, :]
-    tidal_y[4, :] = tidal_y_sv[4, :] * -1.
-    tidal_y[5, :] = tidal_y_sv[5, :] * -1.
+    y = np.empty_like(y_sv)
+    y[0, :] = y_sv[0, :]
+    y[1, :] = y_sv[2, :]  # Flip y3 and y2
+    y[2, :] = y_sv[1, :]  # Flip y3 and y2
+    y[3, :] = y_sv[3, :]
+    y[4, :] = y_sv[4, :] * -1.
+    y[5, :] = y_sv[5, :] * -1.
 
-    return tidal_y
+    return y
