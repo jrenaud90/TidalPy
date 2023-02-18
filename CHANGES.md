@@ -9,6 +9,7 @@
   * Moved `radial_solver` to a top-level module of TidalPy.
     * Added `find_love` function to the `radial_solver` module for the calculation of Love and Shida numbers.
     * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al (2005).
+    * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al (2005).
 
 * Minor Changes
   * Updated and added to `radial_solver` test suite.
