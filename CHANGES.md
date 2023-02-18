@@ -7,6 +7,7 @@
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes
   * Moved `radial_solver` to a top-level module of TidalPy.
+    * Added `find_love` function to the `radial_solver` module for the calculation of Love and Shida numbers. 
 
 * Minor Changes
   * Updated and added to `radial_solver` test suite.
