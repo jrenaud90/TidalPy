@@ -1,12 +1,11 @@
 """ Test the `TidalPy.radial_solver.love` functionality. """
 
 import numpy as np
-import pytest
 
 import TidalPy
 TidalPy.test_mode()
 
-def test_package():
+def test_file():
     """ Test the importing of the function from the root of the module. """
     from TidalPy.radial_solver import find_love
     assert True
@@ -19,7 +18,7 @@ def test_find_love_rigid():
     surface_gravity = 9.81
 
     # All surface radial solutions' imaginary portion are zero. y1 = 0, y3 = 0 and y5 = 1
-    surface_radial_solution = np.asarray((
+    surface_radial_solutions = np.asarray((
         0., 0.,   # y1
         10., 0.,  # y2
         0., 0.,   # y3
@@ -28,7 +27,7 @@ def test_find_love_rigid():
         10., 0.,  # y6
         ))
 
-    k_love, h_love, l_shida = find_love(surface_radial_solution, surface_gravity)
+    k_love, h_love, l_shida = find_love(surface_radial_solutions, surface_gravity)
 
     # Check types
     assert isinstance(k_love, complex)
@@ -48,7 +47,7 @@ def test_find_love_nonzero_imag():
     surface_gravity = 9.81
     g_inv = 1. / surface_gravity
 
-    surface_radial_solution = np.asarray((
+    surface_radial_solutions = np.asarray((
         g_inv, g_inv,  # y1
         10., 0.,       # y2
         g_inv, g_inv,  # y3
@@ -57,7 +56,7 @@ def test_find_love_nonzero_imag():
         10., 0.,       # y6
         ))
 
-    k_love, h_love, l_shida = find_love(surface_radial_solution, surface_gravity)
+    k_love, h_love, l_shida = find_love(surface_radial_solutions, surface_gravity)
     # Love and Shida numbers should be zero for a rigid planet
     assert k_love == 1. + 1.j
     assert h_love == 1. + 1.j

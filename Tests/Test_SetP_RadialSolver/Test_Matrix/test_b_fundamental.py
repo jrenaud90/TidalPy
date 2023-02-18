@@ -19,6 +19,7 @@ planet_mass = sum(mass_array)
 mass_below = np.asarray([np.sum(mass_array[:i + 1]) for i in range(10)])
 gravity_array = G * mass_below / (radius_array[1:]**2)
 complex_shear_array = 5.e10 * np.ones(10, dtype=np.complex128)
+
 def test_fundamental_matrix_orderl2():
     """ Test `fundamental_matrix_orderl2` function. """
 

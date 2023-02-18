@@ -10,7 +10,7 @@ import numpy as np
 from TidalPy.utilities.performance.numba import njit
 
 @njit(cacheable=True)
-def find_love(surface_radial_solution: np.ndarray, surface_gravity: float):
+def find_love(surface_radial_solutions: np.ndarray, surface_gravity: float):
     """ Calculate the Love and Shida numbers from the viscoelastic-gravitational radial solutions.
 
     The Love numbers can be complex if the radial solutions are complex (viscoelastic) or purely real if dealing with
@@ -18,8 +18,9 @@ def find_love(surface_radial_solution: np.ndarray, surface_gravity: float):
 
     Parameters
     ----------
-    surface_radial_solution : np.ndarray
-        Radial solutions found through either the matrix propagation or numerical integration techniques.
+    surface_radial_solutions : np.ndarray
+        Viscoelastic-Gravitational radial solutions found through either the matrix propagation or
+        numerical integration techniques. Only the values at the world's surface are provided.
         These should follow the TS72 order convention and dimensions. With the exception that there are double
         the number of values to account for the imaginary portions. E.g., y1_real, y1_imag, ...
         If all the imaginary portions are zero then the Love numbers will be purely real.
@@ -45,13 +46,13 @@ def find_love(surface_radial_solution: np.ndarray, surface_gravity: float):
 
     """
 
-    # Extract the required values, isolating the real and imaginary portions.
-    y1_real = surface_radial_solution[0]
-    y1_imag = surface_radial_solution[1]
-    y3_real = surface_radial_solution[4]
-    y3_imag = surface_radial_solution[5]
-    y5_real = surface_radial_solution[8]
-    y5_imag = surface_radial_solution[9]
+    # Extract the required radial solution values, isolating the real and imaginary portions.
+    y1_real = surface_radial_solutions[0]
+    y1_imag = surface_radial_solutions[1]
+    y3_real = surface_radial_solutions[4]
+    y3_imag = surface_radial_solutions[5]
+    y5_real = surface_radial_solutions[8]
+    y5_imag = surface_radial_solutions[9]
 
     # Calculate Love and Shida numbers
     #  Note Im(k2) = -Im(y5) (Henning & Hurford 2014 eq. A9), opposite convention of Tobie et al. (2005, eqs. 9 & 36)
