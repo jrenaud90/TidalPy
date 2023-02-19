@@ -52,9 +52,9 @@ jobs:
           # Disable numba so that njited functions can have their coverage checked.
           NUMBA_DISABLE_JIT: 1
       - name: Upload coverage to Codecov
-        directory: ./coverage/reports/
         uses: codecov/codecov-action@v3
         with:
+          directory: ./coverage/reports/
           env_vars: OS,PYTHON
           fail_ci_if_error: false
           flags: unittests
