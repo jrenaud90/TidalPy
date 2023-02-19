@@ -22,7 +22,7 @@ from TidalPy.utilities.performance import njit
 from TidalPy.utilities.types import ComplexArray, FloatArray, NumArray
 
 
-@njit(cacheable=False)
+@njit(cacheable=True)
 def radial_derivatives_solid_general(
     radius: FloatArray,
     radial_functions: np.ndarray,
@@ -159,7 +159,7 @@ def radial_derivatives_solid_general(
     return dy
 
 
-@njit(cacheable=False)
+@njit(cacheable=True)
 def radial_derivatives_liquid_general(
     radius: FloatArray, radial_functions: np.ndarray,
     density: FloatArray, gravity: FloatArray,

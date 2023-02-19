@@ -1,6 +1,9 @@
-from typing import Tuple
+from typing import Tuple, List, Union
 
 import numpy as np
+
+from TidalPy.utilities.integration import _nbrk_ode, cyrk_installed
+from TidalPy.utilities.performance import nbList, njit
 
 from .collapse import collapse_solutions
 from .derivatives import dynamic_liquid_ode, dynamic_solid_ode, static_liquid_ode, static_solid_ode
@@ -11,8 +14,6 @@ from .interfaces import (
     interface_SSt_LDy, interface_LSt_LDy, interface_LDy_LSt,
     interface_SSt_LSt, interface_SSt_SDy, interface_SSt_SSt)
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
-from TidalPy.utilities.integration import _nbrk_ode, cyrk_installed
-from TidalPy.utilities.performance import nbList, njit
 
 
 @njit(cacheable=True)
@@ -203,8 +204,9 @@ def _single_layer_integrate(
 def radial_solver(
         radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
         density: np.ndarray, gravity: np.ndarray, frequency: float, planet_bulk_density: float,
-        is_solid_by_layer: Tuple[bool, ...], is_static_by_layer: Tuple[bool, ...],
-        indices_by_layer: Tuple[np.ndarray, ...],
+        is_solid_by_layer: Union[List[bool], Tuple[bool, ...]],
+        is_static_by_layer: Union[List[bool], Tuple[bool, ...]],
+        indices_by_layer: Union[List[np.ndarray], Tuple[np.ndarray, ...]],
         order_l: int = 2,
         surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
         use_kamata: bool = False,
@@ -230,11 +232,11 @@ def radial_solver(
         Forcing frequency [rad s-1]
     planet_bulk_density : float
         Bulk density of the planet [kg m-3]
-    is_solid_by_layer : List[bool]
+    is_solid_by_layer : Union[List[bool], Tuple[bool, ...]]
         Flags for if each layer is solid (True) or liquid (False)
-    is_static_by_layer : List[bool]
+    is_static_by_layer : Union[List[bool], Tuple[bool, ...]]
         Flags for if each layer is static (True) or dynamic (False)
-    indices_by_layer : List[np.ndarray]
+    indices_by_layer : Union[List[np.ndarray], Tuple[np.ndarray, ...]]
         Numpy array of booleans for the index of each layer (based on the radius array)
     order_l : int = 2
         Tidal harmonic order.

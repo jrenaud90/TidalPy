@@ -23,7 +23,7 @@ from . import (
 )
 
 
-@njit(cacheable=False)
+@njit(cacheable=True)
 def dynamic_solid_ode(
     radius: float,
     y_vector: np.ndarray,
@@ -88,7 +88,7 @@ def dynamic_solid_ode(
     return solid_dyn_derivatives
 
 
-@njit(cacheable=False)
+@njit(cacheable=True)
 def static_solid_ode(
     radius: float, y_vector: np.ndarray,
     radius_array: np.ndarray, shear_modulus_array: np.ndarray, bulk_modulus_array: np.ndarray,
@@ -150,7 +150,7 @@ def static_solid_ode(
     return solid_static_derivatives
 
 
-@njit(cacheable=False)
+@njit(cacheable=True)
 def dynamic_liquid_ode(
     radius: float, y_vector: np.ndarray,
     radius_array: np.ndarray, bulk_modulus_array: np.ndarray,
@@ -209,7 +209,7 @@ def dynamic_liquid_ode(
     return liquid_dyn_derivatives
 
 
-@njit(cacheable=False)
+@njit(cacheable=True)
 def static_liquid_ode(
     radius: float, y_vector: np.ndarray,
     radius_array: np.ndarray, density_array: np.ndarray, gravity_array: np.ndarray,

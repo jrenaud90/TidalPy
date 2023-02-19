@@ -10,8 +10,10 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ...utilities.performance import nbList
+
 from TidalPy.radial_solver.numerical import radial_solver
+
+from ...utilities.performance import nbList
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,

@@ -19,7 +19,7 @@ def radial_solver(
         density: np.ndarray, gravity: np.ndarray, frequency: float, planet_bulk_density: float,
         is_solid_by_layer: Union[List[bool], Tuple[bool, ...]],
         is_static_by_layer: Union[List[bool], Tuple[bool, ...]],
-        indices_by_layer: Union[List[bool], Tuple[bool, ...]],
+        indices_by_layer: Union[List[np.ndarray], Tuple[np.ndarray, ...]],
         order_l: int = 2,
         surface_boundary_condition: np.ndarray = None, solve_load_numbers: bool = False,
         use_kamata: bool = False,
@@ -45,11 +45,11 @@ def radial_solver(
         Forcing frequency [rad s-1]
     planet_bulk_density : float
         Bulk density of the planet [kg m-3]
-    is_solid_by_layer : List[bool]
+    is_solid_by_layer : Union[List[bool], Tuple[bool, ...]]
         Flags for if each layer is solid (True) or liquid (False)
-    is_static_by_layer : List[bool]
+    is_static_by_layer : Union[List[bool], Tuple[bool, ...]]
         Flags for if each layer is static (True) or dynamic (False)
-    indices_by_layer : List[np.ndarray]
+    indices_by_layer : Union[List[np.ndarray], Tuple[np.ndarray, ...]]
         Numpy array of booleans for the index of each layer (based on the radius array)
     order_l : int = 2
         Tidal harmonic order.
@@ -64,12 +64,13 @@ def radial_solver(
         If True, the Kamata+2015 initial conditions will be used at the base of layer 0.
         Otherwise, the Takeuchi & Saito 1972 initial conditions will be used.
     integrator : str = 'scipy'
-        Integrator used for solving the system of ODE's. Depending on which packages are installed, the available
-        options are:
-            `scipy` : SciPy's solve_ivp method
-            `cython`: CyRK's cython-based cyrk_ode method
-            `numba` : CyRK's numba-based nbrk_ode method
-            `julia` : Diffeqpy's Julia-based DifferentialEquations method
+        Integrator used for solving the system of ODE's. See `TidalPy.utilities.integration` for more information.
+        Depending on which packages are installed, the available options are:
+            `scipy`      : SciPy's solve_ivp method.
+            `cython`     : CyRK's cython-based cyrk_ode method.
+            `numba`      : CyRK's numba-based nbrk_ode method.
+            `julia`      : Diffeqpy's Julia-based DifferentialEquations method.
+            'numbalsoda' : NumbaLSODA package.
     integration_method : str = None
         Integration method used in conjunction with the chosen integrator. If None, then the default for each integrator
         will be used (usually RK45)

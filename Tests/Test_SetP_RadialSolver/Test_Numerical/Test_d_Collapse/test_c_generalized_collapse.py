@@ -59,7 +59,8 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
             this_layer_slices = last_layer_slices
         else:
             this_layer_slices = slices_per_layer
-        layer_index[slice(index, index + this_layer_slices)] = 1
+        next_layer_start = index + this_layer_slices
+        layer_index[slice(index, next_layer_start)] = 1
         indices_by_layer.append(layer_index)
 
         # Edit viscoelastic arrays based on layer type
@@ -132,7 +133,7 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
                     ])
                     )
 
-        index = this_layer_slices
+        index = next_layer_start
 
     # Perform collapse calculations
     total_y = \

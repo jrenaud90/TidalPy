@@ -2,6 +2,8 @@
 
 import TidalPy
 TidalPy.test_mode()
+
+
 def test_radial_solver_numerical_package():
     """ Test radial_solver.numerical import. """
 

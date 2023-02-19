@@ -19,12 +19,12 @@ def test_find_love_rigid():
 
     # All surface radial solutions' imaginary portion are zero. y1 = 0, y3 = 0 and y5 = 1
     surface_radial_solutions = np.asarray((
-        0., 0.,   # y1
-        10., 0.,  # y2
-        0., 0.,   # y3
-        10., 0.,  # y4
-        1., 0.,   # y5
-        10., 0.,  # y6
+        0.  + 0.j,   # y1
+        10. + 0.j,  # y2
+        0.  + 0.j,   # y3
+        10. + 0.j,  # y4
+        1.  +  0.j,   # y5
+        10. +  0.j,  # y6
         ))
 
     k_love, h_love, l_shida = find_love(surface_radial_solutions, surface_gravity)
@@ -35,8 +35,8 @@ def test_find_love_rigid():
     assert isinstance(l_shida, complex)
 
     # Love and Shida numbers should be zero for a rigid planet
-    assert k_love == 0. + 0.j
-    assert h_love == 0. + 0.j
+    assert k_love  == 0. + 0.j
+    assert h_love  == 0. + 0.j
     assert l_shida == 0. + 0.j
 
 def test_find_love_nonzero_imag():
@@ -48,16 +48,16 @@ def test_find_love_nonzero_imag():
     g_inv = 1. / surface_gravity
 
     surface_radial_solutions = np.asarray((
-        g_inv, g_inv,  # y1
-        10., 0.,       # y2
-        g_inv, g_inv,  # y3
-        10., 0.,       # y4
-        2., 1.,        # y5
-        10., 0.,       # y6
+        g_inv + g_inv * 1.0j,  # y1
+        10.   + 0.j,           # y2
+        g_inv + g_inv * 1.0j,  # y3
+        10.   + 0.j,           # y4
+        2.    + 1.j,           # y5
+        10.   + 0.j,           # y6
         ))
 
     k_love, h_love, l_shida = find_love(surface_radial_solutions, surface_gravity)
     # Love and Shida numbers should be zero for a rigid planet
-    assert k_love == 1. + 1.j
-    assert h_love == 1. + 1.j
+    assert k_love  == 1. + 1.j
+    assert h_love  == 1. + 1.j
     assert l_shida == 1. + 1.j
