@@ -1,5 +1,4 @@
-""" Tests for calculating the multilayer solution using a non-dimensional solver.
-"""
+""" Tests for calculating the multilayer solution using a non-dimensional solver. """
 
 import numpy as np
 
@@ -86,25 +85,43 @@ def test_non_dimensionalize_physicals():
 
 
 def test_non_dimensionalize_tidaly():
-    # TODO TESTS - this is not actually testing that it is preforming the conversion correctly. Just a unit and process check.
 
     # Make a random tidal y array
-    tidal_y_prime = np.stack(
+    radial_y = np.stack(
         (
-            np.linspace(0.1, 10.0, 10),
+            np.linspace(-3.1, 10.0, 10),
             np.linspace(0.8, 10.0, 10),
             np.linspace(11.0, 10.0, 10),
-            np.linspace(0.1, 10.0, 10),
+            np.linspace(230.1, 10.0, 10),
             np.linspace(83.2, 10.0, 10),
-            np.linspace(0.1, 10.0, 10),
+            np.linspace(693.1, 10.0, 10),
             )
         )
 
     # Attempt to re-dimensionalize it
-    R_nd = 1.123e6
-    rho_nd = 1030.
-    result = re_dimensionalize_radial_func(tidal_y_prime, R_nd, rho_nd)
+    mean_radius = 1.123e6
+    bulk_density = 1030.
 
+    # non-dim the fake radial solutions
+    second2_conversion = 1. / (np.pi * G * bulk_density)
+    mass_conversion = bulk_density * mean_radius**3
+    length_conversion = mean_radius
+    tidal_y_prime = np.empty_like(radial_y)
+    tidal_y_prime[0] = radial_y[0] / (second2_conversion / length_conversion)
+    tidal_y_prime[2] = radial_y[2] / (second2_conversion / length_conversion)
+
+    tidal_y_prime[1] = radial_y[1] / (mass_conversion / length_conversion**3)
+    tidal_y_prime[3] = radial_y[3] / (mass_conversion / length_conversion**3)
+
+    tidal_y_prime[4] = radial_y[4]
+    tidal_y_prime[5] = radial_y[5] / (1. / length_conversion)
+
+    result = re_dimensionalize_radial_func(tidal_y_prime, mean_radius, bulk_density)
+
+    # Check shape and type.
     assert type(result) == np.ndarray
     assert result.shape == (6, 10)
     assert result.dtype in [float, np.float64]
+
+    # Check that the values equal the original array.
+    assert np.all(result == radial_y)
