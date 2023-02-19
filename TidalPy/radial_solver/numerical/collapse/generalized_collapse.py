@@ -16,7 +16,7 @@ import numpy as np
 from TidalPy.constants import G
 from TidalPy.utilities.performance import njit, nbList
 
-from .surface_solutions import solid_surface, static_liquid_surface, dynamic_liquid_surface
+from .surface_condition import solid_surface, static_liquid_surface, dynamic_liquid_surface
 
 
 @njit(cacheable=True)

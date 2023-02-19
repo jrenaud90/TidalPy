@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.4.1a0.dev8'
+version = '0.4.1a0.dev9'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}

@@ -1,4 +1,4 @@
-name: Ubuntu Tests
+name: Ubuntu Tests (with coverage)
 
 on: [pull_request, workflow_dispatch]
 
@@ -41,17 +41,18 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cov
+          python -m pip install pytest
+          python -m pip install pytest-cov
       - name: Install package
         run: |
           python -m pip install . -v
-
       - name: Run pytest
-        run: pytest -v --cov=TidalPy Tests/
+        run: pytest -v --cov=./ --cov-report=xml
         env:
           # Disable numba so that njited functions can have their coverage checked.
           NUMBA_DISABLE_JIT: 1
       - name: Upload coverage to Codecov
+        directory: ./coverage/reports/
         uses: codecov/codecov-action@v3
         with:
           env_vars: OS,PYTHON

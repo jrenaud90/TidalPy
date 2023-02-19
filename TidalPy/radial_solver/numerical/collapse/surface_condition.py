@@ -1,5 +1,4 @@
-""" Provides helper functions to solve for the y constants at the uppermost layer based on provided surface
- boundary layer conditions.
+""" Helper functions to solve for the radial solution surface boundary conditions at a world's surface.
 
 References
 ----------
