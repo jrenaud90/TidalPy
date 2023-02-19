@@ -191,7 +191,7 @@ def re_dimensionalize_radial_func(
     # Convert displacements
     #    y1, y3 are the radial and tangential displacements with units of [s2 m-1]
     #    y2, y4 are the radial and tangential stresses with units of [kg m-3]
-    #    y5 is the tidal potential which is unitl ess and thus needs no conversion.
+    #    y5 is the tidal potential which is unitless and thus needs no conversion.
     #    y6 is a "potential stress" with units of [m-1]
     tidal_y = np.empty_like(tidal_y_prime)
     tidal_y[0] = tidal_y_prime[0] * (second2_conversion / length_conversion)

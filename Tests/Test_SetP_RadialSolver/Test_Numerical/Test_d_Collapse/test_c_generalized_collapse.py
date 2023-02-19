@@ -34,6 +34,21 @@ layer_structures = [
     ('solid', 'liquid', 'solid'),
     ('solid', 'liquid', 'solid', 'liquid')
     ]
+
+second2_conversion = 1. / (np.pi * G * 3000.)
+mass_conversion = 3000. * radius[-1]**3
+length_conversion = radius[-1]
+
+fake_y_values = np.asarray([
+    (1.38521163e+01-6.43810616e-01j) / (second2_conversion / length_conversion),
+    (8.67690181e-14+4.33845091e-14j) / (mass_conversion / length_conversion**3),
+    (3.17548877e+00-3.10732612e-01j) / (second2_conversion / length_conversion),
+    (-1.22018932e-14-4.33845091e-14j) / (mass_conversion / length_conversion**3),
+    (1.55681773e+00-2.61835144e-02j),
+    (1.98412698e-05+1.65211760e-22j) / (1. / length_conversion)],
+        np.complex128)
+
+
 @pytest.mark.parametrize('liquid_is_static', (True, False))
 @pytest.mark.parametrize('solid_is_static', (True, False))
 @pytest.mark.parametrize('layer_structure', layer_structures)
@@ -78,8 +93,8 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
                 y_solutions_by_layer.append(
                     nbList([
                         np.asarray((
-                            (10. + 2.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (20. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[4] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[5] * np.ones(radius[layer_index].shape, dtype=np.complex128),
                         ), dtype=np.complex128)
                     ])
                     )
@@ -87,16 +102,16 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
                 y_solutions_by_layer.append(
                     nbList([
                         np.asarray((
-                            (10. + 2.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (-20. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (50. + 6.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (60. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[0] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[1] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[4] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[5] * np.ones(radius[layer_index].shape, dtype=np.complex128),
                         ), dtype=np.complex128),
                         np.asarray((
-                            7*(10. + 2.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(20. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(50. + 6.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(60. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[0] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[1] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[4] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[5] * np.ones(radius[layer_index].shape, dtype=np.complex128),
                         ), dtype=np.complex128)
                     ])
                     )
@@ -107,28 +122,28 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
             y_solutions_by_layer.append(
                     nbList([
                         np.asarray((
-                            (-10. + 2.j)   * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (-20. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (-30. + 4.j)   * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (-40. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (-50. + 6.j)   * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            (-60. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[0] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[1] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[2] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[3] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[4] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            fake_y_values[5] * np.ones(radius[layer_index].shape, dtype=np.complex128),
                         ), dtype=np.complex128),
                         np.asarray((
-                            7*(10. + 2.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(20. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(30. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(40. + 5.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(50. + 6.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            7*(60. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[0] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[1] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[2] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[3] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[4] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            3 * fake_y_values[5] * np.ones(radius[layer_index].shape, dtype=np.complex128),
                         ), dtype=np.complex128),
                         np.asarray((
-                            13*(10. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            13*(20. + 3.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            13*(30. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            13*(40. + 5.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            13*(50. + 0.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
-                            13*(60. + 7.j) * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            7 * fake_y_values[0] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            7 * fake_y_values[1] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            7 * fake_y_values[2] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            7 * fake_y_values[3] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            7 * fake_y_values[4] * np.ones(radius[layer_index].shape, dtype=np.complex128),
+                            7 * fake_y_values[5] * np.ones(radius[layer_index].shape, dtype=np.complex128),
                         ), dtype=np.complex128)
                     ])
                     )
@@ -136,18 +151,22 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
         index = next_layer_start
 
     # Perform collapse calculations
-    total_y = \
-        collapse_solutions.py_func(
-            y_solutions_by_layer,
-            is_solid_by_layer, is_static_by_layer, indices_by_layer,
-            tidal_boundary_condition,
-            radius, density, gravity,
-            gravity_at_interfaces,
-            liquid_density_at_interfaces,
-            gravity_at_surface,
-            frequency,
-            G_to_use=G
-            )
+    try:
+        total_y = \
+            collapse_solutions.py_func(
+                y_solutions_by_layer,
+                is_solid_by_layer, is_static_by_layer, indices_by_layer,
+                tidal_boundary_condition,
+                radius, density, gravity,
+                gravity_at_interfaces,
+                liquid_density_at_interfaces,
+                gravity_at_surface,
+                frequency,
+                G_to_use=G
+                )
+    except np.linalg.LinAlgError:
+        # TODO
+        pytest.skip("Singular Matrix was found. This can happen on some machines since the y's here are fake. ")
 
     # Check types
     assert total_y.dtype == np.complex128

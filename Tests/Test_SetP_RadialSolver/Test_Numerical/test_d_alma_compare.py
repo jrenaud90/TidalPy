@@ -124,7 +124,6 @@ def test_radial_solver_alma_compare(order_l):
             )
     tidalpy_k, tidalpy_h, tidalpy_l = find_love(tidal_y[:, -1], gravity_array[-1])
 
-    print(order_l)
     for tpy, alma in ((tidalpy_k, alma_k), (tidalpy_h, alma_h), (tidalpy_l, alma_l)):
         tpy_real  = np.real(tpy)
         tpy_imag  = np.imag(tpy)
@@ -134,9 +133,6 @@ def test_radial_solver_alma_compare(order_l):
         # Calculate percent difference
         real_pctdiff = (2. * (tpy_real - alma_real) / (tpy_real + alma_real))
         imag_pctdiff = (2. * (tpy_imag - alma_imag) / (tpy_imag + alma_imag))
-        print(real_pctdiff)
-        print(imag_pctdiff)
-        print('\n')
 
         assert np.abs(real_pctdiff) <= success_threshold_real
         assert np.abs(imag_pctdiff) <= success_threshold_imag
@@ -169,7 +165,6 @@ def test_radial_solver_numba_alma_compare(order_l):
             )
     tidalpy_k, tidalpy_h, tidalpy_l = find_love(tidal_y[:, -1], gravity_array[-1])
 
-    print(order_l)
     for tpy, alma in ((tidalpy_k, alma_k), (tidalpy_h, alma_h), (tidalpy_l, alma_l)):
         tpy_real  = np.real(tpy)
         tpy_imag  = np.imag(tpy)
@@ -179,9 +174,6 @@ def test_radial_solver_numba_alma_compare(order_l):
         # Calculate percent difference
         real_pctdiff = (2. * (tpy_real - alma_real) / (tpy_real + alma_real))
         imag_pctdiff = (2. * (tpy_imag - alma_imag) / (tpy_imag + alma_imag))
-        print(real_pctdiff)
-        print(imag_pctdiff)
-        print('\n')
 
         assert np.abs(real_pctdiff) <= success_threshold_real
         assert np.abs(imag_pctdiff) <= success_threshold_imag
