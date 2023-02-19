@@ -12,21 +12,15 @@ N = 5
 radius_array = np.linspace(0., 1.e6, N)
 radial_solutions = np.asarray(
     (
-        10. * radius_array, -5. * radius_array,  # y1
-        10. * radius_array, -5. * radius_array,  # y2
-        10. * radius_array, -5. * radius_array,  # y3
-        10. * radius_array, -5. * radius_array,  # y4
-        10. * radius_array, -5. * radius_array,  # y5
-        10. * radius_array, -5. * radius_array,  # y6
-    ), dtype=np.float64
+        (10. -5.j) * radius_array,  # y1
+        (10. -5.j) * radius_array,  # y2
+        (10. -5.j) * radius_array,  # y3
+        (10. -5.j) * radius_array,  # y4
+        (10. -5.j) * radius_array,  # y5
+        (10. -5.j) * radius_array,  # y6
+    ), dtype=np.complex128
 )
 
-#
-# def sensitivity_to_shear(
-#         radial_solutions: np.ndarray, radius_array: np.ndarray,
-#         complex_shear_array: np.ndarray, bulk_modulus_array: NumArray, order_l: int = 2
-#         )
-#
 
 def test_file_shear():
     """ Test the importing of the function from the root of the module. """

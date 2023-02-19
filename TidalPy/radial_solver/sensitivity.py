@@ -27,8 +27,7 @@ def sensitivity_to_shear(
     radial_solutions : np.ndarray
         Viscoelastic-Gravitational radial solutions found through either the matrix propagation or
         numerical integration techniques.
-        These should follow the TS72 order convention and dimensions. With the exception that there are double
-        the number of values to account for the imaginary portions. E.g., y1_real, y1_imag, ... (Matrix: 12 x N)
+        These should follow the TS72 order convention and dimensions.
     radius_array : np.ndarray
         Radius at the top of each radial slice throughout the world (length N) [m]
     shear_modulus_array : np.ndarray
@@ -62,14 +61,19 @@ def sensitivity_to_shear(
 
     # Extract the required radial solution values, isolating the real and imaginary portions.
     for r_i in range(len_r):
-        y1_real = radial_solutions[0, r_i]
-        y1_imag = radial_solutions[1, r_i]
-        y2_real = radial_solutions[2, r_i]
-        y2_imag = radial_solutions[3, r_i]
-        y3_real = radial_solutions[4, r_i]
-        y3_imag = radial_solutions[5, r_i]
-        y4_real = radial_solutions[6, r_i]
-        y4_imag = radial_solutions[7, r_i]
+        y1 = radial_solutions[0, r_i]
+        y2 = radial_solutions[1, r_i]
+        y3 = radial_solutions[2, r_i]
+        y4 = radial_solutions[3, r_i]
+
+        y1_real = np.real(y1)
+        y1_imag = np.imag(y1)
+        y2_real = np.real(y2)
+        y2_imag = np.imag(y2)
+        y3_real = np.real(y3)
+        y3_imag = np.imag(y3)
+        y4_real = np.real(y4)
+        y4_imag = np.imag(y4)
 
         # Shear and bulk may be real or complex
         shear = shear_modulus_array[r_i]
@@ -85,18 +89,26 @@ def sensitivity_to_shear(
         r = radius_array[r_i]
         if r_i == 0:
             # First edge point
-            y1_conj_rp1 = radial_solutions[0, r_i + 1] - 1.0j * radial_solutions[1, r_i + 1]  # conj(y1) at r + 1
+            y1_rp1_real = np.real(radial_solutions[0, r_i + 1])
+            y1_rp1_imag = np.imag(radial_solutions[0, r_i + 1])
+            y1_conj_rp1 = y1_rp1_real - 1.0j * y1_rp1_imag  # conj(y1) at r + 1
             dr0 = radius_array[r_i + 1] - r
             y1_gradient_conj = (y1_conj_rp1 - y1_conj) / dr0
         elif r_i == len_r - 1:
             # Last end point
-            y1_conj_rm1 = radial_solutions[0, r_i - 1] - 1.0j * radial_solutions[1, r_i - 1]  # conj(y1) at r - 1
+            y1_rm1_real = np.real(radial_solutions[0, r_i - 1])
+            y1_rm1_imag = np.imag(radial_solutions[0, r_i - 1])
+            y1_conj_rm1 = y1_rm1_real - 1.0j * y1_rm1_imag # conj(y1) at r - 1
             dr0 = r - radius_array[r_i - 1]
             y1_gradient_conj = (y1_conj - y1_conj_rm1) / dr0
         else:
             # Midpoints
-            y1_conj_rp1 = radial_solutions[0, r_i + 1] - 1.0j * radial_solutions[1, r_i + 1]  # conj(y1) at r + 1
-            y1_conj_rm1 = radial_solutions[0, r_i - 1] - 1.0j * radial_solutions[1, r_i - 1]  # conj(y1) at r - 1
+            y1_rp1_real = np.real(radial_solutions[0, r_i + 1])
+            y1_rp1_imag = np.imag(radial_solutions[0, r_i + 1])
+            y1_rm1_real = np.real(radial_solutions[0, r_i - 1])
+            y1_rm1_imag = np.imag(radial_solutions[0, r_i - 1])
+            y1_conj_rp1 = y1_rp1_real - 1.0j * y1_rp1_imag  # conj(y1) at r + 1
+            y1_conj_rm1 = y1_rm1_real - 1.0j * y1_rm1_imag  # conj(y1) at r - 1
             dr0 = r - radius_array[r_i - 1]  # np.diff(r)[:-1]
             dr1 = radius_array[r_i + 1] - r  # np.diff(r)[0:]
 
@@ -179,12 +191,16 @@ def sensitivity_to_bulk(
 
     # Extract the required radial solution values, isolating the real and imaginary portions.
     for r_i in range(len_r):
-        y1_real = radial_solutions[0, r_i]
-        y1_imag = radial_solutions[1, r_i]
-        y2_real = radial_solutions[2, r_i]
-        y2_imag = radial_solutions[3, r_i]
-        y3_real = radial_solutions[4, r_i]
-        y3_imag = radial_solutions[5, r_i]
+        y1 = radial_solutions[0, r_i]
+        y2 = radial_solutions[1, r_i]
+        y3 = radial_solutions[2, r_i]
+
+        y1_real = np.real(y1)
+        y1_imag = np.imag(y1)
+        y2_real = np.real(y2)
+        y2_imag = np.imag(y2)
+        y3_real = np.real(y3)
+        y3_imag = np.imag(y3)
 
         # Shear and bulk may be real or complex
         shear = shear_modulus_array[r_i]
@@ -200,18 +216,26 @@ def sensitivity_to_bulk(
         r = radius_array[r_i]
         if r_i == 0:
             # First edge point
-            y1_conj_rp1 = radial_solutions[0, r_i + 1] - 1.0j * radial_solutions[1, r_i + 1]  # conj(y1) at r + 1
+            y1_rp1_real = np.real(radial_solutions[0, r_i + 1])
+            y1_rp1_imag = np.imag(radial_solutions[0, r_i + 1])
+            y1_conj_rp1 = y1_rp1_real - 1.0j * y1_rp1_imag  # conj(y1) at r + 1
             dr0 = radius_array[r_i + 1] - r
             y1_gradient_conj = (y1_conj_rp1 - y1_conj) / dr0
         elif r_i == len_r - 1:
             # Last end point
-            y1_conj_rm1 = radial_solutions[0, r_i - 1] - 1.0j * radial_solutions[1, r_i - 1]  # conj(y1) at r - 1
+            y1_rm1_real = np.real(radial_solutions[0, r_i - 1])
+            y1_rm1_imag = np.imag(radial_solutions[0, r_i - 1])
+            y1_conj_rm1 = y1_rm1_real - 1.0j * y1_rm1_imag  # conj(y1) at r - 1
             dr0 = r - radius_array[r_i - 1]
             y1_gradient_conj = (y1_conj - y1_conj_rm1) / dr0
         else:
             # Midpoints
-            y1_conj_rp1 = radial_solutions[0, r_i + 1] - 1.0j * radial_solutions[1, r_i + 1]  # conj(y1) at r + 1
-            y1_conj_rm1 = radial_solutions[0, r_i - 1] - 1.0j * radial_solutions[1, r_i - 1]  # conj(y1) at r - 1
+            y1_rp1_real = np.real(radial_solutions[0, r_i + 1])
+            y1_rp1_imag = np.imag(radial_solutions[0, r_i + 1])
+            y1_rm1_real = np.real(radial_solutions[0, r_i - 1])
+            y1_rm1_imag = np.imag(radial_solutions[0, r_i - 1])
+            y1_conj_rp1 = y1_rp1_real - 1.0j * y1_rp1_imag  # conj(y1) at r + 1
+            y1_conj_rm1 = y1_rm1_real - 1.0j * y1_rm1_imag  # conj(y1) at r - 1
             dr0 = r - radius_array[r_i - 1]  # np.diff(r)[:-1]
             dr1 = radius_array[r_i + 1] - r  # np.diff(r)[0:]
 

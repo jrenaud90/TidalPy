@@ -7,8 +7,8 @@ import TidalPy
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer.decompose import decompose
 from TidalPy.tides.multilayer.heating import calc_radial_tidal_heating
+from TidalPy.radial_solver.sensitivity import sensitivity_to_shear as find_sensitivity_to_shear
 from TidalPy.radial_solver.matrix import fundamental_matrix_generic, fundamental_matrix_orderl2
 from TidalPy.radial_solver.matrix import matrix_propagate
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
@@ -44,10 +44,9 @@ def test_calc_fundamental_order2():
     tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, radius_array[1:], gravity_array,
-        shear_array, bulk_modulus=200.0e9, order_l=2
-        )
+    sensitivity_to_shear = find_sensitivity_to_shear(
+        tidal_y, radius_array[1:], shear_array,
+        bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal heating as a function of radius
     radial_tidal_heating = calc_radial_tidal_heating(
@@ -82,10 +81,9 @@ def test_calc_fundamental_order3():
     tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=3)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, radius_array[1:], gravity_array,
-        shear_array, bulk_modulus=200.0e9, order_l=3
-        )
+    sensitivity_to_shear = find_sensitivity_to_shear(
+        tidal_y, radius_array[1:], shear_array,
+        bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal heating as a function of radius
     radial_tidal_heating = calc_radial_tidal_heating(

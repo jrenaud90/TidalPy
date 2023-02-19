@@ -9,7 +9,7 @@ TidalPy.test_mode()
 
 from TidalPy.constants import G
 from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
-from TidalPy.tides.multilayer.decompose import decompose
+from TidalPy.radial_solver.sensitivity import sensitivity_to_shear as find_sensitivity_to_shear
 from TidalPy.radial_solver.matrix import fundamental_matrix_orderl2
 from TidalPy.radial_solver.matrix import matrix_propagate
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple
@@ -55,10 +55,8 @@ def test_calc_displacements():
     tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-            tidal_y, radius_array[1:], gravity_array,
-            shear_array, bulk_modulus=200.0e9, order_l=2
-            )
+    sensitivity_to_shear = find_sensitivity_to_shear(tidal_y, radius_array[1:], shear_array,
+                                                     bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
@@ -106,10 +104,9 @@ def test_calc_strains_simple():
     tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-            tidal_y, radius_array[1:], gravity_array,
-            shear_array, bulk_modulus=200.0e9, order_l=2
-            )
+    sensitivity_to_shear = find_sensitivity_to_shear(
+        tidal_y, radius_array[1:], shear_array,
+        bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
@@ -159,10 +156,9 @@ def test_calc_strains_nsr():
     tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-            tidal_y, radius_array[1:], gravity_array,
-            shear_array, bulk_modulus=200.0e9, order_l=2
-            )
+    sensitivity_to_shear = find_sensitivity_to_shear(
+        tidal_y, radius_array[1:], shear_array,
+        bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
