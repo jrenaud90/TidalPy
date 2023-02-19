@@ -1,4 +1,4 @@
-""" The functions here are used to non-dimensionalize common variables used for multi-layer tidal calculations.
+""" Functionality to non-dimensionalize common variables used for multi-layer tidal calculations.
 
 The scheme is based on that proposed by Martens16 (around page 99)
 
