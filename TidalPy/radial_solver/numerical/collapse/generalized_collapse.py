@@ -207,10 +207,22 @@ def collapse_solutions(
                             # S74, Page 131
                             constant_vector[0] = layer_above_constants[0]
                             # Derived by JPR based on Eq 21 (2nd line) of S74
-                            lambda_1 = y_surface_solutions[0][1] - liquid_density_at_interface * (
-                                    gravity_at_interface * y_surface_solutions[0][0] - y_surface_solutions[0][4])
-                            lambda_2 = y_surface_solutions[1][1] - liquid_density_at_interface * (
-                                    gravity_at_interface * y_surface_solutions[1][0] - y_surface_solutions[1][4])
+                            # Pull out ys
+                            # # Solution 1
+                            lower_s1y1 = y_surface_solutions[0][0]
+                            lower_s1y2 = y_surface_solutions[0][1]
+                            lower_s1y5 = y_surface_solutions[0][2]
+                            lower_s1y6 = y_surface_solutions[0][3]
+                            # # Solution 2
+                            lower_s2y1 = y_surface_solutions[1][0]
+                            lower_s2y2 = y_surface_solutions[1][1]
+                            lower_s2y5 = y_surface_solutions[1][2]
+                            lower_s2y6 = y_surface_solutions[1][3]
+                            # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
+                            lambda_1 = lower_s1y2 - liquid_density_at_interface * \
+                                       (gravity_at_interface * lower_s1y1 - lower_s1y5)
+                            lambda_2 = lower_s2y2 - liquid_density_at_interface * \
+                                       (gravity_at_interface * lower_s2y1 - lower_s2y5)
                             constant_vector[1] = (-lambda_1 / lambda_2) * constant_vector[0]
                         else:
                             # Both layers are dynamic liquids. Constants are the same.
