@@ -3,6 +3,13 @@
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
 
+#### Version 0.4.2 Alpha (Spring 2023)
+
+* Minor Changes
+  * Expanded the performance suite to better track the `radial_solver` module.
+
+* Bug Fixes
+  * Fixed issue in incorrect TidalPy version being loaded into the package.
 
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes

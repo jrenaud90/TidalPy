@@ -1,6 +1,6 @@
 # Find Version Number
 import importlib.metadata
-__version__ = importlib.metadata.version("CyRK")
+__version__ = importlib.metadata.version("TidalPy")
 version = __version__
 
 import time
