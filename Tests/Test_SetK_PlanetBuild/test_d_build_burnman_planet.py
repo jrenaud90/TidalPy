@@ -50,7 +50,7 @@ def planet_asserts(planet):
     assert planet.mantle.radius == 1821.49e3
     assert planet.core.radius == 810.0e3
 
-    assert True
+    return True
 
 
 def test_build_burnman_world_from_dict():
