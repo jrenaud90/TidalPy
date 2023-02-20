@@ -63,7 +63,7 @@ jobs:
 
   # Combine and upload coverage reports.
   coverage:
-    needs: test-no-numba
+    needs: test-39-with-coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
