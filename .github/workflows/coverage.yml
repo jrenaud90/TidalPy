@@ -1,0 +1,93 @@
+name: Coverage Report (Ubuntu)
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+#  test-39-with-coverage:
+#    name: Test Python 3.9 and Upload Coverage Report
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v2
+#      - name: Set up Python 3.9
+#        uses: actions/setup-python@v3
+#        with:
+#          python-version: 3.9
+#      - name: Install Dependencies
+#        run: |
+#          python -m pip install --upgrade pip
+#          python -m pip install pytest
+#          python -m pip install pytest-cov
+#      - name: Install package
+#        run: |
+#          python -m pip install . -v
+#      - name: Run pytest
+#        run: pytest --cov=TidalPy # --cov-report=xml
+#        env:
+#          # Disable numba so that njited functions can have their coverage checked.
+#          NUMBA_DISABLE_JIT: 1
+#      - name: Upload coverage to Codecov
+#        uses: codecov/codecov-action@v3
+#        with:
+#          # files: ./*.xml
+#          token: ${{secrets.CODECOV_TOKEN}}
+#          env_vars: OS,PYTHON
+#          fail_ci_if_error: false
+#          flags: unittests
+#          verbose: true
+#          name: coverage
+
+  test-39-with-coverage:
+    runs-on: ubuntu-latest
+    env:
+      NUMBA_DISABLE_JIT: 1
+    strategy:
+      matrix:
+        group: [ 1, 2, 3, 4, 5 ]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pytest-split
+          python -m pip install -r requirements.txt
+      - name: Run pytest
+        run: python -m pytest --cov=TidalPy --splits 5 --group ${{ matrix.group }}
+      - name: Upload coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage${{ matrix.group }}
+          path: .coverage
+
+    # Combine and upload coverage reports.
+    coverage:
+      needs: test-no-numba
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v2
+        - name: Set up Python 3.9
+          uses: actions/setup-python@v2
+          with:
+            python-version: 3.9
+        - name: Install Dependencies
+          run: |
+            python -m pip install --upgrade pip
+            python -m pip install pytest pytest-cov pytest-split coverage
+            python -m pip install -r requirements.txt
+        - name: Download all artifacts
+          # Downloads coverage1, coverage2, etc.
+          uses: actions/download-artifact@v3
+        - name: Run coverage
+          run: |
+            coverage combine coverage*/.coverage*
+            coverage report --fail-under=50
+            coverage xml
+        - uses: codecov/codecov-action@v3.0.0
+          with:
+            token: ${{secrets.CODECOV_TOKEN}}
+            env_vars: OS,PYTHON
+            fail_ci_if_error: false
+            verbose: true
