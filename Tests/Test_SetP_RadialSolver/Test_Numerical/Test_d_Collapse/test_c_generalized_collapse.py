@@ -153,7 +153,7 @@ def test_collapse_solutions(layer_structure, solid_is_static, liquid_is_static):
     # Perform collapse calculations
     try:
         total_y = \
-            collapse_solutions.py_func(
+            collapse_solutions(
                 y_solutions_by_layer,
                 is_solid_by_layer, is_static_by_layer, indices_by_layer,
                 tidal_boundary_condition,
