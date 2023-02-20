@@ -16,6 +16,9 @@
   * Updated and added to `radial_solver` test suite.
   * Changed `radial_solver.interfaces` functions to only require the top most value of the radial solutions rather than the whole array.
 
+* Bug Fixes
+  * Fixed bug in `radial_solver` where interfaces between a dynamic and static liquid were not correctly handled.
+
 ### Version 0.4.0 Alpha (Winter 2022/2023)
 
 * Major Changes 

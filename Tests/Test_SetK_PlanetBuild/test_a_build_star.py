@@ -41,7 +41,7 @@ def value_check(built_world, check_numerical: bool = True):
     assert built_world.gravity_surface is built_world.gravity_surf
     assert built_world.gravity_outer is built_world.gravity_surf
 
-    assert True
+    return True
 
 
 def test_build_star_from_manual_config():

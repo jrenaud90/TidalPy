@@ -130,16 +130,39 @@ def dynamic_static(
     # For a static liquid layer there will be one independent solution with 2 y's
     initial_solutions_liquid = np.empty(2, dtype=np.complex128)
 
-    y4_frac_1 = -solid_layer_ys[0][3] / solid_layer_ys[2][3]
-    y4_frac_2 = -solid_layer_ys[1][3] / solid_layer_ys[2][3]
+    # Pull out ys
+    # # Solution 1
+    lower_s1y1 = solid_layer_ys[0][0]
+    lower_s1y2 = solid_layer_ys[0][1]
+    lower_s1y3 = solid_layer_ys[0][2]
+    lower_s1y4 = solid_layer_ys[0][3]
+    lower_s1y5 = solid_layer_ys[0][4]
+    lower_s1y6 = solid_layer_ys[0][5]
+    # # Solution 2
+    lower_s2y1 = solid_layer_ys[1][0]
+    lower_s2y2 = solid_layer_ys[1][1]
+    lower_s2y3 = solid_layer_ys[1][2]
+    lower_s2y4 = solid_layer_ys[1][3]
+    lower_s2y5 = solid_layer_ys[1][4]
+    lower_s2y6 = solid_layer_ys[1][5]
+    # # Solution 3
+    lower_s3y1 = solid_layer_ys[2][0]
+    lower_s3y2 = solid_layer_ys[2][1]
+    lower_s3y3 = solid_layer_ys[2][2]
+    lower_s3y4 = solid_layer_ys[2][3]
+    lower_s3y5 = solid_layer_ys[2][4]
+    lower_s3y6 = solid_layer_ys[2][5]
+
+    y4_frac_1 = -lower_s1y4 / lower_s3y4
+    y4_frac_2 = -lower_s2y4 / lower_s3y4
 
     # gamma_j = (y_2j - f_j y_23) - rho( g(y_1j - f_j y_13) - (y_5j - f_j y_53))
-    gamma_1 = (solid_layer_ys[0][1] + y4_frac_1 * solid_layer_ys[2][1]) - \
-              liquid_density * (interface_gravity * (solid_layer_ys[0][0] + y4_frac_1 * solid_layer_ys[2][0]) -
-                                (solid_layer_ys[0][4] + y4_frac_1 * solid_layer_ys[2][4]))
-    gamma_2 = (solid_layer_ys[1][1] + y4_frac_2 * solid_layer_ys[2][1]) - \
-              liquid_density * (interface_gravity * (solid_layer_ys[1][0] + y4_frac_2 * solid_layer_ys[2][0]) -
-                                (solid_layer_ys[1][4] + y4_frac_2 * solid_layer_ys[2][4]))
+    gamma_1 = (lower_s1y2 + y4_frac_1 * lower_s3y2) - \
+              liquid_density * (interface_gravity * (lower_s1y1 + y4_frac_1 * lower_s3y1) -
+                                (lower_s1y5 + y4_frac_1 * lower_s3y5))
+    gamma_2 = (lower_s2y2 + y4_frac_2 * lower_s3y2) - \
+              liquid_density * (interface_gravity * (lower_s2y1 + y4_frac_2 * lower_s3y1) -
+                                (lower_s2y5 + y4_frac_2 * lower_s3y5))
 
     # Set the first coefficient to 1. It will be solved for later on during the collapse phase.
     coeff_1 = 1.
@@ -148,13 +171,12 @@ def dynamic_static(
     coeff_3 = y4_frac_1 * coeff_1 + y4_frac_2 * coeff_2
 
     y_7_const = (4. * np.pi * G_to_use / interface_gravity)
-    y_7_IC_0 = solid_layer_ys[0][5] + y_7_const * solid_layer_ys[0][1]
-    y_7_IC_1 = solid_layer_ys[1][5] + y_7_const * solid_layer_ys[1][1]
-    y_7_IC_2 = solid_layer_ys[2][5] + y_7_const * solid_layer_ys[2][1]
+    y_7_IC_0 = lower_s1y6 + y_7_const * lower_s1y2
+    y_7_IC_1 = lower_s2y6 + y_7_const * lower_s2y2
+    y_7_IC_2 = lower_s3y6 + y_7_const * lower_s3y2
 
     # y^liq_5 = C^sol_1 * y^sol_5,1 + C^sol_2 * y^sol_5,2 + C^sol_3 * y^sol_5,3
-    initial_solutions_liquid[0] = coeff_1 * solid_layer_ys[0][4] + coeff_2 * solid_layer_ys[1][4] + coeff_3 * \
-                        solid_layer_ys[2][4]
+    initial_solutions_liquid[0] = coeff_1 * lower_s1y5 + coeff_2 * lower_s2y5 + coeff_3 * lower_s3y5
     # y^liq_7 = C^sol_1 * y^sol_7,1 + C^sol_2 * y^sol_7,2 + C^sol_3 * y^sol_7,3
     initial_solutions_liquid[1] = coeff_1 * y_7_IC_0 + coeff_2 * y_7_IC_1 + coeff_3 * y_7_IC_2
 

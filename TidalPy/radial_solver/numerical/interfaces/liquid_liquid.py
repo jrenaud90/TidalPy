@@ -159,14 +159,24 @@ def dynamic_static(
     #   The upper dynamic liquid layer is treated like the solid layer in Eq. 20 except
     #    that y_3 is undefined as is "set 3" solution mentioned in that text.
 
+    # Pull out ys
+    # # Solution 1
+    lower_s1y1 = liquid_layer_ys[0][0]
+    lower_s1y2 = liquid_layer_ys[0][1]
+    lower_s1y5 = liquid_layer_ys[0][2]
+    lower_s1y6 = liquid_layer_ys[0][3]
+    # # Solution 2
+    lower_s2y1 = liquid_layer_ys[1][0]
+    lower_s2y2 = liquid_layer_ys[1][1]
+    lower_s2y5 = liquid_layer_ys[1][2]
+    lower_s2y6 = liquid_layer_ys[1][3]
+
     # For a static liquid layer there will be one independent solution with 2 y's
     initial_solutions_liquid = np.empty(2, dtype=np.complex128)
 
     # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
-    lambda_1 = liquid_layer_ys[0][1] - \
-               liquid_density * (interface_gravity * liquid_layer_ys[0][0] - liquid_layer_ys[0][4])
-    lambda_2 = liquid_layer_ys[1][1] - \
-               liquid_density * (interface_gravity * liquid_layer_ys[1][0] - liquid_layer_ys[1][4])
+    lambda_1 = lower_s1y2 - liquid_density * (interface_gravity * lower_s1y1 - lower_s1y5)
+    lambda_2 = lower_s2y2 - liquid_density * (interface_gravity * lower_s2y1 - lower_s2y5)
 
     # Set the first coefficient to 1. It will be solved for later on during the collapse phase.
     coeff_1 = 1.
@@ -174,12 +184,12 @@ def dynamic_static(
     coeff_2 = -(lambda_1 / lambda_2) * coeff_1
 
     y_7_const = (4. * np.pi * G_to_use / interface_gravity)
-    y_7_IC_0 = liquid_layer_ys[0][5] + y_7_const * liquid_layer_ys[0][1]
-    y_7_IC_1 = liquid_layer_ys[1][5] + y_7_const * liquid_layer_ys[1][1]
+    y_7_IC_0 = lower_s1y6 + y_7_const * lower_s1y2
+    y_7_IC_1 = lower_s2y6 + y_7_const * lower_s2y2
 
-    # y^liq_5 = C^sol_1 * y^sol_5,1 + C^sol_2 * y^sol_5,2
-    initial_solutions_liquid[0] = coeff_1 * liquid_layer_ys[0][4] + coeff_2 * liquid_layer_ys[1][4]
-    # y^liq_7 = C^sol_1 * y^sol_7,1 + C^sol_2 * y^sol_7,2
+    # y^liq(st)_5 = C^liq(dy)_1 * y^liq(dy)_5,1 + C^liq(dy)_2 * y^liq(dy)_5,2
+    initial_solutions_liquid[0] = coeff_1 * lower_s1y5 + coeff_2 * lower_s2y5
+    # y^liq(st)_7 = C^liq(dy)_1 * y^liq(dy)_7,1 + C^liq(dy)_2 * y^liq(dy)_7,2
     initial_solutions_liquid[1] = coeff_1 * y_7_IC_0 + coeff_2 * y_7_IC_1
 
     return nbList([initial_solutions_liquid])

@@ -58,7 +58,7 @@ def value_check(world, config_to_compare: dict, check_name: bool = True):
 
     # Check that the sum of layer's mass is the same as the world_types.
     np.testing.assert_approx_equal(world.mass, layer_mass_combined)
-    assert True
+    return True
 
 
 def test_build_layered_from_manual_config():
