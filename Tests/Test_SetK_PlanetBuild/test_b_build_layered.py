@@ -58,7 +58,7 @@ def value_check(world, config_to_compare: dict, check_name: bool = True):
 
     # Check that the sum of layer's mass is the same as the world_types.
     np.testing.assert_approx_equal(world.mass, layer_mass_combined)
-    return True
+    assert True
 
 
 def test_build_layered_from_manual_config():
@@ -69,7 +69,7 @@ def test_build_layered_from_manual_config():
 
     # Test that its attributes match expectations
     assert value_check(io, io_config)
-    return True
+    assert True
 
 
 def test_build_layered_from_prebuilt_config():
@@ -82,7 +82,7 @@ def test_build_layered_from_prebuilt_config():
     # The pre-built config may not have the same values as the ones used in this file so we will only perform
     #    non-numerical checks.
     assert value_check(io, io.config)
-    return True
+    assert True
 
 
 def test_paint_layered():
@@ -90,7 +90,7 @@ def test_paint_layered():
 
     io = TidalPy.build_world('Io_Simple')
     assert io.paint(auto_show=False)
-    return True
+    assert True
 
 
 def test_build_from_layered_world():
@@ -109,7 +109,7 @@ def test_build_from_layered_world():
     assert io_2.name == 'Io_Simple_2'
     assert io.config['eccentricity'] == 0.0041
     assert io_2.config['eccentricity'] == 0.5
-    return True
+    assert True
 
 
 def test_build_from_layered_world_scale_radius():
