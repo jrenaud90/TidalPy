@@ -10,12 +10,13 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ..multilayer.numerical_int.solver_numba import radial_solver
+from TidalPy.radial_solver.numerical import radial_solver_numba
+
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
-from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, float64, nbUnicode
+from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, nbUnicode
 
 
 @njit(cacheable=True)
@@ -149,7 +150,7 @@ def calculate_mode_response_coupled(
         # OPT: the option of scipy or julia integrators, rather than custom numba ones, prevents this function from
         #   being njited.
         tidal_y_at_mode = \
-            radial_solver(radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
+            radial_solver_numba(radius_array, complex_shears_at_mode, bulk_array, density_array, gravity_array,
                           mode_frequency, planet_bulk_density,
                           is_solid_by_layer, is_static_by_layer, indices_by_layer,
                           order_l, surface_boundary_conditions,

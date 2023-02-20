@@ -1,17 +1,13 @@
 from CyRK import version
 print(version)
-import numpy as np
-import TidalPy
 #TidalPy.clear_cache(verbose=False)
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import os
 
-from TidalPy.toolbox.conversions import days2rads, rads2days, semi_a2orbital_motion
-from TidalPy.rheology.complex_compliance.compliance_models import maxwell, sundberg, andrade
-from TidalPy.tides.multilayer.numerical_int import radial_solver, tidal_y_solver_numba
+from TidalPy.toolbox.conversions import days2rads
+from TidalPy.rheology.complex_compliance.compliance_models import andrade
+from tides.multilayer.numerical_int import radial_solver
 from TidalPy.utilities.graphics.multilayer import yplot
 
 R_Venus = 6050.0e3

@@ -124,10 +124,98 @@ def fixed_q(
 
     return complex_compliance
 
+@njit(cacheable=True)
+def newton(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+    """ Calculates the complex compliance utilizing the model: Newton
+
+    !TPY_args live: self.compliance, self.viscosity
+
+    Notes
+    -----
+
+    References
+    ----------
+
+    Parameters
+    ----------
+    frequency : FloatArray
+        Tidal forcing frequency [rads s-1]
+        Note that a world may experience multiple tidal frequencies for NSR tides, if the eccentricity or obliquity
+        is large, or for a tidal harmonic integer l > 2.
+    compliance : FloatArray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : FloatArray
+        Layer or Planet's effective viscosity [Pa s]
+
+    Returns
+    -------
+    complex_compliance : ComplexArray
+        Complex compliance (complex number) [Pa-1]
+    """
+
+    shape = 0. * (viscosity + compliance + frequency)
+
+    denominator = (viscosity * frequency)
+    denominator = (np.abs(denominator) <= float_eps) * 1.0e-100 + \
+                  (np.abs(denominator) > float_eps) * denominator
+
+    real_j = 0.
+    imag_j = -1.0 / denominator
+
+    complex_compliance = real_j + \
+                         ((np.abs(frequency) + shape) <= float_eps) * 0.0j + \
+                         ((np.abs(frequency) + shape) > float_eps) * 1.0j * imag_j
+
+    return complex_compliance
+
+@njit(cacheable=True)
+def elastic(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+    """ Calculates the complex compliance utilizing the model: Elastic
+
+    !TPY_args live: self.compliance, self.viscosity
+
+    Notes
+    -----
+
+    References
+    ----------
+
+    Parameters
+    ----------
+    frequency : FloatArray
+        Tidal forcing frequency [rads s-1]
+        Note that a world may experience multiple tidal frequencies for NSR tides, if the eccentricity or obliquity
+        is large, or for a tidal harmonic integer l > 2.
+    compliance : FloatArray
+        Layer or Planet's compliance (inverse of shear modulus) [Pa-1]
+    viscosity : FloatArray
+        Layer or Planet's effective viscosity [Pa s]
+
+    Returns
+    -------
+    complex_compliance : ComplexArray
+        Complex compliance (complex number) [Pa-1]
+    """
+
+    shape = 0. * (viscosity + compliance + frequency)
+
+    denominator = (viscosity * frequency)
+    denominator = (np.abs(denominator) <= float_eps) * 1.0e-100 + \
+                  (np.abs(denominator) > float_eps) * denominator
+
+    real_j = compliance
+    imag_j = 0.
+
+    complex_compliance = real_j + \
+                         ((np.abs(frequency) + shape) <= float_eps) * 0.0j + \
+                         ((np.abs(frequency) + shape) > float_eps) * 1.0j * imag_j
+
+    return complex_compliance
+
 
 @njit(cacheable=True)
 def maxwell(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
-    """ Calculates the complex compliance utilizing the model: Maxwell - NonArray Only
+    """ Calculates the complex compliance utilizing the model: Maxwell
 
     !TPY_args live: self.compliance, self.viscosity
 

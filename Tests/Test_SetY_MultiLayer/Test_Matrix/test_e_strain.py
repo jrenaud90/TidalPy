@@ -4,13 +4,14 @@
 import numpy as np
 
 import TidalPy
+
 TidalPy.test_mode()
 
 from TidalPy.constants import G
 from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
-from TidalPy.tides.multilayer.decompose import decompose
-from TidalPy.tides.multilayer.matrix.fundamental_solid import fundamental_matrix_orderl2
-from TidalPy.tides.multilayer.matrix.propagate import propagate
+from TidalPy.radial_solver.sensitivity import sensitivity_to_shear as find_sensitivity_to_shear
+from TidalPy.radial_solver.matrix import fundamental_matrix_orderl2
+from TidalPy.radial_solver.matrix import matrix_propagate
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple
 from TidalPy.toolbox.conversions import orbital_motion2semi_a
 
@@ -51,31 +52,29 @@ def test_calc_displacements():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
+    tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, radius_array[1:], gravity_array,
-        shear_array, bulk_modulus=200.0e9, order_l=2
-        )
+    sensitivity_to_shear = find_sensitivity_to_shear(tidal_y, radius_array[1:], shear_array,
+                                                     bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
-            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
-            orbital_frequency=orbital_freq,
-            eccentricity=eccentricity,
-            host_mass=host_mass, semi_major_axis=semi_major_axis
-            )
+                radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+                orbital_frequency=orbital_freq,
+                eccentricity=eccentricity,
+                host_mass=host_mass, semi_major_axis=semi_major_axis
+                )
 
     potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+        potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate displacements
     radial_displacement, polar_displacement, azimuthal_displacement = \
         calculate_displacements(
-            potential, potential_partial_theta, potential_partial_phi, tidal_y, colatitude=colat_mtx
-            )
+                potential, potential_partial_theta, potential_partial_phi, tidal_y, colatitude=colat_mtx
+                )
 
     # Check shapes
     shape = (*radius_array[1:].shape, *colat_mtx.shape)
@@ -102,35 +101,34 @@ def test_calc_strains_simple():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
+    tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, radius_array[1:], gravity_array,
-        shear_array, bulk_modulus=200.0e9, order_l=2
-        )
+    sensitivity_to_shear = find_sensitivity_to_shear(
+        tidal_y, radius_array[1:], shear_array,
+        bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
-            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
-            orbital_frequency=orbital_freq,
-            eccentricity=eccentricity,
-            host_mass=host_mass, semi_major_axis=semi_major_axis
-            )
+                radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+                orbital_frequency=orbital_freq,
+                eccentricity=eccentricity,
+                host_mass=host_mass, semi_major_axis=semi_major_axis
+                )
 
     potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+        potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate strain tensor
     strain_components, stress_components = \
         calculate_strain_stress(
-            potential, potential_partial_theta, potential_partial_phi,
-            potential_partial2_theta2, potential_partial2_phi2,
-            potential_partial2_theta_phi, tidal_y,
-            colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
-            bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
-            )
+                potential, potential_partial_theta, potential_partial_phi,
+                potential_partial2_theta2, potential_partial2_phi2,
+                potential_partial2_theta_phi, tidal_y,
+                colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
+                bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
+                )
 
     shape = (6, *radius_array[1:].shape, *colat_mtx.shape)
     # Check shape
@@ -155,35 +153,34 @@ def test_calc_strains_nsr():
     core_condition[5, 2] = 1.0
 
     # Find tidal solution
-    tidal_y = propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
+    tidal_y = matrix_propagate(F, F_inv, deriv_mtx, core_condition, world_radius=radius_array[-1], order_l=2)
 
     # Decompose the results
-    sensitivity_to_shear, (k, h, l) = decompose(
-        tidal_y, radius_array[1:], gravity_array,
-        shear_array, bulk_modulus=200.0e9, order_l=2
-        )
+    sensitivity_to_shear = find_sensitivity_to_shear(
+        tidal_y, radius_array[1:], shear_array,
+        bulk_modulus_array=200.e9 * np.ones_like(radius_array[1:]))
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_nsr(
-            radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
-            orbital_frequency=orbital_freq, rotation_frequency=5. * orbital_freq,
-            eccentricity=eccentricity,
-            host_mass=host_mass, semi_major_axis=semi_major_axis, use_static=False
-            )
+                radius_array[-1], longitude=long_mtx, colatitude=colat_mtx, time=time_mtx,
+                orbital_frequency=orbital_freq, rotation_frequency=5. * orbital_freq,
+                eccentricity=eccentricity,
+                host_mass=host_mass, semi_major_axis=semi_major_axis, use_static=False
+                )
 
     potential, potential_partial_theta, potential_partial_phi, \
-    potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
+        potential_partial2_theta2, potential_partial2_phi2, potential_partial2_theta_phi = potential_tuple_by_mode['n']
 
     # Calculate strain tensor
     strain_components, stress_components = \
         calculate_strain_stress(
-            potential, potential_partial_theta, potential_partial_phi,
-            potential_partial2_theta2, potential_partial2_phi2,
-            potential_partial2_theta_phi, tidal_y,
-            colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
-            bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
-            )
+                potential, potential_partial_theta, potential_partial_phi,
+                potential_partial2_theta2, potential_partial2_phi2,
+                potential_partial2_theta_phi, tidal_y,
+                colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
+                bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
+                )
 
     shape = (6, *radius_array[1:].shape, *colat_mtx.shape)
     # Check shape

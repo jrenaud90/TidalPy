@@ -13,8 +13,8 @@ from TidalPy.toolbox.conversions import orbital_motion2semi_a
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 
 # Load TidalPy's multilayer functions
-from TidalPy.tides.multilayer.numerical_int.solver import radial_solver
-from TidalPy.tides.multilayer.matrix import fundamental_matrix_orderl2, propagate
+from tides.multilayer.numerical_int import radial_solver
+from tides.multilayer.matrix import fundamental_matrix_orderl2, propagate
 from TidalPy.utilities.graphics.multilayer import yplot
 
 # Switches

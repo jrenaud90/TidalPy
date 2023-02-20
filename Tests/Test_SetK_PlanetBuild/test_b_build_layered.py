@@ -69,7 +69,6 @@ def test_build_layered_from_manual_config():
 
     # Test that its attributes match expectations
     assert value_check(io, io_config)
-    return True
 
 
 def test_build_layered_from_prebuilt_config():
@@ -82,7 +81,6 @@ def test_build_layered_from_prebuilt_config():
     # The pre-built config may not have the same values as the ones used in this file so we will only perform
     #    non-numerical checks.
     assert value_check(io, io.config)
-    return True
 
 
 def test_paint_layered():
@@ -90,7 +88,6 @@ def test_paint_layered():
 
     io = TidalPy.build_world('Io_Simple')
     assert io.paint(auto_show=False)
-    return True
 
 
 def test_build_from_layered_world():
@@ -109,7 +106,6 @@ def test_build_from_layered_world():
     assert io_2.name == 'Io_Simple_2'
     assert io.config['eccentricity'] == 0.0041
     assert io_2.config['eccentricity'] == 0.5
-    return True
 
 
 def test_build_from_layered_world_scale_radius():

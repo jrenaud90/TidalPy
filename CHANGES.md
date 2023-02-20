@@ -3,6 +3,22 @@
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
 
+
+#### Version 0.4.1 Alpha (Spring 2023)
+* Major Changes
+  * Moved `radial_solver` to a top-level module of TidalPy.
+    * Added `find_love` function to the `radial_solver` module for the calculation of Love and Shida numbers.
+    * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al (2005).
+    * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al (2005).
+  * Added `newton` and `elastic` complex compliances to rheology module for ALMA comparisons.
+
+* Minor Changes
+  * Updated and added to `radial_solver` test suite.
+  * Changed `radial_solver.interfaces` functions to only require the top most value of the radial solutions rather than the whole array.
+
+* Bug Fixes
+  * Fixed bug in `radial_solver` where interfaces between a dynamic and static liquid were not correctly handled.
+
 ### Version 0.4.0 Alpha (Winter 2022/2023)
 
 * Major Changes 

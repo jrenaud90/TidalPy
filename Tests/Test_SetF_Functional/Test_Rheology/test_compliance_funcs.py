@@ -84,6 +84,12 @@ def test_complex_compliance_zero_freq():
         elif model_name in ('andrade', 'sundberg', 'andrade_freq', 'sundberg_freq'):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = 1.0e100
+        elif model_name in ('newton',):
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = 0.
+        elif model_name in ('elastic',):
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = compliance
         else:
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = compliance
@@ -115,6 +121,12 @@ def test_complex_compliance_zero_freq():
         elif model_name in ('andrade', 'sundberg', 'andrade_freq', 'sundberg_freq',):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = 1.0e100 * np.ones_like(compliance)
+        elif model_name in ('newton',):
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = 0.e100 * np.ones_like(compliance)
+        elif model_name in ('elastic',):
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = compliance
         else:
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = compliance
@@ -146,6 +158,12 @@ def test_complex_compliance_zero_freq():
         elif model_name in ('andrade', 'sundberg', 'andrade_freq', 'sundberg_freq'):
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = 1.0e100
+        elif model_name in ('newton'):
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = 0.0
+        elif model_name in ('elastic'):
+            complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
+            test_value_real = compliance
         else:
             complex_compliance = model_func(frequency, compliance, viscosity, *comp_inputs)
             test_value_real = compliance

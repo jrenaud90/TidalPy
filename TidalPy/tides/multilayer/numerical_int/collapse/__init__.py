@@ -1,1 +1,0 @@
-from .generalized_collapse import collapse_solutions
