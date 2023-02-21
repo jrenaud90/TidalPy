@@ -5,6 +5,13 @@
 
 #### Version 0.4.2 Alpha (Spring 2023)
 
+* Major Changes
+  * Changed setup files so that cython code can be compiled.
+  * Added new submodules into `TidalPy.utilities.performance`.
+    * `array` - for high-performance array manipulations.
+      * Added `interp` function for float interpolation on arrays.
+    * `special` - for high-performance, general, scientific functions.
+
 * Minor Changes
   * Expanded the performance suite to better track the `radial_solver` module.
 

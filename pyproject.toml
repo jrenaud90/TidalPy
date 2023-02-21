@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.4.2a0.dev0'
+version = '0.4.2a0.dev1'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -104,20 +104,78 @@ cartopy = [
 requires = [
     'setuptools>=64.0.0',
     'numpy>=1.22',
+    'cython>=0.29.30',
     'wheel>=0.38',
-    'pip>=21.0.0',
     "numba>=0.54.1",
-    "numpy>=1.22",
-    "scipy>=1.9.3",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["_build_tidalpy"]
+include-package-data = true
+packages = [
+    "TidalPy",
+    "TidalPy.burnman_interface",
+    "TidalPy.burnman_interface.material",
+    "TidalPy.burnman_interface.material.custom",
+    "TidalPy.cooling",
+    "TidalPy.numba_scipy",
+    "TidalPy.numba_scipy.special",
+    "TidalPy.radial_solver",
+    "TidalPy.radial_solver.matrix",
+    "TidalPy.radial_solver.numerical",
+    "TidalPy.radial_solver.numerical.collapse",
+    "TidalPy.radial_solver.numerical.derivatives",
+    "TidalPy.radial_solver.numerical.initial",
+    "TidalPy.radial_solver.numerical.interfaces",
+    "TidalPy.radiogenics",
+    "TidalPy.rheology",
+    "TidalPy.rheology.complex_compliance",
+    "TidalPy.rheology.partial_melt",
+    "TidalPy.rheology.viscosity",
+    "TidalPy.stellar",
+    "TidalPy.structures",
+    "TidalPy.structures.helpers",
+    "TidalPy.structures.layers",
+    "TidalPy.structures.orbit",
+    "TidalPy.structures.world_builder",
+    "TidalPy.structures.world_types",
+    "TidalPy.tides",
+    "TidalPy.tides.ctl_funcs",
+    "TidalPy.tides.eccentricity_funcs",
+    "TidalPy.tides.inclination_funcs",
+    "TidalPy.tides.methods",
+    "TidalPy.tides.modes",
+    "TidalPy.tides.modes.mode_calc_helper",
+    "TidalPy.tides.multilayer",
+    "TidalPy.tides.potential",
+    "TidalPy.toolbox",
+    "TidalPy.utilities",
+    "TidalPy.utilities.classes",
+    "TidalPy.utilities.classes.config",
+    "TidalPy.utilities.classes.model",
+    "TidalPy.utilities.graphics",
+    "TidalPy.utilities.graphics.multilayer",
+    "TidalPy.utilities.integration",
+    "TidalPy.utilities.io",
+    "TidalPy.utilities.math",
+    "TidalPy.utilities.multiprocessing",
+    "TidalPy.utilities.numpy_helper",
+    "TidalPy.utilities.performance",
+    "TidalPy.utilities.performance.special",
+    "TidalPy.utilities.spherical_helper",
+    "TidalPy.utilities.string_helper",
+    "TidalPy.WorldConfigs"]
+
+[tool.setuptools.cmdclass]
+build_py = "_build_tidalpy.build_tidalpy"
+
+#[tool.setuptools.packages]
+#find = {}
 
 # TODO: Get rid of the below once the numba-scipy package is updated. See the note in the module's folder.
 [project.entry-points.numba_extensions]
 init = "TidalPy.numba_scipy:_init_extension"
-
-[tool.setuptools.packages]
-find = {}
 
 [tool.pytest.ini_options]
 minversion = "6.0"

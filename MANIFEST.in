@@ -1,5 +1,8 @@
 # MANIFEST.in
-include TidalPy/*.txt
+# Include World Configuration Files
 include TidalPy/WorldConfigs/*.json5
 include TidalPy/WorldConfigs/*.json
 include TidalPy/WorldConfigs/*.cfg
+
+# Include Cython pxd files
+global-include *.pxd
