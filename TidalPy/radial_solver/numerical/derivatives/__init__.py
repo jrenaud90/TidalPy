@@ -2,6 +2,8 @@ import numpy as np
 
 from TidalPy.constants import G
 
+from TidalPy.radial_solver.numerical.derivatives.ode_x import dynamic_solid_ode as dynamic_solid_ode_x
+
 from .radial_derivatives_dynamic import (radial_derivatives_liquid_general as radial_derivatives_liquid_dynamic,
                                          radial_derivatives_solid_general as radial_derivatives_solid_dynamic)
 from .radial_derivatives_static import (radial_derivatives_liquid_general as radial_derivatives_liquid_static,
