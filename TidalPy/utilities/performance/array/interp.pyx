@@ -104,7 +104,7 @@ cpdef double interp(double desired_x, double[:] x_domain, double[:] dependent_va
     Parameters
     ----------
     desired_x : float
-        Location where `fp` is desired.
+        Location where `dependent_variables` is desired.
     x_domain : np.ndarray[float]
         Domain to search for the correct location.
     dependent_values : np.ndarray[float]
@@ -163,4 +163,107 @@ cpdef double interp(double desired_x, double[:] x_domain, double[:] dependent_va
                 if isnan(result) and (fp_at_jp1 == fp_at_j):
                     result = fp_at_j
 
+    return result
+
+
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+cpdef double complex interp_complex(double desired_x, double[:] x_domain,
+                                    double complex[:] dependent_variables) nogil:
+    """ Interpolation function for complex numbers.
+
+    Provided a domain, `desired_x` and a dependent array `dependent_values` search domain for value closest to 
+    `desired_x` and return the value of `dependent_values` at that location if it is defined. Otherwise, use local 
+    slopes of `desired_x` and `dependent_values` to interpolate a value of `dependent_values` at `desired_x`.
+
+    Based on `numpy`'s `interp` function.
+
+    Parameters
+    ----------
+    desired_x : float
+        Location where `dependent_variables` is desired.
+    desired_x : np.ndarray[float]
+        Domain to search for the correct location.
+    dependent_values : np.ndarray[complex]
+        Dependent values that are to be returned after search and interpolation.
+
+    Returns
+    -------
+    result : complex
+        Desired value of `dependent_values`.
+
+    """
+    
+    cdef int lenx
+    lenx = len(x_domain)
+    # Note: Needs to be at least 3 item long array. Add exception here?
+    
+    cdef double complex left_value
+    left_value = dependent_variables[0]
+    cdef double complex right_value
+    right_value = dependent_variables[lenx - 1]
+    
+    # Binary Search with Guess
+    cdef int i, j
+    j = 0
+    cdef double slope_real
+    cdef double slope_imag
+    cdef double x_slope_inverse
+    
+    cdef double result_real
+    cdef double result_imag
+    cdef double fp_at_j_real
+    cdef double fp_at_j_imag
+    cdef double xp_at_j
+    cdef double fp_at_jp1_real
+    cdef double fp_at_jp1_imag
+    cdef double xp_at_jp1
+
+    # Perform binary search with guess
+    j = binary_search_with_guess(desired_x, x_domain, lenx, j)
+    
+    if j == -1:
+        result_real = left_value.real
+        result_imag = left_value.imag
+    elif j == lenx:
+        result_real = right_value.real
+        result_imag = right_value.imag
+    else:
+        fp_at_j_real = dependent_variables[j].real
+        fp_at_j_imag = dependent_variables[j].imag
+        xp_at_j = x_domain[j]
+        if j == lenx - 1:
+            result_real = fp_at_j_real
+            result_imag = fp_at_j_imag
+        elif xp_at_j == desired_x:
+            result_real = fp_at_j_real
+            result_imag = fp_at_j_imag
+        else:
+            fp_at_jp1_real = dependent_variables[j + 1].real
+            fp_at_jp1_imag = dependent_variables[j + 1].imag
+            xp_at_jp1 = x_domain[j + 1]
+            x_slope_inverse = 1.0 / (xp_at_jp1 - xp_at_j)
+            slope_real = (fp_at_jp1_real - fp_at_j_real) * x_slope_inverse
+            slope_imag = (fp_at_jp1_imag - fp_at_j_imag) * x_slope_inverse
+    
+            # If we get nan in one direction try the other
+            # Real Part
+            result_real = slope_real * (desired_x - xp_at_j) + fp_at_j_real
+            if isnan(result_real):
+                result_real = slope_real * (desired_x - xp_at_jp1) + fp_at_jp1_real
+                if isnan(result_real) and (fp_at_jp1_real == fp_at_j_real):
+                    result_real = fp_at_j_real
+            
+            # Imaginary Part
+            result_imag = slope_imag * (desired_x - xp_at_j) + fp_at_j_imag
+            if isnan(result_imag):
+                result_imag = slope_imag * (desired_x - xp_at_jp1) + fp_at_jp1_imag
+                if isnan(result_imag) and (fp_at_jp1_imag == fp_at_j_imag):
+                    result_imag = fp_at_j_imag
+                    
+    cdef double complex result
+    result = result_real + 1.0j * result_imag
+                    
     return result

@@ -10,6 +10,7 @@
   * Added new submodules into `TidalPy.utilities.performance`.
     * `array` - for high-performance array manipulations.
       * Added `interp` function for float interpolation on arrays.
+      * Added `interp_complex` function for complex interpolation on arrays.
     * `special` - for high-performance, general, scientific functions.
 
 * Minor Changes

@@ -6,7 +6,7 @@ import pytest
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy.utilities.performance.array import interp
+from TidalPy.utilities.performance.array import interp, interp_complex
 
 evenly_spaced_array = np.linspace(0., 100., 10000, dtype=np.float64)
 unevenly_spaced_array = np.concatenate(
@@ -20,7 +20,7 @@ unevenly_spaced_array = np.concatenate(
 @pytest.mark.parametrize('value_to_check', (24., 56.2, 87.))
 @pytest.mark.parametrize('array_to_use', (evenly_spaced_array, unevenly_spaced_array))
 def test_interp(array_to_use, value_to_check):
-    """ Test `utilities.performance.array` interp functionality. """
+    """ Test `utilities.performance.array` `interp` functionality. """
 
     # Find y-values
     y = np.sqrt(array_to_use)
@@ -30,5 +30,21 @@ def test_interp(array_to_use, value_to_check):
 
     # Get TidalPy version
     value_tpy = interp(value_to_check, array_to_use, y)
+
+    assert np.isclose(value_np, value_tpy)
+
+@pytest.mark.parametrize('value_to_check', (24., 56.2, 87.))
+@pytest.mark.parametrize('array_to_use', (evenly_spaced_array, unevenly_spaced_array))
+def test_interp_complex(array_to_use, value_to_check):
+    """ Test `utilities.performance.array` `interp_complex` functionality. """
+
+    # Find y-values
+    y = array_to_use**2 + 1.0j * np.sqrt(array_to_use)
+
+    # Get Numpy version
+    value_np = np.interp(value_to_check, array_to_use, y)
+
+    # Get TidalPy version
+    value_tpy = interp_complex(value_to_check, array_to_use, y)
 
     assert np.isclose(value_np, value_tpy)
