@@ -21,33 +21,36 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         path: dist/*.tar.gz
+        
+# TODO: Remove comment if/when platform-specific wheels are required.
+#   build_wheels:
+#     name: Build ${{ matrix.platform }} wheels
+#     runs-on: ${{ matrix.platform }}
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#           platform:
+#               - macos-12
+#               - windows-2022
+#               - ubuntu-20.04
 
-  build_wheels:
-    name: Build ${{ matrix.platform }} wheels
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      fail-fast: false
-      matrix:
-          platform:
-              - macos-12
-              - windows-2022
-              - ubuntu-20.04
+#     steps:
+#       - uses: actions/checkout@v3
+#         with:
+#           fetch-depth: 0
 
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+#       - name: Build wheels
+#         uses: pypa/cibuildwheel@v2.11.4
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.11.4
-
-      - uses: actions/upload-artifact@v3
-        with:
-          path: ./wheelhouse/*.whl
+#       - uses: actions/upload-artifact@v3
+#         with:
+#           path: ./wheelhouse/*.whl
 
   check_dist:
     name: Check dist
-    needs: [make_sdist, build_wheels]
+    # TODO: Remove comment if/when platform-specific wheels are required.
+    # needs: [make_sdist, build_wheels]
+    needs: make_sdist
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v3
@@ -59,9 +62,11 @@ jobs:
 
   upload_all:
     name: Upload wheels to PyPI
-    needs: [build_wheels, make_sdist, check_dist]
+    # TODO: Remove comment if/when platform-specific wheels are required.
+    # needs: [build_wheels, make_sdist, check_dist]
+    needs: [make_sdist, check_dist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    #if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@v3
         with:
