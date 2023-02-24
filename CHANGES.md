@@ -3,6 +3,10 @@
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
 
+#### Version 0.4.2 Alpha (Spring 2023)
+* Major Changes
+  * Removed some imports from main package __init__ to avoid slow load times.
+  * Moved `cache.py` to top-level.
 
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes

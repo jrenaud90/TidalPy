@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.4.1'
+version = '0.4.2a0.dev0'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -76,14 +76,17 @@ dev = [
     "jupyter",
     "cmcrameri>=1.4",
     "matplotlib>=3.4.2",
-    "pytest",
-    "timeit",
-    "pandas>=1.2.4"
+    "palettable>=3.3.0",
+    "ipympl>=0.8.7",
+    "julia>=0.5.7",
+    "diffeqpy>=1.2.0"
 ]
 
 graphics = [
+    "jupyter",
     "cmcrameri>=1.4",
     "matplotlib>=3.4.2",
+    "palettable>=3.3.0",
     "ipympl>=0.8.7"
 ]
 
