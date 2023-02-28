@@ -1,15 +1,19 @@
 """ Inclination functions (squared) for tidal order-l = 3. These are exact (no truncation on I)
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from . import InclinOutput
 from ...utilities.performance.numba import njit
-from ...utilities.types import FloatArray
+
+if TYPE_CHECKING:
+    from ...utilities.types import FloatArray
 
 
 @njit(cacheable=True, parallel=True)
-def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
+def calc_inclination_off(inclination: 'FloatArray') -> 'InclinOutput':
     """Calculate F^2_lmp (assuming I=0) for l = 3"""
 
     # Inclination Functions Calculated for l = 3, Inclination == off.
@@ -24,7 +28,7 @@ def calc_inclination_off(inclination: FloatArray) -> InclinOutput:
 
 
 @njit(cacheable=True, parallel=True)
-def calc_inclination(inclination: FloatArray) -> InclinOutput:
+def calc_inclination(inclination: 'FloatArray') -> 'InclinOutput':
     """Calculate F^2_lmp for l = 3"""
 
     # Inclination Functions Calculated for l = 3.

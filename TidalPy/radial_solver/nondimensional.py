@@ -7,22 +7,25 @@ References
 Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 """
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 
 from TidalPy.constants import G
 from TidalPy.utilities.performance import njit
-from TidalPy.utilities.types import FloatArray, NumArray
 
-NonDimPhysicalOutput = Tuple[FloatArray, FloatArray, FloatArray, NumArray, NumArray, FloatArray, float]
-ReDimPhysicalOutput = Tuple[FloatArray, FloatArray, FloatArray, NumArray, NumArray, FloatArray]
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray, NumArray
+
+
+NonDimPhysicalOutput = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'NumArray', 'NumArray', 'FloatArray', float]
+ReDimPhysicalOutput = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'NumArray', 'NumArray', 'FloatArray']
 
 
 @njit(cacheable=True)
 def non_dimensionalize_physicals(
-    radius: FloatArray, gravity: FloatArray, density: FloatArray,
-    shear_modulus: NumArray, bulk_modulus: NumArray, frequency: FloatArray,
+    radius: 'FloatArray', gravity: 'FloatArray', density: 'FloatArray',
+    shear_modulus: 'NumArray', bulk_modulus: 'NumArray', frequency: 'FloatArray',
     mean_radius: float, bulk_density: float
     ) -> NonDimPhysicalOutput:
     """ A function to non-dimensionalize physical parameters
@@ -94,11 +97,11 @@ def non_dimensionalize_physicals(
 
 @njit(cacheable=True)
 def re_dimensionalize_physicals(
-    radius_prime: FloatArray, gravity_prime: FloatArray, density_prime: FloatArray,
-    shear_modulus_prime: NumArray, bulk_modulus_prime: NumArray,
-    frequency_prime: FloatArray,
+    radius_prime: 'FloatArray', gravity_prime: 'FloatArray', density_prime: 'FloatArray',
+    shear_modulus_prime: 'NumArray', bulk_modulus_prime: 'NumArray',
+    frequency_prime: 'FloatArray',
     mean_radius: float, bulk_density: float
-    ) -> ReDimPhysicalOutput:
+    ) -> 'ReDimPhysicalOutput':
     """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
 
     Parameters

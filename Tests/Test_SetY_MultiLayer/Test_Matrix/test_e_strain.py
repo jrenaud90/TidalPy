@@ -13,7 +13,7 @@ from TidalPy.radial_solver.sensitivity import sensitivity_to_shear as find_sensi
 from TidalPy.radial_solver.matrix import fundamental_matrix_orderl2
 from TidalPy.radial_solver.matrix import matrix_propagate
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple
-from TidalPy.toolbox.conversions import orbital_motion2semi_a
+from TidalPy.utilities.conversions import orbital_motion2semi_a
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

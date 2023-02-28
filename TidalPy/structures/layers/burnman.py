@@ -1,28 +1,17 @@
 from typing import TYPE_CHECKING
 from warnings import warn
 
-burnman_installed = True
-try:
-    import burnman
-except ImportError:
-    burnman_installed = False
-    # Build fake class so type checking passes.
-    class burnman:
-        Planet = None
-        Layer = None
-        Material = None
-
 import numpy as np
 
+from TidalPy import log, configurations
+from TidalPy.exceptions import (AttributeNotSetError, ImproperPropertyHandling, UnknownTidalPyConfigValue)
+from TidalPy.utilities.numpy_helper.array_other import find_nearest
+
 from .physics import PhysicsLayer
-from ... import log
-from ...burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
-from ...configurations import configurations
-from ...exceptions import (AttributeNotSetError, ImproperPropertyHandling, UnknownTidalPyConfigValue)
-from ...utilities.numpy_helper.array_other import find_nearest
-from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
+
     from ..world_types import BurnManWorld
 
 
@@ -36,6 +25,9 @@ class BurnmanLayer(PhysicsLayer):
     --------
     TidalPy.structures.layers.PhysicsLayer
     """
+
+    from TidalPy.burnman_interface import burnman, burnman_installed
+    from TidalPy.burnman_interface.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 
     layer_class = 'burnman'
 
@@ -61,7 +53,7 @@ class BurnmanLayer(PhysicsLayer):
             If `True`, then the Layer's reinit is called at the end of the constructor.
         """
 
-        if not burnman_installed:
+        if not self.burnman_installed:
             warn('Burnman package not found. BurnmanLayer will have limited functionality.')
 
         super().__init__(layer_name, layer_index, world, layer_config, is_top_layer, initialize=False)
@@ -118,8 +110,8 @@ class BurnmanLayer(PhysicsLayer):
         self._build_material_property_interpolation()
 
     def set_state(
-        self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
-        shear_modulus: FloatArray = None
+        self, temperature: 'FloatArray' = None, pressure: 'FloatArray' = None, viscosity: 'FloatArray' = None,
+        shear_modulus: 'FloatArray' = None
         ):
         """ Set the layer's state properties
 
@@ -314,7 +306,7 @@ class BurnmanLayer(PhysicsLayer):
             avg_temperature = self.temperature
 
         temperature_profile = \
-            burnman.geotherm.adiabatic(self.bm_layer.pressures, avg_temperature, self.bm_layer.material)
+            self.burnman.geotherm.adiabatic(self.bm_layer.pressures, avg_temperature, self.bm_layer.material)
 
         # We again want to shrink the temperature domain to match the radii which only take [1:] of the Burnman version.
         bm_radii = self.bm_layer.radii
@@ -348,7 +340,7 @@ class BurnmanLayer(PhysicsLayer):
 
         self._interp_prop_data_lookup = dict()
         interp_properties = ['bulk_modulus', 'thermal_expansion', 'specific_heat']
-        bm_properties = [burnman_property_name_conversion[interp_prop] for interp_prop in interp_properties]
+        bm_properties = [self.burnman_property_name_conversion[interp_prop] for interp_prop in interp_properties]
 
         # We will use the fixed pressure to calculate the various parameters at all the temperature ranges
         #     These results will then be used in an interpolation for whenever self.temperature changes
@@ -358,7 +350,7 @@ class BurnmanLayer(PhysicsLayer):
         for interp_prop, prop_result in zip(interp_properties, property_results):
 
             # Perform any unit or other conversions needed to interface BurnMan to TidalPy
-            conversion_type = burnman_property_value_conversion.get(interp_prop, None)
+            conversion_type = self.burnman_property_value_conversion.get(interp_prop, None)
             if conversion_type is not None:
                 if conversion_type == 'molar':
                     # Convert the parameter from a molar value to a specific value
@@ -395,5 +387,5 @@ class BurnmanLayer(PhysicsLayer):
             return self._pressure
 
     @pressure.setter
-    def pressure(self, new_pressure: FloatArray):
+    def pressure(self, new_pressure: 'FloatArray'):
         self.set_pressure(new_pressure)

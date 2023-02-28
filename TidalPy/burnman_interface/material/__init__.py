@@ -1,10 +1,5 @@
-burnman_installed = True
-try:
-    import burnman
-except ImportError:
-    burnman_installed = False
-    # Build fake class so type checking passes.
-    class burnman:
-        Planet = None
-        Layer = None
-        minerals = dict()
+from .. import burnman, burnman_installed
+
+if not burnman_installed:
+    # Set something fake for type checking.
+    burnman.minerals = dict()

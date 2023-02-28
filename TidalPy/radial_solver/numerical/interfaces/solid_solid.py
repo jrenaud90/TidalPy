@@ -14,15 +14,18 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from TidalPy.utilities.performance import njit, nbList
 
-from ..initial.initial_solution_dynamic import SolidDynamicGuess
-from ..initial.initial_solution_static import SolidStaticGuess
+if TYPE_CHECKING:
+    from ..initial.initial_solution_dynamic import SolidDynamicGuess
+    from ..initial.initial_solution_static import SolidStaticGuess
 
 @njit(cacheable=True)
-def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
+def both_dynamic(solid_layer_ys: 'SolidDynamicGuess') -> 'SolidDynamicGuess':
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes dynamic tides in both of the layers.
 
@@ -53,7 +56,7 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
 
 
 @njit(cacheable=True)
-def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
+def static_dynamic(solid_layer_ys: 'SolidStaticGuess') -> 'SolidDynamicGuess':
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes static tides in the lower layer and dynamic in the upper.
 
@@ -84,7 +87,7 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
 
 
 @njit(cacheable=True)
-def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
+def dynamic_static(solid_layer_ys: 'SolidDynamicGuess') -> 'SolidStaticGuess':
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes static tides in the upper layer and dynamic in the lower.
 
@@ -115,7 +118,7 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
 
 
 @njit(cacheable=True)
-def both_static(solid_layer_ys: SolidStaticGuess) -> SolidStaticGuess:
+def both_static(solid_layer_ys: 'SolidStaticGuess') -> 'SolidStaticGuess':
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes static tides in both of the layers.
 

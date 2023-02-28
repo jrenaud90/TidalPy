@@ -7,9 +7,6 @@ import time
 import os
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
-
 # Initial Runtime
 init_time = time.time()
 
@@ -50,10 +47,5 @@ else:
     if not os.path.exists(world_config_loc):
         os.makedirs(world_config_loc)
 
-# Bring up various functionality to top-level
-#    Performance / Basic functionality
-from .utilities.performance import clear_cache
-#    Physics
-
-#    OOP
-from .structures import build_world, build_from_world, scale_from_world, Orbit
+# Import package functions
+from .cache import clear_cache

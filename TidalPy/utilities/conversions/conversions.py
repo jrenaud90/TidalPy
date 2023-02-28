@@ -1,9 +1,10 @@
 import numpy as np
 
-from ..constants import G
-from ..exceptions import BadValueError
-from ..utilities.performance.numba import njit
-from ..utilities.types import FloatArray
+from TidalPy.constants import G
+from TidalPy.exceptions import BadValueError
+
+from TidalPy.utilities.performance.numba import njit
+from TidalPy.utilities.types import FloatArray
 
 
 @njit(cacheable=True)
@@ -123,7 +124,7 @@ def myr2sec(myrs: FloatArray) -> FloatArray:
 
 
 @njit(cacheable=True)
-def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
+def orbital_motion2semi_a(orbital_motion: 'FloatArray', host_mass: float, target_mass: float = 0.) -> FloatArray:
     """ Convert orbital mean motion to semi-major axis (Kepler's 3rd law)
 
     Parameters
@@ -153,7 +154,7 @@ def orbital_motion2semi_a(orbital_motion: FloatArray, host_mass: float, target_m
 
 
 @njit(cacheable=True)
-def semi_a2orbital_motion(semi_major_axis: FloatArray, host_mass: float, target_mass: float = 0.) -> FloatArray:
+def semi_a2orbital_motion(semi_major_axis: 'FloatArray', host_mass: float, target_mass: float = 0.) -> FloatArray:
     """ Convert semi-major axis to mean orbital motion (Kepler's 3rd law)
 
     Parameters

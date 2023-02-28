@@ -1,9 +1,8 @@
 import os
 
 import numpy as np
-from scipy.special import gamma
 
-from ... import config
+from TidalPy import config
 
 use_numba_cfg = config['use_numba']
 use_numba_env = True

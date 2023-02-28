@@ -4,22 +4,25 @@
 import numpy as np
 from typing import Dict, TYPE_CHECKING, Tuple
 
+from TidalPy import log
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncompatibleModelError,
+                                IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, NotYetImplementedError,
+                                OuterscopePropertySetError, ParameterValueError)
+from TidalPy.utilities.classes.config.config import WorldConfigHolder
+
+
 from .defaults import tide_defaults
-from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
-from ..eccentricity_funcs import EccenOutput
-from ..inclination_funcs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
-from ..modes.mode_manipulation import (DissipTermsArray, FreqSig, ResultsByFreqType, UniqueFreqType,
-                                       find_mode_manipulators)
-from ... import log
-from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncompatibleModelError,
-                           IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, NotYetImplementedError,
-                           OuterscopePropertySetError, ParameterValueError)
-from ...utilities.classes.config.config import WorldConfigHolder
-from ...utilities.types import ComplexArray, FloatArray
+from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
+from ..modes.mode_manipulation import find_mode_manipulators
 
 if TYPE_CHECKING:
-    from ...structures.world_types import TidalWorldType
+    from TidalPy.utilities.types import ComplexArray, FloatArray
+    from TidalPy.structures.world_types import TidalWorldType
+
+    from ..eccentricity_funcs import EccenOutput
+    from ..inclination_funcs import InclinOutput
+    from ..modes.mode_manipulation import (DissipTermsArray, FreqSig, ResultsByFreqType, UniqueFreqType)
 
 
 # TODO: Add a spin-sync version
@@ -212,7 +215,7 @@ class TidesBase(WorldConfigHolder):
         force_obliquity_update: bool = False,
         call_world_frequency_changed: bool = True,
         call_collapse_modes: bool = True
-        ) -> Tuple[UniqueFreqType, ResultsByFreqType]:
+        ) -> Tuple[ 'UniqueFreqType', 'ResultsByFreqType']:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
         This will also calculate new unique tidal frequencies which must then be digested by the rheological model
@@ -539,7 +542,7 @@ class TidesBase(WorldConfigHolder):
 
     # # State properties
     @property
-    def eccentricity_results(self) -> Dict[int, EccenOutput]:
+    def eccentricity_results(self) -> Dict[int, 'EccenOutput']:
         """ Eccentricity function results (squared) stored by order_l """
         return self._eccentricity_results
 
@@ -548,7 +551,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def obliquity_results(self) -> Dict[Tuple[int, int], InclinOutput]:
+    def obliquity_results(self) -> Dict[Tuple[int, int], 'InclinOutput']:
         """ Obliquity/Inclination function results (squared) stored by integers (m, p) """
         return self._obliquity_results
 
@@ -557,7 +560,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_susceptibility_reduced(self) -> FloatArray:
+    def tidal_susceptibility_reduced(self) -> 'FloatArray':
         """ Tidal susceptibility (reduced, no semi-major axis dependence) [N m7] """
         return self._tidal_susceptibility_reduced
 
@@ -566,7 +569,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_susceptibility(self) -> FloatArray:
+    def tidal_susceptibility(self) -> 'FloatArray':
         """ Tidal susceptibility [N m] """
         return self._tidal_susceptibility
 
@@ -575,7 +578,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def unique_tidal_frequencies(self) -> Dict[FreqSig, FloatArray]:
+    def unique_tidal_frequencies(self) -> Dict['FreqSig', 'FloatArray']:
         """ Unique tidal frequencies (abs(tidal modes)) stored by frequency signature """
         return self._unique_tidal_frequencies
 
@@ -584,7 +587,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_terms_by_frequency(self) -> Dict[FreqSig, Dict[int, DissipTermsArray]]:
+    def tidal_terms_by_frequency(self) -> Dict['FreqSig', Dict[int, 'DissipTermsArray']]:
         """ Tidal terms stored by frequency signature """
         return self._tidal_terms_by_frequency
 
@@ -593,7 +596,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_heating_global(self) -> FloatArray:
+    def tidal_heating_global(self) -> 'FloatArray':
         """ Global tidal heating rate [W] """
         return self._tidal_heating_global
 
@@ -602,7 +605,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def global_negative_imk_by_orderl(self) -> Dict[int, FloatArray]:
+    def global_negative_imk_by_orderl(self) -> Dict[int, 'FloatArray']:
         """ Global negative of the imaginary portion of the Love number, -Im[k_l] """
         return self._global_negative_imk_by_orderl
 
@@ -611,7 +614,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def global_love_by_orderl(self) -> Dict[int, FloatArray]:
+    def global_love_by_orderl(self) -> Dict[int, 'FloatArray']:
         """ Global complex Love number, k_l """
         return self._global_love_by_orderl
 
@@ -620,7 +623,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def effective_q_by_orderl(self) -> Dict[int, FloatArray]:
+    def effective_q_by_orderl(self) -> Dict[int, 'FloatArray']:
         """ World's effective tidal dissipation factor (for each tidal order level) """
         return self._effective_q_by_orderl
 
@@ -629,7 +632,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def dUdM(self) -> FloatArray:
+    def dUdM(self) -> 'FloatArray':
         """ Global partial derivative of the tidal potential with respect to the mean anomaly """
         return self._dUdM
 
@@ -638,7 +641,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def dUdw(self) -> FloatArray:
+    def dUdw(self) -> 'FloatArray':
         """ Global partial derivative of the tidal potential with respect to the argument of pericentre """
         return self._dUdw
 
@@ -647,7 +650,7 @@ class TidesBase(WorldConfigHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def dUdO(self) -> FloatArray:
+    def dUdO(self) -> 'FloatArray':
         """ Global partial derivative of the tidal potential with respect to the argument of node """
         return self._dUdO
 
@@ -768,8 +771,8 @@ class TidesBase(WorldConfigHolder):
     @staticmethod
     def calculate_tidal_susceptibility(
         host_mass: float, target_radius: float,
-        semi_major_axis: FloatArray
-        ) -> FloatArray:
+        semi_major_axis: 'FloatArray'
+        ) -> 'FloatArray':
         """ Calculate the tidal susceptibility for a target object orbiting
 
         Wrapper for TidalPy.tides.dissipation.calc_tidal_susceptibility
@@ -794,9 +797,9 @@ class TidesBase(WorldConfigHolder):
 
     @staticmethod
     def calculate_effective_rigidity(
-        shear_modulus: FloatArray, gravity: float, radius: float, bulk_density: float,
+        shear_modulus: 'FloatArray', gravity: float, radius: float, bulk_density: float,
         tidal_order_l: int = 2
-        ) -> FloatArray:
+        ) -> 'FloatArray':
         """ Calculate the effective rigidity of a layer or planet
 
         Wrapper for TidalPy.tides.love1d.effective_rigidity_general
@@ -828,9 +831,9 @@ class TidesBase(WorldConfigHolder):
 
     @staticmethod
     def calculate_complex_love_number(
-        shear_modulus: FloatArray, complex_compliance: ComplexArray,
-        effective_rigidity: FloatArray, tidal_order_l: int = 2
-        ) -> ComplexArray:
+        shear_modulus: 'FloatArray', complex_compliance: 'ComplexArray',
+        effective_rigidity: 'FloatArray', tidal_order_l: int = 2
+        ) -> 'ComplexArray':
         """ Calculate the complex Love number of a layer or planet
 
         Wrapper for TidalPy.tides.love1d.complex_love_general

@@ -1,17 +1,20 @@
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 
-from ..utilities.performance.numba import njit
-from ..utilities.types import FloatArray, float_eps
+from TidalPy.utilities.types import float_eps
+from TidalPy.utilities.performance.numba import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
 
 
 @njit(cacheable=True)
 def semi_major_axis_derivative(
-    semi_major_axis: FloatArray, orbital_motion: FloatArray,
-    mass_1: float, dU_dM_1: FloatArray,
-    mass_2: float, dU_dM_2: FloatArray
-    ) -> FloatArray:
+    semi_major_axis: 'FloatArray', orbital_motion: 'FloatArray',
+    mass_1: float, dU_dM_1: 'FloatArray',
+    mass_2: float, dU_dM_2: 'FloatArray'
+    ) -> 'FloatArray':
     """ Calculate the time derivative of the semi-major axis for a dual dissipating system
 
     See Boue and Efroimsky (2019, CMDA), Eq. 116
@@ -49,10 +52,10 @@ def semi_major_axis_derivative(
 
 @njit(cacheable=True)
 def eccentricity_derivative(
-    semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity: FloatArray,
-    mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray,
-    mass_2: float, dU_dM_2: FloatArray, dU_dw_2: FloatArray
-    ) -> FloatArray:
+    semi_major_axis: 'FloatArray', orbital_motion: 'FloatArray', eccentricity: 'FloatArray',
+    mass_1: float, dU_dM_1: 'FloatArray', dU_dw_1: 'FloatArray',
+    mass_2: float, dU_dM_2: 'FloatArray', dU_dw_2: 'FloatArray'
+    ) -> 'FloatArray':
     """ Calculate the time derivative of the eccentricity for a dual dissipating system
 
     See Boue and Efroimsky (2019, CMDA), Eq. 117
@@ -104,10 +107,10 @@ def eccentricity_derivative(
 
 @njit(cacheable=True)
 def semia_eccen_derivatives(
-    semi_major_axis: FloatArray, orbital_motion: FloatArray, eccentricity: FloatArray,
-    mass_1: float, dU_dM_1: FloatArray, dU_dw_1: FloatArray,
-    mass_2: float, dU_dM_2: FloatArray, dU_dw_2: FloatArray
-    ) -> Tuple[FloatArray, FloatArray]:
+    semi_major_axis: 'FloatArray', orbital_motion: 'FloatArray', eccentricity: 'FloatArray',
+    mass_1: float, dU_dM_1: 'FloatArray', dU_dw_1: 'FloatArray',
+    mass_2: float, dU_dM_2: 'FloatArray', dU_dw_2: 'FloatArray'
+    ) -> Tuple['FloatArray', 'FloatArray']:
     """ Calculate the time derivatives of semi-major axis and eccentricity for a dual dissipating system
 
     See Boue and Efroimsky (2019, CMDA), Eqs. 116 and 117

@@ -7,8 +7,8 @@ from warnings import warn
 import json5
 import numpy as np
 
-from .... import log, use_disk
-from ....io_helper import unique_path
+from TidalPy import log, use_disk
+from TidalPy.io_helper import unique_path
 
 JSON5_KWARGS = {'indent': 4}
 

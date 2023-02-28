@@ -3,7 +3,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy import build_from_world, build_world
+from TidalPy.structures import build_from_world, build_world
 from TidalPy.structures.orbit import PhysicsOrbit
 
 star_config_ = {

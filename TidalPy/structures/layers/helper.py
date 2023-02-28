@@ -1,15 +1,17 @@
-from typing import Union
+from typing import Union, TYPE_CHECKING
 
 import numpy as np
 
-from ...exceptions import ParameterMissingError
-from ...utilities.types import NoneType
+from TidalPy.exceptions import ParameterMissingError
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import NoneType
 
 
 def find_geometry_from_config(
     config: dict, layer_index: int, is_top_layer: bool,
     world_radius: float, world_mass: float,
-    layer_below_radius: Union[float, NoneType] = None
+    layer_below_radius: Union[float, 'NoneType'] = None
     ):
     """ Parse a configuration dictionary for geometry information
 

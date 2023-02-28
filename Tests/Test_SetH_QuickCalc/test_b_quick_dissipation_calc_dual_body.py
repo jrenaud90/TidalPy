@@ -487,7 +487,7 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_world_instanc
     """ This will test the quick tidal dissipation (parameters pulled from a world instance) calculator -
         using viscosity array with the Andrade rheology. Max l = 3, eccentricity trunc = 4 """
 
-    from TidalPy import build_world
+    from TidalPy.structures import build_world
 
     jupiter = build_world('jupiter')
     io = build_world('io')

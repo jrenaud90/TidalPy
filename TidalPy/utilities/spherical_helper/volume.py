@@ -1,10 +1,9 @@
 """ Functions to help calculate the volume of voxels in a spherical geometry
 """
 import numpy as np
-
-from ..performance import njit
-
 from numba import prange
+
+from TidalPy.utilities.performance import njit
 
 
 def calculate_voxel_volumes_npy(radius_array: np.ndarray, longitude_array: np.ndarray, colatitude_array: np.ndarray):

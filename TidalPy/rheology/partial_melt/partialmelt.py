@@ -2,18 +2,19 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
+from TidalPy import log
+from TidalPy.exceptions import (BadValueError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
+                                OuterscopePropertySetError)
+from TidalPy.utilities.performance import njit
+from TidalPy.utilities.classes.model import LayerModelHolder
+
 from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import partial_melt_defaults
-from ... import log
-from ...exceptions import (BadValueError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
-                           OuterscopePropertySetError)
-from ...utilities.classes.model import LayerModelHolder
-from ...utilities.performance.numba import njit
-from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
-    from ..rheology import Rheology
-    from ...structures.layers import PhysicalLayerType
+    from TidalPy.utilities.types import FloatArray
+    from TidalPy.rheology import Rheology
+    from TidalPy.structures.layers import PhysicalLayerType
 
 
 @njit(cacheable=True)
@@ -235,7 +236,7 @@ class PartialMelt(LayerModelHolder):
         self._postmelt_shear_modulus = None
         self._postmelt_compliance = None
 
-    def _calculate(self) -> Tuple[FloatArray, FloatArray, FloatArray]:
+    def _calculate(self) -> Tuple['FloatArray', 'FloatArray', 'FloatArray']:
         """ Wrapper for the partial melting function.
 
         First the partial melt will be updated based on the provided temperature. Then changes to the shear modulus
@@ -272,14 +273,14 @@ class PartialMelt(LayerModelHolder):
         return melt_fraction, postmelt_viscosity, postmelt_shear_modulus
 
     # Wrappers for user convenience
-    def calculate_melt_fraction(self, temperature: FloatArray) -> FloatArray:
+    def calculate_melt_fraction(self, temperature: 'FloatArray') -> 'FloatArray':
 
         if type(temperature) is np.ndarray:
             return calculate_melt_fraction_array(temperature, self.solidus, self.liquidus)
         else:
             return calculate_melt_fraction(temperature, self.solidus, self.liquidus)
 
-    def calculate_temperature_frommelt(self, melt_fraction: FloatArray) -> FloatArray:
+    def calculate_temperature_frommelt(self, melt_fraction: 'FloatArray') -> 'FloatArray':
 
         if type(melt_fraction) is np.ndarray:
             return calculate_temperature_frommelt_array(melt_fraction, self.solidus, self.liquidus)
@@ -298,7 +299,7 @@ class PartialMelt(LayerModelHolder):
 
     # # State properties
     @property
-    def postmelt_viscosity(self) -> FloatArray:
+    def postmelt_viscosity(self) -> 'FloatArray':
         """ Material's solid viscosity after the effects of partial melting have been applied """
         return self._postmelt_viscosity
 
@@ -307,7 +308,7 @@ class PartialMelt(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def postmelt_shear_modulus(self) -> FloatArray:
+    def postmelt_shear_modulus(self) -> 'FloatArray':
         """ Material's shear modulus (rigidity) after the effects of partial melting have been applied """
         return self._postmelt_shear_modulus
 
@@ -316,7 +317,7 @@ class PartialMelt(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def postmelt_compliance(self) -> FloatArray:
+    def postmelt_compliance(self) -> 'FloatArray':
         """ Material's compliance (inverse of rigidity) after the effects of partial melting have been applied """
         return self._postmelt_compliance
 
@@ -325,7 +326,7 @@ class PartialMelt(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def melt_fraction(self) -> FloatArray:
+    def melt_fraction(self) -> 'FloatArray':
         """ Layer's volumetric melt fraction """
         return self._melt_fraction
 

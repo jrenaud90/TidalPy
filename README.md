@@ -6,7 +6,7 @@
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a>
     <a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />
-    <a href="https://mybinder.org/v2/gh/jrenaud90/TidalPy/master?filepath=%2FDemos%2F"><img src="https://mybinder.org/badge_logo.svg" alt="Binder" /></a>
+    <a href="https://mybinder.org/v2/gh/jrenaud90/TidalPy/main?labpath=%2FDemos"><img src="https://mybinder.org/badge_logo.svg" alt="Binder" /></a>
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
 </p>
 

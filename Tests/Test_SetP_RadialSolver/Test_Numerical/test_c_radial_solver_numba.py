@@ -1,13 +1,12 @@
 """ Test the `TidalPy.radial_solver.numerical` `radial_solver_numba` function. """
 
-import os
 import numpy as np
 import pytest
 
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy.toolbox.conversions import days2rads
+from TidalPy.utilities.conversions import days2rads
 from TidalPy.utilities.performance import nbList
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.radial_solver.numerical import radial_solver_numba

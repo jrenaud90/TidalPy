@@ -3,13 +3,17 @@ dependencies (looking at you, Numba).
 
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from ..performance import njit, use_numba
-from ..types import NumArray
+from TidalPy.utilities.performance import njit, use_numba
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import NumArray
 
 
-def _sqrt_neg_python(z: NumArray, is_real: bool = False) -> NumArray:
+def _sqrt_neg_python(z: 'NumArray', is_real: bool = False) -> 'NumArray':
     """ Square root - Allows for negative values
 
     Parameters

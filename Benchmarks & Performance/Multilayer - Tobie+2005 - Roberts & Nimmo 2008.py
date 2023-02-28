@@ -9,7 +9,7 @@ TMS05 : Tobie+ (2005; Icarus; DOI: 10.1016/j.icarus.2005.04.006)
 import numpy as np
 import time
 from TidalPy.constants import G
-from TidalPy.toolbox.conversions import orbital_motion2semi_a
+from TidalPy.utilities.conversions import orbital_motion2semi_a
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 
 # Load TidalPy's multilayer functions

@@ -1,6 +1,7 @@
+from TidalPy.utilities.classes.model.model_utils import build_model_default_inputs, find_all_models
+
 from . import melting_models as partial_melting_models
 from .defaults import partial_melt_defaults
-from ...utilities.classes.model.modelUtils import build_model_default_inputs, find_all_models
 
 known_models, known_model_const_args, known_model_live_args = find_all_models(partial_melting_models)
 

@@ -1,6 +1,6 @@
 """ Helper functions to quickly change TidalPy configurations without hard coding configurations.py """
 
-from . import config, reinit, use_disk
+from TidalPy import config, reinit, use_disk
 
 def toggle_log_print_in_jupyter():
     """ Toggle the printing of TidalPy logs when running in a Jupyter Notebook. """

@@ -1,52 +1,65 @@
 """ Functions to project data onto a 2D representation of a sphere. """
 from typing import List, Union
+import warnings
 
-import cartopy.crs as ccrs
-from ..numpy_helper import find_nearest
-from cartopy.mpl.gridliner import Gridliner
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 from matplotlib.colors import Colormap
 
-from ...io_helper import unique_path
+from TidalPy.io_helper import unique_path
+
+cartopy_installed = False
+try:
+    import cartopy.crs as ccrs
+    cartopy_installed = True
+    _KNOWN_PROJECTIONS = {
+        # # Matplotlib Projections
+        'rectilinear'         : None,
+
+        # # CCR Projections
+        'PlateCarree'         : ccrs.PlateCarree,
+        'AlbersEqualArea'     : ccrs.AlbersEqualArea,
+        'AzimuthalEquidistant': ccrs.AzimuthalEquidistant,
+        'EquidistantConic'    : ccrs.EquidistantConic,
+        'LambertConformal'    : ccrs.LambertConformal,
+        'LambertCylindrical'  : ccrs.LambertCylindrical,
+        'Mercator'            : ccrs.Mercator,
+        'Miller'              : ccrs.Miller,
+        'Mollweide'           : ccrs.Mollweide,
+        # A Mollweide projection. This projection is pseudocylindrical, and equal area.
+        # Parallels are unequally-spaced straight lines, while meridians are elliptical arcs up to
+        # semicircles on the edges. Poles are points.
+        # It is commonly used for world maps, or interrupted with several central meridians.
+        'Orthographic'        : ccrs.Orthographic,
+        'Robinson'            : ccrs.Robinson,
+        # A Robinson projection. This projection is pseudocylindrical, and a compromise
+        # that is neither equal-area nor conformal. Parallels are unequally-spaced straight lines,
+        # and meridians are curved lines of no particular form. It is commonly used for “visually-appealing” world maps.
+        'Sinusoidal'          : ccrs.Sinusoidal,
+        # A Sinusoidal projection. This projection is equal-area.
+        'RotatedPole'         : ccrs.RotatedPole,
+        # A rotated latitude/longitude projected coordinate system with cylindrical topology and projected distance.
+        # Coordinates are measured in projection metres.
+        'NearsidePerspective' : ccrs.NearsidePerspective,
+        # Perspective view looking directly down from above a point on the globe.
+        # In this projection, the projected coordinates are x and y measured from the origin of a plane tangent to
+        # the Earth directly below the perspective point (e.g. a satellite).
+        }
+except ImportError:
+    # Cartopy install not found.
+    warnings.warn('The Cartopy package can not be found. 2D projection maps will not be available. Install cartopy '
+                  'by using the Anaconda distribution of Python and then calling `conda install cartopy`.')
+    class ccrs:
+        pass
+
+    _KNOWN_PROJECTIONS = {
+        # # Matplotlib Projections
+        'rectilinear': None
+        }
 
 ROTATED_POLE_DEFAULT_INPUT = {
     'pole_latitude' : 45,
     'pole_longitude': 180
-    }
-
-_KNOWN_PROJECTIONS = {
-    # # Matplotlib Projections
-    'rectilinear'         : None,
-
-    # # CCR Projections
-    'PlateCarree'         : ccrs.PlateCarree,
-    'AlbersEqualArea'     : ccrs.AlbersEqualArea,
-    'AzimuthalEquidistant': ccrs.AzimuthalEquidistant,
-    'EquidistantConic'    : ccrs.EquidistantConic,
-    'LambertConformal'    : ccrs.LambertConformal,
-    'LambertCylindrical'  : ccrs.LambertCylindrical,
-    'Mercator'            : ccrs.Mercator,
-    'Miller'              : ccrs.Miller,
-    'Mollweide'           : ccrs.Mollweide,
-    # A Mollweide projection. This projection is pseudocylindrical, and equal area.
-    # Parallels are unequally-spaced straight lines, while meridians are elliptical arcs up to
-    # semicircles on the edges. Poles are points.
-    # It is commonly used for world maps, or interrupted with several central meridians.
-    'Orthographic'        : ccrs.Orthographic,
-    'Robinson'            : ccrs.Robinson,
-    # A Robinson projection. This projection is pseudocylindrical, and a compromise
-    # that is neither equal-area nor conformal. Parallels are unequally-spaced straight lines,
-    # and meridians are curved lines of no particular form. It is commonly used for “visually-appealing” world maps.
-    'Sinusoidal'          : ccrs.Sinusoidal,
-    # A Sinusoidal projection. This projection is equal-area.
-    'RotatedPole'         : ccrs.RotatedPole,
-    # A rotated latitude/longitude projected coordinate system with cylindrical topology and projected distance.
-    # Coordinates are measured in projection metres.
-    'NearsidePerspective' : ccrs.NearsidePerspective,
-    # Perspective view looking directly down from above a point on the globe.
-    # In this projection, the projected coordinates are x and y measured from the origin of a plane tangent to
-    # the Earth directly below the perspective point (e.g. a satellite).
     }
 
 # Make a copy of the projection keys as lower case to avoid key errors.
@@ -194,22 +207,25 @@ def projection_map(
     data_projection = KNOWN_PROJECTIONS[original_data_projection.lower()]
 
     # Check rotated pole data
-    if projection is ccrs.RotatedPole:
-        if rotated_pole_input is None:
-            rotated_pole_input = ROTATED_POLE_DEFAULT_INPUT
+    projection_instance = None
+    if cartopy_installed:
+        if projection is ccrs.RotatedPole:
+            if rotated_pole_input is None:
+                rotated_pole_input = ROTATED_POLE_DEFAULT_INPUT
+            else:
+                rotated_pole_input = {**ROTATED_POLE_DEFAULT_INPUT, **rotated_pole_input}
+            try:
+                # Some versions of cartopy do not have the central longitude argument.
+                projection_instance = projection(central_longitude=central_longitude, **rotated_pole_input)
+            except TypeError:
+                projection_instance = projection(**rotated_pole_input)
+    if projection_instance is None:
+        if projection is None:
+            rotated_pole_input = None
+            projection_instance = None
         else:
-            rotated_pole_input = {**ROTATED_POLE_DEFAULT_INPUT, **rotated_pole_input}
-        try:
-            # Some versions of cartopy do not have the central longitude argument.
-            projection_instance = projection(central_longitude=central_longitude, **rotated_pole_input)
-        except TypeError:
-            projection_instance = projection(**rotated_pole_input)
-    elif projection is None:
-        rotated_pole_input = None
-        projection_instance = None
-    else:
-        rotated_pole_input = None
-        projection_instance = projection(central_longitude=central_longitude)
+            rotated_pole_input = None
+            projection_instance = projection(central_longitude=central_longitude)
 
     # Make figure
     if ax is None:
