@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from . import tidalpy_loc
+from TidalPy import tidalpy_loc
 
 
 def clear_cache(verbose: bool = True):

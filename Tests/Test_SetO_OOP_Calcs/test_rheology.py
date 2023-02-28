@@ -1,7 +1,7 @@
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy import build_world
+from TidalPy.structures import build_world
 
 # Build basic layered io
 io_base = build_world('io_simple')

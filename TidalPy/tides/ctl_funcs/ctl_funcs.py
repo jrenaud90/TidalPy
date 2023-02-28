@@ -1,9 +1,13 @@
+from typing import TYPE_CHECKING
+
 from ...utilities.performance import njit
-from ...utilities.types import FloatArray
+
+if TYPE_CHECKING:
+    from ...utilities.types import FloatArray
 
 
 @njit(cacheable=True)
-def linear_dt(frequency: FloatArray, fixed_dt: float):
+def linear_dt(frequency: 'FloatArray', fixed_dt: float):
     """ Estimates dissipative term of the Love number assuming a function that is inversely linear with frequency.
 
     Parameters
@@ -25,7 +29,7 @@ def linear_dt(frequency: FloatArray, fixed_dt: float):
 
 
 @njit(cacheable=True)
-def linear_dt_with_q(frequency: FloatArray, fixed_dt: float, fixed_q: float):
+def linear_dt_with_q(frequency: 'FloatArray', fixed_dt: float, fixed_q: float):
     """ Estimates dissipative term of the Love number assuming a function that is linear with frequency. The fixed Q
         acts as an additional inverse proportionality constant.
 

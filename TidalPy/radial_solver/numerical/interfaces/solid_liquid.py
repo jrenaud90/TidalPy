@@ -14,17 +14,20 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from TidalPy.constants import G
 from TidalPy.utilities.performance import njit, nbList
 
-from ..initial.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from ..initial.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
+if TYPE_CHECKING:
+    from ..initial.initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
+    from ..initial.initial_solution_static import LiquidStaticGuess, SolidStaticGuess
 
 
 @njit(cacheable=True)
-def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> LiquidDynamicGuess:
+def both_dynamic(solid_layer_ys: 'SolidDynamicGuess') -> 'LiquidDynamicGuess':
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above a
     solid layer. Assumes dynamic tides in both layers.
 
@@ -70,7 +73,7 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> LiquidDynamicGuess:
 
 
 @njit(cacheable=True)
-def static_dynamic(solid_layer_ys: SolidStaticGuess) -> LiquidDynamicGuess:
+def static_dynamic(solid_layer_ys: 'SolidStaticGuess') -> 'LiquidDynamicGuess':
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above a
     solid layer. Assumes static tides in the lower layer and dynamic in the upper.
 
@@ -97,9 +100,9 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> LiquidDynamicGuess:
 
 @njit(cacheable=True)
 def dynamic_static(
-        solid_layer_ys: SolidDynamicGuess,
+        solid_layer_ys: 'SolidDynamicGuess',
         interface_gravity: float, liquid_density: float, G_to_use: float = G
-        ) -> LiquidStaticGuess:
+        ) -> 'LiquidStaticGuess':
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above a
     solid layer. Assumes static tides in the upper layer and dynamic in the lower.
 
@@ -185,9 +188,9 @@ def dynamic_static(
 
 @njit(cacheable=True)
 def both_static(
-        solid_layer_ys: SolidStaticGuess,
+        solid_layer_ys: 'SolidStaticGuess',
         interface_gravity: float, liquid_density: float, G_to_use: float = G
-        ) -> LiquidStaticGuess:
+        ) -> 'LiquidStaticGuess':
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above a
     solid layer. Assumes static tides in both the upper and lower layers.
 

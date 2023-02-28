@@ -1,6 +1,7 @@
+from TidalPy.exceptions import NotYetImplementedError
+
 from .layered import LayeredWorld
 from .tidal import TidalWorld
-from ...exceptions import NotYetImplementedError
 
 
 class GasGiantWorld(TidalWorld):

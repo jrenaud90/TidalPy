@@ -8,13 +8,15 @@ TB05  : Tobie et al. (2005, DOI: 10.1016/j.icarus.2005.04.006)
 B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 """
 
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 from numba import prange
 
-from ...utilities.performance import njit
-from ...utilities.types import FloatArray
+from TidalPy.utilities.performance import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
 
 StressType = np.ndarray
 StrainType = np.ndarray
@@ -27,9 +29,9 @@ def calculate_strain_stress(
     tidal_potential_partial2_theta2: np.ndarray, tidal_potential_partial2_phi2: np.ndarray,
     tidal_potential_partial2_theta_phi: np.ndarray,
     tidal_solution_y: np.ndarray,
-    colatitude: FloatArray,
+    colatitude: 'FloatArray',
     radius: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-    frequency: FloatArray, order_l: int = 2
+    frequency: 'FloatArray', order_l: int = 2
     ) -> Tuple[StrainType, StressType]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.

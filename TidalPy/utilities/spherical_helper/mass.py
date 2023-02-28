@@ -2,8 +2,10 @@
 """
 import numpy as np
 
-from ..performance import njit
-from ...constants import G
+from TidalPy.constants import G
+
+from TidalPy.utilities.performance import njit
+
 
 @njit(cacheable=True)
 def calculate_mass_gravity_arrays(radius_array: np.ndarray, density_array: np.ndarray,

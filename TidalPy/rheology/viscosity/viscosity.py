@@ -2,15 +2,17 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
+                                OuterscopePropertySetError)
+from TidalPy.utilities.classes.model import LayerModelHolder
+
 from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError
-from ...utilities.classes.model import LayerModelHolder
-from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
-    from ..rheology import Rheology
-    from ...structures.layers import PhysicalLayerType
+    from TidalPy.utilities.types import FloatArray
+    from TidalPy.rheology import Rheology
+    from TidalPy.structures.layers import PhysicalLayerType
 
 
 class ViscosityParentClass(LayerModelHolder):
@@ -68,7 +70,7 @@ class ViscosityParentClass(LayerModelHolder):
 
         self._viscosity = None
 
-    def _calculate(self) -> FloatArray:
+    def _calculate(self) -> 'FloatArray':
         """ Wrapper for the viscosity calculator
 
         Returns
@@ -98,7 +100,7 @@ class ViscosityParentClass(LayerModelHolder):
 
     # # State properties
     @property
-    def viscosity(self) -> FloatArray:
+    def viscosity(self) -> 'FloatArray':
         """ Viscosity (Solid or Liquid depending on the class type) no partial melting effects have been applied """
         return self._viscosity
 
@@ -117,7 +119,7 @@ class ViscosityParentClass(LayerModelHolder):
         raise OuterscopePropertySetError
 
     @property
-    def pressure(self) -> FloatArray:
+    def pressure(self) -> 'FloatArray':
         """ Outer-scope wrapper for layer.pressure """
         # Pressure is often turned off in various model runs, so it may not be set. If that is the case let's make sure
         #    that zeros are provided.

@@ -8,16 +8,20 @@ TB05  : Tobie et al. (2005, DOI: 10.1016/j.icarus.2005.04.006)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from ...constants import G
-from ...utilities.performance import njit
-from ...utilities.types import FloatArray
+from TidalPy.constants import G
+from TidalPy.utilities.performance import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
 
 
 @njit(cacheable=True)
 def calc_radial_tidal_heating(
-    eccentricity: FloatArray, orbital_frequency: FloatArray, semi_major_axis: FloatArray,
+    eccentricity: 'FloatArray', orbital_frequency: 'FloatArray', semi_major_axis: 'FloatArray',
     tidal_host_mass: float,
     radius_array: np.ndarray, radial_sensitivity_to_shear: np.ndarray,
     complex_shear_modulus: np.ndarray, order_l: int = 2

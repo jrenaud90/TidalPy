@@ -3,17 +3,21 @@
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
 
-#### Version 0.4.2 Alpha (Spring 2023)
+### Version 0.5.0 Alpha (Spring 2023)
 * Major Changes
   * Removed some imports from main package __init__ to avoid slow load times.
   * Moved `cache.py` to top-level.
+  * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
+
+* Minor Changes
+  * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
 
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes
   * Moved `radial_solver` to a top-level module of TidalPy.
     * Added `find_love` function to the `radial_solver` module for the calculation of Love and Shida numbers.
-    * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al (2005).
-    * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al (2005).
+    * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al. (2005).
+    * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al. (2005).
   * Added `newton` and `elastic` complex compliances to rheology module for ALMA comparisons.
 
 * Minor Changes

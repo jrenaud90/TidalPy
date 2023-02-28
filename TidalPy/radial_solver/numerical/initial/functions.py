@@ -7,13 +7,15 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 from scipy.special import gamma, spherical_jn
 
 from TidalPy.utilities.performance import njit
-from TidalPy.utilities.types import NumArray
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import NumArray
 
 # Pre-calculate as much as we can
 l2p1_double_factorials = list()
@@ -28,7 +30,7 @@ l2p1_double_factorials = tuple(l2p1_double_factorials)
 
 # OPT: This can not be njited because it depends on the non-njited spherical bessel functions.
 #    subsequent functions that depend on this must use the approximate `takeuchi_phi_psi`.
-def takeuchi_phi_psi_general(z: NumArray, order_l: int = 2) -> Tuple[NumArray, NumArray, NumArray]:
+def takeuchi_phi_psi_general(z: 'NumArray', order_l: int = 2) -> Tuple['NumArray', 'NumArray', 'NumArray']:
     """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
 
     References
@@ -62,7 +64,7 @@ def takeuchi_phi_psi_general(z: NumArray, order_l: int = 2) -> Tuple[NumArray, N
 
 
 @njit(cacheable=True)
-def takeuchi_phi_psi(z_squared: NumArray, order_l: int = 2) -> Tuple[NumArray, NumArray, NumArray]:
+def takeuchi_phi_psi(z_squared: 'NumArray', order_l: int = 2) -> Tuple['NumArray', 'NumArray', 'NumArray']:
     """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
 
     This version of the function uses a Taylor expansion on the bessel function and only requires the even powers of
@@ -134,7 +136,7 @@ Z_CALC_MAX_L = (
 
 
 @njit(cacheable=True)
-def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error: bool = True) -> NumArray:
+def z_calc(x_squared: 'NumArray', order_l: int = 2, init_l: int = 0, raise_l_error: bool = True) -> 'NumArray':
     """ Calculates the z function used in the calculations of initial guesses for radial functions.
     Simplification (recursion calculation) of the spherical Bessel function, see Eq. B16 of KMN15.
 
@@ -201,7 +203,7 @@ def z_calc(x_squared: NumArray, order_l: int = 2, init_l: int = 0, raise_l_error
 
     return z
 
-def z_calc_general(x_squared: NumArray, order_l: int = 2) -> NumArray:
+def z_calc_general(x_squared: 'NumArray', order_l: int = 2) -> 'NumArray':
     """ Calculates the z function using spherical Bessel function, see Eq. B14 of KMN15.
 
     References

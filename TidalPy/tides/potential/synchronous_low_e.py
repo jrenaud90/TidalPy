@@ -1,17 +1,22 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from . import TidalPotentialModeOutput
-from ...constants import G
-from ...utilities.performance import njit
-from ...utilities.types import FloatArray
+from TidalPy.constants import G
+from TidalPy.utilities.performance import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
+
+    from . import TidalPotentialModeOutput
 
 
 @njit(cacheable=True)
 def tidal_potential(
-    radius: FloatArray, longitude: FloatArray, colatitude: FloatArray, time: FloatArray,
-    orbital_frequency: FloatArray, eccentricity: FloatArray,
-    host_mass: float, semi_major_axis: FloatArray,
-    ) -> TidalPotentialModeOutput:
+    radius: 'FloatArray', longitude: 'FloatArray', colatitude: 'FloatArray', time: 'FloatArray',
+    orbital_frequency: 'FloatArray', eccentricity: 'FloatArray',
+    host_mass: float, semi_major_axis: 'FloatArray',
+    ) -> 'TidalPotentialModeOutput':
     """ Tidal gravitational potential assuming low eccentricity, no obliquity, and synchronous rotation
 
     Parameters

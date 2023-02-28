@@ -2,17 +2,18 @@ from typing import List, TYPE_CHECKING, Union
 
 import numpy as np
 
+from TidalPy import log
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectAttributeType,
+                                IncorrectMethodToSetStateProperty, OuterscopePropertySetError, ParameterMissingError,
+                                UnknownModelError)
+from TidalPy.utilities.classes.model import LayerModelHolder
+
 from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import known_isotope_data, radiogenics_defaults
-from .. import log
-from ..exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectAttributeType,
-                          IncorrectMethodToSetStateProperty, OuterscopePropertySetError, ParameterMissingError,
-                          UnknownModelError)
-from ..utilities.classes.model import LayerModelHolder
-from ..utilities.types import FloatArray, NoneType
 
 if TYPE_CHECKING:
-    from ..structures.layers import PhysicalLayerType
+    from TidalPy.utilities.types import FloatArray, NoneType
+    from TidalPy.structures.layers import PhysicalLayerType
 
 
 class Radiogenics(LayerModelHolder):
@@ -163,7 +164,7 @@ class Radiogenics(LayerModelHolder):
 
         self._heating = None
 
-    def _calculate(self) -> FloatArray:
+    def _calculate(self) -> 'FloatArray':
         """ Calculates the radiogenic heating of layer in which the radiogenic class is installed.
 
         Returns
@@ -213,7 +214,7 @@ class Radiogenics(LayerModelHolder):
 
     # # Configuration properties
     @property
-    def isos_name(self) -> Union[NoneType, List[str]]:
+    def isos_name(self) -> Union['NoneType', List[str]]:
         """ List of isotope names used in radiogenic calculations (for isotope model only) """
         return self._isos_name
 
@@ -222,7 +223,7 @@ class Radiogenics(LayerModelHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def isos_hpr(self) -> Union[NoneType, List[float]]:
+    def isos_hpr(self) -> Union['NoneType', List[float]]:
         """ List of isotope heat production rates [W kg-1] (for isotope model only) """
         return self._isos_hpr
 
@@ -231,7 +232,7 @@ class Radiogenics(LayerModelHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def isos_halflife(self) -> Union[NoneType, List[float]]:
+    def isos_halflife(self) -> Union['NoneType', List[float]]:
         """ List of isotope half lives [Myr] (for isotope model only) """
         return self._isos_halflife
 
@@ -240,7 +241,7 @@ class Radiogenics(LayerModelHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def isos_massfrac(self) -> Union[NoneType, List[float]]:
+    def isos_massfrac(self) -> Union['NoneType', List[float]]:
         """ List of isotope mass fractions [kg kg-1] (for isotope model only)
 
         Notes
@@ -259,7 +260,7 @@ class Radiogenics(LayerModelHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def isos_concentration(self) -> Union[NoneType, List[float]]:
+    def isos_concentration(self) -> Union['NoneType', List[float]]:
         """ List of element concentration [kg kg-1] (for isotope model only)
 
         Notes
@@ -289,7 +290,7 @@ class Radiogenics(LayerModelHolder):
 
     # # State properties
     @property
-    def heating(self) -> FloatArray:
+    def heating(self) -> 'FloatArray':
         """ Radiogenic heating rate [W] """
         return self._heating
 

@@ -3,7 +3,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, Tuple, Union
 from warnings import warn
 
-from .functionalUtils import is_function, parse_model_docstring
+from .functional_utils import is_function, parse_model_docstring
 from ..config.dictionary_utils import nested_get
 
 

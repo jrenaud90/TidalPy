@@ -7,7 +7,7 @@ import TidalPy
 TidalPy.test_mode()
 
 from TidalPy.constants import G
-from TidalPy.toolbox.conversions import days2rads
+from TidalPy.utilities.conversions import days2rads
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.radial_solver.numerical.initial import find_initial_guess
 from TidalPy.radial_solver.numerical.derivatives import find_ode
@@ -60,7 +60,6 @@ def test_derivatives(is_solid, is_static, is_incompressible, order_l):
         y_init_float[2 * i + 1] = np.imag(y_init[i])
 
     # Perform calculation at multiple r values
-    import pdb;
     for r_i in (2, 5, 8):
         assert r_i < N
         ode_result = ode_func(radius[r_i], y_init_float, *additional_input)

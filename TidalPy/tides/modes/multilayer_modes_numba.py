@@ -6,17 +6,20 @@ This module contains functions to assist with calculating the response at each o
     the findings into a final value.
 
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy.radial_solver.numerical import radial_solver_numba
+from TidalPy.utilities.performance import njit, nbList, nbDict, bool_, complex128, nbUnicode
+from TidalPy.radial_solver import radial_solver_numba
 
 from ..multilayer.stress_strain import calculate_strain_stress
-from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
+from ..potential import (tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
-from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, nbUnicode
+
+if TYPE_CHECKING:
+    from ..potential import TidalPotentialOutput
 
 
 @njit(cacheable=True)

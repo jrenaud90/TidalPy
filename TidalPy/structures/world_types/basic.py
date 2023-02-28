@@ -5,21 +5,24 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
+from TidalPy import configurations, debug_mode, log, tidalpy_loc, use_disk
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
+                                IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
+                                OuterscopePropertySetError, UnknownModelError, UnusualRealValueError)
+from TidalPy.utilities.graphics import geotherm_plot
+from TidalPy.utilities.conversions import days2rads, rads2days
+from TidalPy.stellar import calc_equilibrium_temperature, equilibrium_insolation_functions
+
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ..helpers.orbit_config import pull_out_orbit_from_config
-from ... import configurations, debug_mode, log, tidalpy_loc, use_disk
-from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
-                           IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError,
-                           UnknownModelError, UnusualRealValueError)
-from ...stellar import EquilibFuncType, calc_equilibrium_temperature, equilibrium_insolation_functions
-from ...toolbox.conversions import days2rads, rads2days
-from ...utilities.graphics import geotherm_plot
-from ...utilities.types import FloatArray, NoneType
 
 planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 
 if TYPE_CHECKING:
+    from TidalPy.stellar import EquilibFuncType
+    from TidalPy.utilities.types import FloatArray, NoneType
+
     from . import AllWorldType
     from ..orbit import Orbit
 
@@ -243,8 +246,8 @@ class BaseWorld(PhysicalObjSpherical):
         self._surface_temperature = None
 
         # Setup functions and models
-        self._equilibrium_insolation_func = equilibrium_insolation_functions[
-            self.config['equilibrium_insolation_model']]
+        self._equilibrium_insolation_func = \
+            equilibrium_insolation_functions[self.config['equilibrium_insolation_model']]
 
         # Reset any orbits this world is connected to
         if not preserve_orbit and self.orbit is not None:
@@ -252,10 +255,10 @@ class BaseWorld(PhysicalObjSpherical):
             self.orbit.clear_state(clear_all=False, clear_specific=self, clear_world_state=False)
 
     def set_state(
-        self, spin_frequency: FloatArray = None, spin_period: FloatArray = None,
-        obliquity: FloatArray = None, time: FloatArray = None,
-        orbital_frequency: FloatArray = None, orbital_period: FloatArray = None,
-        semi_major_axis: FloatArray = None, eccentricity: FloatArray = None, set_by_world: bool = False
+        self, spin_frequency: 'FloatArray' = None, spin_period: 'FloatArray' = None,
+        obliquity: 'FloatArray' = None, time: 'FloatArray' = None,
+        orbital_frequency: 'FloatArray' = None, orbital_period: 'FloatArray' = None,
+        semi_major_axis: 'FloatArray' = None, eccentricity: 'FloatArray' = None, set_by_world: bool = False
         ):
         """ Set multiple orbital parameters at once, this reduces the number of calls to self.orbit_change
 
@@ -385,7 +388,7 @@ class BaseWorld(PhysicalObjSpherical):
             update_state_geometry=update_state_geometry, build_slices=build_slices
             )
 
-    def set_time(self, time: FloatArray, call_updates: bool = True):
+    def set_time(self, time: 'FloatArray', call_updates: bool = True):
         """ Set the time of the world.
 
         Parameters
@@ -405,7 +408,7 @@ class BaseWorld(PhysicalObjSpherical):
         else:
             raise ImproperPropertyHandling('Time must be set at the Orbit-level once an orbit is applied.')
 
-    def set_spin_frequency(self, spin_frequency: FloatArray, call_updates: bool = True):
+    def set_spin_frequency(self, spin_frequency: 'FloatArray', call_updates: bool = True):
         """ Update the world's spin frequency.
 
         Parameters
@@ -430,7 +433,7 @@ class BaseWorld(PhysicalObjSpherical):
         if call_updates:
             self.orbit_spin_changed(spin_freq_changed=True)
 
-    def set_spin_period(self, spin_period: FloatArray, call_updates: bool = True):
+    def set_spin_period(self, spin_period: 'FloatArray', call_updates: bool = True):
         """ Update the world's spin period in days.
 
         Parameters
@@ -447,7 +450,7 @@ class BaseWorld(PhysicalObjSpherical):
 
         self.set_spin_frequency(spin_frequency, call_updates=call_updates)
 
-    def set_obliquity(self, obliquity: FloatArray, call_updates: bool = True):
+    def set_obliquity(self, obliquity: 'FloatArray', call_updates: bool = True):
         """ Set the world's obliquity.
 
         This obliquity must be relative to the orbital plane defined by the tidal target and tidal host [1]_.

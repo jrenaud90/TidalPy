@@ -1,11 +1,13 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, TYPE_CHECKING
 
-from ...utilities.types import FloatArray
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
 
-TidalPotentialOutput = Tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]
+TidalPotentialOutput = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
+PotentialTupleModeOutput = Dict[str, Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']]
+TidalPotentialModeOutput = Tuple[Dict[str, 'FloatArray'], Dict[str, 'FloatArray'], PotentialTupleModeOutput]
 
-PotentialTupleModeOutput = Dict[str, Tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]]
-TidalPotentialModeOutput = Tuple[Dict[str, FloatArray], Dict[str, FloatArray], PotentialTupleModeOutput]
+# Minimum difference between spin and orbital frequency before it is treated as zero.
 MIN_SPIN_ORBITAL_DIFF = 1.0e-10
 
 from .synchronous_low_e import tidal_potential as tidal_potential_simple

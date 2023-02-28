@@ -7,9 +7,6 @@ import time
 import os
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
-
 # Initial Runtime
 init_time = time.time()
 

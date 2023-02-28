@@ -1,15 +1,20 @@
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
-from ..utilities.performance.numba import njit
-from ..utilities.types import FloatArray, float_eps
+from TidalPy.utilities.types import float_eps
+from TidalPy.utilities.performance.numba import njit
+
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import float_eps
+
+CoolingOutputType = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
 
 MIN_VISCOSITY = 1.
 MIN_THICKNESS = 50.
-CoolingOutputType = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
 
 
 @njit(cacheable=True)
-def off(delta_temp: FloatArray, layer_thickness: float) -> CoolingOutputType:
+def off(delta_temp: 'FloatArray', layer_thickness: float) -> 'CoolingOutputType':
     """ No cooling - Max boundary layer thickness
 
     !TPY_args live: self.thickness
@@ -48,11 +53,11 @@ def off(delta_temp: FloatArray, layer_thickness: float) -> CoolingOutputType:
 
 @njit(cacheable=True)
 def convection(
-    delta_temp: FloatArray,
-    viscosity: FloatArray, thermal_conductivity: float, thermal_diffusivity: float, thermal_expansion: float,
+    delta_temp: 'FloatArray',
+    viscosity: 'FloatArray', thermal_conductivity: float, thermal_diffusivity: float, thermal_expansion: float,
     layer_thickness: float, gravity: float, density: float,
     convection_alpha: float, convection_beta: float, critical_rayleigh: float
-    ) -> CoolingOutputType:
+    ) -> 'CoolingOutputType':
     """ Calculates cooling by a parameterized convection model via the Rayleigh number
 
     !TPY_args live: self.viscosity, self.thermal_conductivity, self.thermal_diffusivity, self.thermal_expansion, self.thickness, self.gravity, self.density_bulk
@@ -134,9 +139,9 @@ def convection(
 
 @njit(cacheable=True)
 def conduction(
-    delta_temp: FloatArray,
+    delta_temp: 'FloatArray',
     thermal_conductivity: float, layer_thickness: float,
-    ) -> CoolingOutputType:
+    ) -> 'CoolingOutputType':
     """ Calculates cooling by conduction through a sub-layer half the thickness of the layer - NonArrays Only
 
     Half layer thickness is used based on the assumption that delta_temp is the average (central) temperature minus

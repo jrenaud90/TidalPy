@@ -1,15 +1,12 @@
-burnman_installed = True
-try:
+from .. import burnman, burnman_installed
+
+if burnman_installed:
     from burnman.classes.material import Material, material_property
     from burnman.classes.mineral import Mineral
     from burnman.tools.chemistry import dictionarize_formula, formula_mass
-except ImportError:
+else:
     burnman_installed = False
-    # Build fake class so type checking passes.
-    class burnman:
-        def __init__(self):
-            Planet = None
-            Layer = None
+    # Build fake classes so type checking passes.
 
     class Mineral:
         pass

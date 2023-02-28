@@ -6,25 +6,28 @@ This module contains functions to assist with calculating the response at each o
     the findings into a final value.
 
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
 
 import numpy as np
 
 
-from TidalPy.radial_solver.numerical import radial_solver
+from TidalPy.utilities.performance import nbList
+from TidalPy.radial_solver import radial_solver
 
-from ...utilities.performance import nbList
 from ..multilayer.stress_strain import calculate_strain_stress
-from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
+from ..potential import (tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
+
+if TYPE_CHECKING:
+    from ..potential import TidalPotentialOutput
 
 
 def calculate_mode_response_coupled(
     mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
     density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
-    tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
+    tidal_potential_tuple: 'TidalPotentialOutput', complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
     complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,

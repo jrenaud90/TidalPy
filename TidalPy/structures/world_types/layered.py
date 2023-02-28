@@ -2,13 +2,15 @@ from typing import Dict, Iterator, Tuple, Union
 
 import numpy as np
 
+from TidalPy import log
+from TidalPy.exceptions import (InitiatedPropertyChangeError, MissingArgumentError,
+                                ParameterMissingError,TidalPyWorldError)
+from TidalPy.utilities.numpy_helper import find_nearest
+from TidalPy.utilities.types import FloatArray, NoneType
+
+
 from .tidal import TidalWorld
 from ..layers import BurnmanLayer, GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
-from ... import log
-from ...exceptions import (InitiatedPropertyChangeError, MissingArgumentError, ParameterMissingError, TidalPyWorldError)
-from ...tides.methods import GlobalApproxTides, LayeredTides
-from ...utilities.numpy_helper import find_nearest
-from ...utilities.types import FloatArray, NoneType
 
 BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^', '&', '(', ')', '~', '`')
 
@@ -222,6 +224,7 @@ class LayeredWorld(TidalWorld):
 
         # Set up the tides model
         if self.tides_on:
+            from TidalPy.tides.methods import GlobalApproxTides, LayeredTides
             if setup_simple_tides:
                 self._tides = GlobalApproxTides(self, store_config_in_world=self.config['store_tides_config_in_world'])
             else:

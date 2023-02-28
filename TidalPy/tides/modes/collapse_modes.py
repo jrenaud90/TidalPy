@@ -6,7 +6,7 @@ import numpy as np
 from numba.core import types
 from numba import typed
 
-from ...utilities.performance import njit
+from TidalPy.utilities.performance import njit
 
 MIN_MODE_FREQ = 10. * np.finfo(np.float64).eps
 

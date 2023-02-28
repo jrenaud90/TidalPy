@@ -5,7 +5,7 @@ print(version)
 import numpy as np
 import pandas as pd
 
-from TidalPy.toolbox.conversions import days2rads
+from TidalPy.utilities.conversions import days2rads
 from TidalPy.rheology.complex_compliance.compliance_models import andrade
 from tides.multilayer.numerical_int import radial_solver
 from TidalPy.utilities.graphics.multilayer import yplot

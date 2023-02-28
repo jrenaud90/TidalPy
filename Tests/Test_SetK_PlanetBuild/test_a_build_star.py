@@ -6,6 +6,9 @@ from scipy.constants import G
 import TidalPy
 TidalPy.test_mode()
 
+from TidalPy import world_config_loc
+from TidalPy.structures import build_world
+
 cancri_star_config = {
     "name"      : "55-Cancri",
     "type"      : "star",
@@ -46,7 +49,7 @@ def value_check(built_world, check_numerical: bool = True):
 
 def test_build_star_from_manual_config():
     # Test loading a star from a user-provided configuration dictionary
-    cancri_star = TidalPy.build_world('55-Cancri', cancri_star_config)
+    cancri_star = build_world('55-Cancri', cancri_star_config)
 
     # Test that its attributes match expectations
     assert value_check(cancri_star)
@@ -54,10 +57,9 @@ def test_build_star_from_manual_config():
 
 def test_build_star_from_file_loaded_config():
     # Test loading a star from a user-provided configuration file
-    worlds_dir = TidalPy.structures.world_builder.world_config_loc
-    cancri_filepath = os.path.join(worlds_dir, '55cnc.json')
+    cancri_filepath = os.path.join(world_config_loc, '55cnc.json')
     with open(cancri_filepath, 'r') as cancri_config_file:
-        cancri_star = TidalPy.build_world('55-Cancri', cancri_config_file)
+        cancri_star = build_world('55-Cancri', cancri_config_file)
 
     # Test that its attributes match expectations
     assert value_check(cancri_star)
@@ -65,7 +67,7 @@ def test_build_star_from_file_loaded_config():
 
 def test_build_star_from_prebuilt_config():
     # Test loading a star from a pre-built configuration file
-    cancri_star = TidalPy.build_world('55-Cancri')
+    cancri_star = build_world('55-Cancri')
 
     # The pre-built config may not have the same values as the ones used in this file so we will only perform
     #    non-numerical checks.
@@ -74,5 +76,5 @@ def test_build_star_from_prebuilt_config():
 
 def test_paint_star():
     # This will test the slicing features of the world_types, as well as the painting graphics tool
-    cancri_star = TidalPy.build_world('55-Cancri')
+    cancri_star = build_world('55-Cancri')
     assert cancri_star.paint(auto_show=False, return_fig=True)

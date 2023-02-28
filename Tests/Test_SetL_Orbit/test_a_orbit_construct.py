@@ -3,7 +3,7 @@ import copy
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy import build_world, scale_from_world
+from TidalPy.structures import build_world, scale_from_world
 from TidalPy.structures.orbit import OrbitBase
 
 big_io_config = {
