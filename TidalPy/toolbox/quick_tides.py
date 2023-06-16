@@ -118,6 +118,7 @@ def quick_tidal_dissipation(
 
     # Flag that tracks if array version of TidalPy's functions should be used or not.
     use_array = False
+    shape = None
 
     # Get orbital frequency
     if orbital_frequency is None:
@@ -352,36 +353,33 @@ def quick_dual_body_tidal_dissipation(
     use_array = False
 
     # Clean up inputs
+    if eccentricity is None:
+        eccentricity = 0.
+    elif type(eccentricity) == np.ndarray:
+        use_array = True
+
     # Since we use the eccentricity now, outside the world calculators, we need to make sure that the obliquity and
     #    eccentricity arrays are the correct shape. The user provided use_obliquity overrides this functions best
     #    guess.
     use_obliquity_flags = list()
     obliquities_cleaned = list()
     for world_i in range(2):
-        use_obliq_flag = False or use_obliquity
-        clean_obliquity = 0.
-        if eccentricity is not None:
-            if type(eccentricity) == np.ndarray:
-                clean_obliquity = np.zeros_like(eccentricity)
-                use_array = True
-                if obliquities is not None:
-                    if obliquities[world_i] is not None:
-                        use_obliq_flag = True
-                        if type(obliquities[world_i]) != np.ndarray:
-                            clean_obliquity = obliquities[world_i] * np.ones_like(eccentricity)
-                        else:
-                            clean_obliquity = obliquities[world_i]
+        if obliquities is None:
+            obliq_present_flag = False
+            obliquity = 0.
+        elif obliquities[world_i] is None:
+            obliq_present_flag = False
+            obliquity = 0.
         else:
-            eccentricity = 0.
-            if obliquities is not None:
-                if obliquities[world_i] is not None:
-                    clean_obliquity = obliquities[world_i]
-                    use_obliq_flag = True
-                    if type(obliquities[world_i]) == np.ndarray:
-                        use_array = True
-                        eccentricity = np.zeros_like(obliquities[world_i])
-        obliquities_cleaned.append(clean_obliquity)
-        use_obliquity_flags.append(use_obliq_flag)
+            obliq_present_flag = True
+            obliquity = obliquities[world_i]
+
+        if use_array:
+            obliquity = obliquity * np.ones_like(eccentricity)
+
+        obliquities_cleaned.append(obliquity)
+        use_obliquity_flags.append(obliq_present_flag and use_obliquity)
+
     del obliquities
     use_obliquity_flags = tuple(use_obliquity_flags)
     obliquities_cleaned = tuple(obliquities_cleaned)

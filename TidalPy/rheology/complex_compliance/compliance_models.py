@@ -125,7 +125,7 @@ def fixed_q(
     return complex_compliance
 
 @njit(cacheable=True)
-def newton(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatArray) -> 'ComplexArray':
+def newton(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray') -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Newton
 
     !TPY_args live: self.compliance, self.viscosity
@@ -169,7 +169,7 @@ def newton(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatAr
     return complex_compliance
 
 @njit(cacheable=True)
-def elastic(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatArray) -> 'ComplexArray':
+def elastic(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray') -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Elastic
 
     !TPY_args live: self.compliance, self.viscosity

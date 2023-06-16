@@ -11,6 +11,11 @@
 
 * Minor Changes
   * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
+  * Moved non-critical files out of repository.
+  
+* Bug Fixes
+  * Fixed floating point comparison bug in `multilayer_modes` solver.
+  * Fixed obliquity not being used issue in quick tides calculator.
 
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes

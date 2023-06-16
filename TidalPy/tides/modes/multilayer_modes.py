@@ -387,7 +387,7 @@ def collapse_multilayer_modes(
         # In order for the orbit average routine to work correctly, the time domain must start at zero and end
         #    after 1 orbital period.
         assert time_domain[0] == 0.
-        assert time_domain[-1] == np.abs(orbital_period)
+        assert np.isclose(time_domain[-1], np.abs(orbital_period))
 
     planet_radius = radius_array[-1]
 
