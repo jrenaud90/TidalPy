@@ -10,6 +10,7 @@
   * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
 
 * Minor Changes
+  * Added unique frequency finder functions to the `modes` module.
   * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
   * Moved non-critical files out of repository.
   
