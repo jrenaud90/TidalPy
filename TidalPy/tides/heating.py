@@ -4,7 +4,7 @@ import numpy as np
 
 from ..utilities.performance import njit
 
-@njit
+@njit(cacheable=True)
 def calculate_volumetric_heating(stress: np.ndarray, strain: np.ndarray) -> np.ndarray:
     """ Calculates the tidal heating rate per unit volume based on the tidal stresses and strains.
 
