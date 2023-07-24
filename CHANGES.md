@@ -13,6 +13,7 @@
   * Added unique frequency finder functions to the `modes` module.
   * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
   * Moved non-critical files out of repository.
+  * Created a new `tides.heating` module and moved the volumetric heating calculations there.
   
 * Bug Fixes
   * Fixed floating point comparison bug in `multilayer_modes` solver.
