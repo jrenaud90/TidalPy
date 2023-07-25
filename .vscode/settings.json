@@ -5,6 +5,7 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "cSpell.words": [
-        "andrade"
+        "andrade",
+        "colatitudes"
     ]
 }

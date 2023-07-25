@@ -1,5 +1,5 @@
 <h1 align="center">TidalPy</h1>
-<h3 align="center">v0.4.0 Beta</h3>
+<h3 align="center">v0.5.0 Beta</h3>
 
 <p align="center">
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>

@@ -28,7 +28,8 @@ if TYPE_CHECKING:
 def calculate_mode_response_coupled(
     mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
-    density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
+    density_array: np.ndarray, gravity_array: np.ndarray,
+    longitude_domain: np.ndarray, colatitude_domain: np.ndarray, time_domain: np.ndarray,
     tidal_potential_tuple: 'TidalPotentialOutput', complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
@@ -136,6 +137,12 @@ def calculate_mode_response_coupled(
 
     """
 
+    # Get size of arrays
+    n_radius = len(radius_array)
+    n_longitude = len(longitude_domain)
+    n_colatitude = len(colatitude_domain)
+    n_time = len(time_domain)
+
     # Setup flags
     mode_skipped = False
 
@@ -145,10 +152,10 @@ def calculate_mode_response_coupled(
     # Calculate rheology and radial response
     if (not force_mode_calculation) and (mode_frequency < 1.0e-15):
         # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
-        tidal_y_at_mode = np.zeros((6, *radius_array.shape), dtype=np.complex128)
+        tidal_y_at_mode = np.zeros((6, n_radius), dtype=np.complex128)
         complex_shears_at_mode = shear_array + 0.0j
-        strains_at_mode = np.zeros((6, *radius_array.shape, *colatitude_matrix.shape), dtype=np.complex128)
-        stresses_at_mode = np.zeros((6, *radius_array.shape, *colatitude_matrix.shape), dtype=np.complex128)
+        strains_at_mode = np.zeros((6, n_radius, n_longitude, n_colatitude, n_time), dtype=np.complex128)
+        stresses_at_mode = np.zeros((6, n_radius, n_longitude, n_colatitude, n_time), dtype=np.complex128)
         mode_skipped = True
     else:
         # Calculate Complex Compliance
@@ -180,8 +187,8 @@ def calculate_mode_response_coupled(
         # Calculate stresses and heating
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
             *tidal_potential_tuple,
-            tidal_solution_y=tidal_y_at_mode,
-            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=complex_shears_at_mode, bulk_moduli=bulk_array,
+            tidal_y_at_mode,
+            longitude_domain, colatitude_domain, time_domain, radius_array, complex_shears_at_mode, bulk_array,
             frequency=mode_frequency, order_l=order_l
             )
 
@@ -488,7 +495,8 @@ def collapse_multilayer_modes(
             calculate_mode_response_coupled(
                 mode_frequency,
                 radius_array, shear_array, bulk_array, viscosity_array,
-                density_array, gravity_array, colatitude_matrix,
+                density_array, gravity_array,
+                longitude_domain, colatitude_domain, time_domain,
                 tidal_potential_tuple, complex_compliance_function,
                 is_solid_by_layer, is_static_by_layer, indices_by_layer,
                 surface_boundary_conditions=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
