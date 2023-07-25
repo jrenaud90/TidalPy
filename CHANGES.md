@@ -19,6 +19,9 @@
   * Fixed floating point comparison bug in `multilayer_modes` solver.
   * Fixed obliquity not being used issue in quick tides calculator.
 
+* Performance Improvements
+  * Improved the performance of the stress and strain calculator by ~20%
+
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes
   * Moved `radial_solver` to a top-level module of TidalPy.
