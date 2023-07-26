@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from TidalPy import version as tpy_version
-from utilities.conversions.timing import convert_to_hms
+from TidalPy.utilities.conversions.timing import convert_to_hms
 
 PERFORMANCE_DIR = pathlib.Path(__file__).absolute()
 

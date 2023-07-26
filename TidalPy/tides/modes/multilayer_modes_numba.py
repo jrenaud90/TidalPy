@@ -10,9 +10,8 @@ from typing import Dict, List, Tuple, TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy.utilities.performance import njit, nbList, nbDict, bool_, complex128, nbUnicode
-from TidalPy.radial_solver import radial_solver_numba
-
+from ...utilities.performance import njit, nbList, nbDict, bool_, complex128, nbUnicode
+from ...radial_solver import radial_solver_numba
 from ..multilayer.stress_strain import calculate_strain_stress
 from ..potential import (tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
@@ -27,7 +26,7 @@ def calculate_mode_response_coupled(
     mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
     density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
-    tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
+    tidal_potential_tuple: 'TidalPotentialOutput', complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
     complex_compliance_input: Tuple[float, ...] = tuple(), force_mode_calculation: bool = False,

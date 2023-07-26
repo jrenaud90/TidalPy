@@ -5,7 +5,7 @@ from performance_base import PerformanceTrackBase
 import TidalPy
 TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.reinit()
-from tides.multilayer.numerical_int import radial_solver
+from TidalPy.radial_solver import radial_solver
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays
@@ -62,7 +62,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Homogen-Solid - Static - Numba-RK45', radial_solver,
+        self.record_performance('Radial Solver - Homogen-Solid - Static - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
     def run_perform_tidal_y_homogen_solid_dynamic(self):
@@ -73,7 +73,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Homogen-Solid - Dynamic - Numba-RK45', radial_solver,
+        self.record_performance('Radial Solver - Homogen-Solid - Dynamic - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
     def run_perform_tidal_y_liquid_solid_allstatic(self):
@@ -84,7 +84,7 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Static - Numba-RK45', radial_solver,
+        self.record_performance('Radial Solver - Liquid-Solid - Static-Static - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
 
     def run_perform_tidal_y_liquid_solid_dynamicsolid(self):
@@ -95,8 +95,30 @@ class TidalYPerformance(PerformanceTrackBase):
             2, None, False, False, 'numba', 'RK45', 1.0e-8, 1.e-9,
             False, True)
 
-        self.record_performance('Tidal-y Calc - Liquid-Solid - Static-Dynamic - Numba-RK45', radial_solver,
+        self.record_performance('Radial Solver - Liquid-Solid - Static-Dynamic - Numba-RK45', radial_solver,
                                 inputs=tidal_y_inputs, repeats=3, number=10)
+    
+    def run_perform_tidal_y_liquid_solid_dynamicsolid_scipy(self):
+
+        tidal_y_inputs = (
+            radius, complex_shear, bulk,
+            density, gravity, orb_freq, planet_bulk_density, [False, True], [True, False], [layer_0, layer_1],
+            2, None, False, False, 'scipy', 'RK45', 1.0e-8, 1.e-9,
+            False, True)
+
+        self.record_performance('Radial Solver - Liquid-Solid - Static-Dynamic - Scipy-RK45', radial_solver,
+                                inputs=tidal_y_inputs, repeats=3, number=10)
+    
+    # def run_perform_tidal_y_liquid_solid_dynamicsolid_cython(self):
+
+    #     tidal_y_inputs = (
+    #         radius, complex_shear, bulk,
+    #         density, gravity, orb_freq, planet_bulk_density, [False, True], [True, False], [layer_0, layer_1],
+    #         2, None, False, False, 'cython', 'RK45', 1.0e-8, 1.e-9,
+    #         False, True)
+
+    #     self.record_performance('Radial Solver - Liquid-Solid - Static-Dynamic - Cython-RK45', radial_solver,
+    #                             inputs=tidal_y_inputs, repeats=3, number=10)
 
 
 if __name__ == '__main__':
