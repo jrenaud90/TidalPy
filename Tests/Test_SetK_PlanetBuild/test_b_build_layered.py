@@ -1,7 +1,10 @@
 import numpy as np
 
 import TidalPy
+
 TidalPy.test_mode()
+
+from TidalPy.structures import build_world, build_from_world, scale_from_world
 
 io_config = {
     "name"           : "Io",
@@ -65,7 +68,7 @@ def test_build_layered_from_manual_config():
     """ This will test loading a LayeredWorld from a user-provided configuration dictionary. """
 
     # Test loading a star from a user-provided configuration dictionary
-    io = TidalPy.build_world('Io', io_config)
+    io = build_world('Io', io_config)
 
     # Test that its attributes match expectations
     assert value_check(io, io_config)
@@ -76,7 +79,7 @@ def test_build_layered_from_prebuilt_config():
 
     #    Note: the "Io_Simple" config that comes with TidalPy is not designed for BurnMan whereas "Io" is. For this
     #        test we want the former.
-    io = TidalPy.build_world('Io_Simple')
+    io = build_world('Io_Simple')
 
     # The pre-built config may not have the same values as the ones used in this file so we will only perform
     #    non-numerical checks.
@@ -86,7 +89,7 @@ def test_build_layered_from_prebuilt_config():
 def test_paint_layered():
     """ This will test the slicing features of a LayeredWorld, as well as the painting graphics tool. """
 
-    io = TidalPy.build_world('Io_Simple')
+    io = build_world('Io_Simple')
     assert io.paint(auto_show=False)
 
 
@@ -94,11 +97,11 @@ def test_build_from_layered_world():
     """ This will test building a secondary LayeredWorld from an already built one. """
 
     # Build a regular layered Io first.
-    io = TidalPy.build_world('Io_Simple')
+    io = build_world('Io_Simple')
 
     # Now build a second version that only has a name and eccentricity change.
     new_config = {'name': 'Io_Simple_2', 'eccentricity': 0.5}
-    io_2 = TidalPy.build_from_world(io, new_config)
+    io_2 = build_from_world(io, new_config)
 
     # io_2 should be almost identical to the original io, so the regular value check should pass
     assert value_check(io_2, io_config, check_name=False)
@@ -112,10 +115,10 @@ def test_build_from_layered_world_scale_radius():
     """ This will test building a secondary LayeredWorld from an already built one using a radius scaling technique. """
 
     # Build a regular layered Io first.
-    io = TidalPy.build_world('Io_Simple')
+    io = build_world('Io_Simple')
 
     # Now build a second version that only has a name and eccentricity change.
-    io_2 = TidalPy.scale_from_world(io, new_name='small_io', radius_scale=0.5)
+    io_2 = scale_from_world(io, new_name='small_io', radius_scale=0.5)
 
     # Check name
     assert io_2.name == 'small_io'
@@ -126,7 +129,7 @@ def test_build_from_layered_world_scale_radius():
         np.testing.assert_approx_equal(layer_2.radius, layer.radius / 2.)
 
     # Check for scaling a larger radius
-    io_3 = TidalPy.scale_from_world(io, new_name='large_io', radius_scale=2.)
+    io_3 = scale_from_world(io, new_name='large_io', radius_scale=2.)
 
     # Check name
     assert io_3.name == 'large_io'
@@ -139,7 +142,7 @@ def test_build_from_layered_world_scale_radius():
 
 def test_build_complex_layered_world():
     """ For this test we will build a world with more than two layers. """
-    earth_simple = TidalPy.build_world('earth_simple')
+    earth_simple = build_world('earth_simple')
 
     # Make sure that there are four layers in the world
     assert len(earth_simple.layers) == 4

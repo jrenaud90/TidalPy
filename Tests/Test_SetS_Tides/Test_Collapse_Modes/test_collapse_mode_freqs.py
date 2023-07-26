@@ -45,7 +45,7 @@ def test_collapse_mode():
         assert len(mode_data) == 3
         mode_value, mode_multiplier, mode_ref_str = mode_data
         assert type(mode_value) in (float, np.float64, types.float64)
-        assert type(mode_multiplier) in (int, np.int, np.int64, types.int64)
+        assert type(mode_multiplier) in (int, np.int64, types.int64)
         assert type(mode_ref_str) == str
 
         if mode_ref_str != '':
@@ -94,7 +94,7 @@ def test_collapse_mode_unique_freqs():
         assert len(mode_data) == 3
         mode_value, mode_multiplier, mode_ref_str = mode_data
         assert type(mode_value) in (float, np.float64, types.float64)
-        assert type(mode_multiplier) in (int, np.int, np.int64, types.int64)
+        assert type(mode_multiplier) in (int, np.int64, types.int64)
         assert type(mode_ref_str) == str
 
         if mode_ref_str != '':

@@ -1,21 +1,9 @@
 from typing import Tuple
 from warnings import warn
 
-burnman_installed = True
-try:
-    import burnman
-except ImportError:
-
-    burnman_installed = False
-
-    # Build fake class so type checking passes.
-    class burnman:
-        Planet = None
-        Layer = None
-        Material = None
+from TidalPy.exceptions import InitiatedPropertyChangeError
 
 from .layered import LayeredWorld
-from ...exceptions import InitiatedPropertyChangeError
 
 
 class BurnManWorld(LayeredWorld):
@@ -30,6 +18,11 @@ class BurnManWorld(LayeredWorld):
         TidalPy.structures.world_types.LayeredWorld
     """
 
+    # Don't import burnman until the last moment
+    from TidalPy.burnman_interface import burnman as burnman_, burnman_installed as burnman_installed_
+
+    burnman = burnman_
+    burnman_installed = burnman_installed_
     world_class = 'burnman'
 
     def __init__(
@@ -54,7 +47,7 @@ class BurnManWorld(LayeredWorld):
             Determines if initial reinit should be performed on the world (loading in data from world_config).
         """
 
-        if not burnman_installed:
+        if not self.burnman_installed:
             warn('Burnman package not found. BurnmanWorld will have limited functionality.')
 
         # Store BurnMan information in state properties

@@ -3,9 +3,11 @@
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
 
-#### Version 0.4.2 Alpha (Spring 2023)
-
+### Version 0.5.0 Alpha (Spring 2023)
 * Major Changes
+  * Removed some imports from main package __init__ to avoid slow load times.
+  * Moved `cache.py` to top-level.
+  * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
   * Changed setup files so that cython code can be compiled.
   * Added new submodules into `TidalPy.utilities.performance`.
     * `array` - for high-performance array manipulations.
@@ -14,17 +16,27 @@
     * `special` - for high-performance, general, scientific functions.
 
 * Minor Changes
+  * Added unique frequency finder functions to the `modes` module.
+  * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
+  * Moved non-critical files out of repository.
+  * Created a new `tides.heating` module and moved the volumetric heating calculations there.
   * Expanded the performance suite to better track the `radial_solver` module.
-
+  
 * Bug Fixes
+  * Fixed floating point comparison bug in `multilayer_modes` solver.
+  * Fixed obliquity not being used issue in quick tides calculator.
   * Fixed issue in incorrect TidalPy version being loaded into the package.
+
+* Performance Improvements
+  * Improved the performance of the stress and strain calculator by ~20%
+
 
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes
   * Moved `radial_solver` to a top-level module of TidalPy.
     * Added `find_love` function to the `radial_solver` module for the calculation of Love and Shida numbers.
-    * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al (2005).
-    * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al (2005).
+    * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al. (2005).
+    * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al. (2005).
   * Added `newton` and `elastic` complex compliances to rheology module for ALMA comparisons.
 
 * Minor Changes

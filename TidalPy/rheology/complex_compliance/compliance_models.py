@@ -50,7 +50,7 @@ from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat
 #    which are important for differential equations.
 
 @njit(cacheable=True)
-def off(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+def off(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatArray) -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Off
 
     !TPY_args live: self.compliance, self.viscosity
@@ -84,7 +84,7 @@ def off(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) ->
 
 @njit(cacheable=True)
 def fixed_q(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     planet_beta: float = 3.443e11, quality_factor: float = 10.
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Fixed-Q
@@ -125,7 +125,7 @@ def fixed_q(
     return complex_compliance
 
 @njit(cacheable=True)
-def newton(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+def newton(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray') -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Newton
 
     !TPY_args live: self.compliance, self.viscosity
@@ -169,7 +169,7 @@ def newton(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray)
     return complex_compliance
 
 @njit(cacheable=True)
-def elastic(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+def elastic(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray') -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Elastic
 
     !TPY_args live: self.compliance, self.viscosity
@@ -214,7 +214,7 @@ def elastic(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray
 
 
 @njit(cacheable=True)
-def maxwell(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+def maxwell(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatArray) -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Maxwell
 
     !TPY_args live: self.compliance, self.viscosity
@@ -264,7 +264,7 @@ def maxwell(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray
 
 @njit(cacheable=True)
 def voigt(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Voigt-Kelvin
@@ -324,7 +324,7 @@ def voigt(
 
 @njit(cacheable=True)
 def burgers(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Burgers
@@ -373,7 +373,7 @@ def burgers(
 
 @njit(cacheable=True)
 def andrade(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Andrade
@@ -441,7 +441,7 @@ def andrade(
 
 @njit(cacheable=True)
 def andrade_freq(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     alpha: float = 0.3, zeta: float = 1., critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Andrade with a frequency-dependent zeta
@@ -527,7 +527,7 @@ def andrade_freq(
 
 @njit(cacheable=True)
 def sundberg(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
@@ -586,7 +586,7 @@ def sundberg(
 
 @njit(cacheable=True)
 def sundberg_freq(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.,  critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:

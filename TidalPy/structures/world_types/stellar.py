@@ -1,7 +1,7 @@
+from TidalPy import log
+from TidalPy.exceptions import ConfigPropertyChangeError
+
 from .tidal import TidalWorld
-from ... import log
-from ...exceptions import ConfigPropertyChangeError
-from ...stellar.stellar import efftemp_from_luminosity, luminosity_from_efftemp, luminosity_from_mass
 
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
@@ -51,6 +51,7 @@ class StarWorld(TidalWorld):
         setup_simple_tides : bool = True
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         """
+        from TidalPy.stellar.stellar import efftemp_from_luminosity, luminosity_from_efftemp, luminosity_from_mass
 
         super().reinit(
             initial_init=initial_init, reinit_geometry=reinit_geometry,

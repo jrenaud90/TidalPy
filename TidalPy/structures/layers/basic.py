@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
+from TidalPy import log
+from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
+                                InitiatedPropertyChangeError, MissingArgumentError, OuterscopePropertySetError,
+                                ParameterMissingError)
+
 from .defaults import layer_defaults
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
-from ... import log
-from ...exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
-                           MissingArgumentError, OuterscopePropertySetError, ParameterMissingError)
-from ...utilities.types import FloatArray, NoneType
 
 if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray, NoneType
+
     from ..world_types import LayeredWorldType
     from . import LayerType
 
@@ -198,7 +201,7 @@ class LayerBase(PhysicalObjSpherical):
         if clear_pressure:
             self._pressure = None
 
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None):
+    def set_state(self, temperature: 'FloatArray' = None, pressure: 'FloatArray' = None):
         """ Set the layer's state properties
 
         Parameters
@@ -281,7 +284,7 @@ class LayerBase(PhysicalObjSpherical):
         if self.use_tidal_vol_frac:
             self.tidal_scale = self.volume / self.world.volume
 
-    def set_temperature(self, temperature: FloatArray, call_updates: bool = True):
+    def set_temperature(self, temperature: 'FloatArray', call_updates: bool = True):
         """ Set the layer's dynamic temperature
 
         Parameters
@@ -298,7 +301,7 @@ class LayerBase(PhysicalObjSpherical):
         if call_updates:
             self.temperature_pressure_changed()
 
-    def set_pressure(self, pressure: FloatArray, call_updates: bool = True):
+    def set_pressure(self, pressure: 'FloatArray', call_updates: bool = True):
         """ Set the layer's dynamic pressure
 
         Parameters

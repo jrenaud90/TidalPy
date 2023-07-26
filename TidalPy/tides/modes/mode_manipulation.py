@@ -1,28 +1,32 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
 
+from TidalPy.utilities.performance.numba import njit
+
 from .mode_calc_helper import eccentricity_functions_lookup, inclination_functions_lookup
-from ..eccentricity_funcs import EccenOutput
-from ..inclination_funcs import InclinOutput
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..universal_coeffs import get_universal_coeffs
-from ...utilities.performance.numba import njit, prange
-from ...utilities.types import ComplexArray, FloatArray, NoneType
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import ComplexArray, FloatArray, NoneType
+
+    from ..eccentricity_funcs import EccenOutput
+    from ..inclination_funcs import InclinOutput
 
 FreqSig = Tuple[int, int]
 DissipTermsFloat = Tuple[float, float, float, float]
 DissipTermsArray = Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-DissipTermsMix = Tuple[FloatArray, FloatArray, FloatArray, FloatArray]
-UniqueFreqType = Dict[FreqSig, FloatArray]
+DissipTermsMix = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
+UniqueFreqType = Dict[FreqSig, 'FloatArray']
 ResultsByFreqType = Dict[FreqSig, Dict[int, DissipTermsMix]]
 
 @njit(cacheable=True, parallel=True)
 def calculate_terms(
-    spin_frequency: FloatArray, orbital_frequency: FloatArray,
-    semi_major_axis: FloatArray, radius: float,
-    eccentricity_results_byorderl: Dict[int, EccenOutput],
-    obliquity_results_byorderl: Dict[int, InclinOutput],
+    spin_frequency: 'FloatArray', orbital_frequency: 'FloatArray',
+    semi_major_axis: 'FloatArray', radius: float,
+    eccentricity_results_byorderl: Dict[int, 'EccenOutput'],
+    obliquity_results_byorderl: Dict[int, 'InclinOutput'],
     multiply_modes_by_sign: bool = True
     ) -> Tuple[UniqueFreqType, ResultsByFreqType]:
     """ Calculate tidal dissipation terms and frequencies based on the current orbital and spin state.
@@ -199,15 +203,15 @@ def calculate_terms(
 @njit(cacheable=True)
 def collapse_modes(
     gravity: float, radius: float, density: float,
-    shear_modulus: Union[NoneType, FloatArray], tidal_scale: float,
+    shear_modulus: Union['NoneType', 'FloatArray'], tidal_scale: float,
     tidal_host_mass: float,
-    tidal_susceptibility: FloatArray,
-    complex_compliance_by_frequency: Dict[FreqSig, ComplexArray],
+    tidal_susceptibility: 'FloatArray',
+    complex_compliance_by_frequency: Dict[FreqSig, 'ComplexArray'],
     tidal_terms_by_frequency: Dict[FreqSig, Dict[int, DissipTermsMix]],
     max_order_l: int, cpl_ctl_method: bool = False
     ) -> \
-        Tuple[FloatArray, FloatArray, FloatArray, FloatArray,
-              Dict[int, ComplexArray], Dict[int, FloatArray], Dict[int, FloatArray]]:
+        Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray',
+              Dict[int, 'ComplexArray'], Dict[int, 'FloatArray'], Dict[int, 'FloatArray']]:
     """ Collapses the tidal terms calculated by calculate_terms() combined with rheological information from the layer.
 
     Parameters

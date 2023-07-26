@@ -1,13 +1,15 @@
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 
-from ..types import NumArray
-from ...exceptions import BadArrayShape
+from TidalPy.exceptions import BadArrayShape
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import NumArray
 
 
 def reshape_help(
-    value: NumArray, comparison_shape: tuple, call_locale=None,
+    value: 'NumArray', comparison_shape: tuple, call_locale=None,
     force_into_new_shape: bool = False, force_ints_to_floats: bool = True
     ) -> \
         Tuple[Tuple[int, ...], np.ndarray]:

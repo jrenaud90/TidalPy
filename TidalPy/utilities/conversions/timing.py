@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ..utilities.performance.numba import njit
+from TidalPy.utilities.performance.numba import njit
 
 
 @njit(cacheable=True)

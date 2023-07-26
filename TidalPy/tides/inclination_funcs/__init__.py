@@ -1,8 +1,9 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, TYPE_CHECKING
 
-from ...utilities.types import FloatArray
+if TYPE_CHECKING:
+    from ...utilities.types import FloatArray
 
-InclinOutput = Dict[Tuple[int, int], FloatArray]
+InclinOutput = Dict[Tuple[int, int], 'FloatArray']
 
 from .orderl2 import calc_inclination as calc_inclin_l2
 from .orderl2 import calc_inclination_off as calc_inclin_l2_off

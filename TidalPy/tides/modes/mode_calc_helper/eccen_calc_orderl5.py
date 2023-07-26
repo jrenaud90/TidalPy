@@ -1,12 +1,17 @@
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
-from ...eccentricity_funcs import EccenOutput, orderl2, orderl3, orderl4, orderl5
-from ....utilities.performance.numba import njit
-from ....utilities.types import FloatArray
+from TidalPy.utilities.performance import njit
+
+from ...eccentricity_funcs import orderl2, orderl3, orderl4, orderl5
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
+
+    from ...eccentricity_funcs import EccenOutput
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_2_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_2_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 2
@@ -33,7 +38,7 @@ def eccentricity_truncation_2_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_4_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_4_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 4
@@ -60,7 +65,7 @@ def eccentricity_truncation_4_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_6_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_6_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 6
@@ -87,7 +92,7 @@ def eccentricity_truncation_6_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_8_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_8_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 8
@@ -114,7 +119,7 @@ def eccentricity_truncation_8_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecce
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_10_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_10_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 10
@@ -141,7 +146,7 @@ def eccentricity_truncation_10_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_12_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_12_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 12
@@ -168,7 +173,7 @@ def eccentricity_truncation_12_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_14_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_14_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 14
@@ -195,7 +200,7 @@ def eccentricity_truncation_14_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_16_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_16_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 16
@@ -222,7 +227,7 @@ def eccentricity_truncation_16_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_18_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_18_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 18
@@ -249,7 +254,7 @@ def eccentricity_truncation_18_maxl_5(eccentricity: FloatArray) -> Dict[int, Ecc
 
 
 @njit(cacheable=True)
-def eccentricity_truncation_20_maxl_5(eccentricity: FloatArray) -> Dict[int, EccenOutput]:
+def eccentricity_truncation_20_maxl_5(eccentricity: 'FloatArray') -> Dict[int, 'EccenOutput']:
     """ Calculates eccentricity functions (squared) for a given maximum tidal order (going through each l)
 
     Truncation level = 20

@@ -1,6 +1,7 @@
+from TidalPy.utilities.classes.model.model_utils import build_model_default_inputs, find_all_models
+
 from . import radiogenic_models
 from .defaults import known_isotope_data, radiogenics_defaults, standard_isotope_input
-from ..utilities.classes.model.modelUtils import build_model_default_inputs, find_all_models
 
 known_models, known_model_const_args, known_model_live_args = find_all_models(radiogenic_models)
 

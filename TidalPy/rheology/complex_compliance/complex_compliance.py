@@ -2,23 +2,25 @@ from typing import Callable, Dict, List, TYPE_CHECKING, Tuple
 
 import numpy as np
 
+from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
+                                OuterscopePropertySetError)
+from TidalPy.utilities.performance import njit
+from TidalPy.utilities.classes.model import LayerModelHolder
+
 from . import known_model_const_args, known_model_live_args, known_models
 from .defaults import complex_compliance_defaults
-from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, OuterscopePropertySetError
-from ...tides.modes.mode_manipulation import FreqSig
-from ...utilities.classes.model import LayerModelHolder
-from ...utilities.performance import njit
-from ...utilities.types import ComplexArray, FloatArray
 
 if TYPE_CHECKING:
-    from ..rheology import Rheology
-    from ...structures.layers import PhysicalLayerType
+    from TidalPy.utilities.types import ComplexArray, FloatArray
+    from TidalPy.rheology import Rheology
+    from TidalPy.structures.layers import PhysicalLayerType
+    from TidalPy.tides.modes.mode_manipulation import FreqSig
 
 
 @njit(cacheable=False)
 def compliance_dict_helper(
-    tidal_frequencies: Dict[FreqSig, FloatArray], compliance_func: Callable,
-    live_inputs: Tuple[FloatArray, ...], inputs: Tuple[float, ...]
+    tidal_frequencies: Dict['FreqSig', 'FloatArray'], compliance_func: Callable,
+    live_inputs: Tuple['FloatArray', ...], inputs: Tuple[float, ...]
     ):
     """ Njit-safe Complex compliance calculator helper - Array version
 
@@ -127,7 +129,7 @@ class ComplexCompliance(LayerModelHolder):
 
         self._complex_compliances = None
 
-    def _calculate(self) -> Dict[FreqSig, FloatArray]:
+    def _calculate(self) -> Dict['FreqSig', 'FloatArray']:
         """ Calculate the complex compliance for forcing frequency mode the planet is experiencing.
 
         Returns
@@ -174,7 +176,7 @@ class ComplexCompliance(LayerModelHolder):
 
     # # State properties
     @property
-    def complex_compliances(self) -> Dict[FreqSig, ComplexArray]:
+    def complex_compliances(self) -> Dict['FreqSig', 'ComplexArray']:
         """ Complex compliances stored as a dictionary for each unique frequency signature """
         return self._complex_compliances
 

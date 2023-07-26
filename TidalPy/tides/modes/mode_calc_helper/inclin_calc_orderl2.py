@@ -1,12 +1,17 @@
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
-from ...inclination_funcs import InclinOutput, orderl2
-from ....utilities.performance.numba import njit
-from ....utilities.types import FloatArray
+from TidalPy.utilities.performance import njit
+
+from ...inclination_funcs import orderl2
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
+
+    from ...inclination_funcs import InclinOutput
 
 
 @njit(cacheable=True)
-def inclination_off_maxl_2(obliquity: FloatArray) -> Dict[int, InclinOutput]:
+def inclination_off_maxl_2(obliquity: 'FloatArray') -> Dict[int, 'InclinOutput']:
     """ Calculates inclination functions (squared) for a given maximum tidal order (going through each l) - Off Mode
 
     Obliquity is assumed to be zero.
@@ -31,7 +36,7 @@ def inclination_off_maxl_2(obliquity: FloatArray) -> Dict[int, InclinOutput]:
 
 
 @njit(cacheable=True)
-def inclination_on_maxl_2(obliquity: FloatArray) -> Dict[int, InclinOutput]:
+def inclination_on_maxl_2(obliquity: 'FloatArray') -> Dict[int, 'InclinOutput']:
     """ Calculates inclination functions (squared) for a given maximum tidal order (going through each l) - On Mode
 
     Obliquity can be arbitrary.

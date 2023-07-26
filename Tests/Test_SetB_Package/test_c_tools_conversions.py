@@ -8,8 +8,8 @@ import TidalPy
 TidalPy.test_mode()
 
 from TidalPy.exceptions import BadValueError
-from TidalPy.toolbox.conversions import (Au2m, days2rads, m2Au, myr2sec, orbital_motion2semi_a, rads2days, sec2myr,
-                                         semi_a2orbital_motion)
+from TidalPy.utilities.conversions import (Au2m, days2rads, m2Au, myr2sec, orbital_motion2semi_a, rads2days, sec2myr,
+                                               semi_a2orbital_motion)
 
 def test_sec2myr():
     # Build arrays for testing

@@ -3,9 +3,9 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy import build_world, scale_from_world
+from TidalPy.structures import build_world, scale_from_world
 from TidalPy.structures.orbit import OrbitBase
-from TidalPy.toolbox.conversions import days2rads, orbital_motion2semi_a
+from TidalPy.utilities.conversions import days2rads, orbital_motion2semi_a
 
 io_config = {
     "name"           : "Io",

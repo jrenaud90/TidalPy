@@ -1,6 +1,7 @@
+from TidalPy.utilities.classes.model.model_utils import build_model_default_inputs, find_all_models
+
 from . import viscosity_models
 from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-from ...utilities.classes.model.modelUtils import build_model_default_inputs, find_all_models
 
 known_models, known_model_const_args, known_model_live_args = find_all_models(viscosity_models)
 
