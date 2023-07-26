@@ -10,12 +10,17 @@
   * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
 
 * Minor Changes
+  * Added unique frequency finder functions to the `modes` module.
   * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
   * Moved non-critical files out of repository.
+  * Created a new `tides.heating` module and moved the volumetric heating calculations there.
   
 * Bug Fixes
   * Fixed floating point comparison bug in `multilayer_modes` solver.
   * Fixed obliquity not being used issue in quick tides calculator.
+
+* Performance Improvements
+  * Improved the performance of the stress and strain calculator by ~20%
 
 #### Version 0.4.1 Alpha (Spring 2023)
 * Major Changes
