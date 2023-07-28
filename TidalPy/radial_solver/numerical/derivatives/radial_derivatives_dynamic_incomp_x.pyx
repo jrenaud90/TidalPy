@@ -1,11 +1,6 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functions to calculate the Rayleigh wave propagation differential equations
 
-These functions are the most general and allow for:
-    - Compressibility
-    - Static Tides
-    - Liquid layer propagation
-
 References
 ----------
 KMN15 : Kamata+ (2015; JGR-P; DOI: 10.1002/2015JE004821)
@@ -22,15 +17,14 @@ from libc.math cimport pi
 cdef double G
 G = 6.67430e-11
 
-
 @cython.exceptval(check=False)
-cdef void dy_solid_static_compressible_x(
+cdef void dy_solid_dynamic_incompressible_x(
     double radius, double[:] radial_functions, double[:] dy,
-    double complex shear_modulus, double bulk_modulus, double density, double gravity,
+    double complex shear_modulus, double density, double gravity, double frequency,
     unsigned int degree_l=2, double G_to_use=G) nogil:
-    """ Calculates the radial derivative of the radial functions using the static assumption - for solid layers.
+    """ Calculates the radial derivative of the radial functions - for incompressible solid layers.
 
-    Assumes static tides (w=0). Allows for compressibility.
+    Allows for dynamic tides.
     Tidal degree l is allowed to be an integer >= 2.
 
     References
@@ -48,12 +42,12 @@ cdef void dy_solid_static_compressible_x(
         Derivative of the radial functions with respect to radius.
     shear_modulus : float
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : float
-        Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : float
         Density at `radius` [kg m-3]
     gravity : float
         Acceleration due to gravity at `radius` [m s-2]
+    frequency : float
+        Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     degree_l : int = 2
         Tidal harmonic degree.
     G_to_use : float = G
@@ -89,46 +83,33 @@ cdef void dy_solid_static_compressible_x(
     y5 = y5_real + 1.0j * y5_imag
     y6 = y6_real + 1.0j * y6_imag
 
-    # Convert compressibility parameters (the first lame parameter can be complex)
-    cdef double complex lame
-    lame = (<double complex> bulk_modulus - (2. / 3.) * shear_modulus)
-
     # Optimizations
     cdef double degree_l_flt, lp1, lm1, llp1
-    cdef double r_inverse, density_gravity, grav_term
-    cdef double complex lame_2mu, lame_2mu_inverse, two_shear_r_inv, y1_y3_term
+    cdef double r_inverse, density_gravity, dynamic_term, grav_term
+    cdef double complex two_shear_r_inv, y1_y3_term
 
     degree_l_flt     = <double>degree_l
     lp1              = degree_l_flt + 1.
     lm1              = degree_l_flt - 1.
     llp1             = degree_l_flt * lp1
-    lame_2mu         = lame + 2. * shear_modulus
-    lame_2mu_inverse = 1. / lame_2mu
     r_inverse        = 1. / radius
     two_shear_r_inv  = 2. * shear_modulus * r_inverse
     density_gravity  = density * gravity
+    dynamic_term     = -frequency * frequency * density * radius
     grav_term        = 4. * pi * G_to_use * density
     y1_y3_term       = 2. * y1 - llp1 * y3
 
-    # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
-    #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
-    # The static case just sets all frequency dependence in these equations to zero.
-    # dy2 and dy4 contain: viscoelastic, and gravitational terms.
+
     cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
 
-    dy1 = lame_2mu_inverse * (
-        y1_y3_term * -lame * r_inverse +
-        y2
-    )
+    dy1 = y1_y3_term * -1. * r_inverse
 
     dy2 = r_inverse * (
-        y1 * -2. * density_gravity +
-        y2 * -2. +
-        y4 * llp1 +
-        y5 * density * lp1 +
-        y6 * -density * radius +
-        dy1 * 2. * lame +
-        y1_y3_term * (2. * (lame + shear_modulus) * r_inverse - density_gravity)
+            y1 * (dynamic_term + 12. * shear_modulus * r_inverse - 4. * density_gravity) +
+            y3 * llp1 * (density_gravity - 6. * shear_modulus * r_inverse) +
+            y4 * llp1 +
+            y5 * density * lp1 +
+            y6 * -density * radius
     )
 
     dy3 = \
@@ -137,12 +118,11 @@ cdef void dy_solid_static_compressible_x(
         y4 * (1. / shear_modulus)
 
     dy4 = r_inverse * (
-        y1 * (density_gravity + two_shear_r_inv) +
-        y3 * -two_shear_r_inv +
-        y4 * -3. +
-        y5 * -density +
-        dy1 * -lame +
-        y1_y3_term * -lame_2mu * r_inverse
+            y1 * (density_gravity - 3. * two_shear_r_inv) +
+            y2 * -1. +
+            y3 * (dynamic_term + two_shear_r_inv * (2. * llp1 - 1.))+
+            y4 * -3. +
+            y5 * -density
     )
 
     dy5 = \
@@ -151,9 +131,9 @@ cdef void dy_solid_static_compressible_x(
         y6
 
     dy6 = r_inverse * (
-        y1 * grav_term * lm1 +
-        y6 * lm1 +
-        y1_y3_term * grav_term
+            y1 * grav_term * lm1 +
+            y6 * lm1 +
+            y1_y3_term * grav_term
     )
 
     # Convert back to floats
@@ -172,13 +152,13 @@ cdef void dy_solid_static_compressible_x(
 
 
 @cython.exceptval(check=False)
-cdef void dy_liquid_static_compressible_x(
+cdef void dy_liquid_dynamic_incompressible_x(
     double radius, double[:] radial_functions, double[:] dy,
-    double density, double gravity,
+    double density, double gravity, double frequency,
     unsigned int degree_l=2, double G_to_use=G) nogil:
-    """ Calculates the radial derivative of the radial functions using the static assumption - for liquid layers.
+    """ Calculates the radial derivative of the radial functions - for incompressible solid layers.
 
-    Assumes static tides (w=0).
+    Allows for dynamic tides.
     Tidal degree l is allowed to be an integer >= 2.
 
     References
@@ -198,6 +178,8 @@ cdef void dy_liquid_static_compressible_x(
         Density at `radius` [kg m-3]
     gravity : float
         Acceleration due to gravity at `radius` [m s-2]
+    frequency : float
+        Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     degree_l : int = 2
         Tidal harmonic degree.
     G_to_use : float = G
@@ -207,44 +189,76 @@ cdef void dy_liquid_static_compressible_x(
     """
 
     # Pull out y values
-    cdef double y5_real, y5_imag
-    cdef double y7_real, y7_imag
+    cdef double y1_real, y2_real, y5_real, y6_real
+    cdef double y1_imag, y2_imag, y5_imag, y6_imag
 
-    # For the static liquid version, only y5 and y7 are defined.
-    y5_real = radial_functions[0]
-    y5_imag = radial_functions[1]
-    y7_real = radial_functions[2]
-    y7_imag = radial_functions[3]
+    y1_real = radial_functions[0]
+    y1_imag = radial_functions[1]
+    y2_real = radial_functions[2]
+    y2_imag = radial_functions[3]
+    y5_real = radial_functions[4]
+    y5_imag = radial_functions[5]
+    y6_real = radial_functions[6]
+    y6_imag = radial_functions[7]
 
     # Convert floats to complex
-    cdef double complex y5, y7
+    cdef double complex y1, y2, y5, y6
 
+    y1 = y1_real + 1.0j * y1_imag
+    y2 = y2_real + 1.0j * y2_imag
     y5 = y5_real + 1.0j * y5_imag
-    y7 = y7_real + 1.0j * y7_imag
+    y6 = y6_real + 1.0j * y6_imag
 
     # Optimizations
-    cdef double degree_l_flt, lp1, lm1
-    cdef double r_inverse, grav_term
+    cdef double degree_l_flt, lp1, lm1, llp1
+    cdef double r_inverse, density_gravity, dynamic_term, grav_term
 
-    degree_l_flt = <double>degree_l
-    lm1          = degree_l_flt - 1.
-    lp1          = degree_l_flt + 1.
-    r_inverse    = 1. / radius
-    grav_term    = 4. * pi * G_to_use * density / gravity
+    degree_l_flt     = <double>degree_l
+    lp1              = degree_l_flt + 1.
+    lm1              = degree_l_flt - 1.
+    llp1             = degree_l_flt * lp1
+    r_inverse        = 1. / radius
+    density_gravity  = density * gravity
+    dynamic_term     = -frequency * frequency * density * radius
+    grav_term        = 4. * pi * G_to_use * density
 
-    # See Eq. 18 in S75
-    cdef double complex dy5, dy7
+    # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
+    #   other derivatives.
+    cdef double complex y3, y1_y3_term
+    y3 = (1. / dynamic_term) * (y2 + density * y5 - density_gravity * y1)
+    y1_y3_term = 2. * y1 - llp1 * y3
+
+
+    cdef double complex dy1, dy2, dy5, dy6
+
+    dy1 = y1_y3_term * -r_inverse
+
+    dy2 = r_inverse * (
+            y1 * (dynamic_term - 2. * density_gravity) +
+            y5 * density * lp1 +
+            y6 * -density * radius +
+            # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
+            #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
+            y1_y3_term * -density_gravity
+    )
 
     dy5 = \
-        y5 * (grav_term - lp1 * r_inverse) + \
-        y7
+        y1 * grav_term + \
+        y5 * -lp1 * r_inverse + \
+        y6
 
-    dy7 = \
-        y5 * 2. * lm1 * r_inverse * grav_term + \
-        y7 * (lm1 * r_inverse - grav_term)
+    dy6 = r_inverse * (
+            y1 * grav_term * lm1 +
+            y6 * lm1 +
+            y1_y3_term * grav_term
+    )
 
     # Convert back to floats
-    dy[0] = dy5.real
-    dy[1] = dy5.imag
-    dy[2] = dy7.real
-    dy[3] = dy7.imag
+    dy[0] = dy1.real
+    dy[1] = dy1.imag
+    dy[2] = dy2.real
+    dy[3] = dy2.imag
+    dy[4] = dy5.real
+    dy[5] = dy5.imag
+    dy[6] = dy6.real
+    dy[7] = dy6.imag

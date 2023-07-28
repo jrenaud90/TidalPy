@@ -75,7 +75,7 @@ def test_dy_liquid_static_compressible(degree_l):
 
     # Check dimensions make sense
     dy_liquid_static_compressible_wrap(
-        radius, y, dy, bulk_modulus, density, gravity, degree_l, G_to_use=G
+        radius, y, dy, density, gravity, degree_l, G_to_use=G
         )
 
     assert dy.shape == (4,)
@@ -94,7 +94,7 @@ def test_dy_liquid_static_compressible(degree_l):
     # Check that results don't change if we use the default G
     dy2 = np.empty(4, dtype=np.float64)
     dy_liquid_static_compressible_wrap(
-        radius, y, dy2, bulk_modulus, density, gravity, degree_l
+        radius, y, dy2, density, gravity, degree_l
         )
 
     assert np.allclose(dy, dy2)
@@ -102,7 +102,7 @@ def test_dy_liquid_static_compressible(degree_l):
     # Check that they do change if we don't
     dy3 = np.empty(4, dtype=np.float64)
     dy_liquid_static_compressible_wrap(
-        radius, y, dy3, bulk_modulus, density, gravity, degree_l, G_to_use=1.
+        radius, y, dy3, density, gravity, degree_l, G_to_use=1.
         )
 
     assert not np.allclose(dy, dy3)
