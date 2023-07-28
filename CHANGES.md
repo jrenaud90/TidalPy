@@ -3,17 +3,17 @@
 * In-Dev Changes
   * Added in true incompressible model for multilayer code.
 
-### Version 0.5.0 Alpha (Spring 2023)
+### Version 0.5.0 Alpha (Spring-Summer 2023)
 * Major Changes
-  * Removed some imports from main package __init__ to avoid slow load times.
-  * Moved `cache.py` to top-level.
-  * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
-  * Changed setup files so that cython code can be compiled.
-  * Added new submodules into `TidalPy.utilities.performance`.
-    * `array` - for high-performance array manipulations.
-      * Added `interp` function for float interpolation on arrays.
-      * Added `interp_complex` function for complex interpolation on arrays.
-    * `special` - for high-performance, general, scientific functions.
+  * New Cython-based `radial_solver_x`
+    * Created a new cython-based radial solver to improve performance and stability. 
+For now, it uses the "x" suffix as the original radial solver has not been removed. It will be removed in the future.
+    * 
+* Removed some imports from main package __init__ to avoid slow load times.
+* Moved `cache.py` to top-level.
+* Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
+* Changed setup files so that cython code can be compiled.
+  * `special` - for high-performance, general, scientific functions.
 
 * Minor Changes
   * Added unique frequency finder functions to the `modes` module.
@@ -21,6 +21,8 @@
   * Moved non-critical files out of repository.
   * Created a new `tides.heating` module and moved the volumetric heating calculations there.
   * Expanded the performance suite to better track the `radial_solver` module.
+  * Updated dependencies. TidalPy now requires:
+    * CyRK>=0.6.0
   
 * Bug Fixes
   * Fixed floating point comparison bug in `multilayer_modes` solver.

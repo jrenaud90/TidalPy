@@ -4,5 +4,7 @@ include TidalPy/WorldConfigs/*.json5
 include TidalPy/WorldConfigs/*.json
 include TidalPy/WorldConfigs/*.cfg
 
-# Include Cython pxd files
+# Include Cython pyx and pxd files
 global-include *.pxd
+global-include *.pyx
+include cython_extensions.json

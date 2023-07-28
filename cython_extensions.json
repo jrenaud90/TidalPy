@@ -1,0 +1,16 @@
+{
+  "radial_derivatives_dynamic_x": {
+    "name": "TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_x",
+    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "radial_derivatives_dynamic_x.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radial_derivatives_dynamic_wrap": {
+    "name": "TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_wrap",
+    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "radial_derivatives_dynamic_wrap.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
+  }
+}

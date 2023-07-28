@@ -2,4 +2,3 @@ from .numba import njit, use_numba, bool_, float64, int64, int32, int16, int8, u
     complex128, nbDict, nbList, nbUnicode, prange
 
 from .special import find_factorial
-from .array import interp, interp_complex

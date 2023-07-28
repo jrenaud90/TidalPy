@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.5.0a3.dev0'
+version = '0.5.0a4.dev0'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -25,7 +25,7 @@ dependencies = [
     "autograd>=1.4",
     "scs>=3.2.0",
     # Install CyRK requirements
-    "cyrk>=0.4.0"
+    "cyrk>=0.6.0"
 ]
 license = {file = "LICENSE.md"}
 readme = "README.md"
