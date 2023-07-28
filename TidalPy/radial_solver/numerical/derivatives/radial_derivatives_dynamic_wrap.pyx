@@ -1,4 +1,4 @@
-""" Cython tests for `radial_derivatives_dynamic.pyx` """
+""" Cython wrappers for `radial_derivatives_dynamic.pyx` """
 
 from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_x cimport dy_solid_dynamic_compressible_x, dy_liquid_dynamic_compressible_x
 
