@@ -1,4 +1,4 @@
-""" Test the `TidalPy.radial_solver.radial_derivatives_dynamic` (cython extension) functionality. """
+""" Test the `TidalPy.radial_solver.radial_derivatives_static` (cython extension) functionality. """
 
 import numpy as np
 import pytest
@@ -6,8 +6,8 @@ import pytest
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_wrap import (
-    dy_solid_dynamic_compressible_wrap, dy_liquid_dynamic_compressible_wrap
+from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_wrap import (
+    dy_solid_static_compressible_wrap, dy_liquid_static_compressible_wrap
     )
 
 radius = 100.
@@ -15,12 +15,11 @@ gravity = 1.5
 density = 3000.
 shear_modulus = 1.0e10 + 200.j
 bulk_modulus = 1.0e10
-frequency = 1.0e-5
 G = 6.67430e-11
 
 
 @pytest.mark.parametrize('degree_l', (2, 3))
-def test_dy_solid_dynamic_compressible(degree_l):
+def test_dy_solid_static_compressible(degree_l):
 
     # This function takes 6 complex-valued y variables, so we need to give it 12 floats.
     y = np.asarray(
@@ -29,8 +28,8 @@ def test_dy_solid_dynamic_compressible(degree_l):
     dy = np.empty(12, dtype=np.float64)
 
     # Check dimensions make sense
-    dy_solid_dynamic_compressible_wrap(
-        radius, y, dy, shear_modulus, bulk_modulus, density, gravity, frequency, degree_l, G_to_use=G
+    dy_solid_static_compressible_wrap(
+        radius, y, dy, shear_modulus, bulk_modulus, density, gravity, degree_l, G_to_use=G
         )
 
     assert dy.shape == (12,)
@@ -50,62 +49,60 @@ def test_dy_solid_dynamic_compressible(degree_l):
 
     # Check that results don't change if we use the default G
     dy2 = np.empty(12, dtype=np.float64)
-    dy_solid_dynamic_compressible_wrap(
-        radius, y, dy2, shear_modulus, bulk_modulus, density, gravity, frequency, degree_l
+    dy_solid_static_compressible_wrap(
+        radius, y, dy2, shear_modulus, bulk_modulus, density, gravity, degree_l
         )
 
     assert np.allclose(dy, dy2)
 
     # Check that they do change if we don't
     dy3 = np.empty(12, dtype=np.float64)
-    dy_solid_dynamic_compressible_wrap(
-        radius, y, dy3, shear_modulus, bulk_modulus, density, gravity, frequency, degree_l, G_to_use=1.
+    dy_solid_static_compressible_wrap(
+        radius, y, dy3, shear_modulus, bulk_modulus, density, gravity, degree_l, G_to_use=1.
         )
 
     assert not np.allclose(dy, dy3)
 
 
 @pytest.mark.parametrize('degree_l', (2, 3))
-def test_dy_liquid_dynamic_compressible(degree_l):
+def test_dy_liquid_static_compressible(degree_l):
 
-    # This function takes 4 complex-valued y variables, so we need to give it 8 floats.
+    # This function takes 2 complex-valued y variables, so we need to give it 4 floats.
     y = np.asarray(
-        (100., 2., 100., 2., 300., 3., 400., 4.), dtype=np.float64
+        (100., 2., 100., 2.), dtype=np.float64
         )
-    dy = np.empty(8, dtype=np.float64)
+    dy = np.empty(4, dtype=np.float64)
 
     # Check dimensions make sense
-    dy_liquid_dynamic_compressible_wrap(
-        radius, y, dy, bulk_modulus, density, gravity, frequency, degree_l, G_to_use=G
+    dy_liquid_static_compressible_wrap(
+        radius, y, dy, bulk_modulus, density, gravity, degree_l, G_to_use=G
         )
 
-    assert dy.shape == (8,)
+    assert dy.shape == (4,)
     assert dy.dtype == np.float64
     # Check that the results match expectations
     if degree_l == 2:
         expected_dy = np.asarray(
-            [-9.002e+08, -4.000e+03, -4.051e+12, -1.801e+07, 3.910e+02,
-                3.910e+00, 2.269e+03, 5.006e-02], dtype=np.float64
+            [9.700e+01, 1.940e+00, 9.998e-01, 2.000e-02], dtype=np.float64
             )
     elif degree_l == 3:
         expected_dy = np.asarray(
-            [-1.800e+09, -8.000e+03, -8.102e+12, -3.601e+07, 3.880e+02,
-                3.880e+00, 4.538e+03, 1.001e-01], dtype=np.float64
+            [9.600e+01, 1.920e+00, 2.000e+00, 4.000e-02], dtype=np.float64
             )
     assert np.allclose(dy, expected_dy, rtol=0.001)
 
     # Check that results don't change if we use the default G
-    dy2 = np.empty(8, dtype=np.float64)
-    dy_liquid_dynamic_compressible_wrap(
-        radius, y, dy2, bulk_modulus, density, gravity, frequency, degree_l
+    dy2 = np.empty(4, dtype=np.float64)
+    dy_liquid_static_compressible_wrap(
+        radius, y, dy2, bulk_modulus, density, gravity, degree_l
         )
 
     assert np.allclose(dy, dy2)
 
     # Check that they do change if we don't
-    dy3 = np.empty(8, dtype=np.float64)
-    dy_liquid_dynamic_compressible_wrap(
-        radius, y, dy3, bulk_modulus, density, gravity, frequency, degree_l, G_to_use=1.
+    dy3 = np.empty(4, dtype=np.float64)
+    dy_liquid_static_compressible_wrap(
+        radius, y, dy3, bulk_modulus, density, gravity, degree_l, G_to_use=1.
         )
 
     assert not np.allclose(dy, dy3)

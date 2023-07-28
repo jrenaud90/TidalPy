@@ -12,5 +12,19 @@
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
     "compile_args": [],
     "link_args": []
+  },
+  "radial_derivatives_static_x": {
+    "name": "TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_x",
+    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "radial_derivatives_static_x.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radial_derivatives_static_wrap": {
+    "name": "TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_wrap",
+    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "radial_derivatives_static_wrap.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
   }
 }
