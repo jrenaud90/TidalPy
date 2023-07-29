@@ -1,0 +1,9 @@
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
+
+
+from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_incomp_x cimport dy_solid_dynamic_incompressible_x, dy_liquid_dynamic_incompressible_x
+from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_x cimport dy_solid_dynamic_compressible_x, dy_liquid_dynamic_compressible_x
+from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_incomp_x cimport dy_solid_static_incompressible_x, dy_liquid_static_incompressible_x
+from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_x cimport dy_solid_static_compressible_x, dy_liquid_static_compressible_x
+
+cdef void
