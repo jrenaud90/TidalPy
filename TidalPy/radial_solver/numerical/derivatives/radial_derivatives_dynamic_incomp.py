@@ -244,8 +244,6 @@ def radial_derivatives_liquid_general(
             y1 * (dynamic_term - 2. * density_gravity) +
             y5 * density * lp1 +
             y6 * -density * radius +
-            # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
-            #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
             y1_y3_term * -density_gravity
     )
 

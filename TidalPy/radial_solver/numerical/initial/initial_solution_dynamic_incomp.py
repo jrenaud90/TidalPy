@@ -222,13 +222,13 @@ def solid_guess_takeuchi(
     density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> SolidDynamicGuess:
-    """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
+    """ Calculate the initial guess at the bottom of a solid layer using the dynamic and incompresible assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
 
     Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
 
-    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
+    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), incompressibility, and
        bulk and shear dissipation.
 
     References
