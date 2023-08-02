@@ -54,5 +54,12 @@
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
     "compile_args": [],
     "link_args": []
+  },
+  "odes_x": {
+    "name": "TidalPy.radial_solver.numerical.derivatives.odes_x",
+    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "odes_x.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
   }
 }

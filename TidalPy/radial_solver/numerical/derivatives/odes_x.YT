@@ -1,1 +1,0 @@
-cpdef void dynamic_solid_ode(double radius, double[:] y_vector, double[:] dy_vector, double[:] radius_array, double complex[:] shear_modulus_array, double[:] bulk_modulus_array, double[:] density_array, double[:] gravity_array, double frequency, int order_l = *, double G_to_use = *) nogil

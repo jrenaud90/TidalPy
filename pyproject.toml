@@ -1,11 +1,11 @@
 [project]
 name='TidalPy'
-version = '0.5.0a4.dev0'
+version = '0.5.0a4.dev1'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
-requires-python = ">=3.8,<3.11"
+requires-python = ">=3.8,<3.12"
 dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
@@ -17,13 +17,6 @@ dependencies = [
     "dill>=0.3.2",
     "psutil>=5.8.0",
     "pathos>=0.2.0",
-    # Install Burnman requirements
-    "burnman>=1.0.0",
-    "pycddlib>=2.1",
-    "cvxpy>=1.2.1",
-    "ecos>=2.0.10",
-    "autograd>=1.4",
-    "scs>=3.2.0",
     # Install CyRK requirements
     "cyrk>=0.6.0"
 ]
@@ -54,6 +47,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: Implementation :: CPython",
     "Natural Language :: English",
     "Intended Audience :: Science/Research",
@@ -74,6 +68,7 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
     "jupyter",
+    "pytest",
     "cmcrameri>=1.4",
     "matplotlib>=3.4.2",
     "palettable>=3.3.0",
@@ -109,7 +104,7 @@ requires = [
     'numpy>=1.22',
     'cython>=0.29.30',
     'wheel>=0.38',
-    "numba>=0.54.1",
+    "cyrk>=0.6.0"
 ]
 build-backend = "setuptools.build_meta"
 
