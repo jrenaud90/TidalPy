@@ -51,7 +51,7 @@ cdef class BaseODE(CySolver):
             (double, double) t_span,
             const double[:] y0,
             tuple args = None,
-            double rtol = 1.e-6,
+            double rtol = 1.e-7,
             double atol = 1.e-8,
             double max_step = MAX_STEP,
             double first_step = 0.,
@@ -192,7 +192,7 @@ cdef class LiquidDynamicCompressible(BaseODE):
         # Note that `t_new` is the current "radius" not time.
 
         # Update interpolation
-        self.update_interp(self.t_new, update_shear=False)
+        self.update_interp(self.t_new, update_bulk=True, update_shear=False)
 
         # Call the correct differential equation
         dy_liquid_dynamic_compressible_x(

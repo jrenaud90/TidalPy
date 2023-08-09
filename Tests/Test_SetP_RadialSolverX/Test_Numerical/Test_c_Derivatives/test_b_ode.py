@@ -18,7 +18,7 @@ density_array = 3000. * np.ones(radius_array.shape, dtype=np.float64)
 gravity_array = np.linspace(0.1, 2., N, dtype=np.float64)
 bulk_modulus_array = 1.0e11 * np.ones(radius_array.shape, dtype=np.float64)
 
-frequency = 1.0e-5
+frequency = 1.
 degree_l = 2
 G_to_use = 1.0e-12
 
@@ -41,10 +41,12 @@ def test_solid_static_compressible_solver(degree_l, rk_method):
         G_to_use, t_span, y0, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (12, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -59,10 +61,12 @@ def test_solid_dynamic_compressible_solver(degree_l, rk_method):
         G_to_use, t_span, y0, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (12, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -76,10 +80,12 @@ def test_solid_dynamic_incompressible_solver(degree_l, rk_method):
         G_to_use, t_span, y0, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (12, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -88,15 +94,18 @@ def test_solid_dynamic_incompressible_solver(degree_l, rk_method):
 @pytest.mark.parametrize('rk_method', (1, 2))
 @pytest.mark.parametrize('degree_l', (2, 3))
 def test_solid_static_incompressible_solver(degree_l, rk_method):
+
     solver = SolidStaticIncompressible(
         radius_array, shear_modulus_array, bulk_modulus_array, density_array, gravity_array, frequency, degree_l,
         G_to_use, t_span, y0, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (12, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -107,15 +116,14 @@ def test_solid_static_incompressible_solver(degree_l, rk_method):
 def test_liquid_dynamic_compressible_solver(degree_l, rk_method):
 
     y0_ = np.copy(y0[:8])
-    solver = LiquidDynamicCompressible(
-        radius_array, shear_modulus_array, bulk_modulus_array, density_array, gravity_array, frequency, degree_l,
-        G_to_use, t_span, y0_, rk_method=rk_method
-        )
+    solver = LiquidDynamicCompressible(radius_array, shear_modulus_array, bulk_modulus_array, density_array, gravity_array, frequency, degree_l, G_to_use, t_span, y0_, rk_method=rk_method)
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (8, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -131,10 +139,12 @@ def test_liquid_dynamic_incompressible_solver(degree_l, rk_method):
         G_to_use, t_span, y0_, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (8, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -150,10 +160,12 @@ def test_liquid_static_incompressible_solver(degree_l, rk_method):
         G_to_use, t_span, y0_, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (4, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
@@ -169,10 +181,12 @@ def test_liquid_static_compressible_solver(degree_l, rk_method):
         G_to_use, t_span, y0_, rk_method=rk_method
         )
     solver.solve()
+    assert solver.success
 
     assert solver.solution_t.shape == (N,)
     assert solver.solution_y.shape == (4, N)
-    assert solver.solution_t.dtype is np.float64
+    assert type(solver.solution_t[0]) is np.float64
+    assert type(solver.solution_y[0, 0]) is np.float64
     assert solver.solution_t[0] == radius_array[0]
     assert solver.solution_t[-1] == radius_array[-1]
     assert np.all(np.isfinite(solver.solution_t))
