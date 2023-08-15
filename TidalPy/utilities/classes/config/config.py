@@ -3,10 +3,11 @@ import os
 from pprint import pprint
 from typing import Any, Tuple
 
+from TidalPy import debug_mode, disk_loc, log, version
+from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
+
 from .json_utils import save_dict_to_json
 from ..base import TidalPyClass
-from .... import debug_mode, disk_loc, log, version
-from ....exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
 
 
 class ConfigHolder(TidalPyClass):

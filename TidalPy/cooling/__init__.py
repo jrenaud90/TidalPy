@@ -1,6 +1,8 @@
+from TidalPy.utilities.classes.model.model_utils import build_model_default_inputs, find_all_models
+
 from . import cooling_models
 from .defaults import cooling_defaults
-from ..utilities.classes.model.modelUtils import build_model_default_inputs, find_all_models
+
 
 parameter_info_loc = ('cooling',)
 
@@ -11,4 +13,5 @@ def get_cooling_model_default_inputs(layer_type: str):
     return build_model_default_inputs(known_model_const_args, cooling_defaults, inner_keys=layer_type)
 
 
-from .cooling import CoolingModel, CoolingOutputType
+from .cooling import CoolingModel
+from .cooling_models import CoolingOutputType

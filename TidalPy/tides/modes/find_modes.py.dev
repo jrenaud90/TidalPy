@@ -1,7 +1,7 @@
 from ...utilities.performance import njit
 from ...utilities.types import FloatArray
 
-def find_tidal_modes(orbital_frequency: FloatArray, spin_frequency: FloatArray = None,
+def find_tidal_modes(orbital_frequency: 'FloatArray', spin_frequency: 'FloatArray' = None,
                      eccentricity_truncation_level: int = 6, use_obliquity: bool = False, max_degree_l: int = 2):
 
 

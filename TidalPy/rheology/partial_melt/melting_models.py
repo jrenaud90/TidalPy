@@ -9,7 +9,7 @@ from ...utilities.types import FloatArray
 
 
 @njit(cacheable=True)
-def off(melt_fraction: FloatArray, premelt_viscosity: FloatArray, premelt_shear: FloatArray) -> \
+def off(melt_fraction: 'FloatArray', premelt_viscosity: 'FloatArray', premelt_shear: FloatArray) -> \
         Tuple[FloatArray, FloatArray]:
     """ Viscosity and Shear Modulus Partial Melting Model: off
 
@@ -40,7 +40,7 @@ def off(melt_fraction: FloatArray, premelt_viscosity: FloatArray, premelt_shear:
 
 @njit(cacheable=True)
 def spohn(
-    melt_fraction: FloatArray, temperature: FloatArray, liquid_viscosity: FloatArray,
+    melt_fraction: 'FloatArray', temperature: 'FloatArray', liquid_viscosity: 'FloatArray',
     liquid_shear: float = 1.0e-5,
     fs_visc_power_slope: float = 27000.0, fs_visc_power_phase: float = 1.0,
     fs_shear_power_slope: float = 82000.0, fs_shear_power_phase: float = 40.6
@@ -93,8 +93,8 @@ def spohn(
 
 @njit(cacheable=True)
 def henning(
-    melt_fraction: FloatArray, temperature: FloatArray,
-    premelt_viscosity: FloatArray, liquid_viscosity: FloatArray, premelt_shear: FloatArray,
+    melt_fraction: 'FloatArray', temperature: 'FloatArray',
+    premelt_viscosity: 'FloatArray', liquid_viscosity: 'FloatArray', premelt_shear: 'FloatArray',
     solidus: float, liquidus: float,
     liquid_shear: float, crit_melt_frac: float = 0.5, crit_melt_frac_width: float = 0.05,
     hn_visc_slope_1: float = 13.5, hn_visc_falloff_slope: float = 370., hn_shear_param_1: float = 40000.,

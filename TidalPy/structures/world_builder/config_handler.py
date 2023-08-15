@@ -2,8 +2,8 @@ import copy
 
 import json5
 
-from ... import log, world_config_loc
-from ...utilities.io.pathing import get_all_files_of_type
+from TidalPy import log, world_config_loc
+from TidalPy.utilities.io.pathing import get_all_files_of_type
 
 
 def clean_world_config(world_config: dict, make_copy: bool = True):

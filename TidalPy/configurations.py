@@ -54,5 +54,8 @@ configurations = {
     'stream_level'                         : 'DEBUG',
     'stream_err_level'                     : 'WARNING',
     'error_logfile_level'                  : 'WARNING',
-    'regular_logfile_level'                : 'INFO'
+    'regular_logfile_level'                : 'INFO',
+
+    ## Physics Configurations
+    'MIN_FREQ'                             : 1.0e-12,  # Minimum frequency (in rad s-1). Frequencies below this value will be treated as zero.
     }

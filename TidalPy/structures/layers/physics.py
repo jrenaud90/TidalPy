@@ -4,16 +4,15 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
+from TidalPy import log
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, ImproperPropertyHandling,
+                                MissingAttributeError, OuterscopePropertySetError)
+
 from .basic import LayerBase
-from ... import log
-from ...cooling import CoolingModel
-from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, ImproperPropertyHandling,
-                           MissingAttributeError, OuterscopePropertySetError)
-from ...radiogenics.radiogenics import Radiogenics
-from ...rheology import Rheology
-from ...utilities.types import FloatArray, NoneType
 
 if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray, NoneType
+
     from ..world_types import TidalWorldType
 
 
@@ -119,6 +118,10 @@ class PhysicsLayer(LayerBase):
         self.stefan = self.config['stefan']
 
         # Setup Models
+        from TidalPy.rheology import Rheology
+        from TidalPy.radiogenics.radiogenics import Radiogenics
+        from TidalPy.cooling import CoolingModel
+
         self._rheology = Rheology(self, store_config_in_layer=True)
         self._radiogenics = Radiogenics(self, store_config_in_layer=True)
         self._cooling_model = CoolingModel(self, store_config_in_layer=True)
@@ -256,7 +259,7 @@ class PhysicsLayer(LayerBase):
         for model in [self.rheology, self.radiogenics, self.cooling_model]:
             model.clear_state()
 
-    def set_strength(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None):
+    def set_strength(self, viscosity: 'FloatArray' = None, shear_modulus: 'FloatArray' = None):
         """ Manual set the viscosity and shear modulus of the layer, independent of temperature.
 
         This method by-passes the self.viscosity_func and allows the user to manually set the viscosity and shear
@@ -279,8 +282,8 @@ class PhysicsLayer(LayerBase):
         self.rheology.set_state(viscosity, shear_modulus)
 
     def set_state(
-        self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
-        shear_modulus: FloatArray = None
+        self, temperature: 'FloatArray' = None, pressure: 'FloatArray' = None, viscosity: 'FloatArray' = None,
+        shear_modulus: 'FloatArray' = None
         ):
         """ Set the layer's state properties
 

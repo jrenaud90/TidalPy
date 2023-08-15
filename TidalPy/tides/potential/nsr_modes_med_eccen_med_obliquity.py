@@ -1,21 +1,26 @@
-from typing import Dict
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import MIN_SPIN_ORBITAL_DIFF, TidalPotentialModeOutput, PotentialTupleModeOutput
-from ...constants import G
-from ...utilities.performance import bool_, njit
-from ...utilities.types import FloatArray
+from TidalPy.constants import G
+from TidalPy.utilities.performance import bool_, njit
+
+from . import MIN_SPIN_ORBITAL_DIFF
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
+
+    from . import TidalPotentialModeOutput, PotentialTupleModeOutput
 
 
 @njit(cacheable=True, parallel=True)
 def tidal_potential(
-    radius: FloatArray, longitude: FloatArray, colatitude: FloatArray, time: FloatArray,
-    orbital_frequency: FloatArray, rotation_frequency: FloatArray,
-    eccentricity: FloatArray, obliquity: FloatArray,
-    host_mass: float, semi_major_axis: FloatArray,
+    radius: 'FloatArray', longitude: 'FloatArray', colatitude: 'FloatArray', time: 'FloatArray',
+    orbital_frequency: 'FloatArray', rotation_frequency: 'FloatArray',
+    eccentricity: 'FloatArray', obliquity: 'FloatArray',
+    host_mass: float, semi_major_axis: 'FloatArray',
     use_static: bool = False
-    ) -> TidalPotentialModeOutput:
+    ) -> 'TidalPotentialModeOutput':
     """ Tidal gravitational potential assuming moderate eccentricity, moderate obliquity, and non-synchronous rotation
 
     This function will keep the subcomponents of the potential separate for each tidal mode so that they may

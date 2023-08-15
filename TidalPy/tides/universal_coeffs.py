@@ -6,8 +6,9 @@
         [order_l] [m]
         Starting with order_l = 2 and m = 0
 """
-from ..exceptions import TidalPyValueException
-from ..utilities.performance.numba import njit
+
+from TidalPy.exceptions import TidalPyValueException
+from TidalPy.utilities.performance.numba import njit
 
 
 @njit(cacheable=True)

@@ -8,19 +8,21 @@ TB05  : Tobie et al. (2005, DOI: 10.1016/j.icarus.2005.04.006)
 B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 """
 
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 
-from ...utilities.performance import njit
-from ...utilities.types import FloatArray
+from TidalPy.utilities.performance import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
 
 
 @njit(cacheable=True)
 def calculate_displacements(
-    tidal_potential: FloatArray,
-    tidal_potential_partial_theta: FloatArray, tidal_potential_partial_phi: FloatArray,
-    tidal_solution_y: np.ndarray, colatitude: FloatArray
+    tidal_potential: 'FloatArray',
+    tidal_potential_partial_theta: 'FloatArray', tidal_potential_partial_phi: 'FloatArray',
+    tidal_solution_y: np.ndarray, colatitude: 'FloatArray'
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """ Calculate tidal displacements using the tidal potential and its partial derivatives as well as the y-solution
     vector.

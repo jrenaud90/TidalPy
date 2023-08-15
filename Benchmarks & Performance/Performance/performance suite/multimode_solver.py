@@ -1,5 +1,3 @@
-from functools import partial
-
 import numpy as np
 
 from performance_base import PerformanceTrackBase
@@ -12,7 +10,7 @@ from TidalPy.tides.modes.multilayer_modes_numba import collapse_multilayer_modes
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays
-from TidalPy.toolbox.conversions import orbital_motion2semi_a
+from TidalPy.utilities.conversions import orbital_motion2semi_a
 
 radius = np.linspace(0.01e3, 6378.1e3, 15)
 layer_0 = radius <= 3483.e3

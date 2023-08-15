@@ -22,37 +22,37 @@ from typing import Dict, TYPE_CHECKING, Tuple, Union
 
 import numpy as np
 
-from .conversions import days2rads, orbital_motion2semi_a
-from ..dynamics import semia_eccen_derivatives, semia_eccen_derivatives_dual, spin_rate_derivative
-from ..exceptions import ArgumentException, IncorrectArgumentType, MissingArgumentError, MissingAttributeError
-from ..rheology.complex_compliance import known_models as known_compliance_models
-from ..rheology.complex_compliance.complex_compliance import compliance_dict_helper
-from ..tides.ctl_funcs import linear_dt
-from ..tides.dissipation import calc_tidal_susceptibility
-from ..tides.methods.global_approx import cpl_neg_imk_helper_func, ctl_neg_imk_helper_func
-from ..tides.modes.mode_manipulation import find_mode_manipulators
-from ..utilities.types import ComplexArray, FloatArray, NoneType
+from TidalPy.exceptions import ArgumentException, IncorrectArgumentType, MissingArgumentError, MissingAttributeError
+from TidalPy.utilities.conversions import days2rads, orbital_motion2semi_a
+from TidalPy.dynamics import semia_eccen_derivatives, semia_eccen_derivatives_dual, spin_rate_derivative
+from TidalPy.rheology.complex_compliance import known_models as known_compliance_models
+from TidalPy.rheology.complex_compliance.complex_compliance import compliance_dict_helper
+from TidalPy.tides.ctl_funcs import linear_dt
+from TidalPy.tides.dissipation import calc_tidal_susceptibility
+from TidalPy.tides.methods.global_approx import cpl_neg_imk_helper_func, ctl_neg_imk_helper_func
+from TidalPy.tides.modes.mode_manipulation import find_mode_manipulators
 
 if TYPE_CHECKING:
-    from structures.world_types import all_tidal_world_types
+    from TidalPy.utilities.types import ComplexArray, FloatArray, NoneType, ArrayNone
+    from TidalPy.structures.world_types import all_tidal_world_types
 
-NoneFloatArray = Union[NoneType, FloatArray]
-NoneFloat = Union[NoneType, float]
-NoneInt = Union[NoneType, int]
-SingleBodyResultType = Dict[str, Union[FloatArray, Dict[int, Union[ComplexArray, FloatArray]]]]
+NoneFloatArray = Union['NoneType', 'FloatArray']
+NoneFloat = Union['NoneType', float]
+NoneInt = Union['NoneType', int]
+SingleBodyResultType = Dict[str, Union['FloatArray', Dict[int, Union['ComplexArray', 'FloatArray']]]]
 
 
 def quick_tidal_dissipation(
     host_mass: float, target_radius: float, target_mass: float,
     target_gravity: float, target_density: float, target_moi: float,
-    viscosity: FloatArray = None, shear_modulus: FloatArray = None, rheology: str = 'Maxwell',
+    viscosity: 'FloatArray' = None, shear_modulus: 'FloatArray' = None, rheology: str = 'Maxwell',
     complex_compliance_inputs: Tuple[float, ...] = None,
-    eccentricity: FloatArray = None, obliquity: FloatArray = None,
-    orbital_frequency: FloatArray = None, orbital_period: FloatArray = None,
-    spin_frequency: FloatArray = None, spin_period: FloatArray = None,
-    max_tidal_order_l: Union[int, NoneType] = 2,
-    eccentricity_truncation_lvl: Union[int, NoneType] = 2,
-    use_obliquity: Union[bool, NoneType] = True,
+    eccentricity: 'FloatArray' = None, obliquity: 'FloatArray' = None,
+    orbital_frequency: 'FloatArray' = None, orbital_period: 'FloatArray' = None,
+    spin_frequency: 'FloatArray' = None, spin_period: 'FloatArray' = None,
+    max_tidal_order_l: Union[int, 'NoneType'] = 2,
+    eccentricity_truncation_lvl: Union[int, 'NoneType'] = 2,
+    use_obliquity: Union[bool, 'NoneType'] = True,
     tidal_scale: float = 1., fixed_k2: float = 0.3, fixed_q: float = 100.,
     fixed_dt: float = None,
     dspin_dt_scale: float = 1., de_dt_scale: float = 1., da_dt_scale: float = 1.,
@@ -118,6 +118,7 @@ def quick_tidal_dissipation(
 
     # Flag that tracks if array version of TidalPy's functions should be used or not.
     use_array = False
+    shape = None
 
     # Get orbital frequency
     if orbital_frequency is None:
@@ -283,22 +284,22 @@ def quick_tidal_dissipation(
 def quick_dual_body_tidal_dissipation(
     radii: Tuple[float, float], masses: Tuple[float, float],
     gravities: Tuple[float, float], densities: Tuple[float, float], mois: Tuple[float, float],
-    viscosities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    shear_moduli: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    viscosities: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    shear_moduli: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
     rheologies: Union[str, Tuple[str, str]] = 'Maxwell',
-    complex_compliance_inputs: Union[NoneType, Tuple[Tuple[float, ...], Tuple[float, ...]]] = None,
-    obliquities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    spin_frequencies: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    spin_periods: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    complex_compliance_inputs: Union['NoneType', Tuple[Tuple[float, ...], Tuple[float, ...]]] = None,
+    obliquities: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    spin_frequencies: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    spin_periods: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
     tidal_scales: Tuple[float, float] = (1., 1.), fixed_k2s: Tuple[float, float] = (0.3, 0.3),
     fixed_qs: Tuple[float, float] = (100., 100.), fixed_dts: Tuple[NoneFloat, NoneFloat] = (None, None),
     eccentricity: NoneFloatArray = None,
     orbital_frequency: NoneFloatArray = None, orbital_period: NoneFloatArray = None,
     max_tidal_order_l: NoneInt = 2, eccentricity_truncation_lvl: NoneInt = 2,
-    use_obliquity: Union[bool, NoneType] = True,
+    use_obliquity: Union[bool, 'NoneType'] = True,
     da_dt_scale: float = 1., de_dt_scale: float = 1.,
     dspin_dt_scale: float = 1.
-    ) -> Dict[str, Union[FloatArray, SingleBodyResultType]]:
+    ) -> Dict[str, Union['FloatArray', SingleBodyResultType]]:
     """ Calculate the dual-body tidal dissipation for a target world orbiting its tidal host.
 
     This function pulls together several TidalPy packages to offer an easy to use interface to calculate tidal
@@ -352,36 +353,33 @@ def quick_dual_body_tidal_dissipation(
     use_array = False
 
     # Clean up inputs
+    if eccentricity is None:
+        eccentricity = 0.
+    elif type(eccentricity) == np.ndarray:
+        use_array = True
+
     # Since we use the eccentricity now, outside the world calculators, we need to make sure that the obliquity and
     #    eccentricity arrays are the correct shape. The user provided use_obliquity overrides this functions best
     #    guess.
     use_obliquity_flags = list()
     obliquities_cleaned = list()
     for world_i in range(2):
-        use_obliq_flag = False or use_obliquity
-        clean_obliquity = 0.
-        if eccentricity is not None:
-            if type(eccentricity) == np.ndarray:
-                clean_obliquity = np.zeros_like(eccentricity)
-                use_array = True
-                if obliquities is not None:
-                    if obliquities[world_i] is not None:
-                        use_obliq_flag = True
-                        if type(obliquities[world_i]) != np.ndarray:
-                            clean_obliquity = obliquities[world_i] * np.ones_like(eccentricity)
-                        else:
-                            clean_obliquity = obliquities[world_i]
+        if obliquities is None:
+            obliq_present_flag = False
+            obliquity = 0.
+        elif obliquities[world_i] is None:
+            obliq_present_flag = False
+            obliquity = 0.
         else:
-            eccentricity = 0.
-            if obliquities is not None:
-                if obliquities[world_i] is not None:
-                    clean_obliquity = obliquities[world_i]
-                    use_obliq_flag = True
-                    if type(obliquities[world_i]) == np.ndarray:
-                        use_array = True
-                        eccentricity = np.zeros_like(obliquities[world_i])
-        obliquities_cleaned.append(clean_obliquity)
-        use_obliquity_flags.append(use_obliq_flag)
+            obliq_present_flag = True
+            obliquity = obliquities[world_i]
+
+        if use_array:
+            obliquity = obliquity * np.ones_like(eccentricity)
+
+        obliquities_cleaned.append(obliquity)
+        use_obliquity_flags.append(obliq_present_flag and use_obliquity)
+
     del obliquities
     use_obliquity_flags = tuple(use_obliquity_flags)
     obliquities_cleaned = tuple(obliquities_cleaned)
@@ -517,13 +515,13 @@ def quick_dual_body_tidal_dissipation(
 def single_dissipation_from_dict_or_world_instance(
     host: Union[dict, 'all_tidal_world_types'], secondary: Union[dict, 'all_tidal_world_types'],
     viscosity: NoneFloatArray = None, shear_modulus: NoneFloatArray = None, rheology: str = 'Maxwell',
-    complex_compliance_inputs: Union[NoneType, Tuple[float, ...]] = None,
+    complex_compliance_inputs: Union['NoneType', Tuple[float, ...]] = None,
     eccentricity: NoneFloatArray = None, obliquity: NoneFloatArray = None,
     orbital_frequency: NoneFloatArray = None, orbital_period: NoneFloatArray = None,
     spin_frequency: NoneFloatArray = None, spin_period: NoneFloatArray = None,
     max_tidal_order_l: NoneInt = 2,
     eccentricity_truncation_lvl: NoneInt = 2,
-    use_obliquity: Union[bool, NoneType] = True,
+    use_obliquity: Union[bool, 'NoneType'] = True,
     tidal_scale: float = 1., fixed_k2: float = 0.3, fixed_q: float = 100.,
     fixed_dt: float = None,
     da_dt_scale: float = 1., de_dt_scale: float = 1.,
@@ -629,13 +627,13 @@ def single_dissipation_from_dict_or_world_instance(
 
 def dual_dissipation_from_dict_or_world_instance(
     host: Union[dict, 'all_tidal_world_types'], secondary: Union[dict, 'all_tidal_world_types'],
-    viscosities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    shear_moduli: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    viscosities: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    shear_moduli: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
     rheologies: Union[str, Tuple[str, str]] = 'Maxwell',
-    complex_compliance_inputs: Union[NoneType, Tuple[Tuple[float, ...], Tuple[float, ...]]] = None,
-    obliquities: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    spin_frequencies: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
-    spin_periods: Union[NoneType, Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    complex_compliance_inputs: Union['NoneType', Tuple[Tuple[float, ...], Tuple[float, ...]]] = None,
+    obliquities: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    spin_frequencies: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
+    spin_periods: Union['NoneType', Tuple[NoneFloatArray, NoneFloatArray]] = None,
     tidal_scales: Tuple[float, float] = (1., 1.),
     fixed_k2s: Tuple[float, float] = (0.3, 0.3),
     fixed_qs: Tuple[float, float] = (100., 100.),
@@ -644,10 +642,10 @@ def dual_dissipation_from_dict_or_world_instance(
     orbital_frequency: NoneFloatArray = None,
     orbital_period: NoneFloatArray = None,
     max_tidal_order_l: NoneInt = 2, eccentricity_truncation_lvl: NoneInt = 2,
-    use_obliquity: Union[bool, NoneType] = True,
+    use_obliquity: Union[bool, 'NoneType'] = True,
     da_dt_scale: float = 1., de_dt_scale: float = 1.,
     dspin_dt_scale: float = 1.
-    ) -> Dict[str, Union[FloatArray, SingleBodyResultType]]:
+    ) -> Dict[str, Union['FloatArray', SingleBodyResultType]]:
     """ By providing a dictionaries or TidalPy world objects, this function will pull out the necessary
         planetary parameters and calculate the single body tidal dissipation.
         It is assumed that both the host and the secondary participate in tidal dissipation.

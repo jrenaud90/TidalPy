@@ -1,6 +1,4 @@
 """ Test the `TidalPy.radial_solver.sensitivity` functionality. """
-import pdb
-
 import numpy as np
 import pytest
 

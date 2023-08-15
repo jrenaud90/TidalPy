@@ -497,8 +497,8 @@ def liquid_guess_takeuchi(
 #
 # @njit(cacheable=True)
 # def solid_guess_power(
-#     radius: FloatArray, shear_modulus: NumArray, bulk_modulus: NumArray,
-#     density: FloatArray, frequency: FloatArray,
+#     radius: 'FloatArray', shear_modulus: NumArray, bulk_modulus: NumArray,
+#     density: 'FloatArray', frequency: 'FloatArray',
 #     order_l: int = 2, G_to_use: float = G
 #     ) -> SolidDynamicGuess:
 #     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.

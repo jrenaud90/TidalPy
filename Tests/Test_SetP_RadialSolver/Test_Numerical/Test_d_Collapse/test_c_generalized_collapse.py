@@ -8,7 +8,7 @@ TidalPy.test_mode()
 
 from TidalPy.constants import G
 from TidalPy.utilities.performance import nbList
-from TidalPy.toolbox.conversions import days2rads
+from TidalPy.utilities.conversions import days2rads
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.radial_solver.numerical.collapse import collapse_solutions
 

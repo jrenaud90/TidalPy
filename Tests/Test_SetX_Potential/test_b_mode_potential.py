@@ -9,7 +9,7 @@ from TidalPy.constants import G
 from TidalPy.tides.potential import (tidal_potential_nsr, tidal_potential_nsr_modes, tidal_potential_obliquity_nsr,
                                      tidal_potential_gen_obliquity_low_e_nsr_modes,
                                      tidal_potential_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr_modes)
-from TidalPy.toolbox.conversions import orbital_motion2semi_a
+from TidalPy.utilities.conversions import orbital_motion2semi_a
 
 # Model planet - 2layers
 density_array = 5000. * np.ones(10)

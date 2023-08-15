@@ -3,7 +3,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy import build_world, build_from_world
+from TidalPy.structures import build_world, build_from_world
 from TidalPy.structures.orbit import PhysicsOrbit
 
 star = build_world('55cnc')

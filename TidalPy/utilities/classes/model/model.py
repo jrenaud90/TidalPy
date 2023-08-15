@@ -1,16 +1,18 @@
 import operator
 from typing import Callable, TYPE_CHECKING, Tuple, Union
 
+from TidalPy import debug_mode, log
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
+                                MissingArgumentError, OuterscopePropertySetError, ParameterMissingError,
+                                UnknownModelError)
+
 from ..config.config import ConfigHolder
 from ..config.dictionary_utils import nested_get, nested_place
-from ...types import NoneType
-from .... import debug_mode, log
-from ....exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
-                            MissingArgumentError, OuterscopePropertySetError, ParameterMissingError, UnknownModelError)
 
 if TYPE_CHECKING:
-    from ....structures.layers import PhysicalLayerType
-    from ....structures.world_types import LayeredWorldType
+    from TidalPy.structures.layers import PhysicalLayerType
+    from TidalPy.structures.world_types import LayeredWorldType
+    from TidalPy.utilities.types import NoneType
 
 
 class ModelHolder(ConfigHolder):
@@ -231,7 +233,7 @@ class ModelHolder(ConfigHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def inputs(self) -> Union[NoneType, Tuple[float, ...]]:
+    def inputs(self) -> Union['NoneType', Tuple[float, ...]]:
         """ Some models may require additional constants to be passed to the `self.func` or `self.func_array`.
             These are stored in this tuple if applicable.
         """
@@ -243,7 +245,7 @@ class ModelHolder(ConfigHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def live_inputs(self) -> Union[NoneType, Tuple[float, ...]]:
+    def live_inputs(self) -> Union['NoneType', Tuple[float, ...]]:
         """ Similar to `self.inputs` but these are dynamic parameters that can change after initialization
             (e.g., the viscosity of a layer).
         """

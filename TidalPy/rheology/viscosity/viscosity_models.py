@@ -7,7 +7,7 @@ from ...utilities.types import FloatArray, float_lognat_max
 
 @njit(cacheable=True)
 def arrhenius(
-    temperature: FloatArray, pressure: FloatArray,
+    temperature: 'FloatArray', pressure: 'FloatArray',
     arrhenius_coeff: float, additional_temp_dependence: bool, stress: float, stress_expo: float,
     grain_size: float, grain_size_expo: float,
     molar_activation_energy: float, molar_activation_volume: float
@@ -73,7 +73,7 @@ def arrhenius(
 
 @njit(cacheable=True)
 def reference(
-    temperature: FloatArray, pressure: FloatArray,
+    temperature: 'FloatArray', pressure: 'FloatArray',
     reference_viscosity: float, reference_temperature: float,
     molar_activation_energy: float, molar_activation_volume: float
     ) -> FloatArray:
@@ -128,7 +128,7 @@ def reference(
 
 @njit(cacheable=True)
 def constant(
-    temperature: FloatArray, pressure: FloatArray,
+    temperature: 'FloatArray', pressure: 'FloatArray',
     reference_viscosity: float
     ) -> FloatArray:
     """ Solid Viscosity Function: Constant. Ignores other input and returns the reference viscosity value

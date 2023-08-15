@@ -2,18 +2,19 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from TidalPy import debug_mode, log
+from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, MissingArgumentError,
+                                OuterscopePropertySetError, UnusualRealValueError)
+from TidalPy.utilities.classes import LayerConfigHolder
+
 from .complex_compliance import ComplexCompliance
 from .defaults import rheology_defaults
 from .partial_melt import PartialMelt
 from .viscosity import LiquidViscosity, SolidViscosity
-from .. import debug_mode, log
-from ..exceptions import (IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, MissingArgumentError,
-                          OuterscopePropertySetError, UnusualRealValueError)
-from ..utilities.classes import LayerConfigHolder
-from ..utilities.types import FloatArray
 
 if TYPE_CHECKING:
-    from ..structures.layers import PhysicsLayer
+    from TidalPy.utilities.types import FloatArray
+    from TidalPy.structures.layers import PhysicsLayer
 
 
 class Rheology(LayerConfigHolder):
@@ -153,7 +154,7 @@ class Rheology(LayerConfigHolder):
                       self.partial_melting_model, self.complex_compliance_model]:
             model.clear_state()
 
-    def set_state(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None):
+    def set_state(self, viscosity: 'FloatArray' = None, shear_modulus: 'FloatArray' = None):
         """ Set the rheology state and recalculate any parameters that may be affected.
 
         Setting the state manually overrides the functionality of the viscosity, shear, and partial melting functions.
@@ -286,7 +287,7 @@ class Rheology(LayerConfigHolder):
         return self.partial_melting_model.postmelt_viscosity
 
     @postmelt_viscosity.setter
-    def postmelt_viscosity(self, postmelt_viscosity: FloatArray):
+    def postmelt_viscosity(self, postmelt_viscosity: 'FloatArray'):
         self.set_state(viscosity=postmelt_viscosity)
 
     @property
@@ -295,7 +296,7 @@ class Rheology(LayerConfigHolder):
         return self.partial_melting_model.postmelt_shear_modulus
 
     @postmelt_shear_modulus.setter
-    def postmelt_shear_modulus(self, postmelt_shear_modulus: FloatArray):
+    def postmelt_shear_modulus(self, postmelt_shear_modulus: 'FloatArray'):
         self.set_state(shear_modulus=postmelt_shear_modulus)
 
     @property
@@ -304,7 +305,7 @@ class Rheology(LayerConfigHolder):
         return self.partial_melting_model.postmelt_compliance
 
     @postmelt_compliance.setter
-    def postmelt_compliance(self, postmelt_compliance: FloatArray):
+    def postmelt_compliance(self, postmelt_compliance: 'FloatArray'):
         self.set_state(shear_modulus=postmelt_compliance**(-1))
 
     # # Complex Compliance Class

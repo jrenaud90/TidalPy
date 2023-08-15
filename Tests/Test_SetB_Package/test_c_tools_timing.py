@@ -3,7 +3,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy.toolbox.timing import convert_to_hms
+from TidalPy.utilities.conversions.timing import convert_to_hms
 
 def test_convert_hms():
     """ Test the convert_to_hms function """

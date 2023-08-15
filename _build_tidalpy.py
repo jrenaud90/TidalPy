@@ -1,27 +1,42 @@
 """ Commands to build the cython extensions of TidalPy (a hack to work with pyproject.toml) """
 import os
+import platform
+import json
 from setuptools.extension import Extension
 from setuptools.command.build_py import build_py as _build_py
 
 import numpy as np
 
-tidalpy_cython_extensions = [
-    Extension(
-        'TidalPy.utilities.performance.array.interp',
-        sources=[os.path.join('TidalPy', 'utilities', 'performance', 'array', 'interp.pyx')],
-        include_dirs=[os.path.join('TidalPy', 'utilities', 'performance', 'array'), np.get_include()]
-        ),
-    Extension(
-        'TidalPy.radial_solver.numerical.derivatives.ode_x',
-        sources=[os.path.join('TidalPy', 'radial_solver', 'numerical', 'derivatives', 'odes_x.pyx')],
-        include_dirs=[os.path.join('TidalPy', 'radial_solver', 'numerical', 'derivatives'), np.get_include()]
-        ),
-    Extension(
-        'TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_x',
-        sources=[os.path.join('TidalPy', 'radial_solver', 'numerical', 'derivatives', 'radial_derivatives_dynamic_x.pyx')],
-        include_dirs=[os.path.join('TidalPy', 'radial_solver', 'numerical', 'derivatives'), np.get_include()]
+install_platform = platform.system()
+
+if install_platform.lower() == 'windows':
+    extra_compile_args = ['/openmp']
+    extra_link_args = []
+elif install_platform.lower() == 'darwin':
+    extra_compile_args = []
+    extra_link_args = []
+else:
+    extra_compile_args = ['-fopenmp']
+    extra_link_args = ['-fopenmp']
+
+# Load TidalPy's cython extensions
+absolute_path = os.path.dirname(__file__)
+cython_ext_path = os.path.join(absolute_path, 'cython_extensions.json')
+with open(cython_ext_path, 'r') as cython_ext_file:
+    cython_ext_dict = json.load(cython_ext_file)
+
+tidalpy_cython_extensions = list()
+for cython_ext, ext_data in cython_ext_dict.items():
+    tidalpy_cython_extensions.append(
+        Extension(
+            name=ext_data['name'],
+            sources=[os.path.join(*tuple(source_path)) for source_path in ext_data['sources']],
+            # Always add numpy to any includes
+            include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()],
+            extra_compile_args=ext_data['compile_args'] + extra_compile_args,
+            extra_link_args=ext_data['link_args'] + extra_link_args,
+            )
         )
-    ]
 
 class build_tidalpy(_build_py):
 
@@ -42,7 +57,7 @@ class build_tidalpy(_build_py):
                     extension
                     )
 
-        # Add cythonize ext_modules
+        # Cythonize ext_modules
         self.distribution.ext_modules = cythonize(
                 self.distribution.ext_modules,
                 compiler_directives={'language_level': "3"},

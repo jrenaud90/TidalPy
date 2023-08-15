@@ -9,7 +9,7 @@ TidalPy.test_mode()
 from TidalPy.constants import G, mass_trap1
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
-from TidalPy.toolbox.conversions import orbital_motion2semi_a
+from TidalPy.utilities.conversions import orbital_motion2semi_a
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 
 # Model planet - 2layers

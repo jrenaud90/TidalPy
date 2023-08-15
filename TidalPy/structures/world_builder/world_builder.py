@@ -3,14 +3,13 @@ from typing import TextIO, Union
 
 import json5
 
+from TidalPy import log
+from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
+                                UnknownWorldType)
+from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
+
 from .config_handler import clean_world_config, get_world_configs, world_config_loc
 from ..world_types import BurnManWorld, world_types
-from ... import log
-from ...burnman_interface.build import build_burnman_world
-from ...exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
-                           UnknownWorldType)
-from ...utilities.classes.config.dictionary_utils import nested_replace
-
 
 def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     """ Build a TidalPy world based on a pre-built config or a user-provided configuration dictionary
@@ -90,6 +89,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
             )
 
         # Build BurnMan world first
+        from TidalPy.burnman_interface.build import build_burnman_world
         burnman_world, burnman_layers = build_burnman_world(world_config)
         log.debug(f'Burnman world building completed!')
         world = WorldClass(world_config, burnman_world, burnman_layers, name=world_name)

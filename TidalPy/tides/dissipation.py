@@ -1,12 +1,16 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 from scipy.constants import G
 
-from ..utilities.performance import njit
-from ..utilities.types import FloatArray
+from TidalPy.utilities.performance import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
 
 
 @njit(cacheable=True)
-def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: FloatArray) -> FloatArray:
+def calc_tidal_susceptibility(host_mass: float, target_radius: float, semi_major_axis: 'FloatArray') -> 'FloatArray':
     """ Calculate the tidal susceptibility for a given target radius, host mass, and their separation.
 
     Parameters

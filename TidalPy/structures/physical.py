@@ -4,18 +4,19 @@ This module contains the base python class for physical objects (layers, planets
 
 """
 
-from typing import Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .. import debug_mode, log
-from ..constants import G
-from ..exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
-                          IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
-from ..utilities.classes import ConfigHolder
-from ..utilities.types import NoneType, float_eps, float_like
+from TidalPy import debug_mode, log
+from TidalPy.constants import G
+from TidalPy.exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
+                                IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
+from TidalPy.utilities.types import float_eps, float_like
+from TidalPy.utilities.classes import ConfigHolder
 
-FloatNone = Union[NoneType, float]
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatNone
 
 
 class PhysicalObjSpherical(ConfigHolder):
@@ -702,7 +703,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     # # State properties set by user or other methods
     @property
-    def moi(self) -> FloatNone:
+    def moi(self) -> 'FloatNone':
         """ Physical Object's Moment of Inertia [kg m^2]
 
         This may either be a measured moment of inertia, or one that is calculate using a more rigorous
