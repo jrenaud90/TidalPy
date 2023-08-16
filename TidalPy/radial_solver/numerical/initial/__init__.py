@@ -1,13 +1,10 @@
 from typing import Union
 
+import numpy as np
+
 from TidalPy.utilities.performance import njit
 
 from .functions import takeuchi_phi_psi, takeuchi_phi_psi_general, z_calc
-
-from .initial_solution_dynamic import LiquidDynamicGuess, SolidDynamicGuess
-from .initial_solution_static import LiquidStaticGuess, SolidStaticGuess
-
-InitialGuess = Union[LiquidDynamicGuess, LiquidStaticGuess, SolidDynamicGuess, SolidStaticGuess]
 
 from .initial_solution_dynamic import (
     liquid_guess_kamata   as liquid_dynamic_compressible_kmn15,
@@ -61,7 +58,7 @@ def find_initial_guess(
         is_solid: bool, is_static: bool, is_incompressible: bool, is_kamata: bool,
         radius: float, shear_modulus: Union[float, complex], bulk_modulus: Union[float, complex],
         density: float, frequency: float, order_l: int, G_to_use: float
-    ) -> InitialGuess:
+    ) -> np.ndarray:
     """
 
     Parameters
@@ -92,7 +89,7 @@ def find_initial_guess(
 
     Returns
     -------
-    initial_guess : InitialGuess
+    initial_guess : np.ndarray
         Initial (starting) guess at the innermost region of interest (often the center of a planet).
         The initial guess will be a list of solutions (1 to 3 depending on the assumptions).
         Each solution will be a np.ndarray (2 to 6 values depending on the assumptions).

@@ -9,11 +9,11 @@ from TidalPy.structures.orbit import PhysicsOrbit
 star_config_ = {
     'tides_on': False,
     }
-star_base = build_world('55cnc')
+star_base = build_world('55cnc_simple')
 
 config_ = {
     'force_spin_sync': False,
-    'type'           : 'burnman',
+    'type'           : 'layered',
     "tides"          : {
         "model"                      : "layered",
         'eccentricity_truncation_lvl': 2,
@@ -34,7 +34,7 @@ config_ = {
             }
         }
     }
-io_base = build_world('io')
+io_base = build_world('io_simple')
 
 
 def test_single_body_derivative_calc():

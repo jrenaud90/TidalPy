@@ -64,7 +64,7 @@ class TidalWorld(BaseWorld):
             self.reinit(initial_init=True, setup_simple_tides=True)
 
     def reinit(
-        self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
+        self, initial_init: bool = False, reinit_geometry: bool = True,
         setup_simple_tides: bool = True
         ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
@@ -78,13 +78,11 @@ class TidalWorld(BaseWorld):
             Must be set to `True` if this is the first time this function has been called.
         reinit_geometry : bool = True
             If `True`, the initializer will automatically call the `set_geometry()` method.
-        set_by_burnman : bool = False
-            Set to `True` if called from a burnman world.
         setup_simple_tides : bool = True
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         """
 
-        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry, set_by_burnman=set_by_burnman)
+        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry)
 
         # Load in configurations
         self._is_spin_sync = self.config['force_spin_sync']
@@ -152,7 +150,7 @@ class TidalWorld(BaseWorld):
 
         log.debug(f'Internal heating changed for {self}.')
 
-        if self.world_class not in ['layered', 'burnman']:
+        if self.world_class not in ['layered']:
             # Layered world_types use a different method to change the surface temperature.
             self.update_surface_temperature()
 

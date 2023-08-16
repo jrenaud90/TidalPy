@@ -9,7 +9,7 @@ from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, Ti
 from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
 
 from .config_handler import clean_world_config, get_world_configs, world_config_loc
-from ..world_types import BurnManWorld, world_types
+from ..world_types import world_types
 
 def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     """ Build a TidalPy world based on a pre-built config or a user-provided configuration dictionary
@@ -82,21 +82,8 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     # Get the world class
     WorldClass = world_types[world_type]
 
-    if WorldClass is BurnManWorld:
-        log.debug(
-            f'Burnman world detected for {world_name}. '
-            f'Now attempting to build the BurnMan class for the world.'
-            )
-
-        # Build BurnMan world first
-        from TidalPy.burnman_interface.build import build_burnman_world
-        burnman_world, burnman_layers = build_burnman_world(world_config)
-        log.debug(f'Burnman world building completed!')
-        world = WorldClass(world_config, burnman_world, burnman_layers, name=world_name)
-
-    else:
-        log.debug(f'{WorldClass.world_class} world type detected.')
-        world = WorldClass(world_config, world_name)
+    log.debug(f'{WorldClass.world_class} world type detected.')
+    world = WorldClass(world_config, world_name)
 
     if world is None:
         raise TidalPyWorldError('World building failed.')

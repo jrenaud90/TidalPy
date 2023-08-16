@@ -87,15 +87,13 @@ class PhysicalObjSpherical(ConfigHolder):
         self._mass_below = None
         self._pressure_above = None
 
-    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False):
+    def reinit(self, initial_init: bool = False):
         """ Reinitialize the physical object by pulling in any potentially new configurations
 
         Parameters
         ----------
         initial_init : bool = False
             Set to `True` for the first time an instance is created.
-        set_by_burnman : bool = False
-            Set to `True` if a Burnman layer/world constructor is calling reinit
         """
 
         if initial_init:
@@ -105,13 +103,12 @@ class PhysicalObjSpherical(ConfigHolder):
             # If this is a reinit, then the state of the world should be cleared.
             self.clear_state()
 
-        if not set_by_burnman:
-            # Setup Geometry
-            #    Pull out densities and pressures and convert them into constant value slices
-            self._num_slices = self.config.get('slices', None)
-            #    If user provided real moment of inertia, pull that out and calculate moi factor
-            if self.config.get('moi', None) is not None:
-                self.moi = self.config.get('moi', None)
+        # Setup Geometry
+        #    Pull out densities and pressures and convert them into constant value slices
+        self._num_slices = self.config.get('slices', None)
+        #    If user provided real moment of inertia, pull that out and calculate moi factor
+        if self.config.get('moi', None) is not None:
+            self.moi = self.config.get('moi', None)
 
         # Other reinit steps are set by child class' reinit methods.
 
@@ -254,8 +251,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self.geometry_init = True
 
     def set_static_pressure(
-        self, pressure_above: float = None, build_slices: bool = True,
-        called_from_burnman: bool = False
+        self, pressure_above: float = None, build_slices: bool = True
         ):
         """ Sets the static pressure for the physical structure.
 
@@ -269,15 +265,9 @@ class PhysicalObjSpherical(ConfigHolder):
                 layer. If it is the upper-most layer or a world, then it may be the surface pressure.
         build_slices : bool = True
             If `True`, method will find the pressure at each slice of the physical object.
-        called_from_burnman : bool = False
-            Set to `True` if called from a burnman layer/world.
         """
 
         log.debug(f'Setting up static pressure for {self}.')
-
-        if called_from_burnman:
-            log.debug('Static pressure method called from burnman - skipping.')
-            return True
 
         if pressure_above is None:
             pressure_above = self.pressure_above

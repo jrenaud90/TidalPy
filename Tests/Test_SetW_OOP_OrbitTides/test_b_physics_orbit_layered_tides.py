@@ -6,8 +6,8 @@ TidalPy.test_mode()
 from TidalPy.structures import build_world, build_from_world
 from TidalPy.structures.orbit import PhysicsOrbit
 
-star = build_world('55cnc')
-world = build_world('io')
+star = build_world('55cnc_simple')
+world = build_world('io_simple')
 
 
 def test_layered_tide_model_maxwell_rheology():

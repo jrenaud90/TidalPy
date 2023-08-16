@@ -6,19 +6,19 @@
 ### Version 0.5.0 Alpha (Spring-Summer 2023)
 TODO: 
 - Need tests for cython interface funcs.
+- Change cyrk depdencey to 0.6.2+
 
 Major Changes
 * New Cython-based `radial_solver_x`
   * Created a new cython-based radial solver to improve performance and stability. 
 For now, it uses the "x" suffix as the original radial solver has not been removed. It will be removed in the future.
-  * 
+* Removed support for `solver_numba` in the `radial_solver` module.
 * Removed some imports from main package __init__ to avoid slow load times.
-* Moved `cache.py` to top-level.
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
 * Changed setup files so that cython code can be compiled.
   * `special` - for high-performance, general, scientific functions.
 * Added support for Python 3.11.
-* Removed Burnman dependence
+* Removed `BurnMan` 3rd party dependence
   * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages. We will add in support
 so that users can still use BurnMan planets with TidalPy.
 
@@ -28,9 +28,16 @@ Minor Changes
 * Moved non-critical files out of repository.
 * Created a new `tides.heating` module and moved the volumetric heating calculations there.
 * Expanded the performance suite to better track the `radial_solver` module.
-* Updated dependencies. TidalPy now requires:
-  * CyRK>=0.6.1
-* Turned off numba cacheing on complex compliance functions.
+* Moved `cache.py` to top-level.
+* Bumped versions for dependencies. TidalPy now requires:
+  * CyRK>=0.6.2
+* Turned off numba cacheing on several functions that may be used in the radial solver.
+  * rheology
+    * complex compliance functions
+  * radial_solver.numerical
+    * initial guess functions
+    * interface functions
+* Converted radial_solver.numerical initial guess and interface functions output to np.ndarrays rather than numba lists.
   
 Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.

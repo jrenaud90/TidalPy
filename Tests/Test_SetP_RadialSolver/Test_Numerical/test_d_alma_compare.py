@@ -12,7 +12,7 @@ TidalPy.test_mode()
 from TidalPy.constants import G
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays
 from TidalPy.rheology.complex_compliance.compliance_models import newton, maxwell
-from TidalPy.radial_solver import radial_solver, radial_solver_numba, find_love
+from TidalPy.radial_solver import radial_solver, find_love
 
 alma_results = {
     # Stored by degree l and then (k, h, l)
@@ -119,47 +119,6 @@ def test_radial_solver_alma_compare(order_l):
             surface_boundary_condition=None, solve_load_numbers=False,
             use_kamata=True,
             integrator='numba', integration_method='RK45',
-            integration_rtol=integration_rtol, integration_atol=integration_atol,
-            verbose=False, nondimensionalize=True, incompressible=True
-            )
-    tidalpy_k, tidalpy_h, tidalpy_l = find_love(tidal_y[:, -1], gravity_array[-1])
-
-    for tpy, alma in ((tidalpy_k, alma_k), (tidalpy_h, alma_h), (tidalpy_l, alma_l)):
-        tpy_real  = np.real(tpy)
-        tpy_imag  = np.imag(tpy)
-        alma_real = np.real(alma)
-        alma_imag = np.imag(alma)
-
-        # Calculate percent difference
-        real_pctdiff = (2. * (tpy_real - alma_real) / (tpy_real + alma_real))
-        imag_pctdiff = (2. * (tpy_imag - alma_imag) / (tpy_imag + alma_imag))
-
-        assert np.abs(real_pctdiff) <= success_threshold_real
-        assert np.abs(imag_pctdiff) <= success_threshold_imag
-
-
-@pytest.mark.parametrize('order_l', (2, 3))
-def test_radial_solver_numba_alma_compare(order_l):
-    """ Compare TidalPy's `radial_solver_numba` to ALMA for an Enceladus-like planet. """
-    success_threshold_real = 0.05
-    success_threshold_imag = 0.10
-
-    integration_rtol = 1.0e-7
-    integration_atol = 1.0e-8
-
-    # Pull out ALMA results
-    alma_k, alma_h, alma_l = alma_results[order_l]
-
-    # Calculate solution using the radial solver
-    tidal_y = radial_solver_numba(
-            radius=radius_array, shear_modulus=complex_shear, bulk_modulus=bulk_array,
-            density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=planet_bulk_density,
-            is_solid_by_layer=layer_is_solid,
-            is_static_by_layer=layer_is_static,
-            indices_by_layer=layer_indices,
-            order_l=order_l,
-            surface_boundary_condition=None, solve_load_numbers=False,
-            use_kamata=True,
             integration_rtol=integration_rtol, integration_atol=integration_atol,
             verbose=False, nondimensionalize=True, incompressible=True
             )

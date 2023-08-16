@@ -50,29 +50,24 @@ def test_known_initial_funcs(is_solid, is_static, is_incompressible, is_kamata, 
         radius, complex_shear, bulk, density, frequency,
         order_l=order_l, G_to_use=G)
 
+    assert type(initial_solutions) == np.ndarray
+
     # Check if there are the expected number of solutions.
     if is_solid:
         # Solid (dynamic or static) will have three solutions.
-        assert len(initial_solutions) == 3
+        assert initial_solutions.shape[0] == 3
+        # Solid (dynamic or static) has 6 y-values
+        assert initial_solutions.shape[1] == 6
     elif is_static:
         # Static liquid has one solution
-        assert len(initial_solutions) == 1
+        assert initial_solutions.shape[0] == 1
+        # Static liquid has 2 y-values
+        assert initial_solutions.shape[1] == 2
     else:
         # Dynamic liquid has two solution
-        assert len(initial_solutions) == 2
+        assert initial_solutions.shape[0] == 2
+        # Dynamic liquid has 4 y-values
+        assert initial_solutions.shape[1] == 4
 
-    # For each solution...
-    for solution in initial_solutions:
-        # Check if there is the right number of y-variables.
-        if is_solid:
-            # Solid (dynamic or static) has 6 y-values
-            assert solution.shape == (6,)
-        elif is_static:
-            # Static liquid has 2 y-values
-            assert solution.shape == (2,)
-        else:
-            # Dynamic liquid has 4 y-values
-            assert solution.shape == (4,)
-
-        # Check type
-        assert solution.dtype == np.complex128
+    # Check type
+    assert initial_solutions.dtype == np.complex128

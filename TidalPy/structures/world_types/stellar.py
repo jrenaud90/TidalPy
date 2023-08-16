@@ -32,8 +32,7 @@ class StarWorld(TidalWorld):
             self.reinit(initial_init=True)
 
     def reinit(
-        self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
-        setup_simple_tides: bool = True
+        self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = True
         ):
         """ Initialize or Reinitialize the star based on changes to its configurations.
 
@@ -46,16 +45,13 @@ class StarWorld(TidalWorld):
             Must be set to `True` if this is the first time this function has been called.
         reinit_geometry : bool = True
             If `True`, the initializer will automatically call the `set_geometry()` method.
-        set_by_burnman : bool = False
-            Set to `True` if called from a burnman world.
         setup_simple_tides : bool = True
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         """
         from TidalPy.stellar.stellar import efftemp_from_luminosity, luminosity_from_efftemp, luminosity_from_mass
 
         super().reinit(
-            initial_init=initial_init, reinit_geometry=reinit_geometry,
-            set_by_burnman=set_by_burnman, setup_simple_tides=setup_simple_tides
+            initial_init=initial_init, reinit_geometry=reinit_geometry, setup_simple_tides=setup_simple_tides
             )
 
         self._luminosity = self.config.get('luminosity', None)

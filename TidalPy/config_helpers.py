@@ -22,8 +22,6 @@ def test_mode():
     config['save_dir'] = False
     config['auto_save_object_config_to_rundir'] = False
     config['auto_save_object_config_to_tidalpydir'] = False
-    config['save_burnman_planets_to_tidalpy_dir'] = False
-    config['save_burnman_planets_to_run_folder'] = False
     config['write_log_in_jupyter'] = False
 
     # Reinitialize TidalPy to reset log with the new configs.

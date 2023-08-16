@@ -63,7 +63,7 @@
     "link_args": []
   },
   "interfaces_x": {
-    "name": "TidalPy.radial_solver.numerical.derivatives.interfaces_x",
+    "name": "TidalPy.radial_solver.numerical.interfaces.interfaces_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "interfaces", "interfaces_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "interfaces"]],
     "compile_args": [],

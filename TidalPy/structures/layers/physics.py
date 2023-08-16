@@ -89,24 +89,19 @@ class PhysicsLayer(LayerBase):
         if initialize:
             self.reinit(initial_init=initialize)
 
-    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False, initialize_geometry: bool = True):
+    def reinit(self, initial_init: bool = False, initialize_geometry: bool = True):
         """ Reinitialize the physical object by pulling in any potentially new configurations
 
         Parameters
         ----------
         initial_init : bool = False
             Set to `True` for the first time an instance is created.
-        set_by_burnman : bool = False
-            Set to `True` if a Burnman layer/world constructor is calling reinit
         initialize_geometry : bool = False
             Set to `True` if the set_geometry method should be called from within reinit
         """
 
         # Base class's reinit is called *after* the geometry is set (so that tidal volume fraction is set correctly)
-        super().reinit(
-            initial_init=initial_init, set_by_burnman=set_by_burnman,
-            initialize_geometry=initialize_geometry
-            )
+        super().reinit(initial_init=initial_init, initialize_geometry=initialize_geometry)
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']

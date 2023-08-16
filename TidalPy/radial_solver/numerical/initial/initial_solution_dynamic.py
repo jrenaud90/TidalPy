@@ -21,19 +21,15 @@ import numpy as np
 from .functions import takeuchi_phi_psi, z_calc
 from TidalPy.constants import G, pi
 from TidalPy.utilities.math.special import sqrt_neg
-from TidalPy.utilities.performance import njit, nbList
-from TidalPy.utilities.types import ComplexArray
-
-SolidDynamicGuess = nbList[ComplexArray]
-LiquidDynamicGuess = nbList[ComplexArray]
+from TidalPy.utilities.performance import njit
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def solid_guess_kamata(
     radius: float, shear_modulus: Union[float, complex], bulk_modulus: Union[float, complex],
     density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
-    ) -> SolidDynamicGuess:
+    ) -> np.ndarray:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B1-B16).
@@ -66,7 +62,7 @@ def solid_guess_kamata(
 
     Returns
     -------
-    solid_guesses : SolidDynamicGuess
+    solid_guesses : np.ndarray
         The three independent solid guesses (sn1, sn2, sn3)
 
     """
@@ -131,39 +127,37 @@ def solid_guess_kamata(
     y6_s2 = (2. * order_l + 1.) * y5_s2 * r_inverse
     y6_s3 = (2. * order_l + 1.) * y5_s3 * r_inverse - (3. * order_l * gamma * r_inverse)
 
-    tidaly_s1 = np.empty(6, dtype=np.complex128)
-    tidaly_s1[0] = y1_s1
-    tidaly_s1[1] = y2_s1
-    tidaly_s1[2] = y3_s1
-    tidaly_s1[3] = y4_s1
-    tidaly_s1[4] = y5_s1
-    tidaly_s1[5] = y6_s1
+    initial_solutions = np.empty((3, 6), dtype=np.complex128)
+    initial_solutions[0, 0] = y1_s1
+    initial_solutions[0, 1] = y2_s1
+    initial_solutions[0, 2] = y3_s1
+    initial_solutions[0, 3] = y4_s1
+    initial_solutions[0, 4] = y5_s1
+    initial_solutions[0, 5] = y6_s1
 
-    tidaly_s2 = np.empty(6, dtype=np.complex128)
-    tidaly_s2[0] = y1_s2
-    tidaly_s2[1] = y2_s2
-    tidaly_s2[2] = y3_s2
-    tidaly_s2[3] = y4_s2
-    tidaly_s2[4] = y5_s2
-    tidaly_s2[5] = y6_s2
+    initial_solutions[1, 0] = y1_s2
+    initial_solutions[1, 1] = y2_s2
+    initial_solutions[1, 2] = y3_s2
+    initial_solutions[1, 3] = y4_s2
+    initial_solutions[1, 4] = y5_s2
+    initial_solutions[1, 5] = y6_s2
 
-    tidaly_s3 = np.empty(6, dtype=np.complex128)
-    tidaly_s3[0] = y1_s3
-    tidaly_s3[1] = y2_s3
-    tidaly_s3[2] = y3_s3
-    tidaly_s3[3] = y4_s3
-    tidaly_s3[4] = y5_s3
-    tidaly_s3[5] = y6_s3
+    initial_solutions[2, 0] = y1_s3
+    initial_solutions[2, 1] = y2_s3
+    initial_solutions[2, 2] = y3_s3
+    initial_solutions[2, 3] = y4_s3
+    initial_solutions[2, 4] = y5_s3
+    initial_solutions[2, 5] = y6_s3
 
-    return nbList([tidaly_s1, tidaly_s2, tidaly_s3])
+    return initial_solutions
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def liquid_guess_kamata(
     radius: float, bulk_modulus: Union[float, complex],
     density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
-    ) -> LiquidDynamicGuess:
+    ) -> np.ndarray:
     """  Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B29-B37).
@@ -194,7 +188,7 @@ def liquid_guess_kamata(
 
     Returns
     -------
-    solid_guesses : LiquidDynamicGuess
+    solid_guesses : np.ndarray
         The two independent liquid guesses (sn1, sn2)
 
     """
@@ -228,27 +222,26 @@ def liquid_guess_kamata(
     y6_s1 = (2. * order_l + 1.) * y5_s1 * r_inverse
     y6_s2 = ((2. * order_l + 1.) * y5_s2 * r_inverse) - ((3. * order_l * gamma) * r_inverse)
 
-    tidaly_s1 = np.empty(4, dtype=np.complex128)
-    tidaly_s1[0] = y1_s1
-    tidaly_s1[1] = y2_s1
-    tidaly_s1[2] = y5_s1
-    tidaly_s1[3] = y6_s1
+    initial_solutions = np.empty((2, 4), dtype=np.complex128)
+    initial_solutions[0, 0] = y1_s1
+    initial_solutions[0, 1] = y2_s1
+    initial_solutions[0, 2] = y5_s1
+    initial_solutions[0, 3] = y6_s1
 
-    tidaly_s2 = np.empty(4, dtype=np.complex128)
-    tidaly_s2[0] = y1_s2
-    tidaly_s2[1] = y2_s2
-    tidaly_s2[2] = y5_s2
-    tidaly_s2[3] = y6_s2
+    initial_solutions[1, 0] = y1_s2
+    initial_solutions[1, 1] = y2_s2
+    initial_solutions[1, 2] = y5_s2
+    initial_solutions[1, 3] = y6_s2
 
-    return nbList([tidaly_s1, tidaly_s2])
+    return initial_solutions
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def solid_guess_takeuchi(
     radius: float, shear_modulus: Union[float, complex], bulk_modulus: Union[float, complex],
     density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
-    ) -> SolidDynamicGuess:
+    ) -> np.ndarray:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -281,7 +274,7 @@ def solid_guess_takeuchi(
 
     Returns
     -------
-    solid_guesses : SolidDynamicGuess
+    solid_guesses : np.ndarray
         The three independent solid guesses (sn1, sn2, sn3)
 
     """
@@ -373,39 +366,37 @@ def solid_guess_takeuchi(
     y6_s3 = (2. * order_l + 1.) * r_inverse * y5_s3 - \
             3. * order_l * gamma * radius**(order_l - 1.)
 
-    tidaly_s1 = np.empty(6, dtype=np.complex128)
-    tidaly_s1[0] = y1_s1
-    tidaly_s1[1] = y2_s1
-    tidaly_s1[2] = y3_s1
-    tidaly_s1[3] = y4_s1
-    tidaly_s1[4] = y5_s1
-    tidaly_s1[5] = y6_s1
+    initial_solutions = np.empty((3, 6), dtype=np.complex128)
+    initial_solutions[0, 0] = y1_s1
+    initial_solutions[0, 1] = y2_s1
+    initial_solutions[0, 2] = y3_s1
+    initial_solutions[0, 3] = y4_s1
+    initial_solutions[0, 4] = y5_s1
+    initial_solutions[0, 5] = y6_s1
 
-    tidaly_s2 = np.empty(6, dtype=np.complex128)
-    tidaly_s2[0] = y1_s2
-    tidaly_s2[1] = y2_s2
-    tidaly_s2[2] = y3_s2
-    tidaly_s2[3] = y4_s2
-    tidaly_s2[4] = y5_s2
-    tidaly_s2[5] = y6_s2
+    initial_solutions[1, 0] = y1_s2
+    initial_solutions[1, 1] = y2_s2
+    initial_solutions[1, 2] = y3_s2
+    initial_solutions[1, 3] = y4_s2
+    initial_solutions[1, 4] = y5_s2
+    initial_solutions[1, 5] = y6_s2
 
-    tidaly_s3 = np.empty(6, dtype=np.complex128)
-    tidaly_s3[0] = y1_s3
-    tidaly_s3[1] = y2_s3
-    tidaly_s3[2] = y3_s3
-    tidaly_s3[3] = y4_s3
-    tidaly_s3[4] = y5_s3
-    tidaly_s3[5] = y6_s3
+    initial_solutions[2, 0] = y1_s3
+    initial_solutions[2, 1] = y2_s3
+    initial_solutions[2, 2] = y3_s3
+    initial_solutions[2, 3] = y4_s3
+    initial_solutions[2, 4] = y5_s3
+    initial_solutions[2, 5] = y6_s3
 
-    return nbList([tidaly_s1, tidaly_s2, tidaly_s3])
+    return initial_solutions
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def liquid_guess_takeuchi(
     radius: float, bulk_modulus: Union[float, complex],
     density: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
-    ) -> LiquidDynamicGuess:
+    ) -> np.ndarray:
     """ Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -436,7 +427,7 @@ def liquid_guess_takeuchi(
 
     Returns
     -------
-    solid_guesses : LiquidDynamicGuess
+    solid_guesses : np.ndarray
         The two independent liquid guesses (sn1, sn2)
 
     """
@@ -481,19 +472,18 @@ def liquid_guess_takeuchi(
     y6_s2 = (2. * order_l + 1.) * r_inverse * y5_s2 - \
             3. * order_l * gamma * radius**(order_l - 1.)
 
-    tidaly_s1 = np.empty(4, dtype=np.complex128)
-    tidaly_s1[0] = y1_s1
-    tidaly_s1[1] = y2_s1
-    tidaly_s1[2] = y5_s1
-    tidaly_s1[3] = y6_s1
+    initial_solutions = np.empty((2, 4), dtype=np.complex128)
+    initial_solutions[0, 0] = y1_s1
+    initial_solutions[0, 1] = y2_s1
+    initial_solutions[0, 2] = y5_s1
+    initial_solutions[0, 3] = y6_s1
 
-    tidaly_s2 = np.empty(4, dtype=np.complex128)
-    tidaly_s2[0] = y1_s2
-    tidaly_s2[1] = y2_s2
-    tidaly_s2[2] = y5_s2
-    tidaly_s2[3] = y6_s2
+    initial_solutions[1, 0] = y1_s2
+    initial_solutions[1, 1] = y2_s2
+    initial_solutions[1, 2] = y5_s2
+    initial_solutions[1, 3] = y6_s2
 
-    return nbList([tidaly_s1, tidaly_s2])
+    return initial_solutions
 #
 # @njit(cacheable=True)
 # def solid_guess_power(

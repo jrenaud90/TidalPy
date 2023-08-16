@@ -19,19 +19,15 @@ from typing import Union
 import numpy as np
 
 from TidalPy.constants import G
-from TidalPy.utilities.performance import njit, nbList
-from TidalPy.utilities.types import ComplexArray
-
-SolidStaticGuess = nbList[ComplexArray]
-LiquidStaticGuess = nbList[ComplexArray]
+from TidalPy.utilities.performance import njit
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def solid_guess_kamata(
     radius: float, shear_modulus: Union[float, complex],
     density: float,
     order_l: int = 2, G_to_use: float = G
-    ) -> SolidStaticGuess:
+    ) -> np.ndarray:
     """ Calculate the initial guess at the bottom of a solid layer using the static and incompressible assumption.
 
     This function uses the Kamata et al (2015; JGR:P) equations (Eq. B17-B28).
@@ -60,7 +56,7 @@ def solid_guess_kamata(
 
     Returns
     -------
-    solid_guesses : SolidStaticGuess
+    solid_guesses : np.ndarray
         The three independent solid guesses (sn1, sn2, sn3)
 
     """
@@ -68,12 +64,12 @@ def solid_guess_kamata(
     raise Exception('Not Implemented for the Incompressible Assumption')
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def solid_guess_takeuchi(
     radius: float, shear_modulus: Union[float, complex],
     density: float,
     order_l: int = 2, G_to_use: float = G
-    ) -> SolidStaticGuess:
+    ) -> np.ndarray:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
@@ -102,7 +98,7 @@ def solid_guess_takeuchi(
 
     Returns
     -------
-    solid_guesses : SolidStaticGuess
+    solid_guesses : np.ndarray
         The three independent solid guesses (sn1, sn2, sn3)
 
     """
@@ -111,8 +107,8 @@ def solid_guess_takeuchi(
     raise Exception('Not Implemented for the Incompressible Assumption')
 
 
-@njit(cacheable=True)
-def liquid_guess_saito(radius: float, order_l: int = 2, G_to_use: float = G) -> LiquidStaticGuess:
+@njit(cacheable=False)
+def liquid_guess_saito(radius: float, order_l: int = 2, G_to_use: float = G) -> np.ndarray:
     """ Calculate the initial guess at the bottom of a liquid layer using the static assumption.
 
     This function uses the Saito 1974 equations (Eq. 19).
@@ -151,11 +147,11 @@ def liquid_guess_saito(radius: float, order_l: int = 2, G_to_use: float = G) -> 
     y7_s1 = 2. * (order_l - 1.) * radius**(order_l - 1.)
 
     # Since there is no bulk or shear dependence then the y's in this function will be strictly real
-    tidaly_s1 = np.empty(2, dtype=np.complex128)
-    tidaly_s1[0] = y5_s1
-    tidaly_s1[1] = y7_s1
+    initial_solutions = np.empty((1, 2), dtype=np.complex128)
+    initial_solutions[0, 0] = y5_s1
+    initial_solutions[0, 1] = y7_s1
 
     # There is only one solution for the static liquid layer initial condition. However, that outputting a single value
-    # does not match the form of the other initial condition functions. So we will wrap the value in a tuple.
+    # does not match the form of the other initial condition functions. So we will wrap the value in a 2D array.
 
-    return nbList([tidaly_s1])
+    return initial_solutions

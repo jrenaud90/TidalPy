@@ -10,7 +10,7 @@ from TidalPy.utilities.types import FloatArray, NoneType
 
 
 from .tidal import TidalWorld
-from ..layers import BurnmanLayer, GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
+from ..layers import GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
 
 BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^', '&', '(', ')', '~', '`')
 
@@ -105,7 +105,7 @@ class LayeredWorld(TidalWorld):
 
     def reinit(
         self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
-        set_by_burnman: bool = False, reinit_layers: bool = True
+            reinit_layers: bool = True
         ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
@@ -118,8 +118,6 @@ class LayeredWorld(TidalWorld):
             Must be set to `True` if this is the first time this function has been called.
         reinit_geometry : bool = True
             If `True`, the initializer will automatically call the `set_geometry()` method.
-        set_by_burnman : bool = False
-            Set to `True` if called from a burnman world.
         setup_simple_tides : bool = True
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         reinit_layers : bool = True
@@ -129,27 +127,21 @@ class LayeredWorld(TidalWorld):
         # Don't let parent methods initialize geometry since a LayeredWorld's mass is based on its layers' masses
         super().reinit(
             initial_init=initial_init, reinit_geometry=False,
-            set_by_burnman=set_by_burnman,
             setup_simple_tides=False
             )
 
         # Setup Geometry
-        if set_by_burnman:
-            radius = self.radius
-            mass = self.mass
-            update_state_geometry = False
-        else:
-            # Pull out planet configurations
-            radius = self.config['radius']
-            volume = (4. / 3.) * np.pi * radius**3
-            mass = self.config.get('mass', None)
-            update_state_geometry = True
+        # Pull out planet configurations
+        radius = self.config['radius']
+        volume = (4. / 3.) * np.pi * radius**3
+        mass = self.config.get('mass', None)
+        update_state_geometry = True
 
-            # Layer constructor may need the planets mass and radius.
-            #     So set those here (they will be reset by the set_geometry method).
-            self._radius = radius
-            self._mass = mass
-            self._volume = volume
+        # Layer constructor may need the planets mass and radius.
+        #     So set those here (they will be reset by the set_geometry method).
+        self._radius = radius
+        self._mass = mass
+        self._volume = volume
 
         # Update the global tidal volume fraction
         running_tidal_fraction = 0.
@@ -346,8 +338,7 @@ class LayeredWorld(TidalWorld):
             self._density_middle = self.density_slices[median_index]
 
     def set_static_pressure(
-        self, pressure_above: float = None, build_slices: bool = True,
-        called_from_burnman: bool = False
+        self, pressure_above: float = None, build_slices: bool = True
         ):
         """ Sets the static pressure for the physical structure.
 
@@ -361,15 +352,9 @@ class LayeredWorld(TidalWorld):
                 layer. If it is the upper-most layer or a world, then it may be the surface pressure.
         build_slices : bool = True
             If `True`, method will find the pressure at each slice of the physical object.
-        called_from_burnman : bool = False
-            Set to `True` if called from a burnman layer/world.
         """
 
         log.debug(f'Setting up static pressure for {self}.')
-
-        if called_from_burnman:
-            log.debug('Static pressure method called from burnman - skipping.')
-            return True
 
         if pressure_above is None:
             pressure_above = self.pressure_above
@@ -513,7 +498,7 @@ class LayeredWorld(TidalWorld):
         raise InitiatedPropertyChangeError
 
     # Dunder properties
-    def __iter__(self) -> Iterator[Union[PhysicsLayer, GasLayer, BurnmanLayer]]:
+    def __iter__(self) -> Iterator[Union[PhysicsLayer, GasLayer]]:
         """ Planet will iterate over its layers
         Returns
         -------

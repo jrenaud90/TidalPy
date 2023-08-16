@@ -29,7 +29,6 @@ class LayerBase(PhysicalObjSpherical):
     See Also
     --------
     TidalPy.structures.layers.PhysicsLayer
-    TidalPy.structures.layers.BurnmanLayer
     TidalPy.structures.layers.GasLayer
     """
 
@@ -90,20 +89,18 @@ class LayerBase(PhysicalObjSpherical):
         if initialize:
             self.reinit(initial_init=initialize)
 
-    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False, initialize_geometry: bool = True):
+    def reinit(self, initial_init: bool = False, initialize_geometry: bool = True):
         """ Reinitialize the physical object by pulling in any potentially new configurations
 
         Parameters
         ----------
         initial_init : bool = False
             Set to `True` for the first time an instance is created.
-        set_by_burnman : bool = False
-            Set to `True` if a Burnman layer/world constructor is calling reinit
         initialize_geometry : bool = False
             Set to `True` if the set_geometry method should be called from within reinit
         """
 
-        super().reinit(initial_init=initial_init, set_by_burnman=set_by_burnman)
+        super().reinit(initial_init=initial_init)
 
         # Load in configurations
         self._is_tidal = self.config['is_tidally_active']
@@ -111,7 +108,7 @@ class LayerBase(PhysicalObjSpherical):
         self._use_surf_gravity = self.config['use_surface_gravity']
         self._use_bulk_density = self.config['use_bulk_density']
 
-        if not set_by_burnman and initialize_geometry:
+        if initialize_geometry:
             try:
                 radius_layer_below = None
                 if self.layer_below is not None:

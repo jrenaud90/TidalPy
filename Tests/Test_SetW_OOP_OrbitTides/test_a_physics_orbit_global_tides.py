@@ -7,7 +7,7 @@ from TidalPy.structures import build_world, build_from_world
 from TidalPy.structures.orbit import PhysicsOrbit
 from TidalPy.utilities.conversions import rads2days, days2rads, semi_a2orbital_motion
 
-star = build_world('55cnc')
+star = build_world('55cnc_simple')
 world = build_world('earth_simple')
 
 

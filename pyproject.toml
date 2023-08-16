@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.5.0a5.dev2'
+version = '0.5.0a5.dev3'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -113,9 +113,6 @@ py-modules = ["_build_tidalpy"]
 include-package-data = true
 #packages = []
 #    "TidalPy",
-#    "TidalPy.burnman_interface",
-#    "TidalPy.burnman_interface.material",
-#    "TidalPy.burnman_interface.material.custom",
 #    "TidalPy.cooling",
 #    "TidalPy.numba_scipy",
 #    "TidalPy.numba_scipy.special",

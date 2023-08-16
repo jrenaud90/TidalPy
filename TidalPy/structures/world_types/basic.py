@@ -92,7 +92,7 @@ class BaseWorld(PhysicalObjSpherical):
         if initialize:
             self.reinit(initial_init=True)
 
-    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False):
+    def reinit(self, initial_init: bool = False, reinit_geometry: bool = True):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
         This must be called at least once before an instance can be used. The constructor will automatically make an
@@ -105,11 +105,9 @@ class BaseWorld(PhysicalObjSpherical):
                 preformed during the first reinit call).
         reinit_geometry : bool = True
             If `True`, the initializer will automatically call the `set_geometry()` method.
-        set_by_burnman : bool = False
-            Set to `True` if called from a burnman world.
         """
 
-        super().reinit(initial_init=initial_init, set_by_burnman=set_by_burnman)
+        super().reinit(initial_init=initial_init)
 
         # Pull out some basic information from the config
         if self.name is None and 'name' in self.config:
