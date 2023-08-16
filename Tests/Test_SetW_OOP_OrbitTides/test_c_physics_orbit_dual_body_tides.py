@@ -9,7 +9,7 @@ from TidalPy.structures.orbit import PhysicsOrbit
 star_config_ = {
     'tides_on': False,
     }
-star_base = build_world('55cnc_simple')
+star_base = build_world('55cnc')
 
 config_ = {
     'force_spin_sync': False,

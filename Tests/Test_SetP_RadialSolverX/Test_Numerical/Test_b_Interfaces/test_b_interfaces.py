@@ -7,7 +7,7 @@ import TidalPy
 
 TidalPy.test_mode()
 
-from TidalPy.radial_solver.numerical.interfaces.interfaces_x import solution_num, interface_x
+from TidalPy.radial_solver.numerical.interfaces.interfaces_x import find_solution_num, interface_x
 
 
 @pytest.mark.parametrize('lower_is_solid', (True, False))
@@ -194,7 +194,7 @@ def test_interfaces(lower_is_solid, lower_is_static, lower_is_compressible,
     interface_gravity = 4.0
     liquid_density = 3000.
 
-    upper_sols = solution_num(upper_is_solid, upper_is_static, upper_is_compressible)
+    upper_sols = find_solution_num(upper_is_solid, upper_is_static, upper_is_compressible)
     y_upper = np.empty((upper_sols, upper_sols*2), dtype=np.complex128)
 
     interface_x(y_lower, y_upper,
@@ -207,6 +207,7 @@ def test_interfaces(lower_is_solid, lower_is_static, lower_is_compressible,
     elif lower_is_solid and not upper_is_solid:
         # Lower solid / upper liquid
         if upper_is_static:
+            # TODO LEFT OFF
 
 
     assert y_upper
