@@ -16,11 +16,12 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 """
 
 import cython
+from scipy.constants import G as G_
 
 from libc.math cimport pi
 
 cdef double G
-G = 6.67430e-11
+G = G_
 
 
 @cython.exceptval(check=False)

@@ -1,9 +1,13 @@
 """ Cython wrappers for `radial_derivatives_dynamic.pyx` """
 
+from scipy.constants import G as G_
+
 from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_incomp_x cimport dy_solid_dynamic_incompressible_x, dy_liquid_dynamic_incompressible_x
 
 cdef double G
-G = 6.67430e-11
+G = G_
+
+
 cpdef void dy_solid_dynamic_incompressible_wrap(
         double radius, double[:] radial_functions, double[:] dy,
         double complex shear_modulus, double density, double gravity, double frequency,

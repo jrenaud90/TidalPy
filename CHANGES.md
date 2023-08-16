@@ -4,6 +4,9 @@
   * Added in true incompressible model for multilayer code.
 
 ### Version 0.5.0 Alpha (Spring-Summer 2023)
+TODO: 
+- Need tests for cython interface funcs.
+
 Major Changes
 * New Cython-based `radial_solver_x`
   * Created a new cython-based radial solver to improve performance and stability. 
@@ -26,7 +29,8 @@ Minor Changes
 * Created a new `tides.heating` module and moved the volumetric heating calculations there.
 * Expanded the performance suite to better track the `radial_solver` module.
 * Updated dependencies. TidalPy now requires:
-  * CyRK>=0.6.0
+  * CyRK>=0.6.1
+* Turned off numba cacheing on complex compliance functions.
   
 Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.

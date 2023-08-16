@@ -12,14 +12,15 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 """
 
 import cython
+from scipy.constants import G as G_
 
 from libc.math cimport pi
 from libcpp cimport bool as bool_cpp_t
 
 cdef double G
-G = 6.67430e-11
+G = G_
 
-cpdef unsigned int solution_num(bool_cpp_t is_solid, bool_cpp_t is_static, bool_cpp_t is_compressible) nogil:
+cpdef unsigned short find_solution_num(bool_cpp_t is_solid, bool_cpp_t is_static, bool_cpp_t is_compressible) nogil:
     """ Determine number of solutions required for layer based on assumptions.
     
     Parameters
@@ -39,7 +40,7 @@ cpdef unsigned int solution_num(bool_cpp_t is_solid, bool_cpp_t is_static, bool_
     """
 
     # Initialize
-    cdef unsigned int num_sols
+    cdef unsigned short num_sols
     num_sols = 0
 
     if is_solid:
@@ -109,7 +110,7 @@ cpdef void interface_x(
 
     # Other constants that may be needed
     cdef double complex lambda_1, lambda_2, coeff_1, coeff_2, coeff_3, coeff_4, coeff_5, coeff_6, frac_1, frac_2
-    cdef double const_1, g_const
+    cdef double complex const_1, g_const
 
     g_const = 4. * pi * G_to_use
 
@@ -246,10 +247,10 @@ cpdef void interface_x(
                 # Solve for y^liq_1, y^liq_2, y^liq_5, y^liq_6 (TS72 Eq. 143)
                 #    Note that the liquid solution does not have y_3, y_4 which are index 2, 3 for solid solution.
                 coeff_1 = lower_layer_y[soli_upper, 3] / lower_layer_y[2, 3]
-                upper_layer_y[soli_upper, 0] = lower_layer_y[0] - coeff_1 * lower_layer_y[2, 0]
-                upper_layer_y[soli_upper, 1] = lower_layer_y[1] - coeff_1 * lower_layer_y[2, 1]
-                upper_layer_y[soli_upper, 2] = lower_layer_y[4] - coeff_1 * lower_layer_y[2, 4]
-                upper_layer_y[soli_upper, 3] = lower_layer_y[5] - coeff_1 * lower_layer_y[2, 5]
+                upper_layer_y[soli_upper, 0] = lower_layer_y[soli_upper, 0] - coeff_1 * lower_layer_y[2, 0]
+                upper_layer_y[soli_upper, 1] = lower_layer_y[soli_upper, 1] - coeff_1 * lower_layer_y[2, 1]
+                upper_layer_y[soli_upper, 2] = lower_layer_y[soli_upper, 4] - coeff_1 * lower_layer_y[2, 4]
+                upper_layer_y[soli_upper, 3] = lower_layer_y[soli_upper, 5] - coeff_1 * lower_layer_y[2, 5]
         elif dynamic_static or static_static:
             # As far as I am aware, static_static and dynamic_static should work the same.
             # Eq. 21 in S74
