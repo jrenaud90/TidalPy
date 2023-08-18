@@ -114,8 +114,8 @@ cdef class BaseODE(CySolver):
             ) nogil:
 
         # Set state variables based on an interpolation using the provided radius.
-        cdef (double, int) first_out
-        cdef int index_j
+        cdef (double, Py_ssize_t) first_out
+        cdef Py_ssize_t index_j
 
         # The first interpolation will be the slowest as it must find the closest index.
         # We will use this index in the other interpolations.
