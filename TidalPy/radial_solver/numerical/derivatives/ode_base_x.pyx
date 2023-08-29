@@ -89,10 +89,14 @@ cdef class RadialSolverBase(CySolver):
         self.gravity = 0.
 
         # Setup regular CySolver
-        # Make sure to pass the radius array as the t_eval
-        CySolver.__init__(
-            self, t_span, y0, args, rtol, atol, rtols, atols, rk_method, max_step, first_step, max_num_steps,
-            t_eval, capture_extra, num_extra, interpolate_extra, expected_size, auto_solve
+        # TODO: Make sure to pass the radius array as the t_eval
+        super().__init__(
+            t_span=t_span, y0=y0, args=args,
+            rtol=rtol, atol=atol, rtols=rtols, atols=atols, rk_method=rk_method,
+            max_step=max_step, first_step=first_step, max_num_steps=max_num_steps,
+            t_eval=t_eval,
+            capture_extra=capture_extra, num_extra=num_extra, interpolate_extra=interpolate_extra,
+            expected_size=expected_size, auto_solve=auto_solve
             )
 
     cdef void update_constants(self) noexcept nogil:
