@@ -48,7 +48,7 @@ cdef class RadialSolverBase(CySolver):
             bool_cpp_t interpolate_extra = False,
             Py_ssize_t expected_size = 0,
             bool_cpp_t auto_solve = True
-            ):
+    ):
 
         # Loop variables
         cdef Py_ssize_t i
@@ -91,8 +91,9 @@ cdef class RadialSolverBase(CySolver):
         # Setup regular CySolver
         # Make sure to pass the radius array as the t_eval
         CySolver.__init__(
-            self, t_span, y0, args, rtol, atol, max_step, first_step, rk_method,
-            self.radius_view, capture_extra, num_extra, interpolate_extra, expected_size)
+            self, t_span, y0, args, rtol, atol, rtols, atols, rk_method, max_step, first_step, max_num_steps,
+            t_eval, capture_extra, num_extra, interpolate_extra, expected_size, auto_solve
+            )
 
     cdef void update_constants(self) noexcept nogil:
 
