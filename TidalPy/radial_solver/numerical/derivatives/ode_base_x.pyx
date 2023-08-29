@@ -22,10 +22,10 @@ cdef class RadialSolverBase(CySolver):
 
             # RadialSolverBase Inputs
             const double[:] radius_array,
-            const double complex[:] shear_modulus_array,
-            const double[:] bulk_modulus_array,
             const double[:] density_array,
             const double[:] gravity_array,
+            const double complex[:] shear_modulus_array,
+            const double[:] bulk_modulus_array,
             double frequency,
             unsigned int degree_l,
             double G_to_use,
