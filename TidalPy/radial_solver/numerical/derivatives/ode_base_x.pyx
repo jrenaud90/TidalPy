@@ -21,11 +21,11 @@ cdef class RadialSolverBase(CySolver):
             self,
 
             # RadialSolverBase Inputs
-            const double[:] radius_array,
-            const double[:] density_array,
-            const double[:] gravity_array,
-            const double complex[:] shear_modulus_array,
-            const double[:] bulk_modulus_array,
+            const double[::1] radius_array,
+            const double[::1] density_array,
+            const double[::1] gravity_array,
+            const double complex[::1] shear_modulus_array,
+            const double[::1] bulk_modulus_array,
             double frequency,
             unsigned int degree_l,
             double G_to_use,
@@ -83,8 +83,8 @@ cdef class RadialSolverBase(CySolver):
             self.gravity_view[i]       = gravity_array[i]
 
         # Initialize state variables
-        self.shear   = 0. + 0.j
-        self.bulk    = 0.
+        self.shear_modulus = 0. + 0.j
+        self.bulk_modulus  = 0.
         self.density = 0.
         self.gravity = 0.
 

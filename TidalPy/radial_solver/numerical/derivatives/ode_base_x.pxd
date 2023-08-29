@@ -15,11 +15,11 @@ cdef class RadialSolverBase(CySolver):
     cdef double G_to_use, grav_coeff
 
     # Radial arrays
-    cdef double[:] radius_view,
-    cdef double complex[:] shear_modulus_view,
-    cdef double[:] bulk_modulus_view,
-    cdef double[:] density_view,
-    cdef double[:] gravity_view,
+    cdef double[::1] radius_view,
+    cdef double complex[::1] shear_modulus_view,
+    cdef double[::1] bulk_modulus_view,
+    cdef double[::1] density_view,
+    cdef double[::1] gravity_view,
 
     # State properties at current radius
     cdef double complex shear_modulus
