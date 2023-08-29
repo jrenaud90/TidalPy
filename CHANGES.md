@@ -6,7 +6,8 @@
 ### Version 0.5.0 Alpha (Spring-Summer 2023)
 TODO: 
 - Need tests for cython interface funcs.
-- Change cyrk depdencey to 0.6.2+
+- Change cyrk depdencey to 0.7.0+
+- convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
 
 Major Changes
 * New Cython-based `radial_solver_x`

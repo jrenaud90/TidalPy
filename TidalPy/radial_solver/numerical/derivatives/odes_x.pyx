@@ -2,242 +2,721 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 import numpy as np
-cimport numpy as np
-np.import_array()
 
-from libcpp cimport bool as bool_cpp_t
+from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
 
-from CyRK.cy.cysolver cimport CySolver, MAX_STEP
-from CyRK.array.interp cimport interpj, interp, interp_complex
-
-from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_incomp_x cimport dy_solid_dynamic_incompressible_x, dy_liquid_dynamic_incompressible_x
-from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_dynamic_x cimport dy_solid_dynamic_compressible_x, dy_liquid_dynamic_compressible_x
-from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_incomp_x cimport dy_solid_static_incompressible_x, dy_liquid_static_incompressible_x
-from TidalPy.radial_solver.numerical.derivatives.radial_derivatives_static_x cimport dy_solid_static_compressible_x, dy_liquid_static_compressible_x
+cdef double EPS = np.finfo(np.float64).eps
+cdef double EPS_10 = EPS * 10.
+cdef double EPS_100 = EPS * 100.
 
 
-cdef class BaseODE(CySolver):
+cdef class SolidDynamicCompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
+        """
 
-    cdef unsigned int n_radius
-
-    cdef double frequency
-    cdef unsigned int degree_l
-    cdef double G_to_use
-
-    cdef double[:] radius_view,
-    cdef double complex[:] shear_modulus_view,
-    cdef double[:] bulk_modulus_view,
-    cdef double[:] density_view,
-    cdef double[:] gravity_view,
-
-    cdef double complex shear
-    cdef double bulk
-    cdef double density
-    cdef double gravity
-
-
-    def __init__(
-            self,
-            const double[:] radius_array,
-            const double complex[:] shear_modulus_array,
-            const double[:] bulk_modulus_array,
-            const double[:] density_array,
-            const double[:] gravity_array,
-            double frequency,
-            unsigned int degree_l,
-            double G_to_use,
-
-            # Regular CySolver Inputs
-            (double, double) t_span,
-            const double[:] y0,
-            tuple args = None,
-            double rtol = 1.e-7,
-            double atol = 1.e-8,
-            double max_step = MAX_STEP,
-            double first_step = 0.,
-            unsigned char rk_method = 1,
-            const double[:] t_eval = None,
-            bool_cpp_t capture_extra = False,
-            unsigned short num_extra = 0,
-            bool_cpp_t interpolate_extra = False,
-            unsigned int expected_size = 0
-            ):
-
-        # Loop variables
-        cdef Py_ssize_t i
-
-        # Load in floats and ints
-        self.n_radius = len(radius_array)
-
-        self.frequency = frequency
-        self.degree_l  = degree_l
-        self.G_to_use  = G_to_use
-
-        # Load array information into class
-        cdef np.ndarray[np.float64_t, ndim=1, mode='c'] radius_arr, bulk_arr, density_arr, gravity_arr
-        cdef np.ndarray[np.complex128_t, ndim=1, mode='c'] shear_arr
-        radius_arr  = np.empty(self.n_radius, dtype=np.float64, order='C')
-        bulk_arr    = np.empty(self.n_radius, dtype=np.float64, order='C')
-        density_arr = np.empty(self.n_radius, dtype=np.float64, order='C')
-        gravity_arr = np.empty(self.n_radius, dtype=np.float64, order='C')
-        shear_arr   = np.empty(self.n_radius, dtype=np.complex128, order='C')
-        self.radius_view        = radius_arr
-        self.shear_modulus_view = shear_arr
-        self.bulk_modulus_view  = bulk_arr
-        self.density_view       = density_arr
-        self.gravity_view       = gravity_arr
-
-        for i in range(self.n_radius):
-            self.radius_view[i]        = radius_array[i]
-            self.shear_modulus_view[i] = shear_modulus_array[i]
-            self.bulk_modulus_view[i]  = bulk_modulus_array[i]
-            self.density_view[i]       = density_array[i]
-            self.gravity_view[i]       = gravity_array[i]
-
-        # Initialize state variables
-        self.shear   = 0. + 0.j
-        self.bulk    = 0.
-        self.density = 0.
-        self.gravity = 0.
-
-        # Setup regular CySolver
-        # Make sure to pass the radius array as the t_eval
-        CySolver.__init__(
-            self, t_span, y0, args, rtol, atol, max_step, first_step, rk_method,
-            self.radius_view, capture_extra, num_extra, interpolate_extra, expected_size)
-
-    cdef void update_interp(
-            self,
-            double radius,
-            bool_cpp_t update_bulk = True,
-            bool_cpp_t update_shear = True,
-            ) nogil:
-
-        # Set state variables based on an interpolation using the provided radius.
-        cdef (double, Py_ssize_t) first_out
-        cdef Py_ssize_t index_j
-
-        # The first interpolation will be the slowest as it must find the closest index.
-        # We will use this index in the other interpolations.
-        first_out = interpj(radius, self.radius_view, self.density_view)
-        self.density = first_out[0]
-        index_j      = first_out[1]
-
-        self.gravity = interp(radius, self.radius_view, self.gravity_view, provided_j=index_j)
-        if update_bulk:
-            self.bulk = interp(radius, self.radius_view, self.bulk_modulus_view, provided_j=index_j)
-        if update_shear:
-            self.shear = interp_complex(radius, self.radius_view, self.shear_modulus_view, provided_j=index_j)
-
-
-cdef class SolidDynamicCompressible(BaseODE):
-    cdef void diffeq(self):
+        References
+        ----------
+        KMN15; B15; TS72
+        """
 
         # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
+
+        # Update interpolation
+        self.update_interp(radius)
+
+        # Pull out y values
+        cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
+        cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
+        y1_real = self.y_new_view[0]
+        y1_imag = self.y_new_view[1]
+        y2_real = self.y_new_view[2]
+        y2_imag = self.y_new_view[3]
+        y3_real = self.y_new_view[4]
+        y3_imag = self.y_new_view[5]
+        y4_real = self.y_new_view[6]
+        y4_imag = self.y_new_view[7]
+        y5_real = self.y_new_view[8]
+        y5_imag = self.y_new_view[9]
+        y6_real = self.y_new_view[10]
+        y6_imag = self.y_new_view[11]
+
+        # Convert floats to complex
+        cdef double complex y1, y2, y3, y4, y5, y6
+        y1 = y1_real + 1.0j * y1_imag
+        y2 = y2_real + 1.0j * y2_imag
+        y3 = y3_real + 1.0j * y3_imag
+        y4 = y4_real + 1.0j * y4_imag
+        y5 = y5_real + 1.0j * y5_imag
+        y6 = y6_real + 1.0j * y6_imag
+
+        # Convert compressibility parameters (the first lame parameter can be complex)
+        cdef double complex lame
+        lame = (<double complex> self.bulk_modulus - (2. / 3.) * self.shear_modulus)
+
+        # Optimizations
+        cdef double r_inverse, density_gravity, dynamic_term, grav_term
+        cdef double complex lame_2mu, lame_2mu_inverse, two_shear_r_inv, y1_y3_term
+        lame_2mu         = lame + 2. * self.shear_modulus
+        lame_2mu_inverse = 1. / lame_2mu
+        r_inverse        = 1. / radius
+        two_shear_r_inv  = 2. * self.shear_modulus * r_inverse
+        density_gravity  = self.density * self.gravity
+        dynamic_term     = -self.frequency * self.frequency * self.density * radius
+        grav_term        = self.grav_coeff * self.density
+        y1_y3_term       = 2. * y1 - self.llp1 * y3
+
+        # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
+        #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
+        # dy2 and dy4 contain all three of: dynamic, viscoelastic, and gravitational terms.
+        cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
+
+        dy1 = lame_2mu_inverse * (
+                y1_y3_term * -lame * r_inverse +
+                y2
+        )
+
+        dy2 = r_inverse * (
+                y1 * (dynamic_term - 2. * density_gravity) +
+                y2 * -2. +
+                y4 * self.llp1 +
+                y5 * self.density * self.lp1 +
+                y6 * -self.density * radius +
+                dy1 * 2. * lame +
+                y1_y3_term * (2. * (lame + self.shear_modulus) * r_inverse - density_gravity)
+        )
+
+        dy3 = \
+            y1 * -r_inverse + \
+            y3 * r_inverse + \
+            y4 * (1. / self.shear_modulus)
+
+        dy4 = r_inverse * (
+                y1 * (density_gravity + two_shear_r_inv) +
+                y3 * (dynamic_term - two_shear_r_inv) +
+                y4 * -3. +
+                y5 * -self.density +
+                dy1 * -lame +
+                y1_y3_term * -lame_2mu * r_inverse
+        )
+
+        dy5 = \
+            y1 * grav_term + \
+            y5 * -self.lp1 * r_inverse + \
+            y6
+
+        dy6 = r_inverse * (
+                y1 * grav_term * self.lm1 +
+                y6 * self.lm1 +
+                y1_y3_term * grav_term
+        )
+
+        # Convert back to floats
+        self.dy_new_view[0]  = dy1.real
+        self.dy_new_view[1]  = dy1.imag
+        self.dy_new_view[2]  = dy2.real
+        self.dy_new_view[3]  = dy2.imag
+        self.dy_new_view[4]  = dy3.real
+        self.dy_new_view[5]  = dy3.imag
+        self.dy_new_view[6]  = dy4.real
+        self.dy_new_view[7]  = dy4.imag
+        self.dy_new_view[8]  = dy5.real
+        self.dy_new_view[9]  = dy5.imag
+        self.dy_new_view[10] = dy6.real
+        self.dy_new_view[11] = dy6.imag
+
+
+cdef class SolidDynamicIncompressible(RadialSolverBase):
+
+    cdef void diffeq(self) noexcept nogil:
+        """
+
+        References
+        ----------
+        KMN15; B15; TS72
+        """
+
+        # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new)
 
-        # Call the correct differential equation
-        dy_solid_dynamic_compressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.shear, self.bulk, self.density, self.gravity, self.frequency,self.degree_l, self.G_to_use
-            )
+        # Pull out y values
+        cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
+        cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
+        y1_real = self.y_new_view[0]
+        y1_imag = self.y_new_view[1]
+        y2_real = self.y_new_view[2]
+        y2_imag = self.y_new_view[3]
+        y3_real = self.y_new_view[4]
+        y3_imag = self.y_new_view[5]
+        y4_real = self.y_new_view[6]
+        y4_imag = self.y_new_view[7]
+        y5_real = self.y_new_view[8]
+        y5_imag = self.y_new_view[9]
+        y6_real = self.y_new_view[10]
+        y6_imag = self.y_new_view[11]
+
+        # Convert floats to complex
+        cdef double complex y1, y2, y3, y4, y5, y6
+        y1 = y1_real + 1.0j * y1_imag
+        y2 = y2_real + 1.0j * y2_imag
+        y3 = y3_real + 1.0j * y3_imag
+        y4 = y4_real + 1.0j * y4_imag
+        y5 = y5_real + 1.0j * y5_imag
+        y6 = y6_real + 1.0j * y6_imag
+
+        # Optimizations
+        cdef double r_inverse, density_gravity, dynamic_term, grav_term
+        cdef double complex two_shear_r_inv, y1_y3_term
+        r_inverse       = 1. / radius
+        two_shear_r_inv = 2. * self.shear_modulus * r_inverse
+        density_gravity = self.density * self.gravity
+        dynamic_term    = -self.frequency * self.frequency * self.density * radius
+        grav_term       = self.grav_coeff * self.density
+        y1_y3_term      = 2. * y1 - self.llp1 * y3
+
+        # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
+        #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
+        # dy2 and dy4 contain all three of: dynamic, viscoelastic, and gravitational terms.
+        cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
+
+        dy1 = y1_y3_term * -1. * r_inverse
+
+        dy2 = r_inverse * (
+                y1 * (dynamic_term + 12. * self.shear_modulus * r_inverse - 4. * density_gravity) +
+                y3 * self.llp1 * (density_gravity - 6. * self.shear_modulus * r_inverse) +
+                y4 * self.llp1 +
+                y5 * self.density * self.lp1 +
+                y6 * -self.density * radius
+        )
+
+        dy3 = \
+            y1 * -r_inverse + \
+            y3 * r_inverse + \
+            y4 * (1. / self.shear_modulus)
+
+        dy4 = r_inverse * (
+                y1 * (density_gravity - 3. * two_shear_r_inv) +
+                y2 * -1. +
+                y3 * (dynamic_term + two_shear_r_inv * (2. * self.llp1 - 1.)) +
+                y4 * -3. +
+                y5 * -self.density
+        )
+
+        dy5 = \
+            y1 * grav_term + \
+            y5 * -self.lp1 * r_inverse + \
+            y6
+
+        dy6 = r_inverse * (
+                y1 * grav_term * self.lm1 +
+                y6 * self.lm1 +
+                y1_y3_term * grav_term
+        )
+
+        # Convert back to floats
+        self.dy_new_view[0]  = dy1.real
+        self.dy_new_view[1]  = dy1.imag
+        self.dy_new_view[2]  = dy2.real
+        self.dy_new_view[3]  = dy2.imag
+        self.dy_new_view[4]  = dy3.real
+        self.dy_new_view[5]  = dy3.imag
+        self.dy_new_view[6]  = dy4.real
+        self.dy_new_view[7]  = dy4.imag
+        self.dy_new_view[8]  = dy5.real
+        self.dy_new_view[9]  = dy5.imag
+        self.dy_new_view[10] = dy6.real
+        self.dy_new_view[11] = dy6.imag
 
 
-cdef class SolidDynamicIncompressible(BaseODE):
-    cdef void diffeq(self):
+cdef class SolidStaticCompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
         # Note that `t_new` is the current "radius" not time.
-
-        # Update interpolation
-        self.update_interp(self.t_new, update_bulk=False)
-
-        # Call the correct differential equation
-        dy_solid_dynamic_incompressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.shear, self.density, self.gravity, self.frequency, self.degree_l, self.G_to_use
-            )
-
-
-cdef class SolidStaticCompressible(BaseODE):
-    cdef void diffeq(self):
-        # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new)
 
-        # Call the correct differential equation
-        dy_solid_static_compressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.shear, self.bulk, self.density, self.gravity, self.degree_l, self.G_to_use
-            )
+        # Pull out y values
+        cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
+        cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
+
+        y1_real = self.y_new_view[0]
+        y1_imag = self.y_new_view[1]
+        y2_real = self.y_new_view[2]
+        y2_imag = self.y_new_view[3]
+        y3_real = self.y_new_view[4]
+        y3_imag = self.y_new_view[5]
+        y4_real = self.y_new_view[6]
+        y4_imag = self.y_new_view[7]
+        y5_real = self.y_new_view[8]
+        y5_imag = self.y_new_view[9]
+        y6_real = self.y_new_view[10]
+        y6_imag = self.y_new_view[11]
+
+        # Convert floats to complex
+        cdef double complex y1, y2, y3, y4, y5, y6
+
+        y1 = y1_real + 1.0j * y1_imag
+        y2 = y2_real + 1.0j * y2_imag
+        y3 = y3_real + 1.0j * y3_imag
+        y4 = y4_real + 1.0j * y4_imag
+        y5 = y5_real + 1.0j * y5_imag
+        y6 = y6_real + 1.0j * y6_imag
+
+        # Convert compressibility parameters (the first lame parameter can be complex)
+        cdef double complex lame
+        lame = (<double complex>self.bulk_modulus - (2. / 3.) * self.shear_modulus)
+
+        # Optimizations
+        cdef double r_inverse, density_gravity, grav_term
+        cdef double complex lame_2mu, lame_2mu_inverse, two_shear_r_inv, y1_y3_term
+
+        lame_2mu         = lame + 2. * self.shear_modulus
+        lame_2mu_inverse = 1. / lame_2mu
+        r_inverse        = 1. / radius
+        two_shear_r_inv  = 2. * self.shear_modulus * r_inverse
+        density_gravity  = self.density * self.gravity
+        grav_term        = self.grav_coeff * self.density
+        y1_y3_term       = 2. * y1 - self.llp1 * y3
+
+        # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
+        #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
+        # The static case just sets all frequency dependence in these equations to zero.
+        # dy2 and dy4 contain: viscoelastic, and gravitational terms.
+        cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
+
+        dy1 = lame_2mu_inverse * (
+                y1_y3_term * -lame * r_inverse +
+                y2
+        )
+
+        dy2 = r_inverse * (
+                y1 * -2. * density_gravity +
+                y2 * -2. +
+                y4 * self.llp1 +
+                y5 * self.density * self.lp1 +
+                y6 * -self.density * radius +
+                dy1 * 2. * lame +
+                y1_y3_term * (2. * (lame + self.shear_modulus) * r_inverse - density_gravity)
+        )
+
+        dy3 = \
+            y1 * -r_inverse + \
+            y3 * r_inverse + \
+            y4 * (1. / self.shear_modulus)
+
+        dy4 = r_inverse * (
+                y1 * (density_gravity + two_shear_r_inv) +
+                y3 * -two_shear_r_inv +
+                y4 * -3. +
+                y5 * -self.density +
+                dy1 * -lame +
+                y1_y3_term * -lame_2mu * r_inverse
+        )
+
+        dy5 = \
+            y1 * grav_term + \
+            y5 * -self.lp1 * r_inverse + \
+            y6
+
+        dy6 = r_inverse * (
+                y1 * grav_term * self.lm1 +
+                y6 * self.lm1 +
+                y1_y3_term * grav_term
+        )
+
+        # Convert back to floats
+        self.dy_new_view[0]  = dy1.real
+        self.dy_new_view[1]  = dy1.imag
+        self.dy_new_view[2]  = dy2.real
+        self.dy_new_view[3]  = dy2.imag
+        self.dy_new_view[4]  = dy3.real
+        self.dy_new_view[5]  = dy3.imag
+        self.dy_new_view[6]  = dy4.real
+        self.dy_new_view[7]  = dy4.imag
+        self.dy_new_view[8]  = dy5.real
+        self.dy_new_view[9]  = dy5.imag
+        self.dy_new_view[10] = dy6.real
+        self.dy_new_view[11] = dy6.imag
 
 
-cdef class SolidStaticIncompressible(BaseODE):
-    cdef void diffeq(self):
+cdef class SolidStaticIncompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
         # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new, update_bulk=False)
 
-        # Call the correct differential equation
-        dy_solid_static_incompressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.shear, self.density, self.gravity, self.degree_l, self.G_to_use
-            )
+        # Pull out y values
+        cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
+        cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
+
+        y1_real = self.y_new_view[0]
+        y1_imag = self.y_new_view[1]
+        y2_real = self.y_new_view[2]
+        y2_imag = self.y_new_view[3]
+        y3_real = self.y_new_view[4]
+        y3_imag = self.y_new_view[5]
+        y4_real = self.y_new_view[6]
+        y4_imag = self.y_new_view[7]
+        y5_real = self.y_new_view[8]
+        y5_imag = self.y_new_view[9]
+        y6_real = self.y_new_view[10]
+        y6_imag = self.y_new_view[11]
+
+        # Convert floats to complex
+        cdef double complex y1, y2, y3, y4, y5, y6
+
+        y1 = y1_real + 1.0j * y1_imag
+        y2 = y2_real + 1.0j * y2_imag
+        y3 = y3_real + 1.0j * y3_imag
+        y4 = y4_real + 1.0j * y4_imag
+        y5 = y5_real + 1.0j * y5_imag
+        y6 = y6_real + 1.0j * y6_imag
+
+        # Optimizations
+        cdef double r_inverse, density_gravity, grav_term
+        cdef double complex two_shear_r_inv, y1_y3_term
+
+        r_inverse = 1. / radius
+        two_shear_r_inv = 2. * self.shear_modulus * r_inverse
+        density_gravity = self.density * self.gravity
+        grav_term = self.grav_coeff * self.density
+        y1_y3_term = 2. * y1 - self.llp1 * y3
+
+        cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
+
+        dy1 = y1_y3_term * -1. * r_inverse
+
+        dy2 = r_inverse * (
+                y1 * (12. * self.shear_modulus * r_inverse - 4. * density_gravity) +
+                y3 * self.llp1 * (density_gravity - 6. * self.shear_modulus * r_inverse) +
+                y4 * self.llp1 +
+                y5 * self.density * self.lp1 +
+                y6 * -self.density * radius
+        )
+
+        dy3 = \
+            y1 * -r_inverse + \
+            y3 * r_inverse + \
+            y4 * (1. / self.shear_modulus)
+
+        dy4 = r_inverse * (
+                y1 * (density_gravity - 3. * two_shear_r_inv) +
+                y2 * -1. +
+                y3 * (two_shear_r_inv * (2. * self.llp1 - 1.)) +
+                y4 * -3. +
+                y5 * -self.density
+        )
+
+        dy5 = \
+            y1 * grav_term + \
+            y5 * -self.lp1 * r_inverse + \
+            y6
+
+        dy6 = r_inverse * (
+                y1 * grav_term * self.lm1 +
+                y6 * self.lm1 +
+                y1_y3_term * grav_term
+        )
+
+        # Convert back to floats
+        self.dy_new_view[0]  = dy1.real
+        self.dy_new_view[1]  = dy1.imag
+        self.dy_new_view[2]  = dy2.real
+        self.dy_new_view[3]  = dy2.imag
+        self.dy_new_view[4]  = dy3.real
+        self.dy_new_view[5]  = dy3.imag
+        self.dy_new_view[6]  = dy4.real
+        self.dy_new_view[7]  = dy4.imag
+        self.dy_new_view[8]  = dy5.real
+        self.dy_new_view[9]  = dy5.imag
+        self.dy_new_view[10] = dy6.real
+        self.dy_new_view[11] = dy6.imag
 
 
-cdef class LiquidDynamicCompressible(BaseODE):
-    cdef void diffeq(self):
+cdef class LiquidDynamicCompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
         # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new, update_bulk=True, update_shear=False)
 
-        # Call the correct differential equation
-        dy_liquid_dynamic_compressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.bulk, self.density, self.gravity, self.frequency, self.degree_l, self.G_to_use
-            )
+        # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
+        # Pull out y values
+        cdef double y1_real, y2_real, y5_real, y6_real
+        cdef double y1_imag, y2_imag, y5_imag, y6_imag
+
+        y1_real = self.y_new_view[0]
+        y1_imag = self.y_new_view[1]
+        y2_real = self.y_new_view[2]
+        y2_imag = self.y_new_view[3]
+        y5_real = self.y_new_view[4]
+        y5_imag = self.y_new_view[5]
+        y6_real = self.y_new_view[6]
+        y6_imag = self.y_new_view[7]
+
+        # Convert floats to complex
+        cdef double complex y1, y2, y5, y6
+
+        y1 = y1_real + 1.0j * y1_imag
+        y2 = y2_real + 1.0j * y2_imag
+        y5 = y5_real + 1.0j * y5_imag
+        y6 = y6_real + 1.0j * y6_imag
+
+        # Optimizations
+        cdef double r_inverse, density_gravity, f2, dynamic_term, dynamic_term_no_r, grav_term
+
+        r_inverse         = 1. / radius
+        density_gravity   = self.density * self.gravity
+        f2                = self.frequency * self.frequency
+        dynamic_term_no_r = -f2 * self.density
+        dynamic_term      = dynamic_term_no_r * radius
+        grav_term         = self.grav_coeff * self.density
+
+        # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
+        if dynamic_term < EPS_100:
+            # TODO: is faking this okay?
+            dynamic_term = EPS_100
+
+        # Until bulk dissipation is considered, lame_inverse will always be real-valued for a liquid layer.
+        cdef double lame_inverse
+
+        # For the liquid layer it is assumed that the shear modulus is zero so the lame parameter simply
+        #    equals the bulk modulus. Until bulk dissipation is considered, it will always be real-valued
+        lame_inverse = 1. / self.bulk_modulus
+
+        # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
+        #   other derivatives.
+        y3 = (1. / dynamic_term) * (y2 - density_gravity * y1 + self.density * y5)
+        y1_y3_term = 2. * y1 - self.llp1 * y3
+
+        # Eqs. 11--14 in KMN15 equations look like they don't match TS72 because they applied the rheology already.
+        #    and substituted y3.
+        # We will use TS72 eq. 87 to allow for a generic rheology and bulk dissipation.
+        # dy2 contain all three of: dynamic, viscoelastic, and gravitational terms.
+        cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
+
+        dy1 = \
+            y2 * lame_inverse - \
+            y1_y3_term * r_inverse
+
+        # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
+        #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
+        dy2 = \
+            y1 * (dynamic_term_no_r - 2. * density_gravity * r_inverse) + \
+            y5 * self.density * self.lp1 * r_inverse - \
+            y6 * self.density - \
+            y1_y3_term * density_gravity * r_inverse
+
+        dy5 = \
+            y1 * grav_term - \
+            y5 * self.lp1 * r_inverse + \
+            y6
+
+        dy6 = r_inverse * (
+                self.lm1 * (y1 * grav_term + y6) +
+                y1_y3_term * grav_term
+        )
+
+        # Convert back to floats
+        self.dy_new_view[0] = dy1.real
+        self.dy_new_view[1] = dy1.imag
+        self.dy_new_view[2] = dy2.real
+        self.dy_new_view[3] = dy2.imag
+        self.dy_new_view[4] = dy5.real
+        self.dy_new_view[5] = dy5.imag
+        self.dy_new_view[6] = dy6.real
+        self.dy_new_view[7] = dy6.imag
 
 
-cdef class LiquidDynamicIncompressible(BaseODE):
-    cdef void diffeq(self):
+cdef class LiquidDynamicIncompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
         # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new, update_bulk=False, update_shear=False)
 
-        # Call the correct differential equation
-        dy_liquid_dynamic_incompressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.density, self.gravity, self.frequency, self.degree_l, self.G_to_use
-            )
+        # Pull out y values
+        cdef double y1_real, y2_real, y5_real, y6_real
+        cdef double y1_imag, y2_imag, y5_imag, y6_imag
+
+        y1_real = self.y_new_view[0]
+        y1_imag = self.y_new_view[1]
+        y2_real = self.y_new_view[2]
+        y2_imag = self.y_new_view[3]
+        y5_real = self.y_new_view[4]
+        y5_imag = self.y_new_view[5]
+        y6_real = self.y_new_view[6]
+        y6_imag = self.y_new_view[7]
+
+        # Convert floats to complex
+        cdef double complex y1, y2, y5, y6
+
+        y1 = y1_real + 1.0j * y1_imag
+        y2 = y2_real + 1.0j * y2_imag
+        y5 = y5_real + 1.0j * y5_imag
+        y6 = y6_real + 1.0j * y6_imag
+
+        # Optimizations
+        cdef double r_inverse, density_gravity, dynamic_term, grav_term
+
+        r_inverse = 1. / radius
+        density_gravity = self.density * self.gravity
+        dynamic_term = -self.frequency * self.frequency * self.density * radius
+        grav_term = self.grav_coeff * self.density
+
+        # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
+        if dynamic_term < EPS_100:
+            # TODO: is faking this okay?
+            dynamic_term = EPS_100
+
+        # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
+        #   other derivatives.
+        cdef double complex y3, y1_y3_term
+        y3 = (1. / dynamic_term) * (y2 + self.density * y5 - density_gravity * y1)
+        y1_y3_term = 2. * y1 - self.llp1 * y3
+
+        cdef double complex dy1, dy2, dy5, dy6
+
+        dy1 = y1_y3_term * -r_inverse
+
+        dy2 = r_inverse * (
+                y1 * (dynamic_term - 2. * density_gravity) +
+                y5 * self.density * self.lp1 +
+                y6 * -self.density * radius +
+                # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
+                #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
+                y1_y3_term * -density_gravity
+        )
+
+        dy5 = \
+            y1 * grav_term + \
+            y5 * -self.lp1 * r_inverse + \
+            y6
+
+        dy6 = r_inverse * (
+                y1 * grav_term * self.lm1 +
+                y6 * self.lm1 +
+                y1_y3_term * grav_term
+        )
+
+        # Convert back to floats
+        self.dy_new_view[0] = dy1.real
+        self.dy_new_view[1] = dy1.imag
+        self.dy_new_view[2] = dy2.real
+        self.dy_new_view[3] = dy2.imag
+        self.dy_new_view[4] = dy5.real
+        self.dy_new_view[5] = dy5.imag
+        self.dy_new_view[6] = dy6.real
+        self.dy_new_view[7] = dy6.imag
 
 
-cdef class LiquidStaticCompressible(BaseODE):
-    cdef void diffeq(self):
+cdef class LiquidStaticCompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
         # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new, update_bulk=False, update_shear=False)
 
-        # Call the correct differential equation
-        dy_liquid_static_compressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.density, self.gravity, self.degree_l, self.G_to_use
-            )
+        # Pull out y values
+        cdef double y5_real, y5_imag
+        cdef double y7_real, y7_imag
+
+        # For the static liquid version, only y5 and y7 are defined.
+        y5_real = self.y_new_view[0]
+        y5_imag = self.y_new_view[1]
+        y7_real = self.y_new_view[2]
+        y7_imag = self.y_new_view[3]
+
+        # Convert floats to complex
+        cdef double complex y5, y7
+
+        y5 = y5_real + 1.0j * y5_imag
+        y7 = y7_real + 1.0j * y7_imag
+
+        # Optimizations
+        cdef double r_inverse, grav_term
+
+        r_inverse = 1. / radius
+        grav_term = self.grav_coeff * self.density / self.gravity
+
+        # See Eq. 18 in S75
+        cdef double complex dy5, dy7
+
+        dy5 = \
+            y5 * (grav_term - self.lp1 * r_inverse) + \
+            y7
+
+        dy7 = \
+            y5 * 2. * self.lm1 * r_inverse * grav_term + \
+            y7 * (self.lm1 * r_inverse - grav_term)
+
+        # Convert back to floats
+        self.dy_new_view[0] = dy5.real
+        self.dy_new_view[1] = dy5.imag
+        self.dy_new_view[2] = dy7.real
+        self.dy_new_view[3] = dy7.imag
 
 
-cdef class LiquidStaticIncompressible(BaseODE):
-    cdef void diffeq(self):
+cdef class LiquidStaticIncompressible(RadialSolverBase):
+    cdef void diffeq(self) noexcept nogil:
         # Note that `t_new` is the current "radius" not time.
+        cdef double radius
+        radius = self.t_new
 
         # Update interpolation
         self.update_interp(self.t_new, update_bulk=False, update_shear=False)
 
-        # Call the correct differential equation
-        dy_liquid_static_incompressible_x(
-            self.t_new, self.y_new_view, self.dy_new_view,
-            self.density, self.gravity, self.degree_l, self.G_to_use
-            )
+        # Pull out y values
+        cdef double y5_real, y5_imag
+        cdef double y7_real, y7_imag
+
+        # For the static liquid version, only y5 and y7 are defined.
+        y5_real = self.y_new_view[0]
+        y5_imag = self.y_new_view[1]
+        y7_real = self.y_new_view[2]
+        y7_imag = self.y_new_view[3]
+
+        # Convert floats to complex
+        cdef double complex y5, y7
+
+        y5 = y5_real + 1.0j * y5_imag
+        y7 = y7_real + 1.0j * y7_imag
+
+        # Optimizations
+        cdef double r_inverse, grav_term
+
+        r_inverse = 1. / radius
+        grav_term = self.grav_coeff * self.density / self.gravity
+
+        # See Eq. 18 in S75
+        cdef double complex dy5, dy7
+
+        dy5 = \
+            y5 * (grav_term - self.lp1 * r_inverse) + \
+            y7
+
+        dy7 = \
+            y5 * 2. * self.lm1 * r_inverse * grav_term + \
+            y7 * (self.lm1 * r_inverse - grav_term)
+
+        # Convert back to floats
+        self.dy_new_view[0] = dy5.real
+        self.dy_new_view[1] = dy5.imag
+        self.dy_new_view[2] = dy7.real
+        self.dy_new_view[3] = dy7.imag
