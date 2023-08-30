@@ -28,4 +28,4 @@ cdef class RadialSolverBase(CySolver):
     cdef double gravity
 
     # Class methods
-    cdef void update_interp(self, double radius, bool_cpp_t update_bulk = *, bool_cpp_t update_shear = *) noexcept nogil
+    cdef void update_interp(self, bool_cpp_t update_bulk, bool_cpp_t update_shear) noexcept nogil

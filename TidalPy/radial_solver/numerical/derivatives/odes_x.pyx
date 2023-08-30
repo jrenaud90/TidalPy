@@ -24,7 +24,7 @@ cdef class SolidDynamicCompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(radius)
+        self.update_interp(update_bulk=True, update_shear=True)
 
         # Pull out y values
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
@@ -142,7 +142,7 @@ cdef class SolidDynamicIncompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new)
+        self.update_interp(update_bulk=True, update_shear=True)
 
         # Pull out y values
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
@@ -240,7 +240,7 @@ cdef class SolidStaticCompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new)
+        self.update_interp(update_bulk=True, update_shear=True)
 
         # Pull out y values
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
@@ -353,7 +353,7 @@ cdef class SolidStaticIncompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new, update_bulk=False)
+        self.update_interp(update_bulk=False, update_shear=True)
 
         # Pull out y values
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
@@ -450,7 +450,7 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new, update_bulk=True, update_shear=False)
+        self.update_interp(update_bulk=True, update_shear=False)
 
         # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
         # Pull out y values
@@ -529,6 +529,13 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
                 y1_y3_term * grav_term
         )
 
+        if self.len_t % 10 == 0:
+            with gil:
+                print('\n\n')
+                print(radius)
+                print(dy1, dy2)
+                print(dy5, dy6)
+
         # Convert back to floats
         self.dy_new_view[0] = dy1.real
         self.dy_new_view[1] = dy1.imag
@@ -547,7 +554,7 @@ cdef class LiquidDynamicIncompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new, update_bulk=False, update_shear=False)
+        self.update_interp(update_bulk=False, update_shear=False)
 
         # Pull out y values
         cdef double y1_real, y2_real, y5_real, y6_real
@@ -631,7 +638,7 @@ cdef class LiquidStaticCompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new, update_bulk=False, update_shear=False)
+        self.update_interp(update_bulk=False, update_shear=False)
 
         # Pull out y values
         cdef double y5_real, y5_imag
@@ -680,7 +687,7 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
         radius = self.t_new
 
         # Update interpolation
-        self.update_interp(self.t_new, update_bulk=False, update_shear=False)
+        self.update_interp(update_bulk=False, update_shear=False)
 
         # Pull out y values
         cdef double y5_real, y5_imag

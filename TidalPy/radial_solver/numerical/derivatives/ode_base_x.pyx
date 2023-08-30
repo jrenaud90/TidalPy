@@ -15,7 +15,6 @@ cdef double EPS = np.finfo(np.float64).eps
 cdef double EPS_10 = EPS * 10.
 cdef double EPS_100 = EPS * 100.
 
-
 cdef class RadialSolverBase(CySolver):
     def __init__(
             self,
@@ -109,12 +108,7 @@ cdef class RadialSolverBase(CySolver):
         self.lm1  = degree_l_flt - 1.
         self.llp1 = degree_l_flt * self.lp1
 
-    cdef void update_interp(
-            self,
-            double radius,
-            bool_cpp_t update_bulk = True,
-            bool_cpp_t update_shear = True
-            ) noexcept nogil:
+    cdef void update_interp(self, bool_cpp_t update_bulk, bool_cpp_t update_shear) noexcept nogil:
 
         # Set state variables based on an interpolation using the provided radius.
         cdef (double, Py_ssize_t) interp_out
@@ -122,12 +116,12 @@ cdef class RadialSolverBase(CySolver):
 
         # The first interpolation will be the slowest as it must find the closest index.
         # We will use this index in the other interpolations.
-        interp_out = interpj(radius, self.radius_view, self.density_view)
+        interp_out = interpj(self.t_new, self.radius_view, self.density_view)
         self.density = interp_out[0]
         index_j      = interp_out[1]
 
-        self.gravity = interp(radius, self.radius_view, self.gravity_view, provided_j=index_j)
+        self.gravity = interp(self.t_new, self.radius_view, self.gravity_view, provided_j=index_j)
         if update_bulk:
-            self.bulk_modulus = interp(radius, self.radius_view, self.bulk_modulus_view, provided_j=index_j)
+            self.bulk_modulus = interp(self.t_new, self.radius_view, self.bulk_modulus_view, provided_j=index_j)
         if update_shear:
-            self.shear_modulus = interp_complex(radius, self.radius_view, self.shear_modulus_view, provided_j=index_j)
+            self.shear_modulus = interp_complex(self.t_new, self.radius_view, self.shear_modulus_view, provided_j=index_j)
