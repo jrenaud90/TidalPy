@@ -27,7 +27,7 @@ cdef class RadialSolverBase(CySolver):
             (double, double) t_span,
             const double[::1] y0,
             tuple args = None,
-            double rtol = 1.e-3,
+            double rtol = 1.e-4,
             double atol = 1.e-6,
             double[::1] rtols = None,
             double[::1] atols = None,

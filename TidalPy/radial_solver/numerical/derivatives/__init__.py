@@ -84,3 +84,75 @@ def find_ode(is_solid: bool, is_static: bool, is_incompressible: bool,
                                     order_l, G_to_use, is_incompressible)
     
     return ode, additional_arg_tuple
+
+from TidalPy.radial_solver.numerical.derivatives.odes_x import (
+    SolidDynamicCompressible,
+    SolidDynamicIncompressible,
+    SolidStaticCompressible,
+    SolidStaticIncompressible,
+    LiquidDynamicCompressible,
+    LiquidDynamicIncompressible,
+    LiquidStaticCompressible,
+    LiquidStaticIncompressible
+    )
+
+from typing import Union, Tuple
+
+RadialSolverClass = Union[
+    SolidDynamicCompressible,
+    SolidDynamicIncompressible,
+    SolidStaticCompressible,
+    SolidStaticIncompressible,
+    LiquidDynamicCompressible,
+    LiquidDynamicIncompressible,
+    LiquidStaticCompressible,
+    LiquidStaticIncompressible
+]
+
+
+def get_radial_solver_class(is_solid: bool, is_static: bool, is_incompressible: bool) -> Tuple[int, RadialSolverClass]:
+    """
+    Get the correct radial solver cython extension type based on layer's assumptions.
+
+    This function also provides the number of y-values that are expected given the assumptions.
+
+    Parameters
+    ----------
+    is_solid : bool
+        Is the layer solid or liquid.
+    is_static : bool
+        Is the layer static or dynamic.
+    is_incompressible : bool
+        Is the layer incompressible or compressible.
+
+    Returns
+    -------
+    num_y : int
+        Number of dependent y values (real + imaginary) needed for these assumptions.
+    radial_solver_class : RadialSolverClass
+        The cython solver given these assumptions.
+
+    """
+
+    if is_solid:
+        if is_static:
+            if is_incompressible:
+                return (12, SolidStaticIncompressible)
+            else:
+                return (12, SolidStaticCompressible)
+        else:
+            if is_incompressible:
+                return (12, SolidDynamicIncompressible)
+            else:
+                return (12, SolidDynamicCompressible)
+    else:
+        if is_static:
+            if is_incompressible:
+                return (4, LiquidStaticIncompressible)
+            else:
+                return (4, LiquidStaticCompressible)
+        else:
+            if is_incompressible:
+                return (8, LiquidDynamicIncompressible)
+            else:
+                return (8, LiquidDynamicCompressible)

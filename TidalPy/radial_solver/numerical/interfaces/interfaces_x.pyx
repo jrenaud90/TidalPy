@@ -15,12 +15,15 @@ import cython
 from scipy.constants import G as G_
 
 from libc.math cimport pi
-from libcpp cimport bool as bool_cpp_t
 
 cdef double G
 G = G_
 
-cpdef unsigned short find_solution_num(bool_cpp_t is_solid, bool_cpp_t is_static, bool_cpp_t is_compressible) nogil:
+cpdef Py_ssize_t find_solution_num(
+        bool_cpp_t is_solid,
+        bool_cpp_t is_static,
+        bool_cpp_t is_incompressible
+        ) noexcept nogil:
     """ Determine number of solutions required for layer based on assumptions.
     
     Parameters
@@ -29,8 +32,8 @@ cpdef unsigned short find_solution_num(bool_cpp_t is_solid, bool_cpp_t is_static
         Layer is solid (True) or liquid (False).
     is_static : bool
         Use static (True) or dynamic (False) assumption.
-    is_compressible : bool
-        Use compressible (True) or incompressible (False) assumption.
+    is_incompressible : bool
+        Use incompressible (True) or compressible (False) assumption.
 
     Returns
     -------
@@ -40,47 +43,54 @@ cpdef unsigned short find_solution_num(bool_cpp_t is_solid, bool_cpp_t is_static
     """
 
     # Initialize
-    cdef unsigned short num_sols
+    cdef Py_ssize_t num_sols
     num_sols = 0
 
     if is_solid:
         if is_static:
-            if is_compressible:
+            if is_incompressible:
+                # TODO: Confirm
                 num_sols = 3
             else:
-                # TODO: Confirm
                 num_sols = 3
         else:
             # Dynamic
-            if is_compressible:
+            if is_incompressible:
+                # TODO: Confirm
                 num_sols = 3
             else:
-                # TODO: Confirm
                 num_sols = 3
     else:
         # Liquid
         if is_static:
-            if is_compressible:
+            if is_incompressible:
+                # TODO: Confirm
                 num_sols = 1
             else:
-                # TODO: Confirm
                 num_sols = 1
         else:
             # Dynamic
-            if is_compressible:
+            if is_incompressible:
+                # TODO: Confirm
                 num_sols = 2
             else:
-                # TODO: Confirm
                 num_sols = 2
     return num_sols
 
 
 cpdef void interface_x(
-        double complex[:, :] lower_layer_y, double complex[:, :] upper_layer_y,
-        bool_cpp_t lower_is_solid, bool_cpp_t lower_is_static, bool_cpp_t lower_is_compressible,
-        bool_cpp_t upper_is_solid, bool_cpp_t upper_is_static, bool_cpp_t upper_is_compressible,
-        double interface_gravity, double liquid_density, double G_to_use = G
-        ) nogil:
+        double complex[:, :] lower_layer_y,
+        double complex[:, :] upper_layer_y,
+        bool_cpp_t lower_is_solid,
+        bool_cpp_t lower_is_static,
+        bool_cpp_t lower_is_incompressible,
+        bool_cpp_t upper_is_solid,
+        bool_cpp_t upper_is_static,
+        bool_cpp_t upper_is_incompressible,
+        double interface_gravity,
+        double liquid_density,
+        double G_to_use = G
+        ) noexcept nogil:
 
     cdef Py_ssize_t yi_lower, yi_upper, soli_lower, soli_upper
     cdef Py_ssize_t num_sols_lower, num_sols_upper, num_y_lower, num_y_upper
@@ -102,10 +112,10 @@ cpdef void interface_x(
     dynamic_dynamic = not lower_is_static and not upper_is_static
 
     cdef bool_cpp_t compress_compress, compress_incompress, incompress_compress, incompress_incompress
-    compress_compress     = lower_is_compressible and upper_is_compressible
-    compress_incompress   = lower_is_compressible and not upper_is_compressible
-    incompress_compress   = not lower_is_compressible and upper_is_compressible
-    incompress_incompress = not lower_is_compressible and not upper_is_compressible
+    compress_compress     = not lower_is_incompressible and not upper_is_incompressible
+    compress_incompress   = not lower_is_incompressible and upper_is_incompressible
+    incompress_compress   = lower_is_incompressible and not upper_is_incompressible
+    incompress_incompress = lower_is_incompressible and upper_is_incompressible
     # TODO: Compressibility is not currently taken into account. This needs to be checked asap!
 
     # Other constants that may be needed
