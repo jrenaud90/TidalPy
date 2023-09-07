@@ -19,9 +19,9 @@ cdef class SolidDynamicCompressible(RadialSolverBase):
         KMN15; B15; TS72
         """
 
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=True, update_shear=True)
@@ -29,18 +29,18 @@ cdef class SolidDynamicCompressible(RadialSolverBase):
         # Pull out y values
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
         cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
-        y1_real = self.y_new_view[0]
-        y1_imag = self.y_new_view[1]
-        y2_real = self.y_new_view[2]
-        y2_imag = self.y_new_view[3]
-        y3_real = self.y_new_view[4]
-        y3_imag = self.y_new_view[5]
-        y4_real = self.y_new_view[6]
-        y4_imag = self.y_new_view[7]
-        y5_real = self.y_new_view[8]
-        y5_imag = self.y_new_view[9]
-        y6_real = self.y_new_view[10]
-        y6_imag = self.y_new_view[11]
+        y1_real = self.y_ptr[0]
+        y1_imag = self.y_ptr[1]
+        y2_real = self.y_ptr[2]
+        y2_imag = self.y_ptr[3]
+        y3_real = self.y_ptr[4]
+        y3_imag = self.y_ptr[5]
+        y4_real = self.y_ptr[6]
+        y4_imag = self.y_ptr[7]
+        y5_real = self.y_ptr[8]
+        y5_imag = self.y_ptr[9]
+        y6_real = self.y_ptr[10]
+        y6_imag = self.y_ptr[11]
 
         # Convert floats to complex
         cdef double complex y1, y2, y3, y4, y5, y6
@@ -113,18 +113,18 @@ cdef class SolidDynamicCompressible(RadialSolverBase):
         )
 
         # Convert back to floats
-        self.dy_new_view[0]  = dy1.real
-        self.dy_new_view[1]  = dy1.imag
-        self.dy_new_view[2]  = dy2.real
-        self.dy_new_view[3]  = dy2.imag
-        self.dy_new_view[4]  = dy3.real
-        self.dy_new_view[5]  = dy3.imag
-        self.dy_new_view[6]  = dy4.real
-        self.dy_new_view[7]  = dy4.imag
-        self.dy_new_view[8]  = dy5.real
-        self.dy_new_view[9]  = dy5.imag
-        self.dy_new_view[10] = dy6.real
-        self.dy_new_view[11] = dy6.imag
+        self.dy_ptr[0]  = dy1.real
+        self.dy_ptr[1]  = dy1.imag
+        self.dy_ptr[2]  = dy2.real
+        self.dy_ptr[3]  = dy2.imag
+        self.dy_ptr[4]  = dy3.real
+        self.dy_ptr[5]  = dy3.imag
+        self.dy_ptr[6]  = dy4.real
+        self.dy_ptr[7]  = dy4.imag
+        self.dy_ptr[8]  = dy5.real
+        self.dy_ptr[9]  = dy5.imag
+        self.dy_ptr[10] = dy6.real
+        self.dy_ptr[11] = dy6.imag
 
 
 cdef class SolidDynamicIncompressible(RadialSolverBase):
@@ -137,9 +137,9 @@ cdef class SolidDynamicIncompressible(RadialSolverBase):
         KMN15; B15; TS72
         """
 
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=True, update_shear=True)
@@ -147,18 +147,18 @@ cdef class SolidDynamicIncompressible(RadialSolverBase):
         # Pull out y values
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
         cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
-        y1_real = self.y_new_view[0]
-        y1_imag = self.y_new_view[1]
-        y2_real = self.y_new_view[2]
-        y2_imag = self.y_new_view[3]
-        y3_real = self.y_new_view[4]
-        y3_imag = self.y_new_view[5]
-        y4_real = self.y_new_view[6]
-        y4_imag = self.y_new_view[7]
-        y5_real = self.y_new_view[8]
-        y5_imag = self.y_new_view[9]
-        y6_real = self.y_new_view[10]
-        y6_imag = self.y_new_view[11]
+        y1_real = self.y_ptr[0]
+        y1_imag = self.y_ptr[1]
+        y2_real = self.y_ptr[2]
+        y2_imag = self.y_ptr[3]
+        y3_real = self.y_ptr[4]
+        y3_imag = self.y_ptr[5]
+        y4_real = self.y_ptr[6]
+        y4_imag = self.y_ptr[7]
+        y5_real = self.y_ptr[8]
+        y5_imag = self.y_ptr[9]
+        y6_real = self.y_ptr[10]
+        y6_imag = self.y_ptr[11]
 
         # Convert floats to complex
         cdef double complex y1, y2, y3, y4, y5, y6
@@ -219,25 +219,25 @@ cdef class SolidDynamicIncompressible(RadialSolverBase):
         )
 
         # Convert back to floats
-        self.dy_new_view[0]  = dy1.real
-        self.dy_new_view[1]  = dy1.imag
-        self.dy_new_view[2]  = dy2.real
-        self.dy_new_view[3]  = dy2.imag
-        self.dy_new_view[4]  = dy3.real
-        self.dy_new_view[5]  = dy3.imag
-        self.dy_new_view[6]  = dy4.real
-        self.dy_new_view[7]  = dy4.imag
-        self.dy_new_view[8]  = dy5.real
-        self.dy_new_view[9]  = dy5.imag
-        self.dy_new_view[10] = dy6.real
-        self.dy_new_view[11] = dy6.imag
+        self.dy_ptr[0]  = dy1.real
+        self.dy_ptr[1]  = dy1.imag
+        self.dy_ptr[2]  = dy2.real
+        self.dy_ptr[3]  = dy2.imag
+        self.dy_ptr[4]  = dy3.real
+        self.dy_ptr[5]  = dy3.imag
+        self.dy_ptr[6]  = dy4.real
+        self.dy_ptr[7]  = dy4.imag
+        self.dy_ptr[8]  = dy5.real
+        self.dy_ptr[9]  = dy5.imag
+        self.dy_ptr[10] = dy6.real
+        self.dy_ptr[11] = dy6.imag
 
 
 cdef class SolidStaticCompressible(RadialSolverBase):
     cdef void diffeq(self) noexcept nogil:
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=True, update_shear=True)
@@ -246,18 +246,18 @@ cdef class SolidStaticCompressible(RadialSolverBase):
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
         cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
 
-        y1_real = self.y_new_view[0]
-        y1_imag = self.y_new_view[1]
-        y2_real = self.y_new_view[2]
-        y2_imag = self.y_new_view[3]
-        y3_real = self.y_new_view[4]
-        y3_imag = self.y_new_view[5]
-        y4_real = self.y_new_view[6]
-        y4_imag = self.y_new_view[7]
-        y5_real = self.y_new_view[8]
-        y5_imag = self.y_new_view[9]
-        y6_real = self.y_new_view[10]
-        y6_imag = self.y_new_view[11]
+        y1_real = self.y_ptr[0]
+        y1_imag = self.y_ptr[1]
+        y2_real = self.y_ptr[2]
+        y2_imag = self.y_ptr[3]
+        y3_real = self.y_ptr[4]
+        y3_imag = self.y_ptr[5]
+        y4_real = self.y_ptr[6]
+        y4_imag = self.y_ptr[7]
+        y5_real = self.y_ptr[8]
+        y5_imag = self.y_ptr[9]
+        y6_real = self.y_ptr[10]
+        y6_imag = self.y_ptr[11]
 
         # Convert floats to complex
         cdef double complex y1, y2, y3, y4, y5, y6
@@ -332,25 +332,25 @@ cdef class SolidStaticCompressible(RadialSolverBase):
         )
 
         # Convert back to floats
-        self.dy_new_view[0]  = dy1.real
-        self.dy_new_view[1]  = dy1.imag
-        self.dy_new_view[2]  = dy2.real
-        self.dy_new_view[3]  = dy2.imag
-        self.dy_new_view[4]  = dy3.real
-        self.dy_new_view[5]  = dy3.imag
-        self.dy_new_view[6]  = dy4.real
-        self.dy_new_view[7]  = dy4.imag
-        self.dy_new_view[8]  = dy5.real
-        self.dy_new_view[9]  = dy5.imag
-        self.dy_new_view[10] = dy6.real
-        self.dy_new_view[11] = dy6.imag
+        self.dy_ptr[0]  = dy1.real
+        self.dy_ptr[1]  = dy1.imag
+        self.dy_ptr[2]  = dy2.real
+        self.dy_ptr[3]  = dy2.imag
+        self.dy_ptr[4]  = dy3.real
+        self.dy_ptr[5]  = dy3.imag
+        self.dy_ptr[6]  = dy4.real
+        self.dy_ptr[7]  = dy4.imag
+        self.dy_ptr[8]  = dy5.real
+        self.dy_ptr[9]  = dy5.imag
+        self.dy_ptr[10] = dy6.real
+        self.dy_ptr[11] = dy6.imag
 
 
 cdef class SolidStaticIncompressible(RadialSolverBase):
     cdef void diffeq(self) noexcept nogil:
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=False, update_shear=True)
@@ -359,18 +359,18 @@ cdef class SolidStaticIncompressible(RadialSolverBase):
         cdef double y1_real, y2_real, y3_real, y4_real, y5_real, y6_real
         cdef double y1_imag, y2_imag, y3_imag, y4_imag, y5_imag, y6_imag
 
-        y1_real = self.y_new_view[0]
-        y1_imag = self.y_new_view[1]
-        y2_real = self.y_new_view[2]
-        y2_imag = self.y_new_view[3]
-        y3_real = self.y_new_view[4]
-        y3_imag = self.y_new_view[5]
-        y4_real = self.y_new_view[6]
-        y4_imag = self.y_new_view[7]
-        y5_real = self.y_new_view[8]
-        y5_imag = self.y_new_view[9]
-        y6_real = self.y_new_view[10]
-        y6_imag = self.y_new_view[11]
+        y1_real = self.y_ptr[0]
+        y1_imag = self.y_ptr[1]
+        y2_real = self.y_ptr[2]
+        y2_imag = self.y_ptr[3]
+        y3_real = self.y_ptr[4]
+        y3_imag = self.y_ptr[5]
+        y4_real = self.y_ptr[6]
+        y4_imag = self.y_ptr[7]
+        y5_real = self.y_ptr[8]
+        y5_imag = self.y_ptr[9]
+        y6_real = self.y_ptr[10]
+        y6_imag = self.y_ptr[11]
 
         # Convert floats to complex
         cdef double complex y1, y2, y3, y4, y5, y6
@@ -429,25 +429,25 @@ cdef class SolidStaticIncompressible(RadialSolverBase):
         )
 
         # Convert back to floats
-        self.dy_new_view[0]  = dy1.real
-        self.dy_new_view[1]  = dy1.imag
-        self.dy_new_view[2]  = dy2.real
-        self.dy_new_view[3]  = dy2.imag
-        self.dy_new_view[4]  = dy3.real
-        self.dy_new_view[5]  = dy3.imag
-        self.dy_new_view[6]  = dy4.real
-        self.dy_new_view[7]  = dy4.imag
-        self.dy_new_view[8]  = dy5.real
-        self.dy_new_view[9]  = dy5.imag
-        self.dy_new_view[10] = dy6.real
-        self.dy_new_view[11] = dy6.imag
+        self.dy_ptr[0]  = dy1.real
+        self.dy_ptr[1]  = dy1.imag
+        self.dy_ptr[2]  = dy2.real
+        self.dy_ptr[3]  = dy2.imag
+        self.dy_ptr[4]  = dy3.real
+        self.dy_ptr[5]  = dy3.imag
+        self.dy_ptr[6]  = dy4.real
+        self.dy_ptr[7]  = dy4.imag
+        self.dy_ptr[8]  = dy5.real
+        self.dy_ptr[9]  = dy5.imag
+        self.dy_ptr[10] = dy6.real
+        self.dy_ptr[11] = dy6.imag
 
 
 cdef class LiquidDynamicCompressible(RadialSolverBase):
     cdef void diffeq(self) noexcept nogil:
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=True, update_shear=False)
@@ -457,14 +457,14 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
         cdef double y1_real, y2_real, y5_real, y6_real
         cdef double y1_imag, y2_imag, y5_imag, y6_imag
 
-        y1_real = self.y_new_view[0]
-        y1_imag = self.y_new_view[1]
-        y2_real = self.y_new_view[2]
-        y2_imag = self.y_new_view[3]
-        y5_real = self.y_new_view[4]
-        y5_imag = self.y_new_view[5]
-        y6_real = self.y_new_view[6]
-        y6_imag = self.y_new_view[7]
+        y1_real = self.y_ptr[0]
+        y1_imag = self.y_ptr[1]
+        y2_real = self.y_ptr[2]
+        y2_imag = self.y_ptr[3]
+        y5_real = self.y_ptr[4]
+        y5_imag = self.y_ptr[5]
+        y6_real = self.y_ptr[6]
+        y6_imag = self.y_ptr[7]
 
         # Convert floats to complex
         cdef double complex y1, y2, y5, y6
@@ -485,9 +485,9 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
         grav_term         = self.grav_coeff * self.density
 
         # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
-        if dynamic_term < EPS_100:
-            # TODO: is faking this okay?
-            dynamic_term = EPS_100
+        # if dynamic_term < EPS_100:
+        #     # TODO: is faking this okay?
+        #     dynamic_term = EPS_100
 
         # Until bulk dissipation is considered, lame_inverse will always be real-valued for a liquid layer.
         cdef double lame_inverse
@@ -505,7 +505,7 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
         #    and substituted y3.
         # We will use TS72 eq. 87 to allow for a generic rheology and bulk dissipation.
         # dy2 contain all three of: dynamic, viscoelastic, and gravitational terms.
-        cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
+        cdef double complex dy1, dy2, dy5, dy6
 
         dy1 = \
             y2 * lame_inverse - \
@@ -529,29 +529,23 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
                 y1_y3_term * grav_term
         )
 
-        if self.len_t % 10 == 0:
-            with gil:
-                print('\n\n')
-                print(radius)
-                print(dy1, dy2)
-                print(dy5, dy6)
 
         # Convert back to floats
-        self.dy_new_view[0] = dy1.real
-        self.dy_new_view[1] = dy1.imag
-        self.dy_new_view[2] = dy2.real
-        self.dy_new_view[3] = dy2.imag
-        self.dy_new_view[4] = dy5.real
-        self.dy_new_view[5] = dy5.imag
-        self.dy_new_view[6] = dy6.real
-        self.dy_new_view[7] = dy6.imag
+        self.dy_ptr[0] = dy1.real
+        self.dy_ptr[1] = dy1.imag
+        self.dy_ptr[2] = dy2.real
+        self.dy_ptr[3] = dy2.imag
+        self.dy_ptr[4] = dy5.real
+        self.dy_ptr[5] = dy5.imag
+        self.dy_ptr[6] = dy6.real
+        self.dy_ptr[7] = dy6.imag
 
 
 cdef class LiquidDynamicIncompressible(RadialSolverBase):
     cdef void diffeq(self) noexcept nogil:
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=False, update_shear=False)
@@ -560,14 +554,14 @@ cdef class LiquidDynamicIncompressible(RadialSolverBase):
         cdef double y1_real, y2_real, y5_real, y6_real
         cdef double y1_imag, y2_imag, y5_imag, y6_imag
 
-        y1_real = self.y_new_view[0]
-        y1_imag = self.y_new_view[1]
-        y2_real = self.y_new_view[2]
-        y2_imag = self.y_new_view[3]
-        y5_real = self.y_new_view[4]
-        y5_imag = self.y_new_view[5]
-        y6_real = self.y_new_view[6]
-        y6_imag = self.y_new_view[7]
+        y1_real = self.y_ptr[0]
+        y1_imag = self.y_ptr[1]
+        y2_real = self.y_ptr[2]
+        y2_imag = self.y_ptr[3]
+        y5_real = self.y_ptr[4]
+        y5_imag = self.y_ptr[5]
+        y6_real = self.y_ptr[6]
+        y6_imag = self.y_ptr[7]
 
         # Convert floats to complex
         cdef double complex y1, y2, y5, y6
@@ -586,9 +580,9 @@ cdef class LiquidDynamicIncompressible(RadialSolverBase):
         grav_term = self.grav_coeff * self.density
 
         # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
-        if dynamic_term < EPS_100:
-            # TODO: is faking this okay?
-            dynamic_term = EPS_100
+        # if dynamic_term < EPS_100:
+        #     # TODO: is faking this okay?
+        #     dynamic_term = EPS_100
 
         # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
         #   other derivatives.
@@ -621,21 +615,21 @@ cdef class LiquidDynamicIncompressible(RadialSolverBase):
         )
 
         # Convert back to floats
-        self.dy_new_view[0] = dy1.real
-        self.dy_new_view[1] = dy1.imag
-        self.dy_new_view[2] = dy2.real
-        self.dy_new_view[3] = dy2.imag
-        self.dy_new_view[4] = dy5.real
-        self.dy_new_view[5] = dy5.imag
-        self.dy_new_view[6] = dy6.real
-        self.dy_new_view[7] = dy6.imag
+        self.dy_ptr[0] = dy1.real
+        self.dy_ptr[1] = dy1.imag
+        self.dy_ptr[2] = dy2.real
+        self.dy_ptr[3] = dy2.imag
+        self.dy_ptr[4] = dy5.real
+        self.dy_ptr[5] = dy5.imag
+        self.dy_ptr[6] = dy6.real
+        self.dy_ptr[7] = dy6.imag
 
 
 cdef class LiquidStaticCompressible(RadialSolverBase):
     cdef void diffeq(self) noexcept nogil:
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=False, update_shear=False)
@@ -645,10 +639,10 @@ cdef class LiquidStaticCompressible(RadialSolverBase):
         cdef double y7_real, y7_imag
 
         # For the static liquid version, only y5 and y7 are defined.
-        y5_real = self.y_new_view[0]
-        y5_imag = self.y_new_view[1]
-        y7_real = self.y_new_view[2]
-        y7_imag = self.y_new_view[3]
+        y5_real = self.y_ptr[0]
+        y5_imag = self.y_ptr[1]
+        y7_real = self.y_ptr[2]
+        y7_imag = self.y_ptr[3]
 
         # Convert floats to complex
         cdef double complex y5, y7
@@ -674,17 +668,17 @@ cdef class LiquidStaticCompressible(RadialSolverBase):
             y7 * (self.lm1 * r_inverse - grav_term)
 
         # Convert back to floats
-        self.dy_new_view[0] = dy5.real
-        self.dy_new_view[1] = dy5.imag
-        self.dy_new_view[2] = dy7.real
-        self.dy_new_view[3] = dy7.imag
+        self.dy_ptr[0] = dy5.real
+        self.dy_ptr[1] = dy5.imag
+        self.dy_ptr[2] = dy7.real
+        self.dy_ptr[3] = dy7.imag
 
 
 cdef class LiquidStaticIncompressible(RadialSolverBase):
     cdef void diffeq(self) noexcept nogil:
-        # Note that `t_new` is the current "radius" not time.
+        # Note that `t_now` is the current "radius" not time.
         cdef double radius
-        radius = self.t_new
+        radius = self.t_now
 
         # Update interpolation
         self.update_interp(update_bulk=False, update_shear=False)
@@ -694,10 +688,10 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
         cdef double y7_real, y7_imag
 
         # For the static liquid version, only y5 and y7 are defined.
-        y5_real = self.y_new_view[0]
-        y5_imag = self.y_new_view[1]
-        y7_real = self.y_new_view[2]
-        y7_imag = self.y_new_view[3]
+        y5_real = self.y_ptr[0]
+        y5_imag = self.y_ptr[1]
+        y7_real = self.y_ptr[2]
+        y7_imag = self.y_ptr[3]
 
         # Convert floats to complex
         cdef double complex y5, y7
@@ -723,7 +717,7 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
             y7 * (self.lm1 * r_inverse - grav_term)
 
         # Convert back to floats
-        self.dy_new_view[0] = dy5.real
-        self.dy_new_view[1] = dy5.imag
-        self.dy_new_view[2] = dy7.real
-        self.dy_new_view[3] = dy7.imag
+        self.dy_ptr[0] = dy5.real
+        self.dy_ptr[1] = dy5.imag
+        self.dy_ptr[2] = dy7.real
+        self.dy_ptr[3] = dy7.imag

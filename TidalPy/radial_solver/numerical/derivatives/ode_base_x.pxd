@@ -5,9 +5,6 @@ from CyRK.cy.cysolver cimport CySolver
 
 cdef class RadialSolverBase(CySolver):
 
-    # Class Attributes
-    cdef unsigned int n_radius
-
     # Global constants
     cdef double frequency
     cdef unsigned int degree_l
@@ -15,11 +12,12 @@ cdef class RadialSolverBase(CySolver):
     cdef double G_to_use, grav_coeff
 
     # Radial arrays
-    cdef double[::1] radius_view,
-    cdef double complex[::1] shear_modulus_view,
-    cdef double[::1] bulk_modulus_view,
-    cdef double[::1] density_view,
-    cdef double[::1] gravity_view,
+    cdef Py_ssize_t n_radius
+    cdef double* radius_array_ptr
+    cdef double complex* shear_modulus_array_ptr
+    cdef double* bulk_modulus_array_ptr
+    cdef double* density_array_ptr
+    cdef double* gravity_array_ptr
 
     # State properties at current radius
     cdef double complex shear_modulus
@@ -28,4 +26,8 @@ cdef class RadialSolverBase(CySolver):
     cdef double gravity
 
     # Class methods
-    cdef void update_interp(self, bool_cpp_t update_bulk, bool_cpp_t update_shear) noexcept nogil
+    cdef void update_interp(
+            self,
+            bool_cpp_t update_bulk,
+            bool_cpp_t update_shear
+            ) noexcept nogil
