@@ -721,3 +721,172 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
         self.dy_ptr[1] = dy5.imag
         self.dy_ptr[2] = dy7.real
         self.dy_ptr[3] = dy7.imag
+
+
+cdef RadialSolverBase build_solver(
+        bool_cpp_t is_solid,
+        bool_cpp_t is_static,
+        bool_cpp_t is_incomp,
+
+        # RadialSolverBase Inputs
+        Py_ssize_t num_slices,
+        double* radius_array_ptr,
+        double* density_array_ptr,
+        double* gravity_array_ptr,
+        double* bulk_modulus_array_ptr,
+        double complex* shear_modulus_array_ptr,
+        double frequency,
+        unsigned int degree_l,
+        double G_to_use,
+
+        # Regular CySolver Inputs
+        (double, double) t_span,
+        const double[::1] y0,
+        double* rtols,
+        double* atols,
+        unsigned char rk_method,
+        double max_step,
+        Py_ssize_t max_num_steps,
+        Py_ssize_t expected_size,
+
+        # Additional optional arguments for RadialSolver class
+        bool_cpp_t limit_solution_to_radius
+        ):
+
+    cdef RadialSolverBase solver
+
+    if is_solid:
+        if is_static:
+            if is_incomp:
+                solver = SolidStaticIncompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+            else:
+                solver = SolidStaticCompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+        else:
+            if is_incomp:
+                solver = SolidDynamicIncompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+            else:
+                solver = SolidDynamicCompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+    else:
+        if is_static:
+            if is_incomp:
+                solver = LiquidStaticIncompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+            else:
+                solver = LiquidStaticCompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+        else:
+            if is_incomp:
+                solver = LiquidDynamicIncompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+            else:
+                solver = LiquidDynamicCompressible(
+                    frequency,
+                    degree_l,
+                    G_to_use,
+                    t_span,
+                    y0,
+                    rk_method=rk_method,
+                    max_step=max_step,
+                    max_num_steps=max_num_steps,
+                    expected_size=expected_size,
+                    call_first_reset=False,
+                    auto_solve=False
+                    )
+
+    # Install non-python objects
+    solver.install_pointers(
+        num_slices,
+        radius_array_ptr,
+        density_array_ptr,
+        gravity_array_ptr,
+        bulk_modulus_array_ptr,
+        shear_modulus_array_ptr,
+        atols,
+        rtols,
+        limit_solution_to_radius=limit_solution_to_radius,
+        call_first_reset=False,
+        auto_solve=False
+        )
+
+    return solver

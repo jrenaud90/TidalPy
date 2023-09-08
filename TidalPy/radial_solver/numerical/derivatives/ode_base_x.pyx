@@ -5,90 +5,38 @@ from libc.math cimport pi
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 
+import numpy as np
+
 from CyRK.cy.cysolver cimport CySolver, MAX_STEP
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
 
+cdef double EPS = np.finfo(np.float64).eps
+cdef double EPS_10 = EPS * 10.
+cdef double EPS_100 = EPS * 100.
 
 cdef class RadialSolverBase(CySolver):
     def __init__(
             self,
-
             # RadialSolverBase Inputs
-            const double[::1] radius_array_view,
-            const double[::1] density_array_view,
-            const double[::1] gravity_array_view,
-            const double complex[::1] shear_modulus_array_view,
-            const double[::1] bulk_modulus_array_view,
             double frequency,
             unsigned int degree_l,
             double G_to_use,
 
             # Regular CySolver Inputs
-            (double, double) t_span,
             const double[::1] y0,
-            tuple args = None,
-            double rtol = 1.e-4,
-            double atol = 1.e-6,
-            double[::1] rtols = None,
-            double[::1] atols = None,
+            (double, double) t_span,
             unsigned char rk_method = 1,
             double max_step = MAX_STEP,
             double first_step = 0.,
             Py_ssize_t max_num_steps = 0,
-            const double[::1] t_eval = None,
-            bool_cpp_t capture_extra = False,
-            Py_ssize_t num_extra = 0,
-            bool_cpp_t interpolate_extra = False,
             Py_ssize_t expected_size = 0,
-            bool_cpp_t auto_solve = True,
-
-            # Additional optional arguments for RadialSolver class
-            bool_cpp_t limit_solution_to_radius = True
             ):
 
         # Load in floats and ints
-        self.n_radius = len(radius_array_view)
-
         self.frequency  = frequency
         self.degree_l   = degree_l
         self.G_to_use   = G_to_use
         self.grav_coeff = 4. * pi * self.G_to_use
-
-        # Determine if solution should only be provided at points in the provided radius array.
-        if limit_solution_to_radius:
-            t_eval = radius_array_view
-        else:
-            t_eval = None
-
-        # Claim memory for pointer arrays
-        cdef Py_ssize_t i
-        self.radius_array_ptr = <double *> PyMem_Malloc(self.n_radius * sizeof(double))
-        if not self.radius_array_ptr:
-            raise MemoryError()
-
-        self.density_array_ptr = <double *> PyMem_Malloc(self.n_radius * sizeof(double))
-        if not self.density_array_ptr:
-            raise MemoryError()
-
-        self.gravity_array_ptr = <double *> PyMem_Malloc(self.n_radius * sizeof(double))
-        if not self.gravity_array_ptr:
-            raise MemoryError()
-
-        self.shear_modulus_array_ptr = <double complex*> PyMem_Malloc(self.n_radius * sizeof(double complex))
-        if not self.shear_modulus_array_ptr:
-            raise MemoryError()
-
-        self.bulk_modulus_array_ptr = <double *> PyMem_Malloc(self.n_radius * sizeof(double))
-        if not self.bulk_modulus_array_ptr:
-            raise MemoryError()
-
-        # Populate values
-        for i in range(self.n_radius):
-            self.radius_array_ptr[i]        = radius_array_view[i]
-            self.density_array_ptr[i]       = density_array_view[i]
-            self.gravity_array_ptr[i]       = gravity_array_view[i]
-            self.shear_modulus_array_ptr[i] = shear_modulus_array_view[i]
-            self.bulk_modulus_array_ptr[i]  = bulk_modulus_array_view[i]
 
         # Initialize state variables
         self.shear_modulus = 0. + 0.j
@@ -98,13 +46,70 @@ cdef class RadialSolverBase(CySolver):
 
         # Setup regular CySolver
         super().__init__(
-            t_span=t_span, y0=y0, args=args,
-            rtol=rtol, atol=atol, rtols=rtols, atols=atols, rk_method=rk_method,
+            t_span=t_span, y0=y0, args=None,
+            rk_method=rk_method,
             max_step=max_step, first_step=first_step, max_num_steps=max_num_steps,
-            t_eval=t_eval,
-            capture_extra=capture_extra, num_extra=num_extra, interpolate_extra=interpolate_extra,
-            expected_size=expected_size, auto_solve=auto_solve
+            t_eval=None,
+            capture_extra=False, num_extra=0, interpolate_extra=False,
+            expected_size=expected_size, call_first_reset=False, auto_solve=False
             )
+
+
+    cdef void install_pointers(
+            self,
+
+            # RadialSolverBase pointers
+            Py_ssize_t num_slices,
+            double* radius_array_ptr,
+            double* density_array_ptr,
+            double* gravity_array_ptr,
+            double* bulk_modulus_array_ptr,
+            double complex* shear_modulus_array_ptr,
+            double* atols,
+            double* rtols,
+
+            # Additional optional arguments for RadialSolver class
+            bool_cpp_t limit_solution_to_radius = True,
+            bool_cpp_t call_first_reset = False,
+            bool_cpp_t auto_solve = True,
+            ):
+        # Cython does not support non-python objects being passed to __init__ or __cinit__. So we need this helper
+        # method to take the required pointers and load them into the class.
+
+        # Setup loop variables
+        cdef Py_ssize_t i
+
+        self.num_slices = num_slices
+        # Set class pointers to inputs
+        self.radius_array_ptr        = radius_array_ptr
+        self.density_array_ptr       = density_array_ptr
+        self.gravity_array_ptr       = gravity_array_ptr
+        self.bulk_modulus_array_ptr  = bulk_modulus_array_ptr
+        self.shear_modulus_array_ptr = shear_modulus_array_ptr
+
+        # Determine if solution should only be provided at points in the provided radius array.
+        if limit_solution_to_radius:
+            self.len_t_eval = num_slices
+            self.t_eval_ptr = self.radius_array_ptr
+            self.run_interpolation = True
+
+        # rtols and atols are provided as pointers which the base class does not support right away.
+        # Set those up now.
+        cdef double rtol_tmp
+        for i in range(self.y_size):
+            rtol_tmp = rtols[i]
+            if rtol_tmp < EPS_100:
+                rtol_tmp = EPS_100
+            self.rtols_ptr[i] = rtol_tmp
+            self.atols_ptr[i] = atols[i]
+
+        # Reset the state (this will be the first time since we passed "call_first_reset=False" to the parent class)
+        if call_first_reset or auto_solve:
+            self.reset_state()
+
+        # Run integrator if requested.
+        if auto_solve:
+            self._solve(reset=False)
 
     cdef void update_constants(self) noexcept nogil:
 
@@ -115,6 +120,7 @@ cdef class RadialSolverBase(CySolver):
         self.lp1     = degree_l_flt + 1.
         self.lm1     = degree_l_flt - 1.
         self.llp1    = degree_l_flt * self.lp1
+
 
     cdef void update_interp(
             self,
@@ -132,7 +138,7 @@ cdef class RadialSolverBase(CySolver):
             self.t_now,
             self.radius_array_ptr,
             self.density_array_ptr,
-            self.n_radius,
+            self.num_slices,
             provided_j=-2
             )
 
@@ -143,7 +149,7 @@ cdef class RadialSolverBase(CySolver):
             self.t_now,
             self.radius_array_ptr,
             self.gravity_array_ptr,
-            self.n_radius,
+            self.num_slices,
             provided_j=index_j
             )
 
@@ -152,7 +158,7 @@ cdef class RadialSolverBase(CySolver):
                 self.t_now,
                 self.radius_array_ptr,
                 self.bulk_modulus_array_ptr,
-                self.n_radius,
+                self.num_slices,
                 provided_j=index_j
                 )
 
@@ -161,7 +167,7 @@ cdef class RadialSolverBase(CySolver):
                 self.t_now,
                 self.radius_array_ptr,
                 self.shear_modulus_array_ptr,
-                self.n_radius,
+                self.num_slices,
                 provided_j=index_j
                 )
 
@@ -174,8 +180,4 @@ cdef class RadialSolverBase(CySolver):
         # super().__dealloc__()
 
         # Release memory held by this class.
-        PyMem_Free(self.radius_array_ptr)
-        PyMem_Free(self.density_array_ptr)
-        PyMem_Free(self.gravity_array_ptr)
-        PyMem_Free(self.shear_modulus_array_ptr)
-        PyMem_Free(self.bulk_modulus_array_ptr)
+        pass

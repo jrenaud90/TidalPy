@@ -8,6 +8,7 @@ TODO:
 - Need tests for cython interface funcs.
 - convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
 - Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?
+- add noexcepts in at the end.
 
 Major Changes
 * New Cython-based `radial_solver_x`

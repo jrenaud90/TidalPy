@@ -1,3 +1,5 @@
+from libcpp cimport bool as bool_cpp_t
+
 from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
 
 
@@ -24,3 +26,33 @@ cdef class LiquidStaticCompressible(RadialSolverBase):
 
 cdef class LiquidStaticIncompressible(RadialSolverBase):
     pass
+
+cdef RadialSolverBase build_solver(
+    bool_cpp_t is_solid,
+    bool_cpp_t is_static,
+    bool_cpp_t is_incomp,
+
+    # RadialSolverBase Inputs
+    Py_ssize_t num_slices,
+    double* radius_array_ptr,
+    double* density_array_ptr,
+    double* gravity_array_ptr,
+    double* bulk_modulus_array_ptr,
+    double complex* shear_modulus_array_ptr,
+    double frequency,
+    unsigned int degree_l,
+    double G_to_use,
+
+    # Regular CySolver Inputs
+    (double, double) t_span,
+    const double[::1] y0,
+    double* rtols,
+    double* atols,
+    unsigned char rk_method,
+    double max_step,
+    Py_ssize_t max_num_steps,
+    Py_ssize_t expected_size,
+
+    # Additional optional arguments for RadialSolver class
+    bool_cpp_t limit_solution_to_radius
+    )

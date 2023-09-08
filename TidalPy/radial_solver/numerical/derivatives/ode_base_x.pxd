@@ -11,13 +11,15 @@ cdef class RadialSolverBase(CySolver):
     cdef double degree_l_flt, lp1, lm1, llp1
     cdef double G_to_use, grav_coeff
 
-    # Radial arrays
-    cdef Py_ssize_t n_radius
-    cdef double* radius_array_ptr
-    cdef double complex* shear_modulus_array_ptr
-    cdef double* bulk_modulus_array_ptr
-    cdef double* density_array_ptr
-    cdef double* gravity_array_ptr
+    # Number of radial slices
+    cdef Py_ssize_t num_slices
+
+    # Radial pointer arrays
+    cdef double* radius_array_ptr,
+    cdef double* density_array_ptr,
+    cdef double* gravity_array_ptr,
+    cdef double* bulk_modulus_array_ptr,
+    cdef double complex* shear_modulus_array_ptr,
 
     # State properties at current radius
     cdef double complex shear_modulus
@@ -26,6 +28,25 @@ cdef class RadialSolverBase(CySolver):
     cdef double gravity
 
     # Class methods
+    cdef void install_pointers(
+        self,
+
+        # RadialSolverBase pointers
+        Py_ssize_t num_slices,
+        double* radius_array_ptr,
+        double* density_array_ptr,
+        double* gravity_array_ptr,
+        double* bulk_modulus_array_ptr,
+        double complex* shear_modulus_array_ptr,
+        double* atols,
+        double* rtols,
+
+        # Additional optional arguments for RadialSolver class
+        bool_cpp_t limit_solution_to_radius = *,
+        bool_cpp_t call_first_reset = *,
+        bool_cpp_t auto_solve = *
+        )
+
     cdef void update_interp(
             self,
             bool_cpp_t update_bulk,

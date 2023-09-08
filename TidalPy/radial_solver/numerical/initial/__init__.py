@@ -53,7 +53,7 @@ known_initial_guess_funcs = {
     }
 
 
-@njit(cacheable=True)
+@njit
 def find_initial_guess(
         is_solid: bool, is_static: bool, is_incompressible: bool, is_kamata: bool,
         radius: float, shear_modulus: Union[float, complex], bulk_modulus: Union[float, complex],
