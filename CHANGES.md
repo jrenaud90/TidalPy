@@ -10,10 +10,24 @@ TODO:
 - Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?
 - add noexcepts in at the end.
 
-Major Changes
-* New Cython-based `radial_solver_x`
-  * Created a new cython-based radial solver to improve performance and stability. 
-For now, it uses the "x" suffix as the original radial solver has not been removed. It will be removed in the future.
+Cythonizing TidalPy
+- A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
+extension classes. The reasons for doing this are numerous. This transition will be completed in stages
+with odd version numbers used as placeholders for bugfixes to previous version.
+  - v0.5.0: radial_solver module.
+  - v0.5.2: multilayer solver
+  - v0.5.4: dynamics module
+  - v0.5.6: rest of tides module
+  - v0.5.8: other functions including utilities module
+  - v0.5.10: OOP structures like planets and orbits.
+  - v0.6.0: Deprecate and remove old numba support from TidalPy shifting the default behavior to use the new
+precompiled cython functionality.
+- For this version: 
+  - Added new cython-based `radial_solver_x`.
+  - Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
+  - Added new cython-based `TidalPy.rheology.models`.
+
+Other Major Changes
 * Removed support for `solver_numba` in the `radial_solver` module.
 * Removed some imports from main package __init__ to avoid slow load times.
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.

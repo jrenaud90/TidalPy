@@ -1,4 +1,25 @@
 {
+  "class_base": {
+    "name": "TidalPy.utilities.classes.base_x",
+    "sources": [["TidalPy", "utilities", "classes", "base_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "classes"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "rheology_common": {
+    "name": "TidalPy.rheology.common",
+    "sources": [["TidalPy", "rheology", "common.pyx"]],
+    "include_dirs": [["TidalPy", "rheology", "common"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "rheology_models": {
+    "name": "TidalPy.rheology.models",
+    "sources": [["TidalPy", "rheology", "models.pyx"]],
+    "include_dirs": [["TidalPy", "rheology", "models"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "ode_base": {
     "name": "TidalPy.radial_solver.numerical.derivatives.ode_base_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "ode_base_x.pyx"]],
@@ -17,6 +38,13 @@
     "name": "TidalPy.radial_solver.numerical.interfaces.interfaces_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "interfaces", "interfaces_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "interfaces"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "nondimensional_x": {
+    "name": "TidalPy.radial_solver.nondimensional_x",
+    "sources": [["TidalPy", "radial_solver", "nondimensional_x.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver"]],
     "compile_args": [],
     "link_args": []
   }
