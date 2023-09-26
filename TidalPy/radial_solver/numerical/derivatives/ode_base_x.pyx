@@ -46,12 +46,20 @@ cdef class RadialSolverBase(CySolver):
 
         # Setup regular CySolver
         super().__init__(
-            t_span=t_span, y0=y0, args=None,
+            t_span=t_span,
+            y0=y0,
+            args=None,
             rk_method=rk_method,
-            max_step=max_step, first_step=first_step, max_num_steps=max_num_steps,
+            max_step=max_step,
+            first_step=first_step,
+            max_num_steps=max_num_steps,
             t_eval=None,
-            capture_extra=False, num_extra=0, interpolate_extra=False,
-            expected_size=expected_size, call_first_reset=False, auto_solve=False
+            capture_extra=False,
+            num_extra=0,
+            interpolate_extra=False,
+            expected_size=expected_size,
+            call_first_reset=False,
+            auto_solve=False
             )
 
 
@@ -89,9 +97,18 @@ cdef class RadialSolverBase(CySolver):
 
         # Determine if solution should only be provided at points in the provided radius array.
         if limit_solution_to_radius:
+            # The t_eval pointer is allocated by the CySolver class (even if t_eval=None) was passed during init.
+            # We want to use t_eval = radius_ptr but we can not just set it like that because:
+            #   1) we will lose the reference to the original t_eval_ptr that was allocated, leading to a memory leak.
+            #   2) when the solver class is dealloc it will dealloc the radius_ptr which we don't want the solver to own.
+            # Instead we will realloc the memory and set its values equal to radius pointer.
             self.len_t_eval = num_slices
-            self.t_eval_ptr = self.radius_array_ptr
             self.run_interpolation = True
+            self.t_eval_ptr = <double *> PyMem_Realloc(self.t_eval_ptr, self.len_t_eval * sizeof(double))
+            if not self.t_eval_ptr:
+                raise MemoryError()
+            for i in range(self.len_t_eval):
+                self.t_eval_ptr[i] = self.radius_array_ptr[i]
 
         # rtols and atols are provided as pointers which the base class does not support right away.
         # Set those up now.

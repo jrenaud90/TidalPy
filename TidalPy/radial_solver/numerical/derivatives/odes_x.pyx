@@ -742,8 +742,8 @@ cdef RadialSolverBase build_solver(
         # Regular CySolver Inputs
         (double, double) t_span,
         const double[::1] y0,
-        double* rtols,
-        double* atols,
+        double* atols_ptr,
+        double* rtols_ptr,
         unsigned char rk_method,
         double max_step,
         Py_ssize_t max_num_steps,
@@ -762,28 +762,24 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
             else:
                 solver = SolidStaticCompressible(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
         else:
             if is_incomp:
@@ -791,28 +787,24 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
             else:
                 solver = SolidDynamicCompressible(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
     else:
         if is_static:
@@ -821,28 +813,24 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
             else:
                 solver = LiquidStaticCompressible(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
         else:
             if is_incomp:
@@ -850,28 +838,24 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
             else:
                 solver = LiquidDynamicCompressible(
                     frequency,
                     degree_l,
                     G_to_use,
-                    t_span,
                     y0,
+                    t_span,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
-                    call_first_reset=False,
-                    auto_solve=False
                     )
 
     # Install non-python objects
@@ -882,8 +866,8 @@ cdef RadialSolverBase build_solver(
         gravity_array_ptr,
         bulk_modulus_array_ptr,
         shear_modulus_array_ptr,
-        atols,
-        rtols,
+        atols_ptr,
+        rtols_ptr,
         limit_solution_to_radius=limit_solution_to_radius,
         call_first_reset=False,
         auto_solve=False

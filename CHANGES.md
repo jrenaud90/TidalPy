@@ -37,7 +37,7 @@ Other Major Changes
 Dependencies 
 * Added support for Python 3.11. TidalPy now runs on Python 3.8--3.11.
 * TidalPy now requires:
-  * CyRK>=0.8.1
+  * CyRK>=0.8.2
   * Cython>=3.0.0
 * Removed `BurnMan` 3rd party dependence
   * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages. We will add in support

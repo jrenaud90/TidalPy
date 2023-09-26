@@ -9,12 +9,13 @@ import numpy as np
 cimport numpy as np
 
 from scipy.constants import G as G_
-from TidalPy.radial_solver.nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
+from TidalPy.radial_solver.nondimensional import re_dimensionalize_radial_func
 from TidalPy.radial_solver.numerical.collapse import collapse_solutions
 from TidalPy.radial_solver.numerical.initial import find_initial_guess
 from TidalPy.radial_solver.numerical.interfaces import find_interface_func
 
 # Import cythonized functions
+from TidalPy.radial_solver.nondimensional_x import non_dimensionalize_physicals_x
 from TidalPy.radial_solver.numerical.interfaces.interfaces_x cimport find_solution_num
 from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
 from TidalPy.radial_solver.numerical.derivatives.odes_x cimport build_solver
@@ -48,9 +49,9 @@ def radial_solver_x(
         int integration_method = 1,
         double integration_rtol = 1.0e-4,
         double integration_atol = 1.0e-12,
-        bool_cpp_t scale_rtols_by_layer_ptr_type = True,
+        bool_cpp_t scale_rtols_by_layer_type = True,
         Py_ssize_t max_num_steps = 500_000,
-        Py_ssize_t expected_size = 850,
+        Py_ssize_t expected_size = 250,
         double max_step = 0,
         bool_cpp_t limit_solution_to_radius = True,
         bool_cpp_t verbose = False,
@@ -61,48 +62,92 @@ def radial_solver_x(
 
     # Pull out key information
     cdef double radius_planet
-    cdef Py_ssize_t num_layers, num_interfaces, num_radius
+    cdef Py_ssize_t num_layers, num_interfaces, total_slices
 
-    num_radius     = len(radius_array)
-    radius_planet  = radius_array[num_radius - 1]
+    total_slices   = len(radius_array)
+    radius_planet  = radius_array[total_slices - 1]
     num_layers     = len(is_solid_by_layer)
     num_interfaces = num_layers - 1
+
+    # Ensure there are enough slices for radial interpolations.
+    if total_slices <= (3 * num_layers):
+        raise AttributeError('Radial solver requires at least 3 radial slices per layer (ideally >= 10 per).')
+
+    # Ensure there is at least one layer.
     if num_layers <= 0:
         raise AttributeError('Radial solver requires at least one layer.')
 
-    # Non-dimensionalize inputs
-    cdef double G_to_use
+    # Build main input pointers
+    cdef double* radius_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
+    if not radius_array_ptr:
+        raise MemoryError()
 
+    cdef double* density_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
+    if not density_array_ptr:
+        raise MemoryError()
+
+    cdef double* gravity_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
+    if not gravity_array_ptr:
+        raise MemoryError()
+
+    cdef double* bulk_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
+    if not bulk_array_ptr:
+        raise MemoryError()
+
+    cdef double complex* cmplx_shear_array_ptr = <double complex *> PyMem_Malloc(total_slices * sizeof(double complex))
+    if not cmplx_shear_array_ptr:
+        raise MemoryError()
+
+    # Populate the arrays (making a copy of values)
+    for i in range(total_slices):
+        radius_array_ptr[i]      = radius_array[i]
+        density_array_ptr[i]     = density_array[i]
+        gravity_array_ptr[i]     = gravity_array[i]
+        bulk_array_ptr[i]        = bulk_modulus_array[i]
+        cmplx_shear_array_ptr[i] = complex_shear_modulus_array[i]
+
+
+    # Non-dimensionalize inputs
+    cdef double G_to_use, frequency_to_use
     if nondimensionalize:
-        radius_array, gravity_array, density_array, complex_shear_array, bulk_array, frequency, G_to_use = \
-            non_dimensionalize_physicals(
-                    radius_array, gravity_array, density_array, complex_shear_modulus_array, bulk_modulus_array, frequency,
-                    mean_radius=radius_planet, bulk_density=planet_bulk_density
-                    )
+        non_dimensionalize_physicals_x(
+            total_slices,
+            frequency,
+            radius_planet,
+            planet_bulk_density,
+            radius_array_ptr,
+            density_array_ptr,
+            gravity_array_ptr,
+            bulk_array_ptr,
+            cmplx_shear_array_ptr,
+            &frequency_to_use,
+            &G_to_use
+            )
     else:
-        G_to_use = G
+        # Leave inputs alone.
+        G_to_use         = G
+        frequency_to_use = frequency
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
-    cdef np.ndarray[np.complex128_t, ndim=1] bc_array
-    cdef double complex[::1] bc_array_view
-    bc_array = np.empty(3, dtype=np.complex128, order='C')
-    bc_array_view = bc_array
+    cdef double complex* bc_pointer = <double complex *> PyMem_Malloc(3 * sizeof(double complex))
+    if not bc_pointer:
+        raise MemoryError()
 
     if surface_boundary_conditions is None:
         # Assume tides
         for i in range(3):
             if i == 2:
                 if nondimensionalize:
-                    bc_array_view[i] == (2. * degree_l + 1.) / 1.
+                    bc_pointer[i] == (2. * degree_l + 1.) / 1.
                 else:
-                    bc_array_view[i] == (2. * degree_l + 1.) / radius_planet
+                    bc_pointer[i] == (2. * degree_l + 1.) / radius_planet
     else:
         # Use user input
         if len(surface_boundary_conditions) != 3:
             raise AttributeError('Unexpected number of user-provided surface boundary conditions.')
         for i in range(3):
-            bc_array_view[i] = surface_boundary_conditions[i]
+            bc_pointer[i] = surface_boundary_conditions[i]
 
     # Integration information
     # Max step size
@@ -144,7 +189,8 @@ def radial_solver_x(
     cdef bool_cpp_t layer_is_solid, layer_is_static, layer_is_incomp
     cdef bool_cpp_t layer_below_is_solid, layer_below_is_static, layer_below_is_incomp
     cdef double layer_upper_radius, radius_check
-    cdef Py_ssize_t num_slices, num_sols, num_ys, max_slices
+    cdef double layer_rtol_real, layer_rtol_imag, layer_atol_real, layer_atol_imag
+    cdef Py_ssize_t layer_slices, num_sols, num_ys, max_slices
 
     # Track the largest number of slices in a layer.
     # Used to more efficiently allocate memory for other storage arrays
@@ -168,25 +214,33 @@ def radial_solver_x(
 
         # Scale rtols by layer type
         for j in range(num_ys):
-            atols_by_layer_ptr[i * MAX_NUM_YS_REAL + j] = integration_atol
-            # TODO test that these scales are the best.
-            if scale_rtols_by_layer_ptr_type:
+            # Default is that each layer's rtol and atol equal user input.
+            layer_rtol_real = integration_rtol
+            layer_rtol_imag = integration_rtol
+            layer_atol_real = integration_atol
+            layer_atol_imag = integration_atol
+
+            if scale_rtols_by_layer_type:
+                # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
+                # TODO test that these scales are the best.
                 if layer_is_solid:
-                    # Scale (real and imag) y2 (index 2, 3) and y3 (index 4, 5) by 0.1
-                    if (j >= 2) and (j <= 5):
-                        rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + j] = integration_rtol * 0.1
-                    else:
-                        rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + j] = integration_rtol
+                    # Scale y2 and y3 by 0.1
+                    if (j == 1) or (j == 2):
+                        # Scale both the real and imaginary portions by the same amount.
+                        layer_rtol_real *= 0.1
+                        layer_rtol_imag *= 0.1
                 else:
-                    if layer_is_static:
-                        # Don't scale
-                        rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + j] = integration_rtol
-                    else:
-                        # Scale (real and imag) y2 by 0.01
-                        if (j == 2) or (j == 3):
-                            rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + j] = integration_rtol * 0.01
-                        else:
-                            rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + j] = integration_rtol
+                    if not layer_is_static:
+                        # Scale dynamic liquid layer's y2 by additional 0.01.
+                        if (j == 1):
+                            # Scale both the real and imaginary portions by the same amount.
+                            layer_rtol_real *= 0.01
+                            layer_rtol_imag *= 0.01
+            # Populate rtol and atol pointers.
+            rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + (2 * j)]     = layer_rtol_real
+            rtols_by_layer_ptr[i * MAX_NUM_YS_REAL + (2 * j + 1)] = layer_rtol_imag
+            atols_by_layer_ptr[i * MAX_NUM_YS_REAL + (2 * j)]     = layer_atol_real
+            atols_by_layer_ptr[i * MAX_NUM_YS_REAL + (2 * j + 1)] = layer_atol_imag
 
         # Determine how many slices are in this layer
         if i == 0:
@@ -196,16 +250,19 @@ def radial_solver_x(
             # Not first layer. Starting point is based on number of slices in previous layer.
             start_index_by_layer_ptr[i] = start_index_by_layer_ptr[i - 1] + num_slices_by_layer_ptr[i - 1]
 
-        num_slices = 0
-        for j in range(start_index_by_layer_ptr[i], num_radius):
+        layer_slices = 0
+        for j in range(start_index_by_layer_ptr[i], total_slices):
             radius_check = radius_array[j]
             if radius_check > layer_upper_radius:
                 # We have passed this layer.
                 break
-            num_slices += 1
-        num_slices_by_layer_ptr[i] = num_slices
-        if max_slices < num_slices:
-            max_slices = num_slices
+            layer_slices += 1
+        if layer_slices <= 3:
+            raise ValueError('At least three layer slices per layer are required\n\tTry using more slices in the'
+                             'input arrays.')
+        num_slices_by_layer_ptr[i] = layer_slices
+        if max_slices < layer_slices:
+            max_slices = layer_slices
 
     # We have all the size information needed to build storage pointers
     # Main storage pointer is setup like [layer_i][solution_i][y_i + r_i]
@@ -217,8 +274,8 @@ def radial_solver_x(
     cdef double complex* storage_by_y
 
     for i in range(num_layers):
-        num_sols   = num_solutions_by_layer_ptr[i]
-        num_slices = num_slices_by_layer_ptr[i]
+        num_sols     = num_solutions_by_layer_ptr[i]
+        layer_slices = num_slices_by_layer_ptr[i]
         # Number of ys = 2x num sols
         num_ys = 2 * num_sols
 
@@ -227,7 +284,7 @@ def radial_solver_x(
             raise MemoryError()
 
         for j in range(num_sols):
-            storage_by_y = <double complex*> PyMem_Malloc(num_slices * num_ys * sizeof(double complex))
+            storage_by_y = <double complex*> PyMem_Malloc(layer_slices * num_ys * sizeof(double complex))
             if not storage_by_y:
                 raise MemoryError()
 
@@ -235,7 +292,7 @@ def radial_solver_x(
         main_storage[i] = storage_by_solution
 
     # Storage for solutions at the top of a layer.
-    cdef double complex[:, :] last_layer_top_solutions_view
+    cdef double complex[:, ::1] last_layer_top_solutions_view
 
     # Interface information
     cdef object interface_func
@@ -261,6 +318,7 @@ def radial_solver_x(
     # Properties at interfaces between layers
     cdef double static_liquid_density
     cdef double interface_gravity
+    cdef double last_layer_upper_gravity, last_layer_upper_density
 
     # Starting solutions (initial conditions / lower boundary conditions)
     cdef double complex[:, ::1] initial_solutions_view
@@ -271,27 +329,29 @@ def radial_solver_x(
 
     # Feedback
     cdef str feedback_str
-    feedback_str = ''
     cdef bool_cpp_t error
+    feedback_str = 'Starting integration'
+    if verbose:
+        print(feedback_str)
     error = False
 
     cdef Py_ssize_t start_index, end_index
     for i in range(num_layers):
         # Get layer's index information
-        start_index = start_index_by_layer_ptr[i]
-        num_slices  = num_slices_by_layer_ptr[i]
-        end_index   = start_index + num_slices
+        start_index  = start_index_by_layer_ptr[i]
+        layer_slices = num_slices_by_layer_ptr[i]
+        end_index    = start_index + (layer_slices - 1)
 
         # Get solution and y information
         num_sols = num_solutions_by_layer_ptr[i]
         num_ys   = 2 * num_sols
 
-        # Setup pointer array slices
-        layer_radius_ptr    = &radius_array[start_index]
-        layer_density_ptr   = &density_array[start_index]
-        layer_gravity_ptr   = &gravity_array[start_index]
-        layer_bulk_mod_ptr  = &bulk_modulus_array[start_index]
-        layer_shear_mod_ptr = &complex_shear_modulus_array[start_index]
+        # Setup pointer array slices starting at this layer's beginning
+        layer_radius_ptr    = &radius_array_ptr[start_index]
+        layer_density_ptr   = &density_array_ptr[start_index]
+        layer_gravity_ptr   = &gravity_array_ptr[start_index]
+        layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
+        layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
 
         # Setup other pointers
         layer_rtols_ptr = &rtols_by_layer_ptr[i * MAX_NUM_YS_REAL]
@@ -303,14 +363,14 @@ def radial_solver_x(
         gravity_lower = layer_gravity_ptr[0]
         bulk_lower    = layer_bulk_mod_ptr[0]
         shear_lower   = layer_shear_mod_ptr[0]
-        radius_upper  = layer_radius_ptr[num_slices - 1]
-        density_upper = layer_density_ptr[num_slices - 1]
-        gravity_upper = layer_gravity_ptr[num_slices - 1]
+        radius_upper  = layer_radius_ptr[layer_slices - 1]
+        density_upper = layer_density_ptr[layer_slices - 1]
+        gravity_upper = layer_gravity_ptr[layer_slices - 1]
 
         # Determine max step size (if not provided by user)
         if max_step_from_arrays:
             # Maximum step size during integration can not exceed the average radial slice size.
-            max_step_touse = (radius_upper - radius_lower) / <double>num_slices
+            max_step_touse = (radius_upper - radius_lower) / <double>layer_slices
 
         # Get assumptions for layer
         layer_is_solid  = is_solid_by_layer[i]
@@ -330,7 +390,7 @@ def radial_solver_x(
                 shear_lower,
                 bulk_lower,
                 density_lower,
-                frequency,
+                frequency_to_use,
                 order_l=degree_l,
                 G_to_use=G_to_use
                 )
@@ -399,19 +459,19 @@ def radial_solver_x(
             layer_is_solid,
             layer_is_static,
             layer_is_incomp,
-            num_slices,
+            layer_slices,
             layer_radius_ptr,
             layer_density_ptr,
             layer_gravity_ptr,
             layer_bulk_mod_ptr,
             layer_shear_mod_ptr,
-            frequency,
+            frequency_to_use,
             degree_l,
             G_to_use,
             radial_span,
             initial_solutions_real_view[0, :],
-            layer_rtols_ptr,
             layer_atols_ptr,
+            layer_rtols_ptr,
             integration_method,
             max_step_touse,
             max_num_steps,
@@ -434,12 +494,14 @@ def radial_solver_x(
                 solver.change_y0(initial_solutions_real_view[j, :], auto_reset_state=False)
 
             # Integrate!
-            solver.solve(reset=True)
+            solver._solve(reset=True)
 
             # Check for problems
             if not solver.success:
                 # Problem with integration.
                 feedback_str = f'Integration problem at layer {i}; solution {j}:\n\t{solver.message}'
+                if verbose:
+                    print(feedback_str)
                 error = True
                 break
 
@@ -447,7 +509,7 @@ def radial_solver_x(
             # Need to make a copy because the solver pointers will be reallocated during the next solution.
             # Get storage pointer for this solution
             storage_by_y = storage_by_solution[j]
-            for m in range(num_slices):
+            for m in range(layer_slices):
                 for k in range(num_ys):
 
                     # Convert 2x real ys to 1x complex ys
@@ -456,7 +518,7 @@ def radial_solver_x(
                          1.0j * solver.solution_y_ptr[m * num_ys + (2 * k) + 1])
 
                     # Store top most result for initial condition for the next layer
-                    if m == (num_slices - 1):
+                    if m == (layer_slices - 1):
                         last_layer_top_solutions_view[j, k] = storage_by_y[m * num_ys + k]
 
         if error:
@@ -467,33 +529,57 @@ def radial_solver_x(
         last_layer_upper_gravity = gravity_upper
         last_layer_upper_density = density_upper
 
+    cdef np.ndarray[np.complex128_t, ndim=2] full_solution_arr
+    cdef double complex[:, ::1] full_solution_view
+    # No matter the results of the integration, we know the shape and size of the final solution
+    if solve_load_numbers:
+        full_solution_arr = np.empty((6, total_slices), dtype=np.complex128, order='C')
+    else:
+        full_solution_arr = np.empty((12, total_slices), dtype=np.complex128, order='C')
+    full_solution_view = full_solution_arr
 
-    if not error:
-        feedback_str = 'Integration completed for all layers.'
+    if error:
+        feedback_str = 'Integration failed.'
+        if verbose:
+            print(feedback_str)
+        for i in range(12):
+            for j in range(total_slices):
+                full_solution_view[i, j] = NAN
+    else:
+        feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
+        if verbose:
+            print(feedback_str)
+        # Collapse the multiple solutions for each layer into one final combined solution.
 
+    # Free memory
+    del solver
 
+    # Release planet pointers
+    PyMem_Free(radius_array_ptr)
+    PyMem_Free(density_array_ptr)
+    PyMem_Free(gravity_array_ptr)
+    PyMem_Free(bulk_array_ptr)
+    PyMem_Free(cmplx_shear_array_ptr)
 
-
-    # Release pointers
-    PyMem_Free(num_solutions_by_layer_ptr)
-    PyMem_Free(num_slices_by_layer_ptr)
-    PyMem_Free(layer_radius_ptr)
-    PyMem_Free(layer_density_ptr)
-    PyMem_Free(layer_gravity_ptr)
-    PyMem_Free(layer_bulk_mod_ptr)
-    PyMem_Free(layer_shear_mod_ptr)
+    # Release integration-related pointers
     PyMem_Free(rtols_by_layer_ptr)
     PyMem_Free(atols_by_layer_ptr)
+
+    # Release BC-related pointers
+    PyMem_Free(bc_pointer)
 
     # Deconstruct main solution pointer
     # Main storage pointer is setup like [layer_i][solution_i][y_i + r_i]
     for i in range(num_layers):
-        num_sols   = num_solutions_by_layer_ptr[i]
-        num_slices = num_slices_by_layer_ptr[i]
-        # Number of ys = 2x num sols
-        num_ys = 2 * num_sols
+        num_sols = num_solutions_by_layer_ptr[i]
         for j in range(num_sols):
             PyMem_Free(main_storage[i][j])
         PyMem_Free(main_storage[i])
     PyMem_Free(main_storage)
 
+    # Release layer information pointers
+    PyMem_Free(num_solutions_by_layer_ptr)
+    PyMem_Free(start_index_by_layer_ptr)
+    PyMem_Free(num_slices_by_layer_ptr)
+
+    return full_solution_arr
