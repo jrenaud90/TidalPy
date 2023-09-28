@@ -514,8 +514,9 @@ def radial_solver_x(
                 # Reset solver with new initial condition (this is already done for j==0)
                 solver.change_y0(initial_solutions_real_view[solution_i, :], auto_reset_state=False)
 
-            # Integrate!
+            ###### Integrate! #######
             solver._solve(reset=True)
+            #########################
 
             # Check for problems
             if not solver.success:
@@ -535,8 +536,8 @@ def radial_solver_x(
                 for y_i in range(num_ys):
 
                     # Convert 2x real ys to 1x complex ys
-                    dcomplex_tmp = (solver.solution_y_ptr[slice_i * num_ys + (2 * y_i)] +
-                                    1.0j * solver.solution_y_ptr[slice_i * num_ys + (2 * y_i) + 1])
+                    dcomplex_tmp = (solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i)] +
+                                    1.0j * solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i) + 1])
                     storage_by_y[slice_i * num_ys + y_i] = dcomplex_tmp
 
                     # Store top most result for initial condition for the next layer
