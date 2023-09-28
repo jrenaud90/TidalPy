@@ -1,4 +1,5 @@
 # distutils: language = c++
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libcpp cimport bool as bool_cpp_t
 from libc.math cimport NAN, pi
@@ -712,17 +713,17 @@ def radial_solver_x(
 
                     # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
                     #  FORTRAN-ordered arrays.
-                    for i in range(num_sols):
-                        for j in range(num_sols):
-                            # `storage_by_solution_only_top` structure is [solution][y].
-                            if j == 0:
-                                k = 1
-                            elif j == 1:
-                                k = 3
-                            else:
-                                k = 5
-                            # The last index is to get the value at the pointer value.
-                            surface_matrix_ptr[i * num_sols + j] = storage_by_solution_only_top[i][k][0]
+                    # The last index is to get the value at the pointer value.
+                    surface_matrix_ptr[0] = storage_by_solution_only_top[0][1][0]
+                    surface_matrix_ptr[1] = storage_by_solution_only_top[0][3][0]
+                    surface_matrix_ptr[2] = storage_by_solution_only_top[0][5][0]
+                    surface_matrix_ptr[3] = storage_by_solution_only_top[1][1][0]
+                    surface_matrix_ptr[4] = storage_by_solution_only_top[1][3][0]
+                    surface_matrix_ptr[5] = storage_by_solution_only_top[1][5][0]
+                    surface_matrix_ptr[6] = storage_by_solution_only_top[2][1][0]
+                    surface_matrix_ptr[7] = storage_by_solution_only_top[2][3][0]
+                    surface_matrix_ptr[8] = storage_by_solution_only_top[2][5][0]
+
                 else:
                     if layer_is_static:
                         # Set pointer to correct matrix
