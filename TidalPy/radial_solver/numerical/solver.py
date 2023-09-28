@@ -276,9 +276,11 @@ def radial_solver(
             initial_values_to_use = initial_value_array
         else:
             # Initial values are based on the previous layer's results and the interface function.
-            lower_layer_top_solutions = nbList()
-            for lower_layer_solution in solutions_by_layer[layer_i - 1]:
-                lower_layer_top_solutions.append(lower_layer_solution[:, -1])
+            last_layer_sols = solutions_by_layer[layer_i - 1]
+            num_solutions = len(last_layer_sols)
+            lower_layer_top_solutions = np.empty((num_solutions, last_layer_sols[0].shape[0]), dtype=np.complex128)
+            for solution_i, lower_layer_solution in enumerate(last_layer_sols):
+                lower_layer_top_solutions[solution_i, :] = lower_layer_solution[:, -1]
             initial_values_to_use = bottom_interface(lower_layer_top_solutions, *bottom_interface_input)
 
         if verbose:
