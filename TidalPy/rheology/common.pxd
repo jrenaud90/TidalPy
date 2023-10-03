@@ -1,5 +1,3 @@
-from libcpp cimport bool as bool_cpp_t
-
 from TidalPy.utilities.classes.base_x cimport TidalPyBaseExtensionClass
 
 

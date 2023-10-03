@@ -1,4 +1,11 @@
 {
+  "complex": {
+    "name": "TidalPy.utilities.math.complex",
+    "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "math"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "class_base": {
     "name": "TidalPy.utilities.classes.base_x",
     "sources": [["TidalPy", "utilities", "classes", "base_x.pyx"]],
@@ -31,6 +38,13 @@
     "name": "TidalPy.radial_solver.numerical.derivatives.odes_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "odes_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "rsn_initial": {
+    "name": "TidalPy.radial_solver.numerical.initial.common",
+    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "common.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
     "compile_args": [],
     "link_args": []
   },

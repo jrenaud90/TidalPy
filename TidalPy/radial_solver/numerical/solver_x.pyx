@@ -12,25 +12,21 @@ cimport numpy as np
 from scipy.linalg.cython_lapack cimport zgesv
 
 from scipy.constants import G as G_
+# TODO: ReDimen Radial
 from TidalPy.radial_solver.nondimensional import re_dimensionalize_radial_func
 from TidalPy.radial_solver.numerical.initial import find_initial_guess
-from TidalPy.radial_solver.numerical.interfaces import find_interface_func
 
 # Import cythonized functions
-from TidalPy.radial_solver.nondimensional_x import non_dimensionalize_physicals_x
-from TidalPy.radial_solver.numerical.interfaces.interfaces_x cimport find_solution_num
+from TidalPy.radial_solver.nondimensional_x cimport non_dimensionalize_physicals_x
+from TidalPy.radial_solver.numerical.interfaces.interfaces_x cimport find_solution_num, solve_upper_y_at_interface_x
 from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
 from TidalPy.radial_solver.numerical.derivatives.odes_x cimport build_solver
-
 
 
 # Setup globals
 cdef double G
 G = G_
 
-cdef Py_ssize_t MAX_NUM_SOLS    = 3
-cdef Py_ssize_t MAX_NUM_YS      = 6
-cdef Py_ssize_t MAX_NUM_YS_REAL = 2 * MAX_NUM_YS
 
 def radial_solver_x(
         double[:] radius_array,
@@ -65,6 +61,14 @@ def radial_solver_x(
     # Layer | Solution | y indexing
     cdef Py_ssize_t layer_i, solution_i, y_i, slice_i
 
+    # Maximum size for array building
+    cdef Py_ssize_t MAX_NUM_Y      = 6
+    cdef Py_ssize_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
+    cdef Py_ssize_t MAX_NUM_SOL    = 3
+
+    # Type conversions
+    cdef double degree_l_dbl = <double>degree_l
+
     # Pull out key information
     cdef double radius_planet
     cdef Py_ssize_t num_layers, num_interfaces, total_slices
@@ -74,31 +78,31 @@ def radial_solver_x(
     num_layers     = len(is_solid_by_layer)
     num_interfaces = num_layers - 1
 
-    # Ensure there are enough slices for radial interpolations.
-    if total_slices <= (3 * num_layers):
-        raise AttributeError('Radial solver requires at least 3 radial slices per layer (ideally >= 10 per).')
-
     # Ensure there is at least one layer.
     if num_layers <= 0:
         raise AttributeError('Radial solver requires at least one layer.')
 
-    # Build main input pointers
-    cdef double* radius_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
-    if not radius_array_ptr:
+    # Ensure there are enough slices for radial interpolations.
+    if total_slices <= (3 * num_layers):
+        raise AttributeError('Radial solver requires at least 3 radial slices per layer (ideally >= 10 per).')
+
+    # Copy the radial data into new pointers so the values can be manipulated inside this function.
+    # Store all double-sized data in one large array.
+    cdef double* radial_double_data_ptr = <double *> PyMem_Malloc(4 * total_slices * sizeof(double))
+    if not radial_double_data_ptr:
         raise MemoryError()
 
-    cdef double* density_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
-    if not density_array_ptr:
-        raise MemoryError()
+    # Create user-friendly pointers to access blocks of that array
+    cdef double* radius_array_ptr  = &radial_double_data_ptr[0]
+    cdef double* density_array_ptr = &radial_double_data_ptr[total_slices]
+    cdef double* gravity_array_ptr = &radial_double_data_ptr[2 * total_slices]
+    cdef double* bulk_array_ptr    = &radial_double_data_ptr[3 * total_slices]
 
-    cdef double* gravity_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
-    if not gravity_array_ptr:
-        raise MemoryError()
+    # Opt: The data above is not stored in the most memory-efficient way since at each slice we will want all of:
+    #  radius, density, gravity, etc. But since those are stored on separate rows, we have to go all the way to the end
+    #  of a row to get the next item at slice_i. A fortran memory layout would be more efficient here.
 
-    cdef double* bulk_array_ptr = <double *> PyMem_Malloc(total_slices * sizeof(double))
-    if not bulk_array_ptr:
-        raise MemoryError()
-
+    # Repeat for double complex-sized data.
     cdef double complex* cmplx_shear_array_ptr = <double complex *> PyMem_Malloc(total_slices * sizeof(double complex))
     if not cmplx_shear_array_ptr:
         raise MemoryError()
@@ -145,9 +149,9 @@ def radial_solver_x(
         for i in range(3):
             if i == 2:
                 if nondimensionalize:
-                    bc_pointer[i] = (2. * degree_l + 1.) / 1.
+                    bc_pointer[i] = (2. * degree_l_dbl + 1.) / 1.
                 else:
-                    bc_pointer[i] = (2. * degree_l + 1.) / radius_planet
+                    bc_pointer[i] = (2. * degree_l_dbl + 1.) / radius_planet
             else:
                 bc_pointer[i] = 0.
     else:
@@ -171,32 +175,38 @@ def radial_solver_x(
 
     # Setup tolerance arrays
     # For simplicity just make these all as large as the maximum number of ys.
-    cdef double* rtols_by_layer_ptr = <double *> PyMem_Malloc(num_layers * MAX_NUM_YS_REAL * sizeof(double))
-    if not rtols_by_layer_ptr:
-        raise MemoryError()
+    # Maximum number of ys = 6. Then 2x for conversion from complex to real
+    cdef double[12] rtols_array
+    cdef double* rtols_ptr = &rtols_array[0]
+    cdef double[12] atols_array
+    cdef double* atols_ptr = &atols_array[0]
 
-    cdef double* atols_by_layer_ptr = <double *> PyMem_Malloc(num_layers * MAX_NUM_YS_REAL * sizeof(double))
-    if not atols_by_layer_ptr:
+    # Create storage for flags and information about each layer.
+    cdef Py_ssize_t* layer_int_data_ptr = <Py_ssize_t *> PyMem_Malloc(3 * num_layers * sizeof(Py_ssize_t))
+    if not layer_int_data_ptr:
         raise MemoryError()
+    cdef Py_ssize_t* num_solutions_by_layer_ptr = &layer_int_data_ptr[0]
+    cdef Py_ssize_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
+    cdef Py_ssize_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
 
-    # Find number of solutions per layer
-    cdef Py_ssize_t* num_solutions_by_layer_ptr = <Py_ssize_t *> PyMem_Malloc(num_layers * sizeof(Py_ssize_t))
-    if not num_solutions_by_layer_ptr:
+    # Unpack inefficient user-provided tuples into bool array
+    cdef Py_ssize_t * layer_bool_data_ptr = <Py_ssize_t *> PyMem_Malloc(3 * num_layers * sizeof(bool_cpp_t))
+    if not layer_bool_data_ptr:
         raise MemoryError()
+    cdef bool_cpp_t* is_solid_by_layer_ptr          = &layer_bool_data_ptr[0]
+    cdef bool_cpp_t* is_static_by_layer_ptr         = &layer_bool_data_ptr[num_layers]
+    cdef bool_cpp_t* is_incompressible_by_layer_ptr = &layer_bool_data_ptr[2 * num_layers]
 
-    cdef Py_ssize_t* start_index_by_layer_ptr = <Py_ssize_t *> PyMem_Malloc(num_layers * sizeof(Py_ssize_t))
-    if not start_index_by_layer_ptr:
-        raise MemoryError()
-
-    cdef Py_ssize_t* num_slices_by_layer_ptr = <Py_ssize_t *> PyMem_Malloc(num_layers * sizeof(Py_ssize_t))
-    if not num_slices_by_layer_ptr:
-        raise MemoryError()
+    # Opt: The bools above could be stores in a single char variable (per layer).
+    #  Eg., 0x00 All false, 0x01 is solid, 0x10 is static and liquid, 0x11 is static and solid, etc.
 
     cdef bool_cpp_t layer_is_solid, layer_is_static, layer_is_incomp
     cdef bool_cpp_t layer_below_is_solid, layer_below_is_static, layer_below_is_incomp
     cdef double layer_upper_radius, radius_check
     cdef double layer_rtol_real, layer_rtol_imag, layer_atol_real, layer_atol_imag
-    cdef Py_ssize_t layer_slices, num_sols, num_ys
+    cdef Py_ssize_t layer_slices
+    cdef Py_ssize_t num_sols, num_ys
+    cdef Py_ssize_t layer_below_num_sols, layer_below_num_ys
     cdef int num_sols_int
 
     for layer_i in range(num_layers):
@@ -205,6 +215,11 @@ def radial_solver_x(
         layer_is_static    = is_static_by_layer[layer_i]
         layer_is_incomp    = is_incompressible_by_layer[layer_i]
         layer_upper_radius = upper_radius_by_layer[layer_i]
+
+        # Once the tuples are unpacked once store their values so we don't have to mess with them again.
+        is_solid_by_layer_ptr[layer_i]          = layer_is_solid
+        is_static_by_layer_ptr[layer_i]         = layer_is_static
+        is_incompressible_by_layer_ptr[layer_i] = layer_is_incomp
 
         # Find number of solutions based on this layer's assumptions
         num_sols = <Py_ssize_t>find_solution_num(
@@ -215,44 +230,14 @@ def radial_solver_x(
         num_ys = 2 * num_sols
         num_solutions_by_layer_ptr[layer_i] = num_sols
 
-        # Scale rtols by layer type
-        for y_i in range(num_ys):
-            # Default is that each layer's rtol and atol equal user input.
-            layer_rtol_real = integration_rtol
-            layer_rtol_imag = integration_rtol
-            layer_atol_real = integration_atol
-            layer_atol_imag = integration_atol
-
-            if scale_rtols_by_layer_type:
-                # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
-                # TODO test that these scales are the best.
-                if layer_is_solid:
-                    # Scale y2 and y3 by 0.1
-                    if (y_i == 1) or (y_i == 2):
-                        # Scale both the real and imaginary portions by the same amount.
-                        layer_rtol_real *= 0.1
-                        layer_rtol_imag *= 0.1
-                else:
-                    if not layer_is_static:
-                        # Scale dynamic liquid layer's y2 by additional 0.01.
-                        if (y_i == 1):
-                            # Scale both the real and imaginary portions by the same amount.
-                            layer_rtol_real *= 0.01
-                            layer_rtol_imag *= 0.01
-            # Populate rtol and atol pointers.
-            rtols_by_layer_ptr[layer_i * MAX_NUM_YS_REAL + (2 * y_i)]     = layer_rtol_real
-            rtols_by_layer_ptr[layer_i * MAX_NUM_YS_REAL + (2 * y_i + 1)] = layer_rtol_imag
-            atols_by_layer_ptr[layer_i * MAX_NUM_YS_REAL + (2 * y_i)]     = layer_atol_real
-            atols_by_layer_ptr[layer_i * MAX_NUM_YS_REAL + (2 * y_i + 1)] = layer_atol_imag
-
         # Determine how many slices are in this layer
         if layer_i == 0:
             # First layer starts at 0.
             start_index_by_layer_ptr[0] = 0
         else:
             # Not first layer. Starting point is based on number of slices in previous layer.
-            start_index_by_layer_ptr[layer_i] = (start_index_by_layer_ptr[layer_i - 1] +
-                                                 num_slices_by_layer_ptr[layer_i - 1])
+            start_index_by_layer_ptr[layer_i] = \
+                start_index_by_layer_ptr[layer_i - 1] + num_slices_by_layer_ptr[layer_i - 1]
 
         layer_slices = 0
         for slice_i in range(start_index_by_layer_ptr[layer_i], total_slices):
@@ -272,14 +257,8 @@ def radial_solver_x(
     if not main_storage:
         raise MemoryError()
 
-    cdef double complex**** upper_y_solutions = <double complex ****> PyMem_Malloc(num_layers * sizeof(double complex***))
-    if not upper_y_solutions:
-        raise MemoryError()
-
     cdef double complex** storage_by_solution
-    cdef double complex*** storage_by_solution_only_top
     cdef double complex* storage_by_y
-    cdef double complex** storage_by_y_only_top_ptr
 
     for layer_i in range(num_layers):
         num_sols     = num_solutions_by_layer_ptr[layer_i]
@@ -291,30 +270,18 @@ def radial_solver_x(
         if not storage_by_solution:
             raise MemoryError()
 
-        storage_by_solution_only_top = <double complex***> PyMem_Malloc(num_sols * sizeof(double complex**))
-        if not storage_by_solution_only_top:
-            raise MemoryError()
-
         for solution_i in range(num_sols):
             storage_by_y = <double complex*> PyMem_Malloc(layer_slices * num_ys * sizeof(double complex))
             if not storage_by_y:
                 raise MemoryError()
 
-            storage_by_y_only_top_ptr = <double complex**> PyMem_Malloc(num_ys * sizeof(double complex*))
-            if not storage_by_y_only_top_ptr:
-                raise MemoryError()
+            storage_by_solution[solution_i] = storage_by_y
+        main_storage[layer_i] = storage_by_solution
 
-            storage_by_solution[solution_i]          = storage_by_y
-            storage_by_solution_only_top[solution_i] = storage_by_y_only_top_ptr
-        main_storage[layer_i]      = storage_by_solution
-        upper_y_solutions[layer_i] = storage_by_solution_only_top
-
-    # Storage for solutions at the top of a layer.
-    cdef double complex[:, ::1] last_layer_top_solutions_view
-
-    # Interface information
-    cdef object interface_func
-    cdef tuple interface_inputs
+    # Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
+    #  worst.
+    cdef double complex[36] uppermost_y_per_solution
+    cdef double complex* uppermost_y_per_solution_ptr = &uppermost_y_per_solution[0]
 
     # Layer specific pointers; set the size based on the layer with the most slices.
     cdef double* layer_radius_ptr
@@ -339,8 +306,14 @@ def radial_solver_x(
     cdef double last_layer_upper_gravity, last_layer_upper_density
 
     # Starting solutions (initial conditions / lower boundary conditions)
-    cdef double complex[:, ::1] initial_solutions_view
-    cdef double[:, ::1] initial_solutions_real_view
+    # Allocate memory for the initial value arrays now. We don't know the number of solutions or ys. But the max number
+    #  is not all that different from the min. So it is more efficient to assume the largest size.
+    # Largest size = 6 (ys) x 3 (sols) = 18
+    # For the "only_real" this is further multiplied by 2 since we convert the number of _complex_ ys to 2x _real_ ys
+    cdef double complex[18] initial_y
+    cdef double complex* initial_y_ptr = &initial_y[0]
+    cdef double[36] initial_y_only_real
+    cdef double* initial_y_only_real_ptr = &initial_y_only_real[0]
 
     # Intermediate values
     cdef double complex dcomplex_tmp
@@ -355,6 +328,9 @@ def radial_solver_x(
     if verbose:
         print(feedback_str)
     error = False
+
+    # TODO: Cythonize initial functions
+    cdef double complex[:, ::1] INITIAL_VIEW_TEMP_VIEW
 
     cdef Py_ssize_t start_index
     for layer_i in range(num_layers):
@@ -373,10 +349,6 @@ def radial_solver_x(
         layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
         layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
 
-        # Setup other pointers
-        layer_rtols_ptr = &rtols_by_layer_ptr[layer_i * MAX_NUM_YS_REAL]
-        layer_atols_ptr = &atols_by_layer_ptr[layer_i * MAX_NUM_YS_REAL]
-
         # Get physical parameters at the top and bottom of the layer
         radius_lower  = layer_radius_ptr[0]
         density_lower = layer_density_ptr[0]
@@ -393,15 +365,48 @@ def radial_solver_x(
             max_step_touse = (radius_upper - radius_lower) / <double>layer_slices
 
         # Get assumptions for layer
-        layer_is_solid  = is_solid_by_layer[layer_i]
-        layer_is_static = is_static_by_layer[layer_i]
-        layer_is_incomp = is_incompressible_by_layer[layer_i]
+        layer_is_solid  = is_solid_by_layer_ptr[layer_i]
+        layer_is_static = is_static_by_layer_ptr[layer_i]
+        layer_is_incomp = is_incompressible_by_layer_ptr[layer_i]
+
+        # Determine rtols and atols for this layer.
+        # Scale rtols by layer type
+        for y_i in range(num_ys):
+            # Default is that each layer's rtol and atol equal user input.
+            # TODO: Change up the tolerance scaling between real and imaginary?
+            layer_rtol_real = integration_rtol
+            layer_rtol_imag = integration_rtol
+            layer_atol_real = integration_atol
+            layer_atol_imag = integration_atol
+
+            if scale_rtols_by_layer_type:
+                # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
+                # TODO test that these scales are the best.
+                if layer_is_solid:
+                    # Scale y2 and y3 by 0.1
+                    if (y_i == 1) or (y_i == 2):
+                        # Scale both the real and imaginary portions by the same amount.
+                        layer_rtol_real *= 0.1
+                        layer_rtol_imag *= 0.1
+                else:
+                    if not layer_is_static:
+                        # Scale dynamic liquid layer's y2 by additional 0.01.
+                        if (y_i == 1):
+                            # Scale both the real and imaginary portions by the same amount.
+                            layer_rtol_real *= 0.01
+                            layer_rtol_imag *= 0.01
+            # Populate rtol and atol pointers.
+            rtols_ptr[2 * y_i]     = layer_rtol_real
+            rtols_ptr[2 * y_i + 1] = layer_rtol_imag
+            atols_ptr[2 * y_i]     = layer_atol_real
+            atols_ptr[2 * y_i + 1] = layer_atol_imag
 
         # Find initial conditions for each solution at the base of this layer.
         radial_span = (radius_lower, radius_upper)
         if layer_i == 0:
             # Use initial condition function
-            initial_solutions_view = find_initial_guess(
+            # TODO: Cythonize initial guess function
+            INITIAL_VIEW_TEMP_VIEW = find_initial_guess(
                 layer_is_solid,
                 layer_is_static,
                 layer_is_incomp,
@@ -414,10 +419,11 @@ def radial_solver_x(
                 order_l=degree_l,
                 G_to_use=G_to_use
                 )
+            initial_y_ptr = &INITIAL_VIEW_TEMP_VIEW[0, 0]
         else:
-            layer_below_is_solid  = is_solid_by_layer[layer_i - 1]
-            layer_below_is_static = is_static_by_layer[layer_i - 1]
-            layer_below_is_incomp = is_incompressible_by_layer[layer_i - 1]
+            layer_below_is_solid  = is_solid_by_layer_ptr[layer_i - 1]
+            layer_below_is_static = is_static_by_layer_ptr[layer_i - 1]
+            layer_below_is_incomp = is_incompressible_by_layer_ptr[layer_i - 1]
 
             # Find gravity at the base interface using bottom of this layer and top of previous.
             interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
@@ -448,31 +454,36 @@ def radial_solver_x(
                     # Both layers are dynamic. Static liquid density is not needed.
                     static_liquid_density = NAN
 
-            # Use results at the top of the layer below and a interface function
-            interface_func, interface_inputs = find_interface_func(
+            # TODO: For now we are not using the initial y pointer correctly so it is set pointing to a different part of memory at layer==0.
+            #  We want it pointing back to the original array.
+            initial_y_ptr = &initial_y[0]
+
+            # Find the starting values for this layer using the results a the top of the previous layer + an interface
+            #  function.
+            solve_upper_y_at_interface_x(
+                uppermost_y_per_solution_ptr,
+                initial_y_ptr,
+                layer_below_num_sols,
+                num_sols,
+                layer_below_num_ys,
+                num_ys,
                 layer_below_is_solid,
                 layer_below_is_static,
+                layer_below_is_incomp,
                 layer_is_solid,
                 layer_is_static,
-                static_liquid_density,
+                layer_is_incomp,
                 interface_gravity,
-                G_to_use=G_to_use
-                )
-
-            # Run interface function
-            initial_solutions_view = interface_func(
-                last_layer_top_solutions_view
-                *interface_inputs
+                static_liquid_density,
+                G_to_use
                 )
 
         # Change initial conditions into 2x real values instead of complex for integration
-        # TODO: change to pointers
-        initial_solutions_real_arr  = np.empty((num_sols, num_ys * 2), dtype=np.float64, order='C')
-        initial_solutions_real_view = initial_solutions_real_arr
         for solution_i in range(num_sols):
             for y_i in range(num_ys):
-                initial_solutions_real_view[solution_i, (2 * y_i)]     = initial_solutions_view[solution_i, y_i].real
-                initial_solutions_real_view[solution_i, (2 * y_i) + 1] = initial_solutions_view[solution_i, y_i].imag
+                dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
+                initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
+                initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
 
         # Build solver instance
         solver = build_solver(
@@ -480,6 +491,7 @@ def radial_solver_x(
             layer_is_static,
             layer_is_incomp,
             layer_slices,
+            2 * num_ys,  # Solver needs to know how many ys it is working with. 2x ys in this case.
             layer_radius_ptr,
             layer_density_ptr,
             layer_gravity_ptr,
@@ -489,9 +501,9 @@ def radial_solver_x(
             degree_l,
             G_to_use,
             radial_span,
-            initial_solutions_real_view[0, :],
-            layer_atols_ptr,
-            layer_rtols_ptr,
+            &initial_y_only_real_ptr[0],  # Start the pointer at the beginning of the array
+            atols_ptr,
+            rtols_ptr,
             integration_method,
             max_step_touse,
             max_num_steps,
@@ -501,18 +513,15 @@ def radial_solver_x(
 
         # Get storage pointer for this layer
         storage_by_solution = main_storage[layer_i]
-        storage_by_solution_only_top = upper_y_solutions[layer_i]
-
-        # TODO: make this pointers
-        last_layer_top_solutions_arr  = np.empty((num_sols, num_ys), dtype=np.complex128, order='C')
-        last_layer_top_solutions_view = last_layer_top_solutions_arr
 
         # Solve for each solution
         for solution_i in range(num_sols):
 
             if solution_i > 0:
                 # Reset solver with new initial condition (this is already done for j==0)
-                solver.change_y0(initial_solutions_real_view[solution_i, :], auto_reset_state=False)
+                # This pointer has already been passed to the solver during initialization but we need the values at
+                #  the next solution. Pass new pointer at that address.
+                solver.change_y0_pointer(&initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL], auto_reset_state=False)
 
             ###### Integrate! #######
             solver._solve(reset=True)
@@ -530,28 +539,27 @@ def radial_solver_x(
             # If no problems, store results.
             # Need to make a copy because the solver pointers will be reallocated during the next solution.
             # Get storage pointer for this solution
-            storage_by_y              = storage_by_solution[solution_i]
-            storage_by_y_only_top_ptr = storage_by_solution_only_top[solution_i]
+            storage_by_y = storage_by_solution[solution_i]
             for slice_i in range(layer_slices):
                 for y_i in range(num_ys):
-
                     # Convert 2x real ys to 1x complex ys
-                    dcomplex_tmp = (solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i)] +
-                                    1.0j * solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i) + 1])
-                    storage_by_y[slice_i * num_ys + y_i] = dcomplex_tmp
+                    dcomplex_tmp = \
+                        solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i)] + \
+                        1.0j * solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i) + 1]
 
+                    storage_by_y[slice_i * num_ys + y_i] = dcomplex_tmp
                     # Store top most result for initial condition for the next layer
                     if slice_i == (layer_slices - 1):
-                        last_layer_top_solutions_view[solution_i, y_i] = dcomplex_tmp
-
                         # Tell top storage to point to the top-most value in the main storage arrays.
-                        storage_by_y_only_top_ptr[y_i] = &storage_by_y[slice_i * num_ys + y_i]
+                        uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = dcomplex_tmp
 
         if error:
             # Error was encountered during integration
             break
 
         # Prepare for next layer
+        layer_below_num_sols = num_sols
+        layer_below_num_ys   = num_ys
         last_layer_upper_gravity = gravity_upper
         last_layer_upper_density = density_upper
 
@@ -568,7 +576,7 @@ def radial_solver_x(
         raise NotImplementedError()
     else:
         num_output_ys = 6
-    full_solution_arr = np.empty((num_output_ys, total_slices), dtype=np.complex128, order='C')
+    full_solution_arr  = np.empty((num_output_ys, total_slices), dtype=np.complex128, order='C')
     full_solution_view = full_solution_arr
 
     # Declare surface solution matrix
@@ -576,13 +584,13 @@ def radial_solver_x(
     cdef double complex[:, ::1] surface_solution_matrix_view
 
     # During collapse, variables for the layer above the target one are used. Declare these and preset them.
-    cdef Py_ssize_t layer_above_num_sols = 0
-    cdef double layer_above_lower_gravity = 0.
-    cdef double layer_above_lower_density = 0.
+    cdef Py_ssize_t layer_above_num_sols    = 0
+    cdef double layer_above_lower_gravity   = 0.
+    cdef double layer_above_lower_density   = 0.
     cdef double liquid_density_at_interface = 0.
-    cdef bool_cpp_t layer_above_is_solid = False
-    cdef bool_cpp_t layer_above_is_static = False
-    cdef bool_cpp_t layer_above_is_incomp = False
+    cdef bool_cpp_t layer_above_is_solid    = False
+    cdef bool_cpp_t layer_above_is_static   = False
+    cdef bool_cpp_t layer_above_is_incomp   = False
 
     # The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
     #  ever be is 3, it is more efficient to just preallocate them on the stack rather than dynamically allocate them
@@ -597,7 +605,7 @@ def radial_solver_x(
     constant_vector_ptr[1] = 0. + 0.j
     constant_vector_ptr[2] = 0. + 0.j
 
-    # Allocate surface matrices. We only need one of these (which one depends on the upper-most layer type).
+    # Allocate surface matrices. We only need one of these (which one depends on the uppermost layer type).
     # But, since there are only 3 and all of them are small, we will just allocate all of them separately on the stack.
     cdef double complex[3][3] surface_matrix_solid
     cdef double complex[2][2] surface_matrix_liquid_dynamic
@@ -670,15 +678,18 @@ def radial_solver_x(
             gravity_upper = layer_gravity_ptr[layer_slices - 1]
 
             # Get assumptions for layer
-            layer_is_solid  = is_solid_by_layer[layer_i_reversed]
-            layer_is_static = is_static_by_layer[layer_i_reversed]
-            layer_is_incomp = is_incompressible_by_layer[layer_i_reversed]
-
-            # Get y values at top of layer for each solution
-            storage_by_solution_only_top = upper_y_solutions[layer_i_reversed]
+            layer_is_solid  = is_solid_by_layer_ptr[layer_i_reversed]
+            layer_is_static = is_static_by_layer_ptr[layer_i_reversed]
+            layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed]
 
             # Get full solutions for this layer
             storage_by_solution = main_storage[layer_i_reversed]
+
+            # Get value at the top of the layer
+            for solution_i in range(num_sols):
+                for y_i in range(num_ys):
+                    uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
+                        storage_by_solution[solution_i][(layer_slices - 1) * num_ys + y_i]
 
             if layer_i == 0:
                 # Working on surface (uppermost) layer.
@@ -687,25 +698,7 @@ def radial_solver_x(
                     # Set pointer to correct matrix
                     surface_matrix_ptr = &surface_matrix_solid[0][0]
 
-                    # At the surface:
-                    # y_2 = S_1
-                    # y_4 = S_4
-                    # y_6 = S_6
-                    #
-                    # y_2 = \sum_{i=0}^{3} y_{2,i} C_{i}
-                    # y_4 = \sum_{i=0}^{3} y_{4,i} C_{i}
-                    # y_6 = \sum_{i=0}^{3} y_{6,i} C_{i}
-                    #
-                    # To find the unknown C's, must solve the linear system of equations
-                    # \matrix{y} \vector{C} = \vector{S}
-                    #
-                    # Where S are surface solutions that vary based on if the problem is tidal, loading, etc.
-                    #
-                    # References
-                    # ----------
-                    # Eq. B.37 in KTC21
-                    # Eq. 16 in KMN15
-
+                    # At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
                     # We will set the constant vector equal to the surface boundary condition.
                     #  It will be overwritten with the solution to the linear solution.
                     constant_vector_ptr[0] = bc_pointer[0]
@@ -714,16 +707,15 @@ def radial_solver_x(
 
                     # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
                     #  FORTRAN-ordered arrays.
-                    # The last index is to get the value at the pointer value.
-                    surface_matrix_ptr[0] = storage_by_solution_only_top[0][1][0]
-                    surface_matrix_ptr[1] = storage_by_solution_only_top[0][3][0]
-                    surface_matrix_ptr[2] = storage_by_solution_only_top[0][5][0]
-                    surface_matrix_ptr[3] = storage_by_solution_only_top[1][1][0]
-                    surface_matrix_ptr[4] = storage_by_solution_only_top[1][3][0]
-                    surface_matrix_ptr[5] = storage_by_solution_only_top[1][5][0]
-                    surface_matrix_ptr[6] = storage_by_solution_only_top[2][1][0]
-                    surface_matrix_ptr[7] = storage_by_solution_only_top[2][3][0]
-                    surface_matrix_ptr[8] = storage_by_solution_only_top[2][5][0]
+                    surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
+                    surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
+                    surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 5]
+                    surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
+                    surface_matrix_ptr[4] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
+                    surface_matrix_ptr[5] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 5]
+                    surface_matrix_ptr[6] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]
+                    surface_matrix_ptr[7] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
+                    surface_matrix_ptr[8] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 5]
 
                 else:
                     if layer_is_static:
@@ -732,22 +724,7 @@ def radial_solver_x(
 
                         # Unlike the dynamic liquid layer, a static liquid layer's y_2 is undefined. That leads to one less boundary condition
                         #  and one less solution (1 total).
-                        #
-                        # At the surface,
-                        # y_7 = S_7
-                        #
-                        # y_7 = y_{7,0} C_{0}
-                        #
-                        # To find the unknown C's, must solve the linear system of equations
-                        # \matrix{y} \vector{C} = \vector{S}
-                        #
-                        # Where S are surface solutions that vary based on if the problem is tidal, loading, etc.
-                        #
-                        # References
-                        # ----------
-                        # Eq. 17, 10 in S74
-                        # The surface boundary condition will still have 3 members. Drop the one related to y_4 and solve for the new one
-                        #   related to y_7. Found by the surface conditions for y_2 and y_6 and Eq. 17 from S74.
+                        #  At the surface, y_7 = S_7 [See: Eq. 17, 10 in S74]
 
                         # We will set the constant vector equal to the surface boundary condition.
                         #  It will be overwritten with the solution to the linear solution.
@@ -761,31 +738,14 @@ def radial_solver_x(
                         constant_vector_ptr[2] = NAN
 
                         # Note: for a static liquid layer, y_7 held in index 1 (index 0 is y_5).
-                        # The last index is to get the value at the pointer value.
-                        surface_matrix_ptr[0] = storage_by_solution_only_top[0][1][0]
+                        surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
                     else:
                         # Set pointer to correct matrix
                         surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
 
                         # Unlike the solid layer, a liquid layer's y_4 is undefined. That leads to one less boundary condition and one
                         #  less solution (2 total).
-                        #
-                        # At the surface,
-                        # y_2 = S_1
-                        # y_6 = S_6
-                        #
-                        # y_2 = \sum_{i=0}^{2} y_{2,i} C_{i}
-                        # y_6 = \sum_{i=0}^{2} y_{6,i} C_{i}
-                        #
-                        # To find the unknown C's, must solve the linear system of equations
-                        # \matrix{y} \vector{C} = \vector{S}
-                        #
-                        # Where S are surface solutions that vary based on if the problem is tidal, loading, etc.
-                        #
-                        # References
-                        # ----------
-                        # Eq. B.38 in KTC21
-                        # Eq. 17 in KMN15
+                        #  At the surface, y_2 = S_1; y_6 = S_6 [See: Eq. B.38 in KTC21; Eq. 17 in KMN15
 
                         # We will set the constant vector equal to the surface boundary condition.
                         #  It will be overwritten with the solution to the linear solution.
@@ -798,11 +758,10 @@ def radial_solver_x(
 
                         # Build y-solution matrix to be applied to the surface.
                         # Note: for a dynamic liquid, y_2 and y_6 are held at indices 1 and 3 respectively
-                        # The last index is to get the value at the pointer value.
-                        surface_matrix_ptr[0] = storage_by_solution_only_top[0][1][0]
-                        surface_matrix_ptr[1] = storage_by_solution_only_top[0][3][0]
-                        surface_matrix_ptr[2] = storage_by_solution_only_top[1][1][0]
-                        surface_matrix_ptr[3] = storage_by_solution_only_top[1][3][0]
+                        surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
+                        surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
+                        surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
+                        surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
 
 
                 # Find the solution to the linear equation
@@ -844,28 +803,39 @@ def radial_solver_x(
                             constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
                     else:
                         # Create some helper functions that will be needed
-                        y4_frac_1 = -storage_by_solution_only_top[0][3][0] / storage_by_solution_only_top[2][3][0]
-                        y4_frac_2 = -storage_by_solution_only_top[1][3][0] / storage_by_solution_only_top[2][3][0]
+                        y4_frac_1 = (
+                                -uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3] /
+                                uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
+                            )
+                        y4_frac_2 = (
+                                -uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3] /
+                                uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
+                            )
 
                         if layer_above_is_static:
                             # Need to find 3 solid constants from 1 liquid constant
                             # S74, Page 131
                             constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
                             # Derived by JPR based on Eq 21 (2nd line) of S74
-                            gamma_1 = \
-                                (storage_by_solution_only_top[0][1][0] + y4_frac_1 * storage_by_solution_only_top[2][1][0]) - \
+                            gamma_1 = (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1] +
+                                       y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
                                 (liquid_density_at_interface *
                                  (interface_gravity * (
-                                         storage_by_solution_only_top[0][0][0] + y4_frac_1 * storage_by_solution_only_top[2][0][0]) -
-                                  (storage_by_solution_only_top[0][4][0] + y4_frac_1 * storage_by_solution_only_top[2][4][0])
+                                         uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0] +
+                                         y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
+                                  (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 4] +
+                                   y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
                                   )
                                  )
                             gamma_2 = \
-                                (storage_by_solution_only_top[1][1][0] + y4_frac_2 * storage_by_solution_only_top[2][1][0]) - \
+                                (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1] +
+                                 y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
                                 (liquid_density_at_interface *
                                  (interface_gravity * (
-                                         storage_by_solution_only_top[1][0][0] + y4_frac_2 * storage_by_solution_only_top[2][0][0]) -
-                                  (storage_by_solution_only_top[1][4][0] + y4_frac_2 * storage_by_solution_only_top[2][4][0])
+                                         uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0] +
+                                         y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
+                                  (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 4] +
+                                   y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
                                   )
                                  )
 
@@ -910,15 +880,15 @@ def radial_solver_x(
                                 # Derived by JPR based on Eq 21 (2nd line) of S74
                                 # Pull out ys
                                 # # Solution 1
-                                lower_s1y1 = storage_by_solution_only_top[0][0][0]
-                                lower_s1y2 = storage_by_solution_only_top[0][1][0]
-                                lower_s1y5 = storage_by_solution_only_top[0][2][0]
-                                lower_s1y6 = storage_by_solution_only_top[0][3][0]
+                                lower_s1y1 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0]
+                                lower_s1y2 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
+                                lower_s1y5 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 2]
+                                lower_s1y6 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
                                 # # Solution 2
-                                lower_s2y1 = storage_by_solution_only_top[1][0][0]
-                                lower_s2y2 = storage_by_solution_only_top[1][1][0]
-                                lower_s2y5 = storage_by_solution_only_top[1][2][0]
-                                lower_s2y6 = storage_by_solution_only_top[1][3][0]
+                                lower_s2y1 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0]
+                                lower_s2y2 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
+                                lower_s2y5 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 2]
+                                lower_s2y6 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
                                 # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
                                 lambda_1 = lower_s1y2 - liquid_density_at_interface * \
                                            (interface_gravity * lower_s1y1 - lower_s1y5)
@@ -1020,26 +990,12 @@ def radial_solver_x(
     # Free memory
     del solver
 
-    # Release planet pointers
-    PyMem_Free(radius_array_ptr)
-    PyMem_Free(density_array_ptr)
-    PyMem_Free(gravity_array_ptr)
-    PyMem_Free(bulk_array_ptr)
+    # Release radial property pointers
+    PyMem_Free(radial_double_data_ptr)
     PyMem_Free(cmplx_shear_array_ptr)
-
-    # Release integration-related pointers
-    PyMem_Free(rtols_by_layer_ptr)
-    PyMem_Free(atols_by_layer_ptr)
 
     # Deconstruct main solution pointer
     # Main storage pointers are structured like [layer_i][solution_i][y_i + r_i]
-    # Release pointer storage first
-    for layer_i in range(num_layers):
-        num_sols = num_solutions_by_layer_ptr[layer_i]
-        for solution_i in range(num_sols):
-            PyMem_Free(upper_y_solutions[layer_i][solution_i])
-        PyMem_Free(upper_y_solutions[layer_i])
-    PyMem_Free(upper_y_solutions)
     # Then main storage
     for layer_i in range(num_layers):
         num_sols = num_solutions_by_layer_ptr[layer_i]
@@ -1049,8 +1005,7 @@ def radial_solver_x(
     PyMem_Free(main_storage)
 
     # Release layer information pointers
-    PyMem_Free(num_solutions_by_layer_ptr)
-    PyMem_Free(start_index_by_layer_ptr)
-    PyMem_Free(num_slices_by_layer_ptr)
+    PyMem_Free(layer_int_data_ptr)
+    PyMem_Free(layer_bool_data_ptr)
 
     return full_solution_arr

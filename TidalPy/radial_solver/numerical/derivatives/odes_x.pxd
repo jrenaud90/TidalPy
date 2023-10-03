@@ -34,6 +34,7 @@ cdef RadialSolverBase build_solver(
 
     # RadialSolverBase Inputs
     Py_ssize_t num_slices,
+    Py_ssize_t num_ys,
     double* radius_array_ptr,
     double* density_array_ptr,
     double* gravity_array_ptr,
@@ -45,7 +46,7 @@ cdef RadialSolverBase build_solver(
 
     # Regular CySolver Inputs
     (double, double) t_span,
-    const double[::1] y0,
+    double* y0_ptr,
     double* rtols,
     double* atols,
     unsigned char rk_method,

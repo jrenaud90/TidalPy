@@ -11,7 +11,6 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-import cython
 from scipy.constants import G as G_
 
 from libc.math cimport pi
@@ -78,9 +77,13 @@ cpdef Py_ssize_t find_solution_num(
     return num_sols
 
 
-cpdef void interface_x(
-        double complex[:, :] lower_layer_y,
-        double complex[:, :] upper_layer_y,
+cdef void solve_upper_y_at_interface_x(
+        double complex* lower_layer_y_ptr,
+        double complex* upper_layer_y_ptr,
+        Py_ssize_t num_sols_lower,
+        Py_ssize_t num_sols_upper,
+        Py_ssize_t num_y_lower,
+        Py_ssize_t num_y_upper,
         bool_cpp_t lower_is_solid,
         bool_cpp_t lower_is_static,
         bool_cpp_t lower_is_incompressible,
@@ -93,11 +96,6 @@ cpdef void interface_x(
         ) noexcept nogil:
 
     cdef Py_ssize_t yi_lower, yi_upper, soli_lower, soli_upper
-    cdef Py_ssize_t num_sols_lower, num_sols_upper, num_y_lower, num_y_upper
-    num_sols_lower = len(lower_layer_y[0, :])
-    num_sols_upper = len(upper_layer_y[0, :])
-    num_y_lower    = len(lower_layer_y[:, 0])
-    num_y_upper    = len(upper_layer_y[:, 0])
 
     cdef bool_cpp_t solid_solid, solid_liquid, liquid_solid, liquid_liquid
     solid_solid   = lower_is_solid and upper_is_solid
@@ -134,7 +132,8 @@ cpdef void interface_x(
                 for soli_lower in range(num_sols_lower):
                     # They have same number of sols
                     soli_upper = soli_lower
-                    upper_layer_y[soli_upper, yi_upper] = lower_layer_y[soli_lower, yi_lower]
+                    upper_layer_y_ptr[soli_upper * num_y_upper + yi_upper] = \
+                        lower_layer_y_ptr[soli_lower * num_y_lower + yi_lower]
     elif liquid_liquid:
         # Liquid interfaces carry everything over if they are both static or both dynamic.
         if static_static or dynamic_dynamic:
@@ -145,47 +144,55 @@ cpdef void interface_x(
                 for soli_lower in range(num_sols_lower):
                     # They have same number of sols
                     soli_upper = soli_lower
-                    upper_layer_y[soli_upper, yi_upper] = lower_layer_y[soli_lower, yi_lower]
+                    upper_layer_y_ptr[soli_upper * num_y_upper + yi_upper] = \
+                        lower_layer_y_ptr[soli_lower * num_y_lower + yi_lower]
         elif static_dynamic:
             # For an upper layer that is liquid and dynamic there will be two independent solutions that need an initial guess.
             # # Solution 1
             # y_1_dynamic = 0
-            upper_layer_y[0, 0] = 0. + 0.j
+            upper_layer_y_ptr[0] = 0. + 0.j
             # y_2_dynamic = -rho * y_5_static
-            upper_layer_y[0, 1] = -liquid_density * lower_layer_y[0, 0]
+            upper_layer_y_ptr[1] = -liquid_density * lower_layer_y_ptr[0]
             # y_5_dynamic = y_5_static
-            upper_layer_y[0, 2] = lower_layer_y[0, 0]
+            upper_layer_y_ptr[2] = lower_layer_y_ptr[0]
             # y_6_dynamic = y_7_static + (4 pi G rho / g) * y_5_static
-            upper_layer_y[0, 3] = (
-                    lower_layer_y[0, 1] + (g_const * liquid_density / interface_gravity) * lower_layer_y[0, 0])
+            upper_layer_y_ptr[3] = \
+                lower_layer_y_ptr[1] + (g_const * liquid_density / interface_gravity) * lower_layer_y_ptr[0]
             # # Solution 2
             # y_1_dynamic = 1.
-            upper_layer_y[1, 0] = 1. + 0.j
+            upper_layer_y_ptr[1 * num_y_upper + 0] = 1. + 0.j
             # y_2_dynamic = rho * g * y_1_dynamic
-            upper_layer_y[1, 1] = liquid_density * interface_gravity * upper_layer_y[1, 0]
+            upper_layer_y_ptr[1 * num_y_upper + 1] = \
+                liquid_density * interface_gravity * upper_layer_y_ptr[1 * num_y_upper + 0]
             # y_5_dynamic = 0.
-            upper_layer_y[1, 2] = 0. + 0.j
+            upper_layer_y_ptr[1 * num_y_upper + 2] = 0. + 0.j
             # y_6_dynamic = -4 pi G rho y_1_dynamic
-            upper_layer_y[1, 3] = -g_const * liquid_density * upper_layer_y[1, 0]
+            upper_layer_y_ptr[1 * num_y_upper + 3] = \
+                -g_const * liquid_density * upper_layer_y_ptr[1 * num_y_upper + 0]
         elif dynamic_static:
             # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
-            lambda_1 = (lower_layer_y[0, 1] -
-                        liquid_density * (interface_gravity * lower_layer_y[0, 0] - lower_layer_y[0, 2]))
-            lambda_2 = (lower_layer_y[1, 1] -
-                        liquid_density * (interface_gravity * lower_layer_y[1, 0] - lower_layer_y[1, 2]))
+            lambda_1 = \
+                lower_layer_y_ptr[1] - \
+                liquid_density * (interface_gravity * lower_layer_y_ptr[0] - lower_layer_y_ptr[2])
+            lambda_2 = \
+                lower_layer_y_ptr[1 * num_y_lower + 1] - \
+                liquid_density * (interface_gravity * lower_layer_y_ptr[1 * num_y_lower + 0] -
+                                  lower_layer_y_ptr[1 * num_y_lower + 2])
 
             # Set the first coefficient to 1. It will be solved for later on during the collapse phase.
             coeff_1 = 1. + 0.j
             # The other coefficient which is related to 1 via...
             coeff_2 = -(lambda_1 / lambda_2) * coeff_1
 
-            coeff_3 = lower_layer_y[0, 3] + g_const * lower_layer_y[0, 1] / interface_gravity
-            coeff_4 = lower_layer_y[1, 3] + g_const * lower_layer_y[1, 1] / interface_gravity
+            coeff_3 = lower_layer_y_ptr[3] + g_const * lower_layer_y_ptr[1] / interface_gravity
+            coeff_4 = \
+                lower_layer_y_ptr[1 * num_y_lower + 3] + \
+                g_const * lower_layer_y_ptr[1 * num_y_lower + 1] / interface_gravity
 
             # y^liq(st)_5 = C^liq(dy)_1 * y^liq(dy)_5,1 + C^liq(dy)_2 * y^liq(dy)_5,2
-            upper_layer_y[0, 0] = coeff_1 * lower_layer_y[0, 2] + coeff_2 * lower_layer_y[1, 2]
+            upper_layer_y_ptr[0] = coeff_1 * lower_layer_y_ptr[2] + coeff_2 * lower_layer_y_ptr[1 * num_y_lower + 2]
             # y^liq(st)_7 = C^liq(dy)_1 * y^liq(dy)_7,1 + C^liq(dy)_2 * y^liq(dy)_7,2
-            upper_layer_y[0, 1] = coeff_1 * coeff_3 + coeff_2 * coeff_4
+            upper_layer_y_ptr[1] = coeff_1 * coeff_3 + coeff_2 * coeff_4
         else:
             # How did you get here...
             pass
@@ -198,54 +205,56 @@ cpdef void interface_x(
             for soli_upper in range(3):
                 if soli_upper == 0 or soli_upper == 1:
                     # For a dynamic liquid layer there will be two independent solutions at the top of the layer
-                    upper_layer_y[soli_upper, 0] = lower_layer_y[soli_upper, 0]
-                    upper_layer_y[soli_upper, 1] = lower_layer_y[soli_upper, 1]
-                    upper_layer_y[soli_upper, 4] = lower_layer_y[soli_upper, 2]
-                    upper_layer_y[soli_upper, 5] = lower_layer_y[soli_upper, 3]
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 0] = lower_layer_y_ptr[soli_upper * num_y_lower + 0]
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 1] = lower_layer_y_ptr[soli_upper * num_y_lower + 1]
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 4] = lower_layer_y_ptr[soli_upper * num_y_lower + 2]
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 5] = lower_layer_y_ptr[soli_upper * num_y_lower + 3]
 
                     # For solutions 1 and 2: y_3 and y_4 for the solid layer are zero
-                    upper_layer_y[soli_upper, 2] = 0. + 0.j
-                    upper_layer_y[soli_upper, 3] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 2] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 3] = 0. + 0.j
                 else:
                     # For the third solid solution all the y's are set to zero except y_3.
-                    upper_layer_y[soli_upper, 0] = 0. + 0.j
-                    upper_layer_y[soli_upper, 1] = 0. + 0.j
-                    upper_layer_y[soli_upper, 2] = 1. + 0.j
-                    upper_layer_y[soli_upper, 3] = 0. + 0.j
-                    upper_layer_y[soli_upper, 4] = 0. + 0.j
-                    upper_layer_y[soli_upper, 5] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 0] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 1] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 2] = 1. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 3] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 4] = 0. + 0.j
+                    upper_layer_y_ptr[soli_upper * num_y_upper + 5] = 0. + 0.j
         elif static_dynamic or static_static:
             # As far as I am aware, the static_static and static_dynamic solutions are the same.
 
             # Eqs. 20 in S74
             # For a static liquid layer there will be one independent solutions at the top of the layer
-            upper_layer_y[0, 0] = 0. + 0.j
+            upper_layer_y_ptr[0] = 0. + 0.j
             # y_2_sol = -rho * y_5_liq
-            upper_layer_y[0, 1] = -liquid_density * lower_layer_y[0, 0]
-            upper_layer_y[0, 2] = 0. + 0.j
-            upper_layer_y[0, 3] = 0. + 0.j
+            upper_layer_y_ptr[1] = -liquid_density * lower_layer_y_ptr[0]
+            upper_layer_y_ptr[2] = 0. + 0.j
+            upper_layer_y_ptr[3] = 0. + 0.j
             # y_5_sol = y_5_liq
-            upper_layer_y[0, 4] = lower_layer_y[0, 0]
+            upper_layer_y_ptr[4] = lower_layer_y_ptr[0]
             # y_6_sol = y_7_liq + (4 pi G rho / g) y_5_liq
-            upper_layer_y[0, 5] = (lower_layer_y[0, 1] +
-                                    (g_const * liquid_density / interface_gravity) * lower_layer_y[0, 0])
+            upper_layer_y_ptr[5] = \
+                lower_layer_y_ptr[1] + (g_const * liquid_density / interface_gravity) * lower_layer_y_ptr[0]
             # y_1_sol = 1.
-            upper_layer_y[1, 0] = 1. + 0.j
+            upper_layer_y_ptr[1 * num_y_upper + 0] = 1. + 0.j
             # y_2_sol = rho * g * y_1_sol
-            upper_layer_y[1, 1] = liquid_density * interface_gravity * upper_layer_y[1, 0]
-            upper_layer_y[1, 2] = 0. + 0.j
-            upper_layer_y[1, 3] = 0. + 0.j
-            upper_layer_y[1, 4] = 0. + 0.j
+            upper_layer_y_ptr[1 * num_y_upper + 1] = \
+                liquid_density * interface_gravity * upper_layer_y_ptr[1 * num_y_upper + 0]
+            upper_layer_y_ptr[1 * num_y_upper + 2] = 0. + 0.j
+            upper_layer_y_ptr[1 * num_y_upper + 3] = 0. + 0.j
+            upper_layer_y_ptr[1 * num_y_upper + 4] = 0. + 0.j
             # y_6_sol = -4 pi G rho y_1_sol
-            upper_layer_y[1, 5] = -g_const * liquid_density * upper_layer_y[1, 0]
+            upper_layer_y_ptr[1 * num_y_upper + 5] = \
+                -g_const * liquid_density * upper_layer_y_ptr[1 * num_y_upper + 0]
 
-            upper_layer_y[2, 0] = 0. + 0.j
-            upper_layer_y[2, 1] = 0. + 0.j
+            upper_layer_y_ptr[2 * num_y_upper + 0] = 0. + 0.j
+            upper_layer_y_ptr[2 * num_y_upper + 1] = 0. + 0.j
             # y_3_sol = 1.
-            upper_layer_y[2, 2] = 1. + 0.j
-            upper_layer_y[2, 3] = 0. + 0.j
-            upper_layer_y[2, 4] = 0. + 0.j
-            upper_layer_y[2, 5] = 0. + 0.j
+            upper_layer_y_ptr[2 * num_y_upper + 2] = 1. + 0.j
+            upper_layer_y_ptr[2 * num_y_upper + 3] = 0. + 0.j
+            upper_layer_y_ptr[2 * num_y_upper + 4] = 0. + 0.j
+            upper_layer_y_ptr[2 * num_y_upper + 5] = 0. + 0.j
     elif solid_liquid:
 
         if dynamic_dynamic or static_dynamic:
@@ -256,24 +265,37 @@ cpdef void interface_x(
             for soli_upper in range(2):
                 # Solve for y^liq_1, y^liq_2, y^liq_5, y^liq_6 (TS72 Eq. 143)
                 #    Note that the liquid solution does not have y_3, y_4 which are index 2, 3 for solid solution.
-                coeff_1 = lower_layer_y[soli_upper, 3] / lower_layer_y[2, 3]
-                upper_layer_y[soli_upper, 0] = lower_layer_y[soli_upper, 0] - coeff_1 * lower_layer_y[2, 0]
-                upper_layer_y[soli_upper, 1] = lower_layer_y[soli_upper, 1] - coeff_1 * lower_layer_y[2, 1]
-                upper_layer_y[soli_upper, 2] = lower_layer_y[soli_upper, 4] - coeff_1 * lower_layer_y[2, 4]
-                upper_layer_y[soli_upper, 3] = lower_layer_y[soli_upper, 5] - coeff_1 * lower_layer_y[2, 5]
+                coeff_1 = lower_layer_y_ptr[soli_upper * num_y_lower + 3] / lower_layer_y_ptr[2 * num_y_lower + 3]
+
+                upper_layer_y_ptr[soli_upper * num_y_upper + 0] = \
+                    lower_layer_y_ptr[soli_upper * num_y_lower + 0] - coeff_1 * lower_layer_y_ptr[2 * num_y_lower + 0]
+                upper_layer_y_ptr[soli_upper * num_y_upper + 1] = \
+                    lower_layer_y_ptr[soli_upper * num_y_lower + 1] - coeff_1 * lower_layer_y_ptr[2 * num_y_lower + 1]
+                upper_layer_y_ptr[soli_upper * num_y_upper + 2] = \
+                    lower_layer_y_ptr[soli_upper * num_y_lower + 4] - coeff_1 * lower_layer_y_ptr[2 * num_y_lower + 4]
+                upper_layer_y_ptr[soli_upper * num_y_upper + 3] = \
+                    lower_layer_y_ptr[soli_upper * num_y_lower + 5] - coeff_1 * lower_layer_y_ptr[2 * num_y_lower + 5]
         elif dynamic_static or static_static:
             # As far as I am aware, static_static and dynamic_static should work the same.
             # Eq. 21 in S74
-            frac_1 = -lower_layer_y[0, 3] / lower_layer_y[2, 3]
-            frac_2 = -lower_layer_y[1, 3] / lower_layer_y[2, 3]
+            frac_1 = -lower_layer_y_ptr[0 * num_y_lower + 3] / lower_layer_y_ptr[2 * num_y_lower + 3]
+            frac_2 = -lower_layer_y_ptr[1 * num_y_lower + 3] / lower_layer_y_ptr[2 * num_y_lower + 3]
 
             # lambda_j = (y_2j + f_j y_23) - rho( g(y_1j + f_j y_13) - (y_5j + f_j y_53))
-            lambda_1 = (lower_layer_y[0, 1] + frac_1 * lower_layer_y[2, 1]) - \
-                        liquid_density * (interface_gravity * (lower_layer_y[0, 0] + frac_1 * lower_layer_y[2, 0]) -
-                                        (lower_layer_y[0, 4] + frac_1 * lower_layer_y[2, 4]))
-            lambda_2 = (lower_layer_y[1, 1] + frac_2 * lower_layer_y[2, 1]) - \
-                        liquid_density * (interface_gravity * (lower_layer_y[1, 0] + frac_2 * lower_layer_y[2, 0]) -
-                                        (lower_layer_y[1, 4] + frac_2 * lower_layer_y[2, 4]))
+            lambda_1 = \
+                lower_layer_y_ptr[1] + frac_1 * lower_layer_y_ptr[2 * num_y_lower + 1] - \
+                liquid_density * (
+                        interface_gravity * (
+                            lower_layer_y_ptr[0] + frac_1 * lower_layer_y_ptr[2 * num_y_lower + 0]) -
+                        (lower_layer_y_ptr[4] + frac_1 * lower_layer_y_ptr[2 * num_y_lower + 4])
+                )
+            lambda_2 = \
+                lower_layer_y_ptr[1 * num_y_lower + 1] + frac_2 * lower_layer_y_ptr[2 * num_y_lower + 1] - \
+                liquid_density * (
+                        interface_gravity * (
+                            lower_layer_y_ptr[1 * num_y_lower + 0] + frac_2 * lower_layer_y_ptr[2 * num_y_lower + 0]) -
+                        (lower_layer_y_ptr[1 * num_y_lower + 4] + frac_2 * lower_layer_y_ptr[2 * num_y_lower + 4])
+                )
 
             # Set the first coefficient to 1. It will be solved for later on during the collapse phase.
             coeff_1 = 1.
@@ -283,11 +305,15 @@ cpdef void interface_x(
 
             const_1 = (g_const / interface_gravity)
 
-            coeff_4 = lower_layer_y[0, 5] + const_1 * lower_layer_y[0, 1]
-            coeff_5 = lower_layer_y[1, 5] + const_1 * lower_layer_y[1, 1]
-            coeff_6 = lower_layer_y[2, 5] + const_1 * lower_layer_y[2, 1]
+            coeff_4 = lower_layer_y_ptr[0 * num_y_lower + 5] + const_1 * lower_layer_y_ptr[0 * num_y_lower + 1]
+            coeff_5 = lower_layer_y_ptr[1 * num_y_lower + 5] + const_1 * lower_layer_y_ptr[1 * num_y_lower + 1]
+            coeff_6 = lower_layer_y_ptr[2 * num_y_lower + 5] + const_1 * lower_layer_y_ptr[2 * num_y_lower + 1]
 
             # y^liq_5 = C^sol_1 * y^sol_5,1 + C^sol_2 * y^sol_5,2 + C^sol_3 * y^sol_5,3
-            lower_layer_y[0, 1] = coeff_1 * lower_layer_y[0, 4] + coeff_2 * lower_layer_y[1, 4] + coeff_3 * lower_layer_y[2, 4]
+            upper_layer_y_ptr[0] = \
+                coeff_1 * lower_layer_y_ptr[0 * num_y_lower + 4] + \
+                coeff_2 * lower_layer_y_ptr[1 * num_y_lower + 4] + \
+                coeff_3 * lower_layer_y_ptr[2 * num_y_lower + 4]
             # y^liq_7 = C^sol_1 * y^sol_7,1 + C^sol_2 * y^sol_7,2 + C^sol_3 * y^sol_7,3
-            lower_layer_y[0, 1] = coeff_1 * coeff_4 + coeff_2 * coeff_5 + coeff_3 * coeff_6
+            upper_layer_y_ptr[1] = \
+                coeff_1 * coeff_4 + coeff_2 * coeff_5 + coeff_3 * coeff_6

@@ -43,9 +43,9 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         num_args = len(new_args)
 
         if self.debug_mode:
-            logging.debug(f'{self}: Additional arguments changed.')
+            log.debug(f'{self}: Additional arguments changed.')
         if num_args != self.expected_num_args:
-            logging.error(f'{self}: Unsupported number of arguments provided.')
+            log.error(f'{self}: Unsupported number of arguments provided.')
             raise AttributeError(f'Unsupported number of arguments provided to {self}.')
 
         # Add args to any constant parameter references.

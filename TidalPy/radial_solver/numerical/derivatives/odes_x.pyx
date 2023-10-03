@@ -722,6 +722,7 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
         self.dy_ptr[2] = dy7.real
         self.dy_ptr[3] = dy7.imag
 
+from libc.stdio cimport printf
 
 cdef RadialSolverBase build_solver(
         bool_cpp_t is_solid,
@@ -730,6 +731,7 @@ cdef RadialSolverBase build_solver(
 
         # RadialSolverBase Inputs
         Py_ssize_t num_slices,
+        Py_ssize_t num_ys,
         double* radius_array_ptr,
         double* density_array_ptr,
         double* gravity_array_ptr,
@@ -741,7 +743,7 @@ cdef RadialSolverBase build_solver(
 
         # Regular CySolver Inputs
         (double, double) t_span,
-        const double[::1] y0,
+        double* y0_ptr,
         double* atols_ptr,
         double* rtols_ptr,
         unsigned char rk_method,
@@ -755,6 +757,10 @@ cdef RadialSolverBase build_solver(
 
     cdef RadialSolverBase solver
 
+    # Convert the y0 pointer to a memoryview in order to work with CyRK's CySolver __init__
+    cdef double[:] y0_view
+    y0_view = <double[:num_ys]> y0_ptr
+
     if is_solid:
         if is_static:
             if is_incomp:
@@ -762,7 +768,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -774,7 +780,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -787,7 +793,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -799,7 +805,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -813,7 +819,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -825,7 +831,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -838,7 +844,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,
@@ -850,7 +856,7 @@ cdef RadialSolverBase build_solver(
                     frequency,
                     degree_l,
                     G_to_use,
-                    y0,
+                    y0_view,
                     t_span,
                     rk_method=rk_method,
                     max_step=max_step,

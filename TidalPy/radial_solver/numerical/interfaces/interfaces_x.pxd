@@ -5,9 +5,13 @@ cpdef Py_ssize_t find_solution_num(
         bool_cpp_t is_static,
         bool_cpp_t is_incompressible) noexcept nogil
 
-cpdef void interface_x(
-        double complex[:, :] lower_layer_y,
-        double complex[:, :] upper_layer_y,
+cdef void solve_upper_y_at_interface_x(
+        double complex* lower_layer_y_ptr,
+        double complex* upper_layer_y_ptr,
+        Py_ssize_t num_sols_lower,
+        Py_ssize_t num_sols_upper,
+        Py_ssize_t num_y_lower,
+        Py_ssize_t num_y_upper,
         bool_cpp_t lower_is_solid,
         bool_cpp_t lower_is_static,
         bool_cpp_t lower_is_incompressible,
