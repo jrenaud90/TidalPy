@@ -5,7 +5,9 @@ from TidalPy.utilities.math.complex cimport csqrt, cipow
 from TidalPy.utilities.math.special_x cimport double_factorial
 
 
-cdef double complex z_calc(double complex x_squared, unsigned int degree_l) noexcept nogil:
+cdef double complex z_calc(
+        double complex x_squared,
+        unsigned char degree_l) noexcept nogil:
     """ Calculates the z function using spherical Bessel function, see Eq. B14 of KMN15.
 
     References
@@ -36,12 +38,12 @@ cdef double complex z_calc(double complex x_squared, unsigned int degree_l) noex
 
 
 cdef void takeuchi_phi_psi(
-    double complex z,
-    unsigned char degree_l,
-    double complex* phi_ptr,
-    double complex* phi_lplus1_ptr,
-    double complex* psi_ptr,
-    ) noexcept nogil:
+        double complex z,
+        unsigned char degree_l,
+        double complex* phi_ptr,
+        double complex* phi_lplus1_ptr,
+        double complex* psi_ptr,
+        ) noexcept nogil:
     """ Calculate the two (plus one) functions used to find initial conditions for shooting method.
 
     References

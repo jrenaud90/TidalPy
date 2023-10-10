@@ -6,7 +6,7 @@ from cpython.mem cimport PyMem_Malloc
 
 # We need to use a custom csqrt function because Windows does not play nice with libc.complex cython library.
 from TidalPy.utilities.math.complex cimport csqrt
-from TidalPy.radial_solver.numerical.initial.common cimport z_calc
+from TidalPy.radial_solver.numerical.initial.common cimport takeuchi_phi_psi
 
 cdef void takeuchi_solid_dynamic_compressible(
         double frequency,
@@ -104,8 +104,10 @@ cdef void takeuchi_solid_dynamic_compressible(
     z_k2_pos = k2_pos * r2
     z_k2_neg = k2_neg * r2
 
-    phi_k2_pos, phi_lp1_k2_pos, psi_k2_pos = takeuchi_phi_psi(z_k2_pos, degree_l)
-    phi_k2_neg, phi_lp1_k2_neg, psi_k2_neg = takeuchi_phi_psi(z_k2_neg, degree_l)
+    cdef double complex phi_k2_pos, phi_lp1_k2_pos, psi_k2_pos
+    cdef double complex phi_k2_neg, phi_lp1_k2_neg, psi_k2_neg
+    takeuchi_phi_psi(z_k2_pos, degree_l, &phi_k2_pos, &phi_lp1_k2_pos, &psi_k2_pos)
+    takeuchi_phi_psi(z_k2_neg, degree_l, &phi_k2_neg, &phi_lp1_k2_neg, &psi_k2_neg)
 
     # See Eq. 102 in TS72
     # y1, solutions 1--3
