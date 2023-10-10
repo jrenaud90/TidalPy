@@ -15,11 +15,11 @@ cdef class RadialSolverBase(CySolver):
     cdef Py_ssize_t num_slices
 
     # Radial pointer arrays
-    cdef double* radius_array_ptr,
-    cdef double* density_array_ptr,
-    cdef double* gravity_array_ptr,
-    cdef double* bulk_modulus_array_ptr,
-    cdef double complex* shear_modulus_array_ptr,
+    cdef double* radius_array_ptr
+    cdef double* density_array_ptr
+    cdef double* gravity_array_ptr
+    cdef double* bulk_modulus_array_ptr
+    cdef double complex* shear_modulus_array_ptr
 
     # State properties at current radius
     cdef double complex shear_modulus

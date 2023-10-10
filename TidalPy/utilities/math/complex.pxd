@@ -1,3 +1,35 @@
-cdef double hypot(double x, double y) noexcept nogil
+from libc.math cimport NAN, INFINITY
+from libc.float cimport DBL_MAX, DBL_MIN, DBL_MANT_DIG
 
-cdef double complex csqrt(double complex z) noexcept nogil
+cdef double SQRT2
+cdef double LOGE2
+cdef double SQRT2_INV
+cdef double THRESH
+cdef double DBL_MAX_4
+cdef int SCALED_CEXP_K_F
+cdef int SCALED_CEXP_K_D
+cdef int SCALED_CEXP_K_LD
+cdef double SCALED_K_LOGE2_D
+cdef float SCALED_CEXP_LOWERF
+cdef float SCALED_CEXP_UPPERF
+cdef double SCALED_CEXP_LOWER
+cdef double SCALED_CEXP_UPPER
+cdef long double SCALED_CEXP_LOWERL
+cdef long double SCALED_CEXP_UPPERL
+
+
+cdef double complex build_dblcmplx(double a, double b) noexcept nogil
+
+cdef double hypot(const double x, const double y) noexcept nogil
+
+cdef double complex csqrt(const double complex z) noexcept nogil
+
+cdef double complex scaled_cexp(const double x, const double y, const int expt) noexcept nogil
+
+cdef double complex cexp(const double complex z) noexcept nogil
+
+cdef double complex clog(const double complex z) noexcept nogil
+
+cdef double complex cpow(const double complex a, const double complex b) noexcept nogil
+
+cdef double complex cipow(const double complex a, const int b) noexcept nogil

@@ -84,9 +84,10 @@ cdef void kamata_solid_dynamic_compressible(
 
     # TODO: TS74 (eq. 99) has these flipped compared to KMN15. Going with KMN for this func.
     #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
-    cdef double complex k2_pos, k2_neg
-    k2_pos = (1. / 2.) * (k2_quad_pos + csqrt(k2_quad))
-    k2_neg = (1. / 2.) * (k2_quad_pos - csqrt(k2_quad))
+    cdef double complex k2_pos, k2_neg, k2_quad_sqrt
+    k2_quad_sqrt = csqrt(k2_quad)
+    k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
+    k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
 
     cdef double complex f_k2_pos, f_k2_neg
     f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma
@@ -206,9 +207,10 @@ cdef void kamata_solid_static_compressible(
 
     # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
     #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
-    cdef double complex k2_pos, k2_neg
-    k2_pos = (1. / 2.) * (k2_quad_pos + csqrt(k2_quad))
-    k2_neg = (1. / 2.) * (k2_quad_pos - csqrt(k2_quad))
+    cdef double complex k2_pos, k2_neg, k2_quad_sqrt
+    k2_quad_sqrt = csqrt(k2_quad)
+    k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
+    k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
     
     cdef double complex f_k2_pos, f_k2_neg
     f_k2_pos = beta_2 * k2_pos / gamma

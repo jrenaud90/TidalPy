@@ -4,7 +4,7 @@
 from libcpp cimport bool as bool_cpp_t
 from libc.math cimport NAN, pi
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
+from cpython.mem cimport PyMem_Free
 
 import numpy as np
 cimport numpy as np
@@ -12,6 +12,9 @@ cimport numpy as np
 from scipy.linalg.cython_lapack cimport zgesv
 
 from scipy.constants import G as G_
+
+from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
+
 # TODO: ReDimen Radial
 from TidalPy.radial_solver.nondimensional import re_dimensionalize_radial_func
 from TidalPy.radial_solver.numerical.initial import find_initial_guess
@@ -88,9 +91,9 @@ def radial_solver_x(
 
     # Copy the radial data into new pointers so the values can be manipulated inside this function.
     # Store all double-sized data in one large array.
-    cdef double* radial_double_data_ptr = <double *> PyMem_Malloc(4 * total_slices * sizeof(double))
-    if not radial_double_data_ptr:
-        raise MemoryError()
+    cdef double* radial_double_data_ptr = <double *> allocate_mem(
+        4 * total_slices * sizeof(double),
+        'radial_double_data_ptr (radial_solver; init)')
 
     # Create user-friendly pointers to access blocks of that array
     cdef double* radius_array_ptr  = &radial_double_data_ptr[0]
@@ -103,9 +106,11 @@ def radial_solver_x(
     #  of a row to get the next item at slice_i. A fortran memory layout would be more efficient here.
 
     # Repeat for double complex-sized data.
-    cdef double complex* cmplx_shear_array_ptr = <double complex *> PyMem_Malloc(total_slices * sizeof(double complex))
-    if not cmplx_shear_array_ptr:
-        raise MemoryError()
+    cdef double complex* cmplx_shear_array_ptr = \
+        <double complex *> allocate_mem(
+            total_slices * sizeof(double complex),
+            'cmplx_shear_array_ptr (radial_solver; init)'
+            )
 
     # Populate the arrays (making a copy of values)
     for slice_i in range(total_slices):
@@ -182,17 +187,23 @@ def radial_solver_x(
     cdef double* atols_ptr = &atols_array[0]
 
     # Create storage for flags and information about each layer.
-    cdef Py_ssize_t* layer_int_data_ptr = <Py_ssize_t *> PyMem_Malloc(3 * num_layers * sizeof(Py_ssize_t))
-    if not layer_int_data_ptr:
-        raise MemoryError()
+    cdef Py_ssize_t* layer_int_data_ptr = \
+        <Py_ssize_t *> allocate_mem(
+            3 * num_layers * sizeof(Py_ssize_t),
+            'layer_int_data_ptr (radial_solver; init)'
+            )
+
     cdef Py_ssize_t* num_solutions_by_layer_ptr = &layer_int_data_ptr[0]
     cdef Py_ssize_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
     cdef Py_ssize_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
 
     # Unpack inefficient user-provided tuples into bool array
-    cdef Py_ssize_t * layer_bool_data_ptr = <Py_ssize_t *> PyMem_Malloc(3 * num_layers * sizeof(bool_cpp_t))
-    if not layer_bool_data_ptr:
-        raise MemoryError()
+    cdef bool_cpp_t* layer_bool_data_ptr = \
+        <bool_cpp_t *> allocate_mem(
+            3 * num_layers * sizeof(bool_cpp_t),
+            'layer_bool_data_ptr (radial_solver; init)'
+            )
+
     cdef bool_cpp_t* is_solid_by_layer_ptr          = &layer_bool_data_ptr[0]
     cdef bool_cpp_t* is_static_by_layer_ptr         = &layer_bool_data_ptr[num_layers]
     cdef bool_cpp_t* is_incompressible_by_layer_ptr = &layer_bool_data_ptr[2 * num_layers]
@@ -253,12 +264,14 @@ def radial_solver_x(
 
     # We have all the size information needed to build storage pointers
     # Main storage pointer is setup like [layer_i][solution_i][y_i + r_i]
-    cdef double complex*** main_storage = <double complex ***> PyMem_Malloc(num_layers * sizeof(double complex**))
-    if not main_storage:
-        raise MemoryError()
+    cdef double complex*** main_storage = \
+        <double complex ***> allocate_mem(
+            num_layers * sizeof(double complex**),
+            'main_storage (radial_solver; init)'
+            )
 
-    cdef double complex** storage_by_solution
-    cdef double complex* storage_by_y
+    cdef double complex** storage_by_solution = NULL
+    cdef double complex* storage_by_y = NULL
 
     for layer_i in range(num_layers):
         num_sols     = num_solutions_by_layer_ptr[layer_i]
@@ -266,17 +279,23 @@ def radial_solver_x(
         # Number of ys = 2x num sols
         num_ys = 2 * num_sols
 
-        storage_by_solution = <double complex**> PyMem_Malloc(num_sols * sizeof(double complex*))
-        if not storage_by_solution:
-            raise MemoryError()
+        storage_by_solution = \
+            <double complex**> allocate_mem(
+                num_sols * sizeof(double complex*), 
+                'storage_by_solution (radial_solver; init)'
+                )
 
         for solution_i in range(num_sols):
-            storage_by_y = <double complex*> PyMem_Malloc(layer_slices * num_ys * sizeof(double complex))
-            if not storage_by_y:
-                raise MemoryError()
+            storage_by_y = \
+                <double complex*> allocate_mem(
+                    layer_slices * num_ys * sizeof(double complex),
+                    'storage_by_y (radial_solver; init)'
+                    )
 
             storage_by_solution[solution_i] = storage_by_y
+            storage_by_y = NULL
         main_storage[layer_i] = storage_by_solution
+        storage_by_solution = NULL
 
     # Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
     #  worst.
@@ -991,21 +1010,36 @@ def radial_solver_x(
     del solver
 
     # Release radial property pointers
-    PyMem_Free(radial_double_data_ptr)
-    PyMem_Free(cmplx_shear_array_ptr)
+    if not (radial_double_data_ptr is NULL):
+        PyMem_Free(radial_double_data_ptr)
+        radial_double_data_ptr = NULL
+    if not (cmplx_shear_array_ptr is NULL):
+        PyMem_Free(cmplx_shear_array_ptr)
+        cmplx_shear_array_ptr = NULL
 
     # Deconstruct main solution pointer
     # Main storage pointers are structured like [layer_i][solution_i][y_i + r_i]
     # Then main storage
-    for layer_i in range(num_layers):
-        num_sols = num_solutions_by_layer_ptr[layer_i]
-        for solution_i in range(num_sols):
-            PyMem_Free(main_storage[layer_i][solution_i])
-        PyMem_Free(main_storage[layer_i])
-    PyMem_Free(main_storage)
+    if not (main_storage is NULL):
+        for layer_i in range(num_layers):
+            num_sols = num_solutions_by_layer_ptr[layer_i]
+            if not (main_storage[layer_i] is NULL):
+                for solution_i in range(num_sols):
+                    if not (main_storage[layer_i][solution_i] is NULL):
+                        PyMem_Free(main_storage[layer_i][solution_i])
+                        main_storage[layer_i][solution_i] = NULL
+                
+                PyMem_Free(main_storage[layer_i])
+                main_storage[layer_i] = NULL
+        PyMem_Free(main_storage)
+        main_storage = NULL
 
     # Release layer information pointers
-    PyMem_Free(layer_int_data_ptr)
-    PyMem_Free(layer_bool_data_ptr)
+    if not (layer_int_data_ptr is NULL):
+        PyMem_Free(layer_int_data_ptr)
+        layer_int_data_ptr = NULL
+    if not (layer_bool_data_ptr is NULL):
+        PyMem_Free(layer_bool_data_ptr)
+        layer_bool_data_ptr = NULL
 
     return full_solution_arr

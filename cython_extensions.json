@@ -1,7 +1,14 @@
 {
-  "complex": {
+  "math.complex": {
     "name": "TidalPy.utilities.math.complex",
     "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "math"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "math.special": {
+    "name": "TidalPy.utilities.math.special_x",
+    "sources": [["TidalPy", "utilities", "math", "special_x.pyx"]],
     "include_dirs": [["TidalPy", "utilities", "math"]],
     "compile_args": [],
     "link_args": []

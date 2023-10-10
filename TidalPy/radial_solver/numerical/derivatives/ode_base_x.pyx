@@ -7,7 +7,8 @@ from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 
 import numpy as np
 
-from CyRK.cy.cysolver cimport CySolver, MAX_STEP
+from CyRK.cy.common cimport MAX_STEP
+from CyRK.cy.cysolver cimport CySolver
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
 
 cdef double EPS = np.finfo(np.float64).eps

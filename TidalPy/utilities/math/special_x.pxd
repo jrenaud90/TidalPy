@@ -1,0 +1,1 @@
+cdef double double_factorial(unsigned char n) nogil

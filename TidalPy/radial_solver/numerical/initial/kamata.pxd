@@ -13,15 +13,15 @@ cdef void kamata_solid_dynamic_compressible(
     ) noexcept nogil
 
 cdef void kamata_solid_static_compressible(
-        double radius,
-        double density,
-        double bulk_modulus,
-        double complex shear_modulus,
-        unsigned int degree_l,
-        double G_to_use,
-        ssize_t num_ys, 
-        double complex* initial_conditions
-        ) noexcept nogil
+    double radius,
+    double density,
+    double bulk_modulus,
+    double complex shear_modulus,
+    unsigned int degree_l,
+    double G_to_use,
+    ssize_t num_ys, 
+    double complex* initial_conditions
+    ) noexcept nogil
 
 ########################################################################################################################
 #### Liquid Layers
