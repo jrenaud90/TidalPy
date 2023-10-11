@@ -18,18 +18,18 @@ cdef long double SCALED_CEXP_LOWERL
 cdef long double SCALED_CEXP_UPPERL
 
 
-cdef double complex build_dblcmplx(double a, double b) noexcept nogil
+cdef double complex cf_build_dblcmplx(double a, double b) noexcept nogil
 
-cdef double hypot(const double x, const double y) noexcept nogil
+cdef double cf_hypot(const double x, const double y) noexcept nogil
 
-cdef double complex csqrt(const double complex z) noexcept nogil
+cdef double complex cf_csqrt(const double complex z) noexcept nogil
 
-cdef double complex scaled_cexp(const double x, const double y, const int expt) noexcept nogil
+cdef double complex cf_scaled_cexp(const double x, const double y, const int expt) noexcept nogil
 
-cdef double complex cexp(const double complex z) noexcept nogil
+cdef double complex cf_cexp(const double complex z) noexcept nogil
 
-cdef double complex clog(const double complex z) noexcept nogil
+cdef double complex cf_clog(const double complex z) noexcept nogil
 
-cdef double complex cpow(const double complex a, const double complex b) noexcept nogil
+cdef double complex cf_cpow(const double complex a, const double complex b) noexcept nogil
 
-cdef double complex cipow(const double complex a, const int b) noexcept nogil
+cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil

@@ -1,9 +1,5 @@
 from libcpp cimport bool as bool_cpp_t
 
-cpdef Py_ssize_t find_solution_num(
-        bool_cpp_t is_solid,
-        bool_cpp_t is_static,
-        bool_cpp_t is_incompressible) noexcept nogil
 
 cdef void solve_upper_y_at_interface_x(
         double complex* lower_layer_y_ptr,

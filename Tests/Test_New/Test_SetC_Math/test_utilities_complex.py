@@ -8,7 +8,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode()
 
-from TidalPy.utilities.math.complex import hypot_, csqrt_, cexp_, clog_, cpow_, cipow_
+from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow
 
 
 def compare_values(value_1, value_2):
@@ -67,7 +67,7 @@ standard_list_float = (
 def test_hypot(a, b):
 
     np_result = np.hypot(a, b)
-    tpy_result = hypot_(a, b)
+    tpy_result = hypot(a, b)
 
     compare_values(np_result, tpy_result)
 
@@ -78,7 +78,7 @@ def test_csqrt(z):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         np_result = np.sqrt(z)
-    tpy_result = csqrt_(z)
+    tpy_result = csqrt(z)
 
     compare_values_complex(np_result, tpy_result)
 
@@ -89,7 +89,7 @@ def test_cexp(z):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         np_result = np.exp(z)
-    tpy_result = cexp_(z)
+    tpy_result = cexp(z)
 
     compare_values_complex(np_result, tpy_result)
 
@@ -100,7 +100,7 @@ def test_clog(z):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         np_result = np.log(z)
-    tpy_result = clog_(z)
+    tpy_result = clog(z)
 
     compare_values_complex(np_result, tpy_result)
 
@@ -112,7 +112,7 @@ def test_cpow(a, b):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         np_result = np.power(a, b)
-    tpy_result = cpow_(a, b)
+    tpy_result = cpow(a, b)
 
     compare_values_complex(np_result, tpy_result)
 
@@ -124,6 +124,6 @@ def test_cipow(a, bi):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         np_result = np.power(a, bi)
-    tpy_result = cipow_(a, bi)
+    tpy_result = cipow(a, bi)
 
     compare_values_complex(np_result, tpy_result)

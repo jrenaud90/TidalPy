@@ -55,17 +55,17 @@ pre_calculated_doubles_ptr[ 49] = 58435841445947288807899666579456.00
 pre_calculated_doubles_ptr[ 50] = 520469842636666553028024352112640.00
 
 
-cdef double double_factorial(unsigned char n) nogil:
+cdef double cf_double_factorial(unsigned char n) nogil:
 
     if n < 51:
         # Use precalculated doubles
         return pre_calculated_doubles_ptr[n]
     elif n >= 51 and n < 171:
         # Calculate using recursion
-        return tgamma(<double>n + 1.) / double_factorial(n - 1)
+        return tgamma(<double>n + 1.) / cf_double_factorial(n - 1)
     else:
         raise ValueError('C function `tgamma` experiences overflow for l > 170.')
 
 
-def double_factorial_(unsigned char n):
-    return double_factorial(n)
+def double_factorial(unsigned char n):
+    return cf_double_factorial(n)

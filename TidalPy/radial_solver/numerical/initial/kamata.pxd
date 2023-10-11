@@ -1,6 +1,6 @@
 
 
-cdef void kamata_solid_dynamic_compressible(
+cdef void cf_kamata_solid_dynamic_compressible(
     double frequency,
     double radius,
     double density,
@@ -9,10 +9,10 @@ cdef void kamata_solid_dynamic_compressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions
+    double complex* initial_conditions_ptr
     ) noexcept nogil
 
-cdef void kamata_solid_static_compressible(
+cdef void cf_kamata_solid_static_compressible(
     double radius,
     double density,
     double bulk_modulus,
@@ -20,14 +20,25 @@ cdef void kamata_solid_static_compressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions
+    double complex* initial_conditions_ptr
+    ) noexcept nogil
+
+cdef void cf_kamata_solid_dynamic_incompressible(
+    double frequency,
+    double radius,
+    double density,
+    double complex shear_modulus,
+    unsigned int degree_l,
+    double G_to_use,
+    ssize_t num_ys, 
+    double complex* initial_conditions_ptr
     ) noexcept nogil
 
 ########################################################################################################################
 #### Liquid Layers
 ########################################################################################################################
 
-cdef void kamata_liquid_dynamic_compressible(
+cdef void cf_kamata_liquid_dynamic_compressible(
     double frequency,
     double radius,
     double density,
@@ -35,15 +46,15 @@ cdef void kamata_liquid_dynamic_compressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions
+    double complex* initial_conditions_ptr
     ) noexcept nogil
 
-cdef void kamata_liquid_dynamic_incompressible(
+cdef void cf_kamata_liquid_dynamic_incompressible(
     double frequency,
     double radius,
     double density,
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions
+    double complex* initial_conditions_ptr
     ) noexcept nogil

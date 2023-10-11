@@ -1,14 +1,13 @@
-# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Initial conditions at the center of the planet based off of Kamata et al. (2015). """
 from libc.math cimport pi
 
-# We need to use a custom csqrt function because Windows does not play nice with libc.complex cython library.
-from TidalPy.utilities.math.complex cimport csqrt
+# We need to use a custom cf_csqrt function because Windows does not play nice with libc.complex cython library.
+from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.radial_solver.numerical.initial.common cimport z_calc
 
 
-cdef void kamata_solid_dynamic_compressible(
+cdef void cf_kamata_solid_dynamic_compressible(
         double frequency,
         double radius,
         double density,
@@ -17,7 +16,7 @@ cdef void kamata_solid_dynamic_compressible(
         unsigned int degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions
+        double complex* initial_conditions_ptr
         ) noexcept nogil:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
 
@@ -49,8 +48,8 @@ cdef void kamata_solid_dynamic_compressible(
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `initial_conditions`).
-    initial_conditions <out> : double complex*
+        Number of ys (used for striding on `initial_conditions_ptr`).
+    initial_conditions_ptr <out> : double complex*
 
     """
 
@@ -85,7 +84,7 @@ cdef void kamata_solid_dynamic_compressible(
     # TODO: TS74 (eq. 99) has these flipped compared to KMN15. Going with KMN for this func.
     #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
     cdef double complex k2_pos, k2_neg, k2_quad_sqrt
-    k2_quad_sqrt = csqrt(k2_quad)
+    k2_quad_sqrt = cf_csqrt(k2_quad)
     k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
     k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
 
@@ -102,40 +101,57 @@ cdef void kamata_solid_dynamic_compressible(
     z_k2_neg = z_calc(k2_neg * r2, degree_l=degree_l)
 
     # See Eqs. B1-B12 of KMN15
+    
     # y1, solutions 1--3
-    initial_conditions[0 * num_ys + 0] = -f_k2_pos * z_k2_pos * r_inverse
-    initial_conditions[1 * num_ys + 0] = -f_k2_neg * z_k2_neg * r_inverse
-    initial_conditions[2 * num_ys + 0] = degree_l_dbl * r_inverse
+    initial_conditions_ptr[0 * num_ys + 0] = \
+        -f_k2_pos * z_k2_pos * r_inverse
+    initial_conditions_ptr[1 * num_ys + 0] = \
+        -f_k2_neg * z_k2_neg * r_inverse
+    initial_conditions_ptr[2 * num_ys + 0] = \
+        degree_l_dbl * r_inverse
+    
     # y2, solutions 1--3
-    initial_conditions[0 * num_ys + 1] = \
-        -density * f_k2_pos * alpha2 * k2_pos + \
-        (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + llp1) * z_k2_pos
-    initial_conditions[1 * num_ys + 1] = \
-        -density * f_k2_neg * alpha2 * k2_neg + \
-        (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + llp1) * z_k2_neg
-    initial_conditions[2 * num_ys + 1] = 2. * shear_modulus * degree_l_dbl * (degree_l_dbl - 1) * r2_inverse
+    initial_conditions_ptr[0 * num_ys + 1] = \
+        -density * f_k2_pos * alpha2 * k2_pos + (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + llp1) * z_k2_pos
+    initial_conditions_ptr[1 * num_ys + 1] = \
+        -density * f_k2_neg * alpha2 * k2_neg + (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + llp1) * z_k2_neg
+    initial_conditions_ptr[2 * num_ys + 1] = \
+        2. * shear_modulus * degree_l_dbl * (degree_l_dbl - 1) * r2_inverse
+    
     # y3, solutions 1--3
-    initial_conditions[0 * num_ys + 2] = z_k2_pos * r_inverse
-    initial_conditions[1 * num_ys + 2] = z_k2_neg * r_inverse
-    initial_conditions[2 * num_ys + 2] = r_inverse
+    initial_conditions_ptr[0 * num_ys + 2] = \
+        z_k2_pos * r_inverse
+    initial_conditions_ptr[1 * num_ys + 2] = \
+        z_k2_neg * r_inverse
+    initial_conditions_ptr[2 * num_ys + 2] = \
+        r_inverse
+    
     # y4, solutions 1--3
-    initial_conditions[0 * num_ys + 3] = \
+    initial_conditions_ptr[0 * num_ys + 3] = \
         shear_modulus * k2_pos - (2. * shear_modulus * r2_inverse) * (f_k2_pos + 1.) * z_k2_pos
-    initial_conditions[1 * num_ys + 3] = \
+    initial_conditions_ptr[1 * num_ys + 3] = \
         shear_modulus * k2_neg - (2. * shear_modulus * r2_inverse) * (f_k2_neg + 1.) * z_k2_neg
-    initial_conditions[2 * num_ys + 3] = 2. * shear_modulus * (degree_l_dbl - 1.) * r2_inverse
+    initial_conditions_ptr[2 * num_ys + 3] = \
+        2. * shear_modulus * (degree_l_dbl - 1.) * r2_inverse
+    
     # y5, solutions 1--3
-    initial_conditions[0 * num_ys + 4] = 3. * gamma * f_k2_pos - h_k2_pos * (degree_l_dbl * gamma - dynamic_term)
-    initial_conditions[1 * num_ys + 4] = 3. * gamma * f_k2_neg - h_k2_neg * (degree_l_dbl * gamma - dynamic_term)
-    initial_conditions[2 * num_ys + 4] = degree_l * gamma - dynamic_term
+    initial_conditions_ptr[0 * num_ys + 4] = \
+        3. * gamma * f_k2_pos - h_k2_pos * (degree_l_dbl * gamma - dynamic_term)
+    initial_conditions_ptr[1 * num_ys + 4] = \
+        3. * gamma * f_k2_neg - h_k2_neg * (degree_l_dbl * gamma - dynamic_term)
+    initial_conditions_ptr[2 * num_ys + 4] = \
+        degree_l * gamma - dynamic_term
+    
     # y6, solutions 1--3
-    initial_conditions[0 * num_ys + 5] = dlp1 * initial_conditions[0 * num_ys + 4] * r_inverse
-    initial_conditions[1 * num_ys + 5] = dlp1 * initial_conditions[1 * num_ys + 4] * r_inverse
-    initial_conditions[2 * num_ys + 5] = \
-        dlp1 * initial_conditions[2 * num_ys + 4] * r_inverse - (3. * degree_l_dbl * gamma * r_inverse)
+    initial_conditions_ptr[0 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[0 * num_ys + 4] * r_inverse
+    initial_conditions_ptr[1 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[1 * num_ys + 4] * r_inverse
+    initial_conditions_ptr[2 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[2 * num_ys + 4] * r_inverse - (3. * degree_l_dbl * gamma * r_inverse)
 
 
-cdef void kamata_solid_static_compressible(
+cdef void cf_kamata_solid_static_compressible(
         double radius,
         double density,
         double bulk_modulus,
@@ -143,7 +159,7 @@ cdef void kamata_solid_static_compressible(
         unsigned int degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions
+        double complex* initial_conditions_ptr
         ) noexcept nogil:
     """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
 
@@ -173,8 +189,8 @@ cdef void kamata_solid_static_compressible(
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `initial_conditions`).
-    initial_conditions <out> : double complex*
+        Number of ys (used for striding on `initial_conditions_ptr`).
+    initial_conditions_ptr <out> : double complex*
 
     """
 
@@ -183,10 +199,10 @@ cdef void kamata_solid_static_compressible(
     lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants (See Eqs. B13-B16 of KMN15)
-    cdef double complex alpha_2, beta_2
+    cdef double complex alpha2, beta2
     cdef double gamma
-    alpha_2 = (lame + 2. * shear_modulus) / density
-    beta_2  = shear_modulus / density
+    alpha2 = (lame + 2. * shear_modulus) / density
+    beta2  = shear_modulus / density
     gamma   = 4. * pi * G_to_use * density / 3.
 
     # Optimizations
@@ -201,20 +217,20 @@ cdef void kamata_solid_static_compressible(
 
     # Helper functions
     cdef double complex k2_quad_pos, k2_quad_neg, k2_quad
-    k2_quad_pos = 4. * gamma / alpha_2
+    k2_quad_pos = 4. * gamma / alpha2
     k2_quad_neg = -k2_quad_pos
-    k2_quad = k2_quad_neg**2 + ((4. * degree_l * lp1 * gamma**2) / (alpha_2 * beta_2))
+    k2_quad = k2_quad_neg**2 + ((4. * degree_l * lp1 * gamma**2) / (alpha2 * beta2))
 
     # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
     #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
     cdef double complex k2_pos, k2_neg, k2_quad_sqrt
-    k2_quad_sqrt = csqrt(k2_quad)
+    k2_quad_sqrt = cf_csqrt(k2_quad)
     k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
     k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
     
     cdef double complex f_k2_pos, f_k2_neg
-    f_k2_pos = beta_2 * k2_pos / gamma
-    f_k2_neg = beta_2 * k2_neg / gamma
+    f_k2_pos = beta2 * k2_pos / gamma
+    f_k2_neg = beta2 * k2_neg / gamma
 
     cdef double complex h_k2_pos, h_k2_neg
     h_k2_pos = f_k2_pos - lp1
@@ -225,38 +241,57 @@ cdef void kamata_solid_static_compressible(
     z_k2_neg = z_calc(k2_neg * r2, degree_l=degree_l)
 
     # See Eqs. B1-B12 of KMN15
+    
     # y1, solutions 1--3
-    initial_conditions[0 * num_ys + 0] = -f_k2_pos * z_k2_pos * r_inverse
-    initial_conditions[1 * num_ys + 0] = -f_k2_neg * z_k2_neg * r_inverse
-    initial_conditions[2 * num_ys + 0] = degree_l * r_inverse
+    initial_conditions_ptr[0 * num_ys + 0] = \
+        -f_k2_pos * z_k2_pos * r_inverse
+    initial_conditions_ptr[1 * num_ys + 0] = \
+        -f_k2_neg * z_k2_neg * r_inverse
+    initial_conditions_ptr[2 * num_ys + 0] = \
+        degree_l * r_inverse
+    
     # y2, solutions 1--3
-    initial_conditions[0 * num_ys + 1] = -density * f_k2_pos * alpha_2 * k2_pos + \
-            (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + llp1) * z_k2_pos
-    initial_conditions[1 * num_ys + 1] = -density * f_k2_neg * alpha_2 * k2_neg + \
-            (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + llp1) * z_k2_neg
-    initial_conditions[2 * num_ys + 1] = 2. * shear_modulus * degree_l * (degree_l - 1) * r2_inverse
+    initial_conditions_ptr[0 * num_ys + 1] = \
+        -density * f_k2_pos * alpha2 * k2_pos + (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + llp1) * z_k2_pos
+    initial_conditions_ptr[1 * num_ys + 1] = \
+        -density * f_k2_neg * alpha2 * k2_neg + (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + llp1) * z_k2_neg
+    initial_conditions_ptr[2 * num_ys + 1] = \
+        2. * shear_modulus * degree_l * (degree_l - 1) * r2_inverse
+    
     # y3, solutions 1--3
-    initial_conditions[0 * num_ys + 2] = z_k2_pos * r_inverse
-    initial_conditions[1 * num_ys + 2] = z_k2_neg * r_inverse
-    initial_conditions[2 * num_ys + 2] = r_inverse
+    initial_conditions_ptr[0 * num_ys + 2] = \
+        z_k2_pos * r_inverse
+    initial_conditions_ptr[1 * num_ys + 2] = \
+        z_k2_neg * r_inverse
+    initial_conditions_ptr[2 * num_ys + 2] = \
+        r_inverse
+    
     # y4, solutions 1--3
-    initial_conditions[0 * num_ys + 3] = \
+    initial_conditions_ptr[0 * num_ys + 3] = \
         shear_modulus * k2_pos - (2. * shear_modulus * r2_inverse) * (f_k2_pos + 1.) * z_k2_pos
-    initial_conditions[1 * num_ys + 3] = \
+    initial_conditions_ptr[1 * num_ys + 3] = \
         shear_modulus * k2_neg - (2. * shear_modulus * r2_inverse) * (f_k2_neg + 1.) * z_k2_neg
-    initial_conditions[2 * num_ys + 3] = 2. * shear_modulus * (degree_l - 1.) * r2_inverse
+    initial_conditions_ptr[2 * num_ys + 3] = \
+        2. * shear_modulus * (degree_l - 1.) * r2_inverse
+    
     # y5, solutions 1--3
-    initial_conditions[0 * num_ys + 4] = 3. * gamma * f_k2_pos - h_k2_pos * (degree_l * gamma)
-    initial_conditions[1 * num_ys + 4] = 3. * gamma * f_k2_neg - h_k2_neg * (degree_l * gamma)
-    initial_conditions[2 * num_ys + 4] = degree_l * gamma
+    initial_conditions_ptr[0 * num_ys + 4] = \
+        3. * gamma * f_k2_pos - h_k2_pos * (degree_l * gamma)
+    initial_conditions_ptr[1 * num_ys + 4] = \
+        3. * gamma * f_k2_neg - h_k2_neg * (degree_l * gamma)
+    initial_conditions_ptr[2 * num_ys + 4] = \
+        degree_l * gamma
+    
     # y6, solutions 1--3
-    initial_conditions[0 * num_ys + 5] = dlp1 * initial_conditions[0 * num_ys + 4] * r_inverse
-    initial_conditions[1 * num_ys + 5] = dlp1 * initial_conditions[1 * num_ys + 4] * r_inverse
-    initial_conditions[2 * num_ys + 5] = \
-        dlp1 * initial_conditions[2 * num_ys + 4] * r_inverse - (3. * degree_l * gamma * r_inverse)
+    initial_conditions_ptr[0 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[0 * num_ys + 4] * r_inverse
+    initial_conditions_ptr[1 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[1 * num_ys + 4] * r_inverse
+    initial_conditions_ptr[2 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[2 * num_ys + 4] * r_inverse - (3. * degree_l * gamma * r_inverse)
 
 
-cdef void kamata_solid_dynamic_incompressible(
+cdef void cf_kamata_solid_dynamic_incompressible(
         double frequency,
         double radius,
         double density,
@@ -264,7 +299,7 @@ cdef void kamata_solid_dynamic_incompressible(
         unsigned int degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions
+        double complex* initial_conditions_ptr
         ) noexcept nogil:
     """ Calculate the initial guess at the bottom of a solid layer using the dynamic and incompressible assumption.
 
@@ -294,8 +329,8 @@ cdef void kamata_solid_dynamic_incompressible(
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `initial_conditions`).
-    initial_conditions <out> : double complex*
+        Number of ys (used for striding on `initial_conditions_ptr`).
+    initial_conditions_ptr <out> : double complex*
 
     """
 
@@ -326,31 +361,54 @@ cdef void kamata_solid_dynamic_incompressible(
     z_k2_pos = z_calc(k2_pos * r2, degree_l=degree_l)
 
     # See Eqs. B17-B28 of KMN15
+    
     # y1, solutions 1--3
-    initial_conditions[0 * num_ys + 0] = 0.
-    initial_conditions[1 * num_ys + 0] = 0.
-    initial_conditions[2 * num_ys + 0] = degree_l_dbl * r_inverse
+    initial_conditions_ptr[0 * num_ys + 0] = \
+        0.
+    initial_conditions_ptr[1 * num_ys + 0] = \
+        0.
+    initial_conditions_ptr[2 * num_ys + 0] = \
+        degree_l_dbl * r_inverse
+    
     # y2, solutions 1--3
-    initial_conditions[1 * num_ys + 1] = llp1 * (-density * gamma + 2. * shear_modulus * z_k2_pos * r2_inverse)
-    initial_conditions[2 * num_ys + 1] = density * ((dynamic_term / gamma) * (dynamic_term + 4. * gamma) - llp1 * gamma)
-    initial_conditions[3 * num_ys + 1] = 2. * shear_modulus * degree_l_dbl * lm1 * r2_inverse
+    initial_conditions_ptr[0 * num_ys + 1] = \
+        llp1 * (-density * gamma + 2. * shear_modulus * z_k2_pos * r2_inverse)
+    initial_conditions_ptr[1 * num_ys + 1] = \
+        density * ((dynamic_term / gamma) * (dynamic_term + 4. * gamma) - llp1 * gamma)
+    initial_conditions_ptr[2 * num_ys + 1] = \
+        2. * shear_modulus * degree_l_dbl * lm1 * r2_inverse
+    
     # y3, solutions 1--3
-    initial_conditions[0 * num_ys + 2] = z_k2_pos * r_inverse
-    initial_conditions[1 * num_ys + 2] = 0.
-    initial_conditions[2 * num_ys + 2] = r_inverse
+    initial_conditions_ptr[0 * num_ys + 2] = \
+        z_k2_pos * r_inverse
+    initial_conditions_ptr[1 * num_ys + 2] = \
+        0.
+    initial_conditions_ptr[2 * num_ys + 2] = \
+        r_inverse
+    
     # y4, solutions 1--3
-    initial_conditions[0 * num_ys + 3] = shear_modulus * (dynamic_term / beta2 - 2. * r2_inverse * z_k2_pos)
-    initial_conditions[1 * num_ys + 3] = 0.
-    initial_conditions[2 * num_ys + 3] = 2. * shear_modulus * lm1 * r2_inverse
+    initial_conditions_ptr[0 * num_ys + 3] = \
+        shear_modulus * (dynamic_term / beta2 - 2. * r2_inverse * z_k2_pos)
+    initial_conditions_ptr[1 * num_ys + 3] = \
+        0.
+    initial_conditions_ptr[2 * num_ys + 3] = \
+        2. * shear_modulus * lm1 * r2_inverse
+    
     # y5, solutions 1--3
-    initial_conditions[0 * num_ys + 4] = lp1 * (degree_l_dbl * gamma - dynamic_term)
-    initial_conditions[1 * num_ys + 4] = (h_k2_neg - 3.) * dynamic_term - h_k2_neg * degree_l_dbl * gamma
-    initial_conditions[2 * num_ys + 4] = degree_l_dbl * gamma - dynamic_term
+    initial_conditions_ptr[0 * num_ys + 4] = \
+        lp1 * (degree_l_dbl * gamma - dynamic_term)
+    initial_conditions_ptr[1 * num_ys + 4] = \
+        (h_k2_neg - 3.) * dynamic_term - h_k2_neg * degree_l_dbl * gamma
+    initial_conditions_ptr[2 * num_ys + 4] = \
+        degree_l_dbl * gamma - dynamic_term
+    
     # y6, solutions 1--3
-    initial_conditions[0 * num_ys + 5] = dlp1 * initial_conditions[0 * num_ys + 4] * r_inverse
-    initial_conditions[1 * num_ys + 5] = dlp1 * initial_conditions[1 * num_ys + 4] * r_inverse
-    initial_conditions[2 * num_ys + 5] = \
-        dlp1 * initial_conditions[2 * num_ys + 4] * r_inverse - (3. * degree_l_dbl * gamma * r_inverse)
+    initial_conditions_ptr[0 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[0 * num_ys + 4] * r_inverse
+    initial_conditions_ptr[1 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[1 * num_ys + 4] * r_inverse
+    initial_conditions_ptr[2 * num_ys + 5] = \
+        dlp1 * initial_conditions_ptr[2 * num_ys + 4] * r_inverse - (3. * degree_l_dbl * gamma * r_inverse)
 
 
 ########################################################################################################################
@@ -358,7 +416,7 @@ cdef void kamata_solid_dynamic_incompressible(
 ########################################################################################################################
 
 
-cdef void kamata_liquid_dynamic_compressible(
+cdef void cf_kamata_liquid_dynamic_compressible(
         double frequency,
         double radius,
         double density,
@@ -366,7 +424,7 @@ cdef void kamata_liquid_dynamic_compressible(
         unsigned int degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions
+        double complex* initial_conditions_ptr
         ) noexcept nogil:
     """  Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
 
@@ -396,8 +454,8 @@ cdef void kamata_liquid_dynamic_compressible(
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `initial_conditions`).
-    initial_conditions <out> : double complex*
+        Number of ys (used for striding on `initial_conditions_ptr`).
+    initial_conditions_ptr <out> : double complex*
 
     """
 
@@ -416,38 +474,47 @@ cdef void kamata_liquid_dynamic_compressible(
     # Helper functions
     cdef double gamma
     cdef double complex alpha2, k2, f, h
-    gamma = (4. * pi * G_to_use * density / 3.)
+    gamma  = (4. * pi * G_to_use * density / 3.)
     alpha2 = lame / density
-    k2 = (1. / alpha2) * (dynamic_term + 4. * gamma - (degree_l_dbl * (degree_l_dbl + 1) * gamma**2 / dynamic_term))
-    f = -dynamic_term / gamma
-    h = f - (degree_l_dbl + 1.)
+    k2     = (1. / alpha2) * (dynamic_term + 4. * gamma - (degree_l_dbl * (degree_l_dbl + 1) * gamma**2 / dynamic_term))
+    f      = -dynamic_term / gamma
+    h      = f - (degree_l_dbl + 1.)
 
     # See Eqs. B33--B36 in KMN15
     # y1, solutions 1--2
-    initial_conditions[0 * num_ys + 0] = -f * r_inverse * z_calc(k2 * r2, degree_l=degree_l)
-    initial_conditions[1 * num_ys + 0] = degree_l_dbl * r_inverse
+    initial_conditions_ptr[0 * num_ys + 0] = \
+        -f * r_inverse * z_calc(k2 * r2, degree_l=degree_l)
+    initial_conditions_ptr[1 * num_ys + 0] = \
+        degree_l_dbl * r_inverse
+    
     # y2, solutions 1--2
-    initial_conditions[0 * num_ys + 1] = \
+    initial_conditions_ptr[0 * num_ys + 1] = \
         -density * (f * (dynamic_term + 4 * gamma) + degree_l_dbl * (degree_l_dbl + 1) * gamma)
-    initial_conditions[1 * num_ys + 1] = 0. * radius
+    initial_conditions_ptr[1 * num_ys + 1] = \
+        0.
+    
     # y5, solutions 1--2
-    initial_conditions[0 * num_ys + 2] = 3. * gamma * f - h * (degree_l_dbl * gamma - dynamic_term)
-    initial_conditions[1 * num_ys + 2] = degree_l_dbl * gamma - dynamic_term
+    initial_conditions_ptr[0 * num_ys + 2] = \
+        3. * gamma * f - h * (degree_l_dbl * gamma - dynamic_term)
+    initial_conditions_ptr[1 * num_ys + 2] = \
+        degree_l_dbl * gamma - dynamic_term
+    
     # y6, solutions 1--2
-    initial_conditions[0 * num_ys + 3] = (2. * degree_l_dbl + 1.) * initial_conditions[0 * num_ys + 2] * r_inverse
-    initial_conditions[1 * num_ys + 3] = \
-        ((2. * degree_l_dbl + 1.) * initial_conditions[1 * num_ys + 2] * r_inverse) - \
+    initial_conditions_ptr[0 * num_ys + 3] = \
+        (2. * degree_l_dbl + 1.) * initial_conditions_ptr[0 * num_ys + 2] * r_inverse
+    initial_conditions_ptr[1 * num_ys + 3] = \
+        ((2. * degree_l_dbl + 1.) * initial_conditions_ptr[1 * num_ys + 2] * r_inverse) - \
         ((3. * degree_l_dbl * gamma) * r_inverse)
 
 
-cdef void kamata_liquid_dynamic_incompressible(
+cdef void cf_kamata_liquid_dynamic_incompressible(
         double frequency,
         double radius,
         double density,
         unsigned int degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions
+        double complex* initial_conditions_ptr
         ) noexcept nogil:
     """  Calculate the initial guess at the bottom of a liquid layer using the dynamic and incompressible assumption.
 
@@ -475,8 +542,8 @@ cdef void kamata_liquid_dynamic_incompressible(
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `initial_conditions`).
-    initial_conditions <out> : double complex*
+        Number of ys (used for striding on `initial_conditions_ptr`).
+    initial_conditions_ptr <out> : double complex*
         The three independent solid guesses (sn1, sn2, sn3)
 
     """
@@ -497,16 +564,27 @@ cdef void kamata_liquid_dynamic_incompressible(
     h     = f - lp1
 
     # See Eqs. B33--B36 in KMN15
+    
     # y1, solutions 1--2
-    initial_conditions[0 * num_ys + 0] = 0.
-    initial_conditions[1 * num_ys + 0] = degree_l_dbl * r_inverse
+    initial_conditions_ptr[0 * num_ys + 0] = \
+        0.
+    initial_conditions_ptr[1 * num_ys + 0] = \
+        degree_l_dbl * r_inverse
+    
     # y2, solutions 1--2
-    initial_conditions[0 * num_ys + 1] = -density * (f * (dynamic_term + 4 * gamma) + dlp1 * gamma)
-    initial_conditions[1 * num_ys + 1] = 0.
+    initial_conditions_ptr[0 * num_ys + 1] = \
+        -density * (f * (dynamic_term + 4 * gamma) + llp1 * gamma)
+    initial_conditions_ptr[1 * num_ys + 1] = \
+        0.
+    
     # y5, solutions 1--2
-    initial_conditions[0 * num_ys + 2] = 3. * gamma * f - h * (degree_l_dbl * gamma - dynamic_term)
-    initial_conditions[1 * num_ys + 2] = degree_l_dbl * gamma - dynamic_term
+    initial_conditions_ptr[0 * num_ys + 2] = \
+        3. * gamma * f - h * (degree_l_dbl * gamma - dynamic_term)
+    initial_conditions_ptr[1 * num_ys + 2] = \
+        degree_l_dbl * gamma - dynamic_term
+    
     # y6, solutions 1--2
-    initial_conditions[0 * num_ys + 3] = dlp1 * initial_conditions[0 * num_ys + 2] * r_inverse
-    initial_conditions[1 * num_ys + 3] = \
-        (dlp1 * initial_conditions[1 * num_ys + 2] * r_inverse) - ((3. * degree_l_dbl * gamma) * r_inverse)
+    initial_conditions_ptr[0 * num_ys + 3] = \
+        dlp1 * initial_conditions_ptr[0 * num_ys + 2] * r_inverse
+    initial_conditions_ptr[1 * num_ys + 3] = \
+        (dlp1 * initial_conditions_ptr[1 * num_ys + 2] * r_inverse) - ((3. * degree_l_dbl * gamma) * r_inverse)

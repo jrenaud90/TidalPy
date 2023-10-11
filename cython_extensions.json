@@ -13,56 +13,91 @@
     "compile_args": [],
     "link_args": []
   },
-  "class_base": {
+  "classes.base": {
     "name": "TidalPy.utilities.classes.base_x",
     "sources": [["TidalPy", "utilities", "classes", "base_x.pyx"]],
     "include_dirs": [["TidalPy", "utilities", "classes"]],
     "compile_args": [],
     "link_args": []
   },
-  "rheology_common": {
+  "rheology.common": {
     "name": "TidalPy.rheology.common",
     "sources": [["TidalPy", "rheology", "common.pyx"]],
     "include_dirs": [["TidalPy", "rheology", "common"]],
     "compile_args": [],
     "link_args": []
   },
-  "rheology_models": {
+  "rheology.models": {
     "name": "TidalPy.rheology.models",
     "sources": [["TidalPy", "rheology", "models.pyx"]],
     "include_dirs": [["TidalPy", "rheology", "models"]],
     "compile_args": [],
     "link_args": []
   },
-  "ode_base": {
+  "radialsolver.numerical.solutions": {
+    "name": "TidalPy.radial_solver.numerical.solutions",
+    "sources": [["TidalPy", "radial_solver", "numerical", "solutions.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radialsolver.numerical.derivatives.base": {
     "name": "TidalPy.radial_solver.numerical.derivatives.ode_base_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "ode_base_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
     "compile_args": [],
     "link_args": []
   },
-  "odes_x": {
+  "radialsolver.numerical.derivatives.odes": {
     "name": "TidalPy.radial_solver.numerical.derivatives.odes_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "odes_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
     "compile_args": [],
     "link_args": []
   },
-  "rsn_initial": {
+  "radialsolver.numerical.initial.common": {
     "name": "TidalPy.radial_solver.numerical.initial.common",
     "sources": [["TidalPy", "radial_solver", "numerical", "initial", "common.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
     "compile_args": [],
     "link_args": []
   },
-  "interfaces_x": {
+  "radialsolver.numerical.initial.kamata": {
+    "name": "TidalPy.radial_solver.numerical.initial.kamata",
+    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "kamata.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radialsolver.numerical.initial.saito": {
+    "name": "TidalPy.radial_solver.numerical.initial.saito",
+    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "saito.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radialsolver.numerical.initial.takeuchi": {
+    "name": "TidalPy.radial_solver.numerical.initial.takeuchi",
+    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "takeuchi.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radialsolver.numerical.initial.driver": {
+    "name": "TidalPy.radial_solver.numerical.initial.driver",
+    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "driver.pyx"]],
+    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "radialsolver.numerical.interfaces": {
     "name": "TidalPy.radial_solver.numerical.interfaces.interfaces_x",
     "sources": [["TidalPy", "radial_solver", "numerical", "interfaces", "interfaces_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver", "numerical", "interfaces"]],
     "compile_args": [],
     "link_args": []
   },
-  "nondimensional_x": {
+  "radialsolver.nondimensional": {
     "name": "TidalPy.radial_solver.nondimensional_x",
     "sources": [["TidalPy", "radial_solver", "nondimensional_x.pyx"]],
     "include_dirs": [["TidalPy", "radial_solver"]],

@@ -18,64 +18,6 @@ from libc.math cimport pi
 cdef double G
 G = G_
 
-cpdef Py_ssize_t find_solution_num(
-        bool_cpp_t is_solid,
-        bool_cpp_t is_static,
-        bool_cpp_t is_incompressible
-        ) noexcept nogil:
-    """ Determine number of solutions required for layer based on assumptions.
-    
-    Parameters
-    ----------
-    is_solid : bool
-        Layer is solid (True) or liquid (False).
-    is_static : bool
-        Use static (True) or dynamic (False) assumption.
-    is_incompressible : bool
-        Use incompressible (True) or compressible (False) assumption.
-
-    Returns
-    -------
-    num_sols : int
-        Number of solutions required for layer.
-
-    """
-
-    # Initialize
-    cdef Py_ssize_t num_sols
-    num_sols = 0
-
-    if is_solid:
-        if is_static:
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 3
-            else:
-                num_sols = 3
-        else:
-            # Dynamic
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 3
-            else:
-                num_sols = 3
-    else:
-        # Liquid
-        if is_static:
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 1
-            else:
-                num_sols = 1
-        else:
-            # Dynamic
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 2
-            else:
-                num_sols = 2
-    return num_sols
-
 
 cdef void solve_upper_y_at_interface_x(
         double complex* lower_layer_y_ptr,
