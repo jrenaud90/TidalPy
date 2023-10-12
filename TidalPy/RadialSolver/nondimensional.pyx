@@ -14,8 +14,8 @@ from libc.math cimport pi, sqrt
 cdef double G = G_
 
 
-cdef void non_dimensionalize_physicals_x(
-        Py_ssize_t num_radius,
+cdef void cf_non_dimensionalize_physicals(
+        size_t num_radius,
         double frequency,
         double mean_radius,
         double bulk_density,
@@ -29,7 +29,7 @@ cdef void non_dimensionalize_physicals_x(
         ) noexcept nogil:
 
     # Setup loop variables
-    cdef Py_ssize_t i
+    cdef size_t i
 
     # Setup conversions
     cdef double second2_conversion, second_conversion, length_conversion
@@ -52,3 +52,26 @@ cdef void non_dimensionalize_physicals_x(
     # Convert non-array pointers
     G_to_use[0]         = G / (length_conversion**3 / (mass_conversion * second2_conversion))
     frequency_to_use[0] = frequency / (1. / second_conversion)
+
+
+def non_dimensionalize_physicals(
+        double frequency,
+        double mean_radius,
+        double bulk_density,
+        double[:] radius_array_view,
+        double[:] density_array_view,
+        double[:] gravity_array_view,
+        double[:] bulk_array_view,
+        double_numeric[:] shear_array_view,
+        double frequency_to_use,
+        double G_to_use
+        ):
+
+    cdef size_t num_radius = radius_array_view.size
+    
+    cf_non_dimensionalize_physicals(
+        num_radius, frequency, mean_radius, bulk_density,
+        &radius_array_view[0], &density_array_view[0], &gravity_array_view[0],
+        &bulk_array_view[0], &shear_array_view[0],
+        &frequency_to_use, &G_to_use
+        )

@@ -1,4 +1,10 @@
-{
+{"types": {
+    "name": "TidalPy.utilities.types_x",
+    "sources": [["TidalPy", "utilities", "types_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "math.complex": {
     "name": "TidalPy.utilities.math.complex",
     "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
@@ -34,73 +40,73 @@
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.solutions": {
-    "name": "TidalPy.radial_solver.numerical.solutions",
-    "sources": [["TidalPy", "radial_solver", "numerical", "solutions.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical"]],
+  "RadialSolver.solutions": {
+    "name": "TidalPy.RadialSolver.solutions",
+    "sources": [["TidalPy", "RadialSolver", "solutions.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.derivatives.base": {
-    "name": "TidalPy.radial_solver.numerical.derivatives.ode_base_x",
-    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "ode_base_x.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+  "radialsolver.derivatives.base": {
+    "name": "TidalPy.RadialSolver.derivatives.base",
+    "sources": [["TidalPy", "RadialSolver", "derivatives", "base.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.derivatives.odes": {
-    "name": "TidalPy.radial_solver.numerical.derivatives.odes_x",
-    "sources": [["TidalPy", "radial_solver", "numerical", "derivatives", "odes_x.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "derivatives"]],
+  "radialsolver.derivatives.odes": {
+    "name": "TidalPy.RadialSolver.derivatives.odes",
+    "sources": [["TidalPy", "RadialSolver", "derivatives", "odes.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.initial.common": {
-    "name": "TidalPy.radial_solver.numerical.initial.common",
-    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "common.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+  "RadialSolver.starting.common": {
+    "name": "TidalPy.RadialSolver.starting.common",
+    "sources": [["TidalPy", "RadialSolver", "starting", "common.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.initial.kamata": {
-    "name": "TidalPy.radial_solver.numerical.initial.kamata",
-    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "kamata.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+  "RadialSolver.starting.kamata": {
+    "name": "TidalPy.RadialSolver.starting.kamata",
+    "sources": [["TidalPy", "RadialSolver", "starting", "kamata.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.initial.saito": {
-    "name": "TidalPy.radial_solver.numerical.initial.saito",
-    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "saito.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+  "RadialSolver.starting.saito": {
+    "name": "TidalPy.RadialSolver.starting.saito",
+    "sources": [["TidalPy", "RadialSolver", "starting", "saito.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.initial.takeuchi": {
-    "name": "TidalPy.radial_solver.numerical.initial.takeuchi",
-    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "takeuchi.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+  "RadialSolver.starting.takeuchi": {
+    "name": "TidalPy.RadialSolver.starting.takeuchi",
+    "sources": [["TidalPy", "RadialSolver", "starting", "takeuchi.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.initial.driver": {
-    "name": "TidalPy.radial_solver.numerical.initial.driver",
-    "sources": [["TidalPy", "radial_solver", "numerical", "initial", "driver.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "initial"]],
+  "RadialSolver.starting.driver": {
+    "name": "TidalPy.RadialSolver.starting.driver",
+    "sources": [["TidalPy", "RadialSolver", "starting", "driver.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.numerical.interfaces": {
-    "name": "TidalPy.radial_solver.numerical.interfaces.interfaces_x",
-    "sources": [["TidalPy", "radial_solver", "numerical", "interfaces", "interfaces_x.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver", "numerical", "interfaces"]],
+  "RadialSolver.interfaces": {
+    "name": "TidalPy.RadialSolver.interfaces.interfaces",
+    "sources": [["TidalPy", "RadialSolver", "interfaces", "interfaces.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "interfaces"]],
     "compile_args": [],
     "link_args": []
   },
   "radialsolver.nondimensional": {
-    "name": "TidalPy.radial_solver.nondimensional_x",
-    "sources": [["TidalPy", "radial_solver", "nondimensional_x.pyx"]],
-    "include_dirs": [["TidalPy", "radial_solver"]],
+    "name": "TidalPy.RadialSolver.nondimensional",
+    "sources": [["TidalPy", "RadialSolver", "nondimensional.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver"]],
     "compile_args": [],
     "link_args": []
   }

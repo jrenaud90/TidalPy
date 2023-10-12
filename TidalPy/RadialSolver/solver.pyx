@@ -17,13 +17,14 @@ from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
 
 # TODO: ReDimen Radial
 from TidalPy.radial_solver.nondimensional import re_dimensionalize_radial_func
-from TidalPy.radial_solver.numerical.initial import find_initial_guess
 
 # Import cythonized functions
-from TidalPy.radial_solver.nondimensional_x cimport non_dimensionalize_physicals_x
-from TidalPy.radial_solver.numerical.interfaces.interfaces_x cimport find_solution_num, solve_upper_y_at_interface_x
-from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
-from TidalPy.radial_solver.numerical.derivatives.odes_x cimport build_solver
+from TidalPy.RadialSolver.nondimensional cimport cf_non_dimensionalize_physicals
+from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
+from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
+from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
+from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
+from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
 
 
 # Setup globals
@@ -123,7 +124,7 @@ def radial_solver_x(
     # Non-dimensionalize inputs
     cdef double G_to_use, frequency_to_use
     if nondimensionalize:
-        non_dimensionalize_physicals_x(
+        cf_non_dimensionalize_physicals(
             total_slices,
             frequency,
             radius_planet,
@@ -233,7 +234,7 @@ def radial_solver_x(
         is_incompressible_by_layer_ptr[layer_i] = layer_is_incomp
 
         # Find number of solutions based on this layer's assumptions
-        num_sols = <Py_ssize_t>find_solution_num(
+        num_sols = <Py_ssize_t>cf_find_num_solutions(
             layer_is_solid,
             layer_is_static,
             layer_is_incomp
@@ -424,21 +425,21 @@ def radial_solver_x(
         radial_span = (radius_lower, radius_upper)
         if layer_i == 0:
             # Use initial condition function
-            # TODO: Cythonize initial guess function
-            INITIAL_VIEW_TEMP_VIEW = find_initial_guess(
+            cf_find_starting_conditions(
                 layer_is_solid,
                 layer_is_static,
                 layer_is_incomp,
                 use_kamata,
-                radius_lower,
-                shear_lower,
-                bulk_lower,
-                density_lower,
                 frequency_to_use,
-                order_l=degree_l,
-                G_to_use=G_to_use
+                radius_lower,
+                density_lower,
+                bulk_lower,
+                shear_lower,
+                degree_l,
+                G_to_use,
+                MAX_NUM_Y, 
+                initial_y_ptr
                 )
-            initial_y_ptr = &INITIAL_VIEW_TEMP_VIEW[0, 0]
         else:
             layer_below_is_solid  = is_solid_by_layer_ptr[layer_i - 1]
             layer_below_is_static = is_static_by_layer_ptr[layer_i - 1]
@@ -479,7 +480,7 @@ def radial_solver_x(
 
             # Find the starting values for this layer using the results a the top of the previous layer + an interface
             #  function.
-            solve_upper_y_at_interface_x(
+            cf_solve_upper_y_at_interface(
                 uppermost_y_per_solution_ptr,
                 initial_y_ptr,
                 layer_below_num_sols,
@@ -505,7 +506,7 @@ def radial_solver_x(
                 initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
 
         # Build solver instance
-        solver = build_solver(
+        solver = cf_build_solver(
             layer_is_solid,
             layer_is_static,
             layer_is_incomp,

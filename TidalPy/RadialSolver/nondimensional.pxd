@@ -1,9 +1,7 @@
-ctypedef fused double_numeric:
-    double
-    double complex
+from TidalPy.utilities.types_x cimport double_numeric
 
-cdef void non_dimensionalize_physicals_x(
-        Py_ssize_t num_radius,
+cdef void cf_non_dimensionalize_physicals(
+        size_t num_radius,
         double frequency,
         double mean_radius,
         double bulk_density,

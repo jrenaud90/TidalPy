@@ -7,7 +7,7 @@ from scipy.special.cython_special cimport spherical_jn
 from TidalPy.utilities.math.complex cimport cf_csqrt, cf_cipow
 from TidalPy.utilities.math.special_x cimport cf_double_factorial
 
-cdef double complex z_calc(
+cdef double complex cf_z_calc(
         double complex x_squared,
         unsigned char degree_l) noexcept nogil:
     """ Calculates the z function using spherical Bessel function, see Eq. B14 of KMN15.
@@ -88,7 +88,7 @@ cdef double complex z_calc(
     return z
 
 
-cdef void takeuchi_phi_psi(
+cdef void cf_takeuchi_phi_psi(
         double complex z2,
         unsigned char degree_l,
         double complex* phi_ptr,

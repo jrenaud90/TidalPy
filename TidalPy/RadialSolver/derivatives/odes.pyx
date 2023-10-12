@@ -3,7 +3,6 @@
 
 import numpy as np
 
-from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
 
 cdef double EPS = np.finfo(np.float64).eps
 cdef double EPS_10 = EPS * 10.
@@ -724,7 +723,7 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
 
 from libc.stdio cimport printf
 
-cdef RadialSolverBase build_solver(
+cdef RadialSolverBase cf_build_solver(
         bool_cpp_t is_solid,
         bool_cpp_t is_static,
         bool_cpp_t is_incomp,

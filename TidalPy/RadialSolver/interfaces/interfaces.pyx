@@ -19,13 +19,13 @@ cdef double G
 G = G_
 
 
-cdef void solve_upper_y_at_interface_x(
+cdef void cf_solve_upper_y_at_interface(
         double complex* lower_layer_y_ptr,
         double complex* upper_layer_y_ptr,
-        Py_ssize_t num_sols_lower,
-        Py_ssize_t num_sols_upper,
-        Py_ssize_t num_y_lower,
-        Py_ssize_t num_y_upper,
+        size_t num_sols_lower,
+        size_t num_sols_upper,
+        size_t num_y_lower,
+        size_t num_y_upper,
         bool_cpp_t lower_is_solid,
         bool_cpp_t lower_is_static,
         bool_cpp_t lower_is_incompressible,
@@ -37,7 +37,7 @@ cdef void solve_upper_y_at_interface_x(
         double G_to_use = G
         ) noexcept nogil:
 
-    cdef Py_ssize_t yi_lower, yi_upper, soli_lower, soli_upper
+    cdef size_t yi_lower, yi_upper, soli_lower, soli_upper
 
     cdef bool_cpp_t solid_solid, solid_liquid, liquid_solid, liquid_liquid
     solid_solid   = lower_is_solid and upper_is_solid
@@ -259,3 +259,43 @@ cdef void solve_upper_y_at_interface_x(
             # y^liq_7 = C^sol_1 * y^sol_7,1 + C^sol_2 * y^sol_7,2 + C^sol_3 * y^sol_7,3
             upper_layer_y_ptr[1] = \
                 coeff_1 * coeff_4 + coeff_2 * coeff_5 + coeff_3 * coeff_6
+
+
+def solve_upper_y_at_interface(
+        double complex[:, ::1] lower_layer_y_view,
+        double complex[:, ::1] upper_layer_y_view,
+        bool_cpp_t lower_is_solid,
+        bool_cpp_t lower_is_static,
+        bool_cpp_t lower_is_incompressible,
+        bool_cpp_t upper_is_solid,
+        bool_cpp_t upper_is_static,
+        bool_cpp_t upper_is_incompressible,
+        double interface_gravity,
+        double liquid_density,
+        double G_to_use = G
+        ):
+    
+    # Pull out number of solutions and y's
+    cdef size_t num_sols_lower = lower_layer_y_view.shape[0]
+    cdef size_t num_sols_upper = upper_layer_y_view.shape[0]
+    cdef size_t num_y_lower    = lower_layer_y_view.shape[1]
+    cdef size_t num_y_upper    = upper_layer_y_view.shape[1]
+
+    # Run pure-c function
+    cf_solve_upper_y_at_interface(
+        &lower_layer_y_view[0, 0],
+        &upper_layer_y_view[0, 0],
+        num_sols_lower,
+        num_sols_upper,
+        num_y_lower,
+        num_y_upper,
+        lower_is_solid,
+        lower_is_static,
+        lower_is_incompressible,
+        upper_is_solid,
+        upper_is_static,
+        upper_is_incompressible,
+        interface_gravity,
+        liquid_density,
+        G_to_use = G
+        )

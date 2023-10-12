@@ -1,6 +1,6 @@
 from libcpp cimport bool as bool_cpp_t
 
-from TidalPy.radial_solver.numerical.derivatives.ode_base_x cimport RadialSolverBase
+from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
 
 
 cdef class SolidDynamicCompressible(RadialSolverBase):
@@ -27,7 +27,7 @@ cdef class LiquidStaticCompressible(RadialSolverBase):
 cdef class LiquidStaticIncompressible(RadialSolverBase):
     pass
 
-cdef RadialSolverBase build_solver(
+cdef RadialSolverBase cf_build_solver(
     bool_cpp_t is_solid,
     bool_cpp_t is_static,
     bool_cpp_t is_incomp,

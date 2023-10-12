@@ -3,7 +3,7 @@ from libc.math cimport pi
 
 # We need to use a custom cf_csqrt function because Windows does not play nice with libc.complex cython library.
 from TidalPy.utilities.math.complex cimport cf_csqrt
-from TidalPy.radial_solver.numerical.initial.common cimport takeuchi_phi_psi
+from TidalPy.RadialSolver.starting.common cimport cf_takeuchi_phi_psi
 
 cdef void cf_takeuchi_solid_dynamic_compressible(
         double frequency,
@@ -14,9 +14,9 @@ cdef void cf_takeuchi_solid_dynamic_compressible(
         unsigned char degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions_ptr
+        double complex* starting_conditions_ptr
         ) noexcept nogil:
-    """ Calculate the initial guess at the bottom of a solid layer using the dynamic assumption.
+    """ Calculate the starting guess at the bottom of a solid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
 
@@ -103,73 +103,73 @@ cdef void cf_takeuchi_solid_dynamic_compressible(
 
     cdef double complex phi_pos, phi_lp1_pos, psi_pos
     cdef double complex phi_neg, phi_lp1_neg, psi_neg
-    takeuchi_phi_psi(z2_pos, degree_l, &phi_pos, &phi_lp1_pos, &psi_pos)
-    takeuchi_phi_psi(z2_neg, degree_l, &phi_neg, &phi_lp1_neg, &psi_neg)
+    cf_takeuchi_phi_psi(z2_pos, degree_l, &phi_pos, &phi_lp1_pos, &psi_pos)
+    cf_takeuchi_phi_psi(z2_neg, degree_l, &phi_neg, &phi_lp1_neg, &psi_neg)
 
     # See Eq. 102 in TS72
     
     # y1, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 0] = \
+    starting_conditions_ptr[0 * num_ys + 0] = \
         ((-radius**lp1) / dlp3) * (.5 * degree_l_dbl * h_pos * psi_pos + f_pos * phi_lp1_pos)
-    initial_conditions_ptr[1 * num_ys + 0] = \
+    starting_conditions_ptr[1 * num_ys + 0] = \
         ((-radius**lp1) / dlp3) * (.5 * degree_l_dbl * h_neg * psi_neg + f_neg * phi_lp1_neg)
-    initial_conditions_ptr[2 * num_ys + 0] = degree_l_dbl * radius**lm1
+    starting_conditions_ptr[2 * num_ys + 0] = degree_l_dbl * radius**lm1
     
     # y2, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 1] = \
+    starting_conditions_ptr[0 * num_ys + 1] = \
         -(lame + 2. * shear_modulus) * radius**degree_l_dbl * f_pos * phi_pos + \
         (shear_modulus * radius**degree_l_dbl / dlp3) * (
             -degree_l_dbl * lm1 * h_pos * psi_pos + 2. * (2. * f_pos + llp1) * phi_lp1_pos
             )
-    initial_conditions_ptr[1 * num_ys + 1] = \
+    starting_conditions_ptr[1 * num_ys + 1] = \
         -(lame + 2. * shear_modulus) * radius**degree_l_dbl * f_neg * phi_neg + \
         (shear_modulus * radius**degree_l_dbl / dlp3) * (
             -degree_l_dbl * lm1 * h_neg * psi_neg + 2. * (2. * f_neg + llp1) * phi_lp1_neg
             )
-    initial_conditions_ptr[2 * num_ys + 1] = \
+    starting_conditions_ptr[2 * num_ys + 1] = \
         2. * shear_modulus * degree_l_dbl * lm1 * radius**(degree_l_dbl - 2.)
     
     # y3, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 2] = \
+    starting_conditions_ptr[0 * num_ys + 2] = \
         (-radius**lp1 / dlp3) * (0.5 * h_pos * psi_pos - phi_lp1_pos)
-    initial_conditions_ptr[1 * num_ys + 2] = \
+    starting_conditions_ptr[1 * num_ys + 2] = \
         (-radius**lp1 / dlp3) * (0.5 * h_neg * psi_neg - phi_lp1_neg)
-    initial_conditions_ptr[2 * num_ys + 2] = \
+    starting_conditions_ptr[2 * num_ys + 2] = \
         radius**lm1
     
     # y4, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 3] = \
+    starting_conditions_ptr[0 * num_ys + 3] = \
         shear_modulus * radius**degree_l_dbl * (
             phi_pos - (1. / dlp3) * (lm1 * h_pos * psi_pos + 2. * (f_pos + 1.) * phi_lp1_pos)
             )
-    initial_conditions_ptr[1 * num_ys + 3] = \
+    starting_conditions_ptr[1 * num_ys + 3] = \
         shear_modulus * radius**degree_l_dbl * (
             phi_neg - (1. / dlp3) * (lm1 * h_neg * psi_neg + 2. * (f_neg + 1.) * phi_lp1_neg)
             )
-    initial_conditions_ptr[2 * num_ys + 3] = \
+    starting_conditions_ptr[2 * num_ys + 3] = \
         2. * shear_modulus * lm1 * radius**(degree_l_dbl - 2.)
     
     # y5, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 4] = \
+    starting_conditions_ptr[0 * num_ys + 4] = \
         radius**(degree_l_dbl + 2.) * (
             (alpha2 * f_pos - lp1 * beta2) / r2 - (3. * gamma * f_pos / (2. * dlp3)) * psi_pos
             )
-    initial_conditions_ptr[1 * num_ys + 4] = \
+    starting_conditions_ptr[1 * num_ys + 4] = \
         radius**(degree_l_dbl + 2.) * (
             (alpha2 * f_neg - lp1 * beta2) / r2 - (3. * gamma * f_neg / (2. * dlp3)) * psi_neg
             )
-    initial_conditions_ptr[2 * num_ys + 4] = \
+    starting_conditions_ptr[2 * num_ys + 4] = \
         (degree_l_dbl * gamma - dynamic_term) * radius**degree_l_dbl
     
     # y6, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 5] = \
-        dlp1 * r_inverse * initial_conditions_ptr[0 * num_ys + 4] + \
+    starting_conditions_ptr[0 * num_ys + 5] = \
+        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] + \
         (3. * degree_l_dbl * gamma * h_pos * radius**lp1 / (2. * dlp3)) * psi_pos
-    initial_conditions_ptr[1 * num_ys + 5] = \
-        dlp1 * r_inverse * initial_conditions_ptr[1 * num_ys + 4] + \
+    starting_conditions_ptr[1 * num_ys + 5] = \
+        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] + \
         (3. * degree_l_dbl * gamma * h_neg * radius**lp1 / (2. * dlp3)) * psi_neg
-    initial_conditions_ptr[2 * num_ys + 5] = \
-        dlp1 * r_inverse * initial_conditions_ptr[2 * num_ys + 4] - \
+    starting_conditions_ptr[2 * num_ys + 5] = \
+        dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - \
         3. * degree_l_dbl * gamma * radius**lm1
 
 
@@ -181,9 +181,9 @@ cdef void cf_takeuchi_solid_static_compressible(
         unsigned char degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions_ptr
+        double complex* starting_conditions_ptr
         ) noexcept nogil:
-    """ Calculate the initial guess at the bottom of a solid layer using the static assumption.
+    """ Calculate the starting guess at the bottom of a solid layer using the static assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
 
@@ -266,69 +266,69 @@ cdef void cf_takeuchi_solid_static_compressible(
 
     cdef double complex phi_pos, phi_lp1_pos, psi_pos
     cdef double complex phi_neg, phi_lp1_neg, psi_neg
-    takeuchi_phi_psi(z2_pos, degree_l, &phi_pos, &phi_lp1_pos, &psi_pos)
-    takeuchi_phi_psi(z2_neg, degree_l, &phi_neg, &phi_lp1_neg, &psi_neg)
+    cf_takeuchi_phi_psi(z2_pos, degree_l, &phi_pos, &phi_lp1_pos, &psi_pos)
+    cf_takeuchi_phi_psi(z2_neg, degree_l, &phi_neg, &phi_lp1_neg, &psi_neg)
 
     # See Eq. 102 in TS72
     # y1, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 0] = \
+    starting_conditions_ptr[0 * num_ys + 0] = \
         ((-radius**lp1) / dlp3) * (0.5 * degree_l * h_pos * psi_pos + f_pos * phi_lp1_pos)
-    initial_conditions_ptr[1 * num_ys + 0] = \
+    starting_conditions_ptr[1 * num_ys + 0] = \
         ((-radius**lp1) / dlp3) * (0.5 * degree_l * h_neg * psi_neg + f_neg * phi_lp1_neg)
-    initial_conditions_ptr[2 * num_ys + 0] = \
+    starting_conditions_ptr[2 * num_ys + 0] = \
         degree_l * radius**lm1
 
     # y2, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 1] = \
+    starting_conditions_ptr[0 * num_ys + 1] = \
         -(lame + 2. * shear_modulus) * radius**degree_l * f_pos * phi_pos + \
         (shear_modulus * radius**degree_l / dlp3) * (
             -degree_l * lm1 * h_pos * psi_pos + 2. * (2. * f_pos + llp1) * phi_lp1_pos
             )
-    initial_conditions_ptr[1 * num_ys + 1] = \
+    starting_conditions_ptr[1 * num_ys + 1] = \
         -(lame + 2. * shear_modulus) * radius**degree_l * f_neg * phi_neg + \
         (shear_modulus * radius**degree_l / dlp3) * (
             -degree_l * lm1 * h_neg * psi_neg + 2. * (2. * f_neg + llp1) * phi_lp1_neg
             )
-    initial_conditions_ptr[2 * num_ys + 1] = \
+    starting_conditions_ptr[2 * num_ys + 1] = \
         2. * shear_modulus * degree_l * lm1 * radius**(degree_l - 2.)
 
     # y3, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 2] = \
+    starting_conditions_ptr[0 * num_ys + 2] = \
         (-radius**lp1 / dlp3) * (0.5 * h_pos * psi_pos - phi_lp1_pos)
-    initial_conditions_ptr[1 * num_ys + 2] = \
+    starting_conditions_ptr[1 * num_ys + 2] = \
         (-radius**lp1 / dlp3) * (0.5 * h_neg * psi_neg - phi_lp1_neg)
-    initial_conditions_ptr[2 * num_ys + 2] = \
+    starting_conditions_ptr[2 * num_ys + 2] = \
         radius**lm1
 
     # y4, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 3] = \
+    starting_conditions_ptr[0 * num_ys + 3] = \
         shear_modulus * radius**degree_l * \
         (phi_pos - (1. / dlp3) * (lm1 * h_pos * psi_pos + 2. * (f_pos + 1.) * phi_lp1_pos))
-    initial_conditions_ptr[1 * num_ys + 3] = \
+    starting_conditions_ptr[1 * num_ys + 3] = \
         shear_modulus * radius**degree_l * \
         (phi_neg - (1. / dlp3) * (lm1 * h_neg * psi_neg + 2. * (f_neg + 1.) * phi_lp1_neg))
-    initial_conditions_ptr[2 * num_ys + 3] = \
+    starting_conditions_ptr[2 * num_ys + 3] = \
         2. * shear_modulus * lm1 * radius**(degree_l - 2.)
 
     # y5, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 4] = \
+    starting_conditions_ptr[0 * num_ys + 4] = \
         radius**(degree_l + 2.) * \
         ((alpha2 * f_pos - lp1 * beta2) / r2 - (3. * gamma * f_pos / (2. * dlp3)) * psi_pos)
-    initial_conditions_ptr[1 * num_ys + 4] = \
+    starting_conditions_ptr[1 * num_ys + 4] = \
         radius**(degree_l + 2.) * \
         ((alpha2 * f_neg - lp1 * beta2) / r2 - (3. * gamma * f_neg / (2. * dlp3)) * psi_neg)
-    initial_conditions_ptr[2 * num_ys + 4] = \
+    starting_conditions_ptr[2 * num_ys + 4] = \
         degree_l * gamma * radius**degree_l
 
     # y6, solutions 1--3
-    initial_conditions_ptr[0 * num_ys + 5] = \
-        dlp1 * r_inverse * initial_conditions_ptr[0 * num_ys + 4] + \
+    starting_conditions_ptr[0 * num_ys + 5] = \
+        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] + \
         (3. * degree_l * gamma * h_pos * radius**lp1 / (2. * dlp3)) * psi_pos
-    initial_conditions_ptr[1 * num_ys + 5] = \
-        dlp1 * r_inverse * initial_conditions_ptr[1 * num_ys + 4] + \
+    starting_conditions_ptr[1 * num_ys + 5] = \
+        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] + \
         (3. * degree_l * gamma * h_neg * radius**lp1 / (2. * dlp3)) * psi_neg
-    initial_conditions_ptr[2 * num_ys + 5] = \
-        dlp1 * r_inverse * initial_conditions_ptr[2 * num_ys + 4] - \
+    starting_conditions_ptr[2 * num_ys + 5] = \
+        dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - \
         3. * degree_l * gamma * radius**lm1
 
 
@@ -345,9 +345,9 @@ cdef void cf_takeuchi_liquid_dynamic_compressible(
         unsigned char degree_l,
         double G_to_use,
         ssize_t num_ys, 
-        double complex* initial_conditions_ptr
+        double complex* starting_conditions_ptr
         ) noexcept nogil:
-    """ Calculate the initial guess at the bottom of a liquid layer using the dynamic assumption.
+    """ Calculate the starting guess at the bottom of a liquid layer using the dynamic assumption.
 
     This function uses the Takeuchi and Saito 1972 equations (Eq. 95-101).
 
@@ -412,29 +412,29 @@ cdef void cf_takeuchi_liquid_dynamic_compressible(
     # Calculate Takeuchi and Saito functions
     cdef double complex z, phi, phi_lp1, psi
     z = k2 * r2
-    takeuchi_phi_psi(z, degree_l, &phi, &phi_lp1, &psi)
+    cf_takeuchi_phi_psi(z, degree_l, &phi, &phi_lp1, &psi)
 
     # Found by setting mu=0 in Eq. 102 of TS72
     # y1, solutions 1--2
-    initial_conditions_ptr[0 * num_ys + 0] = \
+    starting_conditions_ptr[0 * num_ys + 0] = \
         ((-radius**lp1) / dlp3) * (0.5 * degree_l * h * psi + f * phi_lp1)
-    initial_conditions_ptr[1 * num_ys + 0] = \
+    starting_conditions_ptr[1 * num_ys + 0] = \
         degree_l * radius**lm1
 
     # y2, solutions 1--2
-    initial_conditions_ptr[0 * num_ys + 1] = \
+    starting_conditions_ptr[0 * num_ys + 1] = \
         -lame * radius**degree_l * f * phi
-    initial_conditions_ptr[1 * num_ys + 1] = \
+    starting_conditions_ptr[1 * num_ys + 1] = \
         0.0
 
     # y5, solutions 1--2
-    initial_conditions_ptr[0 * num_ys + 2] = \
+    starting_conditions_ptr[0 * num_ys + 2] = \
         radius**(degree_l + 2.) * ((alpha2 * f / r2) - (3. * gamma * f / (2. * dlp3)) * psi)
-    initial_conditions_ptr[1 * num_ys + 2] = \
+    starting_conditions_ptr[1 * num_ys + 2] = \
         (degree_l * gamma - dynamic_term) * radius**degree_l
 
     # y6, solutions 1--2
-    initial_conditions_ptr[0 * num_ys + 3] = \
-        dlp1 * r_inverse * initial_conditions_ptr[0 * num_ys + 2] + (3. * degree_l * gamma * h * radius**lp1 / (2. * dlp3)) * psi
-    initial_conditions_ptr[1 * num_ys + 3] = \
-        dlp1 * r_inverse * initial_conditions_ptr[1 * num_ys + 2] - 3. * degree_l * gamma * radius**lm1
+    starting_conditions_ptr[0 * num_ys + 3] = \
+        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 2] + (3. * degree_l * gamma * h * radius**lp1 / (2. * dlp3)) * psi
+    starting_conditions_ptr[1 * num_ys + 3] = \
+        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 2] - 3. * degree_l * gamma * radius**lm1

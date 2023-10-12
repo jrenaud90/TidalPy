@@ -9,7 +9,7 @@ cdef void cf_kamata_solid_dynamic_compressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions_ptr
+    double complex* starting_conditions_ptr
     ) noexcept nogil
 
 cdef void cf_kamata_solid_static_compressible(
@@ -20,7 +20,7 @@ cdef void cf_kamata_solid_static_compressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions_ptr
+    double complex* starting_conditions_ptr
     ) noexcept nogil
 
 cdef void cf_kamata_solid_dynamic_incompressible(
@@ -31,7 +31,7 @@ cdef void cf_kamata_solid_dynamic_incompressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions_ptr
+    double complex* starting_conditions_ptr
     ) noexcept nogil
 
 ########################################################################################################################
@@ -46,7 +46,7 @@ cdef void cf_kamata_liquid_dynamic_compressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions_ptr
+    double complex* starting_conditions_ptr
     ) noexcept nogil
 
 cdef void cf_kamata_liquid_dynamic_incompressible(
@@ -56,5 +56,5 @@ cdef void cf_kamata_liquid_dynamic_incompressible(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions_ptr
+    double complex* starting_conditions_ptr
     ) noexcept nogil

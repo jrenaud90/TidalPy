@@ -1,7 +1,7 @@
 from libcpp cimport bool as bool_cpp_t
 
 
-cdef void cf_find_initial_conditions(
+cdef void cf_find_starting_conditions(
     bool_cpp_t is_solid,
     bool_cpp_t is_static,
     bool_cpp_t is_incompressible,
@@ -14,5 +14,6 @@ cdef void cf_find_initial_conditions(
     unsigned int degree_l,
     double G_to_use,
     ssize_t num_ys, 
-    double complex* initial_conditions_ptr
+    double complex* starting_conditions_ptr,
+    bool_cpp_t run_y_checks = *
     )

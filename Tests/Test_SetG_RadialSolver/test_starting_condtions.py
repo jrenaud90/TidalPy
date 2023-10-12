@@ -6,8 +6,8 @@ import TidalPy
 TidalPy.test_mode()
 
 from TidalPy.rheology.models import MaxwellRheology
-from TidalPy.radial_solver.numerical.solutions import find_num_solutions
-from TidalPy.radial_solver.numerical.initial.driver import find_initial_conditions
+from TidalPy.RadialSolver.solutions import find_num_solutions
+from TidalPy.RadialSolver.starting.driver import find_starting_conditions
 
 frequency    = 0.01
 radius       = 0.1
@@ -646,14 +646,14 @@ def test_initial_condition_driver(is_solid, is_static, is_incompressible, use_ka
             or (use_kamata and is_static and is_incompressible and is_solid):
 
         with pytest.raises(NotImplementedError):
-            find_initial_conditions(
+            find_starting_conditions(
                 is_solid, is_static, is_incompressible, use_kamata,
                 frequency, radius, density, bulk_modulus, complex_shear,
                 degree_l, G_to_use, initial_condition_array
                 )
     else:
         # Assumptions should be fine.
-        find_initial_conditions(
+        find_starting_conditions(
             is_solid, is_static, is_incompressible, use_kamata,
             frequency, radius, density, bulk_modulus, complex_shear,
             degree_l, G_to_use, initial_condition_array
@@ -695,7 +695,7 @@ def test_initial_condition_accuracy(is_solid, is_static, is_incompressible, use_
         # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
         initial_condition_array = np.nan * np.ones((num_sols, num_ys), dtype=np.complex128, order='C')
 
-        find_initial_conditions(
+        find_starting_conditions(
             is_solid, is_static, is_incompressible, use_kamata,
             frequency, radius, density, bulk_modulus, complex_shear,
             degree_l, G_to_use, initial_condition_array
