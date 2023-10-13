@@ -19,7 +19,8 @@ from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
 from TidalPy.radial_solver.nondimensional import re_dimensionalize_radial_func
 
 # Import cythonized functions
-from TidalPy.RadialSolver.nondimensional cimport cf_non_dimensionalize_physicals
+from TidalPy.utilities.dimensions.nondimensional cimport cf_non_dimensionalize_physicals
+
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface

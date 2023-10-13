@@ -103,10 +103,10 @@
     "compile_args": [],
     "link_args": []
   },
-  "radialsolver.nondimensional": {
-    "name": "TidalPy.RadialSolver.nondimensional",
-    "sources": [["TidalPy", "RadialSolver", "nondimensional.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver"]],
+  "utilities.dimensions.nondimensional": {
+    "name": "TidalPy.utilities.dimensions.nondimensional",
+    "sources": [["TidalPy", "utilities", "dimensions", "nondimensional.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "dimensions"]],
     "compile_args": [],
     "link_args": []
   }

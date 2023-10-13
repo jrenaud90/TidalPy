@@ -63,11 +63,10 @@ def non_dimensionalize_physicals(
         double[:] gravity_array_view,
         double[:] bulk_array_view,
         double_numeric[:] shear_array_view,
-        double frequency_to_use,
-        double G_to_use
         ):
 
     cdef size_t num_radius = radius_array_view.size
+    cdef double frequency_to_use, G_to_use
     
     cf_non_dimensionalize_physicals(
         num_radius, frequency, mean_radius, bulk_density,
@@ -75,3 +74,5 @@ def non_dimensionalize_physicals(
         &bulk_array_view[0], &shear_array_view[0],
         &frequency_to_use, &G_to_use
         )
+    
+    return frequency_to_use, G_to_use
