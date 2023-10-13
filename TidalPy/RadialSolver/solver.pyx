@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libcpp cimport bool as bool_cpp_t
-from libc.math cimport NAN, pi
+from libc.math cimport NAN, pi, isnan
 
 from cpython.mem cimport PyMem_Free
 
@@ -34,49 +34,50 @@ G = G_
 
 
 def radial_solver_x(
-        double[:] radius_array,
-        double[:] density_array,
-        double[:] gravity_array,
-        double[:] bulk_modulus_array,
-        double complex[:] complex_shear_modulus_array,
-        double frequency,
-        double planet_bulk_density,
+        const double[:] radius_array,
+        const double[:] density_array,
+        const double[:] gravity_array,
+        const double[:] bulk_modulus_array,
+        const double complex[:] complex_shear_modulus_array,
+        const double frequency,
+        const double planet_bulk_density,
         tuple is_solid_by_layer,
         tuple is_static_by_layer,
         tuple is_incompressible_by_layer,
         tuple upper_radius_by_layer,
-        unsigned int degree_l = 2,
-        double complex[:] surface_boundary_conditions = None,
-        bool_cpp_t solve_load_numbers = False,
-        bool_cpp_t use_kamata = False,
-        int integration_method = 1,
-        double integration_rtol = 1.0e-4,
-        double integration_atol = 1.0e-12,
-        bool_cpp_t scale_rtols_by_layer_type = True,
-        Py_ssize_t max_num_steps = 500_000,
-        Py_ssize_t expected_size = 250,
-        double max_step = 0,
-        bool_cpp_t limit_solution_to_radius = True,
-        bool_cpp_t verbose = False,
-        bool_cpp_t nondimensionalize = True,
+        const unsigned int degree_l = 2,
+        const double complex[:] surface_boundary_conditions = None,
+        const bool_cpp_t solve_load_numbers = False,
+        const bool_cpp_t use_kamata = False,
+        const int integration_method = 1,
+        const double integration_rtol = 1.0e-4,
+        const double integration_atol = 1.0e-12,
+        const bool_cpp_t scale_rtols_by_layer_type = True,
+        const size_t max_num_steps = 500_000,
+        const size_t expected_size = 250,
+        const double max_step = 0,
+        const bool_cpp_t limit_solution_to_radius = True,
+        const bool_cpp_t nondimensionalize = True,
+        const bool_cpp_t verbose = False,
+        const bool_cpp_t raise_on_fail = False
         ):
     # General indexing
-    cdef Py_ssize_t i, j, k
+    cdef size_t i, j, k
 
     # Layer | Solution | y indexing
-    cdef Py_ssize_t layer_i, solution_i, y_i, slice_i
+    cdef size_t layer_i, solution_i, y_i, slice_i
 
     # Maximum size for array building
-    cdef Py_ssize_t MAX_NUM_Y      = 6
-    cdef Py_ssize_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
-    cdef Py_ssize_t MAX_NUM_SOL    = 3
+    cdef size_t MAX_NUM_Y      = 6
+    cdef size_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
+    cdef size_t MAX_NUM_SOL    = 3
 
     # Type conversions
     cdef double degree_l_dbl = <double>degree_l
 
     # Pull out key information
     cdef double radius_planet
-    cdef Py_ssize_t num_layers, num_interfaces, total_slices
+    cdef size_t num_layers, num_interfaces, total_slices
 
     total_slices   = len(radius_array)
     radius_planet  = radius_array[total_slices - 1]
@@ -123,7 +124,8 @@ def radial_solver_x(
         cmplx_shear_array_ptr[slice_i] = complex_shear_modulus_array[slice_i]
 
     # Non-dimensionalize inputs
-    cdef double G_to_use, frequency_to_use
+    cdef double G_to_use = NAN
+    cdef double frequency_to_use = NAN
     if nondimensionalize:
         cf_non_dimensionalize_physicals(
             total_slices,
@@ -138,13 +140,16 @@ def radial_solver_x(
             &frequency_to_use,
             &G_to_use
             )
+        
+        # Ensure that no errors occured during the non-dim process
+        if isnan(frequency_to_use) or isnan(G_to_use):
+            raise ValueError('NaNs encountered after non-dimensionalize call.')
     else:
         # Leave inputs alone.
         G_to_use         = G
         frequency_to_use = frequency
 
-    cdef double surface_gravity
-    surface_gravity = gravity_array_ptr[total_slices - 1]
+    cdef double surface_gravity = gravity_array_ptr[total_slices - 1]
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
@@ -189,15 +194,15 @@ def radial_solver_x(
     cdef double* atols_ptr = &atols_array[0]
 
     # Create storage for flags and information about each layer.
-    cdef Py_ssize_t* layer_int_data_ptr = \
-        <Py_ssize_t *> allocate_mem(
-            3 * num_layers * sizeof(Py_ssize_t),
+    cdef size_t* layer_int_data_ptr = \
+        <size_t *> allocate_mem(
+            3 * num_layers * sizeof(size_t),
             'layer_int_data_ptr (radial_solver; init)'
             )
 
-    cdef Py_ssize_t* num_solutions_by_layer_ptr = &layer_int_data_ptr[0]
-    cdef Py_ssize_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
-    cdef Py_ssize_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
+    cdef size_t* num_solutions_by_layer_ptr = &layer_int_data_ptr[0]
+    cdef size_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
+    cdef size_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
 
     # Unpack inefficient user-provided tuples into bool array
     cdef bool_cpp_t* layer_bool_data_ptr = \
@@ -217,9 +222,9 @@ def radial_solver_x(
     cdef bool_cpp_t layer_below_is_solid, layer_below_is_static, layer_below_is_incomp
     cdef double layer_upper_radius, radius_check
     cdef double layer_rtol_real, layer_rtol_imag, layer_atol_real, layer_atol_imag
-    cdef Py_ssize_t layer_slices
-    cdef Py_ssize_t num_sols, num_ys
-    cdef Py_ssize_t layer_below_num_sols, layer_below_num_ys
+    cdef size_t layer_slices
+    cdef size_t num_sols, num_ys
+    cdef size_t layer_below_num_sols, layer_below_num_ys
     cdef int num_sols_int
 
     for layer_i in range(num_layers):
@@ -235,7 +240,7 @@ def radial_solver_x(
         is_incompressible_by_layer_ptr[layer_i] = layer_is_incomp
 
         # Find number of solutions based on this layer's assumptions
-        num_sols = <Py_ssize_t>cf_find_num_solutions(
+        num_sols = cf_find_num_solutions(
             layer_is_solid,
             layer_is_static,
             layer_is_incomp
@@ -335,6 +340,7 @@ def radial_solver_x(
     cdef double complex* initial_y_ptr = &initial_y[0]
     cdef double[36] initial_y_only_real
     cdef double* initial_y_only_real_ptr = &initial_y_only_real[0]
+    cdef bool_cpp_t starting_y_check = False
 
     # Intermediate values
     cdef double complex dcomplex_tmp
@@ -353,7 +359,7 @@ def radial_solver_x(
     # TODO: Cythonize initial functions
     cdef double complex[:, ::1] INITIAL_VIEW_TEMP_VIEW
 
-    cdef Py_ssize_t start_index
+    cdef size_t start_index
     for layer_i in range(num_layers):
         # Get layer's index information
         start_index  = start_index_by_layer_ptr[layer_i]
@@ -439,7 +445,8 @@ def radial_solver_x(
                 degree_l,
                 G_to_use,
                 MAX_NUM_Y, 
-                initial_y_ptr
+                initial_y_ptr,
+                starting_y_check
                 )
         else:
             layer_below_is_solid  = is_solid_by_layer_ptr[layer_i - 1]
@@ -554,6 +561,8 @@ def radial_solver_x(
                 feedback_str = f'Integration problem at layer {layer_i}; solution {solution_i}:\n\t{solver.message}'
                 if verbose:
                     print(feedback_str)
+                if raise_on_fail:
+                    raise RuntimeError(feedback_str)
                 error = True
                 break
 
@@ -590,7 +599,7 @@ def radial_solver_x(
 
     # No matter the results of the integration, we know the shape and size of the final solution.
     # The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
-    cdef Py_ssize_t num_output_ys
+    cdef size_t num_output_ys
     if solve_load_numbers:
         num_output_ys = 12
         # TODO
@@ -605,7 +614,7 @@ def radial_solver_x(
     cdef double complex[:, ::1] surface_solution_matrix_view
 
     # During collapse, variables for the layer above the target one are used. Declare these and preset them.
-    cdef Py_ssize_t layer_above_num_sols    = 0
+    cdef size_t layer_above_num_sols    = 0
     cdef double layer_above_lower_gravity   = 0.
     cdef double layer_above_lower_density   = 0.
     cdef double liquid_density_at_interface = 0.
@@ -653,12 +662,14 @@ def radial_solver_x(
     lapack_ipiv_ptr = &lapack_ipiv[0]
 
     # Shifted or reversed indices used during collapse.
-    cdef Py_ssize_t slice_i_shifted, layer_i_reversed
+    cdef size_t slice_i_shifted, layer_i_reversed
 
     if error:
         feedback_str = 'Integration failed.'
         if verbose:
             print(feedback_str)
+        if raise_on_fail:
+            raise RuntimeError(feedback_str)
         for y_i in range(num_output_ys):
             for slice_i in range(total_slices):
                 full_solution_view[y_i, slice_i] = NAN
@@ -797,6 +808,8 @@ def radial_solver_x(
                          f'\nThe solutions may not be valid at the surface.')
                     if verbose:
                         print(feedback_str)
+                    if raise_on_fail:
+                        raise RuntimeError(feedback_str)
                     error = True
                     break
             else:
@@ -877,8 +890,7 @@ def radial_solver_x(
                             # Liquid layer above
                             if layer_above_is_static:
                                 # Both layers are static liquids. Constants are the same.
-                                for solution_i in range(num_sols):
-                                    constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
+                                constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
                             else:
                                 # Dynamic liquid above
                                 # JPR decided to follow a similar approach as Eq. 20 in S74:
@@ -943,7 +955,6 @@ def radial_solver_x(
                                 full_solution_view[y_i, slice_i_shifted] += \
                                     (constant_vector_ptr[solution_i] *
                                      storage_by_solution[solution_i][slice_i * num_ys + y_i])
-
                         else:
                             if layer_is_static:
                                 # Liquid static layers only has y5 (stored at index 0).
@@ -997,16 +1008,26 @@ def radial_solver_x(
                                          full_solution_view[1, slice_i_shifted] / layer_density_ptr[slice_i] -
                                          full_solution_view[4, slice_i_shifted])
 
-        # Setup for next layer
-        layer_above_lower_gravity = gravity_lower
-        layer_above_lower_density = density_lower
-        layer_above_is_solid      = layer_is_solid
-        layer_above_is_static     = layer_is_static
-        layer_above_is_incomp     = layer_is_incomp
-        layer_above_num_sols      = num_sols
+            # Setup for next layer
+            layer_above_lower_gravity = gravity_lower
+            layer_above_lower_density = density_lower
+            layer_above_is_solid      = layer_is_solid
+            layer_above_is_static     = layer_is_static
+            layer_above_is_incomp     = layer_is_incomp
+            layer_above_num_sols      = num_sols
 
-        for solution_i in range(num_sols):
-            layer_above_constant_vector_ptr[solution_i] = constant_vector_ptr[solution_i]
+            if num_sols == 1:
+                layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
+                layer_above_constant_vector_ptr[1] = NAN
+                layer_above_constant_vector_ptr[2] = NAN
+            elif num_sols == 2:
+                layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
+                layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
+                layer_above_constant_vector_ptr[2] = NAN
+            elif num_sols == 3:
+                layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
+                layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
+                layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
 
     # Free memory
     del solver
