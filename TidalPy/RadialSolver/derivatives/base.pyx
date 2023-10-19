@@ -3,17 +3,10 @@
 from libcpp cimport bool as bool_cpp_t
 from libc.math cimport pi
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
-
-import numpy as np
-
-from CyRK.cy.common cimport MAX_STEP
+from CyRK.cy.common cimport MAX_STEP, EPS_100
 from CyRK.cy.cysolver cimport CySolver
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
 
-cdef double EPS = np.finfo(np.float64).eps
-cdef double EPS_10 = EPS * 10.
-cdef double EPS_100 = EPS * 100.
 
 cdef class RadialSolverBase(CySolver):
     def __init__(
@@ -29,9 +22,16 @@ cdef class RadialSolverBase(CySolver):
             unsigned char rk_method = 1,
             double max_step = MAX_STEP,
             double first_step = 0.,
-            Py_ssize_t max_num_steps = 0,
-            Py_ssize_t expected_size = 0,
+            size_t max_num_steps = 0,
+            size_t expected_size = 0,
             ):
+
+        # Initialize pointers to null
+        self.radius_array_ptr = NULL
+        self.density_array_ptr = NULL
+        self.gravity_array_ptr = NULL
+        self.bulk_modulus_array_ptr = NULL
+        self.shear_modulus_array_ptr = NULL
 
         # Load in floats and ints
         self.frequency  = frequency
@@ -68,7 +68,7 @@ cdef class RadialSolverBase(CySolver):
             self,
 
             # RadialSolverBase pointers
-            Py_ssize_t num_slices,
+            size_t num_slices,
             double* radius_array_ptr,
             double* density_array_ptr,
             double* gravity_array_ptr,
@@ -86,7 +86,7 @@ cdef class RadialSolverBase(CySolver):
         # method to take the required pointers and load them into the class.
 
         # Setup loop variables
-        cdef Py_ssize_t i
+        cdef size_t i
 
         self.num_slices = num_slices
         # Set class pointers to inputs
@@ -103,13 +103,7 @@ cdef class RadialSolverBase(CySolver):
             #   1) we will lose the reference to the original t_eval_ptr that was allocated, leading to a memory leak.
             #   2) when the solver class is dealloc it will dealloc the radius_ptr which we don't want the solver to own.
             # Instead we will realloc the memory and set its values equal to radius pointer.
-            self.len_t_eval = num_slices
-            self.run_interpolation = True
-            self.t_eval_ptr = <double *> PyMem_Realloc(self.t_eval_ptr, self.len_t_eval * sizeof(double))
-            if not self.t_eval_ptr:
-                raise MemoryError()
-            for i in range(self.len_t_eval):
-                self.t_eval_ptr[i] = self.radius_array_ptr[i]
+            self.change_t_eval_pointer(self.radius_array_ptr, num_slices, auto_reset_state=False)
 
         # rtols and atols are provided as pointers which the base class does not support right away.
         # Set those up now.

@@ -7,12 +7,12 @@ cdef class RadialSolverBase(CySolver):
 
     # Global constants
     cdef double frequency
-    cdef unsigned int degree_l
+    cdef unsigned char degree_l
     cdef double degree_l_flt, lp1, lm1, llp1
     cdef double G_to_use, grav_coeff
 
     # Number of radial slices
-    cdef Py_ssize_t num_slices
+    cdef size_t num_slices
 
     # Radial pointer arrays
     cdef double* radius_array_ptr
@@ -32,7 +32,7 @@ cdef class RadialSolverBase(CySolver):
         self,
 
         # RadialSolverBase pointers
-        Py_ssize_t num_slices,
+        size_t num_slices,
         double* radius_array_ptr,
         double* density_array_ptr,
         double* gravity_array_ptr,

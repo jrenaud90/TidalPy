@@ -721,7 +721,6 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
         self.dy_ptr[2] = dy7.real
         self.dy_ptr[3] = dy7.imag
 
-from libc.stdio cimport printf
 
 cdef RadialSolverBase cf_build_solver(
         bool_cpp_t is_solid,
@@ -729,15 +728,15 @@ cdef RadialSolverBase cf_build_solver(
         bool_cpp_t is_incomp,
 
         # RadialSolverBase Inputs
-        Py_ssize_t num_slices,
-        Py_ssize_t num_ys,
+        size_t num_slices,
+        size_t num_ys,
         double* radius_array_ptr,
         double* density_array_ptr,
         double* gravity_array_ptr,
         double* bulk_modulus_array_ptr,
         double complex* shear_modulus_array_ptr,
         double frequency,
-        unsigned int degree_l,
+        unsigned char degree_l,
         double G_to_use,
 
         # Regular CySolver Inputs
@@ -747,8 +746,8 @@ cdef RadialSolverBase cf_build_solver(
         double* rtols_ptr,
         unsigned char rk_method,
         double max_step,
-        Py_ssize_t max_num_steps,
-        Py_ssize_t expected_size,
+        size_t max_num_steps,
+        size_t expected_size,
 
         # Additional optional arguments for RadialSolver class
         bool_cpp_t limit_solution_to_radius
@@ -757,8 +756,7 @@ cdef RadialSolverBase cf_build_solver(
     cdef RadialSolverBase solver
 
     # Convert the y0 pointer to a memoryview in order to work with CyRK's CySolver __init__
-    cdef double[:] y0_view
-    y0_view = <double[:num_ys]> y0_ptr
+    cdef double[:] y0_view = <double[:num_ys]> y0_ptr
 
     if is_solid:
         if is_static:

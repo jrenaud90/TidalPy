@@ -95,7 +95,8 @@ def radial_solver(
     # Store all double-sized data in one large array.
     cdef double* radial_double_data_ptr = <double *> allocate_mem(
         4 * total_slices * sizeof(double),
-        'radial_double_data_ptr (radial_solver; init)')
+        'radial_double_data_ptr (radial_solver; init)'
+        )
 
     # Create user-friendly pointers to access blocks of that array
     cdef double* radius_array_ptr  = &radial_double_data_ptr[0]
@@ -108,11 +109,10 @@ def radial_solver(
     #  of a row to get the next item at slice_i. A fortran memory layout would be more efficient here.
 
     # Repeat for double complex-sized data.
-    cdef double complex* cmplx_shear_array_ptr = \
-        <double complex *> allocate_mem(
-            total_slices * sizeof(double complex),
-            'cmplx_shear_array_ptr (radial_solver; init)'
-            )
+    cdef double complex* cmplx_shear_array_ptr = <double complex *> allocate_mem(
+        total_slices * sizeof(double complex),
+        'cmplx_shear_array_ptr (radial_solver; init)'
+        )
 
     # Populate the arrays (making a copy of values)
     for slice_i in range(total_slices):
@@ -225,22 +225,20 @@ def radial_solver(
     cdef double* atols_ptr = &atols_array[0]
 
     # Create storage for flags and information about each layer.
-    cdef size_t* layer_int_data_ptr = \
-        <size_t *> allocate_mem(
-            3 * num_layers * sizeof(size_t),
-            'layer_int_data_ptr (radial_solver; init)'
-            )
+    cdef size_t* layer_int_data_ptr = <size_t *> allocate_mem(
+        3 * num_layers * sizeof(size_t),
+        'layer_int_data_ptr (radial_solver; init)'
+        )
 
     cdef size_t* num_solutions_by_layer_ptr = &layer_int_data_ptr[0]
     cdef size_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
     cdef size_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
 
     # Unpack inefficient user-provided tuples into bool array
-    cdef bool_cpp_t* layer_bool_data_ptr = \
-        <bool_cpp_t *> allocate_mem(
-            3 * num_layers * sizeof(bool_cpp_t),
-            'layer_bool_data_ptr (radial_solver; init)'
-            )
+    cdef bool_cpp_t* layer_bool_data_ptr = <bool_cpp_t *> allocate_mem(
+        3 * num_layers * sizeof(bool_cpp_t),
+        'layer_bool_data_ptr (radial_solver; init)'
+        )
 
     cdef bool_cpp_t* is_solid_by_layer_ptr          = &layer_bool_data_ptr[0]
     cdef bool_cpp_t* is_static_by_layer_ptr         = &layer_bool_data_ptr[num_layers]
@@ -302,11 +300,10 @@ def radial_solver(
 
     # We have all the size information needed to build storage pointers
     # Main storage pointer is setup like [layer_i][solution_i][y_i + r_i]
-    cdef double complex*** main_storage = \
-        <double complex ***> allocate_mem(
-            num_layers * sizeof(double complex**),
-            'main_storage (radial_solver; init)'
-            )
+    cdef double complex*** main_storage = <double complex ***> allocate_mem(
+        num_layers * sizeof(double complex**),
+        'main_storage (radial_solver; init)'
+        )
 
     cdef double complex** storage_by_solution = NULL
     cdef double complex* storage_by_y = NULL
@@ -317,18 +314,16 @@ def radial_solver(
         # Number of ys = 2x num sols
         num_ys = 2 * num_sols
 
-        storage_by_solution = \
-            <double complex**> allocate_mem(
-                num_sols * sizeof(double complex*), 
-                'storage_by_solution (radial_solver; init)'
-                )
+        storage_by_solution = <double complex **> allocate_mem(
+            num_sols * sizeof(double complex*), 
+            'storage_by_solution (radial_solver; init)'
+            ) 
 
         for solution_i in range(num_sols):
-            storage_by_y = \
-                <double complex*> allocate_mem(
-                    layer_slices * num_ys * sizeof(double complex),
-                    'storage_by_y (radial_solver; init)'
-                    )
+            storage_by_y = <double complex *> allocate_mem(
+                layer_slices * num_ys * sizeof(double complex),
+                'storage_by_y (radial_solver; init)'
+                )
 
             storage_by_solution[solution_i] = storage_by_y
             storage_by_y = NULL
@@ -386,245 +381,9 @@ def radial_solver(
     if verbose:
         print(feedback_str)
     error = False
-
-    # TODO: Cythonize initial functions
-    cdef double complex[:, ::1] INITIAL_VIEW_TEMP_VIEW
-
     cdef size_t start_index
-    for layer_i in range(num_layers):
-        # Get layer's index information
-        start_index  = start_index_by_layer_ptr[layer_i]
-        layer_slices = num_slices_by_layer_ptr[layer_i]
 
-        # Get solution and y information
-        num_sols = num_solutions_by_layer_ptr[layer_i]
-        num_ys   = 2 * num_sols
-
-        # Setup pointer array slices starting at this layer's beginning
-        layer_radius_ptr    = &radius_array_ptr[start_index]
-        layer_density_ptr   = &density_array_ptr[start_index]
-        layer_gravity_ptr   = &gravity_array_ptr[start_index]
-        layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
-        layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
-
-        # Get physical parameters at the top and bottom of the layer
-        radius_lower  = layer_radius_ptr[0]
-        density_lower = layer_density_ptr[0]
-        gravity_lower = layer_gravity_ptr[0]
-        bulk_lower    = layer_bulk_mod_ptr[0]
-        shear_lower   = layer_shear_mod_ptr[0]
-        radius_upper  = layer_radius_ptr[layer_slices - 1]
-        density_upper = layer_density_ptr[layer_slices - 1]
-        gravity_upper = layer_gravity_ptr[layer_slices - 1]
-
-        # Determine max step size (if not provided by user)
-        if max_step_from_arrays:
-            # Maximum step size during integration can not exceed the average radial slice size.
-            max_step_touse = (radius_upper - radius_lower) / <double>layer_slices
-
-        # Get assumptions for layer
-        layer_is_solid  = is_solid_by_layer_ptr[layer_i]
-        layer_is_static = is_static_by_layer_ptr[layer_i]
-        layer_is_incomp = is_incompressible_by_layer_ptr[layer_i]
-
-        # Determine rtols and atols for this layer.
-        # Scale rtols by layer type
-        for y_i in range(num_ys):
-            # Default is that each layer's rtol and atol equal user input.
-            # TODO: Change up the tolerance scaling between real and imaginary?
-            layer_rtol_real = integration_rtol
-            layer_rtol_imag = integration_rtol
-            layer_atol_real = integration_atol
-            layer_atol_imag = integration_atol
-
-            if scale_rtols_by_layer_type:
-                # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
-                # TODO test that these scales are the best.
-                if layer_is_solid:
-                    # Scale y2 and y3 by 0.1
-                    if (y_i == 1) or (y_i == 2):
-                        # Scale both the real and imaginary portions by the same amount.
-                        layer_rtol_real *= 0.1
-                        layer_rtol_imag *= 0.1
-                else:
-                    if not layer_is_static:
-                        # Scale dynamic liquid layer's y2 by additional 0.01.
-                        if (y_i == 1):
-                            # Scale both the real and imaginary portions by the same amount.
-                            layer_rtol_real *= 0.01
-                            layer_rtol_imag *= 0.01
-            # Populate rtol and atol pointers.
-            rtols_ptr[2 * y_i]     = layer_rtol_real
-            rtols_ptr[2 * y_i + 1] = layer_rtol_imag
-            atols_ptr[2 * y_i]     = layer_atol_real
-            atols_ptr[2 * y_i + 1] = layer_atol_imag
-
-        # Find initial conditions for each solution at the base of this layer.
-        radial_span = (radius_lower, radius_upper)
-        if layer_i == 0:
-            # Use initial condition function
-            cf_find_starting_conditions(
-                layer_is_solid,
-                layer_is_static,
-                layer_is_incomp,
-                use_kamata,
-                frequency_to_use,
-                radius_lower,
-                density_lower,
-                bulk_lower,
-                shear_lower,
-                degree_l,
-                G_to_use,
-                MAX_NUM_Y, 
-                initial_y_ptr,
-                starting_y_check
-                )
-        else:
-            layer_below_is_solid  = is_solid_by_layer_ptr[layer_i - 1]
-            layer_below_is_static = is_static_by_layer_ptr[layer_i - 1]
-            layer_below_is_incomp = is_incompressible_by_layer_ptr[layer_i - 1]
-
-            # Find gravity at the base interface using bottom of this layer and top of previous.
-            interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
-
-            # Find the density needed for some initial conditions.
-            if layer_is_solid and layer_below_is_solid:
-                # Both layers are solid. A liquid interface density is not needed.
-                static_liquid_density = NAN
-            elif not layer_is_solid and layer_below_is_solid:
-                # Layer below is solid, this layer is liquid. Use its density.
-                static_liquid_density = density_lower
-            elif layer_is_solid and not layer_below_is_solid:
-                # Layer below is liquid, this layer is solid. Use layer below's density.
-                static_liquid_density = last_layer_upper_density
-            else:
-                # Both layers are liquid. Choose the layer's density which is static.
-                if layer_is_static and layer_below_is_static:
-                    # Both layers are static.
-                    # TODO: Not sure what to do here so just use this layer's density.
-                    static_liquid_density = density_lower
-                elif layer_is_static and not layer_below_is_static:
-                    # This layer is static, one below is not. Use this layer's density
-                    static_liquid_density = density_lower
-                elif not layer_is_static and layer_below_is_static:
-                    # This layer is dynamic, layer below is static. Use layer below's density
-                    static_liquid_density = last_layer_upper_density
-                else:
-                    # Both layers are dynamic. Static liquid density is not needed.
-                    static_liquid_density = NAN
-
-            # TODO: For now we are not using the initial y pointer correctly so it is set pointing to a different part of memory at layer==0.
-            #  We want it pointing back to the original array.
-            initial_y_ptr = &initial_y[0]
-
-            # Find the starting values for this layer using the results a the top of the previous layer + an interface
-            #  function.
-            cf_solve_upper_y_at_interface(
-                uppermost_y_per_solution_ptr,
-                initial_y_ptr,
-                layer_below_num_sols,
-                num_sols,
-                layer_below_num_ys,
-                num_ys,
-                layer_below_is_solid,
-                layer_below_is_static,
-                layer_below_is_incomp,
-                layer_is_solid,
-                layer_is_static,
-                layer_is_incomp,
-                interface_gravity,
-                static_liquid_density,
-                G_to_use
-                )
-
-        # Change initial conditions into 2x real values instead of complex for integration
-        for solution_i in range(num_sols):
-            for y_i in range(num_ys):
-                dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
-                initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
-                initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
-
-        # Build solver instance
-        solver = cf_build_solver(
-            layer_is_solid,
-            layer_is_static,
-            layer_is_incomp,
-            layer_slices,
-            2 * num_ys,  # Solver needs to know how many ys it is working with. 2x ys in this case.
-            layer_radius_ptr,
-            layer_density_ptr,
-            layer_gravity_ptr,
-            layer_bulk_mod_ptr,
-            layer_shear_mod_ptr,
-            frequency_to_use,
-            degree_l,
-            G_to_use,
-            radial_span,
-            &initial_y_only_real_ptr[0],  # Start the pointer at the beginning of the array
-            atols_ptr,
-            rtols_ptr,
-            integration_method,
-            max_step_touse,
-            max_num_steps,
-            expected_size,
-            limit_solution_to_radius
-            )
-
-        # Get storage pointer for this layer
-        storage_by_solution = main_storage[layer_i]
-
-        # Solve for each solution
-        for solution_i in range(num_sols):
-
-            if solution_i > 0:
-                # Reset solver with new initial condition (this is already done for j==0)
-                # This pointer has already been passed to the solver during initialization but we need the values at
-                #  the next solution. Pass new pointer at that address.
-                solver.change_y0_pointer(&initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL], auto_reset_state=False)
-
-            ###### Integrate! #######
-            solver._solve(reset=True)
-            #########################
-
-            # Check for problems
-            if not solver.success:
-                # Problem with integration.
-                feedback_str = f'Integration problem at layer {layer_i}; solution {solution_i}:\n\t{solver.message}'
-                if verbose:
-                    print(feedback_str)
-                if raise_on_fail:
-                    raise RuntimeError(feedback_str)
-                error = True
-                break
-
-            # If no problems, store results.
-            # Need to make a copy because the solver pointers will be reallocated during the next solution.
-            # Get storage pointer for this solution
-            storage_by_y = storage_by_solution[solution_i]
-            for slice_i in range(layer_slices):
-                for y_i in range(num_ys):
-                    # Convert 2x real ys to 1x complex ys
-                    dcomplex_tmp = \
-                        solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i)] + \
-                        1.0j * solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i) + 1]
-
-                    storage_by_y[slice_i * num_ys + y_i] = dcomplex_tmp
-                    # Store top most result for initial condition for the next layer
-                    if slice_i == (layer_slices - 1):
-                        # Tell top storage to point to the top-most value in the main storage arrays.
-                        uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = dcomplex_tmp
-
-        if error:
-            # Error was encountered during integration
-            break
-
-        # Prepare for next layer
-        layer_below_num_sols = num_sols
-        layer_below_num_ys   = num_ys
-        last_layer_upper_gravity = gravity_upper
-        last_layer_upper_density = density_upper
-
-    # No matter the results of the integration, we know the shape and size of the final solution.
+        # No matter the results of the integration, we know the shape and size of the final solution.
     # The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
     cdef size_t num_output_ys = 6 * num_solvers
     # Build final output np.ndarray.
@@ -679,423 +438,671 @@ def radial_solver(
     # Shifted or reversed indices used during collapse.
     cdef size_t slice_i_shifted, layer_i_reversed
 
-    if error:
-        feedback_str = 'Integration failed.'
-        if verbose:
-            print(feedback_str)
-        if raise_on_fail:
-            raise RuntimeError(feedback_str)
-        for y_i in range(num_output_ys):
-            for slice_i in range(total_slices):
-                full_solution_view[y_i, slice_i] = NAN
-    else:
-        feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
+    try:
+        for layer_i in range(num_layers):
+            # Get layer's index information
+            start_index  = start_index_by_layer_ptr[layer_i]
+            layer_slices = num_slices_by_layer_ptr[layer_i]
 
-        for k in range(num_solvers):
-            feedback_str = f'Collapsing radial solutions for solver {k}.'
+            # Get solution and y information
+            num_sols = num_solutions_by_layer_ptr[layer_i]
+            num_ys   = 2 * num_sols
 
-            # Reset variables for this solver
-            lapack_info = -999
-            lapack_nrhs = 1
-            constant_vector_ptr[0] = NAN
-            constant_vector_ptr[1] = NAN
-            constant_vector_ptr[2] = NAN
-            layer_above_num_sols        = 0
-            layer_above_lower_gravity   = 0.
-            layer_above_lower_density   = 0.
-            liquid_density_at_interface = 0.
-            layer_above_is_solid        = False
-            layer_above_is_static       = False
-            layer_above_is_incomp       = False
+            # Setup pointer array slices starting at this layer's beginning
+            layer_radius_ptr    = &radius_array_ptr[start_index]
+            layer_density_ptr   = &density_array_ptr[start_index]
+            layer_gravity_ptr   = &gravity_array_ptr[start_index]
+            layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
+            layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
 
+            # Get physical parameters at the top and bottom of the layer
+            radius_lower  = layer_radius_ptr[0]
+            density_lower = layer_density_ptr[0]
+            gravity_lower = layer_gravity_ptr[0]
+            bulk_lower    = layer_bulk_mod_ptr[0]
+            shear_lower   = layer_shear_mod_ptr[0]
+            radius_upper  = layer_radius_ptr[layer_slices - 1]
+            density_upper = layer_density_ptr[layer_slices - 1]
+            gravity_upper = layer_gravity_ptr[layer_slices - 1]
+
+            # Determine max step size (if not provided by user)
+            if max_step_from_arrays:
+                # Maximum step size during integration can not exceed the average radial slice size.
+                max_step_touse = (radius_upper - radius_lower) / <double>layer_slices
+
+            # Get assumptions for layer
+            layer_is_solid  = is_solid_by_layer_ptr[layer_i]
+            layer_is_static = is_static_by_layer_ptr[layer_i]
+            layer_is_incomp = is_incompressible_by_layer_ptr[layer_i]
+
+            # Determine rtols and atols for this layer.
+            # Scale rtols by layer type
+            for y_i in range(num_ys):
+                # Default is that each layer's rtol and atol equal user input.
+                # TODO: Change up the tolerance scaling between real and imaginary?
+                layer_rtol_real = integration_rtol
+                layer_rtol_imag = integration_rtol
+                layer_atol_real = integration_atol
+                layer_atol_imag = integration_atol
+
+                if scale_rtols_by_layer_type:
+                    # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
+                    # TODO test that these scales are the best.
+                    if layer_is_solid:
+                        # Scale y2 and y3 by 0.1
+                        if (y_i == 1) or (y_i == 2):
+                            # Scale both the real and imaginary portions by the same amount.
+                            layer_rtol_real *= 0.1
+                            layer_rtol_imag *= 0.1
+                    else:
+                        if not layer_is_static:
+                            # Scale dynamic liquid layer's y2 by additional 0.01.
+                            if (y_i == 1):
+                                # Scale both the real and imaginary portions by the same amount.
+                                layer_rtol_real *= 0.01
+                                layer_rtol_imag *= 0.01
+                # Populate rtol and atol pointers.
+                rtols_ptr[2 * y_i]     = layer_rtol_real
+                rtols_ptr[2 * y_i + 1] = layer_rtol_imag
+                atols_ptr[2 * y_i]     = layer_atol_real
+                atols_ptr[2 * y_i + 1] = layer_atol_imag
+
+            # Find initial conditions for each solution at the base of this layer.
+            radial_span = (radius_lower, radius_upper)
+            if layer_i == 0:
+                # Use initial condition function
+                cf_find_starting_conditions(
+                    layer_is_solid,
+                    layer_is_static,
+                    layer_is_incomp,
+                    use_kamata,
+                    frequency_to_use,
+                    radius_lower,
+                    density_lower,
+                    bulk_lower,
+                    shear_lower,
+                    degree_l,
+                    G_to_use,
+                    MAX_NUM_Y, 
+                    initial_y_ptr,
+                    starting_y_check
+                    )
+            else:
+                layer_below_is_solid  = is_solid_by_layer_ptr[layer_i - 1]
+                layer_below_is_static = is_static_by_layer_ptr[layer_i - 1]
+                layer_below_is_incomp = is_incompressible_by_layer_ptr[layer_i - 1]
+
+                # Find gravity at the base interface using bottom of this layer and top of previous.
+                interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
+
+                # Find the density needed for some initial conditions.
+                if layer_is_solid and layer_below_is_solid:
+                    # Both layers are solid. A liquid interface density is not needed.
+                    static_liquid_density = NAN
+                elif not layer_is_solid and layer_below_is_solid:
+                    # Layer below is solid, this layer is liquid. Use its density.
+                    static_liquid_density = density_lower
+                elif layer_is_solid and not layer_below_is_solid:
+                    # Layer below is liquid, this layer is solid. Use layer below's density.
+                    static_liquid_density = last_layer_upper_density
+                else:
+                    # Both layers are liquid. Choose the layer's density which is static.
+                    if layer_is_static and layer_below_is_static:
+                        # Both layers are static.
+                        # TODO: Not sure what to do here so just use this layer's density.
+                        static_liquid_density = density_lower
+                    elif layer_is_static and not layer_below_is_static:
+                        # This layer is static, one below is not. Use this layer's density
+                        static_liquid_density = density_lower
+                    elif not layer_is_static and layer_below_is_static:
+                        # This layer is dynamic, layer below is static. Use layer below's density
+                        static_liquid_density = last_layer_upper_density
+                    else:
+                        # Both layers are dynamic. Static liquid density is not needed.
+                        static_liquid_density = NAN
+
+                # TODO: For now we are not using the initial y pointer correctly so it is set pointing to a different part of memory at layer==0.
+                #  We want it pointing back to the original array.
+                initial_y_ptr = &initial_y[0]
+
+                # Find the starting values for this layer using the results a the top of the previous layer + an interface
+                #  function.
+                cf_solve_upper_y_at_interface(
+                    uppermost_y_per_solution_ptr,
+                    initial_y_ptr,
+                    layer_below_num_sols,
+                    num_sols,
+                    layer_below_num_ys,
+                    num_ys,
+                    layer_below_is_solid,
+                    layer_below_is_static,
+                    layer_below_is_incomp,
+                    layer_is_solid,
+                    layer_is_static,
+                    layer_is_incomp,
+                    interface_gravity,
+                    static_liquid_density,
+                    G_to_use
+                    )
+
+            # Change initial conditions into 2x real values instead of complex for integration
+            for solution_i in range(num_sols):
+                for y_i in range(num_ys):
+                    dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
+                    initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
+                    initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
+
+            # Build solver instance
+            solver = cf_build_solver(
+                layer_is_solid,
+                layer_is_static,
+                layer_is_incomp,
+                layer_slices,
+                2 * num_ys,  # Solver needs to know how many ys it is working with. 2x ys in this case.
+                layer_radius_ptr,
+                layer_density_ptr,
+                layer_gravity_ptr,
+                layer_bulk_mod_ptr,
+                layer_shear_mod_ptr,
+                frequency_to_use,
+                degree_l,
+                G_to_use,
+                radial_span,
+                &initial_y_only_real_ptr[0],  # Start the pointer at the beginning of the array
+                atols_ptr,
+                rtols_ptr,
+                integration_method,
+                max_step_touse,
+                max_num_steps,
+                expected_size,
+                limit_solution_to_radius
+                )
+
+            # Get storage pointer for this layer
+            storage_by_solution = main_storage[layer_i]
+
+            # Solve for each solution
+            for solution_i in range(num_sols):
+
+                if solution_i > 0:
+                    # Reset solver with new initial condition (this is already done for j==0)
+                    # This pointer has already been passed to the solver during initialization but we need the values at
+                    #  the next solution. Pass new pointer at that address.
+                    solver.change_y0_pointer(&initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL], auto_reset_state=False)
+
+                ###### Integrate! #######
+                solver._solve(reset=True)
+                #########################
+
+                # Check for problems
+                if not solver.success:
+                    # Problem with integration.
+                    feedback_str = f'Integration problem at layer {layer_i}; solution {solution_i}:\n\t{solver.message}'
+                    if verbose:
+                        print(feedback_str)
+                    if raise_on_fail:
+                        raise RuntimeError(feedback_str)
+                    error = True
+                    break
+
+                # If no problems, store results.
+                # Need to make a copy because the solver pointers will be reallocated during the next solution.
+                # Get storage pointer for this solution
+                storage_by_y = storage_by_solution[solution_i]
+                for slice_i in range(layer_slices):
+                    for y_i in range(num_ys):
+                        # Convert 2x real ys to 1x complex ys
+                        dcomplex_tmp = \
+                            solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i)] + \
+                            1.0j * solver.solution_y_ptr[slice_i * (2 * num_ys) + (2 * y_i) + 1]
+
+                        storage_by_y[slice_i * num_ys + y_i] = dcomplex_tmp
+                        # Store top most result for initial condition for the next layer
+                        if slice_i == (layer_slices - 1):
+                            # Tell top storage to point to the top-most value in the main storage arrays.
+                            uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = dcomplex_tmp
+
+            if error:
+                # Error was encountered during integration
+                break
+
+            # Prepare for next layer
+            layer_below_num_sols = num_sols
+            layer_below_num_ys   = num_ys
+            last_layer_upper_gravity = gravity_upper
+            last_layer_upper_density = density_upper
+            del solver
+
+        if error:
+            feedback_str = 'Integration failed.'
             if verbose:
                 print(feedback_str)
-            # Collapse the multiple solutions for each layer into one final combined solution.
+            if raise_on_fail:
+                raise RuntimeError(feedback_str)
+            for y_i in range(num_output_ys):
+                for slice_i in range(total_slices):
+                    full_solution_view[y_i, slice_i] = NAN
+        else:
+            feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
 
-            # Work from the surface to the core.
-            for layer_i in range(num_layers):
-                layer_i_reversed = num_layers - (layer_i + 1)
+            for k in range(num_solvers):
+                feedback_str = f'Collapsing radial solutions for solver {k}.'
 
-                # Pull out layer information.
-                start_index  = start_index_by_layer_ptr[layer_i_reversed]
-                layer_slices = num_slices_by_layer_ptr[layer_i_reversed]
+                # Reset variables for this solver
+                lapack_info = -999
+                lapack_nrhs = 1
+                constant_vector_ptr[0] = NAN
+                constant_vector_ptr[1] = NAN
+                constant_vector_ptr[2] = NAN
+                layer_above_num_sols        = 0
+                layer_above_lower_gravity   = 0.
+                layer_above_lower_density   = 0.
+                liquid_density_at_interface = 0.
+                layer_above_is_solid        = False
+                layer_above_is_static       = False
+                layer_above_is_incomp       = False
 
-                # Get solution and y information
-                num_sols     = num_solutions_by_layer_ptr[layer_i_reversed]
-                num_sols_int = <int>num_sols
-                num_ys       = 2 * num_sols
+                if verbose:
+                    print(feedback_str)
+                # Collapse the multiple solutions for each layer into one final combined solution.
 
-                # Setup pointer array slices starting at this layer's beginning
-                layer_radius_ptr    = &radius_array_ptr[start_index]
-                layer_density_ptr   = &density_array_ptr[start_index]
-                layer_gravity_ptr   = &gravity_array_ptr[start_index]
-                layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
-                layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
+                # Work from the surface to the core.
+                for layer_i in range(num_layers):
+                    layer_i_reversed = num_layers - (layer_i + 1)
 
-                # Get physical parameters at the top and bottom of the layer
-                radius_lower  = layer_radius_ptr[0]
-                density_lower = layer_density_ptr[0]
-                gravity_lower = layer_gravity_ptr[0]
-                bulk_lower    = layer_bulk_mod_ptr[0]
-                shear_lower   = layer_shear_mod_ptr[0]
-                radius_upper  = layer_radius_ptr[layer_slices - 1]
-                density_upper = layer_density_ptr[layer_slices - 1]
-                gravity_upper = layer_gravity_ptr[layer_slices - 1]
+                    # Pull out layer information.
+                    start_index  = start_index_by_layer_ptr[layer_i_reversed]
+                    layer_slices = num_slices_by_layer_ptr[layer_i_reversed]
 
-                # Get assumptions for layer
-                layer_is_solid  = is_solid_by_layer_ptr[layer_i_reversed]
-                layer_is_static = is_static_by_layer_ptr[layer_i_reversed]
-                layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed]
+                    # Get solution and y information
+                    num_sols     = num_solutions_by_layer_ptr[layer_i_reversed]
+                    num_sols_int = <int>num_sols
+                    num_ys       = 2 * num_sols
 
-                # Get full solutions for this layer
-                storage_by_solution = main_storage[layer_i_reversed]
+                    # Setup pointer array slices starting at this layer's beginning
+                    layer_radius_ptr    = &radius_array_ptr[start_index]
+                    layer_density_ptr   = &density_array_ptr[start_index]
+                    layer_gravity_ptr   = &gravity_array_ptr[start_index]
+                    layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
+                    layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
 
-                # Get value at the top of the layer
-                for solution_i in range(num_sols):
-                    for y_i in range(num_ys):
-                        uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
-                            storage_by_solution[solution_i][(layer_slices - 1) * num_ys + y_i]
+                    # Get physical parameters at the top and bottom of the layer
+                    radius_lower  = layer_radius_ptr[0]
+                    density_lower = layer_density_ptr[0]
+                    gravity_lower = layer_gravity_ptr[0]
+                    bulk_lower    = layer_bulk_mod_ptr[0]
+                    shear_lower   = layer_shear_mod_ptr[0]
+                    radius_upper  = layer_radius_ptr[layer_slices - 1]
+                    density_upper = layer_density_ptr[layer_slices - 1]
+                    gravity_upper = layer_gravity_ptr[layer_slices - 1]
 
-                if layer_i == 0:
-                    # Working on surface (uppermost) layer.
-                    # Create coefficient matrix based on surface layer type.
-                    if layer_is_solid:
-                        # Set pointer to correct matrix
-                        surface_matrix_ptr = &surface_matrix_solid[0][0]
+                    # Get assumptions for layer
+                    layer_is_solid  = is_solid_by_layer_ptr[layer_i_reversed]
+                    layer_is_static = is_static_by_layer_ptr[layer_i_reversed]
+                    layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed]
 
-                        # At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
-                        # We will set the constant vector equal to the surface boundary condition.
-                        #  It will be overwritten with the solution to the linear solution.
-                        constant_vector_ptr[0] = bc_pointer[k * 3 + 0]
-                        constant_vector_ptr[1] = bc_pointer[k * 3 + 1]
-                        constant_vector_ptr[2] = bc_pointer[k * 3 + 2]
+                    # Get full solutions for this layer
+                    storage_by_solution = main_storage[layer_i_reversed]
 
-                        # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
-                        #  FORTRAN-ordered arrays.
-                        surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                        surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
-                        surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 5]
-                        surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
-                        surface_matrix_ptr[4] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
-                        surface_matrix_ptr[5] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 5]
-                        surface_matrix_ptr[6] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]
-                        surface_matrix_ptr[7] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
-                        surface_matrix_ptr[8] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 5]
+                    # Get value at the top of the layer
+                    for solution_i in range(num_sols):
+                        for y_i in range(num_ys):
+                            uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
+                                storage_by_solution[solution_i][(layer_slices - 1) * num_ys + y_i]
 
-                    else:
-                        if layer_is_static:
+                    if layer_i == 0:
+                        # Working on surface (uppermost) layer.
+                        # Create coefficient matrix based on surface layer type.
+                        if layer_is_solid:
                             # Set pointer to correct matrix
-                            surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0]
+                            surface_matrix_ptr = &surface_matrix_solid[0][0]
 
-                            # Unlike the dynamic liquid layer, a static liquid layer's y_2 is undefined. That leads to one less boundary condition
-                            #  and one less solution (1 total).
-                            #  At the surface, y_7 = S_7 [See: Eq. 17, 10 in S74]
-
+                            # At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
                             # We will set the constant vector equal to the surface boundary condition.
                             #  It will be overwritten with the solution to the linear solution.
-                            # y_7 = y_6 + (4 pi G / g) y_2
-                            constant_vector_ptr[0] = \
-                                bc_pointer[k * 3 + 2] + \
-                                bc_pointer[k * 3 + 0] * (4. * pi * G_to_use / surface_gravity)
-
-                            # These are unused. Set to NAN so if they do get used we might be able to catch it.
-                            constant_vector_ptr[1] = NAN
-                            constant_vector_ptr[2] = NAN
-
-                            # Note: for a static liquid layer, y_7 held in index 1 (index 0 is y_5).
-                            surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                        else:
-                            # Set pointer to correct matrix
-                            surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
-
-                            # Unlike the solid layer, a liquid layer's y_4 is undefined. That leads to one less boundary condition and one
-                            #  less solution (2 total).
-                            #  At the surface, y_2 = S_1; y_6 = S_6 [See: Eq. B.38 in KTC21; Eq. 17 in KMN15
-
-                            # We will set the constant vector equal to the surface boundary condition.
-                            #  It will be overwritten with the solution to the linear solution.
-                            # The surface boundary condition will still have 3 members. Drop the one related to y_4
                             constant_vector_ptr[0] = bc_pointer[k * 3 + 0]
-                            constant_vector_ptr[1] = bc_pointer[k * 3 + 2]
+                            constant_vector_ptr[1] = bc_pointer[k * 3 + 1]
+                            constant_vector_ptr[2] = bc_pointer[k * 3 + 2]
 
-                            # The last constant is unused. Set to NAN so if they do get used we might be able to catch it.
-                            constant_vector_ptr[2] = NAN
-
-                            # Build y-solution matrix to be applied to the surface.
-                            # Note: for a dynamic liquid, y_2 and y_6 are held at indices 1 and 3 respectively
+                            # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
+                            #  FORTRAN-ordered arrays.
                             surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
                             surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
-                            surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
-                            surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
+                            surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 5]
+                            surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
+                            surface_matrix_ptr[4] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
+                            surface_matrix_ptr[5] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 5]
+                            surface_matrix_ptr[6] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]
+                            surface_matrix_ptr[7] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
+                            surface_matrix_ptr[8] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 5]
 
-
-                    # Find the solution to the linear equation
-                    # ZGESV computes the solution to system of linear equations A * X = B for GE matrices
-                    # See https://www.netlib.org/lapack/explore-html/d6/d10/group__complex16_g_esolve_ga531713dfc62bc5df387b7bb486a9deeb.html#ga531713dfc62bc5df387b7bb486a9deeb
-                    zgesv(&num_sols_int, &lapack_nrhs, surface_matrix_ptr, &num_sols_int, lapack_ipiv_ptr,
-                        constant_vector_ptr, &num_sols_int, &lapack_info)
-
-                    if lapack_info != 0:
-                        feedback_str = \
-                            (f'Error encountered while applying surface boundary condition. ZGESV code: {lapack_info}'
-                            f'\nThe solutions may not be valid at the surface.')
-                        if verbose:
-                            print(feedback_str)
-                        if raise_on_fail:
-                            raise RuntimeError(feedback_str)
-                        error = True
-                        break
-                else:
-                    # Working on interior layers. Will need to find the constants of integration based on the layer above.
-
-                    # Interfaces are defined at the bottom of the layer in question. However, this function is calculating
-                    #  the transition at the top of each layer as it works its way down.
-                    #  So, for interface values, we actually need the ones of the layer above us.
-                    interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
-                    liquid_density_at_interface = NAN
-                    if not layer_is_solid:
-                        if layer_is_static:
-                            liquid_density_at_interface = density_upper
-                        elif not layer_above_is_solid and layer_above_is_static:
-                            liquid_density_at_interface = layer_above_lower_density
                         else:
-                            liquid_density_at_interface = density_upper
-                    elif not layer_above_is_solid:
-                        liquid_density_at_interface = layer_above_lower_density
+                            if layer_is_static:
+                                # Set pointer to correct matrix
+                                surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0]
 
-                    if layer_is_solid:
-                        if layer_above_is_solid:
-                            # Both layers are solid. Constants are the same.
-                            for solution_i in range(num_sols):
-                                constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
-                        else:
-                            # Create some helper functions that will be needed
-                            y4_frac_1 = (
-                                    -uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3] /
-                                    uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
-                                )
-                            y4_frac_2 = (
-                                    -uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3] /
-                                    uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
-                                )
+                                # Unlike the dynamic liquid layer, a static liquid layer's y_2 is undefined. That leads to one less boundary condition
+                                #  and one less solution (1 total).
+                                #  At the surface, y_7 = S_7 [See: Eq. 17, 10 in S74]
 
-                            if layer_above_is_static:
-                                # Need to find 3 solid constants from 1 liquid constant
-                                # S74, Page 131
-                                constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                # Derived by JPR based on Eq 21 (2nd line) of S74
-                                gamma_1 = (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1] +
-                                        y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
-                                    (liquid_density_at_interface *
-                                    (interface_gravity * (
-                                            uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0] +
-                                            y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
-                                    (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 4] +
-                                    y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
-                                    )
-                                    )
-                                gamma_2 = \
-                                    (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1] +
-                                    y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
-                                    (liquid_density_at_interface *
-                                    (interface_gravity * (
-                                            uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0] +
-                                            y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
-                                    (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 4] +
-                                    y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
-                                    )
-                                    )
+                                # We will set the constant vector equal to the surface boundary condition.
+                                #  It will be overwritten with the solution to the linear solution.
+                                # y_7 = y_6 + (4 pi G / g) y_2
+                                constant_vector_ptr[0] = \
+                                    bc_pointer[k * 3 + 2] + \
+                                    bc_pointer[k * 3 + 0] * (4. * pi * G_to_use / surface_gravity)
 
-                                constant_vector_ptr[1] = (-gamma_1 / gamma_2) * constant_vector_ptr[0]
-                                # TS72, Eq. 142 (utilizes y_4 = 0)
-                                constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
+                                # These are unused. Set to NAN so if they do get used we might be able to catch it.
+                                constant_vector_ptr[1] = NAN
+                                constant_vector_ptr[2] = NAN
 
+                                # Note: for a static liquid layer, y_7 held in index 1 (index 0 is y_5).
+                                surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
                             else:
-                                # Need to find 3 solid constants from 2 liquid constants
-                                # TS72, Eq. 144
-                                constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                constant_vector_ptr[1] = layer_above_constant_vector_ptr[1]
-                                # TS72, Eq. 142 (utilizes y_4 = 0)
-                                constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
+                                # Set pointer to correct matrix
+                                surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
+
+                                # Unlike the solid layer, a liquid layer's y_4 is undefined. That leads to one less boundary condition and one
+                                #  less solution (2 total).
+                                #  At the surface, y_2 = S_1; y_6 = S_6 [See: Eq. B.38 in KTC21; Eq. 17 in KMN15
+
+                                # We will set the constant vector equal to the surface boundary condition.
+                                #  It will be overwritten with the solution to the linear solution.
+                                # The surface boundary condition will still have 3 members. Drop the one related to y_4
+                                constant_vector_ptr[0] = bc_pointer[k * 3 + 0]
+                                constant_vector_ptr[1] = bc_pointer[k * 3 + 2]
+
+                                # The last constant is unused. Set to NAN so if they do get used we might be able to catch it.
+                                constant_vector_ptr[2] = NAN
+
+                                # Build y-solution matrix to be applied to the surface.
+                                # Note: for a dynamic liquid, y_2 and y_6 are held at indices 1 and 3 respectively
+                                surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
+                                surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
+                                surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
+                                surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
+
+
+                        # Find the solution to the linear equation
+                        # ZGESV computes the solution to system of linear equations A * X = B for GE matrices
+                        # See https://www.netlib.org/lapack/explore-html/d6/d10/group__complex16_g_esolve_ga531713dfc62bc5df387b7bb486a9deeb.html#ga531713dfc62bc5df387b7bb486a9deeb
+                        zgesv(&num_sols_int, &lapack_nrhs, surface_matrix_ptr, &num_sols_int, lapack_ipiv_ptr,
+                            constant_vector_ptr, &num_sols_int, &lapack_info)
+
+                        if lapack_info != 0:
+                            feedback_str = \
+                                (f'Error encountered while applying surface boundary condition. ZGESV code: {lapack_info}'
+                                f'\nThe solutions may not be valid at the surface.')
+                            if verbose:
+                                print(feedback_str)
+                            if raise_on_fail:
+                                raise RuntimeError(feedback_str)
+                            error = True
+                            break
                     else:
-                        if layer_is_static:
-                            if not layer_above_is_solid:
-                                # Liquid layer above
-                                if layer_above_is_static:
-                                    # Both layers are static liquids. Constants are the same.
-                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                else:
-                                    # Dynamic liquid above
-                                    # JPR decided to follow a similar approach as Eq. 20 in S74:
-                                    #   Treat the lower static liquid as normal.
-                                    #   The upper dynamic liquid layer is treated like the solid layer in Eq. 20 except
-                                    #    that y_3 is undefined as is "set 3" solution mentioned in that text.
-                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
+                        # Working on interior layers. Will need to find the constants of integration based on the layer above.
+
+                        # Interfaces are defined at the bottom of the layer in question. However, this function is calculating
+                        #  the transition at the top of each layer as it works its way down.
+                        #  So, for interface values, we actually need the ones of the layer above us.
+                        interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
+                        liquid_density_at_interface = NAN
+                        if not layer_is_solid:
+                            if layer_is_static:
+                                liquid_density_at_interface = density_upper
+                            elif not layer_above_is_solid and layer_above_is_static:
+                                liquid_density_at_interface = layer_above_lower_density
                             else:
-                                # Solid layer above
-                                # Based on S74. The constant in this layer is just equal to the constant in solution 1 of the
-                                #  layer above.
-                                constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                        else:
-                            if not layer_above_is_solid:
-                                # Liquid layer above
+                                liquid_density_at_interface = density_upper
+                        elif not layer_above_is_solid:
+                            liquid_density_at_interface = layer_above_lower_density
+
+                        if layer_is_solid:
+                            if layer_above_is_solid:
+                                # Both layers are solid. Constants are the same.
+                                for solution_i in range(num_sols):
+                                    constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
+                            else:
+                                # Create some helper functions that will be needed
+                                y4_frac_1 = (
+                                        -uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3] /
+                                        uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
+                                    )
+                                y4_frac_2 = (
+                                        -uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3] /
+                                        uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
+                                    )
+
                                 if layer_above_is_static:
-                                    # Need to find 2 liquid (dynamic) constants from 1 liquid (static) constant
+                                    # Need to find 3 solid constants from 1 liquid constant
                                     # S74, Page 131
                                     constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
                                     # Derived by JPR based on Eq 21 (2nd line) of S74
-                                    # Pull out ys
-                                    # # Solution 1
-                                    lower_s1y1 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0]
-                                    lower_s1y2 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                                    lower_s1y5 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 2]
-                                    lower_s1y6 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
-                                    # # Solution 2
-                                    lower_s2y1 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0]
-                                    lower_s2y2 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
-                                    lower_s2y5 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 2]
-                                    lower_s2y6 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
-                                    # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
-                                    lambda_1 = lower_s1y2 - liquid_density_at_interface * \
-                                            (interface_gravity * lower_s1y1 - lower_s1y5)
-                                    lambda_2 = lower_s2y2 - liquid_density_at_interface * \
-                                            (interface_gravity * lower_s2y1 - lower_s2y5)
-                                    constant_vector_ptr[1] = (-lambda_1 / lambda_2) * constant_vector_ptr[0]
-                                else:
-                                    # Both layers are dynamic liquids. Constants are the same.
-                                    for solution_i in range(num_sols):
-                                        constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
-                            else:
-                                # Solid layer above
-                                # TS72 Eqs. 148-149
-                                constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                constant_vector_ptr[1] = layer_above_constant_vector_ptr[1]
+                                    gamma_1 = (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1] +
+                                            y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
+                                        (liquid_density_at_interface *
+                                        (interface_gravity * (
+                                                uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0] +
+                                                y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
+                                        (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 4] +
+                                        y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
+                                        )
+                                        )
+                                    gamma_2 = \
+                                        (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1] +
+                                        y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
+                                        (liquid_density_at_interface *
+                                        (interface_gravity * (
+                                                uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0] +
+                                                y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
+                                        (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 4] +
+                                        y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
+                                        )
+                                        )
 
-                # Use constant vectors to find the full y from all of the solutions in this layer
-                for solution_i in range(num_sols):
-                    for slice_i in range(layer_slices):
-                        slice_i_shifted = start_index + slice_i
-                        for y_i in range(6):
-                            if layer_is_solid:
-                                # All ys can be calculated
-                                if solution_i == 0:
-                                    # Initialize values
-                                    full_solution_view[k * 6 + y_i, slice_i_shifted] = \
-                                        (constant_vector_ptr[solution_i] *
-                                        storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                                    constant_vector_ptr[1] = (-gamma_1 / gamma_2) * constant_vector_ptr[0]
+                                    # TS72, Eq. 142 (utilizes y_4 = 0)
+                                    constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
+
                                 else:
-                                    # Add new results to old value
-                                    full_solution_view[k * 6 + y_i, slice_i_shifted] += \
-                                        (constant_vector_ptr[solution_i] *
-                                        storage_by_solution[solution_i][slice_i * num_ys + y_i])
-                            else:
-                                if layer_is_static:
-                                    # Liquid static layers only has y5 (stored at index 0).
-                                    if y_i == 4:
-                                        if solution_i == 0:
-                                            # Initialize values
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = \
-                                                (constant_vector_ptr[solution_i] *
-                                                storage_by_solution[solution_i][slice_i * num_ys + 0])
-                                        else:
-                                            # Add new results to old value
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] += \
-                                                (constant_vector_ptr[solution_i] *
-                                                storage_by_solution[solution_i][slice_i * num_ys + 0])
+                                    # Need to find 3 solid constants from 2 liquid constants
+                                    # TS72, Eq. 144
+                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
+                                    constant_vector_ptr[1] = layer_above_constant_vector_ptr[1]
+                                    # TS72, Eq. 142 (utilizes y_4 = 0)
+                                    constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
+                        else:
+                            if layer_is_static:
+                                if not layer_above_is_solid:
+                                    # Liquid layer above
+                                    if layer_above_is_static:
+                                        # Both layers are static liquids. Constants are the same.
+                                        constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
                                     else:
-                                        full_solution_view[k * 6 + y_i, slice_i_shifted] = NAN
+                                        # Dynamic liquid above
+                                        # JPR decided to follow a similar approach as Eq. 20 in S74:
+                                        #   Treat the lower static liquid as normal.
+                                        #   The upper dynamic liquid layer is treated like the solid layer in Eq. 20 except
+                                        #    that y_3 is undefined as is "set 3" solution mentioned in that text.
+                                        constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
                                 else:
-                                    # Liquid dynamic layers have y1, y2, y5, y6 (indices 0, 1, 2, 3)
-                                    if (y_i == 0) or (y_i == 1):
-                                        if solution_i == 0:
-                                            # Initialize values
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = \
-                                                (constant_vector_ptr[solution_i] *
-                                                storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                                    # Solid layer above
+                                    # Based on S74. The constant in this layer is just equal to the constant in solution 1 of the
+                                    #  layer above.
+                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
+                            else:
+                                if not layer_above_is_solid:
+                                    # Liquid layer above
+                                    if layer_above_is_static:
+                                        # Need to find 2 liquid (dynamic) constants from 1 liquid (static) constant
+                                        # S74, Page 131
+                                        constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
+                                        # Derived by JPR based on Eq 21 (2nd line) of S74
+                                        # Pull out ys
+                                        # # Solution 1
+                                        lower_s1y1 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0]
+                                        lower_s1y2 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
+                                        lower_s1y5 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 2]
+                                        lower_s1y6 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
+                                        # # Solution 2
+                                        lower_s2y1 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0]
+                                        lower_s2y2 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
+                                        lower_s2y5 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 2]
+                                        lower_s2y6 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
+                                        # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
+                                        lambda_1 = lower_s1y2 - liquid_density_at_interface * \
+                                                (interface_gravity * lower_s1y1 - lower_s1y5)
+                                        lambda_2 = lower_s2y2 - liquid_density_at_interface * \
+                                                (interface_gravity * lower_s2y1 - lower_s2y5)
+                                        constant_vector_ptr[1] = (-lambda_1 / lambda_2) * constant_vector_ptr[0]
+                                    else:
+                                        # Both layers are dynamic liquids. Constants are the same.
+                                        for solution_i in range(num_sols):
+                                            constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
+                                else:
+                                    # Solid layer above
+                                    # TS72 Eqs. 148-149
+                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
+                                    constant_vector_ptr[1] = layer_above_constant_vector_ptr[1]
+
+                    # Use constant vectors to find the full y from all of the solutions in this layer
+                    for solution_i in range(num_sols):
+                        for slice_i in range(layer_slices):
+                            slice_i_shifted = start_index + slice_i
+                            for y_i in range(6):
+                                if layer_is_solid:
+                                    # All ys can be calculated
+                                    if solution_i == 0:
+                                        # Initialize values
+                                        full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                            (constant_vector_ptr[solution_i] *
+                                            storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                                    else:
+                                        # Add new results to old value
+                                        full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                            (constant_vector_ptr[solution_i] *
+                                            storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                                else:
+                                    if layer_is_static:
+                                        # Liquid static layers only has y5 (stored at index 0).
+                                        if y_i == 4:
+                                            if solution_i == 0:
+                                                # Initialize values
+                                                full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                                    (constant_vector_ptr[solution_i] *
+                                                    storage_by_solution[solution_i][slice_i * num_ys + 0])
+                                            else:
+                                                # Add new results to old value
+                                                full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                                    (constant_vector_ptr[solution_i] *
+                                                    storage_by_solution[solution_i][slice_i * num_ys + 0])
                                         else:
-                                            # Add new results to old value
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] += \
-                                                (constant_vector_ptr[solution_i] *
-                                                storage_by_solution[solution_i][slice_i * num_ys + y_i])
-                                    elif (y_i == 4) or (y_i == 5):
-                                        if solution_i == 0:
-                                            # Initialize values
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = \
-                                                (constant_vector_ptr[solution_i] *
-                                                storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
-                                        else:
-                                            # Add new results to old value
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] += \
-                                                (constant_vector_ptr[solution_i] *
-                                                storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
-                                    elif y_i == 3:
-                                        # y4 is undefined no matter what
-                                        full_solution_view[k * 6 + y_i, slice_i_shifted] = NAN
+                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = NAN
+                                    else:
+                                        # Liquid dynamic layers have y1, y2, y5, y6 (indices 0, 1, 2, 3)
+                                        if (y_i == 0) or (y_i == 1):
+                                            if solution_i == 0:
+                                                # Initialize values
+                                                full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                                    (constant_vector_ptr[solution_i] *
+                                                    storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                                            else:
+                                                # Add new results to old value
+                                                full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                                    (constant_vector_ptr[solution_i] *
+                                                    storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                                        elif (y_i == 4) or (y_i == 5):
+                                            if solution_i == 0:
+                                                # Initialize values
+                                                full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                                    (constant_vector_ptr[solution_i] *
+                                                    storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
+                                            else:
+                                                # Add new results to old value
+                                                full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                                    (constant_vector_ptr[solution_i] *
+                                                    storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
+                                        elif y_i == 3:
+                                            # y4 is undefined no matter what
+                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = NAN
 
-                                    # For liquid dynamic layers we can calculate y3 based on the other ys.
-                                    if y_i == 5 and solution_i == (num_sols - 1):
-                                        # All other ys have been found. Now we can find y3.
-                                        full_solution_view[k * 6 + 2, slice_i_shifted] = \
-                                            (1. / (frequency_to_use**2 * layer_radius_ptr[slice_i])) * \
-                                            (full_solution_view[k * 6 + 0, slice_i_shifted] * layer_gravity_ptr[slice_i] -
-                                            full_solution_view[k * 6 + 1, slice_i_shifted] / layer_density_ptr[slice_i] -
-                                            full_solution_view[k * 6 + 4, slice_i_shifted])
+                                        # For liquid dynamic layers we can calculate y3 based on the other ys.
+                                        if y_i == 5 and solution_i == (num_sols - 1):
+                                            # All other ys have been found. Now we can find y3.
+                                            full_solution_view[k * 6 + 2, slice_i_shifted] = \
+                                                (1. / (frequency_to_use**2 * layer_radius_ptr[slice_i])) * \
+                                                (full_solution_view[k * 6 + 0, slice_i_shifted] * layer_gravity_ptr[slice_i] -
+                                                full_solution_view[k * 6 + 1, slice_i_shifted] / layer_density_ptr[slice_i] -
+                                                full_solution_view[k * 6 + 4, slice_i_shifted])
 
-                # Setup for next layer
-                layer_above_lower_gravity = gravity_lower
-                layer_above_lower_density = density_lower
-                layer_above_is_solid      = layer_is_solid
-                layer_above_is_static     = layer_is_static
-                layer_above_is_incomp     = layer_is_incomp
-                layer_above_num_sols      = num_sols
+                    # Setup for next layer
+                    layer_above_lower_gravity = gravity_lower
+                    layer_above_lower_density = density_lower
+                    layer_above_is_solid      = layer_is_solid
+                    layer_above_is_static     = layer_is_static
+                    layer_above_is_incomp     = layer_is_incomp
+                    layer_above_num_sols      = num_sols
 
-                if num_sols == 1:
-                    layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
-                    layer_above_constant_vector_ptr[1] = NAN
-                    layer_above_constant_vector_ptr[2] = NAN
-                elif num_sols == 2:
-                    layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
-                    layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
-                    layer_above_constant_vector_ptr[2] = NAN
-                elif num_sols == 3:
-                    layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
-                    layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
-                    layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
+                    if num_sols == 1:
+                        layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
+                        layer_above_constant_vector_ptr[1] = NAN
+                        layer_above_constant_vector_ptr[2] = NAN
+                    elif num_sols == 2:
+                        layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
+                        layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
+                        layer_above_constant_vector_ptr[2] = NAN
+                    elif num_sols == 3:
+                        layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
+                        layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
+                        layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
+    finally:
+        # Free memory
+        del solver
 
-    # Free memory
-    del solver
+        # Release radial property pointers
+        if not (radial_double_data_ptr is NULL):
+            radius_array_ptr  = NULL
+            density_array_ptr = NULL
+            gravity_array_ptr = NULL
+            bulk_array_ptr    = NULL
+            PyMem_Free(radial_double_data_ptr)
+            radial_double_data_ptr = NULL
+        if not (cmplx_shear_array_ptr is NULL):
+            PyMem_Free(cmplx_shear_array_ptr)
+            cmplx_shear_array_ptr = NULL
 
-    # Release radial property pointers
-    if not (radial_double_data_ptr is NULL):
-        PyMem_Free(radial_double_data_ptr)
-        radial_double_data_ptr = NULL
-    if not (cmplx_shear_array_ptr is NULL):
-        PyMem_Free(cmplx_shear_array_ptr)
-        cmplx_shear_array_ptr = NULL
+        # Deconstruct main solution pointer
+        # Main storage pointers are structured like [layer_i][solution_i][y_i + r_i]
+        # Then main storage
+        if not (main_storage is NULL):
+            storage_by_solution = NULL
+            storage_by_y = NULL
+            for layer_i in range(num_layers):
+                num_sols = num_solutions_by_layer_ptr[layer_i]
+                if not (main_storage[layer_i] is NULL):
+                    for solution_i in range(num_sols):
+                        if not (main_storage[layer_i][solution_i] is NULL):
+                            PyMem_Free(main_storage[layer_i][solution_i])
+                            main_storage[layer_i][solution_i] = NULL
+                    
+                    PyMem_Free(main_storage[layer_i])
+                    main_storage[layer_i] = NULL
+            PyMem_Free(main_storage)
+            main_storage = NULL
 
-    # Deconstruct main solution pointer
-    # Main storage pointers are structured like [layer_i][solution_i][y_i + r_i]
-    # Then main storage
-    if not (main_storage is NULL):
-        for layer_i in range(num_layers):
-            num_sols = num_solutions_by_layer_ptr[layer_i]
-            if not (main_storage[layer_i] is NULL):
-                for solution_i in range(num_sols):
-                    if not (main_storage[layer_i][solution_i] is NULL):
-                        PyMem_Free(main_storage[layer_i][solution_i])
-                        main_storage[layer_i][solution_i] = NULL
-                
-                PyMem_Free(main_storage[layer_i])
-                main_storage[layer_i] = NULL
-        PyMem_Free(main_storage)
-        main_storage = NULL
-
-    # Release layer information pointers
-    if not (layer_int_data_ptr is NULL):
-        PyMem_Free(layer_int_data_ptr)
-        layer_int_data_ptr = NULL
-    if not (layer_bool_data_ptr is NULL):
-        PyMem_Free(layer_bool_data_ptr)
-        layer_bool_data_ptr = NULL
+        # Release layer information pointers
+        if not (layer_int_data_ptr is NULL):
+            num_solutions_by_layer_ptr = NULL
+            start_index_by_layer_ptr = NULL
+            num_slices_by_layer_ptr = NULL
+            PyMem_Free(layer_int_data_ptr)
+            layer_int_data_ptr = NULL
+        
+        if not (layer_bool_data_ptr is NULL):
+            is_solid_by_layer_ptr = NULL
+            is_static_by_layer_ptr = NULL
+            is_incompressible_by_layer_ptr = NULL
+            PyMem_Free(layer_bool_data_ptr)
+            layer_bool_data_ptr = NULL
 
     return full_solution_arr

@@ -15,7 +15,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
     def __init__(
             self,
             tuple args = None,
-            Py_ssize_t expected_num_args = 0,
+            size_t expected_num_args = 0,
             str class_name = 'RheologyModel',
             **kwargs):
 
@@ -39,7 +39,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             used.
         """
 
-        cdef Py_ssize_t num_args
+        cdef size_t num_args
         num_args = len(new_args)
 
         if self.debug_mode:

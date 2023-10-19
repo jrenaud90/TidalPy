@@ -33,15 +33,15 @@ cdef RadialSolverBase cf_build_solver(
     bool_cpp_t is_incomp,
 
     # RadialSolverBase Inputs
-    Py_ssize_t num_slices,
-    Py_ssize_t num_ys,
+    size_t num_slices,
+    size_t num_ys,
     double* radius_array_ptr,
     double* density_array_ptr,
     double* gravity_array_ptr,
     double* bulk_modulus_array_ptr,
     double complex* shear_modulus_array_ptr,
     double frequency,
-    unsigned int degree_l,
+    unsigned char degree_l,
     double G_to_use,
 
     # Regular CySolver Inputs
@@ -51,8 +51,8 @@ cdef RadialSolverBase cf_build_solver(
     double* atols,
     unsigned char rk_method,
     double max_step,
-    Py_ssize_t max_num_steps,
-    Py_ssize_t expected_size,
+    size_t max_num_steps,
+    size_t expected_size,
 
     # Additional optional arguments for RadialSolver class
     bool_cpp_t limit_solution_to_radius

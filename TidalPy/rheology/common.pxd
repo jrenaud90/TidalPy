@@ -4,8 +4,7 @@ from TidalPy.utilities.classes.base_x cimport TidalPyBaseExtensionClass
 cdef class RheologyModelBase(TidalPyBaseExtensionClass):
 
     # Class attributes
-    cdef Py_ssize_t num_args
-    cdef Py_ssize_t expected_num_args
+    cdef size_t expected_num_args
 
     # Class methods
     cdef double complex _implementation(
