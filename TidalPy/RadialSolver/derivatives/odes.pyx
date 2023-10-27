@@ -1,12 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-import numpy as np
-
-
-cdef double EPS = np.finfo(np.float64).eps
-cdef double EPS_10 = EPS * 10.
-cdef double EPS_100 = EPS * 100.
+from CyRK.cy.common cimport MAX_STEP, EPS_100
 
 
 cdef class SolidDynamicCompressible(RadialSolverBase):

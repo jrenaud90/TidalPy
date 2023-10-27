@@ -7,6 +7,7 @@ from CyRK.cy.common cimport MAX_STEP, EPS_100
 from CyRK.cy.cysolver cimport CySolver
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
 
+from libc.stdio cimport printf
 
 cdef class RadialSolverBase(CySolver):
     def __init__(
@@ -25,6 +26,8 @@ cdef class RadialSolverBase(CySolver):
             size_t max_num_steps = 0,
             size_t expected_size = 0,
             ):
+
+        printf('\tSOLVER BASE - INIT\n')
 
         # Initialize pointers to null
         self.radius_array_ptr = NULL
@@ -46,6 +49,7 @@ cdef class RadialSolverBase(CySolver):
         self.gravity = 0.
 
         # Setup regular CySolver
+        printf('\tSOLVER BASE - CALLING CYSOLVER INIT\n')
         super().__init__(
             t_span=t_span,
             y0=y0,
@@ -62,6 +66,7 @@ cdef class RadialSolverBase(CySolver):
             call_first_reset=False,
             auto_solve=False
             )
+        printf('\tSOLVER BASE - CYSOLVER INIT COMPLETE\n')
 
 
     cdef void install_pointers(
@@ -86,6 +91,7 @@ cdef class RadialSolverBase(CySolver):
         # method to take the required pointers and load them into the class.
 
         # Setup loop variables
+        printf('\tSOLVER BASE - INSTALL POINTERS\n')
         cdef size_t i
 
         self.num_slices = num_slices
@@ -118,6 +124,8 @@ cdef class RadialSolverBase(CySolver):
         # Reset the state (this will be the first time since we passed "call_first_reset=False" to the parent class)
         if call_first_reset or auto_solve:
             self.reset_state()
+        
+        printf('\tSOLVER BASE - INSTALL POINTERS - DONE\n')
 
         # Run integrator if requested.
         if auto_solve:
@@ -192,4 +200,5 @@ cdef class RadialSolverBase(CySolver):
         # super().__dealloc__()
 
         # Release memory held by this class.
+        printf('\tSOLVER BASE - DEALLOC\n')
         pass

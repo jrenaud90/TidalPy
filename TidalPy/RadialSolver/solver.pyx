@@ -373,6 +373,7 @@ def radial_solver(
 
     # Solver class
     cdef RadialSolverBase solver
+    cdef bool_cpp_t cysolver_setup = False
 
     # Feedback
     cdef str feedback_str
@@ -617,6 +618,7 @@ def radial_solver(
                 expected_size,
                 limit_solution_to_radius
                 )
+            cysolver_setup = True
 
             # Get storage pointer for this layer
             storage_by_solution = main_storage[layer_i]
@@ -672,6 +674,7 @@ def radial_solver(
             last_layer_upper_gravity = gravity_upper
             last_layer_upper_density = density_upper
             del solver
+            cysolver_setup = False
 
         if error:
             feedback_str = 'Integration failed.'
@@ -1057,7 +1060,8 @@ def radial_solver(
                         layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
     finally:
         # Free memory
-        del solver
+        if cysolver_setup:
+            del solver
 
         # Release radial property pointers
         if not (radial_double_data_ptr is NULL):
@@ -1072,7 +1076,7 @@ def radial_solver(
             cmplx_shear_array_ptr = NULL
 
         # Deconstruct main solution pointer
-        # Main storage pointers are structured like [layer_i][solution_i][y_i + r_i]
+        # Main storage pointers are structured like [layer_i][solution_i][y_i + slice_i]
         # Then main storage
         if not (main_storage is NULL):
             storage_by_solution = NULL
