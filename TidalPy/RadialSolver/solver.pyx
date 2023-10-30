@@ -33,6 +33,105 @@ cdef double G
 G = G_
 
 
+cdef class RadialSolverSolution():
+
+    cdef public str status
+    cdef public bool_cpp_t success
+
+    cdef double complex* full_solution_ptr
+    cdef double complex[::1] full_solution_view
+
+    cdef size_t num_ys
+    cdef size_t num_slices
+    cdef size_t total_size
+    cdef size_t num_solvers
+
+    cdef tuple solution_types
+    cdef list solution_masks
+
+    def __init__(
+            self,
+            size_t num_ys,
+            size_t num_slices,
+            tuple solve_for,
+            size_t num_solvers
+            ):
+
+        # loop indicies
+        cdef size_t slice_i, y_i, sol_type_i
+
+        # Initialize pointers
+        self.full_solution_ptr = NULL
+
+        # Initialize status
+        self.status = 'RadialSolverSolution has not had its status set.'
+        self.success = False
+        
+        # Store size information
+        self.num_ys = num_ys
+        self.num_slices = num_slices
+        self.total_size = self.num_ys * self.num_slices
+
+        # Have the radial solver take control of the full solution memory
+        self.full_solution_ptr = <double complex*> allocate_mem(
+            self.total_size * sizeof(double complex),
+            'full_solution_ptr (RadialSolverSolution; init)'
+            )
+        if not (self.full_solution_ptr is NULL):
+            self.full_solution_view = <double complex[:self.total_size]> self.full_solution_ptr
+        
+        # Set all values of the solution array to NANs. This ensures that if there is a problem with the solver then
+        #  the solutions will be defined (but nan).
+        for slice_i in range(self.total_size):
+            for y_i in range(self.num_ys):
+                self.full_solution_ptr[slice_i * self.num_ys + y_i] = NAN
+
+        # Store number of solution types
+        self.num_solvers = num_solvers
+        self.solution_types = solve_for
+
+        # Create masks for each solution type
+        cdef np.ndarray[np.npy_bool, ndim=3] masks
+        for sol_type_i in range(self.num_solvers):
+            mask = np.empty(6, self.num_slices)
+
+
+    @property
+    def result(self):
+        return np.ascontiguousarray(self.solution_y_view, dtype=np.complex128).reshape(self.num_ys, self.num_slices)
+    
+    def __len__(self):
+        """Return number of solution types."""
+        return <Py_ssize_t>self.num_solvers
+    
+    def __getitem__(self, str solution_name):
+        """Get a specific solution type array."""
+        
+        cdef size_t i
+        cdef size_t requested_sol_num = 0
+        cdef bool_cpp_t found = False
+        cdef str sol_test_name
+        for i in range(self.num_solvers):
+            sol_test_name = self.solution_types[i]
+            if sol_test_name == solution_name:
+                requested_sol_num = i
+                found = True
+                break
+        if not found:
+            raise AttributeError('Unknown solution type requested. Must match name passed to radial_solver "solve_for" argument and be lower case.')
+        
+        # Create mask that only 
+        
+        return np.ascontiguousarray(self.solution_y_view, dtype=np.complex128).reshape(self.num_ys, self.num_slices)
+
+
+    def __dealloc__(self):
+
+        # The RadialSolverSolution class has full control of the solution so it is responsible for releasing its memory.
+        if not (self.full_solution_ptr is NULL):
+            PyMem_Free(self.full_solution_ptr)
+
+
 def radial_solver(
         const double[:] radius_array,
         const double[:] density_array,
@@ -170,6 +269,7 @@ def radial_solver(
             bc_pointer[0] = 0.
             bc_pointer[1] = 0.
             bc_pointer[2] = (2. * degree_l_dbl + 1.) / radius_planet
+        solve_for = ('tidal',)
     else:
         # Use user input
         num_solvers = len(solve_for)
@@ -177,7 +277,7 @@ def radial_solver(
             raise AttributeError(f'Unsupported number of solvers requested (max is {max_solvers}).')
         
         # Parse user input for the types of solvers that should be used.
-        for i in range (num_solvers):
+        for i in range(num_solvers):
             solver_name = solve_for[i]
             if solver_name.lower() == 'tidal':
                 if nondimensionalize:
@@ -384,14 +484,15 @@ def radial_solver(
     error = False
     cdef size_t start_index
 
-        # No matter the results of the integration, we know the shape and size of the final solution.
+    # No matter the results of the integration, we know the shape and size of the final solution.
     # The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
     cdef size_t num_output_ys = 6 * num_solvers
-    # Build final output np.ndarray.
     
-    cdef np.ndarray[np.complex128_t, ndim=2] full_solution_arr = \
-        np.empty((num_output_ys, total_slices), dtype=np.complex128, order='C')
-    cdef double complex[:, ::1] full_solution_view = full_solution_arr
+    # Build final output solution
+    cdef RadialSolverSolution solution
+    solution = RadialSolverSolution(num_output_ys, total_slices, solve_for, num_solvers)
+    # Get a reference pointer to solution array
+    cdef double complex* solution_ptr = solution.full_solution_ptr
 
     # During collapse, variables for the layer above the target one are used. Declare these and preset them.
     cdef size_t layer_above_num_sols
@@ -682,9 +783,7 @@ def radial_solver(
                 print(feedback_str)
             if raise_on_fail:
                 raise RuntimeError(feedback_str)
-            for y_i in range(num_output_ys):
-                for slice_i in range(total_slices):
-                    full_solution_view[y_i, slice_i] = NAN
+
         else:
             feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
 
@@ -977,12 +1076,12 @@ def radial_solver(
                                     # All ys can be calculated
                                     if solution_i == 0:
                                         # Initialize values
-                                        full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                        solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
                                             (constant_vector_ptr[solution_i] *
                                             storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                     else:
                                         # Add new results to old value
-                                        full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                        solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
                                             (constant_vector_ptr[solution_i] *
                                             storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                 else:
@@ -991,52 +1090,52 @@ def radial_solver(
                                         if y_i == 4:
                                             if solution_i == 0:
                                                 # Initialize values
-                                                full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + 0])
                                             else:
                                                 # Add new results to old value
-                                                full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + 0])
                                         else:
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = NAN
+                                            solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = NAN
                                     else:
                                         # Liquid dynamic layers have y1, y2, y5, y6 (indices 0, 1, 2, 3)
                                         if (y_i == 0) or (y_i == 1):
                                             if solution_i == 0:
                                                 # Initialize values
-                                                full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                             else:
                                                 # Add new results to old value
-                                                full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                         elif (y_i == 4) or (y_i == 5):
                                             if solution_i == 0:
                                                 # Initialize values
-                                                full_solution_view[k * 6 + y_i, slice_i_shifted] = \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
                                             else:
                                                 # Add new results to old value
-                                                full_solution_view[k * 6 + y_i, slice_i_shifted] += \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
                                         elif y_i == 3:
                                             # y4 is undefined no matter what
-                                            full_solution_view[k * 6 + y_i, slice_i_shifted] = NAN
+                                            solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = NAN
 
                                         # For liquid dynamic layers we can calculate y3 based on the other ys.
                                         if y_i == 5 and solution_i == (num_sols - 1):
                                             # All other ys have been found. Now we can find y3.
-                                            full_solution_view[k * 6 + 2, slice_i_shifted] = \
+                                            solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 2)] = \
                                                 (1. / (frequency_to_use**2 * layer_radius_ptr[slice_i])) * \
-                                                (full_solution_view[k * 6 + 0, slice_i_shifted] * layer_gravity_ptr[slice_i] -
-                                                full_solution_view[k * 6 + 1, slice_i_shifted] / layer_density_ptr[slice_i] -
-                                                full_solution_view[k * 6 + 4, slice_i_shifted])
+                                                (solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 0)] * layer_gravity_ptr[slice_i] -
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 1)] / layer_density_ptr[slice_i] -
+                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 4)])
 
                     # Setup for next layer
                     layer_above_lower_gravity = gravity_lower
@@ -1109,4 +1208,8 @@ def radial_solver(
             PyMem_Free(layer_bool_data_ptr)
             layer_bool_data_ptr = NULL
 
-    return full_solution_arr
+    # Update solution status and return
+    solution.status = feedback_str
+    solution.success = not error
+
+    return solution
