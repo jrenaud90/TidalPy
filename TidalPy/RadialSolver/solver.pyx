@@ -1,7 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp cimport bool as bool_cpp_t
 from libc.math cimport NAN, pi, isnan
 
 from cpython.mem cimport PyMem_Free
@@ -32,45 +31,37 @@ from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
 cdef double G
 G = G_
 
+# Maximum size for array building
+cdef size_t MAX_NUM_Y      = 6
+cdef size_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
+cdef size_t MAX_NUM_SOL    = 3
 
 cdef class RadialSolverSolution():
 
-    cdef public str status
-    cdef public bool_cpp_t success
-
-    cdef double complex* full_solution_ptr
-    cdef double complex[::1] full_solution_view
-
-    cdef size_t num_ys
-    cdef size_t num_slices
-    cdef size_t total_size
-    cdef size_t num_solvers
-
-    cdef tuple solution_types
-    cdef list solution_masks
-
     def __init__(
             self,
-            size_t num_ys,
             size_t num_slices,
             tuple solve_for,
             size_t num_solvers
             ):
 
         # loop indicies
-        cdef size_t slice_i, y_i, sol_type_i
+        cdef size_t i
 
         # Initialize pointers
         self.full_solution_ptr = NULL
 
         # Initialize status
-        self.status = 'RadialSolverSolution has not had its status set.'
+        self.message = 'RadialSolverSolution has not had its status set.'
         self.success = False
+
+        # Store number of solution types
+        self.num_solvers = num_solvers
+        self.solution_types = solve_for
         
         # Store size information
-        self.num_ys = num_ys
         self.num_slices = num_slices
-        self.total_size = self.num_ys * self.num_slices
+        self.total_size = MAX_NUM_Y * self.num_slices * self.num_solvers
 
         # Have the radial solver take control of the full solution memory
         self.full_solution_ptr = <double complex*> allocate_mem(
@@ -82,19 +73,14 @@ cdef class RadialSolverSolution():
         
         # Set all values of the solution array to NANs. This ensures that if there is a problem with the solver then
         #  the solutions will be defined (but nan).
-        for slice_i in range(self.num_slices):
-            for y_i in range(self.num_ys):
-                self.full_solution_ptr[slice_i * self.num_ys + y_i] = NAN
-
-        # Store number of solution types
-        self.num_solvers = num_solvers
-        self.solution_types = solve_for
+        for i in range(self.total_size):
+            self.full_solution_ptr[i] = NAN
 
     @property
     def result(self):
         return np.ascontiguousarray(
             self.full_solution_view, dtype=np.complex128
-            ).reshape((self.num_ys, self.num_slices))
+            ).reshape((self.num_slices, self.num_solvers * MAX_NUM_Y)).T
     
     def __len__(self):
         """Return number of solution types."""
@@ -117,7 +103,7 @@ cdef class RadialSolverSolution():
             raise AttributeError('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
         
         # Slice the result and return only the requested solution type.
-        return self.result[6 * (requested_sol_num): 6 * (requested_sol_num + 1)]
+        return self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)]
 
     def __dealloc__(self):
 
@@ -126,43 +112,41 @@ cdef class RadialSolverSolution():
             PyMem_Free(self.full_solution_ptr)
 
 
-def radial_solver(
+cdef RadialSolverSolution cf_radial_solver(
         const double[:] radius_array,
         const double[:] density_array,
         const double[:] gravity_array,
         const double[:] bulk_modulus_array,
         const double complex[:] complex_shear_modulus_array,
-        const double frequency,
-        const double planet_bulk_density,
+        double frequency,
+        double planet_bulk_density,
         tuple is_solid_by_layer,
         tuple is_static_by_layer,
         tuple is_incompressible_by_layer,
         tuple upper_radius_by_layer,
-        const unsigned int degree_l = 2,
+        unsigned int degree_l = 2,
         tuple solve_for = None,
-        const bool_cpp_t use_kamata = False,
-        const int integration_method = 1,
-        const double integration_rtol = 1.0e-4,
-        const double integration_atol = 1.0e-12,
-        const bool_cpp_t scale_rtols_by_layer_type = True,
-        const size_t max_num_steps = 500_000,
-        const size_t expected_size = 250,
-        const double max_step = 0,
-        const bool_cpp_t limit_solution_to_radius = True,
-        const bool_cpp_t nondimensionalize = True,
-        const bool_cpp_t verbose = False,
-        const bool_cpp_t raise_on_fail = False
+        bool_cpp_t use_kamata = False,
+        int integration_method = 1,
+        double integration_rtol = 1.0e-4,
+        double integration_atol = 1.0e-12,
+        bool_cpp_t scale_rtols_by_layer_type = True,
+        size_t max_num_steps = 500_000,
+        size_t expected_size = 250,
+        double max_step = 0,
+        bool_cpp_t limit_solution_to_radius = True,
+        bool_cpp_t nondimensionalize = True,
+        bool_cpp_t verbose = False,
+        bool_cpp_t raise_on_fail = False
         ):
+    """
+    Radial solver for 
+    """
     # General indexing
-    cdef size_t i, k
+    cdef size_t i
 
-    # Layer | Solution | y indexing
-    cdef size_t layer_i, solution_i, y_i, slice_i
-
-    # Maximum size for array building
-    cdef size_t MAX_NUM_Y      = 6
-    cdef size_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
-    cdef size_t MAX_NUM_SOL    = 3
+    # Indexing for: Layer | Solution | ys | slices | solvers
+    cdef size_t layer_i, solution_i, y_i, slice_i, solver_i
 
     # Type conversions
     cdef double degree_l_dbl = <double>degree_l
@@ -480,11 +464,11 @@ def radial_solver(
 
     # No matter the results of the integration, we know the shape and size of the final solution.
     # The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
-    cdef size_t num_output_ys = 6 * num_solvers
+    cdef size_t num_output_ys = MAX_NUM_Y * num_solvers
     
     # Build final output solution
-    cdef RadialSolverSolution solution
-    solution = RadialSolverSolution(num_output_ys, total_slices, solve_for, num_solvers)
+    cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, solve_for, num_solvers)
+
     # Get a reference pointer to solution array
     cdef double complex* solution_ptr = solution.full_solution_ptr
 
@@ -781,8 +765,8 @@ def radial_solver(
         else:
             feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
 
-            for k in range(num_solvers):
-                feedback_str = f'Collapsing radial solutions for solver {k}.'
+            for solver_i in range(num_solvers):
+                feedback_str = f'Collapsing radial solutions for solver {solver_i}.'
 
                 # Reset variables for this solver
                 lapack_info = -999
@@ -856,9 +840,9 @@ def radial_solver(
                             # At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
                             # We will set the constant vector equal to the surface boundary condition.
                             #  It will be overwritten with the solution to the linear solution.
-                            constant_vector_ptr[0] = bc_pointer[k * 3 + 0]
-                            constant_vector_ptr[1] = bc_pointer[k * 3 + 1]
-                            constant_vector_ptr[2] = bc_pointer[k * 3 + 2]
+                            constant_vector_ptr[0] = bc_pointer[solver_i * 3 + 0]
+                            constant_vector_ptr[1] = bc_pointer[solver_i * 3 + 1]
+                            constant_vector_ptr[2] = bc_pointer[solver_i * 3 + 2]
 
                             # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
                             #  FORTRAN-ordered arrays.
@@ -885,8 +869,8 @@ def radial_solver(
                                 #  It will be overwritten with the solution to the linear solution.
                                 # y_7 = y_6 + (4 pi G / g) y_2
                                 constant_vector_ptr[0] = \
-                                    bc_pointer[k * 3 + 2] + \
-                                    bc_pointer[k * 3 + 0] * (4. * pi * G_to_use / surface_gravity)
+                                    bc_pointer[solver_i * 3 + 2] + \
+                                    bc_pointer[solver_i * 3 + 0] * (4. * pi * G_to_use / surface_gravity)
 
                                 # These are unused. Set to NAN so if they do get used we might be able to catch it.
                                 constant_vector_ptr[1] = NAN
@@ -905,8 +889,8 @@ def radial_solver(
                                 # We will set the constant vector equal to the surface boundary condition.
                                 #  It will be overwritten with the solution to the linear solution.
                                 # The surface boundary condition will still have 3 members. Drop the one related to y_4
-                                constant_vector_ptr[0] = bc_pointer[k * 3 + 0]
-                                constant_vector_ptr[1] = bc_pointer[k * 3 + 2]
+                                constant_vector_ptr[0] = bc_pointer[solver_i * 3 + 0]
+                                constant_vector_ptr[1] = bc_pointer[solver_i * 3 + 2]
 
                                 # The last constant is unused. Set to NAN so if they do get used we might be able to catch it.
                                 constant_vector_ptr[2] = NAN
@@ -1065,17 +1049,17 @@ def radial_solver(
                     for solution_i in range(num_sols):
                         for slice_i in range(layer_slices):
                             slice_i_shifted = start_index + slice_i
-                            for y_i in range(6):
+                            for y_i in range(MAX_NUM_Y):
                                 if layer_is_solid:
                                     # All ys can be calculated
                                     if solution_i == 0:
                                         # Initialize values
-                                        solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
+                                        solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] = \
                                             (constant_vector_ptr[solution_i] *
                                             storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                     else:
                                         # Add new results to old value
-                                        solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
+                                        solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] += \
                                             (constant_vector_ptr[solution_i] *
                                             storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                 else:
@@ -1084,52 +1068,52 @@ def radial_solver(
                                         if y_i == 4:
                                             if solution_i == 0:
                                                 # Initialize values
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] = \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + 0])
                                             else:
                                                 # Add new results to old value
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] += \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + 0])
                                         else:
-                                            solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = NAN
+                                            solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] = NAN
                                     else:
                                         # Liquid dynamic layers have y1, y2, y5, y6 (indices 0, 1, 2, 3)
                                         if (y_i == 0) or (y_i == 1):
                                             if solution_i == 0:
                                                 # Initialize values
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] = \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                             else:
                                                 # Add new results to old value
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] += \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + y_i])
                                         elif (y_i == 4) or (y_i == 5):
                                             if solution_i == 0:
                                                 # Initialize values
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] = \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
                                             else:
                                                 # Add new results to old value
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] += \
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] += \
                                                     (constant_vector_ptr[solution_i] *
                                                     storage_by_solution[solution_i][slice_i * num_ys + (y_i - 2)])
                                         elif y_i == 3:
                                             # y4 is undefined no matter what
-                                            solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + y_i)] = NAN
+                                            solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + y_i)] = NAN
 
                                         # For liquid dynamic layers we can calculate y3 based on the other ys.
                                         if y_i == 5 and solution_i == (num_sols - 1):
                                             # All other ys have been found. Now we can find y3.
-                                            solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 2)] = \
+                                            solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + 2)] = \
                                                 (1. / (frequency_to_use**2 * layer_radius_ptr[slice_i])) * \
-                                                (solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 0)] * layer_gravity_ptr[slice_i] -
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 1)] / layer_density_ptr[slice_i] -
-                                                solution_ptr[slice_i_shifted * num_output_ys + (k * 6 + 4)])
+                                                (solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + 0)] * layer_gravity_ptr[slice_i] -
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + 1)] / layer_density_ptr[slice_i] -
+                                                solution_ptr[slice_i_shifted * num_output_ys + (solver_i * MAX_NUM_Y + 4)])
 
                     # Setup for next layer
                     layer_above_lower_gravity = gravity_lower
@@ -1203,7 +1187,63 @@ def radial_solver(
             layer_bool_data_ptr = NULL
 
     # Update solution status and return
-    solution.status = feedback_str
+    solution.message = feedback_str
     solution.success = not error
 
     return solution
+
+
+def radial_solver(
+        const double[:] radius_array,
+        const double[:] density_array,
+        const double[:] gravity_array,
+        const double[:] bulk_modulus_array,
+        const double complex[:] complex_shear_modulus_array,
+        double frequency,
+        double planet_bulk_density,
+        tuple is_solid_by_layer,
+        tuple is_static_by_layer,
+        tuple is_incompressible_by_layer,
+        tuple upper_radius_by_layer,
+        unsigned int degree_l = 2,
+        tuple solve_for = None,
+        bool_cpp_t use_kamata = False,
+        int integration_method = 1,
+        double integration_rtol = 1.0e-4,
+        double integration_atol = 1.0e-12,
+        bool_cpp_t scale_rtols_by_layer_type = True,
+        size_t max_num_steps = 500_000,
+        size_t expected_size = 250,
+        double max_step = 0,
+        bool_cpp_t limit_solution_to_radius = True,
+        bool_cpp_t nondimensionalize = True,
+        bool_cpp_t verbose = False,
+        bool_cpp_t raise_on_fail = False
+        ):
+    
+    return cf_radial_solver(
+            radius_array,
+            density_array,
+            gravity_array,
+            bulk_modulus_array,
+            complex_shear_modulus_array,
+            frequency,
+            planet_bulk_density,
+            is_solid_by_layer,
+            is_static_by_layer,
+            is_incompressible_by_layer,
+            upper_radius_by_layer,
+            degree_l,
+            solve_for,
+            use_kamata,
+            integration_method,
+            integration_rtol,
+            integration_atol,
+            scale_rtols_by_layer_type,
+            max_num_steps,
+            expected_size,
+            max_step,
+            limit_solution_to_radius,
+            nondimensionalize,
+            verbose,
+            raise_on_fail)
