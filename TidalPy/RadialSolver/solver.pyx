@@ -82,7 +82,7 @@ cdef class RadialSolverSolution():
         
         # Set all values of the solution array to NANs. This ensures that if there is a problem with the solver then
         #  the solutions will be defined (but nan).
-        for slice_i in range(self.total_size):
+        for slice_i in range(self.num_slices):
             for y_i in range(self.num_ys):
                 self.full_solution_ptr[slice_i * self.num_ys + y_i] = NAN
 
@@ -90,15 +90,11 @@ cdef class RadialSolverSolution():
         self.num_solvers = num_solvers
         self.solution_types = solve_for
 
-        # Create masks for each solution type
-        cdef np.ndarray[np.npy_bool, ndim=3] masks
-        for sol_type_i in range(self.num_solvers):
-            mask = np.empty(6, self.num_slices)
-
-
     @property
     def result(self):
-        return np.ascontiguousarray(self.solution_y_view, dtype=np.complex128).reshape(self.num_ys, self.num_slices)
+        return np.ascontiguousarray(
+            self.full_solution_view, dtype=np.complex128
+            ).reshape((self.num_ys, self.num_slices))
     
     def __len__(self):
         """Return number of solution types."""
@@ -118,12 +114,10 @@ cdef class RadialSolverSolution():
                 found = True
                 break
         if not found:
-            raise AttributeError('Unknown solution type requested. Must match name passed to radial_solver "solve_for" argument and be lower case.')
+            raise AttributeError('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
         
-        # Create mask that only 
-        
-        return np.ascontiguousarray(self.solution_y_view, dtype=np.complex128).reshape(self.num_ys, self.num_slices)
-
+        # Slice the result and return only the requested solution type.
+        return self.result[6 * (requested_sol_num): 6 * (requested_sol_num + 1)]
 
     def __dealloc__(self):
 
