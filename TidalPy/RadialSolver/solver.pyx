@@ -132,7 +132,7 @@ cdef RadialSolverSolution cf_radial_solver(
         double integration_atol = 1.0e-12,
         bool_cpp_t scale_rtols_by_layer_type = True,
         size_t max_num_steps = 500_000,
-        size_t expected_size = 250,
+        size_t expected_size = 500,
         double max_step = 0,
         bool_cpp_t limit_solution_to_radius = True,
         bool_cpp_t nondimensionalize = True,
@@ -1213,13 +1213,88 @@ def radial_solver(
         double integration_atol = 1.0e-12,
         bool_cpp_t scale_rtols_by_layer_type = True,
         size_t max_num_steps = 500_000,
-        size_t expected_size = 250,
+        size_t expected_size = 500,
         double max_step = 0,
         bool_cpp_t limit_solution_to_radius = True,
         bool_cpp_t nondimensionalize = True,
         bool_cpp_t verbose = False,
         bool_cpp_t raise_on_fail = False
         ):
+    """
+    Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
+
+    Parameters
+    ----------
+    radius_array : np.ndarray[dtype=np.float64]
+        Radius values throughout the planet [m]
+    density_array : np.ndarray[dtype=np.float64]
+        Density values throughout the planet [kg m-3]
+    gravity_array : np.ndarray[dtype=np.float64]
+        Acceleration due to gravity throughout the planet [m-2]
+    bulk_modulus_array : np.ndarray[dtype=np.float64]
+        Bulk modulus throughout the planet [Pa]
+    complex_shear_modulus_array : np.ndarray[dtype=np.complex128]
+        Complex shear modulus throughout the planet [Pa]
+        This shear should be the result of applying a rheological model to the static shear modulus, viscosity, and
+         forcing frequency.
+    frequency : float64
+        Forcing frequency [rad s-1]
+    planet_bulk_density : float64
+        Bulk density of the planet [kg m-3]
+    is_solid_by_layer : tuple[bool, ...] (Size = number of layers)
+        Flag declaring if each layer is solid (True) or liquid (False).
+    is_static_by_layer : tuple[bool, ...] (Size = number of layers)
+        Flag declaring if each layer is static (True) or dynamic (False).
+    is_incompressible_by_layer : tuple[bool, ...] (Size = number of layers)
+        Flag declaring if each layer is incompressible (True) or compressible (False).
+    upper_radius_by_layer : tuple[float64, ...] (Size = number of layers)
+        Tuple of the upper radius of each layer. Used to determine physical structure of planet.
+    degree_l : uint32, default=2
+        Harmonic degree.
+    solve_for : tuple[str, ...] (Size = number of requested solutions), default=None
+        RadialSolver allows multiple solutions to be solved simultaneously. This avoids repeated integration.
+        This parameter is a tuple of requested solutions. If `None`, then only "tidal" will be solved for.
+        Options that are currently supported (note these are case sensitive):
+            - "tidal": Tidal forcing boundary conditions.
+            - "loading": Surface loading boundary conditions.
+            - "free": Free surface boundary conditions.
+    use_kamata : bool, default=False
+        If True, then the starting solution at the core will be based on equations in Kamata et al (2015; JGR:P)
+        Otherwise, starting solution will be based on Takeuchi and Saito (1972)
+    integration_method : int32, default=1
+        Which CyRK integration protocol should be used. Options are:
+            - 0: Runge-Kutta 2(3)
+            - 1: Runge-Kutta 4(5)
+            - 2: Runge-Kutta / DOP 8(5/3)
+    integration_rtol : float64, default=1.0e-4
+        Relative integration tolerance. Lower tolerance will lead to more precise results at increased computation.
+    integration_atol : float64, default=1.0e-12
+        Absolute integration tolerance (when solution is near 0).
+    scale_rtols_by_layer_type : bool, default=True
+        If True, then each layer will be imparted with a different relative tolerance. Liquid layers will have a lower
+        rtol which has been found to improve stability.
+    max_num_steps : uint32, default=500_000
+        Maximum number of integration steps allowed before solver forces a failed result.
+        Useful to set to a lower number if running many calls that may be exploring an unstable parameter space for
+        example, during a MCMC run.
+    expected_size : uint32, default=500
+        Anticipated number of integration steps that will be required per solution. Tweaking this may have a minor
+        impact on performance. It is advised to leave it between 200--1000.
+        Setting it too low can lead to bad performance.
+    max_step : float64, default=0
+        Maximum step size the adaptive step size integrator is allowed to take. 
+        Setting to 0 (default) will tell the integrator to determine an ideal max step size.
+    limit_solution_to_radius : bool, default=True
+        If True, then the solution will be limited to the points passed by the radius array.
+    nondimensionalize : bool, default=True
+        If Ture, then inputs will be non-dimensionalized before integration is performed.
+        Results will be redimensionalized before being returned.
+    verbose : bool, default=False
+        If True, then additioal information will be printed to the terminal during the solution. 
+    raise_on_fail : bool, default=False
+        If Ture, then the solver will raise an exception if integration was not successful. By default RadialSolver
+        fails silently. 
+    """
     
     return cf_radial_solver(
             radius_array,
