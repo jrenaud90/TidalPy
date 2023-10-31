@@ -25,6 +25,7 @@ cdef class RadialSolverBase(CySolver):
             double first_step = 0.,
             size_t max_num_steps = 0,
             size_t expected_size = 0,
+            size_t max_ram_MB = 500
             ):
 
         printf('\tSOLVER BASE - INIT\n')
@@ -63,6 +64,7 @@ cdef class RadialSolverBase(CySolver):
             num_extra=0,
             interpolate_extra=False,
             expected_size=expected_size,
+            max_ram_MB=max_ram_MB,
             call_first_reset=False,
             auto_solve=False
             )

@@ -506,7 +506,7 @@ cdef RadialSolverSolution cf_radial_solver(
     # Variables used to solve the linear equation at the planet's surface.
     # These are passed to the LAPACK solver.
     # Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
-    cdef int lapack_info
+    cdef int lapack_info = -999
     # NRHS = number of solutions that will be solved at the same time. Only one will be solved per radial_solver call.
     cdef int lapack_nrhs
     # IPIV = Integer pivot array that is an additional output provided by ZGESV. It is not used but must be provided.
@@ -1214,6 +1214,7 @@ def radial_solver(
         bool_cpp_t scale_rtols_by_layer_type = True,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
+        size_t max_ram_MB = 500,
         double max_step = 0,
         bool_cpp_t limit_solution_to_radius = True,
         bool_cpp_t nondimensionalize = True,
@@ -1223,46 +1224,50 @@ def radial_solver(
     """
     Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
 
+    See Takeuchi and Saito (1972) for more details on this method.
+
     Parameters
     ----------
     radius_array : np.ndarray[dtype=np.float64]
-        Radius values throughout the planet [m]
+        Radius values defined at slices throughout the planet [m].
     density_array : np.ndarray[dtype=np.float64]
-        Density values throughout the planet [kg m-3]
+        Density at each radius [kg m-3].
     gravity_array : np.ndarray[dtype=np.float64]
-        Acceleration due to gravity throughout the planet [m-2]
+        Acceleration due to gravity at each radius [m-2].
     bulk_modulus_array : np.ndarray[dtype=np.float64]
-        Bulk modulus throughout the planet [Pa]
+        Bulk modulus at each radius [Pa].
     complex_shear_modulus_array : np.ndarray[dtype=np.complex128]
-        Complex shear modulus throughout the planet [Pa]
-        This shear should be the result of applying a rheological model to the static shear modulus, viscosity, and
-         forcing frequency.
+        Complex shear modulus at each radius [Pa].
+        This should be the result of applying a rheological model to the static shear modulus, viscosity, and
+        forcing frequency.
     frequency : float64
         Forcing frequency [rad s-1]
     planet_bulk_density : float64
-        Bulk density of the planet [kg m-3]
+        Bulk density of the planet [kg m-3].
     is_solid_by_layer : tuple[bool, ...] (Size = number of layers)
         Flag declaring if each layer is solid (True) or liquid (False).
     is_static_by_layer : tuple[bool, ...] (Size = number of layers)
-        Flag declaring if each layer is static (True) or dynamic (False).
+        Flag declaring if each layer uses the static (True) or dynamic (False) assumption.
     is_incompressible_by_layer : tuple[bool, ...] (Size = number of layers)
         Flag declaring if each layer is incompressible (True) or compressible (False).
     upper_radius_by_layer : tuple[float64, ...] (Size = number of layers)
-        Tuple of the upper radius of each layer. Used to determine physical structure of planet.
+        Tuple of the upper radius of each layer.
+        Used to determine physical structure of planet.
     degree_l : uint32, default=2
         Harmonic degree.
     solve_for : tuple[str, ...] (Size = number of requested solutions), default=None
-        RadialSolver allows multiple solutions to be solved simultaneously. This avoids repeated integration.
+        RadialSolver allows multiple solutions to be solved simultaneously, avoiding repeated integration.
         This parameter is a tuple of requested solutions. If `None`, then only "tidal" will be solved for.
         Options that are currently supported (note these are case sensitive):
             - "tidal": Tidal forcing boundary conditions.
             - "loading": Surface loading boundary conditions.
             - "free": Free surface boundary conditions.
+        For example, if you want the tidal and loading solutions then you can set "solve_for=('tidal', 'loading')".
     use_kamata : bool, default=False
-        If True, then the starting solution at the core will be based on equations in Kamata et al (2015; JGR:P)
+        If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
         Otherwise, starting solution will be based on Takeuchi and Saito (1972)
     integration_method : int32, default=1
-        Which CyRK integration protocol should be used. Options are:
+        Which CyRK integration protocol should be used. Options that are currently available are:
             - 0: Runge-Kutta 2(3)
             - 1: Runge-Kutta 4(5)
             - 2: Runge-Kutta / DOP 8(5/3)
@@ -1273,7 +1278,7 @@ def radial_solver(
     scale_rtols_by_layer_type : bool, default=True
         If True, then each layer will be imparted with a different relative tolerance. Liquid layers will have a lower
         rtol which has been found to improve stability.
-    max_num_steps : uint32, default=500_000
+    max_num_steps : uint32, default=500,000
         Maximum number of integration steps allowed before solver forces a failed result.
         Useful to set to a lower number if running many calls that may be exploring an unstable parameter space for
         example, during a MCMC run.
@@ -1281,6 +1286,12 @@ def radial_solver(
         Anticipated number of integration steps that will be required per solution. Tweaking this may have a minor
         impact on performance. It is advised to leave it between 200--1000.
         Setting it too low can lead to bad performance.
+    max_ram_MB : uint32, default=500
+        Maximum amount of RAM in MB the integrator is allowed (ignoring some housekeeping usage).
+        The integrator will use this value and the "max_num_steps" to determine a true limit on the maximum number
+        steps allowed (picking the lower value.). If system RAM is limited (or if multiple RadialSolvers will run in
+        parallel) it maybe worth setting this lower than the default.
+        The default of 500MB is equivalent to a max_num_steps ~ 5 Mllion.
     max_step : float64, default=0
         Maximum step size the adaptive step size integrator is allowed to take. 
         Setting to 0 (default) will tell the integrator to determine an ideal max step size.
@@ -1294,6 +1305,18 @@ def radial_solver(
     raise_on_fail : bool, default=False
         If Ture, then the solver will raise an exception if integration was not successful. By default RadialSolver
         fails silently. 
+
+    Returns
+    -------
+    solution : RadialSolverSolution
+        Solution to the viscoelastic-gravitational problem inside a planet.
+        Solution attributes:
+            - solution.results : complex128, shape=(6 * num_solvers, n_slice)
+                Numerical solution throughout the planet.
+            - solution.success : bool
+                Flag if integration and subsequent collapse occured without error.
+            - solution.message : str
+                Feedback string useful for debugging.
     """
     
     return cf_radial_solver(
@@ -1317,6 +1340,7 @@ def radial_solver(
             scale_rtols_by_layer_type,
             max_num_steps,
             expected_size,
+            max_ram_MB,
             max_step,
             limit_solution_to_radius,
             nondimensionalize,
