@@ -19,6 +19,7 @@ from TidalPy.utilities.dimensions.nondimensional cimport cf_non_dimensionalize_p
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
+from TidalPy.RadialSolver.interfaces.reversed cimport cf_top_to_bottom_interface_bc
 from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
 from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
 from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc
@@ -605,7 +606,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     degree_l,
                     G_to_use,
                     MAX_NUM_Y, 
-                    initial_y_ptr,
+                    initial_y_ptr,  # Modified Variable
                     starting_y_check
                     )
             else:
@@ -641,10 +642,6 @@ cdef RadialSolverSolution cf_radial_solver(
                     else:
                         # Both layers are dynamic. Static liquid density is not needed.
                         static_liquid_density = NAN
-
-                # TODO: For now we are not using the initial y pointer correctly so it is set pointing to a different part of memory at layer==0.
-                #  We want it pointing back to the original array.
-                initial_y_ptr = &initial_y[0]
 
                 # Find the starting values for this layer using the results a the top of the previous layer + an interface
                 #  function.
@@ -878,128 +875,17 @@ cdef RadialSolverSolution cf_radial_solver(
                     else:
                         # Working on interior layers. Will need to find the constants of integration based on the layer above.
 
-                        # Interfaces are defined at the bottom of the layer in question. However, this function is calculating
-                        #  the transition at the top of each layer as it works its way down.
-                        #  So, for interface values, we actually need the ones of the layer above us.
-                        interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
-                        liquid_density_at_interface = NAN
-                        if not layer_is_solid:
-                            if layer_is_static:
-                                liquid_density_at_interface = density_upper
-                            elif not layer_above_is_solid and layer_above_is_static:
-                                liquid_density_at_interface = layer_above_lower_density
-                            else:
-                                liquid_density_at_interface = density_upper
-                        elif not layer_above_is_solid:
-                            liquid_density_at_interface = layer_above_lower_density
-
-                        if layer_is_solid:
-                            if layer_above_is_solid:
-                                # Both layers are solid. Constants are the same.
-                                for solution_i in range(num_sols):
-                                    constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
-                            else:
-                                # Create some helper functions that will be needed
-                                y4_frac_1 = (
-                                        -uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3] /
-                                        uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
-                                    )
-                                y4_frac_2 = (
-                                        -uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3] /
-                                        uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
-                                    )
-
-                                if layer_above_is_static:
-                                    # Need to find 3 solid constants from 1 liquid constant
-                                    # S74, Page 131
-                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                    # Derived by JPR based on Eq 21 (2nd line) of S74
-                                    gamma_1 = (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1] +
-                                            y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
-                                        (liquid_density_at_interface *
-                                        (interface_gravity * (
-                                                uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0] +
-                                                y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
-                                        (uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 4] +
-                                        y4_frac_1 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
-                                        )
-                                        )
-                                    gamma_2 = \
-                                        (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1] +
-                                        y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]) - \
-                                        (liquid_density_at_interface *
-                                        (interface_gravity * (
-                                                uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0] +
-                                                y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 0]) -
-                                        (uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 4] +
-                                        y4_frac_2 * uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 4])
-                                        )
-                                        )
-
-                                    constant_vector_ptr[1] = (-gamma_1 / gamma_2) * constant_vector_ptr[0]
-                                    # TS72, Eq. 142 (utilizes y_4 = 0)
-                                    constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
-
-                                else:
-                                    # Need to find 3 solid constants from 2 liquid constants
-                                    # TS72, Eq. 144
-                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                    constant_vector_ptr[1] = layer_above_constant_vector_ptr[1]
-                                    # TS72, Eq. 142 (utilizes y_4 = 0)
-                                    constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
-                        else:
-                            if layer_is_static:
-                                if not layer_above_is_solid:
-                                    # Liquid layer above
-                                    if layer_above_is_static:
-                                        # Both layers are static liquids. Constants are the same.
-                                        constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                    else:
-                                        # Dynamic liquid above
-                                        # JPR decided to follow a similar approach as Eq. 20 in S74:
-                                        #   Treat the lower static liquid as normal.
-                                        #   The upper dynamic liquid layer is treated like the solid layer in Eq. 20 except
-                                        #    that y_3 is undefined as is "set 3" solution mentioned in that text.
-                                        constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                else:
-                                    # Solid layer above
-                                    # Based on S74. The constant in this layer is just equal to the constant in solution 1 of the
-                                    #  layer above.
-                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                            else:
-                                if not layer_above_is_solid:
-                                    # Liquid layer above
-                                    if layer_above_is_static:
-                                        # Need to find 2 liquid (dynamic) constants from 1 liquid (static) constant
-                                        # S74, Page 131
-                                        constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                        # Derived by JPR based on Eq 21 (2nd line) of S74
-                                        # Pull out ys
-                                        # # Solution 1
-                                        lower_s1y1 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 0]
-                                        lower_s1y2 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                                        lower_s1y5 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 2]
-                                        lower_s1y6 = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
-                                        # # Solution 2
-                                        lower_s2y1 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 0]
-                                        lower_s2y2 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
-                                        lower_s2y5 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 2]
-                                        lower_s2y6 = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
-                                        # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
-                                        lambda_1 = lower_s1y2 - liquid_density_at_interface * \
-                                                (interface_gravity * lower_s1y1 - lower_s1y5)
-                                        lambda_2 = lower_s2y2 - liquid_density_at_interface * \
-                                                (interface_gravity * lower_s2y1 - lower_s2y5)
-                                        constant_vector_ptr[1] = (-lambda_1 / lambda_2) * constant_vector_ptr[0]
-                                    else:
-                                        # Both layers are dynamic liquids. Constants are the same.
-                                        for solution_i in range(num_sols):
-                                            constant_vector_ptr[solution_i] = layer_above_constant_vector_ptr[solution_i]
-                                else:
-                                    # Solid layer above
-                                    # TS72 Eqs. 148-149
-                                    constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
-                                    constant_vector_ptr[1] = layer_above_constant_vector_ptr[1]
+                        cf_top_to_bottom_interface_bc(
+                            constant_vector_ptr,  # Modified Variable
+                            layer_above_constant_vector_ptr,
+                            uppermost_y_per_solution_ptr,
+                            gravity_upper, layer_above_lower_gravity,
+                            density_upper, layer_above_lower_density,
+                            layer_is_solid, layer_above_is_solid,
+                            layer_is_static, layer_above_is_static,
+                            layer_is_incomp, layer_above_is_incomp,
+                            num_sols, MAX_NUM_Y
+                            )
 
                     # Use constant vectors to find the full y from all of the solutions in this layer
                     cf_collapse_layer_solution(
