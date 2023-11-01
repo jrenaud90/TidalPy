@@ -743,6 +743,7 @@ cdef RadialSolverBase cf_build_solver(
         double max_step,
         size_t max_num_steps,
         size_t expected_size,
+        size_t max_ram_MB,
 
         # Additional optional arguments for RadialSolver class
         bool_cpp_t limit_solution_to_radius
@@ -766,6 +767,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
             else:
                 solver = SolidStaticCompressible(
@@ -778,6 +780,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
         else:
             if is_incomp:
@@ -791,6 +794,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
             else:
                 solver = SolidDynamicCompressible(
@@ -803,6 +807,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
     else:
         if is_static:
@@ -817,6 +822,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
             else:
                 solver = LiquidStaticCompressible(
@@ -829,6 +835,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
         else:
             if is_incomp:
@@ -842,6 +849,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
             else:
                 solver = LiquidDynamicCompressible(
@@ -854,6 +862,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_step=max_step,
                     max_num_steps=max_num_steps,
                     expected_size=expected_size,
+                    max_ram_MB=max_ram_MB
                     )
 
     # Install non-python objects

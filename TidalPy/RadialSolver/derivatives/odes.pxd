@@ -53,6 +53,7 @@ cdef RadialSolverBase cf_build_solver(
     double max_step,
     size_t max_num_steps,
     size_t expected_size,
+    size_t max_ram_MB,
 
     # Additional optional arguments for RadialSolver class
     bool_cpp_t limit_solution_to_radius

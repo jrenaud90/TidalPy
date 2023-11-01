@@ -13,3 +13,11 @@ cdef void cf_non_dimensionalize_physicals(
         double* frequency_to_use,
         double* G_to_use
         ) noexcept nogil
+
+
+cdef void cf_redimensionalize_radial_functions(
+    double complex* radial_function_ptr,
+    double mean_radius,
+    double bulk_density,
+    size_t num_slices,
+    size_t num_solutions = *) noexcept nogil

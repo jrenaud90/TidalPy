@@ -14,11 +14,8 @@ from scipy.constants import G as G_
 
 from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
 
-# TODO: ReDimen Radial
-from TidalPy.radial_solver.nondimensional import re_dimensionalize_radial_func
-
 # Import cythonized functions
-from TidalPy.utilities.dimensions.nondimensional cimport cf_non_dimensionalize_physicals
+from TidalPy.utilities.dimensions.nondimensional cimport cf_non_dimensionalize_physicals, cf_redimensionalize_radial_functions
 
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
@@ -42,7 +39,7 @@ cdef class RadialSolverSolution():
             self,
             size_t num_slices,
             tuple solve_for,
-            size_t num_solvers
+            size_t num_solutions
             ):
 
         # loop indicies
@@ -56,12 +53,12 @@ cdef class RadialSolverSolution():
         self.success = False
 
         # Store number of solution types
-        self.num_solvers = num_solvers
+        self.num_solutions = num_solutions
         self.solution_types = solve_for
         
         # Store size information
         self.num_slices = num_slices
-        self.total_size = MAX_NUM_Y * self.num_slices * self.num_solvers
+        self.total_size = MAX_NUM_Y * self.num_slices * self.num_solutions
 
         # Have the radial solver take control of the full solution memory
         self.full_solution_ptr = <double complex*> allocate_mem(
@@ -80,11 +77,11 @@ cdef class RadialSolverSolution():
     def result(self):
         return np.ascontiguousarray(
             self.full_solution_view, dtype=np.complex128
-            ).reshape((self.num_slices, self.num_solvers * MAX_NUM_Y)).T
+            ).reshape((self.num_slices, self.num_solutions * MAX_NUM_Y)).T
     
     def __len__(self):
         """Return number of solution types."""
-        return <Py_ssize_t>self.num_solvers
+        return <Py_ssize_t>self.num_solutions
     
     def __getitem__(self, str solution_name):
         """Get a specific solution type array."""
@@ -93,7 +90,7 @@ cdef class RadialSolverSolution():
         cdef size_t requested_sol_num = 0
         cdef bool_cpp_t found = False
         cdef str sol_test_name
-        for i in range(self.num_solvers):
+        for i in range(self.num_solutions):
             sol_test_name = self.solution_types[i]
             if sol_test_name == solution_name:
                 requested_sol_num = i
@@ -133,6 +130,7 @@ cdef RadialSolverSolution cf_radial_solver(
         bool_cpp_t scale_rtols_by_layer_type = True,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
+        size_t max_ram_MB = 500,
         double max_step = 0,
         bool_cpp_t limit_solution_to_radius = True,
         bool_cpp_t nondimensionalize = True,
@@ -230,10 +228,10 @@ cdef RadialSolverSolution cf_radial_solver(
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
     # The [5] represents the maximum number of solvers that can be invoked with a single call to radial_solver
-    cdef size_t max_solvers = 5
-    cdef size_t num_solvers = 1
+    cdef size_t max_num_solutions = 5
+    cdef size_t num_solutions = 1
     cdef str solver_name
-    # 15 = 5 (max_solvers) * 3 (number of surface conditions)
+    # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     cdef double complex[15] boundary_conditions
     cdef double complex* bc_pointer = &boundary_conditions[0]
 
@@ -250,12 +248,12 @@ cdef RadialSolverSolution cf_radial_solver(
         solve_for = ('tidal',)
     else:
         # Use user input
-        num_solvers = len(solve_for)
-        if num_solvers > max_solvers:
-            raise AttributeError(f'Unsupported number of solvers requested (max is {max_solvers}).')
+        num_solutions = len(solve_for)
+        if num_solutions > max_num_solutions:
+            raise AttributeError(f'Unsupported number of solvers requested (max is {max_num_solutions}).')
         
         # Parse user input for the types of solvers that should be used.
-        for i in range(num_solvers):
+        for i in range(num_solutions):
             solver_name = solve_for[i]
             if solver_name.lower() == 'tidal':
                 if nondimensionalize:
@@ -464,10 +462,10 @@ cdef RadialSolverSolution cf_radial_solver(
 
     # No matter the results of the integration, we know the shape and size of the final solution.
     # The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
-    cdef size_t num_output_ys = MAX_NUM_Y * num_solvers
+    cdef size_t num_output_ys = MAX_NUM_Y * num_solutions
     
     # Build final output solution
-    cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, solve_for, num_solvers)
+    cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, solve_for, num_solutions)
 
     # Get a reference pointer to solution array
     cdef double complex* solution_ptr = solution.full_solution_ptr
@@ -695,6 +693,7 @@ cdef RadialSolverSolution cf_radial_solver(
                 max_step_touse,
                 max_num_steps,
                 expected_size,
+                max_ram_MB,
                 limit_solution_to_radius
                 )
             cysolver_setup = True
@@ -765,7 +764,7 @@ cdef RadialSolverSolution cf_radial_solver(
         else:
             feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
 
-            for solver_i in range(num_solvers):
+            for solver_i in range(num_solutions):
                 feedback_str = f'Collapsing radial solutions for solver {solver_i}.'
 
                 # Reset variables for this solver
@@ -1190,6 +1189,15 @@ cdef RadialSolverSolution cf_radial_solver(
     solution.message = feedback_str
     solution.success = not error
 
+    # Redimensionalize the solution 
+    if solution.success and nondimensionalize:
+        cf_redimensionalize_radial_functions(
+            solution_ptr,
+            radius_planet,
+            planet_bulk_density,
+            num_slices,
+            num_solutions)
+
     return solution
 
 
@@ -1311,7 +1319,7 @@ def radial_solver(
     solution : RadialSolverSolution
         Solution to the viscoelastic-gravitational problem inside a planet.
         Solution attributes:
-            - solution.results : complex128, shape=(6 * num_solvers, n_slice)
+            - solution.results : complex128, shape=(6 * num_solutions, n_slice)
                 Numerical solution throughout the planet.
             - solution.success : bool
                 Flag if integration and subsequent collapse occured without error.

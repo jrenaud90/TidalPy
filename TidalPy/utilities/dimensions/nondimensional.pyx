@@ -54,6 +54,60 @@ cdef void cf_non_dimensionalize_physicals(
     frequency_to_use[0] = frequency / (1. / second_conversion)
 
 
+
+cdef void cf_redimensionalize_radial_functions(
+    double complex* radial_function_ptr,
+    double mean_radius,
+    double bulk_density,
+    size_t num_slices,
+    size_t num_solutions = 1) noexcept nogil:
+    """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
+
+    Parameters
+    ----------
+    radial_function_ptr : complex128*
+        Non-dimensionalized radial solutions as a function of radius.
+    mean_radius : float64
+        Mean radius of the planet, used in scaling [m]
+    bulk_density : float64
+        Bulk density of the planet, used in scaling [m]
+    num_slices : uint32
+        Number of radial slices, used for looping.
+    num_solutions : uint32, default=1
+        Number of solutions to loop through (size of radial_function_ptr is 6 * num_solutions * num_slices)
+
+    """
+    # Loop variables
+    cdef size_t slice_i, solver_i
+    # Setup conversions
+    cdef double second2_conversion = 1. / (pi * G * bulk_density)
+    cdef double mass_conversion = bulk_density * mean_radius**3
+    cdef double length_conversion = mean_radius
+
+    for solver_i in range(num_solutions):
+        for slice_i in range(num_slices):
+            # Convert displacements
+            #    y1, y3 are the radial and tangential displacements with units of [s2 m-1]
+            #    y2, y4 are the radial and tangential stresses with units of [kg m-3]
+            #    y5 is the tidal potential which is unitless and thus needs no conversion.
+            #    y6 is a "potential stress" with units of [m-1]
+
+            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 0] *= \
+                (second2_conversion / length_conversion)
+            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 2] *= \
+                (second2_conversion / length_conversion)
+
+            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 1] *= \
+                (mass_conversion / length_conversion**3)
+            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 3] *= \
+                (mass_conversion / length_conversion**3)
+
+            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 4] *= \
+                1
+            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 5] *= \
+                (1. / length_conversion)
+
+
 def non_dimensionalize_physicals(
         double frequency,
         double mean_radius,
@@ -76,3 +130,37 @@ def non_dimensionalize_physicals(
         )
     
     return frequency_to_use, G_to_use
+
+def redimensionalize_radial_functions(
+    double complex[:, ::1] radial_function_view,
+    double mean_radius,
+    double bulk_density):
+    """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
+
+    Parameters
+    ----------
+    radial_function_ptr : complex128*
+        Non-dimensionalized radial solutions as a function of radius.
+    mean_radius : float64
+        Mean radius of the planet, used in scaling [m]
+    bulk_density : float64
+        Bulk density of the planet, used in scaling [m]
+    num_slices : uint32
+        Number of radial slices, used for looping.
+    num_solutions : uint32, default=1
+        Number of solutions to loop through (size of radial_function_ptr is 6 * num_solutions * num_slices)
+
+    """
+    # Size of arrays
+    cdef size_t num_solutions, num_slices
+    num_solutions = <size_t> (radial_function_view.shape[0] / 6)
+    num_slices = radial_function_view.shape[1]
+
+    # Call cython function
+    cf_redimensionalize_radial_functions(
+        &radial_function_view.T[0, 0],
+        mean_radius,
+        bulk_density,
+        num_slices,
+        num_solutions
+    )
