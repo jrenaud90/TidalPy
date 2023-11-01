@@ -24,6 +24,7 @@ cdef void cf_collapse_layer_solution(
     # Use constant vectors to find the full y from all of the solutions in this layer
     cdef unsigned char solution_i
     cdef unsigned char y_i
+    cdef unsigned char y_rhs_i
     cdef unsigned char lhs_y_index
     cdef size_t slice_i
     cdef size_t slice_i_shifted
@@ -37,21 +38,34 @@ cdef void cf_collapse_layer_solution(
         # For this layer type we can also calculate y3 based on the other ys. We will do this at the end.
         calculate_y3 = True
     
+    y_rhs_i = 0
     y_i = 0
     while max_num_y > y_i:
         lhs_y_index = ytype_i * max_num_y + y_i
         # Bail out early for ys that the layer type is not defined for.
-        if not layer_is_solid:
+        if layer_is_solid:
+            # Solid layers have the same number of ys as the max_y_num.
+            y_rhs_i = y_i
+        else:
+            # Liquid layers have less ys than max_y_num. Set y_rhs_i to the appropriate index.
             if layer_is_static:
                 # Liquid static layers only has y5 (stored at index 0).
-                if y_i != 4:
+                if y_i == 4:
+                    y_rhs_i = 0
+                else:
                     # All results should be NAN which the solution pointer should already be set to. Continue.
+                    y_i += 1
                     continue
             else:
                 # Liquid dynamic layers have y1, y2, y5, y6 (indices 0, 1, 2, 3)
                 # For this layer type we can also calculate y3 based on the other ys.
-                if (y_i == 2) or (y_i == 3):
+                if y_i < 2:
+                    y_rhs_i = y_i
+                elif (y_i > 3) and (y_i < 6):
+                    y_rhs_i = y_i - 2
+                else:
                     # y4 == NAN for liquid dynamic layers; y3 will be calculated later.
+                    y_i += 1
                     continue
         
         # Otherwise we will collapse the solutions together for each slice.
@@ -65,12 +79,12 @@ cdef void cf_collapse_layer_solution(
                     # Initialize values
                     solution_ptr[slice_i_shifted * num_output_ys + lhs_y_index] = \
                         (constant_vector_ptr[solution_i] *
-                        storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                        storage_by_solution[solution_i][slice_i * num_ys + y_rhs_i])
                 else:
                     # Add new results to old value
                     solution_ptr[slice_i_shifted * num_output_ys + lhs_y_index] += \
                         (constant_vector_ptr[solution_i] *
-                        storage_by_solution[solution_i][slice_i * num_ys + y_i])
+                        storage_by_solution[solution_i][slice_i * num_ys + y_rhs_i])
 
                 slice_i += 1
                 slice_i_shifted += 1

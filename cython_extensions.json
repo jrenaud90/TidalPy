@@ -103,6 +103,13 @@
     "compile_args": [],
     "link_args": []
   },
+  "RadialSolver.boundaries": {
+    "name": "TidalPy.RadialSolver.boundaries.boundaries",
+    "sources": [["TidalPy", "RadialSolver", "boundaries", "boundaries.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "boundaries"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "RadialSolver.collapse": {
     "name": "TidalPy.RadialSolver.collapse.collapse",
     "sources": [["TidalPy", "RadialSolver", "collapse", "collapse.pyx"]],

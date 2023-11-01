@@ -1,20 +1,19 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport NAN, pi, isnan
+from libc.math cimport NAN, isnan
 
 from cpython.mem cimport PyMem_Free
 
 import numpy as np
 cimport numpy as np
 
-from scipy.linalg.cython_lapack cimport zgesv
-
 from scipy.constants import G as G_
 
 from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
 
 # Import cythonized functions
+from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 from TidalPy.utilities.dimensions.nondimensional cimport cf_non_dimensionalize_physicals, cf_redimensionalize_radial_functions
 
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
@@ -22,6 +21,7 @@ from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
 from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
 from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
+from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc
 from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
 
 
@@ -142,9 +142,6 @@ cdef RadialSolverSolution cf_radial_solver(
     Radial solver for 
     """
     # General indexing
-    cdef size_t index_0
-    cdef size_t index_1
-
     # Indexing for: Layer | Solution | ys | slices | solutions
     cdef size_t layer_i
     cdef size_t slice_i
@@ -241,8 +238,8 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef size_t num_ytypes = 1
     cdef str solver_name
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
-    cdef double complex[15] boundary_conditions
-    cdef double complex* bc_pointer = &boundary_conditions[0]
+    cdef double[15] boundary_conditions
+    cdef double* bc_pointer = &boundary_conditions[0]
 
     if solve_for is None:
         # Assume we are solving for tides
@@ -351,7 +348,6 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef unsigned char num_ys_dbl
     cdef unsigned char layer_below_num_sols
     cdef unsigned char layer_below_num_ys
-    cdef int num_sols_int
 
     for layer_i in range(num_layers):
         # Pull out information on this layer
@@ -506,13 +502,6 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex[3] layer_above_constant_vector
     cdef double complex* layer_above_constant_vector_ptr = &layer_above_constant_vector[0]
 
-    # Allocate surface matrices. We only need one of these (which one depends on the uppermost layer type).
-    # But, since there are only 3 and all of them are small, we will just allocate all of them separately on the stack.
-    cdef double complex[3][3] surface_matrix_solid
-    cdef double complex[2][2] surface_matrix_liquid_dynamic
-    cdef double complex[1][1] surface_matrix_liquid_static
-    cdef double complex* surface_matrix_ptr
-
     # OPT: Could reuse some of these variables so there are not so many being allocated for this function.
     cdef double complex y4_frac_1, y4_frac_2
     cdef double complex gamma_1, gamma_2
@@ -521,19 +510,11 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex lambda_1, lambda_2
 
     # Variables used to solve the linear equation at the planet's surface.
-    # These are passed to the LAPACK solver.
     # Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
-    cdef int lapack_info = -999
-    # NRHS = number of solutions that will be solved at the same time. Only one will be solved per radial_solver call.
-    cdef int lapack_nrhs
-    # IPIV = Integer pivot array that is an additional output provided by ZGESV. It is not used but must be provided.
-    #  It must be at least as large as the largest dimension of the input matrix, for this work that is 3.
-    cdef int[10] lapack_ipiv
-    cdef int* lapack_ipiv_ptr
-    lapack_ipiv_ptr = &lapack_ipiv[0]
+    cdef int bc_solution_info = -999
 
     # Shifted or reversed indices used during collapse.
-    cdef size_t slice_i_shifted, layer_i_reversed
+    cdef size_t layer_i_reversed
 
     try:
         for layer_i in range(num_layers):
@@ -575,7 +556,8 @@ cdef RadialSolverSolution cf_radial_solver(
 
             # Determine rtols and atols for this layer.
             # Scale rtols by layer type
-            for y_i in range(num_ys):
+            y_i = 0
+            while num_ys > y_i:
                 # Default is that each layer's rtol and atol equal user input.
                 # TODO: Change up the tolerance scaling between real and imaginary?
                 layer_rtol_real = integration_rtol
@@ -605,6 +587,7 @@ cdef RadialSolverSolution cf_radial_solver(
                 atols_ptr[2 * y_i]     = layer_atol_real
                 atols_ptr[2 * y_i + 1] = layer_atol_imag
 
+                y_i += 1
             # Find initial conditions for each solution at the base of this layer.
             radial_span = (radius_lower, radius_upper)
             if layer_i == 0:
@@ -684,11 +667,15 @@ cdef RadialSolverSolution cf_radial_solver(
                     )
 
             # Change initial conditions into 2x real values instead of complex for integration
-            for solution_i in range(num_sols):
-                for y_i in range(num_ys):
+            solution_i = 0
+            while num_sols > solution_i:
+                y_i = 0
+                while num_ys > y_i:
                     dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
                     initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
                     initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
+                    y_i += 1
+                solution_i += 1
 
             # Build solver instance
             solver = cf_build_solver(
@@ -722,13 +709,16 @@ cdef RadialSolverSolution cf_radial_solver(
             storage_by_solution = main_storage[layer_i]
 
             # Solve for each solution
-            for solution_i in range(num_sols):
-
+            solution_i = 0
+            while num_sols > solution_i:
                 if solution_i > 0:
                     # Reset solver with new initial condition (this is already done for j==0)
                     # This pointer has already been passed to the solver during initialization but we need the values at
                     #  the next solution. Pass new pointer at that address.
-                    solver.change_y0_pointer(&initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL], auto_reset_state=False)
+                    solver.change_y0_pointer(
+                        &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL],
+                        auto_reset_state=False
+                        )
 
                 ###### Integrate! #######
                 solver._solve(reset=True)
@@ -750,19 +740,23 @@ cdef RadialSolverSolution cf_radial_solver(
                 # Need to make a copy because the solver pointers will be reallocated during the next solution.
                 # Get storage pointer for this solution
                 storage_by_y = storage_by_solution[solution_i]
-                for slice_i in range(layer_slices):
-                    index_0 = num_ys_dbl * slice_i
-                    index_1 = num_ys * slice_i
-                    for y_i in range(num_ys):
+                y_i = 0
+                while num_ys > y_i:
+                    for slice_i in range(layer_slices):
                         # Convert 2x real ys to 1x complex ys
-                        storage_by_y[index_1 + y_i] = \
-                            solver_solution_ptr[index_0 + (2 * y_i)] + \
-                            1.0j * solver_solution_ptr[index_0 + (2 * y_i) + 1]
+                        storage_by_y[num_ys * slice_i + y_i] = cf_build_dblcmplx(
+                            solver_solution_ptr[num_ys_dbl * slice_i + (2 * y_i)],
+                            solver_solution_ptr[num_ys_dbl * slice_i + (2 * y_i) + 1]
+                            )
 
-                # Store top most result for initial condition for the next layer
-                for y_i in range(num_ys):
-                    # index_1 should already be set to the top of this layer after the end of the previous loop.
-                    uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y[index_1 + y_i]
+                    # Store top most result for initial condition for the next layer
+                    # slice_i should already be set to the top of this layer after the end of the previous loop.
+                    uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y[num_ys * slice_i + y_i]
+                    
+                    y_i += 1
+                
+                # Ready for next solution
+                solution_i += 1
 
             if error:
                 # Error was encountered during integration
@@ -786,12 +780,12 @@ cdef RadialSolverSolution cf_radial_solver(
         else:
             feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
 
-            for ytype_i in range(num_ytypes):
+            ytype_i = 0
+            while num_ytypes > ytype_i:
                 feedback_str = f'Collapsing radial solutions for "{ytype_i}" solver.'
 
                 # Reset variables for this solver
-                lapack_info = -999
-                lapack_nrhs = 1
+                bc_solution_info = -999
                 constant_vector_ptr[0] = NAN
                 constant_vector_ptr[1] = NAN
                 constant_vector_ptr[2] = NAN
@@ -816,7 +810,6 @@ cdef RadialSolverSolution cf_radial_solver(
 
                     # Get solution and y information
                     num_sols     = num_solutions_by_layer_ptr[layer_i_reversed]
-                    num_sols_int = <int>num_sols
                     num_ys       = 2 * num_sols
 
                     # Setup pointer array slices starting at this layer's beginning
@@ -845,93 +838,36 @@ cdef RadialSolverSolution cf_radial_solver(
                     storage_by_solution = main_storage[layer_i_reversed]
 
                     # Get value at the top of the layer
-                    for solution_i in range(num_sols):
-                        for y_i in range(num_ys):
+                    solution_i = 0 
+                    while num_sols > solution_i:
+                        y_i = 0
+                        while num_ys > y_i:
                             uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
                                 storage_by_solution[solution_i][(layer_slices - 1) * num_ys + y_i]
+                            y_i += 1
+                        solution_i += 1
 
                     if layer_i == 0:
-                        # Working on surface (uppermost) layer.
-                        # Create coefficient matrix based on surface layer type.
-                        if layer_is_solid:
-                            # Set pointer to correct matrix
-                            surface_matrix_ptr = &surface_matrix_solid[0][0]
+                        # Working on surface (uppermost) layer -- Apply surface boundary conditions.
+                        cf_apply_surface_bc(
+                            constant_vector_ptr,  # Modified Variable
+                            &bc_solution_info,  # Modified Variable
+                            bc_pointer,
+                            uppermost_y_per_solution_ptr,
+                            surface_gravity,
+                            G_to_use,
+                            num_sols,
+                            MAX_NUM_Y,
+                            ytype_i,
+                            layer_is_solid,
+                            layer_is_static,
+                            layer_is_incomp
+                            )
 
-                            # At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
-                            # We will set the constant vector equal to the surface boundary condition.
-                            #  It will be overwritten with the solution to the linear solution.
-                            constant_vector_ptr[0] = bc_pointer[ytype_i * 3 + 0]
-                            constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 1]
-                            constant_vector_ptr[2] = bc_pointer[ytype_i * 3 + 2]
-
-                            # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
-                            #  FORTRAN-ordered arrays.
-                            surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                            surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
-                            surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 5]
-                            surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
-                            surface_matrix_ptr[4] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
-                            surface_matrix_ptr[5] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 5]
-                            surface_matrix_ptr[6] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 1]
-                            surface_matrix_ptr[7] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 3]
-                            surface_matrix_ptr[8] = uppermost_y_per_solution_ptr[2 * MAX_NUM_Y + 5]
-
-                        else:
-                            if layer_is_static:
-                                # Set pointer to correct matrix
-                                surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0]
-
-                                # Unlike the dynamic liquid layer, a static liquid layer's y_2 is undefined. That leads to one less boundary condition
-                                #  and one less solution (1 total).
-                                #  At the surface, y_7 = S_7 [See: Eq. 17, 10 in S74]
-
-                                # We will set the constant vector equal to the surface boundary condition.
-                                #  It will be overwritten with the solution to the linear solution.
-                                # y_7 = y_6 + (4 pi G / g) y_2
-                                constant_vector_ptr[0] = \
-                                    bc_pointer[ytype_i * 3 + 2] + \
-                                    bc_pointer[ytype_i * 3 + 0] * (4. * pi * G_to_use / surface_gravity)
-
-                                # These are unused. Set to NAN so if they do get used we might be able to catch it.
-                                constant_vector_ptr[1] = NAN
-                                constant_vector_ptr[2] = NAN
-
-                                # Note: for a static liquid layer, y_7 held in index 1 (index 0 is y_5).
-                                surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                            else:
-                                # Set pointer to correct matrix
-                                surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
-
-                                # Unlike the solid layer, a liquid layer's y_4 is undefined. That leads to one less boundary condition and one
-                                #  less solution (2 total).
-                                #  At the surface, y_2 = S_1; y_6 = S_6 [See: Eq. B.38 in KTC21; Eq. 17 in KMN15
-
-                                # We will set the constant vector equal to the surface boundary condition.
-                                #  It will be overwritten with the solution to the linear solution.
-                                # The surface boundary condition will still have 3 members. Drop the one related to y_4
-                                constant_vector_ptr[0] = bc_pointer[ytype_i * 3 + 0]
-                                constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 2]
-
-                                # The last constant is unused. Set to NAN so if they do get used we might be able to catch it.
-                                constant_vector_ptr[2] = NAN
-
-                                # Build y-solution matrix to be applied to the surface.
-                                # Note: for a dynamic liquid, y_2 and y_6 are held at indices 1 and 3 respectively
-                                surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 1]
-                                surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * MAX_NUM_Y + 3]
-                                surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 1]
-                                surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * MAX_NUM_Y + 3]
-
-
-                        # Find the solution to the linear equation
-                        # ZGESV computes the solution to system of linear equations A * X = B for GE matrices
-                        # See https://www.netlib.org/lapack/explore-html/d6/d10/group__complex16_g_esolve_ga531713dfc62bc5df387b7bb486a9deeb.html#ga531713dfc62bc5df387b7bb486a9deeb
-                        zgesv(&num_sols_int, &lapack_nrhs, surface_matrix_ptr, &num_sols_int, lapack_ipiv_ptr,
-                            constant_vector_ptr, &num_sols_int, &lapack_info)
-
-                        if lapack_info != 0:
+                        # Check that the boundary condition was successfully applied.
+                        if bc_solution_info != 0:
                             feedback_str = \
-                                (f'Error encountered while applying surface boundary condition. ZGESV code: {lapack_info}'
+                                (f'Error encountered while applying surface boundary condition. ZGESV code: {bc_solution_info}'
                                 f'\nThe solutions may not be valid at the surface.')
                             if verbose:
                                 print(feedback_str)
@@ -1067,7 +1003,7 @@ cdef RadialSolverSolution cf_radial_solver(
 
                     # Use constant vectors to find the full y from all of the solutions in this layer
                     cf_collapse_layer_solution(
-                        solution_ptr,
+                        solution_ptr,  # Modified Variable
                         constant_vector_ptr,
                         storage_by_solution,
                         layer_radius_ptr,
@@ -1105,6 +1041,9 @@ cdef RadialSolverSolution cf_radial_solver(
                         layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
                         layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
                         layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
+                
+                # Ready for next y-type
+                ytype_i += 1
     finally:
         # Free memory
         if cysolver_setup:
@@ -1131,10 +1070,12 @@ cdef RadialSolverSolution cf_radial_solver(
             for layer_i in range(num_layers):
                 num_sols = num_solutions_by_layer_ptr[layer_i]
                 if not (main_storage[layer_i] is NULL):
-                    for solution_i in range(num_sols):
+                    solution_i = 0
+                    while num_sols > solution_i:
                         if not (main_storage[layer_i][solution_i] is NULL):
                             PyMem_Free(main_storage[layer_i][solution_i])
                             main_storage[layer_i][solution_i] = NULL
+                        solution_i += 1
                     
                     PyMem_Free(main_storage[layer_i])
                     main_storage[layer_i] = NULL
@@ -1157,17 +1098,21 @@ cdef RadialSolverSolution cf_radial_solver(
             layer_bool_data_ptr = NULL
 
     # Update solution status and return
-    solution.message = feedback_str
-    solution.success = not error
-
-    # Redimensionalize the solution 
-    if solution.success and nondimensionalize:
-        cf_redimensionalize_radial_functions(
-            solution_ptr,
-            radius_planet,
-            planet_bulk_density,
-            total_slices,
-            num_ytypes)
+    if not error:
+        # Radial solver completed successfully.
+        if nondimensionalize:
+            # Redimensionalize the solution 
+            cf_redimensionalize_radial_functions(
+                solution_ptr,
+                radius_planet,
+                planet_bulk_density,
+                total_slices,
+                num_ytypes)
+        solution.success = True
+        solution.message = 'RadialSolver completed without any noted issues.'
+    else:
+        solution.success = False
+        solution.message = feedback_str
 
     return solution
 
