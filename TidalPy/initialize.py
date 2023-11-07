@@ -49,6 +49,7 @@ def initialize():
         log.info('TidalPy reinitializing...')
     else:
         log.info('TidalPy initializing...')
+    print('TESSSSSSST', f'Output directory: {TidalPy._output_dir}')
     log.info(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir

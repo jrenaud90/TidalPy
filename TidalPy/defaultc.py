@@ -11,12 +11,16 @@ extensive_logging = true
 [logging]
 # Are TidalPy logs are stored to the current working directory or the default TidalPy data path.
 use_cwd = true
+
 # Write log to local disk
 write_log = true
+
 # Logging levels
+# Options: DEBUG, INFO, WARNING, ERROR
 console_level = "DEBUG"
 console_error_level = "WARNING"
 file_level = "DEBUG"
+
 # Determine if log should be printed to consol or written to disk when run in a jupyter notebook.
 print_log_notebook = false
 write_log_notebook = false

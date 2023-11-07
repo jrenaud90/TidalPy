@@ -1,9 +1,6 @@
 import os
 import shutil
 
-from TidalPy import tidalpy_loc
-
-
 def clear_cache(verbose: bool = True):
     """ Clears TidalPy's cached functions (python cache and cached numba functions).
 
@@ -16,6 +13,9 @@ def clear_cache(verbose: bool = True):
     -------
     success: bool
     """
+
+    # Get install directory for TidalPy
+    tidalpy_loc = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 
     if verbose:
         print('TidalPy Directory:', tidalpy_loc)

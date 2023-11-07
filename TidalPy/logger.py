@@ -10,6 +10,7 @@ from TidalPy.paths import get_log_dir, timestamped_str
 FILE_HANDLER = None
 STREAM_HANDLER = None
 STREAM_ERR_HANDLER = None
+LOG_FILE_INIT = False
 
 LOGGING_LEVELS = {
     # Critical: A serious error, indicating that the program itself may be unable to continue running.
@@ -45,7 +46,7 @@ def get_header_text() -> str:
 
 class DeltaTimeFormatter(logging.Formatter):
     def format(self, record):
-        duration = datetime.datetime.utcfromtimestamp(record.relativeCreated / 1000)
+        duration = datetime.utcfromtimestamp(record.relativeCreated / 1000)
         record.delta = duration.strftime("%H:%M:%S::%f")
         return super().format(record)
 FORMATTER = DeltaTimeFormatter('%(asctime)s(+%(delta)s) - %(levelname)-9s: %(message)s', "%Y-%m-%d %H:%M:%S")
@@ -53,10 +54,11 @@ FORMATTER = DeltaTimeFormatter('%(asctime)s(+%(delta)s) - %(levelname)-9s: %(mes
 def get_console_handler(error_stream=False):
     if error_stream:
         console_handler = logging.StreamHandler(sys.stderr)
-        console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['console_error_level']])
+        console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['console_error_level']])
     else:
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['console_level']])
+        print('CONSOLE LEVEL', LOGGING_LEVELS[TidalPy._config['logging']['console_level']])
+        console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['console_level']])
     console_handler.setFormatter(FORMATTER)
     return console_handler
 
@@ -83,20 +85,18 @@ def get_file_handler() -> logging.FileHandler:
     log_name += '.log'
     log_path = os.path.join(log_dir, log_name)
 
-    # Add header test to log file
-    with open(log_path, 'w') as log_file:
-        log_file.write(get_header_text())
-
     # Create handler
     file_handler = logging.FileHandler(log_path)
     file_handler.setFormatter(FORMATTER)
-    file_handler.setLevel(LOGGING_LEVELS[TidalPy._config['file_level']])
+    print('FILE LEVEL', LOGGING_LEVELS[TidalPy._config['logging']['file_level']])
+    file_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['file_level']])
     return file_handler
 
 def get_logger(logger_name: str) -> logging.Logger:
     global FILE_HANDLER
     global STREAM_HANDLER
     global STREAM_ERR_HANDLER
+    global LOG_FILE_INIT
 
     # Ensure handlers are set
     if FILE_HANDLER is None:
@@ -106,11 +106,23 @@ def get_logger(logger_name: str) -> logging.Logger:
     if STREAM_ERR_HANDLER is None:
         STREAM_ERR_HANDLER = get_console_handler(error_stream=True)
     
+    # Check if log file has been initialized
+    if FILE_HANDLER is not None:
+        if not LOG_FILE_INIT:
+            # Add header text to log file
+            with open(FILE_HANDLER.baseFilename, 'w') as log_file:
+                log_file.write(get_header_text())
+            LOG_FILE_INIT = True
+
+
     # Get logger class
     logger = logging.getLogger(logger_name)
 
     # Clear any handlers that might be present
     logger.handlers = list()
+
+    # Set base logging level to the lowest one (it will be overridden by the tidalpy config via handlers)
+    logger.setLevel(1)
 
     # Add handlers
     if FILE_HANDLER is not None:
