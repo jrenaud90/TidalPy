@@ -36,7 +36,7 @@ def initialize():
     # Setup pathing
     from TidalPy.paths import timestamped_str
     output_dir = os.path.join(os.getcwd(), TidalPy._config['pathing']['outer_dir_name'])
-    if TidalPy._config['append_datetime']:
+    if TidalPy._config['pathing']['append_datetime']:
         output_dir = timestamped_str(output_dir, date=True, time=True, second=False, millisecond=False, preappend=False)
     TidalPy._output_dir = output_dir
 
@@ -52,7 +52,7 @@ def initialize():
     log.info(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
-    if TidalPy._config['configs']['save_local_configs']:
+    if TidalPy._config['configs']['save_configs_locally']:
         config_file_name = f'TidalPy_Configs.toml'
         config_file_path = os.path.join(TidalPy._output_dir, config_file_name)
         with open(config_file_path, 'w') as config_file:

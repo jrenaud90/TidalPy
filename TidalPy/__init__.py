@@ -18,7 +18,7 @@ _config = None
 extensive_logging = False
 
 # Load the TidalPy initializer and run it (user can run it later so load it with the handle `reinitialize`)
-from .initialize import initialize_tidalpy as reinit
+from TidalPy.initialize import initialize as reinit
 
 # Call reinit for the first initialization
 reinit()

@@ -23,6 +23,6 @@ write_log_notebook = false
 
 [configs]
 # Save these configurations to local run directory.
-save_local_configs = true
+save_configs_locally = true
 
 """

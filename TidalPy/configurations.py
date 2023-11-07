@@ -78,7 +78,7 @@ def get_config() -> dict:
     if not os.path.isfile(config_path):
         # Create toml file with default configurations.
         with open(config_path, 'w') as config_file:
-            config_file.write(f'# TidalPy Configurations for v{TidalPy.__version__}\n\n')
+            config_file.write(f'# TidalPy Configurations for version: {TidalPy.__version__}\n\n')
             config_file.write(default_config_str)
             
     # Load configurations (these may have been changed by the user) to dict
