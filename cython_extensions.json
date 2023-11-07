@@ -27,9 +27,9 @@
     "link_args": []
   },
   "rheology.common": {
-    "name": "TidalPy.rheology.common",
-    "sources": [["TidalPy", "rheology", "common.pyx"]],
-    "include_dirs": [["TidalPy", "rheology", "common"]],
+    "name": "TidalPy.rheology.base",
+    "sources": [["TidalPy", "rheology", "base.pyx"]],
+    "include_dirs": [["TidalPy", "rheology", "base"]],
     "compile_args": [],
     "link_args": []
   },

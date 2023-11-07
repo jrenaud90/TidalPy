@@ -1,6 +1,34 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
+from platformdirs import user_data_dir
+
+# TidalPy directories
+def get_config_dir() -> str:
+    """ TidalPy directory containing global configurations. """
+    config_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), 'Config')
+    # Create directory if it does not exist
+    Path(config_dir).mkdir(parents=True, exist_ok=True)
+    return config_dir
+
+def get_log_dir() -> str:
+    """ TidalPy directory containing log files. """
+    log_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), 'Logs')
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    return log_dir
+
+def get_worlds_dir() -> str:
+    """ TidalPy directory containing configurations for various pre-built worlds. """
+    worlds_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), 'Worlds')
+    Path(worlds_dir).mkdir(parents=True, exist_ok=True)
+    return worlds_dir
+
+def create_data_dirs():
+    """ Creates TidalPy data directories if not already present. """
+    get_config_dir()
+    get_log_dir()
+    get_worlds_dir()
 
 def timestamped_str(
     string_to_stamp: str = '',

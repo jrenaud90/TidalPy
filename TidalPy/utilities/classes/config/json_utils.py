@@ -8,7 +8,7 @@ import json5
 import numpy as np
 
 from TidalPy import log, use_disk
-from TidalPy.io_helper import unique_path
+from TidalPy.paths import unique_path
 
 JSON5_KWARGS = {'indent': 4}
 

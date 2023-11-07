@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, Union
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from TidalPy.io_helper import unique_path
+from TidalPy.paths import unique_path
 from TidalPy.utilities.classes.base import TidalPyClass
 
 # Cartopy is usually not installed during testing which is fine. But this module will throw an error when tests are run

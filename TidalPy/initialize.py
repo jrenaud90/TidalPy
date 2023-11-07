@@ -1,11 +1,7 @@
-""" Functions used to reinit TidalPy for a new run.
-"""
+"""Functions used to initialize/reinitialize TidalPy"""
 import os
-import sys
 
-import json5
-import numpy as np
-
+import toml
 
 def is_notebook() -> bool:
     try:
@@ -19,77 +15,52 @@ def is_notebook() -> bool:
     except NameError:
         return False      # Probably standard Python interpreter
 
-def initialize_tidalpy():
-    """ Initialize TidalPy based on information stored in TidalPy.config
+def initialize():
+    """ Initialize (or reinitialize) TidalPy based on information stored in TidalPy._config
 
-    Items in TidalPy.config are identical to those in configurations.py unless the user changed them and called
+    Items in TidalPy._config are identical to those in the TidalPy_Config.toml unless the user changed them and called
         TidalPy.reinit()
+    
+    See more information about TidalPy_Config.toml in TidalPy.configurations.py
     """
     import TidalPy
 
-    from . import version
-    from .logger import log_setup
-    from .io_helper import timestamped_str, unique_path
-
-    # Reset initialization status
-    TidalPy._tidalpy_init = False
-
     # Are we in a Jupyter Notebook?
     running_in_jupyter = is_notebook()
-    TidalPy.running_in_jupyter = running_in_jupyter
+    TidalPy._in_jupyter = running_in_jupyter
 
-    # Load configurations into the TidalPy.__init__
-    TidalPy.debug_mode = TidalPy.config['debug_mode']
-
-    # Other configurations
-    format_numpy_floats = TidalPy.config['format_numpy_floats']
-    if format_numpy_floats:
-        float_formatter = lambda x: f'{x:0.3e}'
-        np.set_printoptions(formatter={'float_kind': float_formatter})
+    # Get TidalPy configurations
+    from TidalPy.configurations import get_config
+    TidalPy._config = get_config()
 
     # Setup pathing
-    tidalpy_loc = os.path.dirname(os.path.abspath(__file__))
-    TidalPy.tidalpy_loc = tidalpy_loc
+    from TidalPy.paths import timestamped_str
+    output_dir = os.path.join(os.getcwd(), TidalPy._config['pathing']['outer_dir_name'])
+    if TidalPy._config['append_datetime']:
+        output_dir = timestamped_str(output_dir, date=True, time=True, second=False, millisecond=False, preappend=False)
+    TidalPy._output_dir = output_dir
 
-    save_dir = TidalPy.config['save_dir']
-    if save_dir is None:
-        save_dir = os.path.join(os.getcwd(), 'TidalPy_Output')
-    save_to_disk = False
-    if TidalPy.config['save_to_disk']:
-        save_to_disk = True
-        if running_in_jupyter and not TidalPy.config['write_log_in_jupyter:']:
-            save_to_disk = False
-
-    # Create directories
-    disk_loc = None
-    if save_to_disk:
-        # Make Outer Directory
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
-        inner_dir_str = timestamped_str(
-            string_to_stamp='TidalPyRun',
-            date=True, time=True, second=False, millisecond=False,
-            preappend=False, separation='_'
-            )
-
-        # Make inner `run` directory. Make sure it is unique.
-        inner_dir_path = os.path.join(save_dir, inner_dir_str)
-        inner_dir = unique_path(inner_dir_path, is_dir=True, make_dir=True)
-        disk_loc = inner_dir
-    TidalPy.disk_loc = disk_loc
+    # Setup logging
+    from TidalPy.logger import get_logger
+    log = get_logger(__name__)
+    # Reset initialization status
+    if TidalPy._tidalpy_init:
+        TidalPy._tidalpy_init = False
+        log.info('TidalPy reinitializing...')
+    else:
+        log.info('TidalPy initializing...')
+    log.info(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
-    if save_to_disk:
-        config_file_name = f'TidalPyVers{version}_configurations.json'
-        config_file_path = os.path.join(disk_loc, config_file_name)
+    if TidalPy._config['configs']['save_local_configs']:
+        config_file_name = f'TidalPy_Configs.toml'
+        config_file_path = os.path.join(TidalPy._output_dir, config_file_name)
         with open(config_file_path, 'w') as config_file:
-            json5.dump(TidalPy.config, config_file, indent=4)
+            toml.dump(TidalPy._config, config_file)
 
-    # Initialize the loggers
-    tidalpy_log = log_setup(save_to_disk, write_locale=disk_loc, running_in_jupyter=running_in_jupyter,
-                            print_log_in_jupyter=TidalPy.config['print_log_in_jupyter'])
-    TidalPy.log = tidalpy_log
+    # Load any other parameters from config to top-level program
+    TidalPy.extensive_logging = TidalPy._config['debug']['extensive_logging']
 
     # Finish initialization
     TidalPy._tidalpy_init = True
+    log.info('TidalPy initialization complete.')

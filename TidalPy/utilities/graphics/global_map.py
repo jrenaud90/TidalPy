@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Colormap
 
-from TidalPy.io_helper import unique_path
+from TidalPy.paths import unique_path
 
 cartopy_installed = False
 try:

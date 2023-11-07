@@ -1,4 +1,4 @@
-from TidalPy.rheology.common cimport RheologyModelBase
+from TidalPy.rheology.base cimport RheologyModelBase
 
 ########################################################################################################################
 ######################################## New Rheological Models Go Below Here! #########################################
