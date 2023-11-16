@@ -16,6 +16,8 @@ _config = None
 
 # Public properties that can be changed by user
 extensive_logging = False
+extensive_checks = False
+test_mode = False
 
 # Load the TidalPy initializer and run it (user can run it later so load it with the handle `reinitialize`)
 from TidalPy.initialize import initialize as reinit

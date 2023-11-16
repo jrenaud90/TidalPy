@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
-from TidalPy import configurations, debug_mode, log, tidalpy_loc, use_disk
+from TidalPy import configurations, debug_mode, tidalpy_loc, use_disk
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
                                 IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError, UnknownModelError, UnusualRealValueError)
@@ -16,6 +16,9 @@ from TidalPy.stellar import calc_equilibrium_temperature, equilibrium_insolation
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ..helpers.orbit_config import pull_out_orbit_from_config
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 

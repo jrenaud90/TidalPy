@@ -2,7 +2,6 @@ from typing import Dict, Iterator, Tuple, Union
 
 import numpy as np
 
-from TidalPy import log
 from TidalPy.exceptions import (InitiatedPropertyChangeError, MissingArgumentError,
                                 ParameterMissingError,TidalPyWorldError)
 from TidalPy.utilities.numpy_helper import find_nearest
@@ -11,6 +10,11 @@ from TidalPy.utilities.types import FloatArray, NoneType
 
 from .tidal import TidalWorld
 from ..layers import GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
+
 
 BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^', '&', '(', ')', '~', '`')
 

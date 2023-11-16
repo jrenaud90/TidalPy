@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+TidalPy.test_mode = True
 
 
 from TidalPy.RadialSolver import radial_solver
@@ -46,4 +46,10 @@ def test_radial_solver_1layer(is_solid, is_static, is_incompressible):
         scale_rtols_by_layer_type=True,
         max_num_steps=500_000, expected_size=250, max_step=0,
         limit_solution_to_radius=True, verbose=False, nondimensionalize=False)
+    
+    assert out.success
+    assert type(out.message) is str
+    assert type(out.result) is np.ndarray
+    assert out.result.shape == (6, N)
+    assert np.all(np.isnan(out.result) == False)
 

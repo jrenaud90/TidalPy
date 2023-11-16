@@ -3,13 +3,16 @@ from typing import TextIO, Union
 
 import json5
 
-from TidalPy import log
 from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
                                 UnknownWorldType)
 from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
 
 from .config_handler import clean_world_config, get_world_configs, world_config_loc
 from ..world_types import world_types
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     """ Build a TidalPy world based on a pre-built config or a user-provided configuration dictionary

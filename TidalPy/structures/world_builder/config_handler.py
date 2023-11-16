@@ -2,9 +2,11 @@ import copy
 
 import json5
 
-from TidalPy import log, world_config_loc
+from TidalPy import world_config_loc
 from TidalPy.utilities.io.pathing import get_all_files_of_type
 
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 def clean_world_config(world_config: dict, make_copy: bool = True):
     """ Provides a clean copy of a world's configuration, deleting any items initialized by TidalPy

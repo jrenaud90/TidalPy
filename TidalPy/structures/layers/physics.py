@@ -4,11 +4,14 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
-from TidalPy import log
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, ImproperPropertyHandling,
                                 MissingAttributeError, OuterscopePropertySetError)
 
 from .basic import LayerBase
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType

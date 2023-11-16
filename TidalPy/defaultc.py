@@ -7,6 +7,8 @@ append_datetime = true
 [debug]
 # Additional logging is used to track down bugs or issues. There could be a performance penalty in using this.
 extensive_logging = true
+# Additional numerical sanity checks will be performed. There could be a performance penalty in using this.
+extensive_checks = false
 
 [logging]
 # Are TidalPy logs are stored to the current working directory or the default TidalPy data path.

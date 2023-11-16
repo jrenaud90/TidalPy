@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy import debug_mode, log
+from TidalPy import extensive_checks, log
 from TidalPy.constants import G
 from TidalPy.exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
                                 IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
@@ -146,7 +146,7 @@ class PhysicalObjSpherical(ConfigHolder):
             log.error('Base class of PhysicalObjSpherical requires thickness to set geometry.')
             raise MissingArgumentError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
 
-        if debug_mode:
+        if extensive_checks:
             for arg in [radius, thickness, mass]:
                 if type(arg) not in float_like:
                     raise IncorrectAttributeType
@@ -221,7 +221,7 @@ class PhysicalObjSpherical(ConfigHolder):
             self._moi_factor = self.moi / self.moi_ideal
 
         # Perform sanity checks
-        if debug_mode:
+        if extensive_checks:
             # Basic Checks
             if self.thickness > self.radius:
                 raise BadAttributeValueError
@@ -303,7 +303,7 @@ class PhysicalObjSpherical(ConfigHolder):
                         [pressure_above + sum(pressure_pieces[i:]) for i in range(self.num_slices)]
                         )
 
-                if debug_mode:
+                if extensive_checks:
                     np.testing.assert_approx_equal(self.pressure_inner, self.pressure_slices[0])
 
     # # Independent state properties
@@ -720,7 +720,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
         # Moment of inertia could, in general, be calculated after an object is created so it may be set after both
         #   __init__ and set_geometry are called.
-        if debug_mode:
+        if extensive_checks:
             if value is None:
                 pass
             elif type(value) not in float_like:
@@ -757,7 +757,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @pressure_above.setter
     def pressure_above(self, value):
-        if debug_mode:
+        if extensive_checks:
             assert type(value) == float
 
         self._pressure_above = value
@@ -770,7 +770,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @mass_below.setter
     def mass_below(self, value):
-        if debug_mode:
+        if extensive_checks:
             assert type(value) == float
 
         self._mass_below = value

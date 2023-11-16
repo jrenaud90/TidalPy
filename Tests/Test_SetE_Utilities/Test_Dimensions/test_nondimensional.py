@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+TidalPy.test_mode = True
 
 from scipy.constants import G as G_
 

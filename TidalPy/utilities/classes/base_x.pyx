@@ -4,7 +4,7 @@
 from TidalPy import config
 
 cdef bool_cpp_t DEBUG_MODE
-DEBUG_MODE = config['debug_mode']
+DEBUG_MODE = config['debug']['extensive_checks']
 
 cdef class TidalPyBaseExtensionClass:
     """

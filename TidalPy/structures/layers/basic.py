@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from TidalPy import log
 from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
                                 InitiatedPropertyChangeError, MissingArgumentError, OuterscopePropertySetError,
                                 ParameterMissingError)
@@ -10,6 +9,9 @@ from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetS
 from .defaults import layer_defaults
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType

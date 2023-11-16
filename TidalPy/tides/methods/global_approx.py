@@ -4,7 +4,6 @@ from typing import Callable, Dict, TYPE_CHECKING, Tuple
 
 import numpy as np
 
-from TidalPy import log
 from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, NotYetImplementedError,
                                 UnknownModelError)
 from TidalPy.utilities.performance import njit
@@ -12,6 +11,10 @@ from TidalPy.utilities.performance import njit
 from .base import TidesBase
 from .defaults import tide_defaults
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import ComplexArray, FloatArray

@@ -4,7 +4,7 @@ from scipy.special import factorial2
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+TidalPy.test_mode = True
 
 from TidalPy.utilities.math.special_x import double_factorial
 

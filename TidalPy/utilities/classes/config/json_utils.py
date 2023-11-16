@@ -7,8 +7,12 @@ from warnings import warn
 import json5
 import numpy as np
 
-from TidalPy import log, use_disk
+from TidalPy import use_disk
 from TidalPy.paths import unique_path
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 JSON5_KWARGS = {'indent': 4}
 

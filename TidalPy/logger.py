@@ -72,6 +72,9 @@ def get_file_handler() -> logging.FileHandler:
     if not TidalPy._config['logging']['write_log_notebook'] and TidalPy._in_jupyter:
         # User does not want log written while using Jupyter notebook; which we are in.
         return None
+    if TidalPy.test_mode:
+        # TidalPy tests are being run, don't write to disk.
+        return None
 
     if TidalPy._config['logging']['use_cwd']:
         log_dir = os.path.join(TidalPy._output_dir, 'Logs')

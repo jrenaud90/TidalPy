@@ -1,10 +1,14 @@
 from typing import Union, TYPE_CHECKING
 
-from TidalPy import log
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
                                 InitiatedPropertyChangeError, InnerscopePropertySetError)
 
 from .basic import BaseWorld
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
+
 
 if TYPE_CHECKING:
     from TidalPy.tides import GlobalApproxTides

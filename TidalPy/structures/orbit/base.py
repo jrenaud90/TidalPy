@@ -1,7 +1,6 @@
 import copy
 from typing import Dict, List, Union, TYPE_CHECKING
 
-from TidalPy import log
 from TidalPy.exceptions import (BadWorldSignature, BadWorldSignatureType,
                                 ImproperPropertyHandling, TidalPyOrbitError)
 from TidalPy.utilities.classes.base import TidalPyClass
@@ -9,6 +8,9 @@ from TidalPy.utilities.conversions import days2rads, orbital_motion2semi_a, rads
 
 from ..helpers.orbit_config import pull_out_orbit_from_config
 from ..world_types import all_world_types, AllWorldType, StarWorld
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 
 if TYPE_CHECKING:

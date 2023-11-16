@@ -1,7 +1,9 @@
-from TidalPy import log
 from TidalPy.exceptions import ConfigPropertyChangeError
 
 from .tidal import TidalWorld
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...

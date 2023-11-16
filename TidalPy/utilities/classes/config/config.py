@@ -3,11 +3,15 @@ import os
 from pprint import pprint
 from typing import Any, Tuple
 
-from TidalPy import debug_mode, disk_loc, log, version
+from TidalPy import extensive_checks, version
 from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
 
 from .json_utils import save_dict_to_json
 from ..base import TidalPyClass
+
+from TidalPy import _output_dir as disk_loc
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 
 class ConfigHolder(TidalPyClass):
@@ -25,7 +29,7 @@ class ConfigHolder(TidalPyClass):
 
         self.store_py_info = store_py_info
 
-        if debug_mode:
+        if extensive_checks:
             assert type(replacement_config) in [dict, type(None)]
             assert type(self.default_config) in [dict, type(None)]
 
@@ -79,7 +83,7 @@ class ConfigHolder(TidalPyClass):
 
         """
 
-        if debug_mode:
+        if extensive_checks:
             assert type(replacement_config) == dict
 
         self._replacement_config = copy.deepcopy(replacement_config)

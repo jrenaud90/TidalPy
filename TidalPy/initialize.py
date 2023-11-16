@@ -49,7 +49,6 @@ def initialize():
         log.info('TidalPy reinitializing...')
     else:
         log.info('TidalPy initializing...')
-    print('TESSSSSSST', f'Output directory: {TidalPy._output_dir}')
     log.info(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
@@ -61,6 +60,7 @@ def initialize():
 
     # Load any other parameters from config to top-level program
     TidalPy.extensive_logging = TidalPy._config['debug']['extensive_logging']
+    TidalPy.extensive_checks  = TidalPy._config['debug']['extensive_checks']
 
     # Finish initialization
     TidalPy._tidalpy_init = True
