@@ -19,7 +19,7 @@ extensive_checks = false
 use_cwd = true
 
 # Write log to local disk
-write_log = true
+write_log = false
 
 # Logging levels
 # Options: DEBUG, INFO, WARNING, ERROR

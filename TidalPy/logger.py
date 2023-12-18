@@ -57,7 +57,6 @@ def get_console_handler(error_stream=False):
         console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['console_error_level']])
     else:
         console_handler = logging.StreamHandler(sys.stdout)
-        print('CONSOLE LEVEL', LOGGING_LEVELS[TidalPy._config['logging']['console_level']])
         console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['console_level']])
     console_handler.setFormatter(FORMATTER)
     return console_handler
@@ -91,7 +90,6 @@ def get_file_handler() -> logging.FileHandler:
     # Create handler
     file_handler = logging.FileHandler(log_path)
     file_handler.setFormatter(FORMATTER)
-    print('FILE LEVEL', LOGGING_LEVELS[TidalPy._config['logging']['file_level']])
     file_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['file_level']])
     return file_handler
 
@@ -108,6 +106,8 @@ _root_logger.setLevel(1)
 # Log file handler
 if FILE_HANDLER is None:
     FILE_HANDLER = get_file_handler()
+
+if FILE_HANDLER is not None:
     _root_logger.addHandler(FILE_HANDLER)
     # Check if log file has been initialized
     if not LOG_FILE_INIT:
@@ -119,11 +119,15 @@ if FILE_HANDLER is None:
 # Console handler
 if STREAM_HANDLER is None:
     STREAM_HANDLER = get_console_handler(error_stream=False)
+
+if STREAM_HANDLER is not None:
     _root_logger.addHandler(STREAM_HANDLER)
 
 # Console Error handler
 if STREAM_ERR_HANDLER is None:
     STREAM_ERR_HANDLER = get_console_handler(error_stream=True)
+
+if STREAM_ERR_HANDLER is not None:
     _root_logger.addHandler(STREAM_ERR_HANDLER)
 
 def get_logger(logger_name: str) -> logging.Logger:
