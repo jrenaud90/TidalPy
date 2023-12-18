@@ -1,3 +1,7 @@
+# These default configurations are saved to the user's Application Data directory when TidalPy is first called.
+# After the initial call, TidalPy will no longer look at this file.
+# Config changes should be made in the AppData toml file.
+
 default_config_str = """
 [pathing]
 # Determine TidalPy's output directory structure and naming scheme.

@@ -1,5 +1,6 @@
 import os
 import toml
+import warnings
 
 import TidalPy
 from TidalPy.paths import get_config_dir
@@ -80,6 +81,15 @@ def get_config() -> dict:
         with open(config_path, 'w') as config_file:
             config_file.write(f'# TidalPy Configurations for version: {TidalPy.__version__}\n\n')
             config_file.write(default_config_str)
+    else:
+        # Check if configuration file is for the correct version.
+        with open(config_path, 'r') as config_file:
+            config_version = config_file.readline().split(': ')[1].split('\n')[0].strip()
+            if config_version != TidalPy.__version__:
+                warnings.warn('TidalPy configuration file was built for a different version of TidalPy '
+                              f'({config_version} vs. {TidalPy.__version__}). Unexpected behavior may result.\n'
+                              f'It is suggested that you delete the configuration file at {config_path} so it can be '
+                              'reinitialized with the correct version of TidalPy.')
             
     # Load configurations (these may have been changed by the user) to dict
     config_dict = toml.load(config_path)

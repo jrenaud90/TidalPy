@@ -38,7 +38,7 @@ def get_header_text() -> str:
         f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
         f'----------------------------------------------------------------------------------',
         f'Run made on {now_str}.',
-        f'Using Python {sys.version} on {sys.platform}.\n##\n\n'
+        f'Using Python {sys.version} on {sys.platform}.\n##\n'
         )
     header = '\n'.join(header)
 
@@ -95,47 +95,42 @@ def get_file_handler() -> logging.FileHandler:
     file_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['file_level']])
     return file_handler
 
-def get_logger(logger_name: str) -> logging.Logger:
-    global FILE_HANDLER
-    global STREAM_HANDLER
-    global STREAM_ERR_HANDLER
-    global LOG_FILE_INIT
+# Initialize root logger. Its handlers will be used by other modules logger. 
+_root_logger = logging.getLogger('TidalPy')
 
-    # Ensure handlers are set
-    if FILE_HANDLER is None:
-        FILE_HANDLER = get_file_handler()
-    if STREAM_HANDLER is None:
-        STREAM_HANDLER = get_console_handler(error_stream=False)
-    if STREAM_ERR_HANDLER is None:
-        STREAM_ERR_HANDLER = get_console_handler(error_stream=True)
-    
+# Clear any handlers that might be present
+_root_logger.handlers = list()
+
+# Set base logging level to the lowest one (it will be overridden by the tidalpy config via handlers)
+_root_logger.setLevel(1)
+
+# Initialize handlers
+# Log file handler
+if FILE_HANDLER is None:
+    FILE_HANDLER = get_file_handler()
+    _root_logger.addHandler(FILE_HANDLER)
     # Check if log file has been initialized
-    if FILE_HANDLER is not None:
-        if not LOG_FILE_INIT:
-            # Add header text to log file
-            with open(FILE_HANDLER.baseFilename, 'w') as log_file:
-                log_file.write(get_header_text())
-            LOG_FILE_INIT = True
+    if not LOG_FILE_INIT:
+        # Add header text to log file
+        with open(FILE_HANDLER.baseFilename, 'w') as log_file:
+            log_file.write(get_header_text())
+        LOG_FILE_INIT = True
 
+# Console handler
+if STREAM_HANDLER is None:
+    STREAM_HANDLER = get_console_handler(error_stream=False)
+    _root_logger.addHandler(STREAM_HANDLER)
 
+# Console Error handler
+if STREAM_ERR_HANDLER is None:
+    STREAM_ERR_HANDLER = get_console_handler(error_stream=True)
+    _root_logger.addHandler(STREAM_ERR_HANDLER)
+
+def get_logger(logger_name: str) -> logging.Logger:
     # Get logger class
     logger = logging.getLogger(logger_name)
 
-    # Clear any handlers that might be present
-    logger.handlers = list()
-
-    # Set base logging level to the lowest one (it will be overridden by the tidalpy config via handlers)
-    logger.setLevel(1)
-
-    # Add handlers
-    if FILE_HANDLER is not None:
-        logger.addHandler(FILE_HANDLER)
-    if STREAM_HANDLER is not None:
-        logger.addHandler(STREAM_HANDLER)
-    if STREAM_ERR_HANDLER is not None:
-        logger.addHandler(STREAM_ERR_HANDLER)
-    
-    # Turn off propagation
-    logger.propagate = False
+    # Perform any adjustments to the logger
+    # None are currently required
 
     return logger
