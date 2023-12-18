@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.constants import G
 from TidalPy.radial_solver.numerical.collapse import solid_surface, static_liquid_surface, dynamic_liquid_surface

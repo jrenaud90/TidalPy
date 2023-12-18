@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
-from TidalPy import configurations, debug_mode, tidalpy_loc, use_disk
+from TidalPy import config, extensive_checks, tidalpy_loc
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
                                 IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError, UnknownModelError, UnusualRealValueError)
@@ -16,6 +16,8 @@ from TidalPy.stellar import calc_equilibrium_temperature, equilibrium_insolation
 from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ..helpers.orbit_config import pull_out_orbit_from_config
+
+save_worlds_to_disk = config['worlds']['save_worlds_to_disk']
 
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
@@ -56,7 +58,7 @@ class BaseWorld(PhysicalObjSpherical):
         Parameters
         ----------
         world_config : dict
-            Configuration file used to build the world. User provided configs override default configurations that
+            Configuration file used to build the world. User provided configs override default config that
                 TidalPy assumes.
             Please see files stored in <TidalPy directory>/structures/world_configs for example configuration dict.
         name : str = None
@@ -96,7 +98,7 @@ class BaseWorld(PhysicalObjSpherical):
             self.reinit(initial_init=True)
 
     def reinit(self, initial_init: bool = False, reinit_geometry: bool = True):
-        """ Initialize or Reinitialize the world based on changes to its configurations.
+        """ Initialize or Reinitialize the world based on changes to its config.
 
         This must be called at least once before an instance can be used. The constructor will automatically make an
             initial call to reinit unless told to not to.
@@ -119,17 +121,17 @@ class BaseWorld(PhysicalObjSpherical):
         # Set flags
         self._force_spin_sync = self.config['force_spin_sync']
 
-        # Set Thermal configurations
+        # Set Thermal config
         self._albedo = self.config['albedo']
         self._emissivity = self.config['emissivity']
 
-        # Set Physical configurations
+        # Set Physical config
         self._pressure_above = self.config.get('surface_pressure', 0.)
 
-        # Set Orbit-related configurations
+        # Set Orbit-related config
         self._obliquity = self.config.get('obliquity', 0.)
 
-        # Set surface temperature / stellar interaction configurations
+        # Set surface temperature / stellar interaction config
         self._internal_to_surf_heating_frac = self.config['fraction_internal_heating_to_surface']
         insol_equilib_func = self.config['equilibrium_insolation_model']
         try:
@@ -148,7 +150,7 @@ class BaseWorld(PhysicalObjSpherical):
             del self._config['radii']
 
         if self.orbit is not None:
-            # Update orbit with any new configurations
+            # Update orbit with any new config
             # TODO: Isn't this done in the orbit class?
             orbital_freq, semi_major_axis, eccentricity = pull_out_orbit_from_config(self.config)
             self.orbit.set_state(
@@ -422,7 +424,7 @@ class BaseWorld(PhysicalObjSpherical):
 
         log.debug(f'Method set_spin_frequency called for {self}.')
 
-        if debug_mode:
+        if extensive_checks:
             if np.any(np.abs(spin_frequency) > 1.e-3):
                 raise UnusualRealValueError(
                     f'Spin-frequency should be entered in units of [rads s-1]. '
@@ -473,7 +475,7 @@ class BaseWorld(PhysicalObjSpherical):
 
         log.debug(f'Method set_obliquity called for {self}.')
 
-        if debug_mode:
+        if extensive_checks:
             if np.any(obliquity > 7.):
                 raise UnusualRealValueError(
                     'Obliquity should be entered in radians. '
@@ -564,13 +566,13 @@ class BaseWorld(PhysicalObjSpherical):
             If True, the config will be saved to the TidalPy directory as well as the CWD.
         """
 
-        if not use_disk:
+        if not save_worlds_to_disk:
             raise IOException(
-                "User attempted to save a world's configurations when TidalPy has been set to "
-                "not use_disk"
+                "User attempted to save a world's config when TidalPy has been set to "
+                "not save_worlds_to_disk"
                 )
 
-        log.debug(f'Saving world configurations for {self}.')
+        log.debug(f'Saving world config for {self}.')
 
         save_locales = list()
         if save_to_tidalpy_dir:
@@ -587,28 +589,28 @@ class BaseWorld(PhysicalObjSpherical):
         # No need to save to run dir as that will automatically happen when the planet is killed.
         self.save_config(
             save_to_run_dir=False, additional_save_dirs=save_locales,
-            overwrite=configurations['overwrite_configs']
+            overwrite=config['overwrite_configs']
             )
 
     def kill_world(self):
         """ Performs saving tasks when the world is about to be deleted due to end of run
 
-        The exit_planets variable in the main TidalPy configurations controls rather or not this method ever gets
+        The exit_planets variable in the main TidalPy config controls rather or not this method ever gets
         called automatically.
         """
 
         log.debug(f'Killing world {self}.')
 
         # Save configuration file
-        if use_disk:
-            if configurations['auto_save_planet_config_to_tidalpydir']:
+        if save_worlds_to_disk:
+            if config['auto_save_planet_config_to_tidalpydir']:
                 tidalpy_planet_cfg_dir = [planet_config_loc]
             else:
                 tidalpy_planet_cfg_dir = list()
             self.save_config(
-                save_to_run_dir=configurations['auto_save_planet_config_to_rundir'],
+                save_to_run_dir=config['auto_save_planet_config_to_rundir'],
                 additional_save_dirs=tidalpy_planet_cfg_dir,
-                overwrite=configurations['overwrite_configs']
+                overwrite=config['overwrite_configs']
                 )
 
     # # Initialized properties

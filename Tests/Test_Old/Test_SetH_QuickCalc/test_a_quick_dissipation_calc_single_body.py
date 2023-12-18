@@ -2,7 +2,7 @@ import numpy as np
 from numba.typed.typeddict import Dict
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.toolbox.quick_tides import quick_tidal_dissipation, single_dissipation_from_dict_or_world_instance
 

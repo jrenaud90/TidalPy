@@ -1,11 +1,11 @@
 import TidalPy
-TidalPy.test_mode()
 
-from TidalPy import configurations
+
+from TidalPy import config
 from TidalPy.utilities.performance import nbDict
 from TidalPy.tides.modes import find_unique_frequency_list, find_unique_frequency_dict
 
-MIN_FREQ = configurations['MIN_FREQ']
+MIN_FREQ = config['tides']['modes']['minimum_frequency']
 
 def test_find_unique_frequency_no_dups():
     """ Test `find_unique_frequency_list` and `find_unique_frequency_dict` for a mode dict with no duplicates. """

@@ -3,7 +3,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.constants import G
 from TidalPy.tides.potential import (tidal_potential_nsr, tidal_potential_nsr_modes, tidal_potential_obliquity_nsr,

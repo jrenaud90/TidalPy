@@ -1,7 +1,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 solidus = 1600.
 liquidus = 2000.

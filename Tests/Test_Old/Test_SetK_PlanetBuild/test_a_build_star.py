@@ -4,7 +4,7 @@ import numpy as np
 from scipy.constants import G
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy import world_config_loc
 from TidalPy.structures import build_world

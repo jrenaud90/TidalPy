@@ -54,28 +54,28 @@ FORMATTER = DeltaTimeFormatter('%(asctime)s(+%(delta)s) - %(levelname)-9s: %(mes
 def get_console_handler(error_stream=False):
     if error_stream:
         console_handler = logging.StreamHandler(sys.stderr)
-        console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['console_error_level']])
+        console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_error_level']])
     else:
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['console_level']])
+        console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_level']])
     console_handler.setFormatter(FORMATTER)
     return console_handler
 
 def get_file_handler() -> logging.FileHandler:
     """ Get file handler for TidalPy's logger. """
-    assert TidalPy._config is not None
+    assert TidalPy.config is not None
 
-    if not TidalPy._config['logging']['write_log']:
+    if not TidalPy.config['logging']['write_log_to_disk']:
         # User does not want log written to disk.
         return None
-    if not TidalPy._config['logging']['write_log_notebook'] and TidalPy._in_jupyter:
+    if not TidalPy.config['logging']['write_log_notebook'] and TidalPy._in_jupyter:
         # User does not want log written while using Jupyter notebook; which we are in.
         return None
     if TidalPy.test_mode:
         # TidalPy tests are being run, don't write to disk.
         return None
 
-    if TidalPy._config['logging']['use_cwd']:
+    if TidalPy.config['logging']['use_cwd']:
         log_dir = os.path.join(TidalPy._output_dir, 'Logs')
     else:
         log_dir = get_log_dir()
@@ -90,7 +90,7 @@ def get_file_handler() -> logging.FileHandler:
     # Create handler
     file_handler = logging.FileHandler(log_path)
     file_handler.setFormatter(FORMATTER)
-    file_handler.setLevel(LOGGING_LEVELS[TidalPy._config['logging']['file_level']])
+    file_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['file_level']])
     return file_handler
 
 # Initialize root logger. Its handlers will be used by other modules logger. 

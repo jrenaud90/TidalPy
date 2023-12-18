@@ -1,5 +1,6 @@
 """Functions used to initialize/reinitialize TidalPy"""
 import os
+from pathlib import Path
 
 import toml
 
@@ -16,9 +17,9 @@ def is_notebook() -> bool:
         return False      # Probably standard Python interpreter
 
 def initialize():
-    """ Initialize (or reinitialize) TidalPy based on information stored in TidalPy._config
+    """ Initialize (or reinitialize) TidalPy based on information stored in TidalPy.config
 
-    Items in TidalPy._config are identical to those in the TidalPy_Config.toml unless the user changed them and called
+    Items in TidalPy.config are identical to those in the TidalPy_Config.toml unless the user changed them and called
         TidalPy.reinit()
     
     See more information about TidalPy_Config.toml in TidalPy.configurations.py
@@ -31,12 +32,12 @@ def initialize():
 
     # Get TidalPy configurations
     from TidalPy.configurations import get_config
-    TidalPy._config = get_config()
+    TidalPy.config = get_config()
 
     # Setup pathing
     from TidalPy.paths import timestamped_str
-    output_dir = os.path.join(os.getcwd(), TidalPy._config['pathing']['outer_dir_name'])
-    if TidalPy._config['pathing']['append_datetime']:
+    output_dir = os.path.join(os.getcwd(), TidalPy.config['pathing']['save_directory'])
+    if TidalPy.config['pathing']['append_datetime']:
         output_dir = timestamped_str(output_dir, date=True, time=True, second=False, millisecond=False, preappend=False)
     TidalPy._output_dir = output_dir
 
@@ -52,15 +53,19 @@ def initialize():
     log.info(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
-    if TidalPy._config['configs']['save_configs_locally']:
+    if TidalPy.config['configs']['save_configs_locally']:
+        # Create output directory if it does not exist
+        Path(TidalPy._output_dir).mkdir(parents=True, exist_ok=True)
+
+        # Save TidalPy configurations to that directory.
         config_file_name = f'TidalPy_Configs.toml'
         config_file_path = os.path.join(TidalPy._output_dir, config_file_name)
         with open(config_file_path, 'w') as config_file:
-            toml.dump(TidalPy._config, config_file)
+            toml.dump(TidalPy.config, config_file)
 
     # Load any other parameters from config to top-level program
-    TidalPy.extensive_logging = TidalPy._config['debug']['extensive_logging']
-    TidalPy.extensive_checks  = TidalPy._config['debug']['extensive_checks']
+    TidalPy.extensive_logging = TidalPy.config['debug']['extensive_logging']
+    TidalPy.extensive_checks  = TidalPy.config['debug']['extensive_checks']
 
     # Finish initialization
     TidalPy._tidalpy_init = True

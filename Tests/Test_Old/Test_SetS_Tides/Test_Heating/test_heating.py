@@ -1,5 +1,5 @@
 import TidalPy
-TidalPy.test_mode()
+
 
 import numpy as np
 

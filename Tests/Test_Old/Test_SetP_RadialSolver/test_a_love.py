@@ -3,7 +3,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 def test_file():
     """ Test the importing of the function from the root of the module. """

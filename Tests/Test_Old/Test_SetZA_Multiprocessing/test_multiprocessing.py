@@ -5,7 +5,7 @@ import pathlib
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.utilities.multiprocessing import MultiprocessingInput, MultiprocessingOutput, multiprocessing_run
 

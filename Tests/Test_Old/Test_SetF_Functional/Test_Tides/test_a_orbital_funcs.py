@@ -2,9 +2,7 @@ import numba
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
-
-use_numba = TidalPy.utilities.performance.numba.use_numba
+from TidalPy.utilities.performance.numba import use_numba
 
 
 def test_eccentricity_func_load():

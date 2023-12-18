@@ -3,7 +3,7 @@
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.radial_solver.numerical.initial import known_initial_guess_funcs
 

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.utilities.conversions import days2rads
 from TidalPy.utilities.performance import nbList

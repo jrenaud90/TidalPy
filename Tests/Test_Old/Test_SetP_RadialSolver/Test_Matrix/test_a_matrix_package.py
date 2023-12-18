@@ -1,7 +1,7 @@
 """ Test the `TidalPy.radial_solver.matrix` module. """
 
 import TidalPy
-TidalPy.test_mode()
+
 def test_radial_solver_matrix_package():
     """ Test radial_solver.matrix import. """
 

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.radial_solver.numerical.initial.functions import \
     takeuchi_phi_psi, takeuchi_phi_psi_general, z_calc, z_calc_general

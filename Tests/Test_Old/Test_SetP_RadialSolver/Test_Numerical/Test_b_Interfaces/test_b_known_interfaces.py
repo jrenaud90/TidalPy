@@ -3,7 +3,7 @@
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.radial_solver.numerical.interfaces import find_interface_func, known_interfaces
 

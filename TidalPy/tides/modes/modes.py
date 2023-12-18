@@ -3,11 +3,11 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ... import configurations as tpy_config
+from TidalPy import config
 from ...utilities.performance import njit, nbDict, nbList
 
 
-MIN_FREQ = tpy_config['MIN_FREQ']
+MIN_FREQ = config['tides']['modes']['minimum_frequency']
 
 
 @njit(cacheable=True)

@@ -1,7 +1,7 @@
 """ Test the `TidalPy.radial_solver.numerical.initial` module. """
 
 import TidalPy
-TidalPy.test_mode()
+
 
 def test_radial_solver_numerical_initial_package():
     """ Test radial_solver.numerical.initial import. """

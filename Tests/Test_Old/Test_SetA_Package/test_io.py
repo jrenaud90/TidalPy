@@ -1,8 +1,6 @@
 from datetime import datetime
 
 import TidalPy
-TidalPy.test_mode()
-
 from TidalPy.paths import timestamped_str, unique_path
 
 

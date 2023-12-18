@@ -4,7 +4,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.constants import G, mass_trap1
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell

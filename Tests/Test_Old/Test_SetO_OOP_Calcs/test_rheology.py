@@ -1,5 +1,5 @@
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.structures import build_world
 

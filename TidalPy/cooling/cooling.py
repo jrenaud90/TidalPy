@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy import log
+from TidalPy.logger import get_logger
 from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, MissingAttributeError, OuterscopePropertySetError)
 from TidalPy.utilities.classes.model import LayerModelHolder
 
@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from TidalPy.structures.layers import PhysicalLayerType
 
     from .cooling_models import CoolingOutputType
+
+
+log = get_logger(__name__)
 
 
 class CoolingModel(LayerModelHolder):

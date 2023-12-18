@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import gamma
 
 import TidalPy
-TidalPy.test_mode()
+
 
 
 def test_find_factorial():

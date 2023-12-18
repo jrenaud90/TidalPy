@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy import extensive_checks, log
+from TidalPy import extensive_checks
+from TidalPy.logger import get_logger
 from TidalPy.constants import G
 from TidalPy.exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
                                 IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
@@ -17,6 +18,8 @@ from TidalPy.utilities.classes import ConfigHolder
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatNone
+
+log = get_logger(__name__)
 
 
 class PhysicalObjSpherical(ConfigHolder):

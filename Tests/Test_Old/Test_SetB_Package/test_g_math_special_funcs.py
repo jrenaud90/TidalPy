@@ -3,7 +3,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.utilities.math.special import sqrt_neg
 

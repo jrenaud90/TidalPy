@@ -4,7 +4,7 @@ import pytest
 
 import TidalPy
 
-TidalPy.test_mode()
+
 
 N = 5
 radius_array = np.linspace(0., 1.e6, N)

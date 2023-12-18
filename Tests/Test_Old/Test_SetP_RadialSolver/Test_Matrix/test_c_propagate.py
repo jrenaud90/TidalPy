@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.constants import G
 from TidalPy.radial_solver.matrix import fundamental_matrix_generic

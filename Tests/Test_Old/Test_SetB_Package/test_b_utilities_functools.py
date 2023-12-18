@@ -1,7 +1,7 @@
 import pytest
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.exceptions import ModelException
 from TidalPy.utilities.classes.model.functional_utils import is_function, parse_model_docstring

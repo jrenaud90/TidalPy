@@ -1,8 +1,6 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
-
 from TidalPy.utilities.numpy_helper.array_other import find_nearest, neg_array_for_log_plot, normalize_dict, value_np_cleanup
 
 

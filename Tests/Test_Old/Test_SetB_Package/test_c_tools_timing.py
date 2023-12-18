@@ -1,7 +1,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.utilities.conversions.timing import convert_to_hms
 

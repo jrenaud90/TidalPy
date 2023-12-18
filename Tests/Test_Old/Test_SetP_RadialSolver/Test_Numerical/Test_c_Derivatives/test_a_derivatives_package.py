@@ -1,7 +1,7 @@
 """ Test the `TidalPy.radial_solver.numerical.derivatives` module. """
 
 import TidalPy
-TidalPy.test_mode()
+
 
 def test_radial_solver_numerical_derivatives_package():
     """ Test radial_solver.numerical.derivatives import. """

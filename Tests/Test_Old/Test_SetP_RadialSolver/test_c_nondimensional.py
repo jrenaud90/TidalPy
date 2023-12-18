@@ -3,7 +3,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.constants import G
 from TidalPy.radial_solver.nondimensional import (non_dimensionalize_physicals,

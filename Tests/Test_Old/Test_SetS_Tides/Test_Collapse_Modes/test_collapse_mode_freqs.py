@@ -1,5 +1,5 @@
 import TidalPy
-TidalPy.test_mode()
+
 import numpy as np
 from TidalPy.tides.modes.collapse_modes import collapse_modes
 from numba.core import types

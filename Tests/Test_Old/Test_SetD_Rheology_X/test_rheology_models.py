@@ -6,7 +6,7 @@ import pytest
 
 import TidalPy
 
-TidalPy.test_mode()
+
 
 from TidalPy.rheology.models import find_rheology
 

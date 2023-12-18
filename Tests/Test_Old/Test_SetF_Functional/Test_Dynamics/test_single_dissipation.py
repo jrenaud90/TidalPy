@@ -2,7 +2,7 @@
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode()
+
 
 from TidalPy.dynamics.single_dissipation import (spin_rate_derivative, eccentricity_derivative,
                                                  semi_major_axis_derivative,
