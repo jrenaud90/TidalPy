@@ -1,6 +1,8 @@
 import os
 import shutil
 
+from TidalPy.paths import get_config_dir, get_log_dir, get_worlds_dir
+
 def clear_cache(verbose: bool = True):
     """ Clears TidalPy's cached functions (python cache and cached numba functions).
 
@@ -27,7 +29,43 @@ def clear_cache(verbose: bool = True):
         if '__pycache__' in dirs:
             cache_dir = os.path.join(subdir, '__pycache__')
             if verbose:
-                print('Deleting:', cache_dir)
+                print('Deleting: ', cache_dir)
             shutil.rmtree(cache_dir)
 
     return True
+
+def clear_data(verbose: bool = True):
+    """ Clears TidalPy's data files.
+    
+    Parameters
+    ----------
+    verbose : bool = True
+        Prints the name of directories as they are cleared.
+
+    Returns
+    -------
+    success: bool
+    """
+
+    dirs_to_del = list()
+    dirs_to_del.append(get_config_dir())
+    dirs_to_del.append(get_log_dir())
+    dirs_to_del.append(get_worlds_dir())
+    dir_str = '\n\t'.join(dirs_to_del)
+
+    confirmation = input("Confirm that you would like to delete TidalPy's data directories? " + \
+                         "Any edits made to TidalPy configurations and world configs will be lost. " + \
+                         "Advise making backups first. " + \
+                         f"The following directories will be removed: {dir_str}" + \
+                         "\nProceed? (Y/N): ")
+    
+    if confirmation.lower() == 'y':
+        # Delete files.
+        for dir in dirs_to_del:
+            if verbose:
+                print('Deleting: ', dir)
+            shutil.rmtree(dir)
+
+        return True
+    else:
+        return False

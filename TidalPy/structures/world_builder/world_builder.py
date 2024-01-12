@@ -3,11 +3,12 @@ from typing import TextIO, Union
 
 import json5
 
+from TidalPy.paths import get_worlds_dir
 from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
                                 UnknownWorldType)
 from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
 
-from .config_handler import clean_world_config, get_world_configs, world_config_loc
+from .config_handler import clean_world_config, get_world_configs
 from ..world_types import world_types
 
 from TidalPy.logger import get_logger
@@ -70,7 +71,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
             log.error(
                 f'The user provided world name, {world_name}, can not be found in the directory of pre-built '
                 f'world configs. Please add a new config to this directory or provide a manual world '
-                f'configuration dictionary. Pre-built world configs can be found in:\n{world_config_loc}'
+                f'configuration dictionary. Pre-built world configs can be found in:\n{get_worlds_dir()}'
                 )
             raise UnknownWorld
 

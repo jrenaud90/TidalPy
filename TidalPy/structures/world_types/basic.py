@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
-from TidalPy import config, extensive_checks, tidalpy_loc
+from TidalPy import config, extensive_checks
+from TidalPy.paths import get_worlds_dir
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
                                 IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError, UnknownModelError, UnusualRealValueError)
@@ -17,12 +18,8 @@ from .defaults import world_defaults
 from .. import PhysicalObjSpherical
 from ..helpers.orbit_config import pull_out_orbit_from_config
 
-save_worlds_to_disk = config['worlds']['save_worlds_to_disk']
-
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
-
-planet_config_loc = os.path.join(tidalpy_loc, 'planets', 'planet_configs')
 
 if TYPE_CHECKING:
     from TidalPy.stellar import EquilibFuncType
@@ -552,7 +549,7 @@ class BaseWorld(PhysicalObjSpherical):
         else:
             return True
 
-    def save_world(self, save_dir: str = None, no_cwd: bool = False, save_to_tidalpy_dir: bool = False):
+    def save_world(self, save_dir: str = None, no_cwd: bool = False, save_to_world_dir: bool = False):
         """ Save the world's configuration file to a specified directory.
 
         Parameters
@@ -562,10 +559,11 @@ class BaseWorld(PhysicalObjSpherical):
             If no directory is provided it will be saved os.getcwd()
         no_cwd : bool = False
             If True, the current working directory will *not* be prepended to the provided directory.
-        save_to_tidalpy_dir : bool = False
+        save_to_world_dir : bool = False
             If True, the config will be saved to the TidalPy directory as well as the CWD.
         """
 
+        save_worlds_to_disk = config['worlds']['save_worlds_to_disk']
         if not save_worlds_to_disk:
             raise IOException(
                 "User attempted to save a world's config when TidalPy has been set to "
@@ -575,8 +573,8 @@ class BaseWorld(PhysicalObjSpherical):
         log.debug(f'Saving world config for {self}.')
 
         save_locales = list()
-        if save_to_tidalpy_dir:
-            save_locales.append(planet_config_loc)
+        if save_to_world_dir:
+            save_locales.append(get_worlds_dir())
 
         if save_dir is not None:
             if no_cwd:
@@ -602,9 +600,10 @@ class BaseWorld(PhysicalObjSpherical):
         log.debug(f'Killing world {self}.')
 
         # Save configuration file
+        save_worlds_to_disk = config['worlds']['save_worlds_to_disk']
         if save_worlds_to_disk:
-            if config['auto_save_planet_config_to_tidalpydir']:
-                tidalpy_planet_cfg_dir = [planet_config_loc]
+            if config['worlds']['autosave_worlds_dir']:
+                tidalpy_planet_cfg_dir = [get_worlds_dir()]
             else:
                 tidalpy_planet_cfg_dir = list()
             self.save_config(

@@ -30,9 +30,13 @@ def initialize():
     running_in_jupyter = is_notebook()
     TidalPy._in_jupyter = running_in_jupyter
 
-    # Get TidalPy configurations
-    from TidalPy.configurations import get_config
-    TidalPy.config = get_config()
+    # Set TidalPy configurations if they are not already set.
+    if TidalPy.config is None:
+        # No configuration dictionary has been set.
+        from TidalPy.configurations import set_config
+        set_config('default')
+    elif TidalPy.config['configs']['use_cwd_for_config']:
+        set_config(os.path.join(os.getcwd(), 'TidalPy_Configs.toml'))
 
     # Setup pathing
     from TidalPy.paths import timestamped_str
@@ -40,6 +44,13 @@ def initialize():
     if TidalPy.config['pathing']['append_datetime']:
         output_dir = timestamped_str(output_dir, date=True, time=True, second=False, millisecond=False, preappend=False)
     TidalPy._output_dir = output_dir
+
+    # Setup world configuration directory path
+    from TidalPy.configurations import set_world_dir
+    if TidalPy.config['configs']['use_cwd_for_world_dir']:
+        set_world_dir(os.getcwd())
+    else:
+        set_world_dir('default')
 
     # Setup logging
     from TidalPy.logger import get_logger

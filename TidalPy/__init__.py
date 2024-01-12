@@ -12,9 +12,13 @@ init_time = time.time()
 _tidalpy_init = False
 _in_jupyter = False
 _output_dir = None
+_config_path = None
 
 # TidalPy configurations
 config = None
+
+# World configuration directory
+world_config_dir = None
 
 # Public properties that can be changed by user
 extensive_logging = False
@@ -27,4 +31,4 @@ from TidalPy.initialize import initialize as reinit
 reinit()
 
 # Import module functions
-from .cache import clear_cache
+from .cache import clear_cache, clear_data

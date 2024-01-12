@@ -33,7 +33,9 @@ write_log_notebook = false
 
 [configs]
 # Save these configurations to local run directory.
-save_configs_locally = true
+save_configs_locally = false
+use_cwd_for_config = false
+use_cwd_for_world_dir = false
 
 [numba]
 # TODO: Remove this section if/when numba support is deprecated.
@@ -45,6 +47,7 @@ cache_numba = true
 [worlds]
 # Should TidalPy save world information to `save_directory`?
 save_worlds_to_disk = true
+autosave_worlds_dir = true
 
 [tides.modes]
 # Set the minimum forcing frequency that is treated as zero: `|w| <= minimum_frequency --> w = 0`

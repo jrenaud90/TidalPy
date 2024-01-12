@@ -33,6 +33,11 @@ Other Major Changes
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
 * Changed setup files so that cython code can be compiled.
   * `special` - for high-performance, general, scientific functions.
+* Moved TidalPy configs to a standard user directory by default. The specific location will depend on the OS.
+  * There is a new `TidalPy.clear_data()` function to delete all data stored in these locations. Data will be rebuilt the next time TidalPy is imported.
+  * New `TidalPy.set_config(config_path)` to change the active configuration file used by TidalPy.
+    * Note that `TidalPy.reinit()` should be called after changing the configurations.
+  * New `TidalPy.set_world_dir(world_dir_path)` to change which directory to pull world configs from. 
 
 Dependencies 
 * Added support for Python 3.11. TidalPy now runs on Python 3.8--3.11.
