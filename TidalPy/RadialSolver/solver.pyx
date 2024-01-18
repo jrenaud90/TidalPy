@@ -441,7 +441,7 @@ cdef RadialSolverSolution cf_radial_solver(
                 break
             layer_slices += 1
         if layer_slices <= 3:
-            raise ValueError('At least three layer slices per layer are required\n\tTry using more slices in the'
+            raise ValueError('At least three layer slices per layer are required. Try using more slices in the' + \
                              'input arrays.')
         num_slices_by_layer_ptr[layer_i] = layer_slices
 
