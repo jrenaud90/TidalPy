@@ -46,9 +46,11 @@ cdef class RadialSolverSolution():
 
         # loop indicies
         cdef size_t i
+        cdef size_t love_array_size
 
         # Initialize pointers
         self.full_solution_ptr = NULL
+        self.complex_love_ptr = NULL
 
         # Initialize status
         self.message = 'RadialSolverSolution has not had its status set.'
@@ -74,12 +76,58 @@ cdef class RadialSolverSolution():
         #  the solutions will be defined (but nan).
         for i in range(self.total_size):
             self.full_solution_ptr[i] = NAN
+        
+        # Initialize Love numbers (3 love numbers for each requested y-type)
+        # Love numbers are stored (k, h, l)_ytype0, (k, h, l)_ytype1, (k, h, l)_ytype2, ...
+        love_array_size = 3 * self.num_ytypes
+        self.complex_love_ptr = <double complex*> allocate_mem(
+            love_array_size * sizeof(double complex),
+            'complex_love_ptr (RadialSolverSolution; init)'
+            )
+        if not (self.complex_love_ptr is NULL):
+            self.complex_love_view = <double complex[:love_array_size]> self.complex_love_ptr
+        for i in range(love_array_size):
+            self.complex_love_ptr[i] = NAN
 
     @property
     def result(self):
+        """ Return result array. """
         return np.ascontiguousarray(
-            self.full_solution_view, dtype=np.complex128
+            self.full_solution_view,
+            dtype=np.complex128
             ).reshape((self.num_slices, self.num_ytypes * MAX_NUM_Y)).T
+    
+    @property
+    def love(self):
+        """ Return all complex love numbers. """
+        return np.ascontiguousarray(
+            self.complex_love_view,
+            dtype=np.complex128
+        ).reshape((self.num_ytypes, 3))
+
+    @property
+    def k(self):
+        """ Tidal Love number k. """
+        return np.ascontiguousarray(
+            self.complex_love_view[0::3],
+            dtype=np.complex128
+        )
+
+    @property
+    def h(self):
+        """ Tidal Love number h. """
+        return np.ascontiguousarray(
+            self.complex_love_view[1::3],
+            dtype=np.complex128
+        )
+    
+    @property
+    def l(self):
+        """ Tidal Shida number l. """
+        return np.ascontiguousarray(
+            self.complex_love_view[2::3],
+            dtype=np.complex128
+        )
     
     def __len__(self):
         """Return number of solution types."""
@@ -109,6 +157,8 @@ cdef class RadialSolverSolution():
         # The RadialSolverSolution class has full control of the solution so it is responsible for releasing its memory.
         if not (self.full_solution_ptr is NULL):
             PyMem_Free(self.full_solution_ptr)
+        if not (self.complex_love_ptr is NULL):
+            PyMem_Free(self.complex_love_ptr)
 
 
 cdef RadialSolverSolution cf_radial_solver(
@@ -146,10 +196,12 @@ cdef RadialSolverSolution cf_radial_solver(
     # Indexing for: Layer | Solution | ys | slices | solutions
     cdef size_t layer_i
     cdef size_t slice_i
+    cdef size_t top_slice_i
     # Indexing for: Solution | ys | ytypes
     cdef unsigned char solution_i
     cdef unsigned char y_i
     cdef unsigned char ytype_i
+    cdef unsigned char lhs_y_index
 
     # Type conversions
     cdef double degree_l_dbl = <double>degree_l
@@ -161,6 +213,7 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef size_t total_slices
 
     total_slices   = len(radius_array)
+    top_slice_i    = total_slices - 1
     radius_planet  = radius_array[total_slices - 1]
     num_layers     = len(is_solid_by_layer)
     num_interfaces = num_layers - 1
@@ -502,6 +555,8 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex* constant_vector_ptr = &constant_vector[0]
     cdef double complex[3] layer_above_constant_vector
     cdef double complex* layer_above_constant_vector_ptr = &layer_above_constant_vector[0]
+    cdef double complex[6] surface_solutions
+    cdef double complex* surface_solutions_ptr = &surface_solutions[0]
 
     # OPT: Could reuse some of these variables so there are not so many being allocated for this function.
     cdef double complex y4_frac_1, y4_frac_2
@@ -930,6 +985,17 @@ cdef RadialSolverSolution cf_radial_solver(
                 
                 # Ready for next y-type
                 ytype_i += 1
+
+            # Calculate Love numbers and install in final solution.
+            # First find the solution at the planet's surface.
+            for ytype_i in range(num_ytypes):
+                for y_i in range(MAX_NUM_Y):
+                    lhs_y_index = ytype_i * MAX_NUM_Y + y_i
+                    surface_solutions_ptr[y_i] = solution_ptr[top_slice_i * num_output_ys + lhs_y_index]
+                
+                # Solve Love numbers for this y-type.
+                find_love_cf(&solution.complex_love_ptr[ytype_i * 3], surface_solutions_ptr, surface_gravity)
+
     finally:
         # Free memory
         if cysolver_setup:

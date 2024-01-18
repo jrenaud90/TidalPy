@@ -1,19 +1,32 @@
 from libcpp cimport bool as bool_cpp_t
 
+cdef extern from "love.c":
+    void find_love_cf(
+        double complex* complex_love_numbers_ptr,
+        double complex* surface_solutions_ptr,
+        double surface_gravity
+        ) noexcept nogil
+
 cdef class RadialSolverSolution():
 
     cdef public str message
     cdef public bool_cpp_t success
 
-    cdef double complex* full_solution_ptr
-    cdef double complex[::1] full_solution_view
-
+    # Result structure information
     cdef size_t num_ys
     cdef size_t num_slices
     cdef size_t total_size
     cdef size_t num_ytypes
-
     cdef tuple ytypes
+
+    # Result pointers and data
+    cdef double complex* full_solution_ptr
+    cdef double complex[::1] full_solution_view
+
+    # Love number information
+    cdef double complex* complex_love_ptr
+    cdef double complex[::1] complex_love_view
+
 
 cdef RadialSolverSolution cf_radial_solver(
     const double[:] radius_array,

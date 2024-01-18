@@ -126,7 +126,10 @@
   },
   "RadialSolver.solver": {
     "name": "TidalPy.RadialSolver.solver",
-    "sources": [["TidalPy", "RadialSolver", "solver.pyx"]],
+    "sources": [
+      ["TidalPy", "RadialSolver", "solver.pyx"],
+      ["TidalPy", "RadialSolver", "love.c"]
+    ],
     "include_dirs": [["TidalPy", "RadialSolver", "solver"]],
     "compile_args": [],
     "link_args": []
