@@ -827,7 +827,7 @@ cdef RadialSolverSolution cf_radial_solver(
             cysolver_setup = False
 
         if error:
-            feedback_str = 'Integration failed.'
+            feedback_str = f'Integration failed. {solver.message}'
             if verbose:
                 print(feedback_str)
             if raise_on_fail:
