@@ -409,6 +409,10 @@ cdef RadialSolverSolution cf_radial_solver(
         layer_is_static    = is_static_by_layer[layer_i]
         layer_is_incomp    = is_incompressible_by_layer[layer_i]
         layer_upper_radius = upper_radius_by_layer[layer_i]
+        
+        # Make any dimension corrections
+        if nondimensionalize:
+            layer_upper_radius = layer_upper_radius / radius_planet
 
         # Once the tuples are unpacked once store their values so we don't have to mess with them again.
         is_solid_by_layer_ptr[layer_i]          = layer_is_solid
@@ -1222,3 +1226,28 @@ def radial_solver(
             nondimensionalize,
             verbose,
             raise_on_fail)
+
+
+def find_love(
+    double complex[:] complex_love_numbers_view,
+    double complex[:] surface_solutions_view,
+    double surface_gravity
+    ):
+    """
+    Find the complex Love and Shida numbers given the surface radial solutions for a planet.
+
+    Parameters
+    ----------
+    complex_love_numbers_view : double complex[:], array, output
+        Array to store complex Love numbers. There must be space for 3 double complex numbers.
+    surface_solutions_view : double complex[:], array, input
+        Array of radial solutions (y_i) values at the surface of a planet.
+    surface_gravity : double, input
+        Acceleration due to gravity at the planet's surface [m s-2].
+    """
+
+    return find_love_cf(
+        &complex_love_numbers_view[0],
+        &surface_solutions_view[0],
+        surface_gravity
+        )
