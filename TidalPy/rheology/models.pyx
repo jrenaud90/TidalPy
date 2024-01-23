@@ -1,7 +1,11 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport fabs, cos, sin, pi, tgamma
+from libc.math cimport fabs, cos, sin, pi, tgamma, INFINITY, isinf
+
+from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
+from TidalPy.utilities.constants cimport MIN_FREQUENCY, MAX_FREQUENCY, MIN_MODULUS
+
 
 ########################################################################################################################
 #################################### Add New Rheology Model Names to Find Function #####################################
@@ -14,19 +18,19 @@ def find_rheology(str rheology_name):
     rheology_name_clean = rheology_name.lower().strip()
 
     if (rheology_name_clean == 'elastic') or (rheology_name_clean == 'off'):
-        return ElasticRheology
+        return Elastic
     elif (rheology_name_clean == 'newton') or (rheology_name_clean == 'viscous'):
-        return NewtonRheology
+        return Newton
     elif rheology_name_clean == 'maxwell':
-        return MaxwellRheology
+        return Maxwell
     elif (rheology_name_clean == 'voigt') or (rheology_name_clean == 'voigtkelvin'):
-        return VoigtRheology
+        return Voigt
     elif rheology_name_clean == 'burgers':
-        return BurgersRheology
+        return Burgers
     elif rheology_name_clean == 'andrade':
-        return AndradeRheology
+        return Andrade
     elif (rheology_name_clean == 'sundberg') or (rheology_name_clean == 'sundbergcooper'):
-        return SundbergCooperRheology
+        return SundbergCooper
     else:
         raise AttributeError(f'Unknown rheological model requested: {rheology_name}.')
 
@@ -48,7 +52,7 @@ cdef class Elastic(RheologyModelBase):
             double viscosity
             ) noexcept nogil:
 
-        return modulus + 0.0j
+        return cf_build_dblcmplx(modulus, 0.0)
 
 
 cdef class Newton(RheologyModelBase):
@@ -62,8 +66,19 @@ cdef class Newton(RheologyModelBase):
             double modulus,
             double viscosity
             ) noexcept nogil:
+        
+        # TODO: Should frequency be abs here? Assuming so as the others are.
+        frequency_abs = fabs(frequency)
 
-        return 0.0 + 1.0j * frequency * viscosity
+        # Check for extreme values. If found: use pre-calculated limits.
+        if frequency_abs < MIN_FREQUENCY:
+            return cf_build_dblcmplx(0.0, 0.0)
+        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+            return cf_build_dblcmplx(0.0, INFINITY)
+        if modulus < MIN_MODULUS:
+            return cf_build_dblcmplx(0.0, frequency_abs * viscosity)
+
+        return cf_build_dblcmplx(0.0, frequency_abs * viscosity)
 
 
 cdef class Maxwell(RheologyModelBase):
@@ -78,13 +93,18 @@ cdef class Maxwell(RheologyModelBase):
             double viscosity
             ) noexcept nogil:
 
-        cdef double frequency_abs
-        cdef double maxwell_time
-        cdef double complex denom
+        cdef double frequency_abs = fabs(frequency)
 
-        frequency_abs = fabs(frequency)
-        maxwell_time  = viscosity / modulus
-        denom = frequency_abs * maxwell_time - 1.0j
+        # Check for extreme values. If found: use pre-calculated limits.
+        if frequency_abs < MIN_FREQUENCY:
+            return cf_build_dblcmplx(0.0, 0.0)
+        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+            return cf_build_dblcmplx(modulus, 0.0)
+        if modulus < MIN_MODULUS:
+            return cf_build_dblcmplx(0.0, 0.0)
+
+        cdef double maxwell_time  = viscosity / modulus
+        cdef double complex denom = cf_build_dblcmplx(frequency_abs * maxwell_time, -1.0)
 
         return (viscosity * frequency_abs) / denom
 
@@ -105,17 +125,22 @@ cdef class Voigt(RheologyModelBase):
             self,
             double frequency,
             double modulus,
-            double viscosity) noexcept nogil:
+            double viscosity
+            ) noexcept nogil:
 
-        cdef double frequency_abs
-        cdef double voigt_modulus
-        cdef double voigt_visosity
+        cdef double frequency_abs  = fabs(frequency)
+        cdef double voigt_modulus  = self.voigt_modulus_scale * modulus
+        cdef double voigt_visosity = self.voigt_viscosity_scale * viscosity
 
-        frequency_abs  = fabs(frequency)
-        voigt_modulus  = self.voigt_modulus_scale * modulus
-        voigt_visosity = self.voigt_viscosity_scale * viscosity
+        # Check for extreme values. If found: use pre-calculated limits.
+        if frequency_abs < MIN_FREQUENCY:
+            return cf_build_dblcmplx(voigt_modulus, 0.0)
+        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+            return cf_build_dblcmplx(0.0, INFINITY)
+        if modulus < MIN_MODULUS:
+            return cf_build_dblcmplx(0.0, voigt_visosity * frequency_abs)
 
-        return voigt_modulus + 1.0j * frequency_abs * voigt_visosity
+        return cf_build_dblcmplx(voigt_modulus, frequency_abs * voigt_visosity)
 
 
 cdef class Burgers(RheologyModelBase):
@@ -134,29 +159,29 @@ cdef class Burgers(RheologyModelBase):
             self,
             double frequency,
             double modulus,
-            double viscosity) noexcept nogil:
+            double viscosity
+            ) noexcept nogil:
 
-        cdef double frequency_abs
-        cdef double voigt_modulus
-        cdef double voigt_visosity
-        cdef double voigt_time
-        cdef double maxwell_time
-        cdef double maxwell_parm
-        cdef double complex voigt_param
-        cdef double complex denom
+        cdef double frequency_abs = fabs(frequency)
 
-        frequency_abs  = fabs(frequency)
-        voigt_modulus  = self.voigt_modulus_scale * modulus
-        voigt_visosity = self.voigt_viscosity_scale * viscosity
-        voigt_time     = voigt_visosity / voigt_modulus
-        maxwell_time   = viscosity / modulus
-        maxwell_parm   = maxwell_time * frequency_abs
-        voigt_param = (frequency_abs * voigt_time - 1.0j)
+        # Check for extreme values. If found: use pre-calculated limits.
+        if frequency_abs < MIN_FREQUENCY:
+            return cf_build_dblcmplx(0.0, 0.0)
+        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+            return cf_build_dblcmplx(modulus, 0.0)
+        if modulus < MIN_MODULUS:
+            return cf_build_dblcmplx(0.0, 0.0)
 
-        denom = \
+        cdef double voigt_modulus       = self.voigt_modulus_scale * modulus
+        cdef double voigt_visosity      = self.voigt_viscosity_scale * viscosity
+        cdef double voigt_time          = voigt_visosity / voigt_modulus
+        cdef double maxwell_time        = viscosity / modulus
+        cdef double maxwell_parm        = maxwell_time * frequency_abs
+        cdef double complex voigt_param = cf_build_dblcmplx(frequency_abs * voigt_time, -1.0)
+
+        cdef double complex denom = \
             maxwell_parm * voigt_param + \
-            -1.0j * frequency_abs * (viscosity + voigt_visosity) / voigt_modulus + \
-            -1.0
+            cf_build_dblcmplx(-1.0, -frequency_abs * (viscosity + voigt_visosity) / voigt_modulus)
 
         return (viscosity * frequency_abs * voigt_param) / denom
 
@@ -182,23 +207,26 @@ cdef class Andrade(RheologyModelBase):
             self,
             double frequency,
             double modulus,
-            double viscosity) noexcept nogil:
+            double viscosity
+            ) noexcept nogil:
 
-        cdef double frequency_abs
-        cdef double maxwell_time
-        cdef double maxwell_parm
-        cdef double andrade_term
-        cdef double complex denom
+        cdef double frequency_abs = fabs(frequency)
 
-        frequency_abs = fabs(frequency)
-        maxwell_time  = viscosity / modulus
-        maxwell_parm  = maxwell_time * frequency_abs
-        andrade_term  = (maxwell_parm * self.zeta)**(self.alpha)
+        # Check for extreme values. If found: use pre-calculated limits.
+        if frequency_abs < MIN_FREQUENCY:
+            return cf_build_dblcmplx(0.0, 0.0)
+        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+            return cf_build_dblcmplx(modulus, 0.0)
+        if modulus < MIN_MODULUS:
+            return cf_build_dblcmplx(0.0, 0.0)
 
-        denom = \
+        cdef double maxwell_time = viscosity / modulus
+        cdef double maxwell_parm = maxwell_time * frequency_abs
+        cdef double andrade_term = (maxwell_parm * self.zeta)**(self.alpha)
+
+        cdef double complex denom = \
             maxwell_parm * self.alpha_factorial * self.sine_term + \
-            maxwell_parm * andrade_term + \
-            -1j * andrade_term
+            cf_build_dblcmplx(maxwell_parm * andrade_term, -andrade_term)
 
         return (viscosity * frequency_abs * andrade_term) / denom
 
@@ -212,42 +240,42 @@ cdef class SundbergCooper(RheologyModelBase):
 
         super().change_args(new_args)
 
-        self.voigt_modulus_scale    = new_args[0]
-        self.voigt_viscosity_scale  = new_args[1]
-        self.alpha                  = new_args[2]
-        self.zeta                   = new_args[3]
-        self.alpha_factorial        = tgamma(self.alpha + 1.)
-        self.sine_term              = cos(pi * self.alpha / 2.) - 1.0j * sin(pi * self.alpha / 2.)
+        self.voigt_modulus_scale   = new_args[0]
+        self.voigt_viscosity_scale = new_args[1]
+        self.alpha                 = new_args[2]
+        self.zeta                  = new_args[3]
+        self.alpha_factorial       = tgamma(self.alpha + 1.)
+        self.sine_term             = cos(pi * self.alpha / 2.) - 1.0j * sin(pi * self.alpha / 2.)
 
     cdef double complex _implementation(
             self,
             double frequency,
             double modulus,
-            double viscosity) noexcept nogil:
+            double viscosity
+            ) noexcept nogil:
 
-        cdef double frequency_abs
-        cdef double voigt_modulus
-        cdef double voigt_visosity
-        cdef double voigt_time
-        cdef double maxwell_time
-        cdef double maxwell_parm
-        cdef double andrade_term
-        cdef double complex voigt_param
-        cdef double complex denom
+        cdef double frequency_abs = fabs(frequency)
 
-        frequency_abs  = fabs(frequency)
-        voigt_modulus  = self.voigt_modulus_scale * modulus
-        voigt_visosity = self.voigt_viscosity_scale * viscosity
-        voigt_time     = voigt_visosity / voigt_modulus
-        maxwell_time   = viscosity / modulus
-        maxwell_parm   = maxwell_time * frequency_abs
-        andrade_term   = (maxwell_parm * self.zeta)**(self.alpha)
-        voigt_param    = (frequency_abs * voigt_time - 1.0j)
+        # Check for extreme values. If found: use pre-calculated limits.
+        if frequency_abs < MIN_FREQUENCY:
+            return cf_build_dblcmplx(0.0, 0.0)
+        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+            return cf_build_dblcmplx(modulus, 0.0)
+        if modulus < MIN_MODULUS:
+            return cf_build_dblcmplx(0.0, 0.0)
 
-        denom = \
+        cdef double voigt_modulus       = self.voigt_modulus_scale * modulus
+        cdef double voigt_visosity      = self.voigt_viscosity_scale * viscosity
+        cdef double voigt_time          = voigt_visosity / voigt_modulus
+        cdef double maxwell_time        = viscosity / modulus
+        cdef double maxwell_parm        = maxwell_time * frequency_abs
+        cdef double andrade_term        = (maxwell_parm * self.zeta)**(self.alpha)
+        cdef double complex voigt_param = cf_build_dblcmplx(frequency_abs * voigt_time, -1.0)
+
+        cdef double complex denom = \
             maxwell_parm * self.alpha_factorial * self.sine_term * voigt_param + \
             maxwell_parm * andrade_term * voigt_param + \
-            -1.0j * andrade_term * voigt_param + \
-            -1.0j * andrade_term * maxwell_parm / self.voigt_modulus_scale
+            cf_build_dblcmplx(0.0, -1.0) * \
+                (andrade_term * voigt_param + andrade_term * maxwell_parm / self.voigt_modulus_scale)
 
         return (viscosity * frequency_abs * andrade_term * voigt_param) / denom

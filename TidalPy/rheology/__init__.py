@@ -1,6 +1,6 @@
 # Rheology Imports
 from .rheology import Rheology
-from TidalPy.rheology import (
+from TidalPy.rheology.models import (
     Elastic,
     Newton,
     Maxwell,
@@ -8,6 +8,7 @@ from TidalPy.rheology import (
     Burgers,
     Andrade,
     SundbergCooper)
+from TidalPy.rheology.models import find_rheology
 
 # Alias rheologies
 Sundberg = SundbergCooper

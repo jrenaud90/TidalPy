@@ -26,6 +26,7 @@ precompiled cython functionality.
   - Added new cython-based `radial_solver_x`.
   - Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
   - Added new cython-based `TidalPy.rheology.models`.
+    - Improved the new rheology methods to better handle extreme values of frequency and modulus.
 
 Other Major Changes
 * Removed support for `solver_numba` in the `radial_solver` module.

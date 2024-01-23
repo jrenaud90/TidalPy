@@ -5,6 +5,13 @@
     "compile_args": [],
     "link_args": []
   },
+  "constants": {
+    "name": "TidalPy.utilities.constants",
+    "sources": [["TidalPy", "utilities", "constants.pyx"]],
+    "include_dirs": [["TidalPy", "utilities"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "math.complex": {
     "name": "TidalPy.utilities.math.complex",
     "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
