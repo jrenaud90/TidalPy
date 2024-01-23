@@ -43,7 +43,7 @@ def find_rheology(str rheology_name):
 cdef class Elastic(RheologyModelBase):
 
     def __init__(self, tuple args=None, **kwargs):
-        super().__init__(args=args, expected_num_args=0, class_name='ElasticRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=0, class_name='Elastic', **kwargs)
 
     cdef double complex _implementation(
             self,
@@ -58,7 +58,7 @@ cdef class Elastic(RheologyModelBase):
 cdef class Newton(RheologyModelBase):
 
     def __init__(self, tuple args=None, **kwargs):
-        super().__init__(args=args, expected_num_args=0, class_name='NewtonRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=0, class_name='Newton', **kwargs)
 
     cdef double complex _implementation(
             self,
@@ -84,7 +84,7 @@ cdef class Newton(RheologyModelBase):
 cdef class Maxwell(RheologyModelBase):
 
     def __init__(self, tuple args=None, **kwargs):
-        super().__init__(args=args, expected_num_args=0, class_name='MaxwellRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=0, class_name='Maxwell', **kwargs)
 
     cdef double complex _implementation(
             self,
@@ -112,7 +112,7 @@ cdef class Maxwell(RheologyModelBase):
 cdef class Voigt(RheologyModelBase):
 
     def __init__(self, tuple args=(5.0, 0.02), **kwargs):
-        super().__init__(args=args, expected_num_args=2, class_name='VoigtRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=2, class_name='Voigt', **kwargs)
         
     def change_args(self, tuple new_args):
 
@@ -146,7 +146,7 @@ cdef class Voigt(RheologyModelBase):
 cdef class Burgers(RheologyModelBase):
 
     def __init__(self, tuple args=(5.0, 0.02), **kwargs):
-        super().__init__(args=args, expected_num_args=2, class_name='BurgersRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=2, class_name='Burgers', **kwargs)
 
     def change_args(self, tuple new_args):
 
@@ -189,7 +189,7 @@ cdef class Burgers(RheologyModelBase):
 cdef class Andrade(RheologyModelBase):
 
     def __init__(self, tuple args=(0.3, 1.0), **kwargs):
-        super().__init__(args=args, expected_num_args=2, class_name='AndradeRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=2, class_name='Andrade', **kwargs)
 
     def change_args(self, tuple new_args):
 
@@ -234,7 +234,7 @@ cdef class Andrade(RheologyModelBase):
 cdef class SundbergCooper(RheologyModelBase):
 
     def __init__(self, tuple args=(5.0, 0.02, 0.3, 1.0), **kwargs):
-        super().__init__(args=args, expected_num_args=4, class_name='SundbergCooperRheology', **kwargs)
+        super().__init__(args=args, expected_num_args=4, class_name='SundberCooper', **kwargs)
 
     def change_args(self, tuple new_args):
 

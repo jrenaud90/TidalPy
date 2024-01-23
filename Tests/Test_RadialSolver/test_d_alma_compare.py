@@ -124,7 +124,7 @@ def test_radial_solver_alma_compare(degree_l):
         upper_radius_by_layer,
         degree_l=degree_l,
         solve_for=None,
-        use_kamata=False,
+        use_kamata=True,
         integration_method=1,
         integration_rtol=integration_rtol,
         integration_atol=integration_atol,
