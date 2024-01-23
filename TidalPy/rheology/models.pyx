@@ -36,7 +36,7 @@ def find_rheology(str rheology_name):
 ########################################################################################################################
 
 
-cdef class ElasticRheology(RheologyModelBase):
+cdef class Elastic(RheologyModelBase):
 
     def __init__(self, tuple args=None, **kwargs):
         super().__init__(args=args, expected_num_args=0, class_name='ElasticRheology', **kwargs)
@@ -51,7 +51,7 @@ cdef class ElasticRheology(RheologyModelBase):
         return modulus + 0.0j
 
 
-cdef class NewtonRheology(RheologyModelBase):
+cdef class Newton(RheologyModelBase):
 
     def __init__(self, tuple args=None, **kwargs):
         super().__init__(args=args, expected_num_args=0, class_name='NewtonRheology', **kwargs)
@@ -66,7 +66,7 @@ cdef class NewtonRheology(RheologyModelBase):
         return 0.0 + 1.0j * frequency * viscosity
 
 
-cdef class MaxwellRheology(RheologyModelBase):
+cdef class Maxwell(RheologyModelBase):
 
     def __init__(self, tuple args=None, **kwargs):
         super().__init__(args=args, expected_num_args=0, class_name='MaxwellRheology', **kwargs)
@@ -89,7 +89,7 @@ cdef class MaxwellRheology(RheologyModelBase):
         return (viscosity * frequency_abs) / denom
 
 
-cdef class VoigtRheology(RheologyModelBase):
+cdef class Voigt(RheologyModelBase):
 
     def __init__(self, tuple args=(5.0, 0.02), **kwargs):
         super().__init__(args=args, expected_num_args=2, class_name='VoigtRheology', **kwargs)
@@ -118,7 +118,7 @@ cdef class VoigtRheology(RheologyModelBase):
         return voigt_modulus + 1.0j * frequency_abs * voigt_visosity
 
 
-cdef class BurgersRheology(RheologyModelBase):
+cdef class Burgers(RheologyModelBase):
 
     def __init__(self, tuple args=(5.0, 0.02), **kwargs):
         super().__init__(args=args, expected_num_args=2, class_name='BurgersRheology', **kwargs)
@@ -161,7 +161,7 @@ cdef class BurgersRheology(RheologyModelBase):
         return (viscosity * frequency_abs * voigt_param) / denom
 
 
-cdef class AndradeRheology(RheologyModelBase):
+cdef class Andrade(RheologyModelBase):
 
     def __init__(self, tuple args=(0.3, 1.0), **kwargs):
         super().__init__(args=args, expected_num_args=2, class_name='AndradeRheology', **kwargs)
@@ -203,7 +203,7 @@ cdef class AndradeRheology(RheologyModelBase):
         return (viscosity * frequency_abs * andrade_term) / denom
 
 
-cdef class SundbergCooperRheology(RheologyModelBase):
+cdef class SundbergCooper(RheologyModelBase):
 
     def __init__(self, tuple args=(5.0, 0.02, 0.3, 1.0), **kwargs):
         super().__init__(args=args, expected_num_args=4, class_name='SundbergCooperRheology', **kwargs)

@@ -4,30 +4,30 @@ from TidalPy.rheology.base cimport RheologyModelBase
 ######################################## New Rheological Models Go Below Here! #########################################
 ########################################################################################################################
 
-cdef class ElasticRheology(RheologyModelBase):
+cdef class Elastic(RheologyModelBase):
     pass
 
-cdef class NewtonRheology(RheologyModelBase):
+cdef class Newton(RheologyModelBase):
     pass
 
-cdef class MaxwellRheology(RheologyModelBase):
+cdef class Maxwell(RheologyModelBase):
     pass
 
-cdef class VoigtRheology(RheologyModelBase):
+cdef class Voigt(RheologyModelBase):
     cdef double voigt_modulus_scale
     cdef double voigt_viscosity_scale
 
-cdef class BurgersRheology(RheologyModelBase):
+cdef class Burgers(RheologyModelBase):
     cdef double voigt_modulus_scale
     cdef double voigt_viscosity_scale
 
-cdef class AndradeRheology(RheologyModelBase):
+cdef class Andrade(RheologyModelBase):
     cdef double alpha
     cdef double alpha_factorial
     cdef double zeta
     cdef double complex sine_term
 
-cdef class SundbergCooperRheology(RheologyModelBase):
+cdef class SundbergCooper(RheologyModelBase):
     cdef double voigt_modulus_scale
     cdef double voigt_viscosity_scale
     cdef double alpha
