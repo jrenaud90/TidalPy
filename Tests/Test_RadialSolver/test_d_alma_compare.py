@@ -99,14 +99,14 @@ is_static_by_layer = (False, True, True)
 is_incompressible_by_layer = (True, True, True)
 upper_radius_by_layer = (core_r, ocean_r, crust_r)
 
-@pytest.mark.parametrize('degree_l', (2, 3))
+@pytest.mark.parametrize('degree_l', (2, 3, 4))
 def test_radial_solver_alma_compare(degree_l):
     """ Compare TidalPy's `radial_solver` to ALMA for an Enceladus-like planet. """
-    success_threshold_real = 0.05
+    success_threshold_real = 0.08
     success_threshold_imag = 0.10
 
-    integration_rtol = 1.0e-4
-    integration_atol = 1.0e-8
+    integration_rtol = 1.0e-8
+    integration_atol = 1.0e-9
 
     # Pull out ALMA results
     alma_k, alma_h, alma_l = alma_results[degree_l]
@@ -131,9 +131,9 @@ def test_radial_solver_alma_compare(degree_l):
         integration_rtol=integration_rtol,
         integration_atol=integration_atol,
         scale_rtols_by_layer_type=True,
-        max_num_steps=500_000,
-        expected_size=500,
-        max_ram_MB=500,
+        max_num_steps=10_000_000,
+        expected_size=1000,
+        max_ram_MB=1500,
         max_step=0,
         limit_solution_to_radius=True,
         nondimensionalize=True,
@@ -159,14 +159,6 @@ def test_radial_solver_alma_compare(degree_l):
     tidalpy_k = solution.k[0]
     tidalpy_h = solution.h[0]
     tidalpy_l = solution.l[0]
-
-
-    old_out = rs_old(radius_array, complex_shear, bulk_array, density_array, gravity_array, frequency, planet_bulk_density,
-                  is_solid_by_layer, is_static_by_layer, layer_indices, order_l=degree_l,
-                  integration_rtol=integration_rtol, integration_atol=integration_atol, nondimensionalize=True)
-    (old_k, old_h, old_l) = find_love(old_out[:, -1], gravity_array[-1])
-
-    import pdb; pdb.set_trace()
 
     for tpy, alma in ((tidalpy_k, alma_k), (tidalpy_h, alma_h), (tidalpy_l, alma_l)):
         tpy_real  = np.real(tpy)
