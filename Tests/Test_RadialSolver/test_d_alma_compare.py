@@ -14,6 +14,8 @@ from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_array
 from TidalPy.rheology.complex_compliance.compliance_models import newton, maxwell
 from TidalPy.RadialSolver import radial_solver
 
+from TidalPy.radial_solver import radial_solver as rs_old, find_love
+
 alma_results = {
     # Stored by degree l and then (k, h, l)
     2: (
@@ -157,6 +159,14 @@ def test_radial_solver_alma_compare(degree_l):
     tidalpy_k = solution.k[0]
     tidalpy_h = solution.h[0]
     tidalpy_l = solution.l[0]
+
+
+    old_out = rs_old(radius_array, complex_shear, bulk_array, density_array, gravity_array, frequency, planet_bulk_density,
+                  is_solid_by_layer, is_static_by_layer, layer_indices, order_l=degree_l,
+                  integration_rtol=integration_rtol, integration_atol=integration_atol, nondimensionalize=True)
+    (old_k, old_h, old_l) = find_love(old_out[:, -1], gravity_array[-1])
+
+    import pdb; pdb.set_trace()
 
     for tpy, alma in ((tidalpy_k, alma_k), (tidalpy_h, alma_h), (tidalpy_l, alma_l)):
         tpy_real  = np.real(tpy)
