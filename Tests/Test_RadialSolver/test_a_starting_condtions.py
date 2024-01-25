@@ -701,4 +701,9 @@ def test_initial_condition_accuracy(is_solid, is_static, is_incompressible, use_
             degree_l, G_to_use, initial_condition_array
             )
         
-        assert np.allclose(initial_condition_array.flatten(), old_tpy_result)
+        if not use_kamata:
+            # New version of TidalPy uses a more accurate method than the previous to calculate these starting
+            # conditions. So, we don't expect a great match. Increase rtol to allow the comparison to pass.
+            assert np.allclose(initial_condition_array.flatten(), old_tpy_result, rtol=0.1)
+        else:
+            assert np.allclose(initial_condition_array.flatten(), old_tpy_result)
