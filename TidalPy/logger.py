@@ -1,9 +1,16 @@
-import logging
 import os
 import sys
-import warnings
+import logging
 from datetime import datetime
+from pathlib import Path
 
+import TidalPy
+from TidalPy.paths import get_log_dir, timestamped_str
+
+FILE_HANDLER = None
+STREAM_HANDLER = None
+STREAM_ERR_HANDLER = None
+LOG_FILE_INIT = False
 
 LOGGING_LEVELS = {
     # Critical: A serious error, indicating that the program itself may be unable to continue running.
@@ -19,129 +26,115 @@ LOGGING_LEVELS = {
     'DEBUG'   : logging.DEBUG
     }
 
-
-class LevelFilter(logging.Filter):
-
-    def __init__(self, low, high):
-        self._low = low
-        self._high = high
-        super().__init__()
-
-    def filter(self, record):
-        normal_filter = super().filter(record)
-        if normal_filter:
-            # Normal filter is okay, how about logging levels...
-            if self._low <= record.levelno < self._high:
-                return True
-        return False
-
-
-def log_setup(write_to_disk: bool = False, write_locale: str = None,
-              running_in_jupyter: bool = False, print_log_in_jupyter: bool = False):
-    """ Setup Python's logging module based on user provided information as well as built-in TidalPy settings
-
-    Look at TidalPy.config or the /configurations.py file for switches that control the logging level and if the log
-        automatically saves to disk.
-
-    Parameters
-    ----------
-    write_to_disk : bool = False
-        If True, the logger will save to the write_locale.
-    write_locale : str = None
-        Location that the logger will attempt to save to.
-        If set to None, the logger will save to the current working directory.
-    running_in_jupyter : bool = False
-        If True, then the logger will not get a console handler (no logs printed to console)
-    print_log_in_jupyter : bool = False
-        If True, then the log will be forced to print even if TidalPy is running in a notebook.
-
-    Returns
-    -------
-    log : logging.logger
-        Global logger to be used throughout the TidalPy package.
-    """
-    from TidalPy import config
-    from . import __version__
-
+def get_header_text() -> str:
     # Build header text
     now = datetime.now()
     now_str = now.strftime('%x at %X')
-    HEADER_TEXT = (
+    header = (
         f'----------------------------------------------------------------------------------',
         f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
-        f'Version: {__version__}',
-        f'Primary Development by Joe Renaud, ca. 2016--2022',
+        f'Version: {TidalPy.__version__}',
+        f'Primary Development by Joe Renaud, ca. 2016--2023',
         f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
         f'----------------------------------------------------------------------------------',
         f'Run made on {now_str}.',
-        f'Using Python {sys.version} on {sys.platform}.\n##\n\n'
+        f'Using Python {sys.version} on {sys.platform}.\n##\n'
         )
-    HEADER_TEXT = '\n'.join(HEADER_TEXT)
+    header = '\n'.join(header)
 
-    # Setup a global logger
-    tidalpy_log = logging.getLogger('tidalpy')
-    tidalpy_log.setLevel(LOGGING_LEVELS['DEBUG'])
-    tidalpy_log.handlers = list()
+    return header
 
-    # Setup the log's format
-    #    How the saved file looks...
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
-    #    How the console output looks...
-    stream_formatter = logging.Formatter('TidalPy Log - %(levelname)s: %(message)s')
+class DeltaTimeFormatter(logging.Formatter):
+    def format(self, record):
+        duration = datetime.utcfromtimestamp(record.relativeCreated / 1000)
+        record.delta = duration.strftime("%H:%M:%S::%f")
+        return super().format(record)
+FORMATTER = DeltaTimeFormatter('%(asctime)s(+%(delta)s) - %(levelname)-9s: %(message)s', "%Y-%m-%d %H:%M:%S")
 
-    # Setup logger filenames
-    regular_log_filepath = None
-    error_log_filepath = None
-    if write_to_disk:
-        outer_dir = write_locale
-        if outer_dir is None:
-            outer_dir = os.getcwd()
-        regular_log_filepath = os.path.join(outer_dir, 'info_log.txt')
-        error_log_filepath = os.path.join(outer_dir, 'error_log.txt')
-
-        # Add TidalPy info text to the top of the regular log file.
-        with open(regular_log_filepath, 'w') as regular_log_file:
-            regular_log_file.write(HEADER_TEXT)
-
-    # Setup handlers
-    #    Console printer
-    if not running_in_jupyter or print_log_in_jupyter:
-        # We do not want to print to console when we are running in a jupyter notebook
-        reg_stream_handler = logging.StreamHandler(stream=sys.stdout)
-        reg_stream_handler.setFormatter(stream_formatter)
-        reg_stream_handler.addFilter(
-            LevelFilter(
-                LOGGING_LEVELS[config['stream_level']],
-                LOGGING_LEVELS[config['stream_err_level']]
-                )
-            )
-        tidalpy_log.addHandler(reg_stream_handler)
-
-        err_stream_handler = logging.StreamHandler(stream=sys.stderr)
-        err_stream_handler.setFormatter(stream_formatter)
-        err_stream_handler.setLevel(config['stream_err_level'])
-        tidalpy_log.addHandler(err_stream_handler)
-
-        warnings.filterwarnings("default")
-        tidalpy_log.propagate = True
-        tidalpy_log.disabled = False
+def get_console_handler(error_stream=False):
+    if error_stream:
+        console_handler = logging.StreamHandler(sys.stderr)
+        console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_error_level']])
     else:
-        # Suppress warnings to console
-        warnings.filterwarnings("ignore")
-        tidalpy_log.propagate = False
-        tidalpy_log.disabled = True
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_level']])
+    console_handler.setFormatter(FORMATTER)
+    return console_handler
 
-    #    File printer
-    if write_to_disk:
-        regular_file_handler = logging.FileHandler(regular_log_filepath)
-        regular_file_handler.setFormatter(file_formatter)
-        regular_file_handler.setLevel(config['regular_logfile_level'])
-        error_file_handler = logging.FileHandler(error_log_filepath)
-        error_file_handler.setFormatter(file_formatter)
-        error_file_handler.setLevel(config['error_logfile_level'])
+def get_file_handler() -> logging.FileHandler:
+    """ Get file handler for TidalPy's logger. """
+    assert TidalPy.config is not None
 
-        # Add handlers to log
-        tidalpy_log.addHandler(regular_file_handler)
-        tidalpy_log.addHandler(error_file_handler)
+    if not TidalPy.config['logging']['write_log_to_disk']:
+        # User does not want log written to disk.
+        return None
+    if not TidalPy.config['logging']['write_log_notebook'] and TidalPy._in_jupyter:
+        # User does not want log written while using Jupyter notebook; which we are in.
+        return None
+    if TidalPy.test_mode:
+        # TidalPy tests are being run, don't write to disk.
+        return None
 
-    return tidalpy_log
+    if TidalPy.config['logging']['use_cwd']:
+        log_dir = os.path.join(TidalPy._output_dir, 'Logs')
+    else:
+        log_dir = get_log_dir()
+    # Ensure directory exists
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Find log filepath
+    log_name = timestamped_str('TidalPy', date=True, time=True, second=True, millisecond=False, preappend=False)
+    log_name += '.log'
+    log_path = os.path.join(log_dir, log_name)
+
+    # Create handler
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setFormatter(FORMATTER)
+    file_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['file_level']])
+    return file_handler
+
+# Initialize root logger. Its handlers will be used by other modules logger. 
+_root_logger = logging.getLogger('TidalPy')
+
+# Clear any handlers that might be present
+_root_logger.handlers = list()
+
+# Set base logging level to the lowest one (it will be overridden by the tidalpy config via handlers)
+_root_logger.setLevel(1)
+
+# Initialize handlers
+# Log file handler
+if FILE_HANDLER is None:
+    FILE_HANDLER = get_file_handler()
+
+if FILE_HANDLER is not None:
+    _root_logger.addHandler(FILE_HANDLER)
+    # Check if log file has been initialized
+    if not LOG_FILE_INIT:
+        # Add header text to log file
+        with open(FILE_HANDLER.baseFilename, 'w') as log_file:
+            log_file.write(get_header_text())
+        LOG_FILE_INIT = True
+
+# Console handler
+if STREAM_HANDLER is None:
+    STREAM_HANDLER = get_console_handler(error_stream=False)
+
+if STREAM_HANDLER is not None:
+    _root_logger.addHandler(STREAM_HANDLER)
+
+# Console Error handler
+if STREAM_ERR_HANDLER is None:
+    STREAM_ERR_HANDLER = get_console_handler(error_stream=True)
+
+if STREAM_ERR_HANDLER is not None:
+    _root_logger.addHandler(STREAM_ERR_HANDLER)
+
+def get_logger(logger_name: str) -> logging.Logger:
+    # Get logger class
+    logger = logging.getLogger(logger_name)
+
+    # Perform any adjustments to the logger
+    # None are currently required
+
+    return logger

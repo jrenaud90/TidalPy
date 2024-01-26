@@ -60,7 +60,7 @@ def solid_surface(
 
     """
 
-    # Build y-solution matrix to be applied to the surface.
+    # Build y-solution matrix to be ecovery/convalescenceapplied to the surface.
     sol_surf_mtx_solid = np.asarray(
             (
                 (y_solutions_at_surface[0][1], y_solutions_at_surface[1][1], y_solutions_at_surface[2][1]),

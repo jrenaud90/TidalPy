@@ -18,6 +18,9 @@ class TidalPyException(Exception):
 class IOException(TidalPyException):
     default_message = 'An issue arose when accessing system disk (either loading or saving data)'
 
+# Initialization Errors
+class InitializationError(TidalPyException):
+    default_message = 'An issue occurred during TidalPy initialization.'
 
 # General Errors
 class NotYetImplementedError(TidalPyException):

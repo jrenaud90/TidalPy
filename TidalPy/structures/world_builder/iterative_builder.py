@@ -17,10 +17,13 @@ import copy
 
 import numpy as np
 
-from TidalPy import log
 from TidalPy.exceptions import IncompatibleModelError
 
 from . import build_from_world
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 
 def world_iterative_builder(

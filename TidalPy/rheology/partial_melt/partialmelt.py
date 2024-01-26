@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
-from TidalPy import log
+from TidalPy.logger import get_logger
 from TidalPy.exceptions import (BadValueError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError)
 from TidalPy.utilities.performance import njit
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from TidalPy.rheology import Rheology
     from TidalPy.structures.layers import PhysicalLayerType
 
+log = get_logger(__name__)
 
 @njit(cacheable=True)
 def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float) -> float:

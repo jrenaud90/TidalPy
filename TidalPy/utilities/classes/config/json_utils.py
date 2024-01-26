@@ -7,10 +7,15 @@ from warnings import warn
 import json5
 import numpy as np
 
-from TidalPy import log, use_disk
-from TidalPy.io_helper import unique_path
+from TidalPy import config
+from TidalPy.paths import unique_path
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 JSON5_KWARGS = {'indent': 4}
+
+save_worlds_to_disk = config['worlds']['save_worlds_to_disk']
 
 
 def clean_config_for_json(dict_to_clean: dict, keys_to_skip: Tuple[str, ...] = ('radii',)) -> OrderedDict:
@@ -99,8 +104,8 @@ def save_dict_to_json(dict_to_save: dict, full_save_path: str, overwrite: bool =
 
     """
 
-    if not use_disk:
-        log.warning('Tried to write config to JSON file but use_disk set to False.')
+    if not save_worlds_to_disk:
+        log.warning('Tried to write config to JSON file but save_worlds_to_disk set to False.')
     else:
 
         if not overwrite and os.path.isfile(full_save_path):

@@ -2,9 +2,11 @@ import copy
 
 import json5
 
-from TidalPy import log, world_config_loc
+from TidalPy.paths import get_worlds_dir
 from TidalPy.utilities.io.pathing import get_all_files_of_type
 
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 def clean_world_config(world_config: dict, make_copy: bool = True):
     """ Provides a clean copy of a world's configuration, deleting any items initialized by TidalPy
@@ -31,21 +33,11 @@ def clean_world_config(world_config: dict, make_copy: bool = True):
     if 'TidalPy_version' in world_config:
         del cleaned_dict['TidalPy_version']
 
-    # Determine if this is a BurnMan world type
-    is_burnman = world_config['type'] == 'burnman'
-
     # If there are layers, then clean the layer dicts
     if 'layers' in world_config:
         for layer_name, layer_dict in world_config['layers'].items():
             if 'radii' in layer_dict:
                 del cleaned_dict['layers'][layer_name]['radii']
-
-            if is_burnman:
-                # Burnman world's will have some material properties set by the EOS. Delete any that are in the config.
-                for thermal_param in ['thermal_conductivity', 'thermal_diffusivity', 'thermal_expansion', 'stefan',
-                                      'shear_modulus']:
-                    if thermal_param in layer_dict:
-                        del cleaned_dict['layers'][layer_name][thermal_param]
 
     return cleaned_dict
 
@@ -77,7 +69,7 @@ def check_for_duplicate_worlds(world_configs: dict):
 
 # Find all planet configurations and import their config files
 # Locate all planet configurations
-known_worlds_files = get_all_files_of_type(world_config_loc, ['cfg', 'json', 'json5'])
+known_worlds_files = get_all_files_of_type(get_worlds_dir(), ['cfg', 'json', 'json5'])
 known_worlds_cfg = dict()
 check_for_duplicate_worlds(known_worlds_cfg)
 _configs_loaded = False

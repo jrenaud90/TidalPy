@@ -4,12 +4,12 @@ import numpy as np
 
 from TidalPy import config
 
-use_numba_cfg = config['use_numba']
+use_numba_cfg = config['numba']['use_numba']
 use_numba_env = True
 if 'NUMBA_DISABLE_JIT' in os.environ:
     use_numba_env = (os.environ['NUMBA_DISABLE_JIT'] == 0)
 use_numba = use_numba_cfg and use_numba_env
-cache_numba = config['cache_numba']
+cache_numba = config['numba']['cache_numba']
 
 if use_numba:
     import numba

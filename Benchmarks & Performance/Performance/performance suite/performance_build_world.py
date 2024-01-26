@@ -18,10 +18,6 @@ class BuildWorldPerformance(PerformanceTrackBase):
         self.record_performance('Build World - Layered', build_world,
                                 inputs=('io_simple',), repeats=3, number=10)
 
-    def run_perform_build_burnman(self):
-        self.record_performance('Build World - Burnman', build_world,
-                                inputs=('earth',), repeats=3, number=10)
-
 
 if __name__ == '__main__':
     performance_tracker = BuildWorldPerformance()

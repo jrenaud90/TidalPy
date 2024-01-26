@@ -4,7 +4,6 @@
 import numpy as np
 from typing import Dict, TYPE_CHECKING, Tuple
 
-from TidalPy import log
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncompatibleModelError,
                                 IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, NotYetImplementedError,
                                 OuterscopePropertySetError, ParameterValueError)
@@ -15,6 +14,10 @@ from .defaults import tide_defaults
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from ..modes.mode_manipulation import find_mode_manipulators
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import ComplexArray, FloatArray

@@ -1,5 +1,7 @@
 """ Functions to help calculate the mass and gravity of a spherical body
 """
+from typing import Tuple
+
 import numpy as np
 
 from TidalPy.constants import G
@@ -9,7 +11,7 @@ from TidalPy.utilities.performance import njit
 
 @njit(cacheable=True)
 def calculate_mass_gravity_arrays(radius_array: np.ndarray, density_array: np.ndarray,
-                                  gravity_constant: float = G):
+                                  gravity_constant: float = G) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """ Calculate the volume, mass, and gravity arrays from a radius and density array.
 
     Parameters
@@ -25,15 +27,16 @@ def calculate_mass_gravity_arrays(radius_array: np.ndarray, density_array: np.nd
 
     Returns
     -------
-    volume_array : np.ndarray
-        Volume of each spherical shell [m3]
-        Defined at each element of the `radius_array`
-    mass_array : np.ndarray
-        Mass of each spherical shell [kg]
-        Defined at each element of the `radius_array`
-    gravity_array : np.ndarray
-        Acceleration due to gravity at the top of each spherical shell [m s-3]
-        Defined at each element of the `radius_array`
+    output : Tuple[np.ndarray, np.ndarray, np.ndarray]
+        volume_array : np.ndarray
+            Volume of each spherical shell [m3]
+            Defined at each element of the `radius_array`
+        mass_array : np.ndarray
+            Mass of each spherical shell [kg]
+            Defined at each element of the `radius_array`
+        gravity_array : np.ndarray
+            Acceleration due to gravity at the top of each spherical shell [m s-3]
+            Defined at each element of the `radius_array`
 
     """
 

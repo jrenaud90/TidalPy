@@ -2,7 +2,7 @@ from typing import List, TYPE_CHECKING, Union
 
 import numpy as np
 
-from TidalPy import log
+from TidalPy.logger import get_logger
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectAttributeType,
                                 IncorrectMethodToSetStateProperty, OuterscopePropertySetError, ParameterMissingError,
                                 UnknownModelError)
@@ -14,6 +14,8 @@ from .defaults import known_isotope_data, radiogenics_defaults
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType
     from TidalPy.structures.layers import PhysicalLayerType
+
+log = get_logger(__name__)
 
 
 class Radiogenics(LayerModelHolder):

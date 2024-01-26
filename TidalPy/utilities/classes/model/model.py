@@ -1,13 +1,16 @@
 import operator
 from typing import Callable, TYPE_CHECKING, Tuple, Union
 
-from TidalPy import debug_mode, log
+from TidalPy import extensive_checks
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
                                 MissingArgumentError, OuterscopePropertySetError, ParameterMissingError,
                                 UnknownModelError)
 
 from ..config.config import ConfigHolder
 from ..config.dictionary_utils import nested_get, nested_place
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from TidalPy.structures.layers import PhysicalLayerType
@@ -90,7 +93,7 @@ class ModelHolder(ConfigHolder):
 
         # Switch between calculate and calculate debug.
         #    Generally speaking, _calculate_debug is a much slower function that includes additional sanity checks.
-        if debug_mode:
+        if extensive_checks:
             if '_calculate_debug' in self.__dict__:
                 self._calc_to_use = getattr(self, '_calculate_debug')
                 self._debug_mode_on = True

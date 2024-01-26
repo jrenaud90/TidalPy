@@ -2,12 +2,15 @@ from typing import List, Union, TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy import log
 from TidalPy.exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError
 from TidalPy.dynamics import semia_eccen_derivatives, semia_eccen_derivatives_dual
 
 from .base import OrbitBase
 from ..world_types import all_tidal_world_types
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray

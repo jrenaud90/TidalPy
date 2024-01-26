@@ -1,0 +1,83 @@
+##############
+# This is the file that was used to run alma for benchmarking purposes.
+# ALMA-3 was used with a last-updated date of Nov 29, 2022
+
+# File was called "config.Enceladus.dat" with the following contents.
+##############
+!
+! ==========================================================================
+! ALMA configuration file
+! ==========================================================================
+!
+! This file sets up ALMA to compute tidal LNs for Enceladus.
+!
+! ~~~~~~~~~~~~~~~~~~~~~
+! # General parameters
+! ~~~~~~~~~~~~~~~~~~~~~
+!
+ 128                        ! number of digits
+ 8                          ! order of the Gaver sequence
+!
+ Tidal                      ! LN type ('Loading' or 'Tidal')
+!
+ 2                          ! Minimum degree
+ 5                          ! Maximum degree
+ 1                          ! Step
+!
+!
+ lin                       ! Time scale ('log' / 'lin' / 'ext')
+ 0                          ! Time points (minus one)
+ -3 2                      ! Time range  (10^(m1:m2) kyrs)
+!
+! ~~~~~~~~~~~~~~~~~~~~~
+! # Load time history
+! ~~~~~~~~~~~~~~~~~~~~~
+!
+ step                     ! Load fcn ( 'step' / 'ramp' )
+ 1.0                      ! Ramp length (kyrs)
+!
+! ~~~~~~~~~~~~~~~~~~~~~
+! # Rheological model
+! ~~~~~~~~~~~~~~~~~~~~~
+!
+ 3                          ! Number of layers
+!
+ MODELS/Enceladus.dat
+!
+!
+! ~~~~~~~~~~~~~~~~~~~~~
+! # Log file
+! ~~~~~~~~~~~~~~~~~~~~~
+!
+ alma.log
+!
+!
+! ~~~~~~~~~~~~~~~~~~~~~
+! # Output files
+! ~~~~~~~~~~~~~~~~~~~~~
+!
+ Complex                     ! 'Real' or 'Complex' LNs
+!
+ ln_vs_n                     ! Output file format (LNs vs t or LNs vs n)
+!
+ h.dat
+ l.dat
+ k.dat
+!
+!
+!
+! ==========================================================================
+! End of ALMA configuration file
+! ==========================================================================
+
+
+##############
+# The MODELS/Enceladas.dat looked like this.
+##############
+!------------------------------------------------------------
+! radius,    density,      rigidity     viscosity
+!  (m)       (kg/m^3)        (Pa)         (Pa.s)
+!------------------------------------------------------------
+ 252e3       0.950e3       4.00e09       1.e13      maxwell
+ 210e3       1.000e3       0.00e00       1.e04      newton
+ 190e3       2.400e3       1.00e11       1.e17      maxwell

@@ -9,20 +9,14 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 
 from TidalPy.constants import G
-from TidalPy.utilities.performance import njit, nbList
-
-if TYPE_CHECKING:
-    from ..initial.initial_solution_dynamic import LiquidDynamicGuess
-    from ..initial.initial_solution_static import LiquidStaticGuess
+from TidalPy.utilities.performance import njit
 
 
-@njit(cacheable=True)
-def both_dynamic(liquid_layer_ys: 'LiquidDynamicGuess') -> 'LiquidDynamicGuess':
+@njit(cacheable=False)
+def both_dynamic(liquid_layer_ys: np.ndarray) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above another
     liquid layer. Assumes dynamic tides in both layers.
 
@@ -32,29 +26,32 @@ def both_dynamic(liquid_layer_ys: 'LiquidDynamicGuess') -> 'LiquidDynamicGuess':
 
     Parameters
     ----------
-    liquid_layer_ys : LiquidDynamicGuess
+    liquid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is liquid and dynamic.
 
     Returns
     -------
-    initial_solutions_liquid : LiquidDynamicGuess
+    initial_solutions_liquid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be two independent solutions for the upper layer.
     """
 
-    initial_solutions_liquid = nbList([
-        np.ascontiguousarray(liquid_layer_ys[0]),
-        np.ascontiguousarray(liquid_layer_ys[1])
-        ])
-    return initial_solutions_liquid
+    initial_solutions = np.empty((2, 4), dtype=np.complex128)
+
+    for solution in range(2):
+        for yi in range(4):
+            # All solutions and ys equal each other across the interface
+            initial_solutions[solution, yi] = liquid_layer_ys[solution, yi]
+
+    return initial_solutions
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def static_dynamic(
-        liquid_layer_ys: 'LiquidStaticGuess',
+        liquid_layer_ys: np.ndarray,
         interface_gravity: float, liquid_density: float, G_to_use: float = G
-        ) -> 'LiquidDynamicGuess':
+        ) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above another
     liquid layer. Assumes static tides in the lower layer and dynamic tides the upper.
 
@@ -64,7 +61,7 @@ def static_dynamic(
 
     Parameters
     ----------
-    liquid_layer_ys : LiquidStaticGuess
+    liquid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is liquid and static.
     interface_gravity : float
@@ -77,7 +74,7 @@ def static_dynamic(
 
     Returns
     -------
-    initial_solutions_liquid : LiquidDynamicGuess
+    initial_solutions_liquid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be two independent solutions for the upper layer.
     """
@@ -93,42 +90,38 @@ def static_dynamic(
 
     # For an upper layer that is liquid and dynamic there will be two independent solutions that need an initial guess.
     # For a dynamic liquid layer there will be four y values used.
-    initial_solutions_liquid = nbList([
-        np.empty(4, dtype=np.complex128),
-        np.empty(4, dtype=np.complex128)
-        ])
+    initial_solutions = np.empty((2, 4), dtype=np.complex128)
 
     for solution in (0, 1):
-        solution_ys = initial_solutions_liquid[solution]
 
         if solution == 0:
             # y_1_dynamic = 0
-            solution_ys[0] = 0.
+            initial_solutions[0, 0] = 0.
             # y_2_dynamic = -rho * y_5_static
-            solution_ys[1] = -liquid_density * liquid_static_sol[0]
+            initial_solutions[0, 1] = -liquid_density * liquid_static_sol[0]
             # y_5_dynamic = y_5_static
-            solution_ys[2] = liquid_static_sol[0]
+            initial_solutions[0, 2] = liquid_static_sol[0]
             # y_6_dynamic = y_7_static + (4 pi G rho / g) y_5_static
-            solution_ys[3] = liquid_static_sol[1] + \
+            initial_solutions[0, 3] = liquid_static_sol[1] + \
                              (4. * np.pi * G_to_use * liquid_density / interface_gravity) * liquid_static_sol[0]
         else:
             # y_1_dynamic = 1.
-            solution_ys[0] = 1.
+            initial_solutions[1, 0] = 1.
             # y_2_dynamic = rho * g * y_1_dynamic
-            solution_ys[1] = liquid_density * interface_gravity * solution_ys[0]
+            initial_solutions[1, 1] = liquid_density * interface_gravity * initial_solutions[1, 0]
             # y_5_dynamic = 0.
-            solution_ys[2] = 0.
+            initial_solutions[1, 2] = 0.
             # y_6_dynamic = -4 pi G rho y_1_dynamic
-            solution_ys[3] = -4. * np.pi * G_to_use * liquid_density * solution_ys[0]
+            initial_solutions[1, 3] = -4. * np.pi * G_to_use * liquid_density * initial_solutions[1, 0]
 
-    return initial_solutions_liquid
+    return initial_solutions
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def dynamic_static(
-        liquid_layer_ys: 'LiquidDynamicGuess',
+        liquid_layer_ys: np.ndarray,
         interface_gravity: float, liquid_density: float, G_to_use: float = G
-        ) -> 'LiquidStaticGuess':
+        ) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above another
     liquid layer. Assumes static tides in the upper layer and dynamic tides the lower.
 
@@ -139,7 +132,7 @@ def dynamic_static(
 
     Parameters
     ----------
-    liquid_layer_ys : LiquidDynamicGuess
+    liquid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is liquid and dynamic.
     interface_gravity : float
@@ -152,7 +145,7 @@ def dynamic_static(
 
     Returns
     -------
-    initial_solutions_liquid : LiquidStaticGuess
+    initial_solutions_liquid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be one independent solutions for the upper layer.
     """
@@ -175,7 +168,7 @@ def dynamic_static(
     lower_s2y6 = liquid_layer_ys[1][3]
 
     # For a static liquid layer there will be one independent solution with 2 y's
-    initial_solutions_liquid = np.empty(2, dtype=np.complex128)
+    initial_solutions = np.empty((1, 2), dtype=np.complex128)
 
     # lambda_j = (y_2j - rho * ( g * y_1j - y_5j))
     lambda_1 = lower_s1y2 - liquid_density * (interface_gravity * lower_s1y1 - lower_s1y5)
@@ -191,15 +184,15 @@ def dynamic_static(
     y_7_IC_1 = lower_s2y6 + y_7_const * lower_s2y2
 
     # y^liq(st)_5 = C^liq(dy)_1 * y^liq(dy)_5,1 + C^liq(dy)_2 * y^liq(dy)_5,2
-    initial_solutions_liquid[0] = coeff_1 * lower_s1y5 + coeff_2 * lower_s2y5
+    initial_solutions[0, 0] = coeff_1 * lower_s1y5 + coeff_2 * lower_s2y5
     # y^liq(st)_7 = C^liq(dy)_1 * y^liq(dy)_7,1 + C^liq(dy)_2 * y^liq(dy)_7,2
-    initial_solutions_liquid[1] = coeff_1 * y_7_IC_0 + coeff_2 * y_7_IC_1
+    initial_solutions[0, 1] = coeff_1 * y_7_IC_0 + coeff_2 * y_7_IC_1
 
-    return nbList([initial_solutions_liquid])
+    return initial_solutions
 
 
-@njit(cacheable=True)
-def both_static(liquid_layer_ys: 'LiquidStaticGuess') -> 'LiquidStaticGuess':
+@njit(cacheable=False)
+def both_static(liquid_layer_ys: np.ndarray) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a liquid layer that is above another
     liquid layer. Assumes static tides in both the upper and lower layers.
 
@@ -220,6 +213,9 @@ def both_static(liquid_layer_ys: 'LiquidStaticGuess') -> 'LiquidStaticGuess':
         For this function's assumptions, there will be one independent solutions for the upper layer.
     """
 
-    initial_solutions_liquid = nbList([np.ascontiguousarray(liquid_layer_ys[0])])
+    initial_solutions = np.empty((1, 2), dtype=np.complex128)
 
-    return initial_solutions_liquid
+    initial_solutions[0, 0] = liquid_layer_ys[0, 0]
+    initial_solutions[0, 1] = liquid_layer_ys[0, 1]
+
+    return initial_solutions
