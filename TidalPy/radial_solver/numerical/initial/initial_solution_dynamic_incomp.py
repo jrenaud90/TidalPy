@@ -221,7 +221,7 @@ def solid_guess_takeuchi(
 
     Using the dynamic assumption in a solid layer results in three independent solutions for the radial derivatives.
 
-    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), compressibility, and
+    These independent solutions allow for a general tidal harmonic l, for dynamic tides (w != 0), incompressibility, and
        bulk and shear dissipation.
 
     References
