@@ -4,11 +4,58 @@ from TidalPy.exceptions import BadValueError
 
 from libc.math cimport sqrt, cbrt, M_PI
 
-from TidalPy.utilities.constants cimport G
+from TidalPy.utilities.constants_x cimport G
 
 
-@njit(cacheable=True)
-def m2Au(meters: FloatArray) -> FloatArray:
+cdef inline double cf_m2Au(double meters) noexcept nogil:
+
+    return meters / 149597870700.0
+
+cdef inline double cf_Au2m(double astronomical_units) noexcept nogil:
+
+    return astronomical_units * 149597870700.0
+
+cdef inline double cf_rads2days(double radians_per_second) noexcept nogil:
+
+    return (2. * M_PI / radians_per_second) / 86400.
+
+cdef inline double cf_days2rads(double days) noexcept nogil:
+
+    return 2. * M_PI / (days * 86400.)
+
+cdef inline double cf_sec2myr(double seconds) noexcept nogil:
+
+    return seconds / 3.154e13
+
+cdef inline double cf_myr2sec(double myrs) noexcept nogil:
+
+    return myrs * 3.154e13
+
+cdef inline double cf_orbital_motion2semi_a(
+        double orbital_motion,
+        double host_mass,
+        double target_mass = 0.0,
+        double G_to_use = G) noexcept nogil:
+
+    cdef double semi_major_axis
+    semi_major_axis = cbrt(
+        G_to_use * (host_mass + target_mass) / (orbital_motion * orbital_motion)
+        )
+
+    return cbrt(G_to_use * (host_mass + target_mass) / (orbital_motion * orbital_motion))
+
+cdef inline double cf_semi_a2orbital_motion(
+        double semi_major_axis,
+        double host_mass,
+        double target_mass = 0.0,
+        double G_to_use = G) noexcept nogil:
+
+    cdef double orbital_motion
+    orbital_motion = sqrt(G_to_use * (host_mass + target_mass) / (semi_major_axis * semi_major_axis * semi_major_axis))
+
+    return orbital_motion
+
+def m2Au(double meters):
     """ Convert Meters to Astronomical Units
 
     Parameters
@@ -22,33 +69,25 @@ def m2Au(meters: FloatArray) -> FloatArray:
         Distance in [Au]
     """
 
-    astronomical_units = meters / 1.496e11
+    return cf_m2Au(meters)
 
-    return astronomical_units
-
-
-@njit(cacheable=True)
-def Au2m(astronomical_units: FloatArray) -> FloatArray:
+def Au2m(double astronomical_units):
     """ Convert Meters to Astronomical Units
 
     Parameters
     ----------
-    astronomical_units : FloatArray
+    astronomical_units : double
         Distance in [Au]
 
     Returns
     -------
-    meters : FloatArray
+    meters : double
         Distance in [m]
     """
 
-    meters = astronomical_units * 1.496e11
+    return cf_Au2m(astronomical_units)
 
-    return meters
-
-
-@njit(cacheable=True)
-def rads2days(radians_per_second: FloatArray) -> FloatArray:
+def rads2days(double radians_per_second):
     """ Convert from frequency [rads s-1] to period [days]
 
     Parameters
@@ -62,92 +101,55 @@ def rads2days(radians_per_second: FloatArray) -> FloatArray:
         Period in [days]
     """
 
-    days = (2. * np.pi / radians_per_second) / 86400.
+    return cf_rads2days(radians_per_second)
 
-    return days
-
-
-@njit(cacheable=True)
-def days2rads(days: FloatArray) -> FloatArray:
+def days2rads(double days):
     """ Convert from period [days] to frequency [rads s-1]
 
     Parameters
     ----------
-    days : FloatArray
+    days : double
         Period in [days]
 
     Returns
     -------
-    radians_per_second : FloatArray
+    radians_per_second : double
         Frequency in [rads s-1]
     """
 
-    radians_per_second = (2. * np.pi / (days * 86400.))
+    return cf_days2rads(days)
 
-    return radians_per_second
-
-
-@njit(cacheable=True)
-def sec2myr(seconds: FloatArray) -> FloatArray:
+def sec2myr(double seconds):
     """ Convert time from seconds to millions of years
 
     Parameters
     ----------
-    seconds : FloatArray
+    seconds : double
         Time in [sec]
 
     Returns
     -------
-    myrs : FloatArray
+    myrs : double
         Time in [Myr]
     """
 
-    return seconds / 3.154e13
+    return cf_sec2myr(seconds)
 
-
-@njit(cacheable=True)
-def myr2sec(myrs: FloatArray) -> FloatArray:
+def myr2sec(double myrs):
     """ Convert time from millions of years to seconds
 
     Parameters
     ----------
-    myrs : FloatArray
+    myrs : double
         Time in [Myr]
 
     Returns
     -------
-    seconds : FloatArray
+    seconds : double
         Time in [sec]
     """
 
-    return myrs * 3.154e13
-
-cdef double cf_orbital_motion2semi_a(
-        double orbital_motion,
-        double host_mass,
-        double target_mass = 0.0,
-        double G_to_use = G):
-
-    cdef double semi_major_axis
-    semi_major_axis = cbrt(
-        G_to_use * (host_mass + target_mass) / (orbital_motion * orbital_motion)
-        )
-
-    return semi_major_axis
-
-
-cdef double cf_semi_a2orbital_motion(
-        double semi_major_axis,
-        double host_mass,
-        double target_mass = 0.0,
-        double G_to_use = G):
-
-    cdef double orbital_motion
-    orbital_motion = sqrt(
-        G_to_use * (host_mass + target_mass) / (semi_major_axis * semi_major_axis * semi_major_axis)
-        )
-
-    return orbital_motion
+    return cf_myr2sec(myrs)
 
 def orbital_motion2semi_a(
         double orbital_motion,
@@ -158,9 +160,9 @@ def orbital_motion2semi_a(
 
     Parameters
     ----------
-    orbital_motion : FloatArray
+    orbital_motion : double
         Orbital motion in [rads s-1]
-    host_mass : float
+    host_mass : double
         Central body's mass in [kg]
     target_mass : double, default = 0
         Target (or orbiting) body's mass in [kg]
@@ -169,7 +171,7 @@ def orbital_motion2semi_a(
 
     Returns
     -------
-    semi_major_axis : FloatArray
+    semi_major_axis : double
         Semi-major axis in [m]
     """
 
@@ -200,7 +202,7 @@ def semi_a2orbital_motion(
 
     Returns
     -------
-    orbital_motion : FloatArray
+    orbital_motion : double
         Orbital motion in [rads s-1]
     """
 

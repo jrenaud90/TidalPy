@@ -4,7 +4,7 @@
 from libc.math cimport fabs, cos, sin, pi, tgamma, INFINITY, isinf
 
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
-from TidalPy.utilities.constants cimport MIN_FREQUENCY, MAX_FREQUENCY, MIN_MODULUS
+from TidalPy.utilities.constants_x cimport MIN_FREQUENCY, MAX_FREQUENCY, MIN_MODULUS
 
 
 ########################################################################################################################
