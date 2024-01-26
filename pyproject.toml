@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.5.0a6.dev1'
+version = '0.5.0a6.dev2'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -14,7 +14,6 @@ dependencies = [
     # Configuration file resources
     "platformdirs>=3.11.0",
     "toml>=0.10.2",
-    "json5>=0.9.5",
     # Additional multiprocessing support resources
     "dill>=0.3.2",
     "psutil>=5.8.0",

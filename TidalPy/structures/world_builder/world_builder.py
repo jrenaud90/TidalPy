@@ -1,7 +1,7 @@
 import copy
 from typing import TextIO, Union
 
-import json5
+import toml
 
 from TidalPy.paths import get_worlds_dir
 from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
@@ -23,7 +23,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     TidalPy ships with a directory of world configurations. By default these can be found in:
         <TidalPy install directory>/TidalPy/structures/world_types/
 
-    These are JSON files that contain all the information that TidalPy needs to build a new world. Use the pre-built
+    These are TOML files that contain all the information that TidalPy needs to build a new world. Use the pre-built
         configuration files as templates to create new ones (which should be saved in the same directory).
 
     Alternatively, you can make a python dictionary object that contains the same information and pass it to this
@@ -45,11 +45,11 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
 
     log.info(f'Preparing to build world: {world_name}.')
 
-    # If world_config is a file then load it through json and get a dict
+    # If world_config is a file then load it through toml and get a dict
     if world_config is not None:
         if type(world_config) != dict:
             log.debug(f'Converting user provided planet configuration file to dictionary for {world_name}.')
-            world_config = json5.load(world_config)
+            world_config = toml.load(world_config)
 
         # Make a copy of the dict so any subsequent changes do not affect the original dictionary
         world_config = copy.deepcopy(world_config)
