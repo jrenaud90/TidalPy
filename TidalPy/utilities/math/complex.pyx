@@ -1,3 +1,4 @@
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """
 Modified from https://github.com/numpy/numpy/blob/main/numpy/core/src/npymath/npy_math_complex.c.src */
