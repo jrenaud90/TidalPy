@@ -117,7 +117,7 @@ def get_default_world_dir() -> str:
     install_worlds = True
     # Use a test world file to check that the default worlds are installed.
     # TODO: Update extension if/when converting world configs to toml.
-    io_config = os.path.join(worlds_dir, 'io.json')
+    io_config = os.path.join(worlds_dir, 'io.toml')
     if os.path.isfile(io_config):
         # TODO: Have a check here to see if world config version matches tidalpy and rebuild if it doesn't?
         install_worlds = False

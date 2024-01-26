@@ -36,9 +36,8 @@ Dependencies
 * TidalPy now requires:
   * CyRK>=0.8.2
   * Cython>=3.0.0
-* Removed `BurnMan` 3rd party dependence
-  * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages. We will add in support
-so that users can still use BurnMan planets with TidalPy.
+* Moved `BurnMan` 3rd party dependence to a more dedicated `interfaces` folder for future development.
+* To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.
 
 Minor Changes
 * Added unique frequency finder functions to the `modes` module.

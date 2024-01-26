@@ -7,9 +7,9 @@ from TidalPy.paths import get_worlds_dir
 from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
                                 UnknownWorldType)
 from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
-
-from .config_handler import clean_world_config, get_world_configs
-from ..world_types import world_types
+from TidalPy.structures.world_builder.config_handler import clean_world_config, get_world_configs
+from TidalPy.structures.world_types import world_types
+from TidalPy.interfaces.burnman.build import build_burnman_world, BurnManWorld
 
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
@@ -78,16 +78,27 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         log.debug(f'World configuration dictionary found for {world_name}.')
 
     # Determine world's type
-    world_type = world_config['type']
-    if world_type not in world_types:
+    world_type = world_config['type'].lower()
+
+    if world_type == 'burnman':
+        log.debug(f'BurnMan world type detected.')
+        
+        log.debug('Attempting to build the BurnMan class for the world.')
+        burnman_world, burnman_layers = build_burnman_world(world_config)
+        log.debug(f'Burnman world building completed!')
+
+        log.debug('Installing Burnman world into TidalPy world class.')
+        world = BurnManWorld(world_config, burnman_world, burnman_layers, name=world_name)
+
+    elif world_type not in world_types:
         log.error(f'The world type, {world_type}, for {world_name} is unknown or not yet implemented.')
         raise UnknownWorldType
-
-    # Get the world class
-    WorldClass = world_types[world_type]
-
-    log.debug(f'{WorldClass.world_class} world type detected.')
-    world = WorldClass(world_config, world_name)
+    
+    else:
+        # Get the world class
+        log.debug(f'{WorldClass.world_class} world type detected.')
+        WorldClass = world_types[world_type]
+        world = WorldClass(world_config, world_name)
 
     if world is None:
         raise TidalPyWorldError('World building failed.')
