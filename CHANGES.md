@@ -1,26 +1,15 @@
 # TidalPy Major Change Log
 
-* In-Dev Changes
-  * Added in true incompressible model for multilayer code.
+Future ToDos:
+* Added in true incompressible model for multilayer code.
+* Convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
+* Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?
 
-### Version 0.5.0 Alpha (Spring-Summer 2023)
-TODO: 
-- Need tests for cython interface funcs.
-- convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
-- Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?
-- add noexcepts in at the end.
-
+### Version 0.5.0 Alpha (Winter 2024)
 Cythonizing TidalPy
 - A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
 extension classes. The reasons for doing this are numerous. This transition will be completed in stages
 with odd version numbers used as placeholders for bugfixes to previous version.
-  - v0.5.0: radial_solver module.
-  - v0.5.2: multilayer solver
-  - v0.5.4: dynamics module
-  - v0.5.6: rest of tides module
-  - v0.5.8: other functions including utilities module
-  - v0.5.10: OOP structures like planets and orbits.
-  - v0.6.0: Deprecate and remove old numba support from TidalPy shifting the default behavior to use the new
 precompiled cython functionality.
 - For this version: 
   - Added new cython-based `radial_solver_x`.
@@ -39,6 +28,8 @@ Other Major Changes
   * New `TidalPy.set_config(config_path)` to change the active configuration file used by TidalPy.
     * Note that `TidalPy.reinit()` should be called after changing the configurations.
   * New `TidalPy.set_world_dir(world_dir_path)` to change which directory to pull world configs from. 
+* Shifted from `json` to `toml` files for world configs.
+  * Store all world configs to a zip file for easier distribution.
 
 Dependencies 
 * Added support for Python 3.11. TidalPy now runs on Python 3.8--3.11.
@@ -70,8 +61,10 @@ Bug Fixes
 * Fixed issue in incorrect TidalPy version being loaded into the package.
 
 Performance Improvements
-* Improved the performance of the stress and strain calculator by ~20%
-
+* Improved the performance of the stress and strain calculator by ~20%.
+* Cythonize Performance Increases:
+  * New `radial_solver` lead to ~50x performance boost.
+  * New rheology models are 500% faster for arrays; 40,000% faster for scalars (not a typo!)
 
 #### Version 0.4.1 Alpha (Spring 2023)
 Major Changes
