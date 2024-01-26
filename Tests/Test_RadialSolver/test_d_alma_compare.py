@@ -142,20 +142,6 @@ def test_radial_solver_alma_compare(degree_l):
 
     assert solution.success
 
-    # LEFT OFF
-    # tidal_y = radial_solver(
-    #         radius=radius_array, shear_modulus=complex_shear, bulk_modulus=bulk_array,
-    #         density=density_array, gravity=gravity_array, frequency=frequency, planet_bulk_density=planet_bulk_density,
-    #         is_solid_by_layer=is_solid_by_layer,
-    #         is_static_by_layer=layer_is_static,
-    #         indices_by_layer=layer_indices,
-    #         order_l=order_l,
-    #         surface_boundary_condition=None, solve_load_numbers=False,
-    #         use_kamata=True,
-    #         integrator='numba', integration_method='RK45',
-    #         integration_rtol=integration_rtol, integration_atol=integration_atol,
-    #         verbose=False, nondimensionalize=True, incompressible=True
-    #         )
     tidalpy_k = solution.k[0]
     tidalpy_h = solution.h[0]
     tidalpy_l = solution.l[0]

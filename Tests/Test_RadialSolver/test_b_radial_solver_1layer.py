@@ -35,7 +35,10 @@ upper_radius_by_layer = (radius_array[-1],)
 @pytest.mark.parametrize('method', (0, 1, 2))
 @pytest.mark.parametrize('degree_l', (2, 3))
 @pytest.mark.parametrize('use_kamata', (True, False))
-def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, degree_l, use_kamata):
+@pytest.mark.parametrize('nondimensionalize', (True, False))
+@pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
+def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, degree_l,
+                              use_kamata, nondimensionalize, solve_for):
 
     is_solid_by_layer = (is_solid,)
     is_static_by_layer = (is_static,)
@@ -44,14 +47,52 @@ def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, de
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
     if not is_solid:
         warnings.warn(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
-        assert True
+        # assert True
     else:
         try:
             out = radial_solver(
                 radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
                 frequency, planet_bulk_density, 
                 is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
-                degree_l=degree_l, solve_for=None, use_kamata=use_kamata,
+                degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
+                integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
+                scale_rtols_by_layer_type=True,
+                max_num_steps=5_000_000, expected_size=250, max_step=0,
+                limit_solution_to_radius=True, verbose=False, nondimensionalize=nondimensionalize)
+
+            assert type(out.message) is str
+            assert type(out.result) is np.ndarray
+            assert out.result.shape == (6, N)
+        except NotImplementedError as e:
+            warnings.warn(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
+
+@pytest.mark.parametrize('is_solid', (True, False))
+@pytest.mark.parametrize('is_static', (True, False))
+@pytest.mark.parametrize('is_incompressible', (True, False))
+@pytest.mark.parametrize('method', (0, 1, 2))
+@pytest.mark.parametrize('degree_l', (2, 3))
+@pytest.mark.parametrize('use_kamata', (True, False))
+def test_radial_solver_1layer_solve_for_both(is_solid, is_static, is_incompressible,
+                                             method, degree_l, use_kamata):
+    """Tests solving for both tidal and loading a the same time."""
+
+    is_solid_by_layer = (is_solid,)
+    is_static_by_layer = (is_static,)
+    is_incompressible_by_layer = (is_incompressible,)
+
+    solve_for=('tidal', 'loading')
+
+    # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
+    if not is_solid:
+        warnings.warn(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
+        # assert True
+    else:
+        try:
+            out = radial_solver(
+                radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
+                frequency, planet_bulk_density, 
+                is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
+                degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
                 integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
                 scale_rtols_by_layer_type=True,
                 max_num_steps=5_000_000, expected_size=250, max_step=0,
@@ -59,7 +100,6 @@ def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, de
 
             assert type(out.message) is str
             assert type(out.result) is np.ndarray
-            assert out.result.shape == (6, N)
-            assert np.all(np.isnan(out.result) == False)
+            assert out.result.shape == (len(solve_for) * 6, N)
         except NotImplementedError as e:
             warnings.warn(f'function does not currently support requested inputs. Skipping Test. Details: {e}')

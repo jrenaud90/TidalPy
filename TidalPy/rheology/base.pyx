@@ -16,7 +16,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             self,
             tuple args = None,
             size_t expected_num_args = 0,
-            str class_name = 'RheologyModel',
+            str class_name = 'RheologyBase',
             **kwargs):
 
         # Setup base class
@@ -99,8 +99,12 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             double complex[:] output_view,
             ):
 
-        cdef Py_ssize_t n
+        cdef Py_ssize_t n, n2
         n = len(frequency_view)
+        n2 = len(output_view)
+
+        if (n2 != n) :
+            raise AttributeError('Arrays must all be the same size.')
 
         self._vectorize_frequency(&frequency_view[0], modulus, viscosity, &output_view[0], n)
 
@@ -112,8 +116,13 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             double complex[:] output_view,
             ):
 
-        cdef Py_ssize_t n
+        cdef Py_ssize_t n, n2, n3
         n = len(modulus_view)
+        n2 = len(viscosity_view)
+        n3 = len(output_view)
+
+        if (n2 != n) or (n3 != n) or (n2 != n3):
+            raise AttributeError('Arrays must all be the same size.')
 
         self._vectorize_modulus_viscosity(frequency, &modulus_view[0], &viscosity_view[0], &output_view[0], n)
 
