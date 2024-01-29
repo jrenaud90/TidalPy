@@ -1,3 +1,5 @@
+import warnings
+
 burnman_installed = True
 try:
     import burnman
@@ -5,6 +7,7 @@ try:
     from burnman.classes.mineral import Mineral
     from burnman.tools.chemistry import dictionarize_formula, formula_mass
 except ImportError:
+    warnings.warn("BurnMan installation can not be found. TidalPy's BurnMan extension functions can not be used.")
     burnman_installed = False
     # Build fake class so type checking passes.
     class burnman:
@@ -21,6 +24,3 @@ except ImportError:
     dictionarize_formula = lambda x: None
     formula_mass = lambda x: None
     material_property = lambda x: None
-
-from .build import build_burnman_world
-from .burnman_world import BurnManWorld

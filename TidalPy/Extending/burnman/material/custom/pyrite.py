@@ -1,4 +1,4 @@
-from TidalPy.interfaces.burnman import burnman_installed, Mineral
+from TidalPy.Extending.burnman import burnman_installed, Mineral
 
 
 class Pyrite(Mineral):

@@ -9,7 +9,6 @@ from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, Ti
 from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
 from TidalPy.structures.world_builder.config_handler import clean_world_config, get_world_configs
 from TidalPy.structures.world_types import world_types
-from TidalPy.interfaces.burnman.build import build_burnman_world, BurnManWorld
 
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
@@ -82,6 +81,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
 
     if world_type == 'burnman':
         log.debug(f'BurnMan world type detected.')
+        from TidalPy.Extending.burnman import build_burnman_world, BurnManWorld
         
         log.debug('Attempting to build the BurnMan class for the world.')
         burnman_world, burnman_layers = build_burnman_world(world_config)
@@ -96,8 +96,8 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     
     else:
         # Get the world class
-        log.debug(f'{WorldClass.world_class} world type detected.')
         WorldClass = world_types[world_type]
+        log.debug(f'{WorldClass.world_class} world type detected.')
         world = WorldClass(world_config, world_name)
 
     if world is None:

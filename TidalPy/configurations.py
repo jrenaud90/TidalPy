@@ -11,9 +11,42 @@ import toml
 import TidalPy
 from TidalPy import version
 from TidalPy.exceptions import ConfigurationException, InitializationError
-from TidalPy.paths import get_config_dir, get_worlds_dir
+from TidalPy.paths import get_config_dir, get_worlds_dir, unique_path
 from TidalPy.defaultc import default_config_str
 
+
+def save_dict_to_toml(dict_to_save: dict,
+              file_path: str,
+              overwrite: bool = True):
+    """Saves a python dictionary to a toml file at the specified file path.
+
+    Parameters
+    ----------
+    dict_to_save : dict
+        Python dictionary.
+    file_path : str
+        Filepath to save to.
+    overwrite : bool, default = True
+        If True, then the file will be overwritten if already present. by default True
+    """
+
+    if '.toml' not in file_path:
+        raise AttributeError('Please provide a toml file path (include ".toml" extension).')
+    
+    if type(dict_to_save) is not dict:
+        raise AttributeError(f'Can only save python dictionaries to toml files, not {type(dict_to_save)}.')
+
+    toml_output = None
+    if os.path.isfile(file_path):
+        if overwrite:
+            os.remove(file_path)
+        else:
+            # Append a number to the config name until one is found that is not already in use.
+            file_path = unique_path(file_path, is_dir=False, make_dir=False)
+    
+    with open(file_path, 'w') as toml_file:
+        toml_output = toml.dump(dict_to_save, toml_file)
+    return toml_output
 
 def check_config_version(
         config_path: str,

@@ -6,8 +6,8 @@
 low_pressure_ice_eos = 'bm3'
 high_pressure_ice_eos = 'mgd3'
 
-from TidalPy.interfaces.burnman import burnman_installed, Mineral, dictionarize_formula, formula_mass
-from TidalPy.interfaces.burnman.material.custom.constant import ConstantMaterial
+from TidalPy.Extending.burnman import burnman_installed, Mineral, dictionarize_formula, formula_mass
+from TidalPy.Extending.burnman.material.custom.constant import ConstantMaterial
 
 
 class LowPressureIceConst(ConstantMaterial):

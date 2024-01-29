@@ -2,12 +2,12 @@ from typing import Tuple
 
 import numpy as np
 
-from Tidalpy import configurations, debug_mode
-from Tidalpy.exceptions import BadValueError, ParameterMissingError, ParameterValueError
+from TidalPy import configurations
+from TidalPy.exceptions import BadValueError, ParameterMissingError, ParameterValueError
 from TidalPy.utilities.types import float_eps
-from TidalPy.interfaces.burnman. import burnman, burnman_installed
-from TidalPy.interfaces.burnman.defaults import default_burnman_layer_params
-from TidalPy.interfaces.burnman.material.helper import find_material
+from TidalPy.Extending.burnman.package import burnman, burnman_installed
+from TidalPy.Extending.burnman.defaults import default_burnman_layer_params
+from TidalPy.Extending.burnman.material.helper import find_material
 
 from TidalPy.logger import get_logger
 log = get_logger(__name__)

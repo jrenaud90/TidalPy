@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.5.0a6.dev3'
+version = '0.5.0a6.dev4'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -76,6 +76,11 @@ dev = [
     "ipympl>=0.8.7",
     "julia>=0.5.7",
     "diffeqpy>=1.2.0"
+]
+
+burnman = [
+    "autograd",
+    "burnman"
 ]
 
 graphics = [

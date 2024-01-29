@@ -5,6 +5,7 @@ from typing import Any, Tuple
 
 from TidalPy import extensive_checks, version
 from TidalPy import _output_dir as disk_loc
+from TidalPy.configurations import save_dict_to_toml
 from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
 from TidalPy.utilities.classes.base import TidalPyClass
 
@@ -240,19 +241,19 @@ class ConfigHolder(TidalPyClass):
             for directory in save_dirs:
                 config_save_path = os.path.join(directory, f'{class_name}.cfg')
                 config_filepaths.append(config_save_path)
-                save_dict_to_json(self.config, full_save_path=config_save_path, overwrite=overwrite)
+                save_dict_to_toml(self.config, config_save_path, overwrite=overwrite)
 
         # Save default configs if flag is set
         if save_default and self.default_config is not None:
             for directory in save_dirs:
                 config_save_path = os.path.join(directory, f'{class_name}.default.cfg')
-                save_dict_to_json(self.default_config, full_save_path=config_save_path, overwrite=overwrite)
+                save_dict_to_toml(self.default_config, config_save_path, overwrite=overwrite)
 
         # Save any old configs (if present and if flag is set)
         if save_old_config and self.old_config is not None:
             for directory in save_dirs:
                 config_save_path = os.path.join(directory, f'{class_name}.old.cfg')
-                save_dict_to_json(self.old_config, full_save_path=config_save_path, overwrite=overwrite)
+                save_dict_to_toml(self.old_config, config_save_path, overwrite=overwrite)
 
         return tuple(config_filepaths)
 

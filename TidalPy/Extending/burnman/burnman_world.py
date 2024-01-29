@@ -2,8 +2,8 @@ from typing import Tuple
 from warnings import warn
 
 from TidalPy.exceptions import InitiatedPropertyChangeError
+from TidalPy.Extending.burnman.package import burnman, burnman_installed
 from TidalPy.structures.world_types.layered import LayeredWorld
-from TidalPy.interfaces.burnman import burnman, burnman_installed
 
 
 class BurnManWorld(LayeredWorld):

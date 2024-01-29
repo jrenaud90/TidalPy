@@ -1,6 +1,6 @@
 import numpy as np
 
-from TidalPy.interfaces.burnman import burnman_installed, Material, material_property
+from TidalPy.Extending.burnman import burnman_installed, Material, material_property
 
 
 class ConstantMaterial(Material):

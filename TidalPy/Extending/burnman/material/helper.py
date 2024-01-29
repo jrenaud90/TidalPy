@@ -1,7 +1,7 @@
 from TidalPy.exceptions import UnknownModelError
-from TidalPy.interfaces.burnman import burnman_installed, burnman
-from TidalPy.interfaces.burnman.material import custom as tidalpy_materials
-from TidalPy.interfaces.burnman.material.custom.constant import ConstantMaterial
+from TidalPy.Extending.burnman import burnman_installed, burnman
+from TidalPy.Extending.burnman.material import custom as tidalpy_materials
+from TidalPy.Extending.burnman.material.custom.constant import ConstantMaterial
 
 known_materials = None
 known_materials_sourceless = None
