@@ -1,3 +1,6 @@
+Immediate ToDos:
+* Recalcualte radial solver starting conditions for the test suite: test_initial_condition_accuracy.
+
 Future ToDos:
 * Added in true incompressible model for multilayer code.
 * Convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
