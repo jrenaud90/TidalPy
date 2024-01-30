@@ -39,7 +39,7 @@ jobs:
       - name: Install Dependencies
         shell: bash -el {0}
         run: |
-          conda install pytest matplotlib numba numpy scipy cython llvm-openmp
+          conda install pytest matplotlib numba numpy scipy cython llvm-openmp burnman
       - name: Install package
         shell: bash -el {0}
         run: |
