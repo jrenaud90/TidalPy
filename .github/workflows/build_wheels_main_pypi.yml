@@ -58,9 +58,9 @@ jobs:
       - name: Install Dependencies
         shell: bash -el {0}
         run: |
-          conda install numpy scipy cython llvm-openmp pytest
           python -m pip install --upgrade build
-
+          conda install numpy scipy cython llvm-openmp pytest
+          python -m pip install burnman
       - name: Install package
         shell: bash -el {0}
         run: |
@@ -72,7 +72,6 @@ jobs:
           export CXXFLAGS="$CXXFLAGS -I/usr/local/opt/libomp/include"
           export LDFLAGS="$LDFLAGS -Wl,-rpath,/usr/local/opt/libomp/lib -L/usr/local/opt/libomp/lib -lomp -L/usr/local/opt/llvm/lib"
           python -m build --wheel --outdir ./wheelhouse/
-
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
