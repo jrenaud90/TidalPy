@@ -361,7 +361,7 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
     cdef char negative_pow = 0
     cdef int b_abs = b
 
-    if signbit(b):
+    if signbit(<double> b):
         negative_pow = 1
         b_abs = -b
     
