@@ -2,6 +2,7 @@ from typing import List, TYPE_CHECKING, Union
 
 import numpy as np
 
+import TidalPy
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectAttributeType,
                                 IncorrectMethodToSetStateProperty, OuterscopePropertySetError, ParameterMissingError,
@@ -9,7 +10,6 @@ from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError,
 from TidalPy.utilities.classes.model import LayerModelHolder
 
 from . import known_model_const_args, known_model_live_args, known_models
-from .defaults import known_isotope_data, radiogenics_defaults
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType
@@ -25,7 +25,6 @@ class Radiogenics(LayerModelHolder):
         user provided parameters related to convection and conduction.
     """
 
-    default_config = radiogenics_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
@@ -105,9 +104,9 @@ class Radiogenics(LayerModelHolder):
             #  pre-built TidalPy isotope lists.
             isotopes = self.config['isotopes']
             if type(isotopes) == str:
-                if isotopes.lower() not in known_isotope_data:
+                if isotopes.lower() not in TidalPy.config['physics']['radiogenics']['known_isotope_data']:
                     raise UnknownModelError
-                iso_datas = known_isotope_data[isotopes]
+                iso_datas = TidalPy.config['physics']['radiogenics']['known_isotope_data'][isotopes]
             else:
                 iso_datas = isotopes
 

@@ -146,7 +146,7 @@ def nested_place(
     return dict_to_overwrite
 
 
-def nested_replace(old_dict: dict, new_dict: dict, make_copies: bool = True) -> dict:
+def nested_merge(old_dict: dict, new_dict: dict, make_copies: bool = True) -> dict:
     """ Replaces values in an old dict with values in a new dict, but does not overwrite nested dicts. Instead it
         will perform the same type of replacement on each nested dict.
 
@@ -183,7 +183,7 @@ def nested_replace(old_dict: dict, new_dict: dict, make_copies: bool = True) -> 
                 old_value_dict = old_dict[key]
                 if type(old_value_dict) != dict:
                     raise Exception('How did that happen? Old value was not a dict.')
-                combo_dict[key] = nested_replace(old_dict=old_value_dict, new_dict=value, make_copies=True)
+                combo_dict[key] = nested_merge(old_dict=old_value_dict, new_dict=value, make_copies=True)
             else:
                 # Other kind of value, just replace old value
                 combo_dict[key] = value

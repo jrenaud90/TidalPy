@@ -1,10 +1,13 @@
 from typing import Tuple
 from warnings import warn
 
+import TidalPy
+from TidalPy.logger import get_logger
 from TidalPy.exceptions import InitiatedPropertyChangeError
 from TidalPy.Extending.burnman.package import burnman, burnman_installed
 from TidalPy.structures.world_types.layered import LayeredWorld
 
+log = get_logger(__name__)
 
 class BurnManWorld(LayeredWorld):
     """ BurnManWorld
@@ -58,7 +61,7 @@ class BurnManWorld(LayeredWorld):
 
     def reinit(
         self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
-        set_by_burnman: bool = True, reinit_layers: bool = True
+        reinit_layers: bool = True
         ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
@@ -89,7 +92,10 @@ class BurnManWorld(LayeredWorld):
             self.set_geometry(self.radius, self.mass)
 
         # Make call to parent reinit
-        super().reinit(initial_init, reinit_geometry, setup_simple_tides, set_by_burnman, reinit_layers)
+        super().reinit(initial_init, reinit_geometry=reinit_geometry,
+                       setup_simple_tides=setup_simple_tides,
+                       reinit_layers=reinit_layers,
+                       pull_geo_from_config=False)
 
     # # Initiated properties
     @property
@@ -107,3 +113,7 @@ class BurnManWorld(LayeredWorld):
     @bm_layers.setter
     def bm_layers(self, value):
         raise InitiatedPropertyChangeError
+
+# Add burnman world type to known world types
+log.debug('Adding BurnManWorld to known world types.')
+TidalPy.structures.world_types.world_types['burnman'] = BurnManWorld

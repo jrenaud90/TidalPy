@@ -1,33 +1,37 @@
 # TidalPy Major Change Log
 
-Future ToDos:
-* Added in true incompressible model for multilayer code.
-* Convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
-* Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?
+### Version 0.6.0 *PLANNED*
+- Other Major Changes
+  - Remove support for non-cython based `radial_solver` module.
 
 ### Version 0.5.0 Alpha (Winter 2024)
+_This version is expected to break code based on TidalPy v0.4.X and earlier_
+
 Cythonizing TidalPy
 - A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
 extension classes. The reasons for doing this are numerous. This transition will be completed in stages
-with odd version numbers used as placeholders for bugfixes to previous version.
-precompiled cython functionality.
+with minor versions (v0.X.0) being a new set of cythonized updates.
 - For this version: 
   - Added new cython-based `radial_solver_x`.
   - Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
   - Added new cython-based `TidalPy.rheology.models`.
     - Improved the new rheology methods to better handle extreme values of frequency and modulus.
+  - Added several new cython-based helper functions in the utilities module.
 
 Other Major Changes
 * Removed support for `solver_numba` in the `radial_solver` module.
-* Removed some imports from main package __init__ to avoid slow load times.
+* Removed some imports from main package and sub modules' `__init__` to avoid slow load times.
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
 * Changed setup files so that cython code can be compiled.
   * `special` - for high-performance, general, scientific functions.
 * Moved TidalPy configs to a standard user directory by default. The specific location will depend on the OS.
+  * Default configs will be installed on the first `import TidalPy` call after installation.
+    * These defaults are stored in the `TidalPy.defaultc.py` as a string which is copy and pasted to the new `TidalPy_Configs.toml`.
   * There is a new `TidalPy.clear_data()` function to delete all data stored in these locations. Data will be rebuilt the next time TidalPy is imported.
   * New `TidalPy.set_config(config_path)` to change the active configuration file used by TidalPy.
     * Note that `TidalPy.reinit()` should be called after changing the configurations.
   * New `TidalPy.set_world_dir(world_dir_path)` to change which directory to pull world configs from. 
+  * Moved away from the system of `default.py` configurations for sub modules. All default configs are stored in the same `TidalPy_Config.toml`
 * Shifted from `json` to `toml` files for world configs.
   * Store all world configs to a zip file for easier distribution.
 
@@ -53,6 +57,7 @@ Minor Changes
     * initial guess functions
     * interface functions
 * Converted radial_solver.numerical initial guess and interface functions output to np.ndarrays rather than numba lists.
+* Removed `config_helper.py` and the functions defined within.
   
 Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.

@@ -36,7 +36,6 @@ config_ = {
     }
 io_base = build_world('io_simple')
 
-
 def test_single_body_derivative_calc():
     """ This test will load a tidally active body and a tidally inactive host, set the temperatures and orbit then
         check that single body tidal calculations are occurring as expected. """

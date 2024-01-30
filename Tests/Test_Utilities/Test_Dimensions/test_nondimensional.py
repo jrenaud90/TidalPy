@@ -7,7 +7,7 @@ TidalPy.test_mode = True
 
 from scipy.constants import G as G_
 
-from TidalPy.utilities.dimensions.nondimensional import non_dimensionalize_physicals
+from TidalPy.utilities.dimensions.nondimensional import non_dimensionalize_physicals, redimensionalize_physicals
 
 
 def test_non_dimensionalize_physicals():
@@ -29,7 +29,7 @@ def test_non_dimensionalize_physicals():
     shear_array_out   = shear_array.copy()    
 
     # non-dimensionalize the arrays and get some non-dim constants.
-    output_freq, G_to_use = non_dimensionalize_physicals(
+    output_freq_nondim, G_nondim = non_dimensionalize_physicals(
         frequency, mean_radius, bulk_density,
         radius_array_out, density_array_out, gravity_array_out, bulk_array_out, shear_array_out)
     
@@ -48,5 +48,20 @@ def test_non_dimensionalize_physicals():
     assert np.allclose(bulk_array / pascal_conversion, bulk_array_out)
     assert np.allclose(shear_array / pascal_conversion, shear_array_out)
 
-    assert np.isclose(G_to_use, G_ / (length_conversion**3 / (mass_conversion * second2_conversion)))
-    assert np.isclose(output_freq, frequency / (1. / second_conversion))
+    assert np.isclose(G_nondim, G_ / (length_conversion**3 / (mass_conversion * second2_conversion)))
+    assert np.isclose(output_freq_nondim, frequency / (1. / second_conversion))
+
+    # Check that the redimensionalize function works too.
+    # Use the output from the non-dim as inputs to the redim.
+    output_freq_redim, G_redim = redimensionalize_physicals(
+        output_freq_nondim, mean_radius, bulk_density,
+        radius_array_out, density_array_out, gravity_array_out, bulk_array_out, shear_array_out)
+
+    # These should all match the original again.
+    assert np.allclose(radius_array, radius_array_out)
+    assert np.allclose(density_array, density_array_out)
+    assert np.allclose(gravity_array, gravity_array_out)
+    assert np.allclose(bulk_array, bulk_array_out)
+    assert np.allclose(shear_array, shear_array_out)
+    assert np.isclose(G_redim, G_)
+    assert np.isclose(output_freq_redim, frequency)

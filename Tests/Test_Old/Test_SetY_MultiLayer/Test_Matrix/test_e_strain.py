@@ -125,12 +125,14 @@ def test_calc_strains_simple():
         calculate_strain_stress(
                 potential, potential_partial_theta, potential_partial_phi,
                 potential_partial2_theta2, potential_partial2_phi2,
-                potential_partial2_theta_phi, tidal_y,
-                colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
+                potential_partial2_theta_phi,
+                tidal_y,
+                longitude_array=longitude_array, colatitude_array=colat_array, time_array=time_array,
+                radius_array=radius_array[1:], shear_moduli=shear_array,
                 bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
                 )
 
-    shape = (6, *radius_array[1:].shape, *colat_mtx.shape)
+    shape = (6, *radius_array[1:].shape, longitude_array.size, colat_array.size, time_array.size)
     # Check shape
     assert strain_components.shape == shape
     assert stress_components.shape == shape
@@ -177,12 +179,14 @@ def test_calc_strains_nsr():
         calculate_strain_stress(
                 potential, potential_partial_theta, potential_partial_phi,
                 potential_partial2_theta2, potential_partial2_phi2,
-                potential_partial2_theta_phi, tidal_y,
-                colatitude=colat_mtx, radius=radius_array[1:], shear_moduli=shear_array,
+                potential_partial2_theta_phi,
+                tidal_y,
+                longitude_array=longitude_array, colatitude_array=colat_array, time_array=time_array,
+                radius_array=radius_array[1:], shear_moduli=shear_array,
                 bulk_moduli=bulk_array, frequency=orbital_freq, order_l=2
                 )
-
-    shape = (6, *radius_array[1:].shape, *colat_mtx.shape)
+    
+    shape = (6, *radius_array[1:].shape, longitude_array.size, colat_array.size, time_array.size)
     # Check shape
     assert strain_components.shape == shape
     assert stress_components.shape == shape

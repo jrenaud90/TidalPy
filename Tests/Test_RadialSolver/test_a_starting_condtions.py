@@ -683,8 +683,8 @@ def test_initial_condition_accuracy(is_solid, is_static, is_incompressible, use_
 
     # Get precalculated resultTidalPy v0.4.0 result
     if (is_solid, is_static, is_incompressible, use_kamata, degree_l) not in known_results:
-        # Skip
-        assert True
+        pytest.skip(f'Combination {(is_solid, is_static, is_incompressible, use_kamata, degree_l)} not found (or not implemented) in pre-calculated TidalPy results.')
+
     else:
         old_tpy_result = known_results[(is_solid, is_static, is_incompressible, use_kamata, degree_l)]
 

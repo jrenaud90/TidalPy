@@ -6,6 +6,8 @@ You can check their default values by examining the same file at https://github.
 
 import os
 import warnings
+from itertools import islice
+
 import toml
 
 import TidalPy
@@ -73,7 +75,16 @@ def check_config_version(
     """
     compatible = False
     with open(config_path, 'r') as config_file:
-        config_version = config_file.readline().split(': ')[1].split('\n')[0].strip()
+        config_version_found = False
+        for line in islice(config_file, 0, 10):  # Assume the version number is in the first 10 lines
+            if 'version:' in line.lower():
+                config_version = line.split(': ')[1].split('\n')[0].strip()
+                config_version_found = True
+                break
+            
+        if not config_version_found:
+            raise ValueError(f'Can not find configuration version in {config_file}.')
+        
         if config_version == version:
             compatible = True
         elif allow_bugfix_difference:
@@ -104,7 +115,9 @@ def get_default_config() -> dict:
     if not os.path.isfile(config_path):
         # Create toml file with default configurations.
         with open(config_path, 'w') as config_file:
-            config_file.write(f'# TidalPy Configurations for version: {version}\n\n')
+            config_file.write(f'#===========================================================#\n')
+            config_file.write(f'#    TidalPy Default Configurations for Version: {version}\n')
+            config_file.write(f'#===========================================================#\n\n')
             config_file.write(default_config_str)
     else:
         # Check if configuration file is for the correct version of TidalPy.

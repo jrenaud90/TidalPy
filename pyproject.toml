@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.5.0a6.dev4'
+version = '0.5.0a6.dev15'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -78,11 +78,7 @@ dev = [
     "diffeqpy>=1.2.0"
 ]
 
-burnman = [
-    "autograd",
-    "burnman"
-]
-
+# Reccomended (sometimes required) graphics packages
 graphics = [
     "jupyter",
     "cmcrameri>=1.4",
@@ -91,17 +87,19 @@ graphics = [
     "ipympl>=0.8.7"
 ]
 
-julia = [
-    "julia>=0.5.7",
-    "diffeqpy>=1.2.0"
+# Extending installs
+burnman = [
+    "autograd",
+    "burnman"
 ]
 
 cartopy = [
-    "pyproj>=3.3.0",
-    "shapely>=1.6.4,<=1.8.4",
-    "pyshp>=2.1",
-    "geos>=3.7.2",
-    "cartopy>=0.18.0"
+    "cartopy>=0.22.0"
+]
+
+julia = [
+    "julia>=0.5.7",
+    "diffeqpy>=1.2.0"
 ]
 
 [build-system]

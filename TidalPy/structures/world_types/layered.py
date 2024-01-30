@@ -2,6 +2,7 @@ from typing import Dict, Iterator, Tuple, Union
 
 import numpy as np
 
+import TidalPy
 from TidalPy.exceptions import (InitiatedPropertyChangeError, MissingArgumentError,
                                 ParameterMissingError,TidalPyWorldError)
 from TidalPy.utilities.numpy_helper import find_nearest
@@ -9,7 +10,7 @@ from TidalPy.utilities.types import FloatArray, NoneType
 
 
 from .tidal import TidalWorld
-from ..layers import GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
+from ..layers import GasLayer, LayerType, PhysicsLayer
 
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
@@ -59,7 +60,8 @@ class LayeredWorld(TidalWorld):
         super().__init__(world_config, name, initialize=False)
 
         # Basic layer reinit
-        LayerClass = layers_class_by_world_class[self.world_class]
+        LayerClass = TidalPy.structures.layers.layers_class_by_world_class[self.world_class]
+        
         self._layers_class = LayerClass.layer_class
         self._num_layers = len(self.config['layers'])
         last_layer_i = self._num_layers - 1
@@ -109,7 +111,7 @@ class LayeredWorld(TidalWorld):
 
     def reinit(
         self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
-            reinit_layers: bool = True
+        reinit_layers: bool = True, pull_geo_from_config: bool = True
         ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
@@ -126,6 +128,9 @@ class LayeredWorld(TidalWorld):
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         reinit_layers : bool = True
             If `True`, calls to the world's layers' reinit() method.
+        pull_geo_from_config : bool = True
+            If `True`, pulls mass and radius from world config.
+            If `False`, pulls these from state attributes.
         """
 
         # Don't let parent methods initialize geometry since a LayeredWorld's mass is based on its layers' masses
@@ -135,17 +140,22 @@ class LayeredWorld(TidalWorld):
             )
 
         # Setup Geometry
-        # Pull out planet configurations
-        radius = self.config['radius']
-        volume = (4. / 3.) * np.pi * radius**3
-        mass = self.config.get('mass', None)
-        update_state_geometry = True
+        if pull_geo_from_config:
+            # Pull out planet configurations
+            radius = self.config['radius']
+            volume = (4. / 3.) * np.pi * radius**3
+            mass = self.config.get('mass', None)
+            update_state_geometry = True
 
-        # Layer constructor may need the planets mass and radius.
-        #     So set those here (they will be reset by the set_geometry method).
-        self._radius = radius
-        self._mass = mass
-        self._volume = volume
+            # Layer constructor may need the planets mass and radius.
+            #     So set those here (they will be reset by the set_geometry method).
+            self._radius = radius
+            self._mass = mass
+            self._volume = volume
+        else:
+            mass = self.mass
+            radius = self.radius
+            update_state_geometry = False
 
         # Update the global tidal volume fraction
         running_tidal_fraction = 0.

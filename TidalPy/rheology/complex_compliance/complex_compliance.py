@@ -8,7 +8,6 @@ from TidalPy.utilities.performance import njit
 from TidalPy.utilities.classes.model import LayerModelHolder
 
 from . import known_model_const_args, known_model_live_args, known_models
-from .defaults import complex_compliance_defaults
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import ComplexArray, FloatArray
@@ -69,11 +68,10 @@ class ComplexCompliance(LayerModelHolder):
     TidalPy.rheology.Rheology
     """
 
-    default_config = complex_compliance_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
-    model_config_key = ('rheology', 'complex_compliance')
+    model_config_key = 'rheology'
 
     def __init__(
         self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,

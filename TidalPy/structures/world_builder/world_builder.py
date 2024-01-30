@@ -6,7 +6,7 @@ import toml
 from TidalPy.paths import get_worlds_dir
 from TidalPy.exceptions import (MissingArgumentError, NotYetImplementedError, TidalPyWorldError, UnknownWorld,
                                 UnknownWorldType)
-from TidalPy.utilities.classes.config.dictionary_utils import nested_replace
+from TidalPy.utilities.dictionary_utils import nested_merge
 from TidalPy.structures.world_builder.config_handler import clean_world_config, get_world_configs
 from TidalPy.structures.world_types import world_types
 
@@ -149,7 +149,7 @@ def build_from_world(old_world, new_config: dict, new_name: str = None):
     old_config_copy = clean_world_config(old_config, make_copy=True)
 
     # Combine new and old dictionaries allowing the new dict to over write the old
-    combo_dict = nested_replace(old_config_copy, new_config, make_copies=True)
+    combo_dict = nested_merge(old_config_copy, new_config, make_copies=True)
 
     # Make any additional changes to the configs before planet build
     variant = False

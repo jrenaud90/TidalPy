@@ -5,7 +5,7 @@ from .gas import GasLayer
 from .physics import PhysicsLayer
 
 LayerType = Union[PhysicsLayer, LayerBase, GasLayer]
-PhysicalLayerType = Union[PhysicsLayer]
+PhysicalLayerType = PhysicsLayer
 
 known_layer_classes = {
     'gas'    : GasLayer,

@@ -310,15 +310,16 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_dict():
     shear = 1.e10
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
+    kwargs = dict(
+        rheology=rheology, eccentricity=eccentricity, obliquity=obliquity,
+        orbital_period=orbital_period, spin_period=spin_period,
+        viscosity=viscosity, shear_modulus=shear,
+        max_tidal_order_l=3, eccentricity_truncation_lvl=4,
+        complex_compliance_inputs=andrade_inputs,
+        use_obliquity=True, tidal_scale=1., fixed_q=120.
+    )
     dissipation_results = \
-        single_dissipation_from_dict_or_world_instance(
-            host_dict, secondary_dict, rheology=rheology, eccentricity=eccentricity, obliquity=obliquity,
-            orbital_period=orbital_period, spin_period=spin_period,
-            viscosity=viscosity, shear_modulus=shear,
-            max_tidal_order_l=3, eccentricity_truncation_lvl=4,
-            complex_compliance_inputs=andrade_inputs,
-            use_obliquity=True, tidal_scale=1., fixed_q=120.
-            )
+        single_dissipation_from_dict_or_world_instance(host_dict, secondary_dict, **kwargs)
 
     assert type(dissipation_results) == dict
     assert type(dissipation_results['tidal_heating']) == np.ndarray
@@ -342,7 +343,6 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_world_instanc
         using viscosity array with the Andrade rheology. Max l = 3, eccentricity trunc = 4 """
 
     from TidalPy.structures import build_world
-
     jupiter = build_world('jupiter')
     io = build_world('io')
 
@@ -354,15 +354,17 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_world_instanc
     shear = 1.e10
     rheology = 'andrade'
     andrade_inputs = (0.2, 1.)
+    kwargs = dict(
+        rheology=rheology, eccentricity=eccentricity, obliquity=obliquity,
+        orbital_period=orbital_period, spin_period=spin_period,
+        viscosity=viscosity, shear_modulus=shear,
+        max_tidal_order_l=3, eccentricity_truncation_lvl=4,
+        complex_compliance_inputs=andrade_inputs,
+        use_obliquity=True, tidal_scale=1., fixed_q=120.
+    )
+
     dissipation_results = \
-        single_dissipation_from_dict_or_world_instance(
-            jupiter, io, rheology=rheology, eccentricity=eccentricity, obliquity=obliquity,
-            orbital_period=orbital_period, spin_period=spin_period,
-            viscosity=viscosity, shear_modulus=shear,
-            max_tidal_order_l=3, eccentricity_truncation_lvl=4,
-            complex_compliance_inputs=andrade_inputs,
-            use_obliquity=True, tidal_scale=1., fixed_q=120.
-            )
+        single_dissipation_from_dict_or_world_instance(jupiter, io, **kwargs)
 
     assert type(dissipation_results) == dict
     assert type(dissipation_results['tidal_heating']) == np.ndarray

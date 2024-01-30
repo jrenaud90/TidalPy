@@ -4,9 +4,9 @@ import numpy as np
 import TidalPy
 
 
-from TidalPy.rheology.complex_compliance import known_models, known_model_const_args, complex_compliance_defaults
+from TidalPy.rheology.complex_compliance import known_models, known_model_const_args
 
-comp_defaults = complex_compliance_defaults['rock']
+comp_defaults = TidalPy.config['layers']['rock']['rheology']
 
 
 def test_all_models():

@@ -7,8 +7,6 @@ from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, InitiatedProp
 from TidalPy.utilities.classes.model import LayerModelHolder
 
 from . import known_model_const_args, known_model_live_args, known_models
-from .defaults import liquid_viscosity_defaults, solid_viscosity_defaults
-
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
     from TidalPy.rheology import Rheology
@@ -145,11 +143,10 @@ class LiquidViscosity(ViscosityParentClass):
     TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
-    default_config = liquid_viscosity_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
-    model_config_key = ('rheology', 'liquid_viscosity')
+    model_config_key = 'liquid_viscosity'
     is_liquid = True
 
 
@@ -165,9 +162,8 @@ class SolidViscosity(ViscosityParentClass):
     TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
-    default_config = solid_viscosity_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
-    model_config_key = ('rheology', 'solid_viscosity')
+    model_config_key = 'solid_viscosity'
     is_liquid = False

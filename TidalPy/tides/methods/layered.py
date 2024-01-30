@@ -8,7 +8,6 @@ import numpy as np
 from TidalPy.exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty, MissingAttributeError)
 
 from .base import TidesBase
-from .defaults import tide_defaults
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
@@ -36,7 +35,6 @@ class LayeredTides(TidesBase):
     """
 
     model = 'layered'
-    default_config = tide_defaults['layered']
 
     def __init__(self, world: 'LayeredWorld', store_config_in_world: bool = True, initialize: bool = True):
         """ Constructor for LayeredTides class

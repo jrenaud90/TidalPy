@@ -1,12 +1,12 @@
-import json
 import os
 
+import toml
 import numpy as np
 
 import TidalPy
 TidalPy.test_mode = True
 
-from TidalPy.structures import build_world
+from TidalPy.structures import build_world, scale_from_world
 
 io_config = {
     "name"           : "Io",
@@ -54,20 +54,19 @@ def planet_asserts(planet):
 
 
 def test_build_burnman_world_from_dict():
-    # Try
     result = build_world('Io', world_config=io_config)
 
     assert planet_asserts(result)
 
 
-def test_build_burnman_world_from_json():
-    with open('temp_io.json', 'w') as planet_file:
-        json.dump(io_config, planet_file)
+def test_build_burnman_world_from_toml():
+    with open('temp_io.toml', 'w') as planet_file:
+        toml.dump(io_config, planet_file)
 
-    with open('temp_io.json', 'r') as planet_file:
+    with open('temp_io.toml', 'r') as planet_file:
         result = build_world('Io', world_config=planet_file)
 
-    os.remove('temp_io.json')
+    os.remove('temp_io.toml')
 
     assert planet_asserts(result)
 
@@ -76,10 +75,10 @@ def test_build_from_burnman_world_scale_radius():
     """ This will test building a secondary BurnmanWorld from an already built one using a radius scaling technique. """
 
     # Build a regular layered Io first.
-    io = TidalPy.build_world('Io')
+    io = build_world('Io')
 
     # Now build a second version that only has a name and eccentricity change.
-    io_2 = TidalPy.scale_from_world(io, new_name='small_io', radius_scale=0.5)
+    io_2 = scale_from_world(io, new_name='small_io', radius_scale=0.5)
 
     # Check name
     assert io_2.name == 'small_io'
@@ -90,7 +89,7 @@ def test_build_from_burnman_world_scale_radius():
         np.testing.assert_approx_equal(layer_2.radius, layer.radius / 2.)
 
     # Check for scaling a larger radius
-    io_3 = TidalPy.scale_from_world(io, new_name='large_io', radius_scale=2.)
+    io_3 = scale_from_world(io, new_name='large_io', radius_scale=2.)
 
     # Check name
     assert io_3.name == 'large_io'

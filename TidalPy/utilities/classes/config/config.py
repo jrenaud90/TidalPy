@@ -33,12 +33,7 @@ class ConfigHolder(TidalPyClass):
             assert type(self.default_config) in [dict, type(None)]
 
         # Make a copy of the default dictionary on instantiation
-        if self.default_config_key is None:
-            self.default_config = copy.deepcopy(self.default_config)
-        else:
-            # If the default_config_key is not None then it will be used to pull out the default parameters before the
-            #    config is initialized.
-            self.default_config = copy.deepcopy(self.default_config[self.default_config_key])
+        self.default_config = copy.deepcopy(self.default_config)
 
         # Add class information to the default dictionary
         if self.default_config is not None and self.store_py_info:

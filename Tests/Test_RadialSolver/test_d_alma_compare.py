@@ -99,9 +99,14 @@ is_static_by_layer = (False, True, True)
 is_incompressible_by_layer = (True, True, True)
 upper_radius_by_layer = (core_r, ocean_r, crust_r)
 
-@pytest.mark.parametrize('degree_l', (2, 3, 4))
+@pytest.mark.parametrize('degree_l', (2, 3, 4, 5))
 def test_radial_solver_alma_compare(degree_l):
     """ Compare TidalPy's `radial_solver` to ALMA for an Enceladus-like planet. """
+
+    # TODO: See if we can get radial_solver to compute l=5 test.
+    if degree_l == 5:
+        pytest.skip('Current version of TidalPy is not able to match ALMA for l=5+')
+        
     success_threshold_real = 0.08
     success_threshold_imag = 0.10
 

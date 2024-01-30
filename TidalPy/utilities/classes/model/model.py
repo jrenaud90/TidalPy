@@ -1,13 +1,13 @@
 import operator
 from typing import Callable, TYPE_CHECKING, Tuple, Union
 
-from TidalPy import extensive_checks
+import TidalPy
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
                                 MissingArgumentError, OuterscopePropertySetError, ParameterMissingError,
                                 UnknownModelError)
 
-from ..config.config import ConfigHolder
-from ..config.dictionary_utils import nested_get, nested_place
+from TidalPy.utilities.dictionary_utils import nested_get, nested_place
+from TidalPy.utilities.classes.config.config import ConfigHolder
 
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
@@ -93,7 +93,7 @@ class ModelHolder(ConfigHolder):
 
         # Switch between calculate and calculate debug.
         #    Generally speaking, _calculate_debug is a much slower function that includes additional sanity checks.
-        if extensive_checks:
+        if TidalPy.extensive_checks:
             if '_calculate_debug' in self.__dict__:
                 self._calc_to_use = getattr(self, '_calculate_debug')
                 self._debug_mode_on = True
@@ -367,6 +367,10 @@ class LayerModelHolder(ModelHolder):
         # Store layer and world information
         self._layer = layer
         self._world = layer.world
+
+        # Get default configurations for the model
+        self.default_config = TidalPy.config['layers'][layer.type][self.model_config_key]
+
         # Record if model config should be stored back into layer's config
         self._store_config_in_layer = store_config_in_layer
 
