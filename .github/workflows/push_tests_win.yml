@@ -7,7 +7,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   test-win:
-    name: Test CyRK on Windows
+    name: Test TidalPy on Windows
     runs-on: windows-latest
     strategy:
       matrix:
@@ -25,7 +25,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest matplotlib numba numpy scipy
       - name: Install package
         run: |
           python -m pip install . -v

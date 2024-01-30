@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   test-ubuntu:
-    name: Test CyRK on Ubuntu
+    name: Test TidalPy on Ubuntu
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,7 +22,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install  pytest matplotlib numba numpy scipy
       - name: Install package
         run: |
           python -m pip install . -v
@@ -42,13 +42,13 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cov
+          python -m pip install  pytest matplotlib numba numpy scipy pytest-cov
       - name: Install package
         run: |
           python -m pip install . -v
 
       - name: Run pytest
-        run: pytest --capture=sys -v --cov=CyRK Tests/
+        run: pytest --capture=sys -v --cov=TidalPy Tests/
         env:
           # Disable numba so that njited functions can have their coverage checked.
           NUMBA_DISABLE_JIT: 1
