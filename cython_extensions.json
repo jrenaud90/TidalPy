@@ -149,7 +149,7 @@
     "name": "TidalPy.RadialSolver.solver",
     "sources": [["TidalPy", "RadialSolver", "solver.pyx"]],
     "include_dirs": [["TidalPy", "RadialSolver", "solver"]],
-    "compile_args": [],
+    "compile_args": ["-std=c99"],
     "link_args": []
   }
 }
