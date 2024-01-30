@@ -15,7 +15,7 @@ elif install_platform.lower() == 'darwin':
     extra_compile_args = ['-std=c99']
     extra_link_args = []
 else:
-    extra_compile_args = ['-fopenmp -std=c99']
+    extra_compile_args = ['-fopenmp', '-std=c99']
     extra_link_args = ['-fopenmp']
 
 # Load TidalPy's cython extensions
