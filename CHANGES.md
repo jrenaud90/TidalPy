@@ -44,6 +44,8 @@ Dependencies
 * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.
 
 Minor Changes
+* `complex_compliance` configurations are now stored in the top level `rheology` in all configs.
+  * For example, in prior TidalPy versions you would need to change the complex compliance model by editing config['layers']['mantle']['rheology']['complex_compliance']['model'] = 'andrade'. Now this would be: config['layers']['mantle']['rheology']['model'] = 'andrade'.
 * Added unique frequency finder functions to the `modes` module.
 * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
 * Moved non-critical files out of repository.
