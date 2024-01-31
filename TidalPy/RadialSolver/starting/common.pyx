@@ -112,12 +112,13 @@ cdef void cf_takeuchi_phi_psi(
     cdef double complex z8   = z6 * z2
     cdef double complex z10  = z8 * z2
     cdef double l    = <double> degree_l
-    cdef double l_3  = 3. + 2. * l
-    cdef double l_5  = 5. + 2. * l
-    cdef double l_7  = 7. + 2. * l
-    cdef double l_9  = 9. + 2. * l
-    cdef double l_11 = 11. + 2. * l
-    cdef double l_13 = 13. + 2. * l
+    cdef double l2   = 2. * l
+    cdef double l_3  = 3.  + l2
+    cdef double l_5  = 5.  + l2
+    cdef double l_7  = 7.  + l2
+    cdef double l_9  = 9.  + l2
+    cdef double l_11 = 11. + l2
+    cdef double l_13 = 13. + l2
 
     # Series expansion was done in `Takeuchi Starting Conditions.nb` on 2024-01-31 by JPR.
     phi_ptr[0] = (
