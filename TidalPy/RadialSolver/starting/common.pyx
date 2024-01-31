@@ -107,10 +107,10 @@ cdef void cf_takeuchi_phi_psi(
     # Instead we use the limiting version of the functions.
     # However, we leave the full definition at the bottom of this function for reference.
 
-    cdef double z4   = z2 * z2
-    cdef double z6   = z4 * z2
-    cdef double z8   = z6 * z2
-    cdef double z10  = z8 * z2
+    cdef double complex z4   = z2 * z2
+    cdef double complex z6   = z4 * z2
+    cdef double complex z8   = z6 * z2
+    cdef double complex z10  = z8 * z2
     cdef double l    = <double> degree_l
     cdef double l_3  = 3. + 2. * l
     cdef double l_5  = 5. + 2. * l
