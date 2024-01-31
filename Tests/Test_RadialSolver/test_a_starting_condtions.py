@@ -9,17 +9,17 @@ from TidalPy.rheology.models import Maxwell
 from TidalPy.RadialSolver.solutions import find_num_solutions
 from TidalPy.RadialSolver.starting.driver import find_starting_conditions
 
-frequency    = 0.01
+frequency    = 0.1
 radius       = 0.1
 density      = 7000.
 bulk_modulus = 100.0e9
 
-shear         = 5.0e9
+shear         = 50.0e9
 viscosity     = 1.0e20
 rheo_inst     = Maxwell()
 complex_shear = rheo_inst(frequency, shear, viscosity)
 
-G_to_use = 6.6743e-11
+G_to_use = 6.67430e-11
 
 known_results_tpy0p4 = {
     # (True, True, True, True, 2): NotImplementedError()
