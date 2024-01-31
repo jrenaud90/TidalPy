@@ -103,17 +103,64 @@ cdef void cf_takeuchi_phi_psi(
 
     """
 
-    cdef char lp1 = degree_l + 1
-    cdef double l_dbl_factorial   = cf_double_factorial(2 * degree_l + 1)
-    cdef double lp1_dbl_factorial = cf_double_factorial(2 * lp1 + 1)
-    
-    cdef double complex z    = cf_csqrt(z2)
-    cdef double complex zl   = cf_cipow(z, degree_l)
-    cdef double complex zlp1 = cf_cipow(z, lp1)
+    # Floating point errors prevent us from using the exact definition of these functions (See Issue # 41)
+    # Instead we use the limiting version of the functions.
+    # However, we leave the full definition at the bottom of this function for reference.
 
-    phi_ptr[0]        = l_dbl_factorial * (spherical_jn(degree_l, z) / zl)
-    phi_lplus1_ptr[0] = lp1_dbl_factorial * (spherical_jn(lp1, z) / zlp1)
-    psi_ptr[0]        = (2. * (2. * degree_l + 3.) / (z * z)) * (1. - phi_ptr[0])
+    cdef double z4   = z2 * z2
+    cdef double z6   = z4 * z2
+    cdef double z8   = z6 * z2
+    cdef double z10  = z8 * z2
+    cdef double l    = <double> degree_l
+    cdef double l_3  = 3. + 2. * l
+    cdef double l_5  = 5. + 2. * l
+    cdef double l_7  = 7. + 2. * l
+    cdef double l_9  = 9. + 2. * l
+    cdef double l_11 = 11. + 2. * l
+    cdef double l_13 = 13. + 2. * l
+
+    # Series expansion was done in `Takeuchi Starting Conditions.nb` on 2024-01-31 by JPR.
+    phi_ptr[0] = (
+         1. + 
+        -z2  / (2.    * l_3) + 
+         z4  / (8.    * l_3 * l_5) + 
+        -z6  / (48.   * l_3 * l_5 * l_7) + 
+         z8  / (384.  * l_3 * l_5 * l_7 * l_9) + 
+        -z10 / (3840. * l_3 * l_5 * l_7 * l_9 * l_11)
+    )
+    
+    # Note that the l+1 function has skips a denominator term than the function above.
+    phi_lplus1_ptr[0] = (
+         1. + 
+        -z2  / (2.    * l_5) + 
+         z4  / (8.    * l_5 * l_7) + 
+        -z6  / (48.   * l_5 * l_7 * l_9) + 
+         z8  / (384.  * l_5 * l_7 * l_9 * l_11) + 
+        -z10 / (3840. * l_5 * l_7 * l_9 * l_11 * l_13)
+    )
+    
+    psi_ptr[0] = (
+         1. + 
+        -z2  / (4.     * l_5) + 
+        # RECORD: Error? TS72 quotes the next term as z4 / (12. * (5. + 2. * l) * (7 + 2. * l)); factor of 2 off in denom.
+         z4  / (24.    * l_5 * l_7) + 
+        -z6  / (192.   * l_5 * l_7 * l_9) + 
+         z8  / (1920.  * l_5 * l_7 * l_9 * l_11) +
+        -z10 / (23040. * l_5 * l_7 * l_9 * l_11 * l_13)
+     )
+    
+    # Full version
+    # cdef char lp1 = degree_l + 1
+    # cdef double l_dbl_factorial   = cf_double_factorial(2 * degree_l + 1)
+    # cdef double lp1_dbl_factorial = cf_double_factorial(2 * lp1 + 1)
+    
+    # cdef double complex z    = cf_csqrt(z2)
+    # cdef double complex zl   = cf_cipow(z, degree_l)
+    # cdef double complex zlp1 = cf_cipow(z, lp1)
+
+    # phi_ptr[0]        = l_dbl_factorial * (spherical_jn(degree_l, z) / zl)
+    # phi_lplus1_ptr[0] = lp1_dbl_factorial * (spherical_jn(lp1, z) / zlp1)
+    # psi_ptr[0]        = (2. * (2. * degree_l + 3.) / (z * z)) * (1. - phi_ptr[0])
 
     # DEBUG: Uncomment the below and comment the above to use the method that TidalPy v0.4.0 used for this function.
     # Left here for comparison/debug purpouses.
