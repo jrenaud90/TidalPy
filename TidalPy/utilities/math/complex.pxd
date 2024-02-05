@@ -20,6 +20,8 @@ cdef long double SCALED_CEXP_UPPERL
 
 cdef double complex cf_build_dblcmplx(double a, double b) noexcept nogil
 
+cdef double cf_cabs(double complex z) noexcept nogil
+
 cdef double cf_hypot(const double x, const double y) noexcept nogil
 
 cdef double complex cf_csqrt(const double complex z) noexcept nogil

@@ -50,6 +50,10 @@ cdef inline double complex cf_build_dblcmplx(const double a, const double b) noe
 
     return result
 
+cdef double cf_cabs(double complex z) noexcept nogil:
+    cdef double z_real = z.real
+    cdef double z_imag = z.imag
+    return sqrt((z_real * z_real) + (z_imag * z_imag))
 
 cdef double cf_carg(double complex z) noexcept nogil:
     return atan2(z.imag, z.real)
