@@ -6,6 +6,10 @@ from libc.math cimport pi
 from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.RadialSolver.starting.common cimport cf_z_calc
 
+########################################################################################################################
+#### Solid Layers
+########################################################################################################################
+
 
 cdef void cf_kamata_solid_dynamic_compressible(
         double frequency,
@@ -81,8 +85,9 @@ cdef void cf_kamata_solid_dynamic_compressible(
     k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4. * gamma) / alpha2)
     k2_quad = (k2_quad_neg * k2_quad_neg) + ((4. * degree_l * (degree_l + 1) * (gamma * gamma)) / (alpha2 * beta2))
 
-    # TODO: TS74 (eq. 99) has these flipped compared to KMN15. Going with KMN for this func.
-    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
+    # QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with  KMN15 for this func.
+    cdef size_t neg_index = 1
+    cdef size_t pos_index = 0
     cdef double complex k2_pos, k2_neg, k2_quad_sqrt
     k2_quad_sqrt = cf_csqrt(k2_quad)
     k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
@@ -103,50 +108,50 @@ cdef void cf_kamata_solid_dynamic_compressible(
     # See Eqs. B1-B12 of KMN15
     
     # y1, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 0] = \
+    starting_conditions_ptr[pos_index * num_ys + 0] = \
         -f_k2_pos * z_k2_pos * r_inverse
-    starting_conditions_ptr[1 * num_ys + 0] = \
+    starting_conditions_ptr[neg_index * num_ys + 0] = \
         -f_k2_neg * z_k2_neg * r_inverse
     starting_conditions_ptr[2 * num_ys + 0] = \
         degree_l_dbl * r_inverse
     
     # y2, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 1] = \
+    starting_conditions_ptr[pos_index * num_ys + 1] = \
         -density * f_k2_pos * alpha2 * k2_pos + (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + llp1) * z_k2_pos
-    starting_conditions_ptr[1 * num_ys + 1] = \
+    starting_conditions_ptr[neg_index * num_ys + 1] = \
         -density * f_k2_neg * alpha2 * k2_neg + (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + llp1) * z_k2_neg
     starting_conditions_ptr[2 * num_ys + 1] = \
         2. * shear_modulus * degree_l_dbl * (degree_l_dbl - 1) * r2_inverse
     
     # y3, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 2] = \
+    starting_conditions_ptr[pos_index * num_ys + 2] = \
         z_k2_pos * r_inverse
-    starting_conditions_ptr[1 * num_ys + 2] = \
+    starting_conditions_ptr[neg_index * num_ys + 2] = \
         z_k2_neg * r_inverse
     starting_conditions_ptr[2 * num_ys + 2] = \
         r_inverse
     
     # y4, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 3] = \
+    starting_conditions_ptr[pos_index * num_ys + 3] = \
         shear_modulus * k2_pos - (2. * shear_modulus * r2_inverse) * (f_k2_pos + 1.) * z_k2_pos
-    starting_conditions_ptr[1 * num_ys + 3] = \
+    starting_conditions_ptr[neg_index * num_ys + 3] = \
         shear_modulus * k2_neg - (2. * shear_modulus * r2_inverse) * (f_k2_neg + 1.) * z_k2_neg
     starting_conditions_ptr[2 * num_ys + 3] = \
         2. * shear_modulus * (degree_l_dbl - 1.) * r2_inverse
     
     # y5, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 4] = \
+    starting_conditions_ptr[pos_index * num_ys + 4] = \
         3. * gamma * f_k2_pos - h_k2_pos * (degree_l_dbl * gamma - dynamic_term)
-    starting_conditions_ptr[1 * num_ys + 4] = \
+    starting_conditions_ptr[neg_index * num_ys + 4] = \
         3. * gamma * f_k2_neg - h_k2_neg * (degree_l_dbl * gamma - dynamic_term)
     starting_conditions_ptr[2 * num_ys + 4] = \
         degree_l * gamma - dynamic_term
     
     # y6, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 5] = \
-        dlp1 * starting_conditions_ptr[0 * num_ys + 4] * r_inverse
-    starting_conditions_ptr[1 * num_ys + 5] = \
-        dlp1 * starting_conditions_ptr[1 * num_ys + 4] * r_inverse
+    starting_conditions_ptr[pos_index * num_ys + 5] = \
+        dlp1 * starting_conditions_ptr[pos_index * num_ys + 4] * r_inverse
+    starting_conditions_ptr[neg_index * num_ys + 5] = \
+        dlp1 * starting_conditions_ptr[neg_index * num_ys + 4] * r_inverse
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * starting_conditions_ptr[2 * num_ys + 4] * r_inverse - (3. * degree_l_dbl * gamma * r_inverse)
 
@@ -221,8 +226,9 @@ cdef void cf_kamata_solid_static_compressible(
     k2_quad_neg = -k2_quad_pos
     k2_quad = k2_quad_neg**2 + ((4. * degree_l * lp1 * gamma**2) / (alpha2 * beta2))
 
-    # TODO: TS74 has these flipped compared to KMN15. Going with KMN for this func.
-    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
+    # QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with  KMN15 for this func.
+    cdef size_t neg_index = 1
+    cdef size_t pos_index = 0
     cdef double complex k2_pos, k2_neg, k2_quad_sqrt
     k2_quad_sqrt = cf_csqrt(k2_quad)
     k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
@@ -243,50 +249,50 @@ cdef void cf_kamata_solid_static_compressible(
     # See Eqs. B1-B12 of KMN15
     
     # y1, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 0] = \
+    starting_conditions_ptr[pos_index * num_ys + 0] = \
         -f_k2_pos * z_k2_pos * r_inverse
-    starting_conditions_ptr[1 * num_ys + 0] = \
+    starting_conditions_ptr[neg_index * num_ys + 0] = \
         -f_k2_neg * z_k2_neg * r_inverse
     starting_conditions_ptr[2 * num_ys + 0] = \
         degree_l * r_inverse
     
     # y2, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 1] = \
+    starting_conditions_ptr[pos_index * num_ys + 1] = \
         -density * f_k2_pos * alpha2 * k2_pos + (2. * shear_modulus * r2_inverse) * (2. * f_k2_pos + llp1) * z_k2_pos
-    starting_conditions_ptr[1 * num_ys + 1] = \
+    starting_conditions_ptr[neg_index * num_ys + 1] = \
         -density * f_k2_neg * alpha2 * k2_neg + (2. * shear_modulus * r2_inverse) * (2. * f_k2_neg + llp1) * z_k2_neg
     starting_conditions_ptr[2 * num_ys + 1] = \
         2. * shear_modulus * degree_l * (degree_l - 1) * r2_inverse
     
     # y3, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 2] = \
+    starting_conditions_ptr[pos_index * num_ys + 2] = \
         z_k2_pos * r_inverse
-    starting_conditions_ptr[1 * num_ys + 2] = \
+    starting_conditions_ptr[neg_index * num_ys + 2] = \
         z_k2_neg * r_inverse
     starting_conditions_ptr[2 * num_ys + 2] = \
         r_inverse
     
     # y4, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 3] = \
+    starting_conditions_ptr[pos_index * num_ys + 3] = \
         shear_modulus * k2_pos - (2. * shear_modulus * r2_inverse) * (f_k2_pos + 1.) * z_k2_pos
-    starting_conditions_ptr[1 * num_ys + 3] = \
+    starting_conditions_ptr[neg_index * num_ys + 3] = \
         shear_modulus * k2_neg - (2. * shear_modulus * r2_inverse) * (f_k2_neg + 1.) * z_k2_neg
     starting_conditions_ptr[2 * num_ys + 3] = \
         2. * shear_modulus * (degree_l - 1.) * r2_inverse
     
     # y5, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 4] = \
+    starting_conditions_ptr[pos_index * num_ys + 4] = \
         3. * gamma * f_k2_pos - h_k2_pos * (degree_l * gamma)
-    starting_conditions_ptr[1 * num_ys + 4] = \
+    starting_conditions_ptr[neg_index * num_ys + 4] = \
         3. * gamma * f_k2_neg - h_k2_neg * (degree_l * gamma)
     starting_conditions_ptr[2 * num_ys + 4] = \
         degree_l * gamma
     
     # y6, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 5] = \
-        dlp1 * starting_conditions_ptr[0 * num_ys + 4] * r_inverse
-    starting_conditions_ptr[1 * num_ys + 5] = \
-        dlp1 * starting_conditions_ptr[1 * num_ys + 4] * r_inverse
+    starting_conditions_ptr[pos_index * num_ys + 5] = \
+        dlp1 * starting_conditions_ptr[pos_index * num_ys + 4] * r_inverse
+    starting_conditions_ptr[neg_index * num_ys + 5] = \
+        dlp1 * starting_conditions_ptr[neg_index * num_ys + 4] * r_inverse
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * starting_conditions_ptr[2 * num_ys + 4] * r_inverse - (3. * degree_l * gamma * r_inverse)
 
@@ -352,8 +358,9 @@ cdef void cf_kamata_solid_dynamic_incompressible(
     dlp1         = 2.0 * degree_l_dbl + 1.0
     llp1         = degree_l_dbl * lp1
 
-    # TODO: TS74 (eq. 99) has these flipped compared to KMN15. Going with KMN for this func.
-    #    [GitHub Issue](https://github.com/jrenaud90/TidalPy/issues/31)
+    # QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with  KMN15 for this func.
+    cdef size_t neg_index = 1
+    cdef size_t pos_index = 0
     cdef double complex k2_pos, f_k2_neg, h_k2_neg, z_k2_pos
     k2_pos   = dynamic_term / beta2
     f_k2_neg = -dynamic_term / gamma
@@ -363,50 +370,50 @@ cdef void cf_kamata_solid_dynamic_incompressible(
     # See Eqs. B17-B28 of KMN15
     
     # y1, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 0] = \
+    starting_conditions_ptr[pos_index * num_ys + 0] = \
         0.
-    starting_conditions_ptr[1 * num_ys + 0] = \
+    starting_conditions_ptr[neg_index * num_ys + 0] = \
         0.
     starting_conditions_ptr[2 * num_ys + 0] = \
         degree_l_dbl * r_inverse
     
     # y2, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 1] = \
+    starting_conditions_ptr[pos_index * num_ys + 1] = \
         llp1 * (-density * gamma + 2. * shear_modulus * z_k2_pos * r2_inverse)
-    starting_conditions_ptr[1 * num_ys + 1] = \
+    starting_conditions_ptr[neg_index * num_ys + 1] = \
         density * ((dynamic_term / gamma) * (dynamic_term + 4. * gamma) - llp1 * gamma)
     starting_conditions_ptr[2 * num_ys + 1] = \
         2. * shear_modulus * degree_l_dbl * lm1 * r2_inverse
     
     # y3, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 2] = \
+    starting_conditions_ptr[pos_index * num_ys + 2] = \
         z_k2_pos * r_inverse
-    starting_conditions_ptr[1 * num_ys + 2] = \
+    starting_conditions_ptr[neg_index * num_ys + 2] = \
         0.
     starting_conditions_ptr[2 * num_ys + 2] = \
         r_inverse
     
     # y4, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 3] = \
+    starting_conditions_ptr[pos_index * num_ys + 3] = \
         shear_modulus * (dynamic_term / beta2 - 2. * r2_inverse * z_k2_pos)
-    starting_conditions_ptr[1 * num_ys + 3] = \
+    starting_conditions_ptr[neg_index * num_ys + 3] = \
         0.
     starting_conditions_ptr[2 * num_ys + 3] = \
         2. * shear_modulus * lm1 * r2_inverse
     
     # y5, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 4] = \
+    starting_conditions_ptr[pos_index * num_ys + 4] = \
         lp1 * (degree_l_dbl * gamma - dynamic_term)
-    starting_conditions_ptr[1 * num_ys + 4] = \
+    starting_conditions_ptr[neg_index * num_ys + 4] = \
         (h_k2_neg - 3.) * dynamic_term - h_k2_neg * degree_l_dbl * gamma
     starting_conditions_ptr[2 * num_ys + 4] = \
         degree_l_dbl * gamma - dynamic_term
     
     # y6, solutions 1--3
-    starting_conditions_ptr[0 * num_ys + 5] = \
-        dlp1 * starting_conditions_ptr[0 * num_ys + 4] * r_inverse
-    starting_conditions_ptr[1 * num_ys + 5] = \
-        dlp1 * starting_conditions_ptr[1 * num_ys + 4] * r_inverse
+    starting_conditions_ptr[pos_index * num_ys + 5] = \
+        dlp1 * starting_conditions_ptr[pos_index * num_ys + 4] * r_inverse
+    starting_conditions_ptr[neg_index * num_ys + 5] = \
+        dlp1 * starting_conditions_ptr[neg_index * num_ys + 4] * r_inverse
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * starting_conditions_ptr[2 * num_ys + 4] * r_inverse - (3. * degree_l_dbl * gamma * r_inverse)
 
