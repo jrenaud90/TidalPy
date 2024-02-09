@@ -1,6 +1,6 @@
 from libcpp cimport bool as bool_cpp_t
 
-cdef extern from "love.c":
+cdef extern from "love.cpp":
     void find_love_cf(
         double complex* complex_love_numbers_ptr,
         double complex* surface_solutions_ptr,
@@ -29,17 +29,19 @@ cdef class RadialSolverSolution():
 
 
 cdef RadialSolverSolution cf_radial_solver(
-    const double[:] radius_array,
-    const double[:] density_array,
-    const double[:] gravity_array,
-    const double[:] bulk_modulus_array,
-    const double complex[:] complex_shear_modulus_array,
+    size_t total_slices,
+    double* radius_array_ptr,
+    double* density_array_ptr,
+    double* gravity_array_ptr,
+    double* bulk_modulus_array_ptr,
+    double complex* complex_shear_modulus_array_ptr,
     double frequency,
     double planet_bulk_density,
-    tuple is_solid_by_layer,
-    tuple is_static_by_layer,
-    tuple is_incompressible_by_layer,
-    tuple upper_radius_by_layer,
+    size_t num_layers,
+    bool_cpp_t* is_solid_by_layer_ptr,
+    bool_cpp_t* is_static_by_layer_ptr,
+    bool_cpp_t* is_incompressible_by_layer_ptr,
+    double* upper_radius_by_layer_ptr,
     unsigned int degree_l = *,
     tuple solve_for = *,
     bool_cpp_t use_kamata = *,

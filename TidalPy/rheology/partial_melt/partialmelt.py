@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
+import TidalPy
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import (BadValueError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError)
@@ -9,7 +10,6 @@ from TidalPy.utilities.performance import njit
 from TidalPy.utilities.classes.model import LayerModelHolder
 
 from . import known_model_const_args, known_model_live_args, known_models
-from .defaults import partial_melt_defaults
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
@@ -155,11 +155,10 @@ class PartialMelt(LayerModelHolder):
     TidalPy.rheology.Rheology
     """
 
-    default_config = partial_melt_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
-    model_config_key = ('rheology', 'partial_melting')
+    model_config_key = 'partial_melting'
 
     def __init__(
         self, layer: 'PhysicalLayerType', rheology_class: 'Rheology', model_name: str = None,

@@ -10,7 +10,7 @@ TidalPy-Run*
 # End Cython
 
 # But do track some custom c/cpp files
-!TidalPy/RadialSolver/love.c
+!TidalPy/RadialSolver/love.cpp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -186,3 +186,18 @@ fabric.properties
 
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
+
+
+# VS Code ignores
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix

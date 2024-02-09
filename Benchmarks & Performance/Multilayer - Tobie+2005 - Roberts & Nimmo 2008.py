@@ -101,7 +101,7 @@ for model_name, (core_density, mantle_density) in models.items():
 
     # Set the density for each layer
     density_array = mantle_density * np.ones_like(radius_array)
-    mantle_radii = np.ones_like(radius_array, dtype=np.bool)
+    mantle_radii = np.ones_like(radius_array, dtype=np.bool_)
     if R_core is not None:
         core_radii = radius_array <= R_core
         mantle_radii = radius_array > R_core

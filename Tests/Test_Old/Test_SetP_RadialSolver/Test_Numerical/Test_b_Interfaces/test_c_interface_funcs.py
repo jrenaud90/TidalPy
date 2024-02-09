@@ -23,11 +23,11 @@ lower_layer_ys_dict = {
                                 (15. - 6.j) * np.ones(6, dtype=np.complex128)
                                 )),
     # Dynamic liquid layer only has 2 solutions with 4 ys defined.
-    (False, False): np.asarray(((112. - 7.j) * np.ones(6, dtype=np.complex128),
-                                (17. - 8.j) * np.ones(6, dtype=np.complex128)
+    (False, False): np.asarray(((112. - 7.j) * np.ones(4, dtype=np.complex128),
+                                (17. - 8.j) * np.ones(4, dtype=np.complex128)
                                 )),
     # Static liquid layer only has 1 solution with 2 ys defined.
-    (False, True):  np.asarray(((183. - 9.j) * np.ones(6, dtype=np.complex128),
+    (False, True):  np.asarray(((183. - 9.j) * np.ones(2, dtype=np.complex128),
                                 ))
     }
 
@@ -59,7 +59,7 @@ def test_interface_functions(is_lower_solid, is_upper_solid, is_lower_static, is
     # Check number of solutions
     assert num_upper_solutions_calculated == num_upper_solutions
     assert upper_layer_ys_by_solution.shape == upper_layer_ys_check_by_solution.shape
-    assert num_upper_solutions_calculated.dtype == np.complex128
+    assert upper_layer_ys_by_solution.dtype == np.complex128
 
     # Perform more specialized checks
     if is_lower_static and is_upper_static:

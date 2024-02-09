@@ -2,14 +2,11 @@
 """
 from typing import Callable, Dict, TYPE_CHECKING, Tuple
 
-import numpy as np
-
 from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, NotYetImplementedError,
                                 UnknownModelError)
 from TidalPy.utilities.performance import njit
 
 from .base import TidesBase
-from .defaults import tide_defaults
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
 
 from TidalPy.logger import get_logger
@@ -136,7 +133,6 @@ class GlobalApproxTides(TidesBase):
     """
 
     model = 'global_approx'
-    default_config = tide_defaults['global_approx']
 
     def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, initialize: bool = True):
         """ Constructor for TidesBase class

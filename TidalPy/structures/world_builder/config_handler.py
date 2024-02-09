@@ -1,6 +1,6 @@
 import copy
 
-import json5
+import toml
 
 from TidalPy.paths import get_worlds_dir
 from TidalPy.utilities.io.pathing import get_all_files_of_type
@@ -69,13 +69,13 @@ def check_for_duplicate_worlds(world_configs: dict):
 
 # Find all planet configurations and import their config files
 # Locate all planet configurations
-known_worlds_files = get_all_files_of_type(get_worlds_dir(), ['cfg', 'json', 'json5'])
+known_worlds_files = get_all_files_of_type(get_worlds_dir(), ['toml'])
 known_worlds_cfg = dict()
 check_for_duplicate_worlds(known_worlds_cfg)
 _configs_loaded = False
 
 
-def _cfgpath_to_json():
+def _cfgpath_to_toml():
     global known_worlds_cfg
     global _configs_loaded
 
@@ -84,7 +84,7 @@ def _cfgpath_to_json():
         for world_name, config_path in known_worlds_files.items():
             with open(config_path, 'r') as config_file:
                 # Store with filename
-                known_worlds_cfg[world_name] = json5.load(config_file)
+                known_worlds_cfg[world_name] = toml.load(config_file)
             # Also store with name used in config
             if 'name' in known_worlds_cfg[world_name]:
                 config_name = known_worlds_cfg[world_name]['name']
@@ -99,6 +99,6 @@ def get_world_configs():
     global _configs_loaded
 
     if not _configs_loaded:
-        _cfgpath_to_json()
+        _cfgpath_to_toml()
 
     return known_worlds_cfg

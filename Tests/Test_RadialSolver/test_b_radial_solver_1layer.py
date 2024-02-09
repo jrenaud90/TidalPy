@@ -46,8 +46,7 @@ def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, de
 
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
     if not is_solid:
-        warnings.warn(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
-        # assert True
+        pytest.skip(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
     else:
         try:
             out = radial_solver(
@@ -64,7 +63,7 @@ def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, de
             assert type(out.result) is np.ndarray
             assert out.result.shape == (6, N)
         except NotImplementedError as e:
-            warnings.warn(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
+            pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
 
 @pytest.mark.parametrize('is_solid', (True, False))
 @pytest.mark.parametrize('is_static', (True, False))
@@ -84,8 +83,7 @@ def test_radial_solver_1layer_solve_for_both(is_solid, is_static, is_incompressi
 
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
     if not is_solid:
-        warnings.warn(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
-        # assert True
+        pytest.skip(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
     else:
         try:
             out = radial_solver(
@@ -102,4 +100,4 @@ def test_radial_solver_1layer_solve_for_both(is_solid, is_static, is_incompressi
             assert type(out.result) is np.ndarray
             assert out.result.shape == (len(solve_for) * 6, N)
         except NotImplementedError as e:
-            warnings.warn(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
+            pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')

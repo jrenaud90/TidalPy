@@ -1,55 +1,51 @@
 # TidalPy Major Change Log
 
-* In-Dev Changes
-  * Added in true incompressible model for multilayer code.
+### Version 0.6.0 *PLANNED*
+- Other Major Changes
+  - Remove support for non-cython based `radial_solver` module.
 
-### Version 0.5.0 Alpha (Spring-Summer 2023)
-TODO: 
-- Need tests for cython interface funcs.
-- convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
-- Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?
-- add noexcepts in at the end.
+### Version 0.5.0 Alpha (Winter 2024)
+_This version is expected to break code based on TidalPy v0.4.X and earlier_
 
 Cythonizing TidalPy
 - A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
 extension classes. The reasons for doing this are numerous. This transition will be completed in stages
-with odd version numbers used as placeholders for bugfixes to previous version.
-  - v0.5.0: radial_solver module.
-  - v0.5.2: multilayer solver
-  - v0.5.4: dynamics module
-  - v0.5.6: rest of tides module
-  - v0.5.8: other functions including utilities module
-  - v0.5.10: OOP structures like planets and orbits.
-  - v0.6.0: Deprecate and remove old numba support from TidalPy shifting the default behavior to use the new
-precompiled cython functionality.
+with minor versions (v0.X.0) being a new set of cythonized updates.
 - For this version: 
   - Added new cython-based `radial_solver_x`.
   - Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
   - Added new cython-based `TidalPy.rheology.models`.
     - Improved the new rheology methods to better handle extreme values of frequency and modulus.
+  - Added several new cython-based helper functions in the utilities module.
 
 Other Major Changes
 * Removed support for `solver_numba` in the `radial_solver` module.
-* Removed some imports from main package __init__ to avoid slow load times.
+* Removed some imports from main package and sub modules' `__init__` to avoid slow load times.
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
 * Changed setup files so that cython code can be compiled.
   * `special` - for high-performance, general, scientific functions.
 * Moved TidalPy configs to a standard user directory by default. The specific location will depend on the OS.
+  * Default configs will be installed on the first `import TidalPy` call after installation.
+    * These defaults are stored in the `TidalPy.defaultc.py` as a string which is copy and pasted to the new `TidalPy_Configs.toml`.
   * There is a new `TidalPy.clear_data()` function to delete all data stored in these locations. Data will be rebuilt the next time TidalPy is imported.
   * New `TidalPy.set_config(config_path)` to change the active configuration file used by TidalPy.
     * Note that `TidalPy.reinit()` should be called after changing the configurations.
   * New `TidalPy.set_world_dir(world_dir_path)` to change which directory to pull world configs from. 
+  * Moved away from the system of `default.py` configurations for sub modules. All default configs are stored in the same `TidalPy_Config.toml`
+* Shifted from `json` to `toml` files for world configs.
+  * Store all world configs to a zip file for easier distribution.
 
 Dependencies 
 * Added support for Python 3.11. TidalPy now runs on Python 3.8--3.11.
 * TidalPy now requires:
   * CyRK>=0.8.2
   * Cython>=3.0.0
-* Removed `BurnMan` 3rd party dependence
-  * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages. We will add in support
-so that users can still use BurnMan planets with TidalPy.
+* Moved `BurnMan` 3rd party dependence to a more dedicated `interfaces` folder for future development.
+* To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.
 
 Minor Changes
+* `complex_compliance` configurations are now stored in the top level `rheology` in all configs.
+  * For example, in prior TidalPy versions you would need to change the complex compliance model by editing config['layers']['mantle']['rheology']['complex_compliance']['model'] = 'andrade'. Now this would be: config['layers']['mantle']['rheology']['model'] = 'andrade'.
 * Added unique frequency finder functions to the `modes` module.
 * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
 * Moved non-critical files out of repository.
@@ -63,6 +59,7 @@ Minor Changes
     * initial guess functions
     * interface functions
 * Converted radial_solver.numerical initial guess and interface functions output to np.ndarrays rather than numba lists.
+* Removed `config_helper.py` and the functions defined within.
   
 Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.
@@ -70,8 +67,10 @@ Bug Fixes
 * Fixed issue in incorrect TidalPy version being loaded into the package.
 
 Performance Improvements
-* Improved the performance of the stress and strain calculator by ~20%
-
+* Improved the performance of the stress and strain calculator by ~20%.
+* Cythonize Performance Increases:
+  * New `radial_solver` lead to ~50x performance boost.
+  * New rheology models are 500% faster for arrays; 40,000% faster for scalars (not a typo!)
 
 #### Version 0.4.1 Alpha (Spring 2023)
 Major Changes

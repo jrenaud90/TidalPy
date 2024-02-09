@@ -15,7 +15,7 @@ def test_layered_tide_model_maxwell_rheology():
 
     config_ = {
         'force_spin_sync': False,
-        'type'           : 'burnman',
+        'type'           : 'layered',
         "tides"          : {
             "model"                      : "layered",
             'eccentricity_truncation_lvl': 2,

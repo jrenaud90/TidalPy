@@ -2,13 +2,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy import extensive_checks
+import TidalPy
 from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, MissingArgumentError,
                                 OuterscopePropertySetError, UnusualRealValueError)
 from TidalPy.utilities.classes import LayerConfigHolder
 
 from .complex_compliance import ComplexCompliance
-from .defaults import rheology_defaults
 from .partial_melt import PartialMelt
 from .viscosity import LiquidViscosity, SolidViscosity
 
@@ -36,7 +35,7 @@ class Rheology(LayerConfigHolder):
     TidalPy.rheology.viscosity.ViscosityParentClass
     """
 
-    default_config = rheology_defaults
+    default_config = dict()
     layer_config_key = 'rheology'
 
     def __init__(self, layer: 'PhysicsLayer', store_config_in_layer: bool = True):
@@ -51,7 +50,7 @@ class Rheology(LayerConfigHolder):
             `layer.config` dictionary.
         """
 
-        self.default_config = rheology_defaults[layer.type]
+        self.default_config = TidalPy.config['layers'][layer.type]['rheology']
 
         super().__init__(layer, store_config_in_layer)
 
@@ -191,7 +190,7 @@ class Rheology(LayerConfigHolder):
             raise MissingArgumentError('Shear Modulus was not provided and is not already set.')
 
         # Check for unusual values
-        if extensive_checks:
+        if TidalPy.extensive_checks:
             for value in [viscosity, shear_modulus]:
                 if value is None:
                     continue

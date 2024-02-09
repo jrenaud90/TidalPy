@@ -4,23 +4,25 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
+from . import version
+
 # TidalPy directories
 def get_config_dir() -> str:
     """ TidalPy directory containing global configurations. """
-    config_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), 'Config')
+    config_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), f'{version}', 'Config')
     # Create directory if it does not exist
     Path(config_dir).mkdir(parents=True, exist_ok=True)
     return config_dir
 
 def get_log_dir() -> str:
     """ TidalPy directory containing log files. """
-    log_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), 'Logs')
+    log_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), f'{version}', 'Logs')
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     return log_dir
 
 def get_worlds_dir() -> str:
     """ TidalPy directory containing configurations for various pre-built worlds. """
-    worlds_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), 'Worlds')
+    worlds_dir = os.path.join(user_data_dir('TidalPy', 'TidalPy'), f'{version}', 'Worlds')
     Path(worlds_dir).mkdir(parents=True, exist_ok=True)
     return worlds_dir
 

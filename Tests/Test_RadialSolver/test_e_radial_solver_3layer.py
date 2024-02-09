@@ -52,21 +52,20 @@ is_solid_by_layer = (True, False, True)
 @pytest.mark.parametrize('method', (0, 1, 2))
 @pytest.mark.parametrize('degree_l', (2,))
 @pytest.mark.parametrize('use_kamata', (True,))
-# @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
+@pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
 def test_radial_solver_3layer(solid_is_static, liquid_is_static,
                               solid_is_incompressible, liquid_is_incompressible,
-                              method, degree_l, use_kamata):
+                              method, degree_l, use_kamata, solve_for):
 
     is_static_by_layer = (solid_is_static, liquid_is_static, solid_is_static)
     is_incompressible_by_layer = (solid_is_incompressible, liquid_is_incompressible, solid_is_incompressible)
 
     try:
-        print('RUNNING')
         out = radial_solver(
             radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
             frequency, planet_bulk_density, 
             is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
-            degree_l=degree_l, solve_for=None, use_kamata=use_kamata,
+            degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
             integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
             scale_rtols_by_layer_type=True,
             max_num_steps=5_000_000, expected_size=250, max_step=0,
@@ -76,8 +75,7 @@ def test_radial_solver_3layer(solid_is_static, liquid_is_static,
         assert type(out.result) is np.ndarray
         assert out.result.shape == (6, radius_array.size)
     except NotImplementedError as e:
-        warnings.warn(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
-    print('DONE')
+        pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
 
 
 @pytest.mark.parametrize('solid_is_static', (True, False))

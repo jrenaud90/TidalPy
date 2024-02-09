@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
+import TidalPy
 from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
                                 InitiatedPropertyChangeError, MissingArgumentError, OuterscopePropertySetError,
                                 ParameterMissingError)
-
-from .defaults import layer_defaults
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
 
@@ -34,7 +33,6 @@ class LayerBase(PhysicalObjSpherical):
     TidalPy.structures.layers.GasLayer
     """
 
-    default_config = layer_defaults
     layer_class = 'base'
 
     def __init__(
@@ -61,7 +59,7 @@ class LayerBase(PhysicalObjSpherical):
 
         # Load layer defaults based on layer type
         self.type = layer_config['type']
-        self.default_config = self.default_config[self.type]
+        self.default_config = TidalPy.config['layers'][self.type]
 
         # Initiated Attributes
         self._name = layer_name

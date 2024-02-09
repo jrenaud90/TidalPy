@@ -56,7 +56,7 @@ else:
     uint32 = np.uint32
     uint16 = np.uint16
     uint8 = np.uint8
-    bool_ = np.bool
+    bool_ = np.bool_
     nbList = list
     prange = range
     nbUnicode = str

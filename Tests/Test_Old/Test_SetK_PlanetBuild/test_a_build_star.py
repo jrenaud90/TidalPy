@@ -57,7 +57,7 @@ def test_build_star_from_manual_config():
 
 def test_build_star_from_file_loaded_config():
     # Test loading a star from a user-provided configuration file
-    cancri_filepath = os.path.join(get_worlds_dir(), '55cnc.json')
+    cancri_filepath = os.path.join(get_worlds_dir(), '55cnc.toml')
     with open(cancri_filepath, 'r') as cancri_config_file:
         cancri_star = build_world('55-Cancri', cancri_config_file)
 

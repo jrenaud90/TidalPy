@@ -12,7 +12,7 @@ jobs:
       run:
         shell: bash -el {0}
 
-    name: Test CyRK on MacOS
+    name: Test TidalPy on MacOS
     runs-on: macos-latest
     strategy:
       matrix:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: conda-incubator/setup-miniconda@v2
         with:
-          activate-environment: cyrk_test
+          activate-environment: TidalPy_Test
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
           auto-activate-base: false
@@ -39,7 +39,8 @@ jobs:
       - name: Install Dependencies
         shell: bash -el {0}
         run: |
-          conda install numpy scipy cython llvm-openmp pytest
+          conda install pytest matplotlib numba numpy scipy cython llvm-openmp
+          python -m pip install burnman
       - name: Install package
         shell: bash -el {0}
         run: |

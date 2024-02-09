@@ -6,14 +6,49 @@ You can check their default values by examining the same file at https://github.
 
 import os
 import warnings
+from itertools import islice
+
 import toml
 
 import TidalPy
 from TidalPy import version
 from TidalPy.exceptions import ConfigurationException, InitializationError
-from TidalPy.paths import get_config_dir, get_worlds_dir
+from TidalPy.paths import get_config_dir, get_worlds_dir, unique_path
 from TidalPy.defaultc import default_config_str
 
+
+def save_dict_to_toml(dict_to_save: dict,
+              file_path: str,
+              overwrite: bool = True):
+    """Saves a python dictionary to a toml file at the specified file path.
+
+    Parameters
+    ----------
+    dict_to_save : dict
+        Python dictionary.
+    file_path : str
+        Filepath to save to.
+    overwrite : bool, default = True
+        If True, then the file will be overwritten if already present. by default True
+    """
+
+    if '.toml' not in file_path:
+        raise AttributeError('Please provide a toml file path (include ".toml" extension).')
+    
+    if type(dict_to_save) is not dict:
+        raise AttributeError(f'Can only save python dictionaries to toml files, not {type(dict_to_save)}.')
+
+    toml_output = None
+    if os.path.isfile(file_path):
+        if overwrite:
+            os.remove(file_path)
+        else:
+            # Append a number to the config name until one is found that is not already in use.
+            file_path = unique_path(file_path, is_dir=False, make_dir=False)
+    
+    with open(file_path, 'w') as toml_file:
+        toml_output = toml.dump(dict_to_save, toml_file)
+    return toml_output
 
 def check_config_version(
         config_path: str,
@@ -40,7 +75,16 @@ def check_config_version(
     """
     compatible = False
     with open(config_path, 'r') as config_file:
-        config_version = config_file.readline().split(': ')[1].split('\n')[0].strip()
+        config_version_found = False
+        for line in islice(config_file, 0, 10):  # Assume the version number is in the first 10 lines
+            if 'version:' in line.lower():
+                config_version = line.split(': ')[1].split('\n')[0].strip()
+                config_version_found = True
+                break
+            
+        if not config_version_found:
+            raise ValueError(f'Can not find configuration version in {config_file}.')
+        
         if config_version == version:
             compatible = True
         elif allow_bugfix_difference:
@@ -71,7 +115,9 @@ def get_default_config() -> dict:
     if not os.path.isfile(config_path):
         # Create toml file with default configurations.
         with open(config_path, 'w') as config_file:
-            config_file.write(f'# TidalPy Configurations for version: {version}\n\n')
+            config_file.write(f'#===========================================================#\n')
+            config_file.write(f'#    TidalPy Default Configurations for Version: {version}\n')
+            config_file.write(f'#===========================================================#\n\n')
             config_file.write(default_config_str)
     else:
         # Check if configuration file is for the correct version of TidalPy.
@@ -117,7 +163,7 @@ def get_default_world_dir() -> str:
     install_worlds = True
     # Use a test world file to check that the default worlds are installed.
     # TODO: Update extension if/when converting world configs to toml.
-    io_config = os.path.join(worlds_dir, 'io.json')
+    io_config = os.path.join(worlds_dir, 'io.toml')
     if os.path.isfile(io_config):
         # TODO: Have a check here to see if world config version matches tidalpy and rebuild if it doesn't?
         install_worlds = False

@@ -1,3 +1,4 @@
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """
 Modified from https://github.com/numpy/numpy/blob/main/numpy/core/src/npymath/npy_math_complex.c.src */
@@ -49,6 +50,10 @@ cdef inline double complex cf_build_dblcmplx(const double a, const double b) noe
 
     return result
 
+cdef double cf_cabs(double complex z) noexcept nogil:
+    cdef double z_real = z.real
+    cdef double z_imag = z.imag
+    return sqrt((z_real * z_real) + (z_imag * z_imag))
 
 cdef double cf_carg(double complex z) noexcept nogil:
     return atan2(z.imag, z.real)
@@ -360,7 +365,8 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
     cdef char negative_pow = 0
     cdef int b_abs = b
 
-    if signbit(b):
+    # This used to be "signbit(<double> b)" but it does not really make sesne to convert to double here just to check sign.
+    if b < 0:
         negative_pow = 1
         b_abs = -b
     

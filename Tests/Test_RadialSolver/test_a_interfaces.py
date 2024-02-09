@@ -76,17 +76,18 @@ y_lower_staticliq = np.asarray(
     ((0.5+0.5j, 0.6-9.6j),), dtype=np.complex128
 )
 
-# TODO: Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.
-lower_is_incompressible = False
-upper_is_incompressible = False
-
 @pytest.mark.parametrize('lower_is_solid', (True, False))
 @pytest.mark.parametrize('lower_is_static', (True, False))
 @pytest.mark.parametrize('upper_is_solid', (True, False))
 @pytest.mark.parametrize('upper_is_static', (True, False))
-# @pytest.mark.parametrize('lower_is_incompressible', (True, False))
-# @pytest.mark.parametrize('upper_is_incompressible', (True, False))
-def test_interface_driver(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static):
+@pytest.mark.parametrize('lower_is_incompressible', (True, False))
+@pytest.mark.parametrize('upper_is_incompressible', (True, False))
+def test_interface_driver(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static,
+                          lower_is_incompressible, upper_is_incompressible):
+
+    # TODO: Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.
+    if lower_is_incompressible or upper_is_incompressible:
+        pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
 
     num_sols_lower = find_num_solutions(lower_is_solid, lower_is_static, lower_is_incompressible)
     num_ys_lower   = num_sols_lower * 2
@@ -94,8 +95,6 @@ def test_interface_driver(lower_is_solid, lower_is_static, upper_is_solid, upper
     num_ys_upper   = num_sols_upper * 2
 
     # Determine which lower layer y solution to use
-    if lower_is_incompressible or upper_is_incompressible:
-        raise NotImplementedError()
     if lower_is_solid:
         lower_y = y_lower_solid
     elif lower_is_static:
@@ -122,14 +121,19 @@ def test_interface_driver(lower_is_solid, lower_is_static, upper_is_solid, upper
 @pytest.mark.parametrize('lower_is_static', (True, False))
 @pytest.mark.parametrize('upper_is_solid', (True, False))
 @pytest.mark.parametrize('upper_is_static', (True, False))
-# @pytest.mark.parametrize('lower_is_incompressible', (True, False))
-# @pytest.mark.parametrize('upper_is_incompressible', (True, False))
-def test_interface_accuracy(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static):
+@pytest.mark.parametrize('lower_is_incompressible', (True, False))
+@pytest.mark.parametrize('upper_is_incompressible', (True, False))
+def test_interface_accuracy(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static,
+                            lower_is_incompressible, upper_is_incompressible):
     """ Use results from TidalPy 0.4.0 to test the accuracy of the current interface solver. """
 
+    # TODO: Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.
+    if lower_is_incompressible or upper_is_incompressible:
+        pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
+
     if (lower_is_solid, lower_is_static, upper_is_solid, upper_is_static) not in tpy_0p4_results:
-        # Skip
-        assert True
+        pytest.skip(f'Combination {(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static)} not found (or not implemented) in pre-calculated TidalPy v0.4 results.')
+
     else:
         num_sols_lower = find_num_solutions(lower_is_solid, lower_is_static, lower_is_incompressible)
         num_ys_lower   = num_sols_lower * 2
@@ -137,8 +141,6 @@ def test_interface_accuracy(lower_is_solid, lower_is_static, upper_is_solid, upp
         num_ys_upper   = num_sols_upper * 2
 
         # Determine which lower layer y solution to use
-        if lower_is_incompressible or upper_is_incompressible:
-            raise NotImplementedError()
         if lower_is_solid:
             lower_y = y_lower_solid
         elif lower_is_static:

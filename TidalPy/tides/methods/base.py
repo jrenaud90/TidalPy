@@ -4,13 +4,13 @@
 import numpy as np
 from typing import Dict, TYPE_CHECKING, Tuple
 
+import TidalPy
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncompatibleModelError,
                                 IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError, NotYetImplementedError,
                                 OuterscopePropertySetError, ParameterValueError)
 from TidalPy.utilities.classes.config.config import WorldConfigHolder
 
 
-from .defaults import tide_defaults
 from ..love1d import complex_love_general, effective_rigidity_general
 from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_reduced
 from ..modes.mode_manipulation import find_mode_manipulators
@@ -66,7 +66,6 @@ class TidesBase(WorldConfigHolder):
     """
 
     model = 'base'
-    default_config = tide_defaults['base']
     world_config_key = 'tides'
 
     def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, initialize: bool = True):
@@ -82,6 +81,8 @@ class TidesBase(WorldConfigHolder):
         initialize : bool = True
             If `True`, then an initial call to the tide's reinit method will be made at the end of construction.
         """
+
+        self.default_config = TidalPy.config['tides']['models'][self.model]
 
         super().__init__(world, store_config_in_world=store_config_in_world)
 

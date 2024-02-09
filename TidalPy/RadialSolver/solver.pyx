@@ -14,7 +14,11 @@ from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
 
 # Import cythonized functions
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
-from TidalPy.utilities.dimensions.nondimensional cimport cf_non_dimensionalize_physicals, cf_redimensionalize_radial_functions
+from TidalPy.utilities.dimensions.nondimensional cimport (
+    cf_non_dimensionalize_physicals,
+    cf_redimensionalize_physicals,
+    cf_redimensionalize_radial_functions
+    )
 
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
@@ -162,17 +166,19 @@ cdef class RadialSolverSolution():
 
 
 cdef RadialSolverSolution cf_radial_solver(
-        const double[:] radius_array,
-        const double[:] density_array,
-        const double[:] gravity_array,
-        const double[:] bulk_modulus_array,
-        const double complex[:] complex_shear_modulus_array,
+        size_t total_slices,
+        double* radius_array_ptr,
+        double* density_array_ptr,
+        double* gravity_array_ptr,
+        double* bulk_modulus_array_ptr,
+        double complex* complex_shear_modulus_array_ptr,
         double frequency,
         double planet_bulk_density,
-        tuple is_solid_by_layer,
-        tuple is_static_by_layer,
-        tuple is_incompressible_by_layer,
-        tuple upper_radius_by_layer,
+        size_t num_layers,
+        bool_cpp_t* is_solid_by_layer_ptr,
+        bool_cpp_t* is_static_by_layer_ptr,
+        bool_cpp_t* is_incompressible_by_layer_ptr,
+        double* upper_radius_by_layer_ptr,
         unsigned int degree_l = 2,
         tuple solve_for = None,
         bool_cpp_t use_kamata = False,
@@ -196,7 +202,6 @@ cdef RadialSolverSolution cf_radial_solver(
     # Indexing for: Layer | Solution | ys | slices | solutions
     cdef size_t layer_i
     cdef size_t slice_i
-    cdef size_t top_slice_i
     # Indexing for: Solution | ys | ytypes
     cdef unsigned char solution_i
     cdef unsigned char y_i
@@ -207,16 +212,9 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double degree_l_dbl = <double>degree_l
 
     # Pull out key information
-    cdef double radius_planet
-    cdef size_t num_layers
-    cdef size_t num_interfaces
-    cdef size_t total_slices
-
-    total_slices   = len(radius_array)
-    top_slice_i    = total_slices - 1
-    radius_planet  = radius_array[total_slices - 1]
-    num_layers     = len(is_solid_by_layer)
-    num_interfaces = num_layers - 1
+    cdef size_t top_slice_i    = total_slices - 1
+    cdef double radius_planet  = radius_array_ptr[total_slices - 1]
+    cdef size_t num_interfaces = num_layers - 1
 
     # Ensure there is at least one layer.
     if num_layers <= 0:
@@ -225,37 +223,6 @@ cdef RadialSolverSolution cf_radial_solver(
     # Ensure there are enough slices for radial interpolations.
     if total_slices <= (3 * num_layers):
         raise AttributeError('Radial solver requires at least 3 radial slices per layer (ideally >= 10 per).')
-
-    # Copy the radial data into new pointers so the values can be manipulated inside this function.
-    # Store all double-sized data in one large array.
-    cdef double* radial_double_data_ptr = <double *> allocate_mem(
-        4 * total_slices * sizeof(double),
-        'radial_double_data_ptr (radial_solver; init)'
-        )
-
-    # Create user-friendly pointers to access blocks of that array
-    cdef double* radius_array_ptr  = &radial_double_data_ptr[0]
-    cdef double* density_array_ptr = &radial_double_data_ptr[total_slices]
-    cdef double* gravity_array_ptr = &radial_double_data_ptr[2 * total_slices]
-    cdef double* bulk_array_ptr    = &radial_double_data_ptr[3 * total_slices]
-
-    # Opt: The data above is not stored in the most memory-efficient way since at each slice we will want all of:
-    #  radius, density, gravity, etc. But since those are stored on separate rows, we have to go all the way to the end
-    #  of a row to get the next item at slice_i. A fortran memory layout would be more efficient here.
-
-    # Repeat for double complex-sized data.
-    cdef double complex* cmplx_shear_array_ptr = <double complex *> allocate_mem(
-        total_slices * sizeof(double complex),
-        'cmplx_shear_array_ptr (radial_solver; init)'
-        )
-
-    # Populate the arrays (making a copy of values)
-    for slice_i in range(total_slices):
-        radius_array_ptr[slice_i]      = radius_array[slice_i]
-        density_array_ptr[slice_i]     = density_array[slice_i]
-        gravity_array_ptr[slice_i]     = gravity_array[slice_i]
-        bulk_array_ptr[slice_i]        = bulk_modulus_array[slice_i]
-        cmplx_shear_array_ptr[slice_i] = complex_shear_modulus_array[slice_i]
 
     # Non-dimensionalize inputs
     cdef double G_to_use = NAN
@@ -269,8 +236,8 @@ cdef RadialSolverSolution cf_radial_solver(
             radius_array_ptr,
             density_array_ptr,
             gravity_array_ptr,
-            bulk_array_ptr,
-            cmplx_shear_array_ptr,
+            bulk_modulus_array_ptr,
+            complex_shear_modulus_array_ptr,
             &frequency_to_use,
             &G_to_use
             )
@@ -372,16 +339,6 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef size_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
     cdef size_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
 
-    # Unpack inefficient user-provided tuples into bool array
-    cdef bool_cpp_t* layer_bool_data_ptr = <bool_cpp_t *> allocate_mem(
-        3 * num_layers * sizeof(bool_cpp_t),
-        'layer_bool_data_ptr (radial_solver; init)'
-        )
-
-    cdef bool_cpp_t* is_solid_by_layer_ptr          = &layer_bool_data_ptr[0]
-    cdef bool_cpp_t* is_static_by_layer_ptr         = &layer_bool_data_ptr[num_layers]
-    cdef bool_cpp_t* is_incompressible_by_layer_ptr = &layer_bool_data_ptr[2 * num_layers]
-
     # Opt: The bools above could be stores in a single char variable (per layer).
     #  Eg., 0x00 All false, 0x01 is solid, 0x10 is static and liquid, 0x11 is static and solid, etc.
 
@@ -405,19 +362,14 @@ cdef RadialSolverSolution cf_radial_solver(
 
     for layer_i in range(num_layers):
         # Pull out information on this layer
-        layer_is_solid     = is_solid_by_layer[layer_i]
-        layer_is_static    = is_static_by_layer[layer_i]
-        layer_is_incomp    = is_incompressible_by_layer[layer_i]
-        layer_upper_radius = upper_radius_by_layer[layer_i]
+        layer_is_solid     = is_solid_by_layer_ptr[layer_i]
+        layer_is_static    = is_static_by_layer_ptr[layer_i]
+        layer_is_incomp    = is_incompressible_by_layer_ptr[layer_i]
+        layer_upper_radius = upper_radius_by_layer_ptr[layer_i]
         
         # Make any dimension corrections
         if nondimensionalize:
             layer_upper_radius = layer_upper_radius / radius_planet
-
-        # Once the tuples are unpacked once store their values so we don't have to mess with them again.
-        is_solid_by_layer_ptr[layer_i]          = layer_is_solid
-        is_static_by_layer_ptr[layer_i]         = layer_is_static
-        is_incompressible_by_layer_ptr[layer_i] = layer_is_incomp
 
         # Find number of solutions based on this layer's assumptions
         num_sols = cf_find_num_solutions(
@@ -562,13 +514,6 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex[6] surface_solutions
     cdef double complex* surface_solutions_ptr = &surface_solutions[0]
 
-    # OPT: Could reuse some of these variables so there are not so many being allocated for this function.
-    cdef double complex y4_frac_1, y4_frac_2
-    cdef double complex gamma_1, gamma_2
-    cdef double complex lower_s1y1, lower_s1y2, lower_s1y5, lower_s1y6
-    cdef double complex lower_s2y1, lower_s2y2, lower_s2y5, lower_s2y6
-    cdef double complex lambda_1, lambda_2
-
     # Variables used to solve the linear equation at the planet's surface.
     # Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
     cdef int bc_solution_info = -999
@@ -591,8 +536,8 @@ cdef RadialSolverSolution cf_radial_solver(
             layer_radius_ptr    = &radius_array_ptr[start_index]
             layer_density_ptr   = &density_array_ptr[start_index]
             layer_gravity_ptr   = &gravity_array_ptr[start_index]
-            layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
-            layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
+            layer_bulk_mod_ptr  = &bulk_modulus_array_ptr[start_index]
+            layer_shear_mod_ptr = &complex_shear_modulus_array_ptr[start_index]
 
             # Get physical parameters at the top and bottom of the layer
             radius_lower  = layer_radius_ptr[0]
@@ -872,8 +817,8 @@ cdef RadialSolverSolution cf_radial_solver(
                     layer_radius_ptr    = &radius_array_ptr[start_index]
                     layer_density_ptr   = &density_array_ptr[start_index]
                     layer_gravity_ptr   = &gravity_array_ptr[start_index]
-                    layer_bulk_mod_ptr  = &bulk_array_ptr[start_index]
-                    layer_shear_mod_ptr = &cmplx_shear_array_ptr[start_index]
+                    layer_bulk_mod_ptr  = &bulk_modulus_array_ptr[start_index]
+                    layer_shear_mod_ptr = &complex_shear_modulus_array_ptr[start_index]
 
                     # Get physical parameters at the top and bottom of the layer
                     radius_lower  = layer_radius_ptr[0]
@@ -1001,21 +946,25 @@ cdef RadialSolverSolution cf_radial_solver(
                 find_love_cf(&solution.complex_love_ptr[ytype_i * 3], surface_solutions_ptr, surface_gravity)
 
     finally:
+        # Redim the input pointers if they were non-dim'd.
+        if nondimensionalize:
+            cf_redimensionalize_physicals(
+                total_slices,
+                frequency,
+                radius_planet,
+                planet_bulk_density,
+                radius_array_ptr,
+                density_array_ptr,
+                gravity_array_ptr,
+                bulk_modulus_array_ptr,
+                complex_shear_modulus_array_ptr,
+                &frequency_to_use,
+                &G_to_use
+                )
+
         # Free memory
         if cysolver_setup:
             del solver
-
-        # Release radial property pointers
-        if not (radial_double_data_ptr is NULL):
-            radius_array_ptr  = NULL
-            density_array_ptr = NULL
-            gravity_array_ptr = NULL
-            bulk_array_ptr    = NULL
-            PyMem_Free(radial_double_data_ptr)
-            radial_double_data_ptr = NULL
-        if not (cmplx_shear_array_ptr is NULL):
-            PyMem_Free(cmplx_shear_array_ptr)
-            cmplx_shear_array_ptr = NULL
 
         # Deconstruct main solution pointer
         # Main storage pointers are structured like [layer_i][solution_i][y_i + slice_i]
@@ -1045,13 +994,6 @@ cdef RadialSolverSolution cf_radial_solver(
             num_slices_by_layer_ptr = NULL
             PyMem_Free(layer_int_data_ptr)
             layer_int_data_ptr = NULL
-        
-        if not (layer_bool_data_ptr is NULL):
-            is_solid_by_layer_ptr = NULL
-            is_static_by_layer_ptr = NULL
-            is_incompressible_by_layer_ptr = NULL
-            PyMem_Free(layer_bool_data_ptr)
-            layer_bool_data_ptr = NULL
 
     # Update solution status and return
     if not error:
@@ -1074,11 +1016,11 @@ cdef RadialSolverSolution cf_radial_solver(
 
 
 def radial_solver(
-        const double[:] radius_array,
-        const double[:] density_array,
-        const double[:] gravity_array,
-        const double[:] bulk_modulus_array,
-        const double complex[:] complex_shear_modulus_array,
+        double[:] radius_array,
+        double[:] density_array,
+        double[:] gravity_array,
+        double[:] bulk_modulus_array,
+        double complex[:] complex_shear_modulus_array,
         double frequency,
         double planet_bulk_density,
         tuple is_solid_by_layer,
@@ -1198,19 +1140,54 @@ def radial_solver(
             - solution.message : str
                 Feedback string useful for debugging.
     """
+    cdef size_t i
+
+    # Perform checks and make conversions from python to c
+    cdef size_t total_slices
+    total_slices = radius_array.size
+    assert density_array.size == total_slices
+    assert gravity_array.size == total_slices
+    assert bulk_modulus_array.size == total_slices
+    assert complex_shear_modulus_array.size == total_slices
+
+    # Unpack inefficient user-provided tuples into bool arrays and pass by pointer
+    cdef size_t num_layers
+    num_layers = len(is_solid_by_layer)
+    cdef bool_cpp_t* layer_bool_data_ptr = <bool_cpp_t *> allocate_mem(
+        3 * num_layers * sizeof(bool_cpp_t),
+        'layer_bool_data_ptr (radial_solver; init)'
+        )
+    cdef bool_cpp_t* is_solid_by_layer_ptr          = &layer_bool_data_ptr[0]
+    cdef bool_cpp_t* is_static_by_layer_ptr         = &layer_bool_data_ptr[num_layers]
+    cdef bool_cpp_t* is_incompressible_by_layer_ptr = &layer_bool_data_ptr[2 * num_layers]
+    cdef double* upper_radius_by_layer_ptr = <double *> allocate_mem(
+        num_layers * sizeof(double),
+        'upper_radius_by_layer_ptr (radial_solver; init)'
+        )
+
+    for i in range(num_layers):
+        is_solid_by_layer_ptr[i] = is_solid_by_layer[i]
+        is_static_by_layer_ptr[i] = is_static_by_layer[i]
+        is_incompressible_by_layer_ptr[i] = is_incompressible_by_layer[i]
+        upper_radius_by_layer_ptr[i] = upper_radius_by_layer[i]
     
-    return cf_radial_solver(
-            radius_array,
-            density_array,
-            gravity_array,
-            bulk_modulus_array,
-            complex_shear_modulus_array,
+    # Prepare to run
+    cdef RadialSolverSolution result
+    try:
+        result = cf_radial_solver(
+            total_slices,
+            &radius_array[0],
+            &density_array[0],
+            &gravity_array[0],
+            &bulk_modulus_array[0],
+            &complex_shear_modulus_array[0],
             frequency,
             planet_bulk_density,
-            is_solid_by_layer,
-            is_static_by_layer,
-            is_incompressible_by_layer,
-            upper_radius_by_layer,
+            num_layers,
+            is_solid_by_layer_ptr,
+            is_static_by_layer_ptr,
+            is_incompressible_by_layer_ptr,
+            upper_radius_by_layer_ptr,
             degree_l,
             solve_for,
             use_kamata,
@@ -1226,6 +1203,18 @@ def radial_solver(
             nondimensionalize,
             verbose,
             raise_on_fail)
+    finally:
+        if not (layer_bool_data_ptr is NULL):
+            is_solid_by_layer_ptr = NULL
+            is_static_by_layer_ptr = NULL
+            is_incompressible_by_layer_ptr = NULL
+            PyMem_Free(layer_bool_data_ptr)
+            layer_bool_data_ptr = NULL
+        if not (upper_radius_by_layer_ptr is NULL):
+            PyMem_Free(upper_radius_by_layer_ptr)
+            upper_radius_by_layer_ptr = NULL
+    
+    return result
 
 
 def find_love(

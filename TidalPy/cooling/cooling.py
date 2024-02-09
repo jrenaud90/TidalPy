@@ -7,7 +7,6 @@ from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, MissingAttrib
 from TidalPy.utilities.classes.model import LayerModelHolder
 
 from . import known_model_const_args, known_model_live_args, known_models
-from .defaults import cooling_defaults
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
@@ -30,7 +29,6 @@ class CoolingModel(LayerModelHolder):
     TidalPy.utilities.methods.model.LayerModelHolder
     """
 
-    default_config = cooling_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args

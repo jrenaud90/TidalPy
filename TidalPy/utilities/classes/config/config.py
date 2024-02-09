@@ -4,12 +4,11 @@ from pprint import pprint
 from typing import Any, Tuple
 
 from TidalPy import extensive_checks, version
-from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
-
-from .json_utils import save_dict_to_json
-from ..base import TidalPyClass
-
 from TidalPy import _output_dir as disk_loc
+from TidalPy.configurations import save_dict_to_toml
+from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetError, ParameterMissingError
+from TidalPy.utilities.classes.base import TidalPyClass
+
 from TidalPy.logger import get_logger
 log = get_logger(__name__)
 
@@ -34,12 +33,7 @@ class ConfigHolder(TidalPyClass):
             assert type(self.default_config) in [dict, type(None)]
 
         # Make a copy of the default dictionary on instantiation
-        if self.default_config_key is None:
-            self.default_config = copy.deepcopy(self.default_config)
-        else:
-            # If the default_config_key is not None then it will be used to pull out the default parameters before the
-            #    config is initialized.
-            self.default_config = copy.deepcopy(self.default_config[self.default_config_key])
+        self.default_config = copy.deepcopy(self.default_config)
 
         # Add class information to the default dictionary
         if self.default_config is not None and self.store_py_info:
@@ -242,19 +236,19 @@ class ConfigHolder(TidalPyClass):
             for directory in save_dirs:
                 config_save_path = os.path.join(directory, f'{class_name}.cfg')
                 config_filepaths.append(config_save_path)
-                save_dict_to_json(self.config, full_save_path=config_save_path, overwrite=overwrite)
+                save_dict_to_toml(self.config, config_save_path, overwrite=overwrite)
 
         # Save default configs if flag is set
         if save_default and self.default_config is not None:
             for directory in save_dirs:
                 config_save_path = os.path.join(directory, f'{class_name}.default.cfg')
-                save_dict_to_json(self.default_config, full_save_path=config_save_path, overwrite=overwrite)
+                save_dict_to_toml(self.default_config, config_save_path, overwrite=overwrite)
 
         # Save any old configs (if present and if flag is set)
         if save_old_config and self.old_config is not None:
             for directory in save_dirs:
                 config_save_path = os.path.join(directory, f'{class_name}.old.cfg')
-                save_dict_to_json(self.old_config, full_save_path=config_save_path, overwrite=overwrite)
+                save_dict_to_toml(self.old_config, config_save_path, overwrite=overwrite)
 
         return tuple(config_filepaths)
 
