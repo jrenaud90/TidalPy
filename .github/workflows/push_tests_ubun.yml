@@ -49,9 +49,6 @@ jobs:
 
       - name: Run pytest
         run: pytest --capture=sys -v --cov=TidalPy Tests/
-        env:
-          # Disable numba so that njited functions can have their coverage checked.
-          NUMBA_DISABLE_JIT: 1
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
