@@ -33,6 +33,8 @@ jobs:
   test-39-with-coverage:
     name: Test Python 3.9 and Upload Coverage Report
     runs-on: ubuntu-latest
+    env:
+      NUMBA_DISABLE_JIT: 1
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.9
@@ -45,7 +47,7 @@ jobs:
           python -m pip install  pytest matplotlib numba numpy scipy pytest-cov burnman
       - name: Install package
         run: |
-          python -m pip install . -v
+          python -m pip install -v .
 
       - name: Run pytest
         run: pytest --capture=sys -v --cov=TidalPy Tests/
