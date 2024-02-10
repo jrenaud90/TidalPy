@@ -51,7 +51,7 @@ tpy_0p4_results = {
     (False, False, True, False): np.asarray(
         [(0.1+0.1j), (0.2+0.2j), 0j, 0j, (0.5+0.5j), (0.6+0.6j), (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), 0j, 0j, (1+1j), (12.06+12.06j), 0j, 0j, (1+0j), 0j, 0j, 0j],
         dtype=np.complex128, order="C"),
-    (False, False, False, True): np.asarray(
+    (1, False, False, True): np.asarray(
         [(0.09505598613897154+0.09505598613897154j), (-4.283624807144646-4.283624807144646j)],
         dtype=np.complex128, order="C"),
     (False, False, False, False): np.asarray(
