@@ -117,9 +117,9 @@ cdef void cf_apply_surface_bc(
     zgesv(
         num_sols_int_ptr,
         lapack_nrhs_ptr,
-        surface_matrix_ptr,  # Modified Variable
+        surface_matrix_ptr,   # Modified Variable
         num_sols_int_ptr,
-        lapack_ipiv_ptr,  # Modified Variable
+        lapack_ipiv_ptr,      # Modified Variable
         constant_vector_ptr,  # Modified Variable
         num_sols_int_ptr,
         bc_solution_info_ptr  # Modified Variable

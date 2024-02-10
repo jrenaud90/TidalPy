@@ -187,7 +187,7 @@ cdef RadialSolverSolution cf_radial_solver(
         unsigned char integration_method = 1,
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
-        bool_cpp_t scale_rtols_by_layer_type = True,
+        bool_cpp_t scale_rtols_by_layer_type = False,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
         size_t max_ram_MB = 500,
@@ -668,7 +668,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     layer_is_incomp,
                     interface_gravity,
                     static_liquid_density,
-                    G_to_use
+                    G_to_use=G_to_use
                     )
 
             # Change initial conditions into 2x real values instead of complex for integration
@@ -939,16 +939,6 @@ cdef RadialSolverSolution cf_radial_solver(
                 # Ready for next y-type
                 ytype_i += 1
 
-            # Calculate Love numbers and install in final solution.
-            # First find the solution at the planet's surface.
-            for ytype_i in range(num_ytypes):
-                for y_i in range(MAX_NUM_Y):
-                    lhs_y_index = ytype_i * MAX_NUM_Y + y_i
-                    surface_solutions_ptr[y_i] = solution_ptr[top_slice_i * num_output_ys + lhs_y_index]
-                
-                # Solve Love numbers for this y-type.
-                find_love_cf(&solution.complex_love_ptr[ytype_i * 3], surface_solutions_ptr, surface_gravity)
-
     finally:
         # Redim the input pointers if they were non-dim'd.
         if nondimensionalize:
@@ -965,6 +955,10 @@ cdef RadialSolverSolution cf_radial_solver(
                 &frequency_to_use,
                 &G_to_use
                 )
+            
+            # Reset surface gravity and frequency values
+            surface_gravity  = gravity_array_ptr[total_slices - 1]
+            frequency_to_use = frequency
 
         # Free memory
         if cysolver_setup:
@@ -1010,6 +1004,17 @@ cdef RadialSolverSolution cf_radial_solver(
                 planet_bulk_density,
                 total_slices,
                 num_ytypes)
+
+        # Calculate Love numbers and install in final solution.
+        # First find the solution at the planet's surface.
+        for ytype_i in range(num_ytypes):
+            for y_i in range(MAX_NUM_Y):
+                lhs_y_index = ytype_i * MAX_NUM_Y + y_i
+                surface_solutions_ptr[y_i] = solution_ptr[top_slice_i * num_output_ys + lhs_y_index]
+            
+            # Solve Love numbers for this y-type.
+            find_love_cf(&solution.complex_love_ptr[ytype_i * 3], surface_solutions_ptr, surface_gravity)
+
         solution.success = True
         solution.message = 'RadialSolver completed without any noted issues.'
     else:
@@ -1037,7 +1042,7 @@ def radial_solver(
         str integration_method = 'RK45',
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
-        bool_cpp_t scale_rtols_by_layer_type = True,
+        bool_cpp_t scale_rtols_by_layer_type = False,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
         size_t max_ram_MB = 500,

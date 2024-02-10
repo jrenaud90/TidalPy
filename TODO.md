@@ -1,5 +1,5 @@
 Immediate ToDos:
-* Recalcualte radial solver starting conditions for the test suite: test_initial_condition_accuracy.
+* Figure out why the Tobie / RN compare is so bad for dynamic tides with the new radial solver
 
 Future ToDos:
 * Added in true incompressible model for multilayer code.

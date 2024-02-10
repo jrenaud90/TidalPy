@@ -61,7 +61,9 @@ def initialize():
         log.info('TidalPy reinitializing...')
     else:
         log.info('TidalPy initializing...')
-    log.info(f'Output directory: {TidalPy._output_dir}')
+
+    if TidalPy.config['configs']['save_configs_locally'] or TidalPy.config['logging']['write_log_to_disk']:
+        log.info(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
     if TidalPy.config['configs']['save_configs_locally']:

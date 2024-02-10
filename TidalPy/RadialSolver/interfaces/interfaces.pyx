@@ -168,6 +168,7 @@ cdef void cf_solve_upper_y_at_interface(
 
             # Eqs. 20 in S74
             # For a static liquid layer there will be one independent solutions at the top of the layer
+            # We need to solve for six solutions in the static or dynamic solid upper layer
             upper_layer_y_ptr[0] = 0. + 0.j
             # y_2_sol = -rho * y_5_liq
             upper_layer_y_ptr[1] = -liquid_density * lower_layer_y_ptr[0]

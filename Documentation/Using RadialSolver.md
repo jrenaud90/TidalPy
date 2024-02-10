@@ -82,13 +82,13 @@ radial_solver_solution = radial_solver(
     #  - 'RK45'    Explicit Runge-Kutta method of order 5(4)
     #  - 'DOP853'  Explicit Runge-Kutta method of order 8
     
-    integration_rtol = 1.0e-4,
+    integration_rtol = 1.0e-6,
     # Integration relative tolerance
     
     integration_atol = 1.0e-12,
     # Integration absolute tolerance (tolerance when y is near 0)
     
-    scale_rtols_by_layer_type = True,
+    scale_rtols_by_layer_type = False,
     # If True, then relative tolerance will be modified by the layer type (generally liquid layers require smaller rtol)
     
     max_num_steps = 500_000,

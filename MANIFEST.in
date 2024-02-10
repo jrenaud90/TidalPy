@@ -1,4 +1,8 @@
 # MANIFEST.in
+
+# Include data files used for plotting and benchmarking
+include TidalPy/utilities/graphics/multilayer/*.csv
+
 # Include World Configuration Files
 include TidalPy/WorldPack/*.zip
 

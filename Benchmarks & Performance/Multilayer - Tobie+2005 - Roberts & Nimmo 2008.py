@@ -10,17 +10,17 @@ import numpy as np
 import time
 from TidalPy.constants import G
 from TidalPy.utilities.conversions import orbital_motion2semi_a
-from TidalPy.rheology.complex_compliance.compliance_models import maxwell
+from TidalPy.rheology import Maxwell
 
 # Load TidalPy's multilayer functions
-from tides.multilayer.numerical_int import radial_solver
-from tides.multilayer.matrix import fundamental_matrix_orderl2, propagate
+from TidalPy.RadialSolver import radial_solver
+from TidalPy.radial_solver.matrix import fundamental_matrix_orderl2, matrix_propagate
 from TidalPy.utilities.graphics.multilayer import yplot
 
 # Switches
 show_shooting_method_technique = True
 show_propagation_matrix_technique = True
-use_static_liquid_core = False
+use_static_liquid_core = True
 nondimensionalize_during_integration = True
 use_kamata_starting_values = True
 # Set the following two switches to true for comparison to Roberts and Nimmo.
@@ -29,14 +29,13 @@ use_fake_incompressible_limit = False
 use_real_incompressible_limit = False
 
 # Integration properties
-integrator = 'scipy'
 integration_method = 'RK45'
 r_tol = 1.e-8
 a_tol = 1.e-10
 
 # Plot switches
 plot_tobie = True
-plot_roberts = False
+plot_roberts = True
 
 # Planet Structure
 R_planet = 1600.e3
@@ -52,8 +51,8 @@ viscosity_core = 1.e13 / 1.e9
 shear_core = 0.
 
 if use_fake_incompressible_limit:
-    bulk_mantle = 1.e15
-    bulk_core = 1.e15
+    bulk_mantle = 1.e14
+    bulk_core = 1.e14
 else:
     bulk_mantle = 1.2210e11
     bulk_core = 2.88e11
@@ -63,16 +62,17 @@ planet_mass = 1.08e20
 host_mass = 5.683e26
 eccentricity = 0.0045
 orbital_freq_HZ = 2. * np.pi * 5.308e-5  # This is reported in Hz in RN08. We will need to convert them to rad s-1
-orbital_freq_TB_match = 2. * np.pi / (86400. * 1.0)
+#orbital_freq_TB_match = 2. * np.pi / (86400. * 1.0)
+#orbital_freq_TB_match = 2. * np.pi / (86400. * 0.1) 
 freq_europa = 2.04793e-05
 freq_titan = 4.55938e-06
 
-orbital_freq = orbital_freq_TB_match
+orbital_freq = orbital_freq_HZ
 semi_major_axis = orbital_motion2semi_a(orbital_freq, host_mass, planet_mass)
 
 # Setup homogeneous domain
 N = 100
-radius_array = np.linspace(1., R_planet, N)
+radius_array = np.linspace(0.1, R_planet, N)
 volume_array = np.zeros_like(radius_array)
 volume_array[0] = (4. / 3.) * np.pi * radius_array[0]**3
 volume_array[1:] = (4. / 3.) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
@@ -102,6 +102,7 @@ for model_name, (core_density, mantle_density) in models.items():
     # Set the density for each layer
     density_array = mantle_density * np.ones_like(radius_array)
     mantle_radii = np.ones_like(radius_array, dtype=np.bool_)
+    core_radii = None
     if R_core is not None:
         core_radii = radius_array <= R_core
         mantle_radii = radius_array > R_core
@@ -128,8 +129,9 @@ for model_name, (core_density, mantle_density) in models.items():
         bulk_array[core_radii] = bulk_core
 
     # Use the Maxwell rheology
-    complex_compliance_array = maxwell(orbital_freq, shear_array**(-1), viscosity_array)
-    complex_shear_array = complex_compliance_array**(-1)
+    rheology_inst = Maxwell()
+    complex_shear_array = np.zeros(shear_array.size, dtype=np.complex128)
+    rheology_inst.vectorize_modulus_viscosity(orbital_freq, shear_array, viscosity_array, complex_shear_array)
 
     if show_propagation_matrix_technique:
         print('Solving with propagation matrix...')
@@ -154,7 +156,7 @@ for model_name, (core_density, mantle_density) in models.items():
         central_boundary_condition[5, 2] = 1.
 
         tidal_y_prop = \
-            propagate(Y, Y_inv, derivative_mtx, central_boundary_condition, R_planet, order_l=2)
+            matrix_propagate(Y, Y_inv, derivative_mtx, central_boundary_condition, R_planet, order_l=2)
 
         model_radii.append(radius_used)
         model_names.append(model_name + '-PropMtx')
@@ -166,34 +168,62 @@ for model_name, (core_density, mantle_density) in models.items():
         print('Solving with shooting method...')
         if R_core is None:
             # Use homogeneous method
-            tidal_y_shoot = \
+            radial_solution = \
                 radial_solver(
-                    radius_array, shear_array, bulk_array, density_array, gravity_array,
-                    orbital_freq, planet_bulk_density, is_solid_by_layer=[True],
-                    is_static_by_layer=[use_static_mantle],
-                    indices_by_layer=[mantle_radii], order_l=2, surface_boundary_condition=None,
-                    solve_load_numbers=False, use_kamata=use_kamata_starting_values,
-                    integrator=integrator,
+                    radius_array,
+                    density_array,
+                    gravity_array,
+                    bulk_array,
+                    complex_shear_array,
+                    orbital_freq,
+                    planet_bulk_density,
+                    layer_types=('solid',),
+                    is_static_by_layer=(use_static_mantle,),
+                    is_incompressible_by_layer=(use_real_incompressible_limit,),
+                    upper_radius_by_layer=(R_planet,),
+                    degree_l=2,
+                    solve_for=('tidal',),
+                    use_kamata=use_kamata_starting_values,
                     integration_method=integration_method,
-                    integration_rtol=r_tol, integration_atol=a_tol,
-                    verbose=False, nondimensionalize=nondimensionalize_during_integration,
-                    incompressible=use_real_incompressible_limit
+                    integration_rtol=r_tol,
+                    integration_atol=a_tol,
+                    scale_rtols_by_layer_type=False,
+                    max_num_steps=5_000_000,
+                    max_ram_MB=2_000,
+                    nondimensionalize=nondimensionalize_during_integration
                     )
+            if not radial_solution.success:
+                raise AssertionError(radial_solution.message)
+            tidal_y_shoot = np.copy(radial_solution.result)
         else:
             # Use liquid-solid method
-            tidal_y_shoot = \
+            radial_solution = \
                 radial_solver(
-                    radius_array, shear_array, bulk_array, density_array, gravity_array,
-                    orbital_freq, planet_bulk_density, is_solid_by_layer=[False, True],
-                    is_static_by_layer=[use_static_liquid_core, use_static_mantle],
-                    indices_by_layer=[core_radii, mantle_radii], order_l=2, surface_boundary_condition=None,
-                    solve_load_numbers=False, use_kamata=use_kamata_starting_values,
-                    integrator=integrator,
+                    radius_array,
+                    density_array,
+                    gravity_array,
+                    bulk_array,
+                    complex_shear_array,
+                    orbital_freq,
+                    planet_bulk_density,
+                    layer_types=('liquid', 'solid'),
+                    is_static_by_layer=(use_static_liquid_core, use_static_mantle),
+                    is_incompressible_by_layer=(use_real_incompressible_limit, use_real_incompressible_limit),
+                    upper_radius_by_layer=(R_core, R_planet),
+                    degree_l=2,
+                    solve_for=('tidal',),
+                    use_kamata=use_kamata_starting_values,
                     integration_method=integration_method,
-                    integration_rtol=r_tol, integration_atol=a_tol,
-                    verbose=False, nondimensionalize=nondimensionalize_during_integration,
-                    incompressible=use_real_incompressible_limit
+                    integration_rtol=r_tol,
+                    integration_atol=a_tol,
+                    scale_rtols_by_layer_type=False,
+                    max_num_steps=5_000_000,
+                    max_ram_MB=2_000,
+                    nondimensionalize=nondimensionalize_during_integration
                     )
+            if not radial_solution.success:
+                raise AssertionError(radial_solution.message)
+            tidal_y_shoot = np.copy(radial_solution.result)
 
         model_radii.append(radius_array)
         model_names.append(model_name + '-Shooting')
