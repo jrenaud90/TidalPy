@@ -1,5 +1,6 @@
 Immediate ToDos:
 * Figure out why the Tobie / RN compare is so bad for dynamic tides with the new radial solver
+* Non-dim sometimes makes things better; sometimes worse
 
 Future ToDos:
 * Added in true incompressible model for multilayer code.
