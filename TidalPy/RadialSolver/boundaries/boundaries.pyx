@@ -14,29 +14,24 @@ cdef void cf_apply_surface_bc(
         unsigned char num_sols,
         unsigned char max_num_y,
         unsigned char ytype_i,
-        bool_cpp_t layer_is_solid,
-        bool_cpp_t layer_is_static,
-        bool_cpp_t layer_is_incomp
+        int layer_type,
+        bint layer_is_static,
+        bint layer_is_incomp
         ) noexcept nogil:
     
     # Variables used to solve the linear equation at the planet's surface.
     # These are passed to the LAPACK solver.
     # NRHS = number of solutions that will be solved at the same time. Only one will be solved per radial_solver call.
-    cdef int lapack_nrhs
-    cdef int* lapack_nrhs_ptr
-    lapack_nrhs = 1
-    lapack_nrhs_ptr = &lapack_nrhs
+    cdef int lapack_nrhs = 1
+    cdef int* lapack_nrhs_ptr = &lapack_nrhs
 
     # IPIV = Integer pivot array that is an additional output provided by ZGESV. It is not used but must be provided.
     #  It must be at least as large as the largest dimension of the input matrix, for this work that is 3.
     cdef int[10] lapack_ipiv
-    cdef int* lapack_ipiv_ptr
-    lapack_ipiv_ptr = &lapack_ipiv[0]
+    cdef int* lapack_ipiv_ptr = &lapack_ipiv[0]
 
-    cdef int num_sols_int
-    cdef int* num_sols_int_ptr
-    num_sols_int = <int>num_sols
-    num_sols_int_ptr = &num_sols_int
+    cdef int num_sols_int = <int>num_sols
+    cdef int* num_sols_int_ptr = &num_sols_int
 
     # Allocate surface matrices. We only need one of these (which one depends on the uppermost layer type).
     # But, since there are only 3 and all of them are small, we will just allocate all of them separately on the stack.
@@ -46,7 +41,8 @@ cdef void cf_apply_surface_bc(
     cdef double complex* surface_matrix_ptr
 
     # Create coefficient matrix based on surface layer type.
-    if layer_is_solid:
+    if (layer_type == 0):
+        # Solid layer
         # Set pointer to correct matrix
         surface_matrix_ptr = &surface_matrix_solid[0][0]
 

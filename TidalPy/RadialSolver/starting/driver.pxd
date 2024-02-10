@@ -2,9 +2,9 @@ from libcpp cimport bool as bool_cpp_t
 
 
 cdef void cf_find_starting_conditions(
-    bool_cpp_t is_solid,
-    bool_cpp_t is_static,
-    bool_cpp_t is_incompressible,
+    int layer_type,
+    bint is_static,
+    bint is_incompressible,
     bool_cpp_t use_kamata,
     double frequency,
     double radius,

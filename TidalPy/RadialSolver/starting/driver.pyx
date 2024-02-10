@@ -19,9 +19,9 @@ from TidalPy.RadialSolver.starting.kamata cimport (
 
 
 cdef void cf_find_starting_conditions(
-        bool_cpp_t is_solid,
-        bool_cpp_t is_static,
-        bool_cpp_t is_incompressible,
+        int layer_type,
+        bint is_static,
+        bint is_incompressible,
         bool_cpp_t use_kamata,
         double frequency,
         double radius,
@@ -40,7 +40,8 @@ cdef void cf_find_starting_conditions(
     cdef bool_cpp_t success = False
 
     # For static liquid layers, no matter the other assumptions, we use saito's method.
-    if (not is_solid) and is_static:
+    if (not (layer_type == 0)) and is_static:
+        # Liquid Static Layer
         if run_y_checks:
             num_sols_for_assumption = 1
             num_ys_for_assumption   = 2
@@ -53,7 +54,8 @@ cdef void cf_find_starting_conditions(
     # Work through the Kamata models
     elif use_kamata:
         # Kamata solid layer
-        if is_solid:
+        if (layer_type == 0):
+            # Solid layer
             if is_static and is_incompressible:
                 raise NotImplementedError('RadialSolver: Incompressibility is not implemented for Kamata starting conditions for static-solid layers.\nReccomend using dynamic-incompressible instead.')
             elif is_static and (not is_incompressible):
@@ -119,7 +121,8 @@ cdef void cf_find_starting_conditions(
         if is_incompressible:
             raise NotImplementedError('RadialSolver: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nReccomend using Kamata (set use_kamata=True) instead.')
 
-        if is_solid:
+        if (layer_type == 0):
+            # Solid layer
             if is_static:
                 if run_y_checks:
                     num_sols_for_assumption = 3
@@ -161,9 +164,9 @@ cdef void cf_find_starting_conditions(
     
 
 def find_starting_conditions(
-        bool_cpp_t is_solid,
-        bool_cpp_t is_static,
-        bool_cpp_t is_incompressible,
+        int layer_type,
+        int is_static,
+        int is_incompressible,
         bool_cpp_t use_kamata,
         double frequency,
         double radius,
@@ -181,6 +184,18 @@ def find_starting_conditions(
     cdef double complex* starting_conditions_ptr = &starting_conditions_view[0, 0] 
 
     cf_find_starting_conditions(
-        is_solid, is_static, is_incompressible, use_kamata, frequency, radius, density, bulk_modulus, shear_modulus,
-        degree_l, G_to_use, num_ys, starting_conditions_ptr, run_y_checks
+        layer_type,
+        is_static,
+        is_incompressible,
+        use_kamata,
+        frequency,
+        radius,
+        density,
+        bulk_modulus,
+        shear_modulus,
+        degree_l,
+        G_to_use,
+        num_ys,
+        starting_conditions_ptr,
+        run_y_checks
         )

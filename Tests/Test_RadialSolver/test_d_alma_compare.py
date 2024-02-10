@@ -94,7 +94,7 @@ volume_array, mass_array, gravity_array = \
 
 # Setup TidalPy's layer flags
 layer_indices   = (core_index, ocean_index, crust_index)
-is_solid_by_layer  = (True, False, True)
+layer_types  = ("solid", "liquid", "solid")
 is_static_by_layer = (False, True, True)
 is_incompressible_by_layer = (True, True, True)
 upper_radius_by_layer = (core_r, ocean_r, crust_r)
@@ -125,14 +125,14 @@ def test_radial_solver_alma_compare(degree_l):
         complex_shear,
         frequency,
         planet_bulk_density,
-        is_solid_by_layer,
+        layer_types,
         is_static_by_layer,
         is_incompressible_by_layer,
         upper_radius_by_layer,
         degree_l=degree_l,
         solve_for=None,
         use_kamata=True,
-        integration_method=1,
+        integration_method="rk45",
         integration_rtol=integration_rtol,
         integration_atol=integration_atol,
         scale_rtols_by_layer_type=True,

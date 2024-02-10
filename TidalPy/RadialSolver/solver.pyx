@@ -1,18 +1,20 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport NAN, isnan
-
-from cpython.mem cimport PyMem_Free
-
 import numpy as np
 cimport numpy as np
 
 from scipy.constants import G as G_
 
-from CyRK.utils.utils cimport  allocate_mem, reallocate_mem
+from TidalPy.logger import get_logger
+from TidalPy.exceptions import UnknownModelError
+log = get_logger(__name__)
 
 # Import cythonized functions
+from libc.math cimport NAN, isnan, fabs
+from cpython.mem cimport PyMem_Free
+from CyRK.utils.utils cimport allocate_mem, reallocate_mem
+
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_non_dimensionalize_physicals,
@@ -175,15 +177,15 @@ cdef RadialSolverSolution cf_radial_solver(
         double frequency,
         double planet_bulk_density,
         size_t num_layers,
-        bool_cpp_t* is_solid_by_layer_ptr,
-        bool_cpp_t* is_static_by_layer_ptr,
-        bool_cpp_t* is_incompressible_by_layer_ptr,
+        int* layer_types_ptr,
+        int* is_static_by_layer_ptr,
+        int* is_incompressible_by_layer_ptr,
         double* upper_radius_by_layer_ptr,
         unsigned int degree_l = 2,
         tuple solve_for = None,
         bool_cpp_t use_kamata = False,
-        int integration_method = 1,
-        double integration_rtol = 1.0e-4,
+        unsigned char integration_method = 1,
+        double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
         bool_cpp_t scale_rtols_by_layer_type = True,
         size_t max_num_steps = 500_000,
@@ -342,12 +344,12 @@ cdef RadialSolverSolution cf_radial_solver(
     # Opt: The bools above could be stores in a single char variable (per layer).
     #  Eg., 0x00 All false, 0x01 is solid, 0x10 is static and liquid, 0x11 is static and solid, etc.
 
-    cdef bool_cpp_t layer_is_solid
-    cdef bool_cpp_t layer_is_static
-    cdef bool_cpp_t layer_is_incomp
-    cdef bool_cpp_t layer_below_is_solid
-    cdef bool_cpp_t layer_below_is_static
-    cdef bool_cpp_t layer_below_is_incomp
+    cdef int layer_type
+    cdef int layer_is_static
+    cdef int layer_is_incomp
+    cdef int layer_below_type
+    cdef int layer_below_is_static
+    cdef int layer_below_is_incomp
     cdef double layer_upper_radius, radius_check
     cdef double layer_rtol_real
     cdef double layer_rtol_imag
@@ -362,7 +364,7 @@ cdef RadialSolverSolution cf_radial_solver(
 
     for layer_i in range(num_layers):
         # Pull out information on this layer
-        layer_is_solid     = is_solid_by_layer_ptr[layer_i]
+        layer_type         = layer_types_ptr[layer_i]
         layer_is_static    = is_static_by_layer_ptr[layer_i]
         layer_is_incomp    = is_incompressible_by_layer_ptr[layer_i]
         layer_upper_radius = upper_radius_by_layer_ptr[layer_i]
@@ -373,7 +375,7 @@ cdef RadialSolverSolution cf_radial_solver(
 
         # Find number of solutions based on this layer's assumptions
         num_sols = cf_find_num_solutions(
-            layer_is_solid,
+            layer_type,
             layer_is_static,
             layer_is_incomp
             )
@@ -500,7 +502,7 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double layer_above_lower_gravity
     cdef double layer_above_lower_density
     cdef double liquid_density_at_interface
-    cdef bool_cpp_t layer_above_is_solid
+    cdef int layer_above_type
     cdef bool_cpp_t layer_above_is_static
     cdef bool_cpp_t layer_above_is_incomp
 
@@ -555,7 +557,7 @@ cdef RadialSolverSolution cf_radial_solver(
                 max_step_touse = (radius_upper - radius_lower) / <double>layer_slices
 
             # Get assumptions for layer
-            layer_is_solid  = is_solid_by_layer_ptr[layer_i]
+            layer_type      = layer_types_ptr[layer_i]
             layer_is_static = is_static_by_layer_ptr[layer_i]
             layer_is_incomp = is_incompressible_by_layer_ptr[layer_i]
 
@@ -572,14 +574,16 @@ cdef RadialSolverSolution cf_radial_solver(
 
                 if scale_rtols_by_layer_type:
                     # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
-                    # TODO test that these scales are the best.
-                    if layer_is_solid:
+                    # TODO test that these scales are the best. See Issue #44
+                    if layer_type == 0:
+                        # Solid layer
                         # Scale y2 and y3 by 0.1
                         if (y_i == 1) or (y_i == 2):
                             # Scale both the real and imaginary portions by the same amount.
                             layer_rtol_real *= 0.1
                             layer_rtol_imag *= 0.1
                     else:
+                        # Liquid layer
                         if not layer_is_static:
                             # Scale dynamic liquid layer's y2 by additional 0.01.
                             if (y_i == 1):
@@ -598,7 +602,7 @@ cdef RadialSolverSolution cf_radial_solver(
             if layer_i == 0:
                 # Use initial condition function
                 cf_find_starting_conditions(
-                    layer_is_solid,
+                    layer_type,
                     layer_is_static,
                     layer_is_incomp,
                     use_kamata,
@@ -614,7 +618,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     starting_y_check
                     )
             else:
-                layer_below_is_solid  = is_solid_by_layer_ptr[layer_i - 1]
+                layer_below_type      = layer_types_ptr[layer_i - 1]
                 layer_below_is_static = is_static_by_layer_ptr[layer_i - 1]
                 layer_below_is_incomp = is_incompressible_by_layer_ptr[layer_i - 1]
 
@@ -622,13 +626,13 @@ cdef RadialSolverSolution cf_radial_solver(
                 interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
 
                 # Find the density needed for some initial conditions.
-                if layer_is_solid and layer_below_is_solid:
+                if (layer_type == 0) and (layer_below_type == 0):
                     # Both layers are solid. A liquid interface density is not needed.
                     static_liquid_density = NAN
-                elif not layer_is_solid and layer_below_is_solid:
+                elif not (layer_type == 0) and (layer_below_type == 0):
                     # Layer below is solid, this layer is liquid. Use its density.
                     static_liquid_density = density_lower
-                elif layer_is_solid and not layer_below_is_solid:
+                elif (layer_type == 0) and not (layer_below_type == 0):
                     # Layer below is liquid, this layer is solid. Use layer below's density.
                     static_liquid_density = last_layer_upper_density
                 else:
@@ -656,10 +660,10 @@ cdef RadialSolverSolution cf_radial_solver(
                     num_sols,
                     layer_below_num_ys,
                     num_ys,
-                    layer_below_is_solid,
+                    layer_below_type,
                     layer_below_is_static,
                     layer_below_is_incomp,
-                    layer_is_solid,
+                    layer_type,
                     layer_is_static,
                     layer_is_incomp,
                     interface_gravity,
@@ -680,7 +684,7 @@ cdef RadialSolverSolution cf_radial_solver(
 
             # Build solver instance
             solver = cf_build_solver(
-                layer_is_solid,
+                layer_type,
                 layer_is_static,
                 layer_is_incomp,
                 layer_slices,
@@ -793,7 +797,7 @@ cdef RadialSolverSolution cf_radial_solver(
                 layer_above_lower_gravity   = 0.
                 layer_above_lower_density   = 0.
                 liquid_density_at_interface = 0.
-                layer_above_is_solid        = False
+                layer_above_type            = False
                 layer_above_is_static       = False
                 layer_above_is_incomp       = False
 
@@ -831,7 +835,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     gravity_upper = layer_gravity_ptr[layer_slices - 1]
 
                     # Get assumptions for layer
-                    layer_is_solid  = is_solid_by_layer_ptr[layer_i_reversed]
+                    layer_type      = layer_types_ptr[layer_i_reversed]
                     layer_is_static = is_static_by_layer_ptr[layer_i_reversed]
                     layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed]
 
@@ -860,7 +864,7 @@ cdef RadialSolverSolution cf_radial_solver(
                             num_sols,
                             MAX_NUM_Y,
                             ytype_i,
-                            layer_is_solid,
+                            layer_type,
                             layer_is_static,
                             layer_is_incomp
                             )
@@ -885,7 +889,7 @@ cdef RadialSolverSolution cf_radial_solver(
                             uppermost_y_per_solution_ptr,
                             gravity_upper, layer_above_lower_gravity,
                             density_upper, layer_above_lower_density,
-                            layer_is_solid, layer_above_is_solid,
+                            layer_type, layer_above_type,
                             layer_is_static, layer_above_is_static,
                             layer_is_incomp, layer_above_is_incomp,
                             num_sols, MAX_NUM_Y
@@ -907,7 +911,7 @@ cdef RadialSolverSolution cf_radial_solver(
                         num_ys,
                         num_output_ys,
                         ytype_i,
-                        layer_is_solid,
+                        layer_type,
                         layer_is_static,
                         layer_is_incomp
                         )
@@ -915,7 +919,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     # Setup for next layer
                     layer_above_lower_gravity = gravity_lower
                     layer_above_lower_density = density_lower
-                    layer_above_is_solid      = layer_is_solid
+                    layer_above_type          = layer_type
                     layer_above_is_static     = layer_is_static
                     layer_above_is_incomp     = layer_is_incomp
 
@@ -1023,15 +1027,15 @@ def radial_solver(
         double complex[:] complex_shear_modulus_array,
         double frequency,
         double planet_bulk_density,
-        tuple is_solid_by_layer,
+        tuple layer_types,
         tuple is_static_by_layer,
         tuple is_incompressible_by_layer,
         tuple upper_radius_by_layer,
         unsigned int degree_l = 2,
         tuple solve_for = None,
         bool_cpp_t use_kamata = False,
-        int integration_method = 1,
-        double integration_rtol = 1.0e-4,
+        str integration_method = 'RK45',
+        double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
         bool_cpp_t scale_rtols_by_layer_type = True,
         size_t max_num_steps = 500_000,
@@ -1066,8 +1070,10 @@ def radial_solver(
         Forcing frequency [rad s-1]
     planet_bulk_density : float64
         Bulk density of the planet [kg m-3].
-    is_solid_by_layer : tuple[bool, ...] (Size = number of layers)
-        Flag declaring if each layer is solid (True) or liquid (False).
+    layer_types : tuple[string, ...] (Size = number of layers)
+        Indicator of layer type. Current options are:
+            - "solid"
+            - "liquid"
     is_static_by_layer : tuple[bool, ...] (Size = number of layers)
         Flag declaring if each layer uses the static (True) or dynamic (False) assumption.
     is_incompressible_by_layer : tuple[bool, ...] (Size = number of layers)
@@ -1145,32 +1151,69 @@ def radial_solver(
     # Perform checks and make conversions from python to c
     cdef size_t total_slices
     total_slices = radius_array.size
-    assert density_array.size == total_slices
-    assert gravity_array.size == total_slices
-    assert bulk_modulus_array.size == total_slices
+    assert density_array.size               == total_slices
+    assert gravity_array.size               == total_slices
+    assert bulk_modulus_array.size          == total_slices
     assert complex_shear_modulus_array.size == total_slices
 
     # Unpack inefficient user-provided tuples into bool arrays and pass by pointer
     cdef size_t num_layers
-    num_layers = len(is_solid_by_layer)
-    cdef bool_cpp_t* layer_bool_data_ptr = <bool_cpp_t *> allocate_mem(
-        3 * num_layers * sizeof(bool_cpp_t),
-        'layer_bool_data_ptr (radial_solver; init)'
+    num_layers = len(layer_types)
+    cdef int* layer_assumptions_ptr = <int *> allocate_mem(
+        3 * num_layers * sizeof(int),
+        'layer_assumptions_ptr (radial_solver; init)'
         )
-    cdef bool_cpp_t* is_solid_by_layer_ptr          = &layer_bool_data_ptr[0]
-    cdef bool_cpp_t* is_static_by_layer_ptr         = &layer_bool_data_ptr[num_layers]
-    cdef bool_cpp_t* is_incompressible_by_layer_ptr = &layer_bool_data_ptr[2 * num_layers]
+    cdef int* layer_types_ptr                = &layer_assumptions_ptr[0]
+    cdef int* is_static_by_layer_ptr         = &layer_assumptions_ptr[num_layers]
+    cdef int* is_incompressible_by_layer_ptr = &layer_assumptions_ptr[2 * num_layers]
     cdef double* upper_radius_by_layer_ptr = <double *> allocate_mem(
         num_layers * sizeof(double),
         'upper_radius_by_layer_ptr (radial_solver; init)'
         )
-
-    for i in range(num_layers):
-        is_solid_by_layer_ptr[i] = is_solid_by_layer[i]
-        is_static_by_layer_ptr[i] = is_static_by_layer[i]
-        is_incompressible_by_layer_ptr[i] = is_incompressible_by_layer[i]
-        upper_radius_by_layer_ptr[i] = upper_radius_by_layer[i]
     
+    cdef str layer_type
+    cdef bool_cpp_t dynamic_liquid = False
+
+    # Pull out information for each layer and store in heap memory
+    for i in range(num_layers):
+        layer_type                        = layer_types[i]
+        is_static_by_layer_ptr[i]         = is_static_by_layer[i]
+        is_incompressible_by_layer_ptr[i] = is_incompressible_by_layer[i]
+        upper_radius_by_layer_ptr[i]      = upper_radius_by_layer[i]
+
+        if not dynamic_liquid:
+            if (layer_type != 1) and not is_static_by_layer_ptr[i]:
+                # There is at least one dynamic liquid layer
+                dynamic_liquid = True
+
+        # Convert user-provided strings to ints for the layer type
+        if layer_type.lower() == 'solid':
+            layer_types_ptr[i] = 0
+        elif layer_type.lower() == 'liquid':
+            layer_types_ptr[i] = 1
+        else:
+            layer_types_ptr[i] = -1
+            log.error(f"Layer type {layer_type} is not supported. Currently supported types: 'solid', 'liquid'.")
+            raise UnknownModelError(f"Layer type {layer_type} is not supported. Currently supported types: 'solid', 'liquid'.")
+    
+    # Check for dynamic liquid layer stability
+    if dynamic_liquid and fabs(frequency) < 2.5e-5:
+        # TODO: check that this frequency is a decent cutoff (based on a 3 day period).
+        log.warning('Dynamic liquid layer detected in RadialSolver for a small frequency. Results may be unstable. Extra care is advised!')
+    
+    # Convert integration method to int
+    cdef str integration_method_lower = integration_method.lower()
+    cdef unsigned char integration_method_int
+    if integration_method_lower == 'rk45':
+        integration_method_int = 1
+    elif integration_method_lower == 'rk23':
+        integration_method_int = 0
+    elif integration_method_lower == 'dop853':
+        integration_method_int = 2
+    else:
+        log.error(f"Unsupported integration method provided: {integration_method_lower}.")
+        raise UnknownModelError(f"Unsupported integration method provided: {integration_method_lower}.")
+
     # Prepare to run
     cdef RadialSolverSolution result
     try:
@@ -1184,14 +1227,14 @@ def radial_solver(
             frequency,
             planet_bulk_density,
             num_layers,
-            is_solid_by_layer_ptr,
+            layer_types_ptr,
             is_static_by_layer_ptr,
             is_incompressible_by_layer_ptr,
             upper_radius_by_layer_ptr,
             degree_l,
             solve_for,
             use_kamata,
-            integration_method,
+            integration_method_int,
             integration_rtol,
             integration_atol,
             scale_rtols_by_layer_type,
@@ -1204,12 +1247,13 @@ def radial_solver(
             verbose,
             raise_on_fail)
     finally:
-        if not (layer_bool_data_ptr is NULL):
-            is_solid_by_layer_ptr = NULL
-            is_static_by_layer_ptr = NULL
+        # Release heap memory
+        if not (layer_assumptions_ptr is NULL):
+            layer_types_ptr                = NULL
+            is_static_by_layer_ptr         = NULL
             is_incompressible_by_layer_ptr = NULL
-            PyMem_Free(layer_bool_data_ptr)
-            layer_bool_data_ptr = NULL
+            PyMem_Free(layer_assumptions_ptr)
+            layer_assumptions_ptr = NULL
         if not (upper_radius_by_layer_ptr is NULL):
             PyMem_Free(upper_radius_by_layer_ptr)
             upper_radius_by_layer_ptr = NULL

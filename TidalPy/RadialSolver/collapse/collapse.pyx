@@ -16,9 +16,9 @@ cdef void cf_collapse_layer_solution(
         unsigned char num_ys,
         unsigned char num_output_ys,
         unsigned char ytype_i,
-        bool_cpp_t layer_is_solid,
-        bool_cpp_t layer_is_static,
-        bool_cpp_t layer_is_incomp
+        int layer_type,
+        bint layer_is_static,
+        bint layer_is_incomp
         ) noexcept nogil:
 
     # Use constant vectors to find the full y from all of the solutions in this layer
@@ -34,7 +34,7 @@ cdef void cf_collapse_layer_solution(
     slice_end = layer_start_index + num_layer_slices
     calculate_y3 = False
 
-    if (not layer_is_solid) and (not layer_is_static):
+    if (not (layer_type == 0)) and (not layer_is_static):
         # For this layer type we can also calculate y3 based on the other ys. We will do this at the end.
         calculate_y3 = True
     
@@ -43,7 +43,7 @@ cdef void cf_collapse_layer_solution(
     while max_num_y > y_i:
         lhs_y_index = ytype_i * max_num_y + y_i
         # Bail out early for ys that the layer type is not defined for.
-        if layer_is_solid:
+        if (layer_type == 0):
             # Solid layers have the same number of ys as the max_y_num.
             y_rhs_i = y_i
         else:

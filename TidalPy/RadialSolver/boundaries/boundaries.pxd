@@ -10,7 +10,7 @@ cdef void cf_apply_surface_bc(
     unsigned char num_sols,
     unsigned char max_num_y,
     unsigned char ytype_i,
-    bool_cpp_t layer_is_solid,
-    bool_cpp_t layer_is_static,
-    bool_cpp_t layer_is_incomp
+    int layer_type,
+    bint layer_is_static,
+    bint layer_is_incomp
     ) noexcept nogil

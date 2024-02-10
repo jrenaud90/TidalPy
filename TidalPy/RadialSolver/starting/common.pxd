@@ -1,6 +1,7 @@
 cdef double complex cf_z_calc(
     double complex x_squared,
-    unsigned char degree_l) noexcept nogil
+    unsigned char degree_l
+    ) noexcept nogil
 
 cdef void cf_takeuchi_phi_psi(
     double complex z,

@@ -28,9 +28,9 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
     pass
 
 cdef RadialSolverBase cf_build_solver(
-    bool_cpp_t is_solid,
-    bool_cpp_t is_static,
-    bool_cpp_t is_incomp,
+    int layer_type,
+    bint is_static,
+    bint is_incomp,
 
     # RadialSolverBase Inputs
     size_t num_slices,

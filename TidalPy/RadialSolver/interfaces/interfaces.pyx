@@ -26,12 +26,12 @@ cdef void cf_solve_upper_y_at_interface(
         size_t num_sols_upper,
         size_t num_y_lower,
         size_t num_y_upper,
-        bool_cpp_t lower_is_solid,
-        bool_cpp_t lower_is_static,
-        bool_cpp_t lower_is_incompressible,
-        bool_cpp_t upper_is_solid,
-        bool_cpp_t upper_is_static,
-        bool_cpp_t upper_is_incompressible,
+        int lower_layer_type,
+        bint lower_is_static,
+        bint lower_is_incompressible,
+        int upper_layer_type,
+        bint upper_is_static,
+        bint upper_is_incompressible,
         double interface_gravity,
         double liquid_density,
         double G_to_use = G
@@ -40,10 +40,10 @@ cdef void cf_solve_upper_y_at_interface(
     cdef size_t yi_lower, yi_upper, soli_lower, soli_upper
 
     cdef bool_cpp_t solid_solid, solid_liquid, liquid_solid, liquid_liquid
-    solid_solid   = lower_is_solid and upper_is_solid
-    solid_liquid  = lower_is_solid and not upper_is_solid
-    liquid_solid  = not lower_is_solid and upper_is_solid
-    liquid_liquid = not lower_is_solid and not upper_is_solid
+    solid_solid   = (lower_layer_type == 0) and (upper_layer_type == 0)
+    solid_liquid  = (lower_layer_type == 0) and not (upper_layer_type == 0)
+    liquid_solid  = not (lower_layer_type == 0) and (upper_layer_type == 0)
+    liquid_liquid = not (lower_layer_type == 0) and not (upper_layer_type == 0)
 
     cdef bool_cpp_t static_static, static_dynamic, dynamic_static, dynamic_dynamic
     static_static   = lower_is_static and upper_is_static
@@ -264,12 +264,12 @@ cdef void cf_solve_upper_y_at_interface(
 def solve_upper_y_at_interface(
         double complex[:, ::1] lower_layer_y_view,
         double complex[:, ::1] upper_layer_y_view,
-        bool_cpp_t lower_is_solid,
-        bool_cpp_t lower_is_static,
-        bool_cpp_t lower_is_incompressible,
-        bool_cpp_t upper_is_solid,
-        bool_cpp_t upper_is_static,
-        bool_cpp_t upper_is_incompressible,
+        int lower_layer_type,
+        bint lower_is_static,
+        bint lower_is_incompressible,
+        int upper_layer_type,
+        bint upper_is_static,
+        bint upper_is_incompressible,
         double interface_gravity,
         double liquid_density,
         double G_to_use = G
@@ -289,10 +289,10 @@ def solve_upper_y_at_interface(
         num_sols_upper,
         num_y_lower,
         num_y_upper,
-        lower_is_solid,
+        lower_layer_type,
         lower_is_static,
         lower_is_incompressible,
-        upper_is_solid,
+        upper_layer_type,
         upper_is_static,
         upper_is_incompressible,
         interface_gravity,

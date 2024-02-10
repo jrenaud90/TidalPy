@@ -718,9 +718,9 @@ cdef class LiquidStaticIncompressible(RadialSolverBase):
 
 
 cdef RadialSolverBase cf_build_solver(
-        bool_cpp_t is_solid,
-        bool_cpp_t is_static,
-        bool_cpp_t is_incomp,
+        int layer_type,
+        bint is_static,
+        bint is_incomp,
 
         # RadialSolverBase Inputs
         size_t num_slices,
@@ -754,7 +754,8 @@ cdef RadialSolverBase cf_build_solver(
     # Convert the y0 pointer to a memoryview in order to work with CyRK's CySolver __init__
     cdef double[:] y0_view = <double[:num_ys]> y0_ptr
 
-    if is_solid:
+    if (layer_type == 0):
+        # Solid layer
         if is_static:
             if is_incomp:
                 solver = SolidStaticIncompressible(
@@ -810,6 +811,7 @@ cdef RadialSolverBase cf_build_solver(
                     max_ram_MB=max_ram_MB
                     )
     else:
+        # Liquid layer
         if is_static:
             if is_incomp:
                 solver = LiquidStaticIncompressible(

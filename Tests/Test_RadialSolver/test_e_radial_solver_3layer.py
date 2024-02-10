@@ -43,13 +43,13 @@ volume_array, mass_array, gravity_array = calculate_mass_gravity_arrays(radius_a
 
 planet_bulk_density = np.sum(mass_array) / np.sum(volume_array)
 upper_radius_by_layer = (icb_r, cmb_r, planet_r)
-is_solid_by_layer = (True, False, True)
+layer_types = ("solid", "liquid", "solid")
 
 @pytest.mark.parametrize('solid_is_static', (True, False))
 @pytest.mark.parametrize('liquid_is_static', (True, False))
 @pytest.mark.parametrize('solid_is_incompressible', (True, False))
 @pytest.mark.parametrize('liquid_is_incompressible', (True, False))
-@pytest.mark.parametrize('method', (0, 1, 2))
+@pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2,))
 @pytest.mark.parametrize('use_kamata', (True,))
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
@@ -64,7 +64,7 @@ def test_radial_solver_3layer(solid_is_static, liquid_is_static,
         out = radial_solver(
             radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
             frequency, planet_bulk_density, 
-            is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
+            layer_types, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
             degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
             integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
             scale_rtols_by_layer_type=True,
@@ -82,7 +82,7 @@ def test_radial_solver_3layer(solid_is_static, liquid_is_static,
 @pytest.mark.parametrize('liquid_is_static', (True, False))
 @pytest.mark.parametrize('solid_is_incompressible', (True, False))
 @pytest.mark.parametrize('liquid_is_incompressible', (True, False))
-@pytest.mark.parametrize('method', (0, 1, 2))
+@pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2,))
 @pytest.mark.parametrize('use_kamata', (True,))
 def test_radial_solver_3layer_solve_for_both(solid_is_static, liquid_is_static,
@@ -99,7 +99,7 @@ def test_radial_solver_3layer_solve_for_both(solid_is_static, liquid_is_static,
         out = radial_solver(
             radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
             frequency, planet_bulk_density, 
-            is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
+            layer_types, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
             degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
             integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
             scale_rtols_by_layer_type=True,

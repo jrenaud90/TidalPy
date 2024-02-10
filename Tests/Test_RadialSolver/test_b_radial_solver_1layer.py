@@ -1,5 +1,3 @@
-import warnings
-
 import pytest
 import numpy as np
 
@@ -29,30 +27,30 @@ volume_array, mass_array, gravity_array = calculate_mass_gravity_arrays(radius_a
 planet_bulk_density = np.sum(mass_array) / np.sum(volume_array)
 upper_radius_by_layer = (radius_array[-1],)
 
-@pytest.mark.parametrize('is_solid', (True, False))
+@pytest.mark.parametrize('layer_type', ("solid", "liquid"))
 @pytest.mark.parametrize('is_static', (True, False))
 @pytest.mark.parametrize('is_incompressible', (True, False))
-@pytest.mark.parametrize('method', (0, 1, 2))
+@pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2, 3))
 @pytest.mark.parametrize('use_kamata', (True, False))
 @pytest.mark.parametrize('nondimensionalize', (True, False))
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
-def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, degree_l,
+def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, degree_l,
                               use_kamata, nondimensionalize, solve_for):
 
-    is_solid_by_layer = (is_solid,)
+    layer_type_by_layer = (layer_type,)
     is_static_by_layer = (is_static,)
     is_incompressible_by_layer = (is_incompressible,)
 
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
-    if not is_solid:
+    if not layer_type:
         pytest.skip(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
     else:
         try:
             out = radial_solver(
                 radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
                 frequency, planet_bulk_density, 
-                is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
+                layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
                 degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
                 integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
                 scale_rtols_by_layer_type=True,
@@ -65,31 +63,31 @@ def test_radial_solver_1layer(is_solid, is_static, is_incompressible, method, de
         except NotImplementedError as e:
             pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
 
-@pytest.mark.parametrize('is_solid', (True, False))
+@pytest.mark.parametrize('layer_type', ("solid", "liquid"))
 @pytest.mark.parametrize('is_static', (True, False))
 @pytest.mark.parametrize('is_incompressible', (True, False))
-@pytest.mark.parametrize('method', (0, 1, 2))
+@pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2, 3))
 @pytest.mark.parametrize('use_kamata', (True, False))
-def test_radial_solver_1layer_solve_for_both(is_solid, is_static, is_incompressible,
+def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompressible,
                                              method, degree_l, use_kamata):
     """Tests solving for both tidal and loading a the same time."""
 
-    is_solid_by_layer = (is_solid,)
+    layer_type_by_layer = (layer_type,)
     is_static_by_layer = (is_static,)
     is_incompressible_by_layer = (is_incompressible,)
 
     solve_for=('tidal', 'loading')
 
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
-    if not is_solid:
+    if not layer_type:
         pytest.skip(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
     else:
         try:
             out = radial_solver(
                 radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
                 frequency, planet_bulk_density, 
-                is_solid_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
+                layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
                 degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
                 integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
                 scale_rtols_by_layer_type=True,

@@ -51,7 +51,7 @@ tpy_0p4_results = {
     (False, False, True, False): np.asarray(
         [(0.1+0.1j), (0.2+0.2j), 0j, 0j, (0.5+0.5j), (0.6+0.6j), (0.16000000000000003+0.16000000000000003j), (0.34+0.34j), 0j, 0j, (1+1j), (12.06+12.06j), 0j, 0j, (1+0j), 0j, 0j, 0j],
         dtype=np.complex128, order="C"),
-    (1, False, False, True): np.asarray(
+    (False, False, False, True): np.asarray(
         [(0.09505598613897154+0.09505598613897154j), (-4.283624807144646-4.283624807144646j)],
         dtype=np.complex128, order="C"),
     (False, False, False, False): np.asarray(
@@ -76,40 +76,39 @@ y_lower_staticliq = np.asarray(
     ((0.5+0.5j, 0.6-9.6j),), dtype=np.complex128
 )
 
-@pytest.mark.parametrize('lower_is_solid', (True, False))
+@pytest.mark.parametrize('lower_layer_type', (0, 1))
 @pytest.mark.parametrize('lower_is_static', (True, False))
-@pytest.mark.parametrize('upper_is_solid', (True, False))
+@pytest.mark.parametrize('upper_layer_type', (0, 1))
 @pytest.mark.parametrize('upper_is_static', (True, False))
 @pytest.mark.parametrize('lower_is_incompressible', (True, False))
 @pytest.mark.parametrize('upper_is_incompressible', (True, False))
-def test_interface_driver(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static,
+def test_interface_driver(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static,
                           lower_is_incompressible, upper_is_incompressible):
 
     # TODO: Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.
     if lower_is_incompressible or upper_is_incompressible:
         pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
 
-    num_sols_lower = find_num_solutions(lower_is_solid, lower_is_static, lower_is_incompressible)
+    num_sols_lower = find_num_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
     num_ys_lower   = num_sols_lower * 2
-    num_sols_upper = find_num_solutions(upper_is_solid, upper_is_static, upper_is_incompressible)
+    num_sols_upper = find_num_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
     num_ys_upper   = num_sols_upper * 2
 
     # Determine which lower layer y solution to use
-    if lower_is_solid:
+    if (lower_layer_type == 0):
         lower_y = y_lower_solid
     elif lower_is_static:
         lower_y = y_lower_staticliq
     else:
         lower_y = y_lower_liquid
     
-    
     # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
     upper_y = np.nan * np.ones((num_sols_upper, num_ys_upper), dtype=np.complex128, order='C')
-    
+
     solve_upper_y_at_interface(
         lower_y, upper_y,
-        lower_is_solid, lower_is_static, lower_is_incompressible,
-        upper_is_solid, upper_is_static, upper_is_incompressible,
+        lower_layer_type, lower_is_static, lower_is_incompressible,
+        upper_layer_type, upper_is_static, upper_is_incompressible,
         interface_gravity, static_liquid_density, G_to_use
         )
 
@@ -117,13 +116,13 @@ def test_interface_driver(lower_is_solid, lower_is_static, upper_is_solid, upper
     assert np.all(np.isnan(upper_y) == False)
 
 
-@pytest.mark.parametrize('lower_is_solid', (True, False))
+@pytest.mark.parametrize('lower_layer_type', (0, 1))
 @pytest.mark.parametrize('lower_is_static', (True, False))
-@pytest.mark.parametrize('upper_is_solid', (True, False))
+@pytest.mark.parametrize('upper_layer_type', (0, 1))
 @pytest.mark.parametrize('upper_is_static', (True, False))
 @pytest.mark.parametrize('lower_is_incompressible', (True, False))
 @pytest.mark.parametrize('upper_is_incompressible', (True, False))
-def test_interface_accuracy(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static,
+def test_interface_accuracy(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static,
                             lower_is_incompressible, upper_is_incompressible):
     """ Use results from TidalPy 0.4.0 to test the accuracy of the current interface solver. """
 
@@ -131,31 +130,32 @@ def test_interface_accuracy(lower_is_solid, lower_is_static, upper_is_solid, upp
     if lower_is_incompressible or upper_is_incompressible:
         pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
 
-    if (lower_is_solid, lower_is_static, upper_is_solid, upper_is_static) not in tpy_0p4_results:
-        pytest.skip(f'Combination {(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static)} not found (or not implemented) in pre-calculated TidalPy v0.4 results.')
+    lower_layer_is_solid = lower_layer_type == 0
+    upper_layer_is_solid = upper_layer_type == 0
+    if (lower_layer_is_solid, lower_is_static, upper_layer_is_solid, upper_is_static) not in tpy_0p4_results:
+        pytest.skip(f'Combination {(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static)} not found (or not implemented) in pre-calculated TidalPy v0.4 results.')
 
     else:
-        num_sols_lower = find_num_solutions(lower_is_solid, lower_is_static, lower_is_incompressible)
+        num_sols_lower = find_num_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
         num_ys_lower   = num_sols_lower * 2
-        num_sols_upper = find_num_solutions(upper_is_solid, upper_is_static, upper_is_incompressible)
+        num_sols_upper = find_num_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
         num_ys_upper   = num_sols_upper * 2
 
         # Determine which lower layer y solution to use
-        if lower_is_solid:
+        if (lower_layer_type == 0):
             lower_y = y_lower_solid
         elif lower_is_static:
             lower_y = y_lower_staticliq
         else:
             lower_y = y_lower_liquid
         
-        
         # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
         upper_y = np.nan * np.ones((num_sols_upper, num_ys_upper), dtype=np.complex128, order='C')
         
         solve_upper_y_at_interface(
             lower_y, upper_y,
-            lower_is_solid, lower_is_static, lower_is_incompressible,
-            upper_is_solid, upper_is_static, upper_is_incompressible,
+            lower_layer_type, lower_is_static, lower_is_incompressible,
+            upper_layer_type, upper_is_static, upper_is_incompressible,
             interface_gravity, static_liquid_density, G_to_use
             )
 
@@ -163,5 +163,5 @@ def test_interface_accuracy(lower_is_solid, lower_is_static, upper_is_solid, upp
         assert np.all(np.isnan(upper_y) == False)
 
         # Compare results to TidalPy 0.4.0 pre-calculated interface solution.
-        comparison_results = tpy_0p4_results[(lower_is_solid, lower_is_static, upper_is_solid, upper_is_static)]
+        comparison_results = tpy_0p4_results[(lower_layer_is_solid, lower_is_static, upper_layer_is_solid, upper_is_static)]
         np.allclose(upper_y.flatten(), comparison_results)

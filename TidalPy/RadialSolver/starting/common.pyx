@@ -9,7 +9,8 @@ from TidalPy.utilities.math.special_x cimport cf_double_factorial
 
 cdef double complex cf_z_calc(
         double complex x_squared,
-        unsigned char degree_l) noexcept nogil:
+        unsigned char degree_l
+        ) noexcept nogil:
     """ Calculates the z function using spherical Bessel function, see Eq. B14 of KMN15.
 
     References

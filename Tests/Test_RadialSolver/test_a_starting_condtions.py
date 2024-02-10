@@ -236,33 +236,34 @@ known_results_tpy0p5 = {
 }
 
 
-@pytest.mark.parametrize('is_solid', (True, False))
+@pytest.mark.parametrize('layer_type', (0, 1))
 @pytest.mark.parametrize('is_static', (True, False))
 @pytest.mark.parametrize('is_incompressible', (True, False))
 @pytest.mark.parametrize('use_kamata', (True, False))
 @pytest.mark.parametrize('degree_l', (2, 3))
-def test_initial_condition_driver(is_solid, is_static, is_incompressible, use_kamata, degree_l):
+def test_initial_condition_driver(layer_type, is_static, is_incompressible, use_kamata, degree_l):
  
-    num_sols = find_num_solutions(is_solid, is_static, is_incompressible)
+    num_sols = find_num_solutions(layer_type, is_static, is_incompressible)
     num_ys = num_sols * 2
 
     # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
     initial_condition_array = np.nan * np.ones((num_sols, num_ys), dtype=np.complex128, order='C')
     
     # TODO: Several ICs are not yet implemented.
+    is_solid = layer_type == 0
     if ((not use_kamata) and is_incompressible and (is_solid or ((not is_solid) and (not is_static)))) \
             or (use_kamata and is_static and is_incompressible and is_solid):
 
         with pytest.raises(NotImplementedError):
             find_starting_conditions(
-                is_solid, is_static, is_incompressible, use_kamata,
+                layer_type, is_static, is_incompressible, use_kamata,
                 frequency, radius, density, bulk_modulus, complex_shear,
                 degree_l, G_to_use, initial_condition_array
                 )
     else:
         # Assumptions should be fine.
         find_starting_conditions(
-            is_solid, is_static, is_incompressible, use_kamata,
+            layer_type, is_static, is_incompressible, use_kamata,
             frequency, radius, density, bulk_modulus, complex_shear,
             degree_l, G_to_use, initial_condition_array
             )
@@ -271,37 +272,32 @@ def test_initial_condition_driver(is_solid, is_static, is_incompressible, use_ka
         assert np.all(np.isnan(initial_condition_array) == False)
 
 
-# NOTE: The below fails since we use some different underlying equations from the pre-built results defined above.
-#  if you want to run this test with USE_TPY0p4=True, then you will need to swap out the definitions used in
-#   TidalPy.RadialSolver.initial.common.pyx
-USE_TPY0p4 = False
-
-@pytest.mark.parametrize('is_solid', (True, False))
+@pytest.mark.parametrize('layer_type', (0, 1))
 @pytest.mark.parametrize('is_static', (True, False))
 @pytest.mark.parametrize('is_incompressible', (True, False))
 @pytest.mark.parametrize('use_kamata', (True, False))
 @pytest.mark.parametrize('degree_l', (2, 3))
-def test_initial_condition_accuracy(is_solid, is_static, is_incompressible, use_kamata, degree_l):
+def test_initial_condition_accuracy(layer_type, is_static, is_incompressible, use_kamata, degree_l):
 
     known_results = known_results_tpy0p5
 
-    # Get precalculated resultTidalPy v0.4.0 result
+    is_solid = (layer_type == 0)
     if (is_solid, is_static, is_incompressible, use_kamata, degree_l) not in known_results:
-        pytest.skip(f'Combination {(is_solid, is_static, is_incompressible, use_kamata, degree_l)} not found (or not implemented) in pre-calculated TidalPy results.')
+        pytest.skip(f'Combination {(layer_type, is_static, is_incompressible, use_kamata, degree_l)} not found (or not implemented) in pre-calculated TidalPy results.')
     elif known_results[(is_solid, is_static, is_incompressible, use_kamata, degree_l)] is None:
-        pytest.skip(f'Combination {(is_solid, is_static, is_incompressible, use_kamata, degree_l)} not found (or not implemented) in pre-calculated TidalPy results.')
+        pytest.skip(f'Combination {(layer_type, is_static, is_incompressible, use_kamata, degree_l)} not found (or not implemented) in pre-calculated TidalPy results.')
     else:
         old_tpy_result = known_results[(is_solid, is_static, is_incompressible, use_kamata, degree_l)]
 
         # Get new result
-        num_sols = find_num_solutions(is_solid, is_static, is_incompressible)
+        num_sols = find_num_solutions(layer_type, is_static, is_incompressible)
         num_ys = num_sols * 2
 
         # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
         initial_condition_array = np.nan * np.ones((num_sols, num_ys), dtype=np.complex128, order='C')
 
         find_starting_conditions(
-            is_solid, is_static, is_incompressible, use_kamata,
+            layer_type, is_static, is_incompressible, use_kamata,
             frequency, radius, density, bulk_modulus, complex_shear,
             degree_l, G_to_use, initial_condition_array
             )

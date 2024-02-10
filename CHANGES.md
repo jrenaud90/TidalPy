@@ -60,6 +60,8 @@ Minor Changes
     * interface functions
 * Converted radial_solver.numerical initial guess and interface functions output to np.ndarrays rather than numba lists.
 * Removed `config_helper.py` and the functions defined within.
+* New RadialSolver class now supports more than just boolean inputs.
+  * Future proofing to allow for a greater variety of layer types. 
   
 Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.

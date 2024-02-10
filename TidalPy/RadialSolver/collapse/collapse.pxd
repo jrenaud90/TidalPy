@@ -15,7 +15,7 @@ cdef void cf_collapse_layer_solution(
     unsigned char num_ys,
     unsigned char num_output_ys,
     unsigned char ytype_i,
-    bool_cpp_t layer_is_solid,
-    bool_cpp_t layer_is_static,
-    bool_cpp_t layer_is_incomp
+    int layer_type,
+    bint layer_is_static,
+    bint layer_is_incomp
     ) noexcept nogil
