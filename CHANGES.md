@@ -43,7 +43,7 @@ Dependencies
 * Moved `BurnMan` 3rd party dependence to a more dedicated `interfaces` folder for future development.
 * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.
 
-Minor Changes
+Minor Changes and New Features
 * `complex_compliance` configurations are now stored in the top level `rheology` in all configs.
   * For example, in prior TidalPy versions you would need to change the complex compliance model by editing config['layers']['mantle']['rheology']['complex_compliance']['model'] = 'andrade'. Now this would be: config['layers']['mantle']['rheology']['model'] = 'andrade'.
 * Added unique frequency finder functions to the `modes` module.
@@ -61,7 +61,8 @@ Minor Changes
 * Converted radial_solver.numerical initial guess and interface functions output to np.ndarrays rather than numba lists.
 * Removed `config_helper.py` and the functions defined within.
 * New RadialSolver class now supports more than just boolean inputs.
-  * Future proofing to allow for a greater variety of layer types. 
+  * Future proofing to allow for a greater variety of layer types.
+* Added exoplanet archive download functionality in `TidalPy.utilities.exoplanets`.
   
 Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.
