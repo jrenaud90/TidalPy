@@ -6,7 +6,7 @@ TidalPy has built in functionality to download data from NASA's exoplanet archiv
 Below is the function description with details on its arguments.
 
 ```python
-def get_exoplanets(
+def get_exoplanet_data(
         ensure_radius: bool = True,
         radius_cutoff: float = 1.5,
         ensure_mass: bool = True,
@@ -65,9 +65,9 @@ def get_exoplanets(
 Below is how to run the function.
 
 ```python
-from TidalPy.utilities.exoplanets import get_exoplanets
+from TidalPy.utilities.exoplanets import get_exoplanet_data
 
-exoplanet_data = get_exoplanets(
+exoplanet_data = get_exoplanet_data(
     ensure_radius=True,
     radius_cutoff=1.5,
     ensure_mass=True,

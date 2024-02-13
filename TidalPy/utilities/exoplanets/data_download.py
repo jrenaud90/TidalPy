@@ -8,7 +8,7 @@ from TidalPy.logger import get_logger
 log = get_logger(__name__)
 
 
-def get_exoplanets(
+def get_exoplanet_data(
         ensure_radius: bool = True,
         radius_cutoff: float = 1.5,
         ensure_mass: bool = True,
