@@ -9,36 +9,36 @@
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
 </p>
 
-## Purpose
+# Purpose
 
 TidalPy is an open-source software suite that utilizes a semi-analytic approach to estimate tidal dissipation,
 orbit-rotational evolution, and thermal changes for rocky and icy worlds.
 
-### Related Software
+## Related Software
 
 Below is a non-exhaustive list of publicly available software that perform similar or parallel calculations as TidalPy.
 
 * Are you interested in the habitability of a planet? With considerations of tides, atmospheres, water content, solar
   interactions? Check out...
-    * [VPLanet](https://github.com/VirtualPlanetaryLaboratory/vplanet)
+  * [VPLanet](https://github.com/VirtualPlanetaryLaboratory/vplanet)
 * Are you interested in the orbital evolution of multiple planets with each planet influencing one another? Consider an
   N-body approach like...
-    * [Posidonius (formerly Mercury-T)](https://github.com/marblestation/posidonius)
-    * [ReboundX](https://github.com/dtamayo/reboundx)
+  * [Posidonius (formerly Mercury-T)](https://github.com/marblestation/posidonius)
+  * [ReboundX](https://github.com/dtamayo/reboundx)
 * Don't care about tides or orbital dynamics but are instead interested in interior structure and composition of
   planets?
-    * [BurnMan](https://github.com/geodynamics/burnman)
-    * [PerpleX](http://www.perplex.ethz.ch/)
+  * [BurnMan](https://github.com/geodynamics/burnman)
+  * [PerpleX](http://www.perplex.ethz.ch/)
 * Are you interested in tides, interiors, *and* the chemical evolution of small worlds but don't care about
   non-synchronous rotation or compressibility of planets?
-    * [IcyDwarf](https://github.com/MarcNeveu/IcyDwarf)
+  * [IcyDwarf](https://github.com/MarcNeveu/IcyDwarf)
 
 However, if you want high fidelity tidal, orbital, spin, and interior models --- then you have come to the right place!
 Read below for instructions on how to install and use TidalPy.
 
-## How to Install
+# How to Install
 
-### Compatibility
+## Compatibility
 
 *As of TidalPy v0.5.0*:
 
@@ -46,17 +46,17 @@ Read below for instructions on how to install and use TidalPy.
 * **MacOS-Latest**: *Installation & tests passed.*
 * **Ubuntu-Latest**: *Installation & tests passed.*
 
-### Simple Installation
+## Basic Installation
 
-As simple as ensuring 64-bit [Python 3.8+](https://www.python.org/) is installed on your system and performing the
-following in a terminal:
+Installing TidalPy is ass simple as ensuring 64-bit [Python 3.8+](https://www.python.org/) is installed on your 
+system and performing the following in a terminal:
 
 `pip install TidalPy`
 
 _TidalPy can not currently be installed via `conda install`._
 
-### Accessing Jupyter Notebooks
-There are several jupyter notebooks with TidalPy demos found in the /Demos/ folder.
+## Accessing Jupyter Notebooks
+There are several jupyter notebooks with TidalPy demos found in the /Demos/ folder of this repository.
 In order to access these you will need to make sure you install Jupyter and a few related packages:
 
 `pip install ipympl ipython ipywidgets jupyter`
@@ -65,12 +65,16 @@ or
 
 `conda install ipympl ipython ipywidgets jupyter`
 
-Then you can navigate to these directories in a terminal and access the notebooks by using the command,
+You can then clone this GitHub repository,
+
+`git clone https://github.com/jrenaud90/TidalPy`
+
+to a local directory. Navigate to this directory and the `Demos` sub-directory then access the notebooks by using the command,
 `jupyter notebook`.
 
-#### Cartopy
+## Cartopy
 
-TidalPy utilizes the [cartopy](https://scitools.org.uk/cartopy/docs/latest/index.html) package for some of 
+TidalPy offers the ability to make nice 2D plots using the [cartopy](https://scitools.org.uk/cartopy/docs/latest/index.html) package for some of 
 3d projection map plotting. In turn, cartopy relies on [GEOS](https://trac.osgeo.org/geos/) which is not a python
 package and must be installed outside of pip.
 
@@ -88,7 +92,7 @@ After GEOS is installed you can pip install the rest,
 
 `pip install pyproj shapely pyshp cartopy`
 
-#### DiffEqPy / Julia
+## DiffEqPy / Julia
 
 TidalPy provides the option to use the [Julia](https://julialang.org/) programming language's differential equation 
 solver for python: [diffeqpy](https://github.com/SciML/diffeqpy). To utilize this package you first need to ensure
@@ -97,29 +101,29 @@ that Julia is installed on your machine and available via the system's environme
 * Install the Julia language from [https://julialang.org/downloads/](https://julialang.org/downloads/)
 * Add Julia's directory and its `bin` subdirectory to your system's path.
 * Open an elevated ("as administrator") terminal, command prompt, or powershell.
-    * If you are using a virtual Python environment make sure it is active.
+  * If you are using a virtual Python environment make sure it is active.
 * Install `julia` and `diffeqpy` for python using pip
-    * Run `pip install julia diffeqpy`
+  * Run `pip install julia diffeqpy`
 * Open Python on your elevated terminal (the following steps may take a while to compile). 
   * Run `import julia; julia.install(); import diffeqpy; diffeqpy.install()`
 
-### Installation Troubleshooting
+## Installation Troubleshooting
 
 _If you ran into a problem that is not listed below please [submit an issue](https://github.com/jrenaud90/TidalPy/issues) and we will work on addressing it!_
 
 **Known Problems:**
 * The `setuptools` package is required before TidalPy can be installed. Usually it is automatically installed, but if
   you are starting with a clean virtual environment it may not have been.
-    * For Anaconda: `conda install setuptools`
-    * Or for regular Python: `pip install setuptools`
+  * For Anaconda: `conda install setuptools`
+  * Or for regular Python: `pip install setuptools`
 
-## How to Use TidalPy
+# How to Use TidalPy
 
 Check out the `Documentation\Getting Started.md` file. This is pretty bare bones at the moment but offers some basic
 info about TidalPy. For now the best way to learn how to use TidalPy is by checking out the `Demos` directory. There
 are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
 
-### Using TidalPy for Science
+## Using TidalPy for Science
 
 TidalPy has been used in several studies already, and we encourage you to use it in yours. We would appreciate you
 include a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers discussed in 
@@ -128,24 +132,24 @@ email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentatio
 make forks or copies of TidalPy as long as their work references back to this page. License information can be found at
 the end of this file.
 
-#### Citing TidalPy
+## Citing TidalPy
 
 If you use TidalPy for your research please cite its Zenodo [doi: 10.5281/zenodo.7017474](https://zenodo.org/records/7017560).
 
 The science used in TidalPy is described in the following papers and software (and references therein):
 
 * Rheological Modeling Package:
-    * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
-    * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
+  * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
+  * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
 * Non-synchronous Rotation Evolution and High Eccentricity Truncation Packages:
-    * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2021PSJ.....2....4R/abstract)
-    * [Tidal Evolution of the Keplerian Elements](https://ui.adsabs.harvard.edu/abs/2019CeMDA.131...30B/abstract)
+  * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2021PSJ.....2....4R/abstract)
+  * [Tidal Evolution of the Keplerian Elements](https://ui.adsabs.harvard.edu/abs/2019CeMDA.131...30B/abstract)
 * Third Party Software:
-    * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
-    * *Integration Routines*: [CyRK](https://zenodo.org/records/8329446)
-    * *CVD Conscious Color Maps*: [Geodynamic Color Maps](http://doi.org/10.5281/zenodo.5501399)
-    * *Projection Maps*: [Cartopy](https://scitools.org.uk/cartopy/docs/latest/)
-    * *Exoplanet data*: [Astroquery](https://github.com/astropy/astroquery/blob/main/astroquery/CITATION), [AstroPy](https://www.astropy.org/acknowledging.html)
+  * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
+  * *Integration Routines*: [CyRK](https://zenodo.org/records/8329446)
+  * *CVD Conscious Color Maps*: [Geodynamic Color Maps](http://doi.org/10.5281/zenodo.5501399)
+  * *Projection Maps*: [Cartopy](https://scitools.org.uk/cartopy/docs/latest/)
+  * *Exoplanet data*: [Astroquery](https://github.com/astropy/astroquery/blob/main/astroquery/CITATION), [AstroPy](https://www.astropy.org/acknowledging.html)
 
 ## Contribute to TidalPy
 
@@ -155,12 +159,12 @@ check out the information in `Documentation\Contribute.md`.
 **Found a bug or have an idea for a new feature?**
 
 * Go to TidalPy's [Github page](https://github.com/jrenaud90/TidalPy) and click the "Issues" tab then make a new report.
-    * If you ran into a bug please include a code snippet (in markdown: code is designated by Grave accents surrounding
-      the text) that reproduces the error (please keep this snippet as concise as possible).
-    * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
-      other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
+  * If you ran into a bug please include a code snippet (in markdown: code is designated by Grave accents surrounding
+    the text) that reproduces the error (please keep this snippet as concise as possible).
+  * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
+    other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
-## License Information
+# License Information
 You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
 * Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
 * Any software derived from TidalPy must remain open-source and non-commercial.
@@ -171,7 +175,15 @@ visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons
 letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
 # Acknowledgements
-TidalPy was partially developed with support from NASA Goddard's Sellers' Exoplanet Environments Collaboration and 
-Geodesy ISFM. TidalPy is partially based upon work supported by NASA under award number 80GSFC21M0002 and the
+TidalPy was partially developed with support from NASA Goddard Space Flight Center's 
+Sellers Exoplanet Environments Collaboration (SEEC) and Geodesy ISFM. 
+TidalPy is partially based upon work supported by NASA under award number 80GSFC21M0002 and the
 Center for Research and Exploration in Space Science & Technology II (CRESST II) administered at the University of
 Maryland, College Park.
+
+TidalPy has been improved by numerous contributors some of which you can find [here](https://github.com/jrenaud90/TidalPy/graphs/contributors).
+
+Additional contributions made by:
+- Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
+- Sander Goossens (NASA GSFC)
+- Marc Neveu (U. of Maryland, College Park / NASA GSFC)
