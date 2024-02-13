@@ -19,6 +19,7 @@ with minor versions (v0.X.0) being a new set of cythonized updates.
   - Added several new cython-based helper functions in the utilities module.
 
 Other Major Changes
+* Added support for Python 3.11 and 3.12. TidalPy now runs on Python 3.8--3.12.
 * Removed support for `solver_numba` in the `radial_solver` module.
 * Removed some imports from main package and sub modules' `__init__` to avoid slow load times.
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
@@ -34,11 +35,8 @@ Other Major Changes
   * Moved away from the system of `default.py` configurations for sub modules. All default configs are stored in the same `TidalPy_Config.toml`
 * Shifted from `json` to `toml` files for world configs.
   * Store all world configs to a zip file for easier distribution.
-
-Dependencies 
-* Added support for Python 3.11. TidalPy now runs on Python 3.8--3.11.
 * TidalPy now requires:
-  * CyRK>=0.8.2
+  * CyRK>=0.8.6
   * Cython>=3.0.0
 * Moved `BurnMan` 3rd party dependence to a more dedicated `interfaces` folder for future development.
 * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.

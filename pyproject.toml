@@ -1,11 +1,11 @@
 [project]
 name='TidalPy'
-version = '0.5.0a7.dev5'
+version = '0.5.0a7.dev6'
 description='Planetary Tidal Evolution Software made with Python.'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.8,<3.13"
 dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
@@ -19,7 +19,7 @@ dependencies = [
     "psutil>=5.8.0",
     "pathos>=0.2.0",
     # Install CyRK requirements
-    "cyrk>=0.8.5",
+    "cyrk>=0.8.6",
     # Exoplanet data archive
     "astropy",
     "astroquery"
@@ -111,7 +111,7 @@ requires = [
     'numpy>=1.22',
     'cython>=3.0.0',
     'wheel>=0.38',
-    "cyrk>=0.8.5"
+    "cyrk>=0.8.6"
 ]
 build-backend = "setuptools.build_meta"
 
