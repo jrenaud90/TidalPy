@@ -12,10 +12,6 @@ import numpy as np
 num_procs = os.cpu_count()
 num_threads = int(math.floor(num_procs * 0.75))
 
-
-num_procs = 1
-num_threads = 1
-
 install_platform = platform.system()
 
 if install_platform.lower() == 'windows':
