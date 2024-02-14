@@ -144,3 +144,4 @@ build = "*"
 skip = "pp*"
 # Having issues with SciPy install during wheel build on 32-bit systems.
 archs = ["auto64"]
+before-build = "python -m pip install --upgrade pip; python -m pip install numpy>=1.22"
