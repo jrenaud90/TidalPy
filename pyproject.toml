@@ -140,16 +140,7 @@ testpaths = [
 
 [tool.cibuildwheel]
 build = "*"
-# Disable building PyPy wheels on all platforms
-skip = "pp*"
+# Disable building PyPy wheels on all platforms. Also having issue with musllinux.
+skip = ["pp*", "*musllinux*"]
 # Having issues with SciPy install during wheel build on 32-bit systems.
 archs = ["auto64"]
-
-[tool.cibuildwheel.linux]
-before-build = "python -m pip install --upgrade pip numpy"
-
-[tool.cibuildwheel.macos]
-before-build = "python -m pip install --upgrade pip numpy"
-
-[tool.cibuildwheel.windows]
-before-build = "pip install --upgrade pip numpy"
