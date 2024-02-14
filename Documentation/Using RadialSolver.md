@@ -1,7 +1,17 @@
-# Radial Solver Documents
+# Radial Solver
 _Instructions and examples on how to use TidalPy's `RadialSolver` module._
 
-## `radial_solver` Function
+TidalPy's `RadialSolver` package allows a user to estiamte a planet's global, viscoelastic
+[Love numbers](https://en.wikipedia.org/wiki/Love_number). These numbers can then be used to determine the magnitude of tidal
+dissipation, speed of rotational/orbital changes, and provide predictions for gravity field measurements. 
+
+TidalPy uses a numerical shooting methods which integrates a set of 3x6 viscoelastic-gravitational ordinary differential equations
+from the core of the planet to its surface. The final result is a super position of the three different solutions where each
+solutions coefficients are determined by boundary conditions at the surface of the planet. 
+
+To learn more about this method please review the literature cited in the references section.
+
+## `TidalPy.RadialSolver.radial_solver` Function
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module can be used with the following arguments.
 
 ```python
@@ -144,13 +154,13 @@ radial_solver_solution.result
 radial_solver_solution['tidal']    # Tidal gravitational-viscoelastic results
 radial_solver_solution['loading']  # Loading gravitational-viscoelastic results
 
-# Ger all complex Love numbers
+# Or you can get all requested complex Love numbers
 # This is a np.ndarray (complex) with the shape of [num_solve_for, 3]
 # The 2nd dimension is, in order, Love/Shida numbers: k, h, l.
 # For example, if you only set `solve_for=('tidal',)` then `radial_solver_solution.love[0, 1]` == tidal k.
 radial_solver_solution.love
 
-# There are also helpful shortcuts for each Love number.
+# There are also helpful shortcuts for each individual Love number.
 # These are each np.ndarrays but of only size 1 if `num_solve_for==1`
 radial_solver_solution.k
 radial_solver_solution.h
@@ -216,11 +226,25 @@ solution.l = # [Solution 0's l, Solution 1's l, ...]
 
 **Performance Note**
 
-For all of these attributes (`.love; .k; .h; .l`) the arrays are being created each time the attribute is accessed.
+There is a minor overhead when accessing any of the Solver's attributes (e.g., `.result; .love; .k; .h; .l`).
 If you have a code that accesses these numbers often (more than once) it is better to store them in a local variable.
 
 ```python
-k = solution.k  # Creates an array for all k Love numbers.
+k_local = solution.k  # Performs a background lookup and np.ndarray operation to produce an array for all k Love numbers.
 
-# ... Do a bunch of stuff with the new "k" variable.
+# ... Do a bunch of stuff with the new "k_local" variable.
 ```
+
+# References
+
+* Numerical Shooting Method
+    * [Takeuchi & Saito (1972)](https://ui.adsabs.harvard.edu/abs/1972MCPAR..11..217T/abstract)
+    * [Tobie et al. (2005)](https://ui.adsabs.harvard.edu/abs/2005Icar..177..534T/abstract)
+* Static / Incompressible Liquid Layers
+    * [Takeuchi & Saito (1972)](https://ui.adsabs.harvard.edu/abs/1972MCPAR..11..217T/abstract)
+* Dynamic / Incompressible Layers
+    * [Kamata et al. (2015)](https://ui.adsabs.harvard.edu/abs/2015JGRE..120.1528K/abstract)
+    * [Beuthe (2015)](https://ui.adsabs.harvard.edu/abs/2015Icar..258..239B/abstract)
+* Propagator Matrix Technique
+    * [Roberts & Nimmo (2008)](https://ui.adsabs.harvard.edu/abs/2008Icar..194..675R/abstract)
+    * [Henning & Hurford (2014)](https://ui.adsabs.harvard.edu/abs/2014ApJ...789...30H/abstract)
