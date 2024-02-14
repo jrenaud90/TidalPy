@@ -7,7 +7,7 @@ dissipation, speed of rotational/orbital changes, and provide predictions for gr
 
 TidalPy uses a numerical shooting methods which integrates a set of 3x6 viscoelastic-gravitational ordinary differential equations
 from the core of the planet to its surface. The final result is a super position of the three different solutions where each
-solutions coefficients are determined by boundary conditions at the surface of the planet. 
+solutions' coefficients are determined by boundary conditions at the surface of the planet. 
 
 To learn more about this method please review the literature cited in the references section.
 
