@@ -37,18 +37,15 @@ of tides.
 
 
 """
+import warnings
 
 import numpy as np
 
 from ...utilities.performance import find_factorial, njit
 from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
 
+warnings.warn('Deprecation Warning: the non-cythonized TidalPy.rheology.complex_compliance.compliance_models will be removed in a future release of TidalPy. Please use TidalPy.rheology.models instead. Please report any differences noted so that they can be addressed before the future release of TidalPy.', DeprecationWarning)
 
-from TidalPy.logger import get_logger
-
-log = get_logger("complex_compliances")
-
-log.warn('Deprecation Warning: the non-cythonized TidalPy.rheology.complex_compliance.compliance_models will be removed in a future release of TidalPy. Please use TidalPy.rheology.models instead. Please report any differences noted so that they can be addressed before the future release of TidalPy.')
 
 # OPT: # TODO: @vectorize(['complex128(float64, float64, float64)'],nopython=True) seems to do everything we need for
 #    these functions and then we can return to the if/else version for frequency. speeds are better when dealing wit

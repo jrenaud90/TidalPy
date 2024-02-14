@@ -99,42 +99,58 @@ cdef class RadialSolverSolution():
     @property
     def result(self):
         """ Return result array. """
-        return np.ascontiguousarray(
-            self.full_solution_view,
-            dtype=np.complex128
-            ).reshape((self.num_slices, self.num_ytypes * MAX_NUM_Y)).T
-    
+
+        if self.success:
+            return np.ascontiguousarray(
+                self.full_solution_view,
+                dtype=np.complex128
+                ).reshape((self.num_slices, self.num_ytypes * MAX_NUM_Y)).T
+        else:
+            return None
+        
     @property
     def love(self):
         """ Return all complex love numbers. """
-        return np.ascontiguousarray(
-            self.complex_love_view,
-            dtype=np.complex128
-        ).reshape((self.num_ytypes, 3))
+        if self.success:
+            return np.ascontiguousarray(
+                self.complex_love_view,
+                dtype=np.complex128
+            ).reshape((self.num_ytypes, 3))
+        else:
+            return None
 
     @property
     def k(self):
         """ Tidal Love number k. """
-        return np.ascontiguousarray(
-            self.complex_love_view[0::3],
-            dtype=np.complex128
-        )
+        if self.success:
+            return np.ascontiguousarray(
+                self.complex_love_view[0::3],
+                dtype=np.complex128
+            )
+        else:
+            return None
 
     @property
     def h(self):
         """ Tidal Love number h. """
-        return np.ascontiguousarray(
-            self.complex_love_view[1::3],
-            dtype=np.complex128
-        )
+        if self.success:
+            return np.ascontiguousarray(
+                self.complex_love_view[1::3],
+                dtype=np.complex128
+            )
+        else:
+            return None
     
     @property
     def l(self):
         """ Tidal Shida number l. """
-        return np.ascontiguousarray(
-            self.complex_love_view[2::3],
-            dtype=np.complex128
-        )
+        if self.success:
+            return np.ascontiguousarray(
+                self.complex_love_view[2::3],
+                dtype=np.complex128
+            )
+        else:
+            return None
     
     def __len__(self):
         """Return number of solution types."""
@@ -157,7 +173,10 @@ cdef class RadialSolverSolution():
             raise AttributeError('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
         
         # Slice the result and return only the requested solution type.
-        return self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)]
+        if self.success:
+            return self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)]
+        else:
+            return None
 
     def __dealloc__(self):
 
