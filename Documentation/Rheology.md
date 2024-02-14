@@ -26,6 +26,26 @@ complex_shear = rheology_instance(frequency, shear_mod, viscosity)
 print(complex_shear)
 ```
 
+If you are looking for a more programatic way to import a rheology, consider using the `find_rheology` function:
+
+```python
+
+from TidalPy.rheology import find_rheology
+
+# Create an instance of the class
+rheology_class = find_rheology("andrade")
+rheology_instance = rheology_class()
+
+# Define required inputs
+frequency = 1.0e-5
+shear_mod = 50.0e9
+viscosity = 1.0e18
+
+# Solve for the complex shear modulus
+complex_shear = rheology_instance(frequency, shear_mod, viscosity)
+print(complex_shear)
+```
+
 ### Working with Arrays
 TidalPy provides helper methods to efficiently parse over arrays. These functions use multithreading when possible to 
 quickly calculate results over large arrays.
