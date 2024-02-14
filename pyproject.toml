@@ -127,10 +127,6 @@ build_ext = "_build_tidalpy.build_ext"
 [tool.setuptools.packages]
 find = {}
 
-[tool.cibuildwheel]
-# Having issues with SciPy install during wheel build on 32-bit systems.
-archs = ["auto64"]
-
 # TODO: Get rid of the below once the numba-scipy package is updated. See the note in the module's folder.
 [project.entry-points.numba_extensions]
 init = "TidalPy.numba_scipy:_init_extension"
@@ -146,3 +142,5 @@ testpaths = [
 build = "*"
 # Disable building PyPy wheels on all platforms
 skip = "pp*"
+# Having issues with SciPy install during wheel build on 32-bit systems.
+archs = ["auto64"]
