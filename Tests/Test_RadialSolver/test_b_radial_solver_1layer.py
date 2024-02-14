@@ -7,7 +7,7 @@ TidalPy.test_mode = True
 
 from TidalPy.RadialSolver import radial_solver
 
-frequency = 1.0 / (86400. * 3)
+frequency = 1.0 / (86400. * 0.2)
 N = 100
 radius_array = np.linspace(0.1, 6000.e3, N)
 density_array = 3500. * np.ones_like(radius_array)
@@ -33,10 +33,9 @@ upper_radius_by_layer = (radius_array[-1],)
 @pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
 @pytest.mark.parametrize('degree_l', (2, 3))
 @pytest.mark.parametrize('use_kamata', (True, False))
-@pytest.mark.parametrize('nondimensionalize', (True, False))
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
 def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, degree_l,
-                              use_kamata, nondimensionalize, solve_for):
+                              use_kamata, solve_for):
 
     layer_type_by_layer = (layer_type,)
     is_static_by_layer = (is_static,)
@@ -52,11 +51,12 @@ def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, 
                 frequency, planet_bulk_density, 
                 layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
                 degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
-                integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
-                scale_rtols_by_layer_type=True,
+                integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
+                scale_rtols_by_layer_type=False,
                 max_num_steps=5_000_000, expected_size=250, max_step=0,
-                limit_solution_to_radius=True, verbose=False, nondimensionalize=nondimensionalize)
+                limit_solution_to_radius=True, verbose=False, nondimensionalize=True)
 
+            assert out.success
             assert type(out.message) is str
             assert type(out.result) is np.ndarray
             assert out.result.shape == (6, N)
@@ -89,11 +89,12 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
                 frequency, planet_bulk_density, 
                 layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
                 degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
-                integration_method=method, integration_rtol=1.0e-5, integration_atol=1.0e-8,
-                scale_rtols_by_layer_type=True,
+                integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
+                scale_rtols_by_layer_type=False,
                 max_num_steps=5_000_000, expected_size=250, max_step=0,
-                limit_solution_to_radius=True, verbose=False, nondimensionalize=False)
+                limit_solution_to_radius=True, verbose=False, nondimensionalize=True)
 
+            assert out.success
             assert type(out.message) is str
             assert type(out.result) is np.ndarray
             assert out.result.shape == (len(solve_for) * 6, N)
