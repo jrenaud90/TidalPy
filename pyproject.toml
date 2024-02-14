@@ -139,3 +139,5 @@ testpaths = [
 
 [tool.cibuildwheel]
 build = "*"
+# Disable building PyPy wheels on all platforms
+skip = "pp*"

@@ -21,6 +21,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         path: dist/*.tar.gz
+        name: artifact_sdist
 
   build_macos_wheel:
     name: Build MacOS wheel for Python ${{ matrix.python }}
@@ -68,6 +69,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
+          name: artifact_MacOs_${{ matrix.python }}_whl
 
   build_other_wheels:
     name: Build ${{ matrix.platform }} wheels
@@ -91,28 +93,28 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
+          name: artifact_${{ matrix.platform }}_whls
 
   check_dist:
-    name: Check dist
+    name: Check sdist
     needs: [make_sdist, build_macos_wheel, build_other_wheels]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: artifact
-          path: dist
+          name: artifact_sdist
+          path: sdist
 
-      - run: pipx run twine check --strict dist/*
+      - run: pipx run twine check --strict sdist/*
 
   upload_all:
     name: Upload wheels to PyPI
     needs: [build_macos_wheel, build_other_wheels, make_sdist, check_dist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: artifact
+          merge-multiple: true
           path: dist
 
       - uses: pypa/gh-action-pypi-publish@v1.8.11

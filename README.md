@@ -183,7 +183,8 @@ Maryland, College Park.
 
 TidalPy has been improved by numerous contributors some of which you can find [here](https://github.com/jrenaud90/TidalPy/graphs/contributors).
 
-Additional contributions made by:
+TidalPy has benefited from work and conversations with the following:
 - Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
 - Sander Goossens (NASA GSFC)
 - Marc Neveu (U. of Maryland, College Park / NASA GSFC)
+- Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
