@@ -46,7 +46,7 @@ from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat
 
 from TidalPy.logger import get_logger
 
-log = get_logger(__name__)
+log = get_logger("complex_compliances")
 
 log.warn('Deprecation Warning: the non-cythonized TidalPy.rheology.complex_compliance.compliance_models will be removed in a future release of TidalPy. Please use TidalPy.rheology.models instead. Please report any differences noted so that they can be addressed before the future release of TidalPy.')
 

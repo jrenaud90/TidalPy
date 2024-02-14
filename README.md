@@ -2,17 +2,24 @@
 <h3 align="center">v0.5.0 Beta</h3>
 
 <p align="center">
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/pr_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a>
-    <a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a>
+    <!--<a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />-->
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
 </p>
 
 # Purpose
 
-TidalPy is an open-source software suite that utilizes a semi-analytic approach to estimate tidal dissipation,
-orbit-rotational evolution, and thermal changes for rocky and icy worlds.
+TidalPy is an open-source software suite that utilizes a semi-analytic approach to estimate tidal heating,
+orbit-rotation evolution, and thermal changes for rocky and icy worlds. It has been used to simulate the thermal-orbital
+evolution of moons within our Solar System as well as exoplanets beyond. TidalPy's `RadialSolver` package can accurately
+estimate the viscoelastic Love and Shida numbers for a multi-layered world, including the effects of liquid layers,
+compressibility, dynamic tides, and advanced rheological models. This model has been used to study the tidal response
+of Mercury, Venus, Earth, our Moon, and Mars.
+
+Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send a message to
+[TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
 ## Related Software
 
