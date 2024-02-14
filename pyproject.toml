@@ -109,6 +109,7 @@ julia = [
 requires = [
     'setuptools>=64.0.0',
     'numpy>=1.22, <1.27',
+    "scipy>=1.9.3",
     'cython>=3.0.0',
     'wheel>=0.38',
     "cyrk>=0.8.6"
