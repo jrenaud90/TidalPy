@@ -1,4 +1,4 @@
-name: Build Wheels for PyPI
+name: Build TidalPy Wheels for PyPI
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           - "3.11"
           - "3.12"
     steps:
-      - name: Checkout CyRK
+      - name: Checkout TidalPy
         uses: actions/checkout@v4
 
       - name: Install Anaconda
@@ -97,7 +97,7 @@ jobs:
 
   check_dist:
     name: Check sdist
-    needs: [make_sdist, build_macos_wheel, build_other_wheels]
+    needs: [make_sdist]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4
