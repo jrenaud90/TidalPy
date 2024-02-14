@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functions to calculate the initial conditions for an overlying liquid layer above another liquid layer.
 
@@ -39,19 +39,19 @@ cdef void cf_solve_upper_y_at_interface(
 
     cdef size_t yi_lower, yi_upper, soli_lower, soli_upper
 
-    cdef bool_cpp_t solid_solid, solid_liquid, liquid_solid, liquid_liquid
+    cdef bint solid_solid, solid_liquid, liquid_solid, liquid_liquid
     solid_solid   = (lower_layer_type == 0) and (upper_layer_type == 0)
     solid_liquid  = (lower_layer_type == 0) and not (upper_layer_type == 0)
     liquid_solid  = not (lower_layer_type == 0) and (upper_layer_type == 0)
     liquid_liquid = not (lower_layer_type == 0) and not (upper_layer_type == 0)
 
-    cdef bool_cpp_t static_static, static_dynamic, dynamic_static, dynamic_dynamic
+    cdef bint static_static, static_dynamic, dynamic_static, dynamic_dynamic
     static_static   = lower_is_static and upper_is_static
     static_dynamic  = lower_is_static and not upper_is_static
     dynamic_static  = not lower_is_static and upper_is_static
     dynamic_dynamic = not lower_is_static and not upper_is_static
 
-    cdef bool_cpp_t compress_compress, compress_incompress, incompress_compress, incompress_incompress
+    cdef bint compress_compress, compress_incompress, incompress_compress, incompress_incompress
     compress_compress     = not lower_is_incompressible and not upper_is_incompressible
     compress_incompress   = not lower_is_incompressible and upper_is_incompressible
     incompress_compress   = lower_is_incompressible and not upper_is_incompressible

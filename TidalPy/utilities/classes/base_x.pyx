@@ -1,9 +1,9 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy import config
 
-cdef bool_cpp_t DEBUG_MODE
+cdef bint DEBUG_MODE
 DEBUG_MODE = config['debug']['extensive_checks']
 
 cdef class TidalPyBaseExtensionClass:
@@ -16,7 +16,7 @@ cdef class TidalPyBaseExtensionClass:
             self,
             str class_name        = 'TidalPyBaseExtensionClass',
             str name_prefix       = '',
-            bool_cpp_t debug_mode = DEBUG_MODE
+            bint debug_mode = DEBUG_MODE
             ):
 
         # Store base class properties

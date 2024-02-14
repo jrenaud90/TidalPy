@@ -1,5 +1,3 @@
-from libcpp cimport bool as bool_cpp_t
-
 from CyRK.cy.cysolver cimport CySolver
 
 
@@ -42,13 +40,13 @@ cdef class RadialSolverBase(CySolver):
         double* rtols,
 
         # Additional optional arguments for RadialSolver class
-        bool_cpp_t limit_solution_to_radius = *,
-        bool_cpp_t call_first_reset = *,
-        bool_cpp_t auto_solve = *
+        bint limit_solution_to_radius = *,
+        bint call_first_reset = *,
+        bint auto_solve = *
         )
 
     cdef void update_interp(
             self,
-            bool_cpp_t update_bulk,
-            bool_cpp_t update_shear
+            bint update_bulk,
+            bint update_shear
             ) noexcept nogil

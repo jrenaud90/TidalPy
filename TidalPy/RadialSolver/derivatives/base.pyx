@@ -1,6 +1,5 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-from libcpp cimport bool as bool_cpp_t
 from libc.math cimport pi
 
 from CyRK.cy.common cimport MAX_STEP, EPS_100
@@ -79,9 +78,9 @@ cdef class RadialSolverBase(CySolver):
             double* rtols,
 
             # Additional optional arguments for RadialSolver class
-            bool_cpp_t limit_solution_to_radius = True,
-            bool_cpp_t call_first_reset = False,
-            bool_cpp_t auto_solve = True,
+            bint limit_solution_to_radius = True,
+            bint call_first_reset = False,
+            bint auto_solve = True,
             ):
         # Cython does not support non-python objects being passed to __init__ or __cinit__. So we need this helper
         # method to take the required pointers and load them into the class.
@@ -137,8 +136,8 @@ cdef class RadialSolverBase(CySolver):
 
     cdef void update_interp(
             self,
-            bool_cpp_t update_bulk,
-            bool_cpp_t update_shear
+            bint update_bulk,
+            bint update_shear
             ) noexcept nogil:
 
         # Set state variables based on an interpolation using the provided radius.

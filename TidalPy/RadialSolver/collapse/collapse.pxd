@@ -1,5 +1,3 @@
-from libcpp cimport bool as bool_cpp_t
-
 cdef void cf_collapse_layer_solution(
     double complex* solution_ptr,
     double complex* constant_vector_ptr,

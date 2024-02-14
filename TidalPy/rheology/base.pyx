@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Common base class for all TidalPy rheology models. """
 

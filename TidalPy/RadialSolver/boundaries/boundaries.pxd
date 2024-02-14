@@ -1,5 +1,3 @@
-from libcpp cimport bool as bool_cpp_t
-
 cdef void cf_apply_surface_bc(
     double complex* constant_vector_ptr,
     int* bc_solution_info,

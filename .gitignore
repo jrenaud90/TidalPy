@@ -10,7 +10,7 @@ TidalPy-Run*
 # End Cython
 
 # But do track some custom c/cpp files
-!TidalPy/RadialSolver/love.cpp
+# None for now.
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

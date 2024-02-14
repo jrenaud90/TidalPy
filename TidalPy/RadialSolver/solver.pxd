@@ -1,16 +1,7 @@
-from libcpp cimport bool as bool_cpp_t
-
-cdef extern from "love.cpp":
-    void find_love_cf(
-        double complex* complex_love_numbers_ptr,
-        double complex* surface_solutions_ptr,
-        double surface_gravity
-        ) noexcept nogil
-
 cdef class RadialSolverSolution():
 
     cdef public str message
-    cdef public bool_cpp_t success
+    cdef public bint success
 
     # Result structure information
     cdef size_t num_ys
@@ -44,17 +35,17 @@ cdef RadialSolverSolution cf_radial_solver(
     double* upper_radius_by_layer_ptr,
     unsigned int degree_l = *,
     tuple solve_for = *,
-    bool_cpp_t use_kamata = *,
+    bint use_kamata = *,
     unsigned char integration_method = *,
     double integration_rtol = *,
     double integration_atol = *,
-    bool_cpp_t scale_rtols_by_layer_type = *,
+    bint scale_rtols_by_layer_type = *,
     size_t max_num_steps = *,
     size_t expected_size = *,
     size_t max_ram_MB = *,
     double max_step = *,
-    bool_cpp_t limit_solution_to_radius = *,
-    bool_cpp_t nondimensionalize = *,
-    bool_cpp_t verbose = *,
-    bool_cpp_t raise_on_fail = *
+    bint limit_solution_to_radius = *,
+    bint nondimensionalize = *,
+    bint verbose = *,
+    bint raise_on_fail = *
     )

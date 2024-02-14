@@ -1,6 +1,3 @@
-from libcpp cimport bool as bool_cpp_t
-
-
 cdef void cf_solve_upper_y_at_interface(
         double complex* lower_layer_y_ptr,
         double complex* upper_layer_y_ptr,

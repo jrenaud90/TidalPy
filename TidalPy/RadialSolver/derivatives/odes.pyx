@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from CyRK.cy.common cimport MAX_STEP, EPS_100
@@ -746,7 +746,7 @@ cdef RadialSolverBase cf_build_solver(
         size_t max_ram_MB,
 
         # Additional optional arguments for RadialSolver class
-        bool_cpp_t limit_solution_to_radius
+        bint limit_solution_to_radius
         ):
 
     cdef RadialSolverBase solver

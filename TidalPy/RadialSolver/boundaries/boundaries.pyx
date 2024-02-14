@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from scipy.linalg.cython_lapack cimport zgesv

@@ -1,5 +1,3 @@
-from libcpp cimport bool as bool_cpp_t
-
 from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
 
 
@@ -56,5 +54,5 @@ cdef RadialSolverBase cf_build_solver(
     size_t max_ram_MB,
 
     # Additional optional arguments for RadialSolver class
-    bool_cpp_t limit_solution_to_radius
+    bint limit_solution_to_radius
     )

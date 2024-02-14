@@ -14,7 +14,6 @@ from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_array
 from TidalPy.rheology import Newton, Maxwell
 from TidalPy.RadialSolver import radial_solver
 
-from TidalPy.radial_solver import radial_solver as rs_old, find_love
 
 alma_results = {
     # Stored by degree l and then (k, h, l)

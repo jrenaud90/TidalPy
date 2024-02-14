@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 import numpy as np
@@ -22,6 +22,7 @@ from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_redimensionalize_radial_functions
     )
 
+from TidalPy.RadialSolver.love cimport find_love_cf
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
@@ -144,7 +145,7 @@ cdef class RadialSolverSolution():
         
         cdef size_t i
         cdef size_t requested_sol_num = 0
-        cdef bool_cpp_t found = False
+        cdef bint found = False
         cdef str sol_test_name
         for i in range(self.num_ytypes):
             sol_test_name = self.ytypes[i]
@@ -183,19 +184,19 @@ cdef RadialSolverSolution cf_radial_solver(
         double* upper_radius_by_layer_ptr,
         unsigned int degree_l = 2,
         tuple solve_for = None,
-        bool_cpp_t use_kamata = False,
+        bint use_kamata = False,
         unsigned char integration_method = 1,
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
-        bool_cpp_t scale_rtols_by_layer_type = False,
+        bint scale_rtols_by_layer_type = False,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
         size_t max_ram_MB = 500,
         double max_step = 0,
-        bool_cpp_t limit_solution_to_radius = True,
-        bool_cpp_t nondimensionalize = True,
-        bool_cpp_t verbose = False,
-        bool_cpp_t raise_on_fail = False
+        bint limit_solution_to_radius = True,
+        bint nondimensionalize = True,
+        bint verbose = False,
+        bint raise_on_fail = False
         ):
     """
     Radial solver for 
@@ -314,7 +315,7 @@ cdef RadialSolverSolution cf_radial_solver(
     # Integration information
     # Max step size
     cdef double max_step_touse
-    cdef bool_cpp_t max_step_from_arrays
+    cdef bint max_step_from_arrays
     max_step_from_arrays = False
     if max_step == 0:
         # If max_step is zero use the array information to determine max_step_size
@@ -469,7 +470,7 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex* initial_y_ptr = &initial_y[0]
     cdef double[36] initial_y_only_real
     cdef double* initial_y_only_real_ptr = &initial_y_only_real[0]
-    cdef bool_cpp_t starting_y_check = False
+    cdef bint starting_y_check = False
 
     # Intermediate values
     cdef double complex dcomplex_tmp
@@ -477,11 +478,11 @@ cdef RadialSolverSolution cf_radial_solver(
     # Solver class
     cdef RadialSolverBase solver
     cdef double* solver_solution_ptr = NULL
-    cdef bool_cpp_t cysolver_setup = False
+    cdef bint cysolver_setup = False
 
     # Feedback
     cdef str feedback_str
-    cdef bool_cpp_t error
+    cdef bint error
     feedback_str = 'Starting integration'
     if verbose:
         print(feedback_str)
@@ -503,8 +504,8 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double layer_above_lower_density
     cdef double liquid_density_at_interface
     cdef int layer_above_type
-    cdef bool_cpp_t layer_above_is_static
-    cdef bool_cpp_t layer_above_is_incomp
+    cdef bint layer_above_is_static
+    cdef bint layer_above_is_incomp
 
     # The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
     #  ever be is 3, it is more efficient to just preallocate them on the stack rather than dynamically allocate them
@@ -1038,19 +1039,19 @@ def radial_solver(
         tuple upper_radius_by_layer,
         unsigned int degree_l = 2,
         tuple solve_for = None,
-        bool_cpp_t use_kamata = False,
+        bint use_kamata = False,
         str integration_method = 'RK45',
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
-        bool_cpp_t scale_rtols_by_layer_type = False,
+        bint scale_rtols_by_layer_type = False,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
         size_t max_ram_MB = 500,
         double max_step = 0,
-        bool_cpp_t limit_solution_to_radius = True,
-        bool_cpp_t nondimensionalize = True,
-        bool_cpp_t verbose = False,
-        bool_cpp_t raise_on_fail = False
+        bint limit_solution_to_radius = True,
+        bint nondimensionalize = True,
+        bint verbose = False,
+        bint raise_on_fail = False
         ):
     """
     Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
@@ -1177,7 +1178,7 @@ def radial_solver(
         )
     
     cdef str layer_type
-    cdef bool_cpp_t dynamic_liquid = False
+    cdef bint dynamic_liquid = False
 
     # Pull out information for each layer and store in heap memory
     for i in range(num_layers):
@@ -1264,28 +1265,3 @@ def radial_solver(
             upper_radius_by_layer_ptr = NULL
     
     return result
-
-
-def find_love(
-    double complex[:] complex_love_numbers_view,
-    double complex[:] surface_solutions_view,
-    double surface_gravity
-    ):
-    """
-    Find the complex Love and Shida numbers given the surface radial solutions for a planet.
-
-    Parameters
-    ----------
-    complex_love_numbers_view : double complex[:], array, output
-        Array to store complex Love numbers. There must be space for 3 double complex numbers.
-    surface_solutions_view : double complex[:], array, input
-        Array of radial solutions (y_i) values at the surface of a planet.
-    surface_gravity : double, input
-        Acceleration due to gravity at the planet's surface [m s-2].
-    """
-
-    return find_love_cf(
-        &complex_love_numbers_view[0],
-        &surface_solutions_view[0],
-        surface_gravity
-        )

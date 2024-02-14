@@ -1,3 +1,4 @@
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ starting conditions at the center of the planet based off of Kamata et al. (2015). """
 from libc.math cimport pi

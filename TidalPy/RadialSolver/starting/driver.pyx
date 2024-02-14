@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy.RadialSolver.starting.takeuchi cimport (
@@ -22,7 +22,7 @@ cdef void cf_find_starting_conditions(
         int layer_type,
         bint is_static,
         bint is_incompressible,
-        bool_cpp_t use_kamata,
+        bint use_kamata,
         double frequency,
         double radius,
         double density,
@@ -32,12 +32,12 @@ cdef void cf_find_starting_conditions(
         double G_to_use,
         ssize_t num_ys, 
         double complex* starting_conditions_ptr,
-        bool_cpp_t run_y_checks = True
+        bint run_y_checks = True
         ):
 
     cdef unsigned char num_sols_for_assumption
     cdef unsigned char num_ys_for_assumption
-    cdef bool_cpp_t success = False
+    cdef bint success = False
 
     # For static liquid layers, no matter the other assumptions, we use saito's method.
     if (not (layer_type == 0)) and is_static:
@@ -167,7 +167,7 @@ def find_starting_conditions(
         int layer_type,
         int is_static,
         int is_incompressible,
-        bool_cpp_t use_kamata,
+        bint use_kamata,
         double frequency,
         double radius,
         double density,
@@ -176,7 +176,7 @@ def find_starting_conditions(
         unsigned int degree_l,
         double G_to_use,
         double complex[:, ::1] starting_conditions_view,
-        bool_cpp_t run_y_checks = True
+        bint run_y_checks = True
         ):
     
     # starting conditions are passed as an array with shape [num_solutions, num_ys]

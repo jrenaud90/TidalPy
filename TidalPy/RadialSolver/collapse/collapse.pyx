@@ -1,4 +1,4 @@
-# distutils: language = c++
+# distutils: language = c
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 cdef void cf_collapse_layer_solution(
@@ -29,7 +29,7 @@ cdef void cf_collapse_layer_solution(
     cdef size_t slice_i
     cdef size_t slice_i_shifted
     cdef size_t slice_end
-    cdef bool_cpp_t calculate_y3
+    cdef bint calculate_y3
 
     slice_end = layer_start_index + num_layer_slices
     calculate_y3 = False
