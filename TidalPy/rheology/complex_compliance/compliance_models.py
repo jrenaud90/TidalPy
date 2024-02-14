@@ -37,11 +37,14 @@ of tides.
 
 
 """
+import warnings
 
 import numpy as np
 
 from ...utilities.performance import find_factorial, njit
 from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
+
+warnings.warn('Deprecation Warning: the non-cythonized TidalPy.rheology.complex_compliance.compliance_models will be removed in a future release of TidalPy. Please use TidalPy.rheology.models instead. Please report any differences noted so that they can be addressed before the future release of TidalPy.', DeprecationWarning)
 
 
 # OPT: # TODO: @vectorize(['complex128(float64, float64, float64)'],nopython=True) seems to do everything we need for
@@ -49,8 +52,8 @@ from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat
 #    large arrays. The downside, and this is a big downside, is the speed is much slower for all float (non-arrays)
 #    which are important for differential equations.
 
-@njit(cacheable=True)
-def off(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+@njit(cacheable=False)
+def off(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatArray) -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Off
 
     !TPY_args live: self.compliance, self.viscosity
@@ -82,9 +85,9 @@ def off(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) ->
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def fixed_q(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     planet_beta: float = 3.443e11, quality_factor: float = 10.
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Fixed-Q
@@ -124,8 +127,8 @@ def fixed_q(
 
     return complex_compliance
 
-@njit(cacheable=True)
-def newton(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+@njit(cacheable=False)
+def newton(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray') -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Newton
 
     !TPY_args live: self.compliance, self.viscosity
@@ -168,8 +171,8 @@ def newton(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray)
 
     return complex_compliance
 
-@njit(cacheable=True)
-def elastic(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+@njit(cacheable=False)
+def elastic(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray') -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Elastic
 
     !TPY_args live: self.compliance, self.viscosity
@@ -213,8 +216,8 @@ def elastic(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray
     return complex_compliance
 
 
-@njit(cacheable=True)
-def maxwell(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray) -> ComplexArray:
+@njit(cacheable=False)
+def maxwell(frequency: 'FloatArray', compliance: 'FloatArray', viscosity: FloatArray) -> 'ComplexArray':
     """ Calculates the complex compliance utilizing the model: Maxwell
 
     !TPY_args live: self.compliance, self.viscosity
@@ -262,9 +265,9 @@ def maxwell(frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def voigt(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Voigt-Kelvin
@@ -322,9 +325,9 @@ def voigt(
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def burgers(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Burgers
@@ -371,9 +374,9 @@ def burgers(
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def andrade(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Andrade
@@ -439,9 +442,9 @@ def andrade(
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def andrade_freq(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     alpha: float = 0.3, zeta: float = 1., critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
     """ Calculates the complex compliance utilizing the model: Andrade with a frequency-dependent zeta
@@ -525,9 +528,9 @@ def andrade_freq(
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def sundberg(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
@@ -584,9 +587,9 @@ def sundberg(
     return complex_compliance
 
 
-@njit(cacheable=True)
+@njit(cacheable=False)
 def sundberg_freq(
-    frequency: FloatArray, compliance: FloatArray, viscosity: FloatArray,
+    frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     voigt_compliance_offset: float = 0.2, voigt_viscosity_offset: float = 0.02,
     alpha: float = 0.3, zeta: float = 1.,  critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:

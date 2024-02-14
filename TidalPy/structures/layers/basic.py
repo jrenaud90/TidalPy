@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from .defaults import layer_defaults
+import TidalPy
+from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
+                                InitiatedPropertyChangeError, MissingArgumentError, OuterscopePropertySetError,
+                                ParameterMissingError)
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
-from ... import log
-from ...exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
-                           MissingArgumentError, OuterscopePropertySetError, ParameterMissingError)
-from ...utilities.types import FloatArray, NoneType
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray, NoneType
+
     from ..world_types import LayeredWorldType
     from . import LayerType
 
@@ -26,11 +30,9 @@ class LayerBase(PhysicalObjSpherical):
     See Also
     --------
     TidalPy.structures.layers.PhysicsLayer
-    TidalPy.structures.layers.BurnmanLayer
     TidalPy.structures.layers.GasLayer
     """
 
-    default_config = layer_defaults
     layer_class = 'base'
 
     def __init__(
@@ -57,7 +59,7 @@ class LayerBase(PhysicalObjSpherical):
 
         # Load layer defaults based on layer type
         self.type = layer_config['type']
-        self.default_config = self.default_config[self.type]
+        self.default_config = TidalPy.config['layers'][self.type]
 
         # Initiated Attributes
         self._name = layer_name
@@ -87,20 +89,18 @@ class LayerBase(PhysicalObjSpherical):
         if initialize:
             self.reinit(initial_init=initialize)
 
-    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False, initialize_geometry: bool = True):
+    def reinit(self, initial_init: bool = False, initialize_geometry: bool = True):
         """ Reinitialize the physical object by pulling in any potentially new configurations
 
         Parameters
         ----------
         initial_init : bool = False
             Set to `True` for the first time an instance is created.
-        set_by_burnman : bool = False
-            Set to `True` if a Burnman layer/world constructor is calling reinit
         initialize_geometry : bool = False
             Set to `True` if the set_geometry method should be called from within reinit
         """
 
-        super().reinit(initial_init=initial_init, set_by_burnman=set_by_burnman)
+        super().reinit(initial_init=initial_init)
 
         # Load in configurations
         self._is_tidal = self.config['is_tidally_active']
@@ -108,7 +108,7 @@ class LayerBase(PhysicalObjSpherical):
         self._use_surf_gravity = self.config['use_surface_gravity']
         self._use_bulk_density = self.config['use_bulk_density']
 
-        if not set_by_burnman and initialize_geometry:
+        if initialize_geometry:
             try:
                 radius_layer_below = None
                 if self.layer_below is not None:
@@ -198,7 +198,7 @@ class LayerBase(PhysicalObjSpherical):
         if clear_pressure:
             self._pressure = None
 
-    def set_state(self, temperature: FloatArray = None, pressure: FloatArray = None):
+    def set_state(self, temperature: 'FloatArray' = None, pressure: 'FloatArray' = None):
         """ Set the layer's state properties
 
         Parameters
@@ -281,7 +281,7 @@ class LayerBase(PhysicalObjSpherical):
         if self.use_tidal_vol_frac:
             self.tidal_scale = self.volume / self.world.volume
 
-    def set_temperature(self, temperature: FloatArray, call_updates: bool = True):
+    def set_temperature(self, temperature: 'FloatArray', call_updates: bool = True):
         """ Set the layer's dynamic temperature
 
         Parameters
@@ -298,7 +298,7 @@ class LayerBase(PhysicalObjSpherical):
         if call_updates:
             self.temperature_pressure_changed()
 
-    def set_pressure(self, pressure: FloatArray, call_updates: bool = True):
+    def set_pressure(self, pressure: 'FloatArray', call_updates: bool = True):
         """ Set the layer's dynamic pressure
 
         Parameters

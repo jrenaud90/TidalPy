@@ -2,8 +2,10 @@ from typing import Tuple
 
 import numpy as np
 
-from ... import log
-from ...toolbox.conversions import Au2m, days2rads, rads2days
+from TidalPy.utilities.conversions.conversions import Au2m, days2rads, rads2days
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 
 def pull_out_orbit_from_config(world_config: dict) -> Tuple[float, float, float]:

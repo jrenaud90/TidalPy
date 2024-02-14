@@ -1,16 +1,21 @@
 import operator
 from typing import Callable, TYPE_CHECKING, Tuple, Union
 
-from ..config.config import ConfigHolder
-from ..config.dictionary_utils import nested_get, nested_place
-from ...types import NoneType
-from .... import debug_mode, log
-from ....exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
-                            MissingArgumentError, OuterscopePropertySetError, ParameterMissingError, UnknownModelError)
+import TidalPy
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, InitiatedPropertyChangeError,
+                                MissingArgumentError, OuterscopePropertySetError, ParameterMissingError,
+                                UnknownModelError)
+
+from TidalPy.utilities.dictionary_utils import nested_get, nested_place
+from TidalPy.utilities.classes.config.config import ConfigHolder
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
-    from ....structures.layers import PhysicalLayerType
-    from ....structures.world_types import LayeredWorldType
+    from TidalPy.structures.layers import PhysicalLayerType
+    from TidalPy.structures.world_types import LayeredWorldType
+    from TidalPy.utilities.types import NoneType
 
 
 class ModelHolder(ConfigHolder):
@@ -88,7 +93,7 @@ class ModelHolder(ConfigHolder):
 
         # Switch between calculate and calculate debug.
         #    Generally speaking, _calculate_debug is a much slower function that includes additional sanity checks.
-        if debug_mode:
+        if TidalPy.extensive_checks:
             if '_calculate_debug' in self.__dict__:
                 self._calc_to_use = getattr(self, '_calculate_debug')
                 self._debug_mode_on = True
@@ -231,7 +236,7 @@ class ModelHolder(ConfigHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def inputs(self) -> Union[NoneType, Tuple[float, ...]]:
+    def inputs(self) -> Union['NoneType', Tuple[float, ...]]:
         """ Some models may require additional constants to be passed to the `self.func` or `self.func_array`.
             These are stored in this tuple if applicable.
         """
@@ -243,7 +248,7 @@ class ModelHolder(ConfigHolder):
         raise ConfigPropertyChangeError
 
     @property
-    def live_inputs(self) -> Union[NoneType, Tuple[float, ...]]:
+    def live_inputs(self) -> Union['NoneType', Tuple[float, ...]]:
         """ Similar to `self.inputs` but these are dynamic parameters that can change after initialization
             (e.g., the viscosity of a layer).
         """
@@ -362,6 +367,10 @@ class LayerModelHolder(ModelHolder):
         # Store layer and world information
         self._layer = layer
         self._world = layer.world
+
+        # Get default configurations for the model
+        self.default_config = TidalPy.config['layers'][layer.type][self.model_config_key]
+
         # Record if model config should be stored back into layer's config
         self._store_config_in_layer = store_config_in_layer
 

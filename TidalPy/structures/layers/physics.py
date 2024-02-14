@@ -4,16 +4,18 @@ from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, ImproperPropertyHandling,
+                                MissingAttributeError, OuterscopePropertySetError)
+
 from .basic import LayerBase
-from ... import log
-from ...cooling import CoolingModel
-from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, ImproperPropertyHandling,
-                           MissingAttributeError, OuterscopePropertySetError)
-from ...radiogenics.radiogenics import Radiogenics
-from ...rheology import Rheology
-from ...utilities.types import FloatArray, NoneType
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray, NoneType
+
     from ..world_types import TidalWorldType
 
 
@@ -90,24 +92,19 @@ class PhysicsLayer(LayerBase):
         if initialize:
             self.reinit(initial_init=initialize)
 
-    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False, initialize_geometry: bool = True):
+    def reinit(self, initial_init: bool = False, initialize_geometry: bool = True):
         """ Reinitialize the physical object by pulling in any potentially new configurations
 
         Parameters
         ----------
         initial_init : bool = False
             Set to `True` for the first time an instance is created.
-        set_by_burnman : bool = False
-            Set to `True` if a Burnman layer/world constructor is calling reinit
         initialize_geometry : bool = False
             Set to `True` if the set_geometry method should be called from within reinit
         """
 
         # Base class's reinit is called *after* the geometry is set (so that tidal volume fraction is set correctly)
-        super().reinit(
-            initial_init=initial_init, set_by_burnman=set_by_burnman,
-            initialize_geometry=initialize_geometry
-            )
+        super().reinit(initial_init=initial_init, initialize_geometry=initialize_geometry)
 
         # Material properties that might have been affected by new configuration files
         self.static_shear_modulus = self.config['shear_modulus']
@@ -119,6 +116,10 @@ class PhysicsLayer(LayerBase):
         self.stefan = self.config['stefan']
 
         # Setup Models
+        from TidalPy.rheology import Rheology
+        from TidalPy.radiogenics.radiogenics import Radiogenics
+        from TidalPy.cooling import CoolingModel
+
         self._rheology = Rheology(self, store_config_in_layer=True)
         self._radiogenics = Radiogenics(self, store_config_in_layer=True)
         self._cooling_model = CoolingModel(self, store_config_in_layer=True)
@@ -256,7 +257,7 @@ class PhysicsLayer(LayerBase):
         for model in [self.rheology, self.radiogenics, self.cooling_model]:
             model.clear_state()
 
-    def set_strength(self, viscosity: FloatArray = None, shear_modulus: FloatArray = None):
+    def set_strength(self, viscosity: 'FloatArray' = None, shear_modulus: 'FloatArray' = None):
         """ Manual set the viscosity and shear modulus of the layer, independent of temperature.
 
         This method by-passes the self.viscosity_func and allows the user to manually set the viscosity and shear
@@ -279,8 +280,8 @@ class PhysicsLayer(LayerBase):
         self.rheology.set_state(viscosity, shear_modulus)
 
     def set_state(
-        self, temperature: FloatArray = None, pressure: FloatArray = None, viscosity: FloatArray = None,
-        shear_modulus: FloatArray = None
+        self, temperature: 'FloatArray' = None, pressure: 'FloatArray' = None, viscosity: 'FloatArray' = None,
+        shear_modulus: 'FloatArray' = None
         ):
         """ Set the layer's state properties
 

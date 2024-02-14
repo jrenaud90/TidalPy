@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import colors, gridspec as gspec, pyplot as plt
 
-from ..numpy_helper.array_other import normalize_dict
+from TidalPy.utilities.numpy_helper.array_other import normalize_dict
 
 
 def success_grid_plot(

@@ -2,28 +2,30 @@
 """
 from typing import Callable, Dict, TYPE_CHECKING, Tuple
 
-import numpy as np
+from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, NotYetImplementedError,
+                                UnknownModelError)
+from TidalPy.utilities.performance import njit
 
 from .base import TidesBase
-from .defaults import tide_defaults
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
-from ..modes.mode_manipulation import DissipTermsArray, FreqSig, UniqueFreqType, ResultsByFreqType
-from ... import log
-from ...exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty, NotYetImplementedError,
-                           UnknownModelError)
-from ...utilities.performance import njit
-from ...utilities.types import ComplexArray, FloatArray
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
 
 if TYPE_CHECKING:
-    from ...structures.world_types import TidalWorldType
+    from TidalPy.utilities.types import ComplexArray, FloatArray
+    from TidalPy.structures.world_types import TidalWorldType
+
+    from ..modes.mode_manipulation import DissipTermsArray, FreqSig, UniqueFreqType, ResultsByFreqType
 
 
 # Can not cache this func since it relies on a user provided njit'd callable (ctl_method)
 @njit(cacheable=False)
 def ctl_neg_imk_helper_func(
-    tidal_frequencies: Dict[FreqSig, FloatArray], fixed_k2: float,
+    tidal_frequencies: Dict['FreqSig', 'FloatArray'], fixed_k2: float,
     ctl_method: Callable, ctl_inputs: Tuple[float, ...]
-    ) -> Dict[FreqSig, ComplexArray]:
+    ) -> Dict['FreqSig', 'ComplexArray']:
     """ Njit-safe helper function for calculating -Imk2 for CTL method.
 
     Parameters
@@ -70,8 +72,8 @@ def ctl_neg_imk_helper_func(
 
 
 @njit(cacheable=True)
-def cpl_neg_imk_helper_func(tidal_frequencies: Dict[FreqSig, FloatArray], fixed_k2: float, fixed_q: float) \
-        -> Dict[FreqSig, ComplexArray]:
+def cpl_neg_imk_helper_func(tidal_frequencies: Dict['FreqSig', 'FloatArray'], fixed_k2: float, fixed_q: float) \
+        -> Dict['FreqSig', 'ComplexArray']:
     """ Njit-safe helper function for calculating -Imk2 for CPL method.
 
     Parameters
@@ -131,7 +133,6 @@ class GlobalApproxTides(TidesBase):
     """
 
     model = 'global_approx'
-    default_config = tide_defaults['global_approx']
 
     def __init__(self, world: 'TidalWorldType', store_config_in_world: bool = True, initialize: bool = True):
         """ Constructor for TidesBase class
@@ -238,7 +239,7 @@ class GlobalApproxTides(TidesBase):
         force_obliquity_update: bool = False,
         call_world_frequency_changed: bool = True,
         call_collapse_modes: bool = True
-        ) -> Tuple[UniqueFreqType, ResultsByFreqType]:
+        ) -> Tuple['UniqueFreqType', 'ResultsByFreqType']:
         """ Calculate tidal heating and potential derivative terms based on the current orbital state.
 
         This will also calculate new unique tidal frequencies which must then be digested by the rheological model
@@ -346,7 +347,7 @@ class GlobalApproxTides(TidesBase):
         self._ctl_complex_love_by_unique_freq = None
         self._cpl_complex_love_by_unique_freq = None
 
-    def collapse_modes(self) -> DissipTermsArray:
+    def collapse_modes(self) -> 'DissipTermsArray':
         """ Calculate Global Love number based on current thermal state.
 
         Requires a prior orbit_spin_changed() call as unique frequencies are used to calculate the complex compliances

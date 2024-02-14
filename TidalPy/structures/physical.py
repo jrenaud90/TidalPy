@@ -4,18 +4,22 @@ This module contains the base python class for physical objects (layers, planets
 
 """
 
-from typing import Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .. import debug_mode, log
-from ..constants import G
-from ..exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
-                          IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
-from ..utilities.classes import ConfigHolder
-from ..utilities.types import NoneType, float_eps, float_like
+from TidalPy import extensive_checks
+from TidalPy.logger import get_logger
+from TidalPy.constants import G
+from TidalPy.exceptions import (BadAttributeValueError, ImproperGeometryPropertyHandling, ImproperPropertyHandling,
+                                IncorrectAttributeType, MissingArgumentError, UnusualRealValueError)
+from TidalPy.utilities.types import float_eps, float_like
+from TidalPy.utilities.classes import ConfigHolder
 
-FloatNone = Union[NoneType, float]
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatNone
+
+log = get_logger(__name__)
 
 
 class PhysicalObjSpherical(ConfigHolder):
@@ -86,15 +90,13 @@ class PhysicalObjSpherical(ConfigHolder):
         self._mass_below = None
         self._pressure_above = None
 
-    def reinit(self, initial_init: bool = False, set_by_burnman: bool = False):
+    def reinit(self, initial_init: bool = False):
         """ Reinitialize the physical object by pulling in any potentially new configurations
 
         Parameters
         ----------
         initial_init : bool = False
             Set to `True` for the first time an instance is created.
-        set_by_burnman : bool = False
-            Set to `True` if a Burnman layer/world constructor is calling reinit
         """
 
         if initial_init:
@@ -104,13 +106,12 @@ class PhysicalObjSpherical(ConfigHolder):
             # If this is a reinit, then the state of the world should be cleared.
             self.clear_state()
 
-        if not set_by_burnman:
-            # Setup Geometry
-            #    Pull out densities and pressures and convert them into constant value slices
-            self._num_slices = self.config.get('slices', None)
-            #    If user provided real moment of inertia, pull that out and calculate moi factor
-            if self.config.get('moi', None) is not None:
-                self.moi = self.config.get('moi', None)
+        # Setup Geometry
+        #    Pull out densities and pressures and convert them into constant value slices
+        self._num_slices = self.config.get('slices', None)
+        #    If user provided real moment of inertia, pull that out and calculate moi factor
+        if self.config.get('moi', None) is not None:
+            self.moi = self.config.get('moi', None)
 
         # Other reinit steps are set by child class' reinit methods.
 
@@ -148,7 +149,7 @@ class PhysicalObjSpherical(ConfigHolder):
             log.error('Base class of PhysicalObjSpherical requires thickness to set geometry.')
             raise MissingArgumentError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
 
-        if debug_mode:
+        if extensive_checks:
             for arg in [radius, thickness, mass]:
                 if type(arg) not in float_like:
                     raise IncorrectAttributeType
@@ -223,7 +224,7 @@ class PhysicalObjSpherical(ConfigHolder):
             self._moi_factor = self.moi / self.moi_ideal
 
         # Perform sanity checks
-        if debug_mode:
+        if extensive_checks:
             # Basic Checks
             if self.thickness > self.radius:
                 raise BadAttributeValueError
@@ -253,8 +254,7 @@ class PhysicalObjSpherical(ConfigHolder):
         self.geometry_init = True
 
     def set_static_pressure(
-        self, pressure_above: float = None, build_slices: bool = True,
-        called_from_burnman: bool = False
+        self, pressure_above: float = None, build_slices: bool = True
         ):
         """ Sets the static pressure for the physical structure.
 
@@ -268,15 +268,9 @@ class PhysicalObjSpherical(ConfigHolder):
                 layer. If it is the upper-most layer or a world, then it may be the surface pressure.
         build_slices : bool = True
             If `True`, method will find the pressure at each slice of the physical object.
-        called_from_burnman : bool = False
-            Set to `True` if called from a burnman layer/world.
         """
 
         log.debug(f'Setting up static pressure for {self}.')
-
-        if called_from_burnman:
-            log.debug('Static pressure method called from burnman - skipping.')
-            return True
 
         if pressure_above is None:
             pressure_above = self.pressure_above
@@ -312,7 +306,7 @@ class PhysicalObjSpherical(ConfigHolder):
                         [pressure_above + sum(pressure_pieces[i:]) for i in range(self.num_slices)]
                         )
 
-                if debug_mode:
+                if extensive_checks:
                     np.testing.assert_approx_equal(self.pressure_inner, self.pressure_slices[0])
 
     # # Independent state properties
@@ -702,7 +696,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     # # State properties set by user or other methods
     @property
-    def moi(self) -> FloatNone:
+    def moi(self) -> 'FloatNone':
         """ Physical Object's Moment of Inertia [kg m^2]
 
         This may either be a measured moment of inertia, or one that is calculate using a more rigorous
@@ -729,7 +723,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
         # Moment of inertia could, in general, be calculated after an object is created so it may be set after both
         #   __init__ and set_geometry are called.
-        if debug_mode:
+        if extensive_checks:
             if value is None:
                 pass
             elif type(value) not in float_like:
@@ -766,7 +760,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @pressure_above.setter
     def pressure_above(self, value):
-        if debug_mode:
+        if extensive_checks:
             assert type(value) == float
 
         self._pressure_above = value
@@ -779,7 +773,7 @@ class PhysicalObjSpherical(ConfigHolder):
 
     @mass_below.setter
     def mass_below(self, value):
-        if debug_mode:
+        if extensive_checks:
             assert type(value) == float
 
         self._mass_below = value

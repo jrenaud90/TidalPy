@@ -1,4 +1,4 @@
-name: Build Wheels for PyPI
+name: Build TidalPy Wheels for PyPI
 
 on:
   workflow_dispatch:
@@ -11,69 +11,113 @@ jobs:
     name: Make SDist
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true  # Optional, use if you have submodules
 
     - name: Build SDist
       run: pipx run build --sdist
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         path: dist/*.tar.gz
-        
-# TODO: Remove comment if/when platform-specific wheels are required.
-#   build_wheels:
-#     name: Build ${{ matrix.platform }} wheels
-#     runs-on: ${{ matrix.platform }}
-#     strategy:
-#       fail-fast: false
-#       matrix:
-#           platform:
-#               - macos-12
-#               - windows-2022
-#               - ubuntu-20.04
+        name: artifact_sdist
 
-#     steps:
-#       - uses: actions/checkout@v3
-#         with:
-#           fetch-depth: 0
+  build_macos_wheel:
+    name: Build MacOS wheel for Python ${{ matrix.python }}
+    runs-on: macos-latest
+    strategy:
+      # Ensure that a wheel builder finishes even if another fails
+      fail-fast: false
+      matrix:
+        python:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - name: Checkout TidalPy
+        uses: actions/checkout@v4
 
-#       - name: Build wheels
-#         uses: pypa/cibuildwheel@v2.11.4
+      - name: Install Anaconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: tidalpy_wheel
+          auto-update-conda: true
+          python-version: ${{ matrix.python }}
+          auto-activate-base: false
 
-#       - uses: actions/upload-artifact@v3
-#         with:
-#           path: ./wheelhouse/*.whl
+      - name: Conda info
+        shell: bash -el {0}
+        run: conda info
+
+      - name: install gcc-13  # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
+        shell: bash -el {0}
+        run: |
+          brew install gcc@13
+
+      - name: Install package
+        shell: bash -el {0}
+        run: |
+          conda install pytest matplotlib numba numpy scipy cython
+          python -m pip install --upgrade build
+          export CC='gcc-13'
+          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+          python -m build --wheel --outdir ./wheelhouse/
+  
+      - uses: actions/upload-artifact@v4
+        with:
+          path: ./wheelhouse/*.whl
+          name: artifact_MacOs_${{ matrix.python }}_whl
+
+  build_other_wheels:
+    name: Build ${{ matrix.platform }} wheels
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          #              - macos-12  ## macos is not playing nice with cibuildwheel with openmp from cython.
+          - windows-2022
+          - ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.16.5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          path: ./wheelhouse/*.whl
+          name: artifact_${{ matrix.platform }}_whls
 
   check_dist:
-    name: Check dist
-    # TODO: Remove comment if/when platform-specific wheels are required.
-    # needs: [make_sdist, build_wheels]
-    needs: make_sdist
+    name: Check sdist
+    needs: [make_sdist]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: artifact
-          path: dist
+          name: artifact_sdist
+          path: sdist
 
-      - run: pipx run twine check --strict dist/*
+      - run: pipx run twine check --strict sdist/*
 
   upload_all:
     name: Upload wheels to PyPI
-    # TODO: Remove comment if/when platform-specific wheels are required.
-    # needs: [build_wheels, make_sdist, check_dist]
-    needs: [make_sdist, check_dist]
+    needs: [build_macos_wheel, build_other_wheels, make_sdist, check_dist]
     runs-on: ubuntu-latest
-    #if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: artifact
+          merge-multiple: true
           path: dist
 
-      - uses: pypa/gh-action-pypi-publish@v1.6.4
+      - uses: pypa/gh-action-pypi-publish@v1.8.11
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}

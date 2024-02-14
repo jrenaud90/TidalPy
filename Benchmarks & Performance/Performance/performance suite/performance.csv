@@ -105,3 +105,8 @@ Test Num,Date,Test Name,Func Name,Min Time (numba - ms),Median Time (numba - ms)
 102,04/07/2022,Collapse Multilayer Modes (Numba) - Liquid-Solid - Static-Dynamic - ObliquityOn,collapse_multilayer_modes,310.59712,314.77699,248.44621,250.10708,10,3,,True,0.3.6.dev0,0.1.0,,True
 103,04/07/2022,Collapse Multilayer Modes - Liquid-Solid - Static-Dynamic - ObliquityOff,collapse_multilayer_modes,,,157.53941,158.24866,10,3,,False,0.3.6.dev0,0.1.0,,
 104,04/07/2022,Collapse Multilayer Modes - Liquid-Solid - Static-Dynamic - ObliquityOn,collapse_multilayer_modes,,,275.16267,279.11649,10,3,,False,0.3.6.dev0,0.1.0,,
+105,02/20/2023,Tidal-y Calc - Homogen-Solid - Dynamic - Numba-RK45,radial_solver,,,5.22524,6.42453,10,3,,False,0.4.0,0.1.0,,
+106,02/20/2023,Tidal-y Calc - Homogen-Solid - Static - Numba-RK45,radial_solver,,,4.90531,4.9094,10,3,,False,0.4.0,0.1.0,,
+107,02/20/2023,Tidal-y Calc - Liquid-Solid - Static-Static - Numba-RK45,radial_solver,,,4.41717,4.5271,10,3,,False,0.4.0,0.1.0,,
+108,02/20/2023,Tidal-y Calc - Liquid-Solid - Static-Dynamic - Numba-RK45,radial_solver,,,4.43499,4.45432,10,3,,False,0.4.0,0.1.0,,
+109,02/20/2023,Tidal-y Calc - Solid-Liquid-Solid - Dynamic-Static-Dynamic - Numba-RK45,radial_solver,,,8.06305,8.09195,10,3,,False,0.4.0,0.1.0,,

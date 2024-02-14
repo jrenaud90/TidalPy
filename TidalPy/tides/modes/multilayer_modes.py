@@ -6,25 +6,31 @@ This module contains functions to assist with calculating the response at each o
     the findings into a final value.
 
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
 
 import numpy as np
 
 
-from TidalPy.radial_solver.numerical import radial_solver
+from TidalPy.utilities.performance import nbList
+from TidalPy.radial_solver import radial_solver
 
-from ...utilities.performance import nbList
 from ..multilayer.stress_strain import calculate_strain_stress
-from ..potential import (TidalPotentialOutput, tidal_potential_nsr, tidal_potential_nsr_modes,
+from ..potential import (tidal_potential_nsr, tidal_potential_nsr_modes,
                          tidal_potential_gen_obliquity_nsr_modes, tidal_potential_gen_obliquity_nsr,
                          tidal_potential_obliquity_nsr, tidal_potential_obliquity_nsr_modes, tidal_potential_simple)
+
+from ..heating import calculate_volumetric_heating
+
+if TYPE_CHECKING:
+    from ..potential import TidalPotentialOutput
 
 
 def calculate_mode_response_coupled(
     mode_frequency: float,
     radius_array: np.ndarray, shear_array: np.ndarray, bulk_array: np.ndarray, viscosity_array: np.ndarray,
-    density_array: np.ndarray, gravity_array: np.ndarray, colatitude_matrix: np.ndarray,
-    tidal_potential_tuple: TidalPotentialOutput, complex_compliance_function: callable,
+    density_array: np.ndarray, gravity_array: np.ndarray,
+    longitude_domain: np.ndarray, colatitude_domain: np.ndarray, time_domain: np.ndarray,
+    tidal_potential_tuple: 'TidalPotentialOutput', complex_compliance_function: callable,
     is_solid_by_layer: List[bool], is_static_by_layer: List[bool], indices_by_layer: List[np.ndarray],
     surface_boundary_conditions: np.ndarray = None, solve_load_numbers: bool = False,
     complex_compliance_input: Tuple[float, ...] = None, force_mode_calculation: bool = False,
@@ -131,6 +137,12 @@ def calculate_mode_response_coupled(
 
     """
 
+    # Get size of arrays
+    n_radius = len(radius_array)
+    n_longitude = len(longitude_domain)
+    n_colatitude = len(colatitude_domain)
+    n_time = len(time_domain)
+
     # Setup flags
     mode_skipped = False
 
@@ -140,10 +152,10 @@ def calculate_mode_response_coupled(
     # Calculate rheology and radial response
     if (not force_mode_calculation) and (mode_frequency < 1.0e-15):
         # If frequency is ~ 0.0 then there will be no tidal response. Skip the calculation of tidal y, etc.
-        tidal_y_at_mode = np.zeros((6, *radius_array.shape), dtype=np.complex128)
+        tidal_y_at_mode = np.zeros((6, n_radius), dtype=np.complex128)
         complex_shears_at_mode = shear_array + 0.0j
-        strains_at_mode = np.zeros((6, *radius_array.shape, *colatitude_matrix.shape), dtype=np.complex128)
-        stresses_at_mode = np.zeros((6, *radius_array.shape, *colatitude_matrix.shape), dtype=np.complex128)
+        strains_at_mode = np.zeros((6, n_radius, n_longitude, n_colatitude, n_time), dtype=np.complex128)
+        stresses_at_mode = np.zeros((6, n_radius, n_longitude, n_colatitude, n_time), dtype=np.complex128)
         mode_skipped = True
     else:
         # Calculate Complex Compliance
@@ -175,8 +187,8 @@ def calculate_mode_response_coupled(
         # Calculate stresses and heating
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
             *tidal_potential_tuple,
-            tidal_solution_y=tidal_y_at_mode,
-            colatitude=colatitude_matrix, radius=radius_array, shear_moduli=complex_shears_at_mode, bulk_moduli=bulk_array,
+            tidal_y_at_mode,
+            longitude_domain, colatitude_domain, time_domain, radius_array, complex_shears_at_mode, bulk_array,
             frequency=mode_frequency, order_l=order_l
             )
 
@@ -384,7 +396,7 @@ def collapse_multilayer_modes(
         # In order for the orbit average routine to work correctly, the time domain must start at zero and end
         #    after 1 orbital period.
         assert time_domain[0] == 0.
-        assert time_domain[-1] == np.abs(orbital_period)
+        assert np.isclose(time_domain[-1], np.abs(orbital_period))
 
     planet_radius = radius_array[-1]
 
@@ -483,7 +495,8 @@ def collapse_multilayer_modes(
             calculate_mode_response_coupled(
                 mode_frequency,
                 radius_array, shear_array, bulk_array, viscosity_array,
-                density_array, gravity_array, colatitude_matrix,
+                density_array, gravity_array,
+                longitude_domain, colatitude_domain, time_domain,
                 tidal_potential_tuple, complex_compliance_function,
                 is_solid_by_layer, is_static_by_layer, indices_by_layer,
                 surface_boundary_conditions=surface_boundary_conditions, solve_load_numbers=solve_load_numbers,
@@ -555,27 +568,7 @@ def collapse_multilayer_modes(
     # This stress/strain term is used in the final calculation of tidal heating. It tracks a different coefficient
     #   for frequency averaging (if stress and strain are used on their own then heating would be prop to T^{-2}
     #   rather than T^{-1}
-    # Heating is equal to imag[o] * real[s] - real[o] * imag[s] but we need to multiply by two for the cross terms
-    #    since it is part of a symmetric matrix but only one side of the matrix is calculated in the previous steps.
-    volumetric_heating = (
-        # Im[s_rr] Re[e_rr] - Re[s_rr] Im[e_rr]
-        np.imag(stresses[0]) * np.real(strains[0]) - np.real(stresses[0]) * np.imag(strains[0]) +
-        # Im[s_thth] Re[e_thth] - Re[s_thth] Im[e_thth]
-        np.imag(stresses[1]) * np.real(strains[1]) - np.real(stresses[1]) * np.imag(strains[1]) +
-        # Im[s_phiphi] Re[e_phiphi] - Re[s_phiphi] Im[e_phiphi]
-        np.imag(stresses[2]) * np.real(strains[2]) - np.real(stresses[2]) * np.imag(strains[2]) +
-        # Im[s_rth] Re[e_rth] - Re[s_rth] Im[e_rth]
-        2. * (np.imag(stresses[3]) * np.real(strains[3]) - np.real(stresses[3]) * np.imag(strains[3])) +
-        # Im[s_rphi] Re[e_rphi] - Re[s_rphi] Im[e_rphi]
-        2. * (np.imag(stresses[4]) * np.real(strains[4]) - np.real(stresses[4]) * np.imag(strains[4])) +
-        # Im[s_thphi] Re[e_thphi] - Re[s_thphi] Im[e_thphi]
-        2. * (np.imag(stresses[5]) * np.real(strains[5]) - np.real(stresses[5]) * np.imag(strains[5]))
-    )
-
-
-    # TODO: Without this abs term the resulting heating maps are very blotchy around
-    #    Europa book does have an abs at Equation 42, Page 102
-    volumetric_heating = np.abs(volumetric_heating)
+    volumetric_heating = calculate_volumetric_heating(stresses, strains)
 
     # Perform orbital averaging
     if orbit_average_results:

@@ -3,7 +3,7 @@ import TidalPy
 TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.reinit()
 
-from TidalPy import build_world, build_from_world, Orbit
+from TidalPy.structures import build_world, build_from_world, Orbit
 
 from performance_base import PerformanceTrackBase
 

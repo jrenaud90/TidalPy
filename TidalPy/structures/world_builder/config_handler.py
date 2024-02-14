@@ -1,10 +1,12 @@
 import copy
 
-import json5
+import toml
 
-from ... import log, world_config_loc
-from ...utilities.io.pathing import get_all_files_of_type
+from TidalPy.paths import get_worlds_dir
+from TidalPy.utilities.io.pathing import get_all_files_of_type
 
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
 
 def clean_world_config(world_config: dict, make_copy: bool = True):
     """ Provides a clean copy of a world's configuration, deleting any items initialized by TidalPy
@@ -31,21 +33,11 @@ def clean_world_config(world_config: dict, make_copy: bool = True):
     if 'TidalPy_version' in world_config:
         del cleaned_dict['TidalPy_version']
 
-    # Determine if this is a BurnMan world type
-    is_burnman = world_config['type'] == 'burnman'
-
     # If there are layers, then clean the layer dicts
     if 'layers' in world_config:
         for layer_name, layer_dict in world_config['layers'].items():
             if 'radii' in layer_dict:
                 del cleaned_dict['layers'][layer_name]['radii']
-
-            if is_burnman:
-                # Burnman world's will have some material properties set by the EOS. Delete any that are in the config.
-                for thermal_param in ['thermal_conductivity', 'thermal_diffusivity', 'thermal_expansion', 'stefan',
-                                      'shear_modulus']:
-                    if thermal_param in layer_dict:
-                        del cleaned_dict['layers'][layer_name][thermal_param]
 
     return cleaned_dict
 
@@ -77,13 +69,13 @@ def check_for_duplicate_worlds(world_configs: dict):
 
 # Find all planet configurations and import their config files
 # Locate all planet configurations
-known_worlds_files = get_all_files_of_type(world_config_loc, ['cfg', 'json', 'json5'])
+known_worlds_files = get_all_files_of_type(get_worlds_dir(), ['toml'])
 known_worlds_cfg = dict()
 check_for_duplicate_worlds(known_worlds_cfg)
 _configs_loaded = False
 
 
-def _cfgpath_to_json():
+def _cfgpath_to_toml():
     global known_worlds_cfg
     global _configs_loaded
 
@@ -92,7 +84,7 @@ def _cfgpath_to_json():
         for world_name, config_path in known_worlds_files.items():
             with open(config_path, 'r') as config_file:
                 # Store with filename
-                known_worlds_cfg[world_name] = json5.load(config_file)
+                known_worlds_cfg[world_name] = toml.load(config_file)
             # Also store with name used in config
             if 'name' in known_worlds_cfg[world_name]:
                 config_name = known_worlds_cfg[world_name]['name']
@@ -107,6 +99,6 @@ def get_world_configs():
     global _configs_loaded
 
     if not _configs_loaded:
-        _cfgpath_to_json()
+        _cfgpath_to_toml()
 
     return known_worlds_cfg

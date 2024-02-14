@@ -1,0 +1,162 @@
+{"utilities.types": {
+    "name": "TidalPy.utilities.types_x",
+    "sources": [["TidalPy", "utilities", "types_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "utilities.constants": {
+    "name": "TidalPy.utilities.constants_x",
+    "sources": [["TidalPy", "utilities", "constants_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "utilities.conversions": {
+    "name": "TidalPy.utilities.conversions.conversions_x",
+    "sources": [["TidalPy", "utilities", "conversions", "conversions_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "conversions"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "utilities.dimensions.nondimensional": {
+    "name": "TidalPy.utilities.dimensions.nondimensional",
+    "sources": [["TidalPy", "utilities", "dimensions", "nondimensional.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "dimensions"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "utilities.math.complex": {
+    "name": "TidalPy.utilities.math.complex",
+    "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "math"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "utilities.math.special": {
+    "name": "TidalPy.utilities.math.special_x",
+    "sources": [["TidalPy", "utilities", "math", "special_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "math"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "utilities.classes.base": {
+    "name": "TidalPy.utilities.classes.base_x",
+    "sources": [["TidalPy", "utilities", "classes", "base_x.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "classes"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "rheology.common": {
+    "name": "TidalPy.rheology.base",
+    "sources": [["TidalPy", "rheology", "base.pyx"]],
+    "include_dirs": [["TidalPy", "rheology", "base"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "rheology.models": {
+    "name": "TidalPy.rheology.models",
+    "sources": [["TidalPy", "rheology", "models.pyx"]],
+    "include_dirs": [["TidalPy", "rheology", "models"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.love": {
+    "name": "TidalPy.RadialSolver.love",
+    "sources": [["TidalPy", "RadialSolver", "love.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.solutions": {
+    "name": "TidalPy.RadialSolver.solutions",
+    "sources": [["TidalPy", "RadialSolver", "solutions.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.derivatives.base": {
+    "name": "TidalPy.RadialSolver.derivatives.base",
+    "sources": [["TidalPy", "RadialSolver", "derivatives", "base.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.derivatives.odes": {
+    "name": "TidalPy.RadialSolver.derivatives.odes",
+    "sources": [["TidalPy", "RadialSolver", "derivatives", "odes.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.starting.common": {
+    "name": "TidalPy.RadialSolver.starting.common",
+    "sources": [["TidalPy", "RadialSolver", "starting", "common.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.starting.kamata": {
+    "name": "TidalPy.RadialSolver.starting.kamata",
+    "sources": [["TidalPy", "RadialSolver", "starting", "kamata.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.starting.saito": {
+    "name": "TidalPy.RadialSolver.starting.saito",
+    "sources": [["TidalPy", "RadialSolver", "starting", "saito.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.starting.takeuchi": {
+    "name": "TidalPy.RadialSolver.starting.takeuchi",
+    "sources": [["TidalPy", "RadialSolver", "starting", "takeuchi.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.starting.driver": {
+    "name": "TidalPy.RadialSolver.starting.driver",
+    "sources": [["TidalPy", "RadialSolver", "starting", "driver.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "starting"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.interfaces": {
+    "name": "TidalPy.RadialSolver.interfaces.interfaces",
+    "sources": [["TidalPy", "RadialSolver", "interfaces", "interfaces.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "interfaces"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.interfaces.reversed": {
+    "name": "TidalPy.RadialSolver.interfaces.reversed",
+    "sources": [["TidalPy", "RadialSolver", "interfaces", "reversed.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "interfaces"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.boundaries": {
+    "name": "TidalPy.RadialSolver.boundaries.boundaries",
+    "sources": [["TidalPy", "RadialSolver", "boundaries", "boundaries.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "boundaries"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.collapse": {
+    "name": "TidalPy.RadialSolver.collapse.collapse",
+    "sources": [["TidalPy", "RadialSolver", "collapse", "collapse.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "collapse"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.solver": {
+    "name": "TidalPy.RadialSolver.solver",
+    "sources": [["TidalPy", "RadialSolver", "solver.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "solver"]],
+    "compile_args": [],
+    "link_args": []
+  }
+}

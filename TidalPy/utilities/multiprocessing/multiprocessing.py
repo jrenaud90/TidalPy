@@ -13,10 +13,11 @@ from typing import List
 
 import numpy as np
 
+from TidalPy import version
+from TidalPy.utilities.numpy_helper.array_other import find_nearest
+from TidalPy.utilities.string_helper import convert_time_to_hhmmss
+
 from . import pathos_installed, pathos_mp, psutil, psutil_installed
-from ..numpy_helper.array_other import find_nearest
-from ..string_helper import convert_time_to_hhmmss
-from ... import version
 
 MultiprocessingInput = namedtuple(
     'MultiprocessingInput',

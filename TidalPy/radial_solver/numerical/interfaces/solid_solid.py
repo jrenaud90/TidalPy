@@ -13,16 +13,13 @@ References
 S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
-
 import numpy as np
 
-from TidalPy.utilities.performance import njit, nbList
+from TidalPy.utilities.performance import njit
 
-from ..initial.initial_solution_dynamic import SolidDynamicGuess
-from ..initial.initial_solution_static import SolidStaticGuess
 
-@njit(cacheable=True)
-def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
+@njit(cacheable=False)
+def both_dynamic(solid_layer_ys: np.ndarray) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes dynamic tides in both of the layers.
 
@@ -32,28 +29,29 @@ def both_dynamic(solid_layer_ys: SolidDynamicGuess) -> SolidDynamicGuess:
 
     Parameters
     ----------
-    solid_layer_ys : SolidDynamicGuess
+    solid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is solid and dynamic.
 
     Returns
     -------
-    initial_solutions_solid : SolidDynamicGuess
+    initial_solutions_solid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be three independent solutions for the upper layer.
     """
 
-    initial_solutions_solid = nbList([
-        np.ascontiguousarray(solid_layer_ys[0]),
-        np.ascontiguousarray(solid_layer_ys[1]),
-        np.ascontiguousarray(solid_layer_ys[2])
-        ])
+    initial_solutions = np.empty((3, 6), dtype=np.complex128)
 
-    return initial_solutions_solid
+    for solution in range(3):
+        for yi in range(6):
+            # Upper layer equals lower layer for all solutions and ys.
+            initial_solutions[solution, yi] = solid_layer_ys[solution, yi]
+
+    return initial_solutions
 
 
-@njit(cacheable=True)
-def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
+@njit(cacheable=False)
+def static_dynamic(solid_layer_ys: np.ndarray) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes static tides in the lower layer and dynamic in the upper.
 
@@ -63,28 +61,29 @@ def static_dynamic(solid_layer_ys: SolidStaticGuess) -> SolidDynamicGuess:
 
     Parameters
     ----------
-    solid_layer_ys : SolidStaticGuess
+    solid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is solid and static.
 
     Returns
     -------
-    initial_solutions_solid : SolidDynamicGuess
+    initial_solutions_solid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be three independent solutions for the upper layer.
     """
 
-    initial_solutions_solid = nbList([
-        np.ascontiguousarray(solid_layer_ys[0]),
-        np.ascontiguousarray(solid_layer_ys[1]),
-        np.ascontiguousarray(solid_layer_ys[2])
-        ])
+    initial_solutions = np.empty((3, 6), dtype=np.complex128)
 
-    return initial_solutions_solid
+    for solution in range(3):
+        for yi in range(6):
+            # Upper layer equals lower layer for all solutions and ys.
+            initial_solutions[solution, yi] = solid_layer_ys[solution, yi]
+
+    return initial_solutions
 
 
-@njit(cacheable=True)
-def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
+@njit(cacheable=False)
+def dynamic_static(solid_layer_ys: np.ndarray) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes static tides in the upper layer and dynamic in the lower.
 
@@ -94,28 +93,29 @@ def dynamic_static(solid_layer_ys: SolidDynamicGuess) -> SolidStaticGuess:
 
     Parameters
     ----------
-    solid_layer_ys : SolidDynamicGuess
+    solid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is solid and dynamic.
 
     Returns
     -------
-    initial_solutions_solid : SolidStaticGuess
+    initial_solutions_solid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be three independent solutions for the upper layer.
     """
 
-    initial_solutions_solid = nbList([
-        np.ascontiguousarray(solid_layer_ys[0]),
-        np.ascontiguousarray(solid_layer_ys[1]),
-        np.ascontiguousarray(solid_layer_ys[2])
-        ])
+    initial_solutions = np.empty((3, 6), dtype=np.complex128)
 
-    return initial_solutions_solid
+    for solution in range(3):
+        for yi in range(6):
+            # Upper layer equals lower layer for all solutions and ys.
+            initial_solutions[solution, yi] = solid_layer_ys[solution, yi]
+
+    return initial_solutions
 
 
-@njit(cacheable=True)
-def both_static(solid_layer_ys: SolidStaticGuess) -> SolidStaticGuess:
+@njit(cacheable=False)
+def both_static(solid_layer_ys: np.ndarray) -> np.ndarray:
     """ Find the starting values for the radial functions at the bottom of a solid layer that is above a
     solid layer. Assumes static tides in both of the layers.
 
@@ -125,21 +125,22 @@ def both_static(solid_layer_ys: SolidStaticGuess) -> SolidStaticGuess:
 
     Parameters
     ----------
-    solid_layer_ys : SolidStaticGuess
+    solid_layer_ys : np.ndarray
         The solution for the radial functions in the layer below.
         This function assumes a lower layer that is solid and static.
 
     Returns
     -------
-    initial_solutions_solid : SolidStaticGuess
+    initial_solutions_solid : np.ndarray
         The base (initial) solutions used to calculate the radial functions in the upper layer.
         For this function's assumptions, there will be three independent solutions for the upper layer.
     """
 
-    initial_solutions_solid = nbList([
-        np.ascontiguousarray(solid_layer_ys[0]),
-        np.ascontiguousarray(solid_layer_ys[1]),
-        np.ascontiguousarray(solid_layer_ys[2])
-        ])
+    initial_solutions = np.empty((3, 6), dtype=np.complex128)
 
-    return nbList(initial_solutions_solid)
+    for solution in range(3):
+        for yi in range(6):
+            # Upper layer equals lower layer for all solutions and ys.
+            initial_solutions[solution, yi] = solid_layer_ys[solution, yi]
+
+    return initial_solutions

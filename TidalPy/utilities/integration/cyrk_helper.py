@@ -4,8 +4,9 @@ from typing import Tuple
 
 import numpy as np
 
+from TidalPy.utilities.performance import njit
+
 from . import _cyrk_ode, _nbrk_ode, _cy2nb, _nb2cy
-from ..performance import njit
 
 
 def cyrk_solver(

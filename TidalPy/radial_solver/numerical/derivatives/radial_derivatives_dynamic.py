@@ -14,18 +14,21 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
+from typing import Union
+
 import numpy as np
 
 from TidalPy.constants import G, pi
 from TidalPy.utilities.performance import njit
-from TidalPy.utilities.types import FloatArray, NumArray
+
+Numeric = Union[float, complex]
 
 
 @njit(cacheable=True)
 def radial_derivatives_solid_general(
     radius: float,
     radial_functions: np.ndarray,
-    shear_modulus: complex, bulk_modulus: float, density: float,
+    shear_modulus: Numeric, bulk_modulus: Numeric, density: float,
     gravity: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> np.ndarray:
@@ -48,9 +51,9 @@ def radial_derivatives_solid_general(
     radial_functions : np.ndarray
         Tuple of radial functions for a solid layer broken up into real and imaginary portions.
         (y1_real, y1_imag, y2_real, y2_imag, y3_real, y3_imag, y4_real, y4_imag, y5_real, y5_imag, y6_real, y6_imag)
-    shear_modulus : NumArray
+    shear_modulus : Numeric
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    bulk_modulus : NumArray
+    bulk_modulus : Numeric
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     density : FloatArray
         Density at `radius` [kg m-3]
@@ -173,10 +176,10 @@ def radial_derivatives_solid_general(
 
 @njit(cacheable=True)
 def radial_derivatives_liquid_general(
-    radius: FloatArray,
+    radius: float,
     radial_functions: np.ndarray,
-    bulk_modulus: NumArray, density: FloatArray,
-    gravity: FloatArray, frequency: FloatArray,
+    bulk_modulus: Numeric, density: float,
+    gravity: float, frequency: float,
     order_l: int = 2, G_to_use: float = G
     ) -> np.ndarray:
     """ Calculates the radial derivative of the radial functions in the most general form - for liquid layers.
@@ -190,18 +193,18 @@ def radial_derivatives_liquid_general(
 
     Parameters
     ----------
-    radius : FloatArray
+    radius : float
         Radius where the radial functions are calculated. [m]
     radial_functions : np.ndarray
         Tuple of radial functions for a solid layer broken up into real and imaginary portions.
         (y1_real, y1_imag, y2_real, y2_imag, y5_real, y5_imag, y6_real, y6_imag)
-    bulk_modulus : NumArray
+    bulk_modulus : Numeric
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
-    density : FloatArray
+    density : float
         Density at `radius` [kg m-3]
-    gravity : FloatArray
+    gravity : float
         Acceleration due to gravity at `radius` [m s-2]
-    frequency : FloatArray
+    frequency : float
         Forcing frequency (for spin-synchronous tides this is the orbital motion) [rad s-1]
     order_l : int = 2
         Tidal harmonic order.
@@ -257,13 +260,10 @@ def radial_derivatives_liquid_general(
     # Eqs. 11--14 in KMN15 equations look like they don't match TS72 because they applied the rheology already.
     #    and substituted y3.
     # We will use TS72 eq. 87 to allow for a generic rheology and bulk dissipation.
-    # # dy2 contain all three of: dynamic, viscoelastic, and gravitational terms.
     dy1 = \
         y2 * lame_inverse - \
         y1_y3_term * r_inverse
 
-    # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
-    #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
     dy2 = \
         y1 * (dynamic_term_no_r - 2. * density_gravity * r_inverse) + \
         y5 * density * lp1 * r_inverse - \
@@ -279,24 +279,6 @@ def radial_derivatives_liquid_general(
             lm1 * (y1 * grav_term + y6) +
             y1_y3_term * grav_term
     )
-
-    # dy1 = y1 * (-2. * r_inverse + llp1 * gravity / (frequency**2 * radius**2)) + \
-    #     y2 * (lame_inverse - llp1 / (frequency**2 * density * radius**2)) - \
-    #     y5 * llp1 / (frequency**2 * radius**2)
-    #
-    # dy2 = y1 * (-frequency**2 * density - 4. * density * gravity / radius + llp1 * density * gravity**2 / (frequency**2 * radius**2)) - \
-    #     y2 * llp1 * gravity / (frequency**2 * radius**2) + \
-    #     y5 * (lp1 * density / radius) * (1. - order_l * gravity / (frequency**2 * radius)) - \
-    #     y6 * density
-    #
-    # dy5 = y1 * (4. * pi * G_to_use * density) - \
-    #     y5 * (lp1 / radius) + \
-    #     y6
-    #
-    # dy6 = y1 * (4. * pi * lp1 * G_to_use * density / radius) * (1. - order_l * gravity / (frequency**2 * radius)) + \
-    #     y2 * (4. * pi * llp1 * G_to_use / (frequency**2 * radius**2)) + \
-    #     y5 * (4. * pi * llp1 * density * G_to_use / (frequency**2 * radius**2)) + \
-    #     y6 * (lm1 / radius)
 
     # Build output
     dy = np.empty(8, dtype=np.float64)

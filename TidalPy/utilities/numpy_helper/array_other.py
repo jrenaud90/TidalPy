@@ -1,13 +1,16 @@
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
 import numpy as np
 
-from ..performance.numba import njit
-from ..types import FloatArray, NumericalType, float_eps
+from TidalPy.utilities.types import float_eps
+from TidalPy.utilities.performance.numba import njit
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray, NumericalType
 
 
 def normalize_dict(
-    dict_of_values: Dict[str, FloatArray], pass_negatives: bool = False,
+    dict_of_values: Dict[str, 'FloatArray'], pass_negatives: bool = False,
     new_max: float = 1.0, new_min: float = 0.0
     ):
     """ Normalizes values provided in a name separated dictionary to the specified range.
@@ -64,7 +67,7 @@ def normalize_dict(
 
 
 @njit(cacheable=True)
-def find_nearest(array: np.ndarray, value: NumericalType):
+def find_nearest(array: np.ndarray, value: 'NumericalType'):
     """ Returns the index of the value closest to a provided value in a numpy array.
 
     Parameters

@@ -1,11 +1,19 @@
-from typing import Union
+from typing import Union, TYPE_CHECKING
+
+from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
+                                InitiatedPropertyChangeError, InnerscopePropertySetError)
 
 from .basic import BaseWorld
-from ... import log
-from ...exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
-                           InitiatedPropertyChangeError, InnerscopePropertySetError)
-from ...tides import GlobalApproxTides
-from ...utilities.types import FloatArray, NoneType
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
+
+
+if TYPE_CHECKING:
+    from TidalPy.tides import GlobalApproxTides
+    from TidalPy.utilities.types import FloatArray, NoneType
+
 
 
 class TidalWorld(BaseWorld):
@@ -54,13 +62,13 @@ class TidalWorld(BaseWorld):
         self._tidal_polar_torque = None
 
         # Initialized properties
-        self._tides = None  # type: Union[NoneType, GlobalApproxTides]
+        self._tides = None  # type: Union['NoneType', 'GlobalApproxTides']
 
         if initialize:
             self.reinit(initial_init=True, setup_simple_tides=True)
 
     def reinit(
-        self, initial_init: bool = False, reinit_geometry: bool = True, set_by_burnman: bool = False,
+        self, initial_init: bool = False, reinit_geometry: bool = True,
         setup_simple_tides: bool = True
         ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
@@ -74,13 +82,11 @@ class TidalWorld(BaseWorld):
             Must be set to `True` if this is the first time this function has been called.
         reinit_geometry : bool = True
             If `True`, the initializer will automatically call the `set_geometry()` method.
-        set_by_burnman : bool = False
-            Set to `True` if called from a burnman world.
         setup_simple_tides : bool = True
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         """
 
-        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry, set_by_burnman=set_by_burnman)
+        super().reinit(initial_init=initial_init, reinit_geometry=reinit_geometry)
 
         # Load in configurations
         self._is_spin_sync = self.config['force_spin_sync']
@@ -90,6 +96,7 @@ class TidalWorld(BaseWorld):
         #    be on or not (to allow for child methods to reinit different kinds of tides models)
         if setup_simple_tides:
             if self.tides_on:
+                from TidalPy.tides import GlobalApproxTides
                 self._tides = GlobalApproxTides(self, store_config_in_world=self.config['store_tides_config_in_world'])
             else:
                 self._tides = None
@@ -147,7 +154,7 @@ class TidalWorld(BaseWorld):
 
         log.debug(f'Internal heating changed for {self}.')
 
-        if self.world_class not in ['layered', 'burnman']:
+        if self.world_class not in ['layered']:
             # Layered world_types use a different method to change the surface temperature.
             self.update_surface_temperature()
 
@@ -203,7 +210,7 @@ class TidalWorld(BaseWorld):
         if self.tides is not None:
             self.tides.set_fixed_dt(fixed_dt, run_updates=run_updates)
 
-    def calc_spin_derivative(self) -> FloatArray:
+    def calc_spin_derivative(self) -> 'FloatArray':
         """ Calculate spin-rate time derivative based on the world's current state.
 
         Requires the tides model to have already calculated dU / dO
@@ -225,7 +232,7 @@ class TidalWorld(BaseWorld):
 
         return self.spin_time_derivative
 
-    def get_internal_heating_to_surface(self) -> Union[NoneType, FloatArray]:
+    def get_internal_heating_to_surface(self) -> Union['NoneType', 'FloatArray']:
         """ Get the amount of internal heating that is making it to the surface.
 
         Returns
@@ -272,7 +279,7 @@ class TidalWorld(BaseWorld):
 
     # # State properties
     @property
-    def spin_time_derivative(self) -> FloatArray:
+    def spin_time_derivative(self) -> 'FloatArray':
         """ The time derivative of the spin rate [rad s-2] """
         return self._spin_time_derivative
 
@@ -281,7 +288,7 @@ class TidalWorld(BaseWorld):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def tidal_polar_torque(self) -> FloatArray:
+    def tidal_polar_torque(self) -> 'FloatArray':
         """ The tidal polar torque [N m] """
         return self._tidal_polar_torque
 
@@ -291,7 +298,7 @@ class TidalWorld(BaseWorld):
 
     # # Inner-scope properties - Tides model
     @property
-    def fixed_q(self) -> Union[NoneType, float]:
+    def fixed_q(self) -> Union['NoneType', float]:
         """ World's global effective tidal dissipation efficiency 'fixed-Q' """
         if self.tides is None:
             return None
@@ -303,7 +310,7 @@ class TidalWorld(BaseWorld):
         self.tides.set_fixed_q(new_fixed_q)
 
     @property
-    def fixed_dt(self) -> Union[NoneType, float]:
+    def fixed_dt(self) -> Union['NoneType', float]:
         """ World's global tidal dissipation efficiency frequency scale """
         if self.tides is None:
             return None

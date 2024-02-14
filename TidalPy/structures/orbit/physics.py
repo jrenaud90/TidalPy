@@ -1,13 +1,22 @@
-from typing import List, Union
+from typing import List, Union, TYPE_CHECKING
 
 import numpy as np
 
-from .base import OrbitBase, WorldSignatureType
-from ..world_types import AllWorldType, StarWorld, TidalWorldType, all_tidal_world_types
-from ... import log
-from ...dynamics import semia_eccen_derivatives, semia_eccen_derivatives_dual
-from ...exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError
-from ...utilities.types import FloatArray
+from TidalPy.exceptions import IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError
+from TidalPy.dynamics import semia_eccen_derivatives, semia_eccen_derivatives_dual
+
+from .base import OrbitBase
+from ..world_types import all_tidal_world_types
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
+
+if TYPE_CHECKING:
+    from TidalPy.utilities.types import FloatArray
+
+    from .base import WorldSignatureType
+    from ..world_types import AllWorldType, StarWorld, TidalWorldType
 
 
 class PhysicsOrbit(OrbitBase):
@@ -31,9 +40,9 @@ class PhysicsOrbit(OrbitBase):
     class_name = 'physics'
 
     def __init__(
-        self, star: StarWorld = None, tidal_host: AllWorldType = None,
-        tidal_bodies: Union[AllWorldType, List[AllWorldType]] = None, star_host: bool = False,
-        host_tide_raiser: AllWorldType = None, make_copies: Union[bool, str] = False, initialize: bool = True
+        self, star:  'StarWorld' = None, tidal_host:  'AllWorldType' = None,
+        tidal_bodies: Union[ 'AllWorldType', List[ 'AllWorldType']] = None, star_host: bool = False,
+        host_tide_raiser:  'AllWorldType' = None, make_copies: Union[bool, str] = False, initialize: bool = True
         ):
         """ PhysicsOrbit constructor
 
@@ -94,7 +103,7 @@ class PhysicsOrbit(OrbitBase):
             self.reinit(initial_init=True, reinit_worlds=False, run_update=True)
 
     def orbit_changed(
-        self, specific_world: WorldSignatureType = None, orbital_freq_changed: bool = False,
+        self, specific_world: 'WorldSignatureType' = None, orbital_freq_changed: bool = False,
         eccentricity_changed: bool = False
         ):
         """ The orbit of a specific world has changed. Make any necessary updates.
@@ -120,7 +129,7 @@ class PhysicsOrbit(OrbitBase):
         world_instance = self.tidal_objects[world_index]
         self.dissipation_changed(world_instance)
 
-    def dissipation_changed(self, world_signature: WorldSignatureType) -> bool:
+    def dissipation_changed(self, world_signature: 'WorldSignatureType') -> bool:
         """ Tidal dissipation has changed on the provided world. Make any necessary changes. """
 
         orbit_index = self.world_signature_to_index(world_signature, return_tidal_host=True)
@@ -143,7 +152,7 @@ class PhysicsOrbit(OrbitBase):
 
         return True
 
-    def add_star(self, star_world: StarWorld, is_tidal_host: bool = False, run_update: bool = True):
+    def add_star(self, star_world:  'StarWorld', is_tidal_host: bool = False, run_update: bool = True):
         """ Add a star to the orbit. This star may or may not be the tidal host.
 
         Stars that are not tidal hosts are only used only for insolation calculations.
@@ -174,7 +183,7 @@ class PhysicsOrbit(OrbitBase):
                 if self.get_stellar_distance(tidal_world) is not None:
                     self.calculate_insolation(tidal_world)
 
-    def add_tidal_world(self, tidal_world: AllWorldType, is_tidal_host: bool = False, run_update: bool = True):
+    def add_tidal_world(self, tidal_world:  'AllWorldType', is_tidal_host: bool = False, run_update: bool = True):
         """ Add a new tidal world to the orbit, in order from closest to host to farthest away.
 
         Parameters
@@ -255,7 +264,7 @@ class PhysicsOrbit(OrbitBase):
 
         return orbit_index
 
-    def set_stellar_distance(self, world_signature: WorldSignatureType, distance: FloatArray):
+    def set_stellar_distance(self, world_signature: 'WorldSignatureType', distance: 'FloatArray'):
         """ Set the orbital distance between a world of interest and the star (used for insolation calculations)
 
         If the tidal host is a star then this will simply wrap the world's semi-major axis setter. For a non-star host,
@@ -283,7 +292,7 @@ class PhysicsOrbit(OrbitBase):
             for world in self.tidal_objects:
                 self.calculate_insolation(world)
 
-    def set_stellar_eccentricity(self, world_signature: WorldSignatureType, eccentricity: FloatArray):
+    def set_stellar_eccentricity(self, world_signature: 'WorldSignatureType', eccentricity: 'FloatArray'):
         """ Set the orbital eccentricity between a world of interest and the star (used for insolation calculations)
 
         If the tidal host is a star then this will simply wrap the world's eccentricity setter. For a non-star host,
@@ -312,7 +321,7 @@ class PhysicsOrbit(OrbitBase):
                 self.calculate_insolation(world)
 
     # # Tidal World Getters
-    def get_eccentricity_time_derivative(self, world_signature: WorldSignatureType) -> FloatArray:
+    def get_eccentricity_time_derivative(self, world_signature: 'WorldSignatureType') -> 'FloatArray':
         """ Provided a world's signature, this method will retrieve its derivative of eccentricity with respect to time.
 
         Parameters
@@ -331,7 +340,7 @@ class PhysicsOrbit(OrbitBase):
 
         return self.eccentricity_time_derivatives[world_index]
 
-    def get_semi_major_axis_time_derivative(self, world_signature: WorldSignatureType) -> FloatArray:
+    def get_semi_major_axis_time_derivative(self, world_signature: 'WorldSignatureType') -> 'FloatArray':
         """ Provided a world's signature, this method will retrieve its derivative of semi-major axis with
             respect to time.
 
@@ -351,7 +360,7 @@ class PhysicsOrbit(OrbitBase):
 
         return self.semi_major_axis_time_derivatives[world_index]
 
-    def get_orbital_motion_time_derivative(self, world_signature: WorldSignatureType) -> FloatArray:
+    def get_orbital_motion_time_derivative(self, world_signature: 'WorldSignatureType') -> 'FloatArray':
         """ Provided a world's signature, this method will retrieve its derivative of the orbital mean motion with
             respect to time.
 
@@ -371,7 +380,7 @@ class PhysicsOrbit(OrbitBase):
 
         return self.orbital_motion_time_derivatives[world_index]
 
-    def calculate_insolation(self, world_signature: WorldSignatureType, set_insolation_in_world: bool = True):
+    def calculate_insolation(self, world_signature: 'WorldSignatureType', set_insolation_in_world: bool = True):
         """ Calculate the insolation heating received by a world with the provided signature.
 
         The star-world separation (semi-major axis) and eccentricity are used to estimate the orbit-averaged
@@ -426,7 +435,7 @@ class PhysicsOrbit(OrbitBase):
 
         return insolation_heating
 
-    def calculate_orbital_derivatives(self, world_signature: WorldSignatureType):
+    def calculate_orbital_derivatives(self, world_signature: 'WorldSignatureType'):
         """ Calculate and set the orbital time derivatives for a world with the provided signature.
 
         Method will automatically check if a dual-body dissipation model can be used. If not then a single body
@@ -535,7 +544,7 @@ class PhysicsOrbit(OrbitBase):
 
     # # State properties
     @property
-    def eccentricity_time_derivatives(self) -> List[FloatArray]:
+    def eccentricity_time_derivatives(self) -> List['FloatArray']:
         """ Derivative of eccentricity with respect to time stored for each tidal world
         (only effects due to tides are considered) """
         return self._eccentricity_time_derivatives
@@ -545,7 +554,7 @@ class PhysicsOrbit(OrbitBase):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def semi_major_axis_time_derivatives(self) -> List[FloatArray]:
+    def semi_major_axis_time_derivatives(self) -> List['FloatArray']:
         """ Derivative of semi-major axis with respect to time stored for each tidal world
         (only effects due to tides are considered) """
         return self._semi_major_axis_time_derivatives
@@ -555,7 +564,7 @@ class PhysicsOrbit(OrbitBase):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def orbital_motion_time_derivatives(self) -> List[FloatArray]:
+    def orbital_motion_time_derivatives(self) -> List['FloatArray']:
         """ Derivative of orbital mean motion with respect to time stored for each tidal world
         (only effects due to tides are considered) """
         return self._orbital_motion_time_derivatives
@@ -566,7 +575,7 @@ class PhysicsOrbit(OrbitBase):
 
     # # Initialized properties
     @property
-    def tidally_active_worlds(self) -> List[TidalWorldType]:
+    def tidally_active_worlds(self) -> List['TidalWorldType']:
         """ List of world_types stored in orbit that are tidally active. """
         return self._tidally_active_worlds
 

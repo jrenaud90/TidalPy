@@ -5,15 +5,16 @@ from typing import Dict, List, TYPE_CHECKING
 
 import numpy as np
 
+from TidalPy.exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty, MissingAttributeError)
+
 from .base import TidesBase
-from .defaults import tide_defaults
-from ..modes.mode_manipulation import DissipTermsArray
-from ...exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty, MissingAttributeError)
-from ...utilities.types import FloatArray
 
 if TYPE_CHECKING:
-    from ...structures.world_types import LayeredWorld
-    from ...structures.layers import PhysicalLayerType
+    from TidalPy.utilities.types import FloatArray
+    from TidalPy.structures.world_types import LayeredWorld
+    from TidalPy.structures.layers import PhysicalLayerType
+
+    from ..modes.mode_manipulation import DissipTermsArray
 
 
 class LayeredTides(TidesBase):
@@ -34,7 +35,6 @@ class LayeredTides(TidesBase):
     """
 
     model = 'layered'
-    default_config = tide_defaults['layered']
 
     def __init__(self, world: 'LayeredWorld', store_config_in_world: bool = True, initialize: bool = True):
         """ Constructor for LayeredTides class
@@ -140,7 +140,7 @@ class LayeredTides(TidesBase):
         self._tidal_heating_by_layer = {layer: None for layer in self.world}
         self._negative_imk_by_layer = {layer: None for layer in self.world}
 
-    def collapse_modes(self) -> DissipTermsArray:
+    def collapse_modes(self) -> 'DissipTermsArray':
         """ Calculate Global Love number based on current thermal state.
 
         Requires a prior orbit_spin_changed() call as unique frequencies are used to calculate the complex compliances
@@ -305,7 +305,7 @@ class LayeredTides(TidesBase):
 
     # # State properties
     @property
-    def tidal_heating_by_layer(self) -> Dict['PhysicalLayerType', FloatArray]:
+    def tidal_heating_by_layer(self) -> Dict['PhysicalLayerType', 'FloatArray']:
         """ Tidal heating stored by layer instance [W] """
         return self._tidal_heating_by_layer
 
@@ -314,7 +314,7 @@ class LayeredTides(TidesBase):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def negative_imk_by_layer_by_orderl(self) -> Dict['PhysicalLayerType', List[FloatArray]]:
+    def negative_imk_by_layer_by_orderl(self) -> Dict['PhysicalLayerType', List['FloatArray']]:
         """ -Im[k2] stored by layer instance and by order l"""
         return self._negative_imk_by_layer
 

@@ -2,13 +2,20 @@ from typing import Dict, Iterator, Tuple, Union
 
 import numpy as np
 
+import TidalPy
+from TidalPy.exceptions import (InitiatedPropertyChangeError, MissingArgumentError,
+                                ParameterMissingError,TidalPyWorldError)
+from TidalPy.utilities.numpy_helper import find_nearest
+from TidalPy.utilities.types import FloatArray, NoneType
+
+
 from .tidal import TidalWorld
-from ..layers import BurnmanLayer, GasLayer, LayerType, PhysicsLayer, layers_class_by_world_class
-from ... import log
-from ...exceptions import (InitiatedPropertyChangeError, MissingArgumentError, ParameterMissingError, TidalPyWorldError)
-from ...tides.methods import GlobalApproxTides, LayeredTides
-from ...utilities.numpy_helper import find_nearest
-from ...utilities.types import FloatArray, NoneType
+from ..layers import GasLayer, LayerType, PhysicsLayer
+
+from TidalPy.logger import get_logger
+log = get_logger(__name__)
+
+
 
 BAD_LAYER_SYMBOLS = (' ', '*', '-', '/', '+', '=', '@', '#', '$', '%', '\\', '^', '&', '(', ')', '~', '`')
 
@@ -53,7 +60,8 @@ class LayeredWorld(TidalWorld):
         super().__init__(world_config, name, initialize=False)
 
         # Basic layer reinit
-        LayerClass = layers_class_by_world_class[self.world_class]
+        LayerClass = TidalPy.structures.layers.layers_class_by_world_class[self.world_class]
+        
         self._layers_class = LayerClass.layer_class
         self._num_layers = len(self.config['layers'])
         last_layer_i = self._num_layers - 1
@@ -103,7 +111,7 @@ class LayeredWorld(TidalWorld):
 
     def reinit(
         self, initial_init: bool = False, reinit_geometry: bool = True, setup_simple_tides: bool = False,
-        set_by_burnman: bool = False, reinit_layers: bool = True
+        reinit_layers: bool = True, pull_geo_from_config: bool = True
         ):
         """ Initialize or Reinitialize the world based on changes to its configurations.
 
@@ -116,27 +124,23 @@ class LayeredWorld(TidalWorld):
             Must be set to `True` if this is the first time this function has been called.
         reinit_geometry : bool = True
             If `True`, the initializer will automatically call the `set_geometry()` method.
-        set_by_burnman : bool = False
-            Set to `True` if called from a burnman world.
         setup_simple_tides : bool = True
             Set to `True` if a global CPL/CTL tidal calculation is desired.
         reinit_layers : bool = True
             If `True`, calls to the world's layers' reinit() method.
+        pull_geo_from_config : bool = True
+            If `True`, pulls mass and radius from world config.
+            If `False`, pulls these from state attributes.
         """
 
         # Don't let parent methods initialize geometry since a LayeredWorld's mass is based on its layers' masses
         super().reinit(
             initial_init=initial_init, reinit_geometry=False,
-            set_by_burnman=set_by_burnman,
             setup_simple_tides=False
             )
 
         # Setup Geometry
-        if set_by_burnman:
-            radius = self.radius
-            mass = self.mass
-            update_state_geometry = False
-        else:
+        if pull_geo_from_config:
             # Pull out planet configurations
             radius = self.config['radius']
             volume = (4. / 3.) * np.pi * radius**3
@@ -148,6 +152,10 @@ class LayeredWorld(TidalWorld):
             self._radius = radius
             self._mass = mass
             self._volume = volume
+        else:
+            mass = self.mass
+            radius = self.radius
+            update_state_geometry = False
 
         # Update the global tidal volume fraction
         running_tidal_fraction = 0.
@@ -222,6 +230,7 @@ class LayeredWorld(TidalWorld):
 
         # Set up the tides model
         if self.tides_on:
+            from TidalPy.tides.methods import GlobalApproxTides, LayeredTides
             if setup_simple_tides:
                 self._tides = GlobalApproxTides(self, store_config_in_world=self.config['store_tides_config_in_world'])
             else:
@@ -343,8 +352,7 @@ class LayeredWorld(TidalWorld):
             self._density_middle = self.density_slices[median_index]
 
     def set_static_pressure(
-        self, pressure_above: float = None, build_slices: bool = True,
-        called_from_burnman: bool = False
+        self, pressure_above: float = None, build_slices: bool = True
         ):
         """ Sets the static pressure for the physical structure.
 
@@ -358,15 +366,9 @@ class LayeredWorld(TidalWorld):
                 layer. If it is the upper-most layer or a world, then it may be the surface pressure.
         build_slices : bool = True
             If `True`, method will find the pressure at each slice of the physical object.
-        called_from_burnman : bool = False
-            Set to `True` if called from a burnman layer/world.
         """
 
         log.debug(f'Setting up static pressure for {self}.')
-
-        if called_from_burnman:
-            log.debug('Static pressure method called from burnman - skipping.')
-            return True
 
         if pressure_above is None:
             pressure_above = self.pressure_above
@@ -510,7 +512,7 @@ class LayeredWorld(TidalWorld):
         raise InitiatedPropertyChangeError
 
     # Dunder properties
-    def __iter__(self) -> Iterator[Union[PhysicsLayer, GasLayer, BurnmanLayer]]:
+    def __iter__(self) -> Iterator[Union[PhysicsLayer, GasLayer]]:
         """ Planet will iterate over its layers
         Returns
         -------

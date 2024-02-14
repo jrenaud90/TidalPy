@@ -6,7 +6,7 @@ import numpy as np
 
 from ....exceptions import IncorrectArgumentType, MissingArgumentError
 
-FILE_PATH = os.path.join(os.path.realpath(__file__), os.pardir)
+FILE_PATH = os.path.dirname(os.path.realpath(__file__))
 PROP_CYCLE = plt.rcParams['axes.prop_cycle']
 MP_COLORS = PROP_CYCLE.by_key()['color']
 

@@ -2,16 +2,20 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from TidalPy.logger import get_logger
+from TidalPy.exceptions import (IncorrectMethodToSetStateProperty, MissingAttributeError, OuterscopePropertySetError)
+from TidalPy.utilities.classes.model import LayerModelHolder
+
 from . import known_model_const_args, known_model_live_args, known_models
-from .cooling_models import CoolingOutputType
-from .defaults import cooling_defaults
-from .. import log
-from ..exceptions import (IncorrectMethodToSetStateProperty, MissingAttributeError, OuterscopePropertySetError)
-from ..utilities.classes.model import LayerModelHolder
-from ..utilities.types import FloatArray
 
 if TYPE_CHECKING:
-    from ..structures.layers import PhysicalLayerType
+    from TidalPy.utilities.types import FloatArray
+    from TidalPy.structures.layers import PhysicalLayerType
+
+    from .cooling_models import CoolingOutputType
+
+
+log = get_logger(__name__)
 
 
 class CoolingModel(LayerModelHolder):
@@ -25,7 +29,6 @@ class CoolingModel(LayerModelHolder):
     TidalPy.utilities.methods.model.LayerModelHolder
     """
 
-    default_config = cooling_defaults
     known_models = known_models
     known_model_const_args = known_model_const_args
     known_model_live_args = known_model_live_args
@@ -74,7 +77,7 @@ class CoolingModel(LayerModelHolder):
         self._rayleigh = None
         self._nusselt = None
 
-    def _calculate(self) -> CoolingOutputType:
+    def _calculate(self) -> 'CoolingOutputType':
         """ Calculate layer cooling based on the layer's state properties.
 
         Returns
@@ -128,7 +131,7 @@ class CoolingModel(LayerModelHolder):
 
         return self.cooling_flux, self.boundary_layer_thickness, self.rayleigh, self.nusselt
 
-    def _calculate_debug(self) -> CoolingOutputType:
+    def _calculate_debug(self) -> 'CoolingOutputType':
 
         if self.layer.surface_temperature is None:
             raise MissingAttributeError(f"Layer {self.layer.name}'s surface temperature has not been set yet.")
@@ -139,7 +142,7 @@ class CoolingModel(LayerModelHolder):
 
     # # State properties
     @property
-    def cooling(self) -> FloatArray:
+    def cooling(self) -> 'FloatArray':
         """ This layer's cooling [W] """
         return self._cooling
 
@@ -148,7 +151,7 @@ class CoolingModel(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def cooling_flux(self) -> FloatArray:
+    def cooling_flux(self) -> 'FloatArray':
         """ This layer's cooling flux [W m-2] """
         return self._cooling_flux
 
@@ -157,7 +160,7 @@ class CoolingModel(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def boundary_layer_thickness(self) -> FloatArray:
+    def boundary_layer_thickness(self) -> 'FloatArray':
         """ This layer's thermal boundary layer thickness [m] """
         return self._boundary_layer_thickness
 
@@ -166,7 +169,7 @@ class CoolingModel(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def rayleigh(self) -> FloatArray:
+    def rayleigh(self) -> 'FloatArray':
         """ This layer's rayleigh number """
         return self._rayleigh
 
@@ -175,7 +178,7 @@ class CoolingModel(LayerModelHolder):
         raise IncorrectMethodToSetStateProperty
 
     @property
-    def nusselt(self) -> FloatArray:
+    def nusselt(self) -> 'FloatArray':
         """ This layer's nusselt number """
         return self._nusselt
 
