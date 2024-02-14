@@ -146,10 +146,10 @@ skip = "pp*"
 archs = ["auto64"]
 
 [tool.cibuildwheel.linux]
-before-build = "python -m pip install --upgrade pip numpy setuptools"
+before-build = "python -m pip install --upgrade pip numpy"
 
 [tool.cibuildwheel.macos]
-before-build = "python -m pip install --upgrade pip numpy setuptools"
+before-build = "python -m pip install --upgrade pip numpy"
 
 [tool.cibuildwheel.windows]
-before-build = "pip install --upgrade pip numpy setuptools"
+before-build = "pip install --upgrade pip numpy"
