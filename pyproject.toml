@@ -1,15 +1,15 @@
 [project]
 name='TidalPy'
-version = '0.5.0'
-description='Planetary Tidal Evolution Software made with Python.'
+version = '0.5.1'
+description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
-requires-python = ">=3.8,<3.13"
+requires-python = ">=3.9,<3.13"
 dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
-    "numpy>=1.22",
+    "numpy>=1.22, <1.27",
     "scipy>=1.9.3",
     # Configuration file resources
     "platformdirs>=3.11.0",
@@ -48,10 +48,10 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
     "Natural Language :: English",
     "Intended Audience :: Science/Research",
@@ -108,7 +108,7 @@ julia = [
 [build-system]
 requires = [
     'setuptools>=64.0.0',
-    'numpy>=1.22',
+    'numpy>=1.22, <1.27',
     'cython>=3.0.0',
     'wheel>=0.38',
     "cyrk>=0.8.6"
