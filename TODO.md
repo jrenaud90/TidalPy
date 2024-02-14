@@ -3,6 +3,8 @@ Immediate ToDos:
 * Non-dim sometimes makes things better; sometimes worse
 
 Future ToDos:
+* Have functions to take the exoplanet data retrieved from tidalpy.utilities.exoplanets and import it into TidalPy classes
+* Once burnman releases a new version that enables python 3.12 support we can remove the if statements from the github tests
 * Added in true incompressible model for multilayer code.
 * Convert cython odes to be soley real (doing things like (J_R + i J_I) * (Y_R + i Y_I))
 * Add in warning/error to RadialSolverBase if frequency is too low for dynamic classes?

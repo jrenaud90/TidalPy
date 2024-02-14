@@ -490,7 +490,7 @@ def test_quick_tidal_dissipation_andrade_visco_array_higher_l_from_world_instanc
     from TidalPy.structures import build_world
 
     jupiter = build_world('jupiter')
-    io = build_world('io')
+    io = build_world('io_simple')
 
     viscosity = np.logspace(10., 40., 10)
     shear = 1.e10

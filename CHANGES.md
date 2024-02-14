@@ -1,25 +1,28 @@
 # TidalPy Major Change Log
 
 ### Version 0.6.0 *PLANNED*
-- Other Major Changes
-  - Remove support for non-cython based `radial_solver` module.
+* Other Major Changes
+  * Remove support for the older non-cythonized `radial_solver` module.
 
-### Version 0.5.0 Alpha (Winter 2024)
-_This version is expected to break code based on TidalPy v0.4.X and earlier_
+### Version 0.5.0 (2024-02-14)
+_This version is likely to break code based on TidalPy v0.4.X and earlier_
 
 Cythonizing TidalPy
-- A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
+* A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
 extension classes. The reasons for doing this are numerous. This transition will be completed in stages
-with minor versions (v0.X.0) being a new set of cythonized updates.
-- For this version: 
-  - Added new cython-based `radial_solver_x`.
-  - Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
-  - Added new cython-based `TidalPy.rheology.models`.
-    - Improved the new rheology methods to better handle extreme values of frequency and modulus.
-  - Added several new cython-based helper functions in the utilities module.
+with minor versions (v0.X.0) each bringing a new set of cythonized updates until all njited functions are retired.
+* For this version: 
+  * Converted `TidalPy.radial_solver.radial_solver` to cythonized `TidalPy.RadialSolver.radial_solver`.
+    * The old radial solver method will be removed in TidalPy version 0.6.0.
+  * Added new cython-based `TidalPy.utilities.classes.base_x` base cython extension class that other classes are built off of.
+  * Converted `TidalPy.rheology.complex_compliances.compliance_models` to cythonized `TidalPy.rheology.models`.
+    * Improved the new rheology methods to better handle extreme values of frequency and modulus.
+    * The old rheology solvers will be removed in a future release of python.
+  * Added several new cython-based helper functions in the utilities package.
 
 Other Major Changes
 * Added support for Python 3.11 and 3.12. TidalPy now runs on Python 3.8--3.12.
+  * Note that currently the Burnman package does not support 3.12 so that functionality is limited to python 3.8-3.11.
 * Removed support for `solver_numba` in the `radial_solver` module.
 * Removed some imports from main package and sub modules' `__init__` to avoid slow load times.
 * Moved conversion tools from `TidalPy.toolbox.conversions` to `TidalPy.utilities.conversions`.
@@ -38,12 +41,12 @@ Other Major Changes
 * TidalPy now requires:
   * CyRK>=0.8.6
   * Cython>=3.0.0
-* Moved `BurnMan` 3rd party dependence to a more dedicated `interfaces` folder for future development.
+* Moved `BurnMan` 3rd party dependence to a more dedicated `Extending` folder for future development.
 * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.
 
 Minor Changes and New Features
 * `complex_compliance` configurations are now stored in the top level `rheology` in all configs.
-  * For example, in prior TidalPy versions you would need to change the complex compliance model by editing config['layers']['mantle']['rheology']['complex_compliance']['model'] = 'andrade'. Now this would be: config['layers']['mantle']['rheology']['model'] = 'andrade'.
+  * For example, in prior TidalPy versions you would need to change the complex compliance model by editing `config['layers']['mantle']['rheology']['complex_compliance']['model'] = 'andrade'`. Now this would be: `config['layers']['mantle']['rheology']['model'] = 'andrade'`.
 * Added unique frequency finder functions to the `modes` module.
 * Moved most of the type hints behind the `typing.TYPE_CHECKING` flag.
 * Moved non-critical files out of repository.
@@ -70,8 +73,8 @@ Bug Fixes
 Performance Improvements
 * Improved the performance of the stress and strain calculator by ~20%.
 * Cythonize Performance Increases:
-  * New `radial_solver` lead to ~50x performance boost.
-  * New rheology models are 500% faster for arrays; 40,000% faster for scalars (not a typo!)
+  * New `RadialSolver.radial_solver` leads to a ~50x performance boost.
+  * New cythonized rheology models are 500% faster for arrays; 40,000% faster for scalars (not a typo!)
 
 #### Version 0.4.1 Alpha (Spring 2023)
 Major Changes

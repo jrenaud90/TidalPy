@@ -44,6 +44,12 @@ from ...utilities.performance import find_factorial, njit
 from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
 
 
+from TidalPy.logger import get_logger
+
+log = get_logger(__name__)
+
+log.warn('Deprecation Warning: the non-cythonized TidalPy.rheology.complex_compliance.compliance_models will be removed in a future release of TidalPy. Please use TidalPy.rheology.models instead. Please report any differences noted so that they can be addressed before the future release of TidalPy.')
+
 # OPT: # TODO: @vectorize(['complex128(float64, float64, float64)'],nopython=True) seems to do everything we need for
 #    these functions and then we can return to the if/else version for frequency. speeds are better when dealing wit
 #    large arrays. The downside, and this is a big downside, is the speed is much slower for all float (non-arrays)

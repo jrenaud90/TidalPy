@@ -36,11 +36,20 @@ jobs:
         shell: bash -el {0}
         run: conda info
 
-      - name: install gcc-13  # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
+      - name: Install gcc-13  # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
         shell: bash -el {0}
         run: |
           brew install gcc@13
-    
+      
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+        
+      - name: Install burnman (if python != 3.12)
+        # Currently released version of burnman does not support py 3.12; so skip its tests for py3.12
+        shell: bash -el {0}
+        if: ${{ matrix.python-version != '3.12' }}
+        run: python -m pip install burnman
+        
       - name: Install package
         shell: bash -el {0}
         run: |

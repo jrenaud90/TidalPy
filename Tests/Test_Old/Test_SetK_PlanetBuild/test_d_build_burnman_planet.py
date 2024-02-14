@@ -1,5 +1,6 @@
 import os
 
+import pytest
 import toml
 import numpy as np
 
@@ -7,6 +8,7 @@ import TidalPy
 TidalPy.test_mode = True
 
 from TidalPy.structures import build_world, scale_from_world
+from TidalPy.Extending.burnman import burnman_installed
 
 io_config = {
     "name"           : "Io",
@@ -54,12 +56,20 @@ def planet_asserts(planet):
 
 
 def test_build_burnman_world_from_dict():
+
+    if not burnman_installed:
+        pytest.skip('Burnman not installed. Skipping test.')
+
     result = build_world('Io', world_config=io_config)
 
     assert planet_asserts(result)
 
 
 def test_build_burnman_world_from_toml():
+
+    if not burnman_installed:
+        pytest.skip('Burnman not installed. Skipping test.')
+
     with open('temp_io.toml', 'w') as planet_file:
         toml.dump(io_config, planet_file)
 
@@ -73,6 +83,9 @@ def test_build_burnman_world_from_toml():
 
 def test_build_from_burnman_world_scale_radius():
     """ This will test building a secondary BurnmanWorld from an already built one using a radius scaling technique. """
+
+    if not burnman_installed:
+        pytest.skip('Burnman not installed. Skipping test.')
 
     # Build a regular layered Io first.
     io = build_world('Io')
@@ -101,12 +114,20 @@ def test_build_from_burnman_world_scale_radius():
 
 
 def test_build_burnman_world_from_prebuilt():
+
+    if not burnman_installed:
+        pytest.skip('Burnman not installed. Skipping test.')
+
     result = build_world('Io')
 
     assert planet_asserts(result)
 
 
 def test_paint_burnman():
+
+    if not burnman_installed:
+        pytest.skip('Burnman not installed. Skipping test.')
+        
     # This will test the slicing features of the world_types, as well as the painting graphics tool
     io = build_world('Io')
     assert io.paint(auto_show=False)

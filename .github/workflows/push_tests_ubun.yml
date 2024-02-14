@@ -17,14 +17,25 @@ jobs:
           - "3.12"
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Dependencies
+      
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install burnman (if python != 3.12)
+        # Currently released version of burnman does not support py 3.12; so skip its tests for py3.12
+        if: ${{ matrix.python-version != '3.12' }}
+        run: python -m pip install burnman
+
+      - name: Install Other Dependencies
+          # For burnman, need GitHub version to enable python 3.12 support.
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install  pytest matplotlib numba numpy scipy burnman
+          python -m pip install pytest matplotlib numba numpy scipy
+
       - name: Install package
         run: |
           python -m pip install . -v
@@ -37,20 +48,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: 3.9
+      
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install  pytest matplotlib numba numpy scipy pytest-cov burnman
+          python -m pip install pytest matplotlib numba numpy scipy pytest-cov burnman
+
       - name: Install package
         run: |
           python -m pip install -v .
 
       - name: Run pytest
         run: pytest --capture=sys -v --cov=TidalPy Tests/
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:

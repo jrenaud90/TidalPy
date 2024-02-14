@@ -3,6 +3,7 @@ from typing import List, Union, Tuple
 import numpy as np
 
 from TidalPy.constants import G
+from TidalPy.logger import get_logger
 from TidalPy.exceptions import AttributeNotSetError, IntegrationFailed
 from TidalPy.utilities.integration import get_integrator, _nb2cy, cyrk_solver
 from TidalPy.utilities.performance import nbList
@@ -13,6 +14,7 @@ from .initial import find_initial_guess
 from .interfaces import find_interface_func
 from ..nondimensional import non_dimensionalize_physicals, re_dimensionalize_radial_func
 
+log = get_logger(__name__)
 
 def radial_solver(
         radius: np.ndarray, shear_modulus: np.ndarray, bulk_modulus: np.ndarray,
@@ -94,6 +96,8 @@ def radial_solver(
         The radial load solution throughout the entire planet.
 
     """
+
+    log.warn('Deprecation Warning: the non-cythonized TidalPy.radial_solver.radial_solver will be removed in TidalPy v0.6.0. Please use TidalPy.RadialSolver.radial_solver instead. Please report any differences noted so that they can be addressed before the next TidalPy version.')
 
     # Find integrator function
     integrator, integrator_method = get_integrator(integrator, integration_method)
