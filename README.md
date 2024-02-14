@@ -1,15 +1,19 @@
-<h1 align="center">TidalPy</h1>
-<h3 align="center">v0.5.0 Beta</h3>
+# TidalPy
 
-<p align="center">
+<div style="text-align: center;">
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
-    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a>
+    <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
     <!--<a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />-->
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
-</p>
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12-blue" alt="Python Version 3.9-3.12" /></a>
+</div>
 
-# Purpose
+---
+
+<a href="https://github.com/jrenaud90/CyRK/releases"><img src="https://img.shields.io/badge/CyRK-0.8.6 Alpha-orange" alt="CyRK Version 0.8.6 Alpha" /></a>
+
+**Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
 TidalPy is an open-source software suite that utilizes a semi-analytic approach to estimate tidal heating,
 orbit-rotation evolution, and thermal changes for rocky and icy worlds. It has been used to simulate the thermal-orbital
@@ -55,7 +59,7 @@ Read below for instructions on how to install and use TidalPy.
 
 ## Basic Installation
 
-Installing TidalPy is ass simple as ensuring 64-bit [Python 3.8+](https://www.python.org/) is installed on your 
+Installing TidalPy is ass simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
 system and performing the following in a terminal:
 
 `pip install TidalPy`

@@ -4,6 +4,9 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+### Version 0.5.1 (2024-02-14)
+* Removed Python 3.8 support due to issues with building SciPy.
+
 ### Version 0.5.0 (2024-02-14)
 _This version is likely to break code based on TidalPy v0.4.X and earlier_
 
