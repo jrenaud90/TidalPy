@@ -66,7 +66,7 @@ radial_solver_solution = radial_solver(
     # Harmonic degree used. 
     # Note that the stability of the solution gets worse with higher-l. You may need to increase the relative tolerance
     # or use simpler layer assumptions to get a successful solution. 
-    # It particularly starts to break down for l > 10.
+    # It particularly starts to break down for l > 10 but stable solutions exist up to l=40.
     
     solve_for = None,
     # What to solve for (type: tuple[str, ...])
