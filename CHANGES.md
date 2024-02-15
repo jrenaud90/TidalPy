@@ -4,6 +4,11 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+### Version 0.5.2 (2024-NN)
+
+Documentation
+* Improved RadialSolver documentation.
+
 ### Version 0.5.1 (2024-02-14)
 * Removed Python 3.8 support due to issues with building SciPy.
 
