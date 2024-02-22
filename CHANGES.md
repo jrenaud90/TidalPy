@@ -9,6 +9,9 @@
 Documentation
 * Improved RadialSolver documentation.
 
+Fixes:
+* Added error message to `RadialSolver.radial_solver` if length of provided assumption tuples is not the same.
+
 ### Version 0.5.1 (2024-02-14)
 * Removed Python 3.8 support due to issues with building SciPy.
 
