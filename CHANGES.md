@@ -4,7 +4,7 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
-### Version 0.5.2 (2024-NN)
+### Version 0.5.2 (2024-02-22)
 
 Documentation
 * Improved RadialSolver documentation regarding higher degree-l.
