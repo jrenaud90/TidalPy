@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.5.2.a1'
+version = '0.5.2.a2'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}

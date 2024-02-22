@@ -1045,11 +1045,11 @@ cdef RadialSolverSolution cf_radial_solver(
 
 
 def radial_solver(
-        double[:] radius_array,
-        double[:] density_array,
-        double[:] gravity_array,
-        double[:] bulk_modulus_array,
-        double complex[:] complex_shear_modulus_array,
+        double[::1] radius_array,
+        double[::1] density_array,
+        double[::1] gravity_array,
+        double[::1] bulk_modulus_array,
+        double complex[::1] complex_shear_modulus_array,
         double frequency,
         double planet_bulk_density,
         tuple layer_types,

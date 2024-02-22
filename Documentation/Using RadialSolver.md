@@ -14,6 +14,9 @@ To learn more about this method please review the literature cited in the refere
 ## `TidalPy.RadialSolver.radial_solver` Function
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module can be used with the following arguments.
 
+Note that all arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
+If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to the rheology methods.
+
 ```python
 from TidalPy.RadialSolver import radial_solver
 radial_solver_solution = radial_solver(

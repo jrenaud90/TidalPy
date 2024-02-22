@@ -30,8 +30,8 @@ cdef void find_love_cf(
 
 
 def find_love(
-    double complex[:] complex_love_numbers_view,
-    double complex[:] surface_solutions_view,
+    double complex[::1] complex_love_numbers_view,
+    double complex[::1] surface_solutions_view,
     double surface_gravity
     ):
     """
@@ -39,9 +39,9 @@ def find_love(
 
     Parameters
     ----------
-    complex_love_numbers_view : double complex[:], array, output
+    complex_love_numbers_view : double complex[::1], array, output
         Array to store complex Love numbers. There must be space for 3 double complex numbers.
-    surface_solutions_view : double complex[:], array, input
+    surface_solutions_view : double complex[::1], array, input
         Array of radial solutions (y_i) values at the surface of a planet.
     surface_gravity : double, input
         Acceleration due to gravity at the planet's surface [m s-2].

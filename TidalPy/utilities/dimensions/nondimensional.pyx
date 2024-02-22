@@ -151,11 +151,11 @@ def non_dimensionalize_physicals(
         double frequency,
         double mean_radius,
         double bulk_density,
-        double[:] radius_array_view,
-        double[:] density_array_view,
-        double[:] gravity_array_view,
-        double[:] bulk_array_view,
-        double_numeric[:] shear_array_view,
+        double[::1] radius_array_view,
+        double[::1] density_array_view,
+        double[::1] gravity_array_view,
+        double[::1] bulk_array_view,
+        double_numeric[::1] shear_array_view,
         ):
 
     cdef size_t num_radius = radius_array_view.size
@@ -174,11 +174,11 @@ def redimensionalize_physicals(
         double frequency,
         double mean_radius,
         double bulk_density,
-        double[:] radius_array_view,
-        double[:] density_array_view,
-        double[:] gravity_array_view,
-        double[:] bulk_array_view,
-        double_numeric[:] shear_array_view,
+        double[::1] radius_array_view,
+        double[::1] density_array_view,
+        double[::1] gravity_array_view,
+        double[::1] bulk_array_view,
+        double_numeric[::1] shear_array_view,
         ):
 
     cdef size_t num_radius = radius_array_view.size
@@ -201,7 +201,7 @@ def redimensionalize_radial_functions(
 
     Parameters
     ----------
-    radial_function_ptr : complex128*
+    radial_function_view : double complex[:, ::1]
         Non-dimensionalized radial solutions as a function of radius.
     mean_radius : float64
         Mean radius of the planet, used in scaling [m]
