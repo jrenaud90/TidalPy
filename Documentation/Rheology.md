@@ -50,6 +50,9 @@ print(complex_shear)
 TidalPy provides helper methods to efficiently parse over arrays. These functions use multithreading when possible to 
 quickly calculate results over large arrays.
 
+Note that all arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
+If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to the rheology methods.
+
 ```python
 from TidalPy.models import Andrade
 

@@ -4,6 +4,16 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+### Version 0.5.2 (2024-02-22)
+
+Documentation
+* Improved RadialSolver documentation regarding higher degree-l.
+* Added info about issues that can arise from using non C-continguous arrays in cythonized functions.
+
+Fixes:
+* Added error message to `RadialSolver.radial_solver` if length of provided assumption tuples is not the same.
+* Fixed issue where non C-continguous arrays were allowed in cythonized functions that required them.
+
 ### Version 0.5.1 (2024-02-14)
 * Removed Python 3.8 support due to issues with building SciPy.
 

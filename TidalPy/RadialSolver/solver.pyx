@@ -1045,11 +1045,11 @@ cdef RadialSolverSolution cf_radial_solver(
 
 
 def radial_solver(
-        double[:] radius_array,
-        double[:] density_array,
-        double[:] gravity_array,
-        double[:] bulk_modulus_array,
-        double complex[:] complex_shear_modulus_array,
+        double[::1] radius_array,
+        double[::1] density_array,
+        double[::1] gravity_array,
+        double[::1] bulk_modulus_array,
+        double complex[::1] complex_shear_modulus_array,
         double frequency,
         double planet_bulk_density,
         tuple layer_types,
@@ -1184,6 +1184,17 @@ def radial_solver(
     # Unpack inefficient user-provided tuples into bool arrays and pass by pointer
     cdef size_t num_layers
     num_layers = len(layer_types)
+
+    # Check that number of assumptions match.
+    if len(is_static_by_layer) != num_layers:
+        raise AttributeError('Number of `is_static_by_layer` must match number of `layer_types`.')
+    if len(is_incompressible_by_layer) != num_layers:
+        raise AttributeError('Number of `is_incompressible_by_layer` must match number of `layer_types`.')
+    if len(upper_radius_by_layer) != num_layers:
+        raise AttributeError('Number of `upper_radius_by_layer` must match number of `layer_types`.')
+
+    # Build array of assumptions
+    # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
     cdef int* layer_assumptions_ptr = <int *> allocate_mem(
         3 * num_layers * sizeof(int),
         'layer_assumptions_ptr (radial_solver; init)'

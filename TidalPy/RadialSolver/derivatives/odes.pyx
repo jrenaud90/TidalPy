@@ -752,7 +752,7 @@ cdef RadialSolverBase cf_build_solver(
     cdef RadialSolverBase solver
 
     # Convert the y0 pointer to a memoryview in order to work with CyRK's CySolver __init__
-    cdef double[:] y0_view = <double[:num_ys]> y0_ptr
+    cdef double[::1] y0_view = <double[:num_ys]> y0_ptr
 
     if (layer_type == 0):
         # Solid layer
