@@ -68,6 +68,13 @@
     "compile_args": [],
     "link_args": []
   },
+  "RadialSolver.PropMatrix.solid_matrix": {
+    "name": "TidalPy.RadialSolver.PropMatrix.solid_matrix",
+    "sources": [["TidalPy", "RadialSolver", "PropMatrix", "solid_matrix.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "PropMatrix"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "RadialSolver.solutions": {
     "name": "TidalPy.RadialSolver.solutions",
     "sources": [["TidalPy", "RadialSolver", "solutions.pyx"]],

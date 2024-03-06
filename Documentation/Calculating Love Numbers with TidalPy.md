@@ -1,4 +1,4 @@
-# Radial Solver
+# Calculating Love Numbers using TidalPy's RadialSolver module and functions
 _Instructions and examples on how to use TidalPy's `RadialSolver` module._
 
 TidalPy's `RadialSolver` package allows a user to estiamte a planet's global, viscoelastic
@@ -11,7 +11,7 @@ solutions' coefficients are determined by boundary conditions at the surface of 
 
 To learn more about this method please review the literature cited in the references section.
 
-## `TidalPy.RadialSolver.radial_solver` Function
+## Radial Solver Function `TidalPy.RadialSolver.radial_solver`
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module can be used with the following arguments.
 
 ```python
@@ -79,43 +79,48 @@ radial_solver_solution = radial_solver(
     # It is more computationally efficient to solve for multiple Love number types at same time if you need more.
     # For example: solve_for = ('tidal', 'loading')
     # The number of items passed to this variable sets the size of `num_solve_for` discussed later in this document.
+
+    use_propagation_matrix = False,
+    # Setting this to True changes the underlying mechanism that TidalPy will use to solve for the radial solutions.
+    # See `Propagation Matrix Method` (when this is set to True) and `Shooting Method` (when this is set to False; the default) sections for more details.
     
-    use_kamata = False,
-    # Use starting conditions as defined in Kamata et al. (2015; JGR:P)
-    # These are particularly stable for incompressible layers.
-    # If set to False then the starting conditions from Takeuchi & Saito (1972)
-    
-    integration_method = 'RK45',
-    # Integration method to use.
-    # Options:
-    #  - 'RK23'    Explicit Runge-Kutta method of order 3(2)
-    #  - 'RK45'    Explicit Runge-Kutta method of order 5(4)
-    #  - 'DOP853'  Explicit Runge-Kutta method of order 8
-    
-    integration_rtol = 1.0e-6,
-    # Integration relative tolerance
-    
-    integration_atol = 1.0e-12,
-    # Integration absolute tolerance (tolerance when y is near 0)
-    
-    scale_rtols_by_layer_type = False,
-    # If True, then relative tolerance will be modified by the layer type (generally liquid layers require smaller rtol)
-    
-    max_num_steps = 500_000,
-    # Maximum number of steps allowed for each integration (note that multiple integrations can occur depending on the
-    # number and type of layers).
-    
-    expected_size = 500,
-    # Expected number of steps needed to complete adaptive radial integration. It is better to overshoot this.
-    
-    max_ram_MB = 500,
-    # Maximum amount of ram the integrator is allowed. Note that real ram usage will be larger than this.
-    
-    max_step = 0,
-    # Maximum step size allowed. If 0 then the integrator will attempt to find a reasonable maximum step size.
-    
-    limit_solution_to_radius = True,
-    # If True, then radial solutions are limited to the same radial steps defined in the user-provided `radius_array`.
+    # The following indented options are only used when `use_propagation_matrix=False` (Shooting Method)
+        use_kamata = False,
+        # Use starting conditions as defined in Kamata et al. (2015; JGR:P)
+        # These are particularly stable for incompressible layers.
+        # If set to False then the starting conditions from Takeuchi & Saito (1972)
+        
+        integration_method = 'RK45',
+        # Integration method to use.
+        # Options:
+        #  - 'RK23'    Explicit Runge-Kutta method of order 3(2)
+        #  - 'RK45'    Explicit Runge-Kutta method of order 5(4)
+        #  - 'DOP853'  Explicit Runge-Kutta method of order 8
+        
+        integration_rtol = 1.0e-6,
+        # Integration relative tolerance
+        
+        integration_atol = 1.0e-12,
+        # Integration absolute tolerance (tolerance when y is near 0)
+        
+        scale_rtols_by_layer_type = False,
+        # If True, then relative tolerance will be modified by the layer type (generally liquid layers require smaller rtol)
+        
+        max_num_steps = 500_000,
+        # Maximum number of steps allowed for each integration (note that multiple integrations can occur depending on the
+        # number and type of layers).
+        
+        expected_size = 500,
+        # Expected number of steps needed to complete adaptive radial integration. It is better to overshoot this.
+        
+        max_ram_MB = 500,
+        # Maximum amount of ram the integrator is allowed. Note that real ram usage will be larger than this.
+        
+        max_step = 0,
+        # Maximum step size allowed. If 0 then the integrator will attempt to find a reasonable maximum step size.
+        
+        limit_solution_to_radius = True,
+        # If True, then radial solutions are limited to the same radial steps defined in the user-provided `radius_array`.
     
     nondimensionalize = True,
     # If True, then the inputs will be non-dimensionalized before integration. Radial solutions will be
@@ -234,6 +239,20 @@ k_local = solution.k  # Performs a background lookup and np.ndarray operation to
 
 # ... Do a bunch of stuff with the new "k_local" variable.
 ```
+
+
+## Propagation Matrix Method
+An alternative to the shooting method for solving the viscoelastic-gravitational problem within planets is to use the
+_Propagation Matrix_ method. This approach reduces the problem to matrix operations and does not require any direct
+integration of the differential equations. The major advantage to this approach is that the number of operations is both
+fixed and small, leading much faster computations. The downside is that the layer assumptions are limited. As currently
+implemented in TidalPy, the propagation method does not allow for: liquid layers, compressibility, or dynamic tides. If
+none of these are applicable to your problem then it is likely a much faster and stable approach. A good review of this
+method is presented in [Sabadini, Vermeersen, & Cambiotti (2016)](https://www.barnesandnoble.com/w/global-dynamics-of-the-earth-roberto-sabadini/1123259823) (hereafter, SVC16).
+
+### Solid Layer Fundamental Matrix
+TidalPy implements the fundamental matrix defined by SVC16 Eq. 2.42 and its inverse Eq. 2.47 in 
+`TidalPy.RadialSolver.PropMatrix.solid_matrix`. 
 
 # References
 

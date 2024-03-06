@@ -4,6 +4,10 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+* New Features
+  * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
+  * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
+
 ### Version 0.5.1 (2024-02-14)
 * Removed Python 3.8 support due to issues with building SciPy.
 
