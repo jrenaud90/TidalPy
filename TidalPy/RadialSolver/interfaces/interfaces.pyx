@@ -15,7 +15,8 @@ from libc.math cimport pi, NAN
 
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
-cdef double complex cmplx_NAN = cf_build_dblcmplx(NAN, NAN)
+cdef double complex cmplx_NAN  = cf_build_dblcmplx(NAN, NAN)
+cdef double complex cmplx_zero = cf_build_dblcmplx(0., 0.)
 
 cdef void cf_solve_upper_y_at_interface(
         double complex* lower_layer_y_ptr,
@@ -109,7 +110,7 @@ cdef void cf_solve_upper_y_at_interface(
             # For an upper layer that is liquid and dynamic there will be two independent solutions that need an initial guess.
             # # Solution 1
             # y_1_dynamic = 0
-            upper_layer_y_ptr[0] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[0] = cmplx_zero
             # y_2_dynamic = -rho * y_5_static
             upper_layer_y_ptr[1] = -liquid_density * lower_layer_y_ptr[0]
             # y_5_dynamic = y_5_static
@@ -125,7 +126,7 @@ cdef void cf_solve_upper_y_at_interface(
             upper_layer_y_ptr[1 * max_num_y + 1] = \
                 liquid_density * interface_gravity * upper_layer_y_ptr[1 * max_num_y + 0]
             # y_5_dynamic = 0.
-            upper_layer_y_ptr[1 * max_num_y + 2] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[1 * max_num_y + 2] = cmplx_zero
             # y_6_dynamic = -4 pi G rho y_1_dynamic
             upper_layer_y_ptr[1 * max_num_y + 3] = \
                 -g_const * liquid_density * upper_layer_y_ptr[1 * max_num_y + 0]
@@ -171,27 +172,27 @@ cdef void cf_solve_upper_y_at_interface(
                     upper_layer_y_ptr[soli_upper * max_num_y + 5] = lower_layer_y_ptr[soli_upper * max_num_y + 3]
 
                     # For solutions 1 and 2: y_3 and y_4 for the solid layer are zero
-                    upper_layer_y_ptr[soli_upper * max_num_y + 2] = cf_build_dblcmplx(0., 0.)
-                    upper_layer_y_ptr[soli_upper * max_num_y + 3] = cf_build_dblcmplx(0., 0.)
+                    upper_layer_y_ptr[soli_upper * max_num_y + 2] = cmplx_zero
+                    upper_layer_y_ptr[soli_upper * max_num_y + 3] = cmplx_zero
                 else:
                     # For the third solid solution all the y's are set to zero except y_3.
-                    upper_layer_y_ptr[soli_upper * max_num_y + 0] = cf_build_dblcmplx(0., 0.)
-                    upper_layer_y_ptr[soli_upper * max_num_y + 1] = cf_build_dblcmplx(0., 0.)
+                    upper_layer_y_ptr[soli_upper * max_num_y + 0] = cmplx_zero
+                    upper_layer_y_ptr[soli_upper * max_num_y + 1] = cmplx_zero
                     upper_layer_y_ptr[soli_upper * max_num_y + 2] = cf_build_dblcmplx(1., 0.)
-                    upper_layer_y_ptr[soli_upper * max_num_y + 3] = cf_build_dblcmplx(0., 0.)
-                    upper_layer_y_ptr[soli_upper * max_num_y + 4] = cf_build_dblcmplx(0., 0.)
-                    upper_layer_y_ptr[soli_upper * max_num_y + 5] = cf_build_dblcmplx(0., 0.)
+                    upper_layer_y_ptr[soli_upper * max_num_y + 3] = cmplx_zero
+                    upper_layer_y_ptr[soli_upper * max_num_y + 4] = cmplx_zero
+                    upper_layer_y_ptr[soli_upper * max_num_y + 5] = cmplx_zero
         elif static_dynamic or static_static:
             # As far as I am aware, the static_static and static_dynamic solutions are the same.
 
             # Eqs. 20 in S74
             # For a static liquid layer there will be one independent solutions at the top of the layer
             # We need to solve for six solutions in the static or dynamic solid upper layer
-            upper_layer_y_ptr[0] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[0] = cmplx_zero
             # y_2_sol = -rho * y_5_liq
             upper_layer_y_ptr[1] = -liquid_density * lower_layer_y_ptr[0]
-            upper_layer_y_ptr[2] = cf_build_dblcmplx(0., 0.)
-            upper_layer_y_ptr[3] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[2] = cmplx_zero
+            upper_layer_y_ptr[3] = cmplx_zero
             # y_5_sol = y_5_liq
             upper_layer_y_ptr[4] = lower_layer_y_ptr[0]
             # y_6_sol = y_7_liq + (4 pi G rho / g) y_5_liq
@@ -202,20 +203,20 @@ cdef void cf_solve_upper_y_at_interface(
             # y_2_sol = rho * g * y_1_sol
             upper_layer_y_ptr[1 * max_num_y + 1] = \
                 liquid_density * interface_gravity * upper_layer_y_ptr[1 * max_num_y + 0]
-            upper_layer_y_ptr[1 * max_num_y + 2] = cf_build_dblcmplx(0., 0.)
-            upper_layer_y_ptr[1 * max_num_y + 3] = cf_build_dblcmplx(0., 0.)
-            upper_layer_y_ptr[1 * max_num_y + 4] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[1 * max_num_y + 2] = cmplx_zero
+            upper_layer_y_ptr[1 * max_num_y + 3] = cmplx_zero
+            upper_layer_y_ptr[1 * max_num_y + 4] = cmplx_zero
             # y_6_sol = -4 pi G rho y_1_sol
             upper_layer_y_ptr[1 * max_num_y + 5] = \
                 -g_const * liquid_density * upper_layer_y_ptr[1 * max_num_y + 0]
 
-            upper_layer_y_ptr[2 * max_num_y + 0] = cf_build_dblcmplx(0., 0.)
-            upper_layer_y_ptr[2 * max_num_y + 1] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[2 * max_num_y + 0] = cmplx_zero
+            upper_layer_y_ptr[2 * max_num_y + 1] = cmplx_zero
             # y_3_sol = 1.
             upper_layer_y_ptr[2 * max_num_y + 2] = cf_build_dblcmplx(1., 0.)
-            upper_layer_y_ptr[2 * max_num_y + 3] = cf_build_dblcmplx(0., 0.)
-            upper_layer_y_ptr[2 * max_num_y + 4] = cf_build_dblcmplx(0., 0.)
-            upper_layer_y_ptr[2 * max_num_y + 5] = cf_build_dblcmplx(0., 0.)
+            upper_layer_y_ptr[2 * max_num_y + 3] = cmplx_zero
+            upper_layer_y_ptr[2 * max_num_y + 4] = cmplx_zero
+            upper_layer_y_ptr[2 * max_num_y + 5] = cmplx_zero
     elif solid_liquid:
 
         if dynamic_dynamic or static_dynamic:

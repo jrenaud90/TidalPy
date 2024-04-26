@@ -11,8 +11,10 @@ Fixes:
 * RadialSolver: Fixed bug where solutions between liquid and solid layers were not propagating correctly.
 
 Changes:
-* Removed the warning about unstable solutions for dynamic liquid layers (it looks like it is less of a problem now!)
+* Pre-allocated several cythonized arrays to nans to help with debugging.
+* Provided more error messages to improve user experience.
 * Cythonized non-dim function now takes in the planet's density and radius as variables to change.
+* Improved the Tobie and Roberts benchmarks for radial solver.
 
 ### Version 0.5.2 (2024-02-22)
 

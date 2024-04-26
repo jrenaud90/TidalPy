@@ -226,6 +226,7 @@ cdef RadialSolverSolution cf_radial_solver(
     """
     # General indexing
     # Indexing for: Layer | Solution | ys | slices | solutions
+    cdef size_t i
     cdef size_t layer_i
     cdef size_t slice_i
     # Indexing for: Solution | ys | ytypes
@@ -293,9 +294,12 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef size_t max_num_solutions = 5
     cdef size_t num_ytypes = 1
     cdef str solver_name
+
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     cdef double[15] boundary_conditions
     cdef double* bc_pointer = &boundary_conditions[0]
+    for i in range(15):
+        bc_pointer[i] = NAN
 
     if solve_for is None:
         # Assume we are solving for tides
@@ -310,8 +314,7 @@ cdef RadialSolverSolution cf_radial_solver(
             raise AttributeError(f'Unsupported number of solvers requested (max is {max_num_solutions}).')
         
         # Parse user input for the types of solvers that should be used.
-        ytype_i = 0
-        while num_ytypes > ytype_i:
+        for ytype_i in range(num_ytypes):
             solver_name = solve_for[ytype_i]
             if solver_name.lower() == 'tidal':
                 bc_pointer[ytype_i * 3 + 0] = 0.
@@ -327,7 +330,6 @@ cdef RadialSolverSolution cf_radial_solver(
                 bc_pointer[ytype_i * 3 + 2] = 0.
             else:
                 raise NotImplementedError(f'Requested solver, {solver_name}, has not been implemented.\n\tSupported solvers are: tidal, loading, free.')
-            ytype_i += 1
 
     # Integration information
     # Max step size
@@ -347,6 +349,10 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double* rtols_ptr = &rtols_array[0]
     cdef double[12] atols_array
     cdef double* atols_ptr = &atols_array[0]
+
+    for i in range(12):
+        rtols_ptr[i] = NAN
+        atols_ptr[i] = NAN
 
     # Create storage for flags and information about each layer.
     cdef size_t* layer_int_data_ptr = <size_t *> allocate_mem(
@@ -460,8 +466,8 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex[18] uppermost_y_per_solution
     cdef double complex* uppermost_y_per_solution_ptr = &uppermost_y_per_solution[0]
 
-    for y_i in range(18):
-        uppermost_y_per_solution_ptr[y_i] = cmplx_NAN
+    for i in range(18):
+        uppermost_y_per_solution_ptr[i] = cmplx_NAN
 
     # Layer specific pointers; set the size based on the layer with the most slices.
     cdef double* layer_radius_ptr
@@ -543,6 +549,12 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex[6] surface_solutions
     cdef double complex* surface_solutions_ptr = &surface_solutions[0]
 
+    for i in range(6):
+        if i < 3:
+            constant_vector_ptr[i] = cmplx_NAN
+            layer_above_constant_vector_ptr[i] = cmplx_NAN
+        surface_solutions_ptr[i] = cmplx_NAN
+
     # Variables used to solve the linear equation at the planet's surface.
     # Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
     cdef int bc_solution_info = -999
@@ -590,8 +602,7 @@ cdef RadialSolverSolution cf_radial_solver(
 
             # Determine rtols and atols for this layer.
             # Scale rtols by layer type
-            y_i = 0
-            while num_ys > y_i:
+            for y_i in range(num_ys):
                 # Default is that each layer's rtol and atol equal user input.
                 # TODO: Change up the tolerance scaling between real and imaginary?
                 layer_rtol_real = integration_rtol
@@ -623,7 +634,6 @@ cdef RadialSolverSolution cf_radial_solver(
                 atols_ptr[2 * y_i]     = layer_atol_real
                 atols_ptr[2 * y_i + 1] = layer_atol_imag
 
-                y_i += 1
             # Find initial conditions for each solution at the base of this layer.
             radial_span = (radius_lower, radius_upper)
 
@@ -706,19 +716,15 @@ cdef RadialSolverSolution cf_radial_solver(
                     )
 
             # Reset the uppermost y value array
-            for y_i in range(18):
-                uppermost_y_per_solution_ptr[y_i] = cmplx_NAN
+            for i in range(18):
+                uppermost_y_per_solution_ptr[i] = cmplx_NAN
 
             # Change initial conditions into 2x real values instead of complex for integration
-            solution_i = 0
-            while num_sols > solution_i:
-                y_i = 0
-                while num_ys > y_i:
+            for solution_i in range(num_sols):
+                for y_i in range(num_ys):
                     dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
                     initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
                     initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
-                    y_i += 1
-                solution_i += 1
 
             # Build solver instance
             solver = cf_build_solver(
@@ -752,8 +758,7 @@ cdef RadialSolverSolution cf_radial_solver(
             storage_by_solution_ptr = main_storage_ptr[layer_i]
 
             # Solve for each solution
-            solution_i = 0
-            while num_sols > solution_i:
+            for solution_i in range(num_sols):
                 if solution_i > 0:
                     # Reset solver with new initial condition (this is already done for j==0)
                     # This pointer has already been passed to the solver during initialization but we need the values at
@@ -783,8 +788,8 @@ cdef RadialSolverSolution cf_radial_solver(
                 # Need to make a copy because the solver pointers will be reallocated during the next solution.
                 # Get storage pointer for this solution
                 storage_by_y_ptr = storage_by_solution_ptr[solution_i]
-                y_i = 0
-                while num_ys > y_i:
+
+                for y_i in range(num_ys):
                     for slice_i in range(layer_slices):
                         # Convert 2x real ys to 1x complex ys
                         storage_by_y_ptr[num_ys * slice_i + y_i] = cf_build_dblcmplx(
@@ -796,11 +801,6 @@ cdef RadialSolverSolution cf_radial_solver(
                     # slice_i should already be set to the top of this layer after the end of the previous loop.
                     uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y_ptr[num_ys * slice_i + y_i]
                     
-                    y_i += 1
-                
-                # Ready for next solution
-                solution_i += 1
-
             if error:
                 # Error was encountered during integration
                 break
@@ -821,10 +821,10 @@ cdef RadialSolverSolution cf_radial_solver(
                 raise RuntimeError(feedback_str)
 
         else:
+            # No errors. Proceed with collapsing all sub-solutions into final full solution.
             feedback_str = 'Integration completed for all layers. Beginning solution collapse.'
 
-            ytype_i = 0
-            while num_ytypes > ytype_i:
+            for ytype_i in range(num_ytypes):
                 feedback_str = f'Collapsing radial solutions for "{ytype_i}" solver.'
 
                 # Reset variables for this solver
@@ -881,14 +881,10 @@ cdef RadialSolverSolution cf_radial_solver(
                     storage_by_solution_ptr = main_storage_ptr[layer_i_reversed]
 
                     # Get radial solution values at the top of the layer
-                    solution_i = 0 
-                    while num_sols > solution_i:
-                        y_i = 0
-                        while num_ys > y_i:
+                    for solution_i in range(num_sols):
+                        for y_i in range(num_ys):
                             uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
                                 storage_by_solution_ptr[solution_i][(layer_slices - 1) * num_ys + y_i]
-                            y_i += 1
-                        solution_i += 1
 
                     if layer_i == 0:
                         # Working on surface (uppermost) layer -- Apply surface boundary conditions.
@@ -975,7 +971,6 @@ cdef RadialSolverSolution cf_radial_solver(
                         layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
                 
                 # Ready for next y-type
-                ytype_i += 1
 
     finally:
         # Redim the input pointers if they were non-dim'd.
@@ -1012,12 +1007,10 @@ cdef RadialSolverSolution cf_radial_solver(
             for layer_i in range(num_layers):
                 num_sols = num_solutions_by_layer_ptr[layer_i]
                 if not (main_storage_ptr[layer_i] is NULL):
-                    solution_i = 0
-                    while num_sols > solution_i:
+                    for solution_i in range(num_sols):
                         if not (main_storage_ptr[layer_i][solution_i] is NULL):
                             PyMem_Free(main_storage_ptr[layer_i][solution_i])
                             main_storage_ptr[layer_i][solution_i] = NULL
-                        solution_i += 1
                     
                     PyMem_Free(main_storage_ptr[layer_i])
                     main_storage_ptr[layer_i] = NULL
@@ -1212,6 +1205,15 @@ def radial_solver(
     if len(upper_radius_by_layer) != num_layers:
         raise AttributeError('Number of `upper_radius_by_layer` must match number of `layer_types`.')
 
+    # Check that other inputs make sense
+    if solve_for is not None:
+        if type(solve_for) != tuple:
+            raise AttributeError(
+                '`solve_for` argument must be a tuple of strings. For example:\n'
+                '   ("tidal",)  # If you just want tidal Love numbers.\n'
+                '   ("tidal", "loading")  # If you just want tidal and loading Love numbers.'
+                )
+
     # Build array of assumptions
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
     cdef int* layer_assumptions_ptr = <int *> allocate_mem(
@@ -1254,6 +1256,9 @@ def radial_solver(
     # Check for dynamic liquid layer stability
     if dynamic_liquid and fabs(frequency) < 2.5e-5:
         # TODO: check that this frequency is a decent cutoff (based on a 3 day period).
+        #    Initial work suggests that low density layers do not suffer from the same instability problems.
+        # TODO: Add density or combo factor to better indicate when a solution is likely to be unstable?
+        # See Issue #55
         log.warning('Dynamic liquid layer detected in RadialSolver for a small frequency. Results may be unstable. Extra care is advised!')
     
     # Convert integration method to int
