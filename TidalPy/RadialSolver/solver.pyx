@@ -10,8 +10,6 @@ from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
 log = get_logger(__name__)
 
-from libc.stdio cimport printf
-
 # Import cythonized functions
 from libc.math cimport NAN, isnan, fabs
 from cpython.mem cimport PyMem_Free
@@ -283,8 +281,6 @@ cdef RadialSolverSolution cf_radial_solver(
         G_to_use             = G
         frequency_to_use     = frequency
     
-    printf("nondimensionalize %d; radius_planet_to_use %.5e; bulk_density_to_use %.5e; G_to_use %.5e; frequency_to_use %.5e\n", nondimensionalize, radius_planet_to_use, bulk_density_to_use, G_to_use, frequency_to_use)
-
     # Pull out any constants now that arrays have had dimensional protocol applied to them.
     cdef double surface_gravity = gravity_array_ptr[total_slices - 1]
 
