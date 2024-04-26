@@ -16,6 +16,9 @@ Changes:
 * Cythonized non-dim function now takes in the planet's density and radius as variables to change.
 * Improved the Tobie and Roberts benchmarks for radial solver.
 
+Other:
+* Updated to work with CyRK 0.8.7
+
 ### Version 0.5.2 (2024-02-22)
 
 Documentation
