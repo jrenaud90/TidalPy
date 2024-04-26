@@ -76,6 +76,8 @@ y_lower_staticliq = np.asarray(
     ((0.5+0.5j, 0.6-9.6j),), dtype=np.complex128
 )
 
+MAX_NUM_Ys = 6
+
 @pytest.mark.parametrize('lower_layer_type', (0, 1))
 @pytest.mark.parametrize('lower_is_static', (True, False))
 @pytest.mark.parametrize('upper_layer_type', (0, 1))
@@ -103,7 +105,7 @@ def test_interface_driver(lower_layer_type, lower_is_static, upper_layer_type, u
         lower_y = y_lower_liquid
     
     # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
-    upper_y = np.nan * np.ones((num_sols_upper, num_ys_upper), dtype=np.complex128, order='C')
+    upper_y = np.nan * np.ones((num_sols_upper, MAX_NUM_Ys), dtype=np.complex128, order='C')
 
     solve_upper_y_at_interface(
         lower_y, upper_y,
