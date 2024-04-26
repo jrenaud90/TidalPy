@@ -38,7 +38,7 @@ cdef RadialSolverBase cf_build_solver(
     double* gravity_array_ptr,
     double* bulk_modulus_array_ptr,
     double complex* shear_modulus_array_ptr,
-    double frequency,
+    double frequency_to_use,
     unsigned char degree_l,
     double G_to_use,
 

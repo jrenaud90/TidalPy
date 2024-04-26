@@ -4,6 +4,16 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+
+### Version 0.5.3 (2024-NNNN)
+
+Fixes:
+* RadialSolver: Fixed bug where solutions between liquid and solid layers were not propagating correctly.
+
+Changes:
+* Removed the warning about unstable solutions for dynamic liquid layers (it looks like it is less of a problem now!)
+* Cythonized non-dim function now takes in the planet's density and radius as variables to change.
+
 ### Version 0.5.2 (2024-02-22)
 
 Documentation

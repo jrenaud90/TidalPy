@@ -10,6 +10,8 @@ from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
 log = get_logger(__name__)
 
+from libc.stdio cimport printf
+
 # Import cythonized functions
 from libc.math cimport NAN, isnan, fabs
 from cpython.mem cimport PyMem_Free
@@ -36,6 +38,8 @@ from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
 # Setup globals
 cdef double G
 G = G_
+
+cdef double complex cmplx_NAN = cf_build_dblcmplx(NAN, NAN)
 
 # Maximum size for array building
 cdef size_t MAX_NUM_Y      = 6
@@ -248,6 +252,8 @@ cdef RadialSolverSolution cf_radial_solver(
 
     # Non-dimensionalize inputs
     cdef double G_to_use = NAN
+    cdef double radius_planet_to_use = NAN
+    cdef double bulk_density_to_use = NAN
     cdef double frequency_to_use = NAN
     if nondimensionalize:
         cf_non_dimensionalize_physicals(
@@ -260,18 +266,25 @@ cdef RadialSolverSolution cf_radial_solver(
             gravity_array_ptr,
             bulk_modulus_array_ptr,
             complex_shear_modulus_array_ptr,
+            &radius_planet_to_use,
+            &bulk_density_to_use,
             &frequency_to_use,
             &G_to_use
             )
         
         # Ensure that no errors occured during the non-dim process
-        if isnan(frequency_to_use) or isnan(G_to_use):
+        if isnan(radius_planet_to_use) or isnan(bulk_density_to_use) or isnan(frequency_to_use) or isnan(G_to_use):
             raise ValueError('NaNs encountered after non-dimensionalize call.')
     else:
         # Leave inputs alone.
-        G_to_use         = G
-        frequency_to_use = frequency
+        radius_planet_to_use = radius_planet
+        bulk_density_to_use  = planet_bulk_density
+        G_to_use             = G
+        frequency_to_use     = frequency
+    
+    printf("nondimensionalize %d; radius_planet_to_use %.5e; bulk_density_to_use %.5e; G_to_use %.5e; frequency_to_use %.5e\n", nondimensionalize, radius_planet_to_use, bulk_density_to_use, G_to_use, frequency_to_use)
 
+    # Pull out any constants now that arrays have had dimensional protocol applied to them.
     cdef double surface_gravity = gravity_array_ptr[total_slices - 1]
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
@@ -286,14 +299,9 @@ cdef RadialSolverSolution cf_radial_solver(
 
     if solve_for is None:
         # Assume we are solving for tides
-        if nondimensionalize:
-            bc_pointer[0] = 0.
-            bc_pointer[1] = 0.
-            bc_pointer[2] = (2. * degree_l_dbl + 1.) / 1.
-        else:
-            bc_pointer[0] = 0.
-            bc_pointer[1] = 0.
-            bc_pointer[2] = (2. * degree_l_dbl + 1.) / radius_planet
+        bc_pointer[0] = 0.
+        bc_pointer[1] = 0.
+        bc_pointer[2] = (2. * degree_l_dbl + 1.) / radius_planet_to_use
         solve_for = ('tidal',)
     else:
         # Use user input
@@ -306,23 +314,13 @@ cdef RadialSolverSolution cf_radial_solver(
         while num_ytypes > ytype_i:
             solver_name = solve_for[ytype_i]
             if solver_name.lower() == 'tidal':
-                if nondimensionalize:
-                    bc_pointer[ytype_i * 3 + 0] = 0.
-                    bc_pointer[ytype_i * 3 + 1] = 0.
-                    bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / 1.
-                else:
-                    bc_pointer[ytype_i * 3 + 0] = 0.
-                    bc_pointer[ytype_i * 3 + 1] = 0.
-                    bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_planet
+                bc_pointer[ytype_i * 3 + 0] = 0.
+                bc_pointer[ytype_i * 3 + 1] = 0.
+                bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_planet_to_use
             elif solver_name.lower() == 'loading':
-                if nondimensionalize:
-                    bc_pointer[ytype_i * 3 + 0] = -(2. * degree_l_dbl + 1.) / 3.
-                    bc_pointer[ytype_i * 3 + 1] = 0.
-                    bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / 1.
-                else:
-                    bc_pointer[ytype_i * 3 + 0] = -(2. * degree_l_dbl + 1.) * planet_bulk_density / 3.
-                    bc_pointer[ytype_i * 3 + 1] = 0.
-                    bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_planet
+                bc_pointer[ytype_i * 3 + 0] = -(2. * degree_l_dbl + 1.) * bulk_density_to_use / 3.
+                bc_pointer[ytype_i * 3 + 1] = 0.
+                bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_planet_to_use
             elif solver_name.lower() == 'free':
                 bc_pointer[ytype_i * 3 + 0] = 0.
                 bc_pointer[ytype_i * 3 + 1] = 0.
@@ -333,15 +331,14 @@ cdef RadialSolverSolution cf_radial_solver(
 
     # Integration information
     # Max step size
-    cdef double max_step_touse
-    cdef bint max_step_from_arrays
-    max_step_from_arrays = False
+    cdef double max_step_to_use = NAN
+    cdef bint max_step_from_arrays = False
     if max_step == 0:
         # If max_step is zero use the array information to determine max_step_size
         max_step_from_arrays = True
     else:
         # Otherwise use user input.
-        max_step_touse = max_step
+        max_step_to_use = max_step
 
     # Setup tolerance arrays
     # For simplicity just make these all as large as the maximum number of ys.
@@ -370,17 +367,18 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef int layer_below_type
     cdef int layer_below_is_static
     cdef int layer_below_is_incomp
-    cdef double layer_upper_radius, radius_check
-    cdef double layer_rtol_real
-    cdef double layer_rtol_imag
-    cdef double layer_atol_real
-    cdef double layer_atol_imag
     cdef size_t layer_slices
     cdef unsigned char num_sols
     cdef unsigned char num_ys
     cdef unsigned char num_ys_dbl
     cdef unsigned char layer_below_num_sols
     cdef unsigned char layer_below_num_ys
+    cdef double layer_upper_radius = NAN
+    cdef double radius_check = NAN
+    cdef double layer_rtol_real = NAN
+    cdef double layer_rtol_imag = NAN
+    cdef double layer_atol_real = NAN
+    cdef double layer_atol_imag = NAN
 
     for layer_i in range(num_layers):
         # Pull out information on this layer
@@ -391,6 +389,7 @@ cdef RadialSolverSolution cf_radial_solver(
         
         # Make any dimension corrections
         if nondimensionalize:
+            # User provided radii are in MKS and have not been converted using non-dim protocol yet.
             layer_upper_radius = layer_upper_radius / radius_planet
 
         # Find number of solutions based on this layer's assumptions
@@ -417,7 +416,8 @@ cdef RadialSolverSolution cf_radial_solver(
             if radius_check > layer_upper_radius:
                 # We have passed this layer.
                 break
-            layer_slices += 1
+            else:
+                layer_slices += 1
         if layer_slices <= 3:
             raise ValueError('At least three layer slices per layer are required. Try using more slices in the' + \
                              'input arrays.')
@@ -425,13 +425,13 @@ cdef RadialSolverSolution cf_radial_solver(
 
     # We have all the size information needed to build storage pointers
     # Main storage pointer is setup like [layer_i][solution_i][y_i + r_i]
-    cdef double complex*** main_storage = <double complex ***> allocate_mem(
+    cdef double complex*** main_storage_ptr = <double complex ***> allocate_mem(
         num_layers * sizeof(double complex**),
-        'main_storage (radial_solver; init)'
+        'main_storage_ptr (radial_solver; init)'
         )
 
-    cdef double complex** storage_by_solution = NULL
-    cdef double complex* storage_by_y = NULL
+    cdef double complex** storage_by_solution_ptr = NULL
+    cdef double complex* storage_by_y_ptr = NULL
 
     for layer_i in range(num_layers):
         num_sols     = num_solutions_by_layer_ptr[layer_i]
@@ -439,26 +439,29 @@ cdef RadialSolverSolution cf_radial_solver(
         # Number of ys = 2x num sols
         num_ys = 2 * num_sols
 
-        storage_by_solution = <double complex **> allocate_mem(
+        storage_by_solution_ptr = <double complex **> allocate_mem(
             num_sols * sizeof(double complex*), 
-            'storage_by_solution (radial_solver; init)'
+            'storage_by_solution_ptr (radial_solver; init)'
             ) 
 
         for solution_i in range(num_sols):
-            storage_by_y = <double complex *> allocate_mem(
+            storage_by_y_ptr = <double complex *> allocate_mem(
                 layer_slices * num_ys * sizeof(double complex),
-                'storage_by_y (radial_solver; init)'
+                'storage_by_y_ptr (radial_solver; init)'
                 )
 
-            storage_by_solution[solution_i] = storage_by_y
-            storage_by_y = NULL
-        main_storage[layer_i] = storage_by_solution
-        storage_by_solution = NULL
+            storage_by_solution_ptr[solution_i] = storage_by_y_ptr
+            storage_by_y_ptr = NULL
+        main_storage_ptr[layer_i] = storage_by_solution_ptr
+        storage_by_solution_ptr = NULL
 
     # Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
     #  worst.
-    cdef double complex[36] uppermost_y_per_solution
+    cdef double complex[18] uppermost_y_per_solution
     cdef double complex* uppermost_y_per_solution_ptr = &uppermost_y_per_solution[0]
+
+    for y_i in range(18):
+        uppermost_y_per_solution_ptr[y_i] = cmplx_NAN
 
     # Layer specific pointers; set the size based on the layer with the most slices.
     cdef double* layer_radius_ptr
@@ -468,17 +471,21 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef double complex* layer_shear_mod_ptr
 
     # Properties at top and bottom of layer
-    cdef double radius_lower, radius_upper
-    cdef double density_lower, density_upper
-    cdef double gravity_lower, gravity_upper
-    cdef double bulk_lower
-    cdef double complex shear_lower
+    cdef double radius_lower = NAN
+    cdef double radius_upper = NAN
+    cdef double density_lower = NAN
+    cdef double density_upper = NAN
+    cdef double gravity_lower = NAN
+    cdef double gravity_upper = NAN
+    cdef double bulk_lower = NAN
+    cdef double complex shear_lower = cmplx_NAN
     cdef tuple radial_span
 
     # Properties at interfaces between layers
-    cdef double static_liquid_density
-    cdef double interface_gravity
-    cdef double last_layer_upper_gravity, last_layer_upper_density
+    cdef double static_liquid_density = NAN
+    cdef double interface_gravity = NAN
+    cdef double last_layer_upper_gravity = NAN
+    cdef double last_layer_upper_density = NAN
 
     # Starting solutions (initial conditions / lower boundary conditions)
     # Allocate memory for the initial value arrays now. We don't know the number of solutions or ys. But the max number
@@ -492,7 +499,7 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef bint starting_y_check = False
 
     # Intermediate values
-    cdef double complex dcomplex_tmp
+    cdef double complex dcomplex_tmp = cmplx_NAN
 
     # Solver class
     cdef RadialSolverBase solver
@@ -574,7 +581,7 @@ cdef RadialSolverSolution cf_radial_solver(
             # Determine max step size (if not provided by user)
             if max_step_from_arrays:
                 # Maximum step size during integration can not exceed the average radial slice size.
-                max_step_touse = (radius_upper - radius_lower) / <double>layer_slices
+                max_step_to_use = (radius_upper - radius_lower) / <double>layer_slices
 
             # Get assumptions for layer
             layer_type      = layer_types_ptr[layer_i]
@@ -619,6 +626,14 @@ cdef RadialSolverSolution cf_radial_solver(
                 y_i += 1
             # Find initial conditions for each solution at the base of this layer.
             radial_span = (radius_lower, radius_upper)
+
+            # Set initial y to nan for now.
+            # OPT: this is for debugging purposes. could likely be commented out in the future for small performance gain.
+            for y_i in range(36):
+                if y_i < 18:
+                    initial_y_ptr[y_i] = cmplx_NAN
+                initial_y_only_real_ptr[y_i] = NAN
+            
             if layer_i == 0:
                 # Use initial condition function
                 cf_find_starting_conditions(
@@ -678,8 +693,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     initial_y_ptr,
                     layer_below_num_sols,
                     num_sols,
-                    layer_below_num_ys,
-                    num_ys,
+                    MAX_NUM_Y,
                     layer_below_type,
                     layer_below_is_static,
                     layer_below_is_incomp,
@@ -688,8 +702,12 @@ cdef RadialSolverSolution cf_radial_solver(
                     layer_is_incomp,
                     interface_gravity,
                     static_liquid_density,
-                    G_to_use=G_to_use
+                    G_to_use
                     )
+
+            # Reset the uppermost y value array
+            for y_i in range(18):
+                uppermost_y_per_solution_ptr[y_i] = cmplx_NAN
 
             # Change initial conditions into 2x real values instead of complex for integration
             solution_i = 0
@@ -722,7 +740,7 @@ cdef RadialSolverSolution cf_radial_solver(
                 atols_ptr,
                 rtols_ptr,
                 integration_method,
-                max_step_touse,
+                max_step_to_use,
                 max_num_steps,
                 expected_size,
                 max_ram_MB,
@@ -731,7 +749,7 @@ cdef RadialSolverSolution cf_radial_solver(
             cysolver_setup = True
 
             # Get storage pointer for this layer
-            storage_by_solution = main_storage[layer_i]
+            storage_by_solution_ptr = main_storage_ptr[layer_i]
 
             # Solve for each solution
             solution_i = 0
@@ -764,19 +782,19 @@ cdef RadialSolverSolution cf_radial_solver(
                 solver_solution_ptr = solver.solution_y_ptr
                 # Need to make a copy because the solver pointers will be reallocated during the next solution.
                 # Get storage pointer for this solution
-                storage_by_y = storage_by_solution[solution_i]
+                storage_by_y_ptr = storage_by_solution_ptr[solution_i]
                 y_i = 0
                 while num_ys > y_i:
                     for slice_i in range(layer_slices):
                         # Convert 2x real ys to 1x complex ys
-                        storage_by_y[num_ys * slice_i + y_i] = cf_build_dblcmplx(
+                        storage_by_y_ptr[num_ys * slice_i + y_i] = cf_build_dblcmplx(
                             solver_solution_ptr[num_ys_dbl * slice_i + (2 * y_i)],
                             solver_solution_ptr[num_ys_dbl * slice_i + (2 * y_i) + 1]
                             )
 
                     # Store top most result for initial condition for the next layer
                     # slice_i should already be set to the top of this layer after the end of the previous loop.
-                    uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y[num_ys * slice_i + y_i]
+                    uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y_ptr[num_ys * slice_i + y_i]
                     
                     y_i += 1
                 
@@ -811,13 +829,13 @@ cdef RadialSolverSolution cf_radial_solver(
 
                 # Reset variables for this solver
                 bc_solution_info = -999
-                constant_vector_ptr[0] = NAN
-                constant_vector_ptr[1] = NAN
-                constant_vector_ptr[2] = NAN
-                layer_above_lower_gravity   = 0.
-                layer_above_lower_density   = 0.
-                liquid_density_at_interface = 0.
-                layer_above_type            = False
+                constant_vector_ptr[0] = cmplx_NAN
+                constant_vector_ptr[1] = cmplx_NAN
+                constant_vector_ptr[2] = cmplx_NAN
+                layer_above_lower_gravity   = NAN
+                layer_above_lower_density   = NAN
+                liquid_density_at_interface = NAN
+                layer_above_type            = 9
                 layer_above_is_static       = False
                 layer_above_is_incomp       = False
 
@@ -860,15 +878,15 @@ cdef RadialSolverSolution cf_radial_solver(
                     layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed]
 
                     # Get full solutions for this layer
-                    storage_by_solution = main_storage[layer_i_reversed]
+                    storage_by_solution_ptr = main_storage_ptr[layer_i_reversed]
 
-                    # Get value at the top of the layer
+                    # Get radial solution values at the top of the layer
                     solution_i = 0 
                     while num_sols > solution_i:
                         y_i = 0
                         while num_ys > y_i:
                             uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
-                                storage_by_solution[solution_i][(layer_slices - 1) * num_ys + y_i]
+                                storage_by_solution_ptr[solution_i][(layer_slices - 1) * num_ys + y_i]
                             y_i += 1
                         solution_i += 1
 
@@ -919,7 +937,7 @@ cdef RadialSolverSolution cf_radial_solver(
                     cf_collapse_layer_solution(
                         solution_ptr,  # Modified Variable
                         constant_vector_ptr,
-                        storage_by_solution,
+                        storage_by_solution_ptr,
                         layer_radius_ptr,
                         layer_density_ptr,
                         layer_gravity_ptr,
@@ -945,12 +963,12 @@ cdef RadialSolverSolution cf_radial_solver(
 
                     if num_sols == 1:
                         layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
-                        layer_above_constant_vector_ptr[1] = NAN
-                        layer_above_constant_vector_ptr[2] = NAN
+                        layer_above_constant_vector_ptr[1] = cmplx_NAN
+                        layer_above_constant_vector_ptr[2] = cmplx_NAN
                     elif num_sols == 2:
                         layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
                         layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
-                        layer_above_constant_vector_ptr[2] = NAN
+                        layer_above_constant_vector_ptr[2] = cmplx_NAN
                     elif num_sols == 3:
                         layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
                         layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
@@ -972,13 +990,14 @@ cdef RadialSolverSolution cf_radial_solver(
                 gravity_array_ptr,
                 bulk_modulus_array_ptr,
                 complex_shear_modulus_array_ptr,
+                &radius_planet_to_use,
+                &bulk_density_to_use,
                 &frequency_to_use,
                 &G_to_use
                 )
             
-            # Reset surface gravity and frequency values
+            # Reset surface gravity value
             surface_gravity  = gravity_array_ptr[total_slices - 1]
-            frequency_to_use = frequency
 
         # Free memory
         if cysolver_setup:
@@ -987,23 +1006,23 @@ cdef RadialSolverSolution cf_radial_solver(
         # Deconstruct main solution pointer
         # Main storage pointers are structured like [layer_i][solution_i][y_i + slice_i]
         # Then main storage
-        if not (main_storage is NULL):
-            storage_by_solution = NULL
-            storage_by_y = NULL
+        if not (main_storage_ptr is NULL):
+            storage_by_solution_ptr = NULL
+            storage_by_y_ptr = NULL
             for layer_i in range(num_layers):
                 num_sols = num_solutions_by_layer_ptr[layer_i]
-                if not (main_storage[layer_i] is NULL):
+                if not (main_storage_ptr[layer_i] is NULL):
                     solution_i = 0
                     while num_sols > solution_i:
-                        if not (main_storage[layer_i][solution_i] is NULL):
-                            PyMem_Free(main_storage[layer_i][solution_i])
-                            main_storage[layer_i][solution_i] = NULL
+                        if not (main_storage_ptr[layer_i][solution_i] is NULL):
+                            PyMem_Free(main_storage_ptr[layer_i][solution_i])
+                            main_storage_ptr[layer_i][solution_i] = NULL
                         solution_i += 1
                     
-                    PyMem_Free(main_storage[layer_i])
-                    main_storage[layer_i] = NULL
-            PyMem_Free(main_storage)
-            main_storage = NULL
+                    PyMem_Free(main_storage_ptr[layer_i])
+                    main_storage_ptr[layer_i] = NULL
+            PyMem_Free(main_storage_ptr)
+            main_storage_ptr = NULL
 
         # Release layer information pointers
         if not (layer_int_data_ptr is NULL):
