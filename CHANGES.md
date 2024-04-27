@@ -1,12 +1,13 @@
 # TidalPy Major Change Log
 
-### Version 0.6.0 *PLANNED*
-* Other Major Changes
-  * Remove support for the older non-cythonized `radial_solver` module.
+### Version 0.6.0 (TBD)
+Other Major Changes
+* Remove support for the older non-cythonized `radial_solver` module.
 
-* New Features
-  * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
-  * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
+New Features
+* Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
+* Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
+* RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
 
 ### Version 0.5.3 (2024-04-26)
 
