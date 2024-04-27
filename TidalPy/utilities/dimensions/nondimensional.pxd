@@ -10,6 +10,8 @@ cdef void cf_non_dimensionalize_physicals(
         double* gravity_array_ptr,
         double* bulk_array_ptr,
         double_numeric* shear_array_ptr,
+        double* radius_planet_to_use,
+        double* bulk_density_to_use,
         double* frequency_to_use,
         double* G_to_use
         ) noexcept nogil
@@ -24,6 +26,8 @@ cdef void cf_redimensionalize_physicals(
         double* gravity_array_ptr,
         double* bulk_array_ptr,
         double_numeric* shear_array_ptr,
+        double* radius_planet_to_use,
+        double* bulk_density_to_use,
         double* frequency_to_use,
         double* G_to_use
         ) noexcept nogil

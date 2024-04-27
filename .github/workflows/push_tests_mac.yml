@@ -54,7 +54,7 @@ jobs:
         run: |
           conda install pytest matplotlib numba numpy scipy cython
           export CC='gcc-13'
-          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
           python -m pip install -v .
 
       - name: Run pytest

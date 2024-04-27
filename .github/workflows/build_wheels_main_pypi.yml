@@ -62,7 +62,7 @@ jobs:
           conda install pytest matplotlib numba numpy scipy cython
           python -m pip install --upgrade build
           export CC='gcc-13'
-          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
           python -m build --wheel --outdir ./wheelhouse/
   
       - uses: actions/upload-artifact@v4

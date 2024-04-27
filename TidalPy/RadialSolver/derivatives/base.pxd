@@ -4,7 +4,7 @@ from CyRK.cy.cysolver cimport CySolver
 cdef class RadialSolverBase(CySolver):
 
     # Global constants
-    cdef double frequency
+    cdef double frequency_to_use
     cdef unsigned char degree_l
     cdef double degree_l_flt, lp1, lm1, llp1
     cdef double G_to_use, grav_coeff

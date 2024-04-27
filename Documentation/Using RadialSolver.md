@@ -194,6 +194,12 @@ In the unlikely scenario where the integration crashes with no warnings or excep
     - During the rerun, keep an eye on system memory usage to ensure it is not being used at 100%.
 - If crash does reoccur:
     - Ensure all arrays listed above are the same size. If any 
+
+#### NaNs are returned
+Sometimes the integration is successful but returns NaN results for all the Love Numbers. Try the following:
+- Check the upper radius of each layer. NaNs may result if the specified upper radius is lower than the upper radius specified by the input radius array
+
+
 ## `RadialSolverSolution` Class
 
 ### Love Numbers
