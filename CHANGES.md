@@ -4,11 +4,13 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
-
-### Version 0.5.3 (2024-NNNN)
+### Version 0.5.3 (2024-04-26)
 
 Fixes:
 * RadialSolver: Fixed bug where solutions between liquid and solid layers were not propagating correctly.
+
+Additions:
+* New Love number benchmarks for Earth provided by [Nick Wagner](https://github.com/nlwagner) in `Benchmarks & Performance\RadialSolver\Earth Love Numbers.ipynb` (Jupyter Notebook).
 
 Changes:
 * Pre-allocated several cythonized arrays to nans to help with debugging.
