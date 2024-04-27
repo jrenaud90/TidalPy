@@ -57,7 +57,7 @@ cdef class SolidDynamicCompressible(RadialSolverBase):
         r_inverse        = 1. / radius
         two_shear_r_inv  = 2. * self.shear_modulus * r_inverse
         density_gravity  = self.density * self.gravity
-        dynamic_term     = -self.frequency * self.frequency * self.density * radius
+        dynamic_term     = -self.frequency_to_use * self.frequency_to_use * self.density * radius
         grav_term        = self.grav_coeff * self.density
         y1_y3_term       = 2. * y1 - self.llp1 * y3
 
@@ -169,7 +169,7 @@ cdef class SolidDynamicIncompressible(RadialSolverBase):
         r_inverse       = 1. / radius
         two_shear_r_inv = 2. * self.shear_modulus * r_inverse
         density_gravity = self.density * self.gravity
-        dynamic_term    = -self.frequency * self.frequency * self.density * radius
+        dynamic_term    = -self.frequency_to_use * self.frequency_to_use * self.density * radius
         grav_term       = self.grav_coeff * self.density
         y1_y3_term      = 2. * y1 - self.llp1 * y3
 
@@ -281,7 +281,7 @@ cdef class SolidStaticCompressible(RadialSolverBase):
 
         # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
         #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
-        # The static case just sets all frequency dependence in these equations to zero.
+        # The static case just sets all frequency_to_use dependence in these equations to zero.
         # dy2 and dy4 contain: viscoelastic, and gravitational terms.
         cdef double complex dy1, dy2, dy3, dy4, dy5, dy6
 
@@ -473,7 +473,7 @@ cdef class LiquidDynamicCompressible(RadialSolverBase):
 
         r_inverse         = 1. / radius
         density_gravity   = self.density * self.gravity
-        f2                = self.frequency * self.frequency
+        f2                = self.frequency_to_use * self.frequency_to_use
         dynamic_term_no_r = -f2 * self.density
         dynamic_term      = dynamic_term_no_r * radius
         grav_term         = self.grav_coeff * self.density
@@ -570,7 +570,7 @@ cdef class LiquidDynamicIncompressible(RadialSolverBase):
 
         r_inverse = 1. / radius
         density_gravity = self.density * self.gravity
-        dynamic_term = -self.frequency * self.frequency * self.density * radius
+        dynamic_term = -self.frequency_to_use * self.frequency_to_use * self.density * radius
         grav_term = self.grav_coeff * self.density
 
         # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
@@ -730,7 +730,7 @@ cdef RadialSolverBase cf_build_solver(
         double* gravity_array_ptr,
         double* bulk_modulus_array_ptr,
         double complex* shear_modulus_array_ptr,
-        double frequency,
+        double frequency_to_use,
         unsigned char degree_l,
         double G_to_use,
 
@@ -759,7 +759,7 @@ cdef RadialSolverBase cf_build_solver(
         if is_static:
             if is_incomp:
                 solver = SolidStaticIncompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -772,7 +772,7 @@ cdef RadialSolverBase cf_build_solver(
                     )
             else:
                 solver = SolidStaticCompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -786,7 +786,7 @@ cdef RadialSolverBase cf_build_solver(
         else:
             if is_incomp:
                 solver = SolidDynamicIncompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -799,7 +799,7 @@ cdef RadialSolverBase cf_build_solver(
                     )
             else:
                 solver = SolidDynamicCompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -815,7 +815,7 @@ cdef RadialSolverBase cf_build_solver(
         if is_static:
             if is_incomp:
                 solver = LiquidStaticIncompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -828,7 +828,7 @@ cdef RadialSolverBase cf_build_solver(
                     )
             else:
                 solver = LiquidStaticCompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -842,7 +842,7 @@ cdef RadialSolverBase cf_build_solver(
         else:
             if is_incomp:
                 solver = LiquidDynamicIncompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,
@@ -855,7 +855,7 @@ cdef RadialSolverBase cf_build_solver(
                     )
             else:
                 solver = LiquidDynamicCompressible(
-                    frequency,
+                    frequency_to_use,
                     degree_l,
                     G_to_use,
                     y0_view,

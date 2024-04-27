@@ -3,6 +3,10 @@
 
 from libc.math cimport NAN
 
+from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
+
+cdef double complex cmplx_NAN = cf_build_dblcmplx(NAN, NAN)
+
 cdef void cf_top_to_bottom_interface_bc(
         double complex* constant_vector_ptr,
         double complex* layer_above_constant_vector_ptr,
@@ -27,30 +31,45 @@ cdef void cf_top_to_bottom_interface_bc(
     # Interfaces are defined at the bottom of the layer in question. However, this function is calculating
     #  the transition at the top of each layer as it works its way down.
     #  So, for interface values, we actually need the ones of the layer above us.
-    cdef double interface_gravity
-    cdef double liquid_density_at_interface
-    interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
-    liquid_density_at_interface = NAN
-    if not (layer_type == 0):
+    cdef double interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
+    cdef double liquid_density_at_interface = NAN
+
+    cdef bint layer_is_solid = False
+    cdef bint layer_above_is_solid = False
+    if layer_type == 0:
+        layer_is_solid = True
+    if layer_above_type == 0:
+        layer_above_is_solid = True
+
+    if not layer_is_solid:
         if layer_is_static:
             liquid_density_at_interface = density_upper
-        elif not (layer_above_type == 0) and layer_above_is_static:
+        elif not layer_above_is_solid and layer_above_is_static:
             liquid_density_at_interface = layer_above_lower_density
         else:
             liquid_density_at_interface = density_upper
-    elif not (layer_above_type == 0):
+    elif not layer_above_is_solid:
         liquid_density_at_interface = layer_above_lower_density
 
     # Solve for constant vector
-    cdef double complex y4_frac_1, y4_frac_2
-    cdef double complex gamma_1, gamma_2
-    cdef double complex lambda_1, lambda_2
-    cdef double complex lower_s1y1, lower_s1y2, lower_s1y5, lower_s1y6
-    cdef double complex lower_s2y1, lower_s2y2, lower_s2y5, lower_s2y6
+    cdef double complex y4_frac_1  = cmplx_NAN
+    cdef double complex y4_frac_2  = cmplx_NAN
+    cdef double complex gamma_1    = cmplx_NAN
+    cdef double complex gamma_2    = cmplx_NAN
+    cdef double complex lambda_1   = cmplx_NAN
+    cdef double complex lambda_2   = cmplx_NAN
+    cdef double complex lower_s1y1 = cmplx_NAN
+    cdef double complex lower_s1y2 = cmplx_NAN
+    cdef double complex lower_s1y5 = cmplx_NAN
+    cdef double complex lower_s1y6 = cmplx_NAN
+    cdef double complex lower_s2y1 = cmplx_NAN
+    cdef double complex lower_s2y2 = cmplx_NAN
+    cdef double complex lower_s2y5 = cmplx_NAN
+    cdef double complex lower_s2y6 = cmplx_NAN
 
-    if (layer_type == 0):
+    if layer_is_solid:
         # Solid Layer
-        if (layer_above_type == 0):
+        if layer_above_is_solid:
             # Both layers are solid. Constants are the same.
             solution_i = 0
             while num_sols > solution_i:
@@ -124,7 +143,7 @@ cdef void cf_top_to_bottom_interface_bc(
                 constant_vector_ptr[2] = y4_frac_1 * constant_vector_ptr[0] + y4_frac_2 * constant_vector_ptr[1]
     else:
         if layer_is_static:
-            if not (layer_above_type == 0):
+            if not layer_above_is_solid:
                 # Liquid layer above
                 if layer_above_is_static:
                     # Both layers are static liquids. Constants are the same.
@@ -142,7 +161,7 @@ cdef void cf_top_to_bottom_interface_bc(
                 #  layer above.
                 constant_vector_ptr[0] = layer_above_constant_vector_ptr[0]
         else:
-            if not (layer_above_type == 0):
+            if not layer_above_is_solid:
                 # Liquid layer above
                 if layer_above_is_static:
                     # Need to find 2 liquid (dynamic) constants from 1 liquid (static) constant

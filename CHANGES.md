@@ -4,6 +4,21 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+
+### Version 0.5.3 (2024-NNNN)
+
+Fixes:
+* RadialSolver: Fixed bug where solutions between liquid and solid layers were not propagating correctly.
+
+Changes:
+* Pre-allocated several cythonized arrays to nans to help with debugging.
+* Provided more error messages to improve user experience.
+* Cythonized non-dim function now takes in the planet's density and radius as variables to change.
+* Improved the Tobie and Roberts benchmarks for radial solver.
+
+Other:
+* Updated to work with CyRK 0.8.7
+
 ### Version 0.5.2 (2024-02-22)
 
 Documentation
