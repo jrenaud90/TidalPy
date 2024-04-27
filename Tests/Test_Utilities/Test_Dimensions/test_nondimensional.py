@@ -54,7 +54,7 @@ def test_non_dimensionalize_physicals():
     # Check that the redimensionalize function works too.
     # Use the output from the non-dim as inputs to the redim.
     output_freq_redim, G_redim = redimensionalize_physicals(
-        output_freq_nondim, mean_radius, bulk_density,
+        frequency, mean_radius, bulk_density,
         radius_array_out, density_array_out, gravity_array_out, bulk_array_out, shear_array_out)
 
     # These should all match the original again.

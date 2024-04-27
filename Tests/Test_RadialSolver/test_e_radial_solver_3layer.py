@@ -123,4 +123,4 @@ def test_radial_solver_3layer_solve_for_both(solid_is_static, liquid_is_static,
         assert type(out.result) is np.ndarray
         assert out.result.shape == (len(solve_for) * 6, radius_array.size)
     except NotImplementedError as e:
-        warnings.warn(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
+         pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')

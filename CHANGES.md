@@ -8,6 +8,33 @@
   * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
   * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
 
+### Version 0.5.3 (2024-04-26)
+
+Fixes:
+* RadialSolver: Fixed bug where solutions between liquid and solid layers were not propagating correctly.
+
+Additions:
+* New Love number benchmarks for Earth provided by [Nick Wagner](https://github.com/nlwagner) in `Benchmarks & Performance\RadialSolver\Earth Love Numbers.ipynb` (Jupyter Notebook).
+
+Changes:
+* Pre-allocated several cythonized arrays to nans to help with debugging.
+* Provided more error messages to improve user experience.
+* Cythonized non-dim function now takes in the planet's density and radius as variables to change.
+* Improved the Tobie and Roberts benchmarks for radial solver.
+
+Other:
+* Updated to work with CyRK 0.8.7
+
+### Version 0.5.2 (2024-02-22)
+
+Documentation
+* Improved RadialSolver documentation regarding higher degree-l.
+* Added info about issues that can arise from using non C-continguous arrays in cythonized functions.
+
+Fixes:
+* Added error message to `RadialSolver.radial_solver` if length of provided assumption tuples is not the same.
+* Fixed issue where non C-continguous arrays were allowed in cythonized functions that required them.
+
 ### Version 0.5.1 (2024-02-14)
 * Removed Python 3.8 support due to issues with building SciPy.
 

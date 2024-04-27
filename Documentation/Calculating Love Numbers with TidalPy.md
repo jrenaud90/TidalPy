@@ -14,6 +14,9 @@ To learn more about this method please review the literature cited in the refere
 ## Radial Solver Function `TidalPy.RadialSolver.radial_solver`
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module can be used with the following arguments.
 
+Note that all arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
+If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to the rheology methods.
+
 ```python
 from TidalPy.RadialSolver import radial_solver
 radial_solver_solution = radial_solver(
@@ -66,7 +69,9 @@ radial_solver_solution = radial_solver(
     # Harmonic degree used. 
     # Note that the stability of the solution gets worse with higher-l. You may need to increase the relative tolerance
     # or use simpler layer assumptions to get a successful solution. 
-    # It particularly starts to break down for l > 10.
+    # It particularly starts to break down for l > 10 but stable solutions exist up to l=40.
+    # For higher degrees, it is recommended to start integration higher in the planet. I.,e. above the
+    #  core-mantle-boundary (if applicable).
     
     solve_for = None,
     # What to solve for (type: tuple[str, ...])
@@ -194,6 +199,12 @@ In the unlikely scenario where the integration crashes with no warnings or excep
     - During the rerun, keep an eye on system memory usage to ensure it is not being used at 100%.
 - If crash does reoccur:
     - Ensure all arrays listed above are the same size. If any 
+
+#### NaNs are returned
+Sometimes the integration is successful but returns NaN results for all the Love Numbers. Try the following:
+- Check the upper radius of each layer. NaNs may result if the specified upper radius is lower than the upper radius specified by the input radius array
+
+
 ## `RadialSolverSolution` Class
 
 ### Love Numbers
