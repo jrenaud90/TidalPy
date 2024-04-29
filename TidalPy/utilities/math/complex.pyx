@@ -10,8 +10,6 @@ Modified from https://github.com/numpy/numpy/blob/main/numpy/core/src/npymath/np
  *=========================================================*/
 """
 
-from libc.stdio cimport printf
-
 from libc.math cimport isfinite, isinf, isnan, copysign, \
     sqrt, fabs, signbit, exp, cos, sin, log, log1p, ldexp, atan2, frexp, ceil
 
