@@ -4,6 +4,15 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+
+### Version 0.5.4 (2024-04-29)
+
+Fixes:
+* Fixed RadialSolver frequency warning message for dynamic liquid layers not displaying for correct layer types.
+
+Additions:
+* Added way to suppress warning messages in RadialSolver.
+
 ### Version 0.5.3 (2024-04-26)
 
 Fixes:
