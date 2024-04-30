@@ -4,6 +4,9 @@
 Other Major Changes
 * Remove support for the older non-cythonized `radial_solver` module.
 
+Changes
+* Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
+
 New Features
 * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
 * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.

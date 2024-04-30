@@ -1,14 +1,14 @@
 cdef class RadialSolverSolution():
 
-    cdef public str message
     cdef public bint success
+    cdef char* _message
 
     # Result structure information
     cdef size_t num_ys
     cdef size_t num_slices
     cdef size_t total_size
     cdef size_t num_ytypes
-    cdef tuple ytypes
+    cdef char* ytypes[5]
 
     # Result pointers and data
     cdef double complex* full_solution_ptr
@@ -33,8 +33,9 @@ cdef RadialSolverSolution cf_radial_solver(
     int* is_static_by_layer_ptr,
     int* is_incompressible_by_layer_ptr,
     double* upper_radius_by_layer_ptr,
+    size_t num_bc_models,
+    size_t* bc_models_ptr,
     unsigned int degree_l = *,
-    tuple solve_for = *,
     bint use_kamata = *,
     unsigned char integration_method = *,
     double integration_rtol = *,

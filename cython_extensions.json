@@ -145,9 +145,16 @@
     "compile_args": [],
     "link_args": []
   },
-  "RadialSolver.boundaries": {
+  "RadialSolver.boundaries.boundaries": {
     "name": "TidalPy.RadialSolver.boundaries.boundaries",
     "sources": [["TidalPy", "RadialSolver", "boundaries", "boundaries.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "boundaries"]],
+    "compile_args": [],
+    "link_args": []
+  },
+  "RadialSolver.boundaries.surface_bc": {
+    "name": "TidalPy.RadialSolver.boundaries.surface_bc",
+    "sources": [["TidalPy", "RadialSolver", "boundaries", "surface_bc.pyx"]],
     "include_dirs": [["TidalPy", "RadialSolver", "boundaries"]],
     "compile_args": [],
     "link_args": []

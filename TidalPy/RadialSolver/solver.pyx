@@ -30,6 +30,7 @@ from TidalPy.RadialSolver.interfaces.reversed cimport cf_top_to_bottom_interface
 from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
 from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
 from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc
+from TidalPy.RadialSolver.boundaries.surface_bc cimport cf_get_surface_bc
 from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
 
 
@@ -49,7 +50,7 @@ cdef class RadialSolverSolution():
     def __init__(
             self,
             size_t num_slices,
-            tuple solve_for,
+            size_t* bc_models_ptr,
             size_t num_ytypes
             ):
 
@@ -62,12 +63,23 @@ cdef class RadialSolverSolution():
         self.complex_love_ptr = NULL
 
         # Initialize status
-        self.message = 'RadialSolverSolution has not had its status set.'
+        self._message = 'RadialSolverSolution has not had its status set.'
         self.success = False
 
         # Store number of solution types
+        cdef size_t bc_model
         self.num_ytypes = num_ytypes
-        self.ytypes = solve_for
+
+        for i in range(self.num_ytypes):
+            bc_model = bc_models_ptr[i]
+            if bc_model == 0:
+                self.ytypes[i] = "free"
+            elif bc_model == 1:
+                self.ytypes[i] = "tidal"
+            elif bc_model == 2:
+                self.ytypes[i] = "loading"
+            else:
+                raise AttributeError(f"Unknown boundary condition {bc_model}")
         
         # Store size information
         self.num_slices = num_slices
@@ -98,6 +110,11 @@ cdef class RadialSolverSolution():
         for i in range(love_array_size):
             self.complex_love_ptr[i] = NAN
 
+    @property
+    def message(self):
+        """ Return solver's message """
+        return str(self._message, 'UTF-8')
+    
     @property
     def result(self):
         """ Return result array. """
@@ -166,7 +183,7 @@ cdef class RadialSolverSolution():
         cdef bint found = False
         cdef str sol_test_name
         for i in range(self.num_ytypes):
-            sol_test_name = self.ytypes[i]
+            sol_test_name = str(self.ytypes[i], 'UTF-8')
             if sol_test_name == ytype_name:
                 requested_sol_num = i
                 found = True
@@ -203,8 +220,9 @@ cdef RadialSolverSolution cf_radial_solver(
         int* is_static_by_layer_ptr,
         int* is_incompressible_by_layer_ptr,
         double* upper_radius_by_layer_ptr,
+        size_t num_bc_models,
+        size_t* bc_models_ptr,
         unsigned int degree_l = 2,
-        tuple solve_for = None,
         bint use_kamata = False,
         unsigned char integration_method = 1,
         double integration_rtol = 1.0e-6,
@@ -219,9 +237,9 @@ cdef RadialSolverSolution cf_radial_solver(
         bint verbose = False,
         bint raise_on_fail = False
         ):
+    """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
-    Radial solver for 
-    """
+
     # General indexing
     # Indexing for: Layer | Solution | ys | slices | solutions
     cdef size_t i
@@ -288,44 +306,20 @@ cdef RadialSolverSolution cf_radial_solver(
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
     # The [5] represents the maximum number of solvers that can be invoked with a single call to radial_solver
     cdef size_t max_num_solutions = 5
-    cdef size_t num_ytypes = 1
+    cdef size_t num_ytypes = num_bc_models
     cdef str solver_name
 
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     cdef double[15] boundary_conditions
     cdef double* bc_pointer = &boundary_conditions[0]
-    for i in range(15):
-        bc_pointer[i] = NAN
-
-    if solve_for is None:
-        # Assume we are solving for tides
-        bc_pointer[0] = 0.
-        bc_pointer[1] = 0.
-        bc_pointer[2] = (2. * degree_l_dbl + 1.) / radius_planet_to_use
-        solve_for = ('tidal',)
-    else:
-        # Use user input
-        num_ytypes = len(solve_for)
-        if num_ytypes > max_num_solutions:
-            raise AttributeError(f'Unsupported number of solvers requested (max is {max_num_solutions}).')
-        
-        # Parse user input for the types of solvers that should be used.
-        for ytype_i in range(num_ytypes):
-            solver_name = solve_for[ytype_i]
-            if solver_name.lower() == 'tidal':
-                bc_pointer[ytype_i * 3 + 0] = 0.
-                bc_pointer[ytype_i * 3 + 1] = 0.
-                bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_planet_to_use
-            elif solver_name.lower() == 'loading':
-                bc_pointer[ytype_i * 3 + 0] = -(2. * degree_l_dbl + 1.) * bulk_density_to_use / 3.
-                bc_pointer[ytype_i * 3 + 1] = 0.
-                bc_pointer[ytype_i * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_planet_to_use
-            elif solver_name.lower() == 'free':
-                bc_pointer[ytype_i * 3 + 0] = 0.
-                bc_pointer[ytype_i * 3 + 1] = 0.
-                bc_pointer[ytype_i * 3 + 2] = 0.
-            else:
-                raise NotImplementedError(f'Requested solver, {solver_name}, has not been implemented.\n\tSupported solvers are: tidal, loading, free.')
+    cf_get_surface_bc(
+        bc_pointer,  # Changed parameter
+        bc_models_ptr,
+        num_ytypes,
+        radius_planet_to_use,
+        bulk_density_to_use,
+        degree_l_dbl
+        )
 
     # Integration information
     # Max step size
@@ -522,7 +516,8 @@ cdef RadialSolverSolution cf_radial_solver(
     cdef size_t num_output_ys = MAX_NUM_Y * num_ytypes
     
     # Build final output solution
-    cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, solve_for, num_ytypes)
+    cdef RadialSolverSolution solution = \
+        RadialSolverSolution(total_slices, bc_models_ptr, num_ytypes)
 
     # Get a reference pointer to solution array
     cdef double complex* solution_ptr = solution.full_solution_ptr
@@ -1077,6 +1072,7 @@ def radial_solver(
         double max_step = 0,
         bint limit_solution_to_radius = True,
         bint nondimensionalize = True,
+        bint use_prop_matrix = False,
         bint verbose = False,
         bint warning_verbose = True,
         bint raise_on_fail = False
@@ -1162,6 +1158,11 @@ def radial_solver(
     nondimensionalize : bool, default=True
         If Ture, then inputs will be non-dimensionalized before integration is performed.
         Results will be redimensionalized before being returned.
+    use_prop_matrix : bool, default=False
+        If True, RadialSolver will use a propagation matrix method rather than the default shooting method.
+        Note that many of the parameters set by this function are only applicable to the shooting method and
+        may not be passed to the propagation matrix solver.
+        See more about the prop-matrix method in `TidalPy.RadialSolver.PropMatrix`.
     verbose : bool, default=False
         If True, then additioal information will be printed to the terminal during the solution. 
     warning_verbose = bool, default=True
@@ -1203,15 +1204,6 @@ def radial_solver(
         raise AttributeError('Number of `is_incompressible_by_layer` must match number of `layer_types`.')
     if len(upper_radius_by_layer) != num_layers:
         raise AttributeError('Number of `upper_radius_by_layer` must match number of `layer_types`.')
-
-    # Check that other inputs make sense
-    if solve_for is not None:
-        if type(solve_for) != tuple:
-            raise AttributeError(
-                '`solve_for` argument must be a tuple of strings. For example:\n'
-                '   ("tidal",)  # If you just want tidal Love numbers.\n'
-                '   ("tidal", "loading")  # If you just want tidal and loading Love numbers.'
-                )
 
     # Build array of assumptions
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
@@ -1276,6 +1268,35 @@ def radial_solver(
     else:
         log.error(f"Unsupported integration method provided: {integration_method_lower}.")
         raise UnknownModelError(f"Unsupported integration method provided: {integration_method_lower}.")
+    
+    # Clean up what values the solver is solving for.
+    cdef size_t[5] bc_models
+    cdef size_t num_bc_models
+    cdef size_t* bc_models_ptr = &bc_models[0]
+    cdef str solve_for_tmp 
+
+    if solve_for is None:
+        # `solve_for` was not provided. Assume the user wants the tidal, and only the tidal, solution.
+        num_bc_models = 1
+        bc_models_ptr[0] = 1
+    else:
+        if type(solve_for) != tuple:
+            raise AttributeError(
+                '`solve_for` argument must be a tuple of strings. For example:\n'
+                '   ("tidal",)  # If you just want tidal Love numbers.\n'
+                '   ("tidal", "loading")  # If you just want tidal and loading Love numbers.'
+                )
+        num_bc_models = len(solve_for)
+        for i in range(num_bc_models):
+            solve_for_tmp = solve_for[i]
+            if solve_for_tmp == "free":
+                bc_models_ptr[i] = 0
+            elif solve_for_tmp == "tidal":
+                bc_models_ptr[i] = 1
+            elif solve_for_tmp == "loading":
+                bc_models_ptr[i] = 2
+            else:
+                raise AttributeError(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
 
     # Prepare to run
     cdef RadialSolverSolution result
@@ -1294,8 +1315,9 @@ def radial_solver(
             is_static_by_layer_ptr,
             is_incompressible_by_layer_ptr,
             upper_radius_by_layer_ptr,
+            num_bc_models,
+            bc_models_ptr,
             degree_l,
-            solve_for,
             use_kamata,
             integration_method_int,
             integration_rtol,
