@@ -1074,6 +1074,7 @@ def radial_solver(
         bint nondimensionalize = True,
         bint use_prop_matrix = False,
         bint verbose = False,
+        bint warnings = True,
         bint raise_on_fail = False
         ):
     """
@@ -1164,6 +1165,8 @@ def radial_solver(
         See more about the prop-matrix method in `TidalPy.RadialSolver.PropMatrix`.
     verbose : bool, default=False
         If True, then additioal information will be printed to the terminal during the solution. 
+    warnings : bool, default=True
+        If True, then warnings will be printed to the terminal during the solution. 
     raise_on_fail : bool, default=False
         If Ture, then the solver will raise an exception if integration was not successful. By default RadialSolver
         fails silently. 
@@ -1227,7 +1230,7 @@ def radial_solver(
         upper_radius_by_layer_ptr[i]      = upper_radius_by_layer[i]
 
         if not dynamic_liquid:
-            if (layer_type != 1) and not is_static_by_layer_ptr[i]:
+            if (layer_type == 1) and not is_static_by_layer_ptr[i]:
                 # There is at least one dynamic liquid layer
                 dynamic_liquid = True
 
@@ -1247,10 +1250,11 @@ def radial_solver(
         #    Initial work suggests that low density layers do not suffer from the same instability problems.
         # TODO: Add density or combo factor to better indicate when a solution is likely to be unstable?
         # See Issue #55
-        log.warning(
-            'Dynamic liquid layer detected in RadialSolver for a small frequency.'
-            'Results may be unstable. Extra care is advised!'
-            )
+        if warnings:
+            log.warning(
+                'Dynamic liquid layer detected in RadialSolver for a small frequency.'
+                'Results may be unstable. Extra care is advised!'
+                )
     
     # Convert integration method to int
     cdef str integration_method_lower = integration_method.lower()

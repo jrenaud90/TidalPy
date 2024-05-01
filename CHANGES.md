@@ -12,6 +12,16 @@ New Features
 * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
 * RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
 
+
+### Version 0.5.4 (2024-04-30)
+
+Fixes:
+* Fixed RadialSolver frequency warning message for dynamic liquid layers not displaying for correct layer types.
+
+Additions:
+* Added way to suppress warning messages in RadialSolver.
+  * To turn this suppression on, pass `warnings=False` to `RadialSolver.radial_solver`.
+
 ### Version 0.5.3 (2024-04-26)
 
 Fixes:
