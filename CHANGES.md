@@ -6,11 +6,17 @@ Other Major Changes
 
 Changes
 * Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
+* Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
+* Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
+  * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
 
 New Features
 * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
 * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
 * RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
+
+Dependencies
+* Bumped support for `CyRK` to v0.8.8
 
 
 ### Version 0.5.4 (2024-04-30)

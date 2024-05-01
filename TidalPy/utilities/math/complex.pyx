@@ -450,6 +450,11 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
         a_imag = loga.imag
         return cf_cexp(cf_build_dblcmplx((a_real * b), (a_imag * b)))
 
+########################################################################################################################
+# Constants
+########################################################################################################################
+cdef double complex cmplx_NAN = cf_build_dblcmplx(NAN, NAN)
+
 
 ########################################################################################################################
 # Python wrappers

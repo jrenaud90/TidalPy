@@ -166,6 +166,13 @@
     "compile_args": [],
     "link_args": []
   },
+  "RadialSolver.shooting": {
+    "name": "TidalPy.RadialSolver.shooting",
+    "sources": [["TidalPy", "RadialSolver", "shooting.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "shooting"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "RadialSolver.solver": {
     "name": "TidalPy.RadialSolver.solver",
     "sources": [["TidalPy", "RadialSolver", "solver.pyx"]],
