@@ -12,6 +12,11 @@ from libc.math cimport fabs, NAN
 from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 
+# Maximum size for array building
+cdef size_t MAX_NUM_Y      = 6
+cdef size_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
+cdef size_t MAX_NUM_SOL    = 3
+
 
 cdef class RadialSolverSolution():
 

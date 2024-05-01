@@ -9,7 +9,7 @@ TidalPy.test_mode = True
 
 
 from TidalPy.constants import G
-from TidalPy.RadialSolver.PropMatrix.solid_matrix import fundamental_matrix
+from TidalPy.RadialSolver.matrix_types.solid_matrix import fundamental_matrix
 
 file_path = pathlib.Path(__file__).parent.resolve()
 
