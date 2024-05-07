@@ -178,9 +178,9 @@ radial_solver_solution.love
 
 # There are also helpful shortcuts for each individual Love number.
 # These are each np.ndarrays but of only size 1 if `num_solve_for==1`
-radial_solver_solution.k
-radial_solver_solution.h
-radial_solver_solution.l
+radial_solver_solution.k[0]
+radial_solver_solution.h[0]
+radial_solver_solution.l[0]
 ```
 
 ### Common Reasons for Integration Failure:
