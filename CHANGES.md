@@ -4,6 +4,8 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+Structures
+* Added new `PhysicalStructure` cython class which can be used to calculated spherically symmetric properties in efficient OOP code.
 
 ### Version 0.5.4 (2024-04-30)
 

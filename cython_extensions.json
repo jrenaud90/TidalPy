@@ -158,5 +158,12 @@
     "include_dirs": [["TidalPy", "RadialSolver", "solver"]],
     "compile_args": [],
     "link_args": []
+  },
+  "structures.cystructures.physical": {
+    "name": "TidalPy.cystructures.physical",
+    "sources": [["TidalPy", "cystructures", "physical.pyx"]],
+    "include_dirs": [["TidalPy", "cystructures"]],
+    "compile_args": [],
+    "link_args": []
   }
 }
