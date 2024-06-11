@@ -93,10 +93,10 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
 
     def vectorize_frequency(
             self,
-            double[:] frequency_view,
+            double[::1] frequency_view,
             double modulus,
             double viscosity,
-            double complex[:] output_view,
+            double complex[::1] output_view,
             ):
 
         cdef Py_ssize_t n, n2
@@ -111,9 +111,9 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
     def vectorize_modulus_viscosity(
             self,
             double frequency,
-            double[:] modulus_view,
-            double[:] viscosity_view,
-            double complex[:] output_view,
+            double[::1] modulus_view,
+            double[::1] viscosity_view,
+            double complex[::1] output_view,
             ):
 
         cdef Py_ssize_t n, n2, n3

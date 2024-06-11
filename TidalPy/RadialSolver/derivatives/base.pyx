@@ -10,7 +10,7 @@ cdef class RadialSolverBase(CySolver):
     def __init__(
             self,
             # RadialSolverBase Inputs
-            double frequency,
+            double frequency_to_use,
             unsigned int degree_l,
             double G_to_use,
 
@@ -33,7 +33,7 @@ cdef class RadialSolverBase(CySolver):
         self.shear_modulus_array_ptr = NULL
 
         # Load in floats and ints
-        self.frequency  = frequency
+        self.frequency_to_use  = frequency_to_use
         self.degree_l   = degree_l
         self.G_to_use   = G_to_use
         self.grav_coeff = 4. * pi * self.G_to_use

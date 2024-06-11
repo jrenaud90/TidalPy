@@ -14,6 +14,9 @@ To learn more about this method please review the literature cited in the refere
 ## `TidalPy.RadialSolver.radial_solver` Function
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module can be used with the following arguments.
 
+Note that all arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
+If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to the rheology methods.
+
 ```python
 from TidalPy.RadialSolver import radial_solver
 radial_solver_solution = radial_solver(
@@ -50,15 +53,19 @@ radial_solver_solution = radial_solver(
     # Options:
     #  - 'solid'
     #  - 'liquid'
+    # Example: layer_types = ("liquid", "solid", "liquid")
     
     is_static_by_layer,
     # Is each layer using the static tidal assumption (type: tuple of bools)
+    # Example: is_static_by_layer = (True, False, True)
     
     is_incompressible_by_layer,
     # Is each layer using the incompressible tidal assumption (type: tuple of bools)
+    # Example: is_incompreeible_by_layer = (False, False, False)
     
     upper_radius_by_layer,
     # Upper radius of each layer [m] (type: tuple of doubles)
+    # Example: upper_radius_by_layer = (1.0e3, 4.0e5, 2.0e6)
     
     # # # Below are additional, optional arguments. The default values are shown after the "=". # # #
 
@@ -66,7 +73,9 @@ radial_solver_solution = radial_solver(
     # Harmonic degree used. 
     # Note that the stability of the solution gets worse with higher-l. You may need to increase the relative tolerance
     # or use simpler layer assumptions to get a successful solution. 
-    # It particularly starts to break down for l > 10.
+    # It particularly starts to break down for l > 10 but stable solutions exist up to l=40.
+    # For higher degrees, it is recommended to start integration higher in the planet. I.,e. above the
+    #  core-mantle-boundary (if applicable).
     
     solve_for = None,
     # What to solve for (type: tuple[str, ...])
@@ -75,9 +84,9 @@ radial_solver_solution = radial_solver(
     #  - 'loading'  Loading Love numbers
     #  - 'free'     Numbers for a free surface condition
     # You must provide these as a tuple of strings, even if you are only solving for one thing at a time. 
-    # For example: solve_for = ('tidal',)  <-- Note the required comma.
+    # Example: solve_for = ('tidal',)  <-- Note the required comma.
     # It is more computationally efficient to solve for multiple Love number types at same time if you need more.
-    # For example: solve_for = ('tidal', 'loading')
+    # Example: solve_for = ('tidal', 'loading')
     # The number of items passed to this variable sets the size of `num_solve_for` discussed later in this document.
     
     use_kamata = False,
@@ -104,6 +113,8 @@ radial_solver_solution = radial_solver(
     max_num_steps = 500_000,
     # Maximum number of steps allowed for each integration (note that multiple integrations can occur depending on the
     # number and type of layers).
+    # Reccomendation for MCMC runs: if you are finding your walkers traveling to bad parameter spaces that are leading
+    # to failed solutions, try setting this lower to at least "fail fast" and speed up your ensemble.
     
     expected_size = 500,
     # Expected number of steps needed to complete adaptive radial integration. It is better to overshoot this.
@@ -124,6 +135,11 @@ radial_solver_solution = radial_solver(
     
     verbose = False,
     # If True, then additional information will be printed to the console at a small performance hit.
+
+    warnings = True
+    # If True, then warning messages will be displayed. Particularly if you are using a dynamic liquid layer with
+    # a small forcing frequency. If you have run tests and confirmed that your solutions are stable then set this
+    # to False to avoid the spam of warnings.
     
     raise_on_fail = False
     # If True, then any exceptions raised during integration will stop integration. Otherwise the integration will
@@ -162,9 +178,9 @@ radial_solver_solution.love
 
 # There are also helpful shortcuts for each individual Love number.
 # These are each np.ndarrays but of only size 1 if `num_solve_for==1`
-radial_solver_solution.k
-radial_solver_solution.h
-radial_solver_solution.l
+radial_solver_solution.k[0]
+radial_solver_solution.h[0]
+radial_solver_solution.l[0]
 ```
 
 ### Common Reasons for Integration Failure:
@@ -189,6 +205,12 @@ In the unlikely scenario where the integration crashes with no warnings or excep
     - During the rerun, keep an eye on system memory usage to ensure it is not being used at 100%.
 - If crash does reoccur:
     - Ensure all arrays listed above are the same size. If any 
+
+#### NaNs are returned
+Sometimes the integration is successful but returns NaN results for all the Love Numbers. Try the following:
+- Check the upper radius of each layer. NaNs may result if the specified upper radius is lower than the upper radius specified by the input radius array
+
+
 ## `RadialSolverSolution` Class
 
 ### Love Numbers
