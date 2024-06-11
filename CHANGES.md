@@ -4,6 +4,8 @@
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
 
+Fixes:
+* Missing Cython compile arguments in `nondimensional.pyx`.
 
 ### Version 0.5.4 (2024-04-30)
 

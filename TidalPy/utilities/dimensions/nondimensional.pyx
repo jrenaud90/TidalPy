@@ -1,3 +1,5 @@
+# distutils: language = c
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functionality to non-dimensionalize common variables used for multi-layer tidal calculations.
 
 The scheme is based on that proposed by Martens16 (around page 99)
