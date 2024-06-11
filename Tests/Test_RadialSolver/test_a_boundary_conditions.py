@@ -35,7 +35,7 @@ def test_get_surface_bc(degree_l):
 
     # Test with 1 model
     for model_type in (0, 1, 2):
-        bc_models = np.asarray(model_type, dtype=np.uint)
+        bc_models = np.asarray((model_type,), dtype=np.int_)
         boundary_condition_array = get_surface_bc(
             bc_models,
             radius,
@@ -48,7 +48,7 @@ def test_get_surface_bc(degree_l):
     
     # Test with 2 models
     for model_pair in ((0, 0), (0, 1), (1, 0), (1, 1,), (1, 2), (2, 1), (2, 2)):
-        bc_models = np.asarray(model_pair, dtype=np.uint)
+        bc_models = np.asarray(model_pair, dtype=np.int_)
         boundary_condition_array = get_surface_bc(
             bc_models,
             radius,
@@ -56,11 +56,11 @@ def test_get_surface_bc(degree_l):
             degree_l,
             )
         for i, model_type in enumerate(model_pair):
-            assert check_val(boundary_condition_array[i:i+3], model_type=model_type)
+            assert check_val(boundary_condition_array[3*i:(3*i)+3], model_type=model_type)
     
     # Test with 3 models
     for model_pair in ((0, 0, 0), (0, 1, 2), (1, 1, 1), (2, 2, 2), (2, 1, 0)):
-        bc_models = np.asarray(model_pair, dtype=np.uint)
+        bc_models = np.asarray(model_pair, dtype=np.int_)
         boundary_condition_array = get_surface_bc(
             bc_models,
             radius,
@@ -68,4 +68,4 @@ def test_get_surface_bc(degree_l):
             degree_l,
             )
         for i, model_type in enumerate(model_pair):
-            assert check_val(boundary_condition_array[i:i+3], model_type=model_type)
+            assert check_val(boundary_condition_array[3*i:(3*i)+3], model_type=model_type)

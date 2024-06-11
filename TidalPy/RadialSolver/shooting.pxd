@@ -1,4 +1,4 @@
-from TidalPy.RadialSolver.solver cimport RadialSolverSolution
+from TidalPy.RadialSolver.solutions cimport RadialSolverSolution
 
 cdef RadialSolverSolution cf_shooting_solver(
     size_t total_slices,
@@ -15,7 +15,7 @@ cdef RadialSolverSolution cf_shooting_solver(
     int* is_incompressible_by_layer_ptr,
     double* upper_radius_by_layer_ptr,
     size_t num_bc_models,
-    size_t* bc_models_ptr,
+    int* bc_models_ptr,
     unsigned int degree_l = *,
     bint use_kamata = *,
     unsigned char integration_method = *,

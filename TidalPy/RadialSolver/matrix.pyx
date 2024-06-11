@@ -3,7 +3,7 @@
 
 from libc.math cimport NAN, isnan
 from libc.stdio cimport printf
-from libc.stdlib cimport exit
+from libc.stdlib cimport exit, EXIT_FAILURE
 
 from scipy.linalg.cython_lapack cimport zgesv
 from CyRK.utils.utils cimport allocate_mem, free_mem
@@ -33,7 +33,7 @@ cdef RadialSolverSolution cf_matrix_propagate(
             # int* is_incompressible_by_layer_ptr,
             # double* upper_radius_by_layer_ptr,
             size_t num_bc_models,
-            size_t* bc_models_ptr,
+            int* bc_models_ptr,
             unsigned int degree_l = 2,
             unsigned char core_condition = 0,
             bint nondimensionalize = True,
@@ -179,8 +179,8 @@ cdef RadialSolverSolution cf_matrix_propagate(
                     else:
                         propagation_mtx_ptr[j * 6 + k] = cf_build_dblcmplx(0., 0.)
         else:
-            printf("Unknown starting core conditions encountered in `cf_matrix_propagate`: %d (acceptible values: 0, 1, 2, 3)", core_condition)
-            exit(-1)
+            printf("ModelError:: Unknown starting core conditions encountered in `cf_matrix_propagate`: %d (acceptible values: 0, 1, 2, 3)", core_condition)
+            exit(EXIT_FAILURE)
 
         # Step through the planet's shells and build the propagation matrix
         cdef double complex temp_cmplx
@@ -291,7 +291,8 @@ cdef RadialSolverSolution cf_matrix_propagate(
         
         # Build solution
         cdef RadialSolverSolution solution
-        solution = RadialSolverSolution(total_slices, bc_models_ptr, num_bc_models)
+        solution = RadialSolverSolution(total_slices, num_bc_models)
+        solution.set_models(bc_models_ptr)
         cdef double complex* solution_ptr = solution.full_solution_ptr
 
 # slice_i_shifted * num_output_ys + (lhs_y_index + 4)

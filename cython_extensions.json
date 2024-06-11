@@ -61,6 +61,13 @@
     "compile_args": [],
     "link_args": []
   },
+  "RadialSolver.constants": {
+    "name": "TidalPy.RadialSolver.constants",
+    "sources": [["TidalPy", "RadialSolver", "constants.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver"]],
+    "compile_args": [],
+    "link_args": []
+  },
   "RadialSolver.love": {
     "name": "TidalPy.RadialSolver.love",
     "sources": [["TidalPy", "RadialSolver", "love.pyx"]],

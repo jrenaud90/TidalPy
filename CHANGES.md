@@ -9,6 +9,8 @@ Changes
 * Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
 * Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
   * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
+* Decoupled radial solver from shooting method.
+  * Moved shooting method, constants, and radial solver solution class to a new files in `TidalPy.RadialSolver`.
 
 New Features
 * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.

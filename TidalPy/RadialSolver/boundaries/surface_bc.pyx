@@ -11,7 +11,7 @@ from libc.math cimport NAN
 
 cdef void cf_get_surface_bc(
     double* boundary_conditions_ptr,
-    size_t* bc_model_ptr,
+    int* bc_model_ptr,
     size_t num_bcs,
     double radius_to_use,
     double bulk_density_to_use,
@@ -63,13 +63,13 @@ cdef void cf_get_surface_bc(
 
 
 def get_surface_bc(
-    size_t[::1] bc_model_view,
+    int[::1] bc_model_view,
     double radius_to_use,
     double bulk_density_to_use,
     double degree_l_dbl,
     ):
 
-    cdef size_t* bc_model_ptr = &bc_model_view[0]
+    cdef int* bc_model_ptr = &bc_model_view[0]
     cdef size_t num_bcs = bc_model_view.size
 
     # Build output array

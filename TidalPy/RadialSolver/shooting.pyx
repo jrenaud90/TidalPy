@@ -14,10 +14,11 @@ from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_redimensionalize_physicals,
     cf_redimensionalize_radial_functions
     )
-from TidalPy.utilities.constants_x cimport G, cmplx_NAN
+from TidalPy.utilities.constants_x cimport G
+from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
 from TidalPy.RadialSolver.love cimport find_love_cf
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
-from TidalPy.RadialSolver.solutions cimport cf_find_num_solutions
+from TidalPy.RadialSolver.solutions cimport cf_find_num_shooting_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
 from TidalPy.RadialSolver.interfaces.reversed cimport cf_top_to_bottom_interface_bc
 from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
@@ -25,11 +26,6 @@ from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
 from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc
 from TidalPy.RadialSolver.boundaries.surface_bc cimport cf_get_surface_bc
 from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
-
-# Maximum size for array building
-cdef size_t MAX_NUM_Y      = 6
-cdef size_t MAX_NUM_Y_REAL = 2 * MAX_NUM_Y
-cdef size_t MAX_NUM_SOL    = 3
 
 
 cdef RadialSolverSolution cf_shooting_solver(
@@ -47,7 +43,7 @@ cdef RadialSolverSolution cf_shooting_solver(
         int* is_incompressible_by_layer_ptr,
         double* upper_radius_by_layer_ptr,
         size_t num_bc_models,
-        size_t* bc_models_ptr,
+        int* bc_models_ptr,
         unsigned int degree_l = 2,
         bint use_kamata = False,
         unsigned char integration_method = 1,
@@ -215,7 +211,7 @@ cdef RadialSolverSolution cf_shooting_solver(
             layer_upper_radius = layer_upper_radius / radius_planet
 
         # Find number of solutions based on this layer's assumptions
-        num_sols = cf_find_num_solutions(
+        num_sols = cf_find_num_shooting_solutions(
             layer_type,
             layer_is_static,
             layer_is_incomp
@@ -343,7 +339,8 @@ cdef RadialSolverSolution cf_shooting_solver(
     
     # Build final output solution
     cdef RadialSolverSolution solution = \
-        RadialSolverSolution(total_slices, bc_models_ptr, num_ytypes)
+        RadialSolverSolution(total_slices, num_ytypes)
+    solution.set_models(bc_models_ptr)
 
     # Get a reference pointer to solution array
     cdef double complex* solution_ptr = solution.full_solution_ptr
@@ -865,9 +862,9 @@ cdef RadialSolverSolution cf_shooting_solver(
             find_love_cf(&solution.complex_love_ptr[ytype_i * 3], surface_solutions_ptr, surface_gravity)
 
         solution.success = True
-        solution.message = 'RadialSolver completed without any noted issues.'
+        solution._message = 'RadialSolver completed without any noted issues.'
     else:
         solution.success = False
-        solution.message = feedback_str
+        solution.set_message(feedback_str)
 
     return solution
