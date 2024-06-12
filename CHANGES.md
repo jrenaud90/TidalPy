@@ -7,6 +7,9 @@
 Dependencies:
 * Added support for CyRK v0.9.0
 
+Fixes:
+* Missing Cython compile arguments in `nondimensional.pyx`.
+
 ### Version 0.5.4 (2024-04-30)
 
 Fixes:
