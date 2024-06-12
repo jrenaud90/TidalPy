@@ -1,8 +1,8 @@
 # TidalPy Major Change Log
 
-### Version 0.6.0 (TBD)
-Other Major Changes
-* Remove support for the older non-cythonized `radial_solver` module.
+### Version 0.6.0 *PLANNED*
+* Other Major Changes
+  * Remove support for the older non-cythonized `radial_solver` module.
 
 Changes
 * Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
@@ -18,7 +18,7 @@ New Features
 * RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
 
 Dependencies
-* Bumped support for `CyRK` to v0.8.8
+* Added support for CyRK v0.9.0
 
 Fixes:
 * Missing Cython compile arguments in `nondimensional.pyx`.
