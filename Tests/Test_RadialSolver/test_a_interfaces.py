@@ -5,7 +5,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode = True
 
-from TidalPy.RadialSolver.solutions import find_num_solutions
+from TidalPy.RadialSolver.solutions import find_num_shooting_solutions
 from TidalPy.RadialSolver.interfaces.interfaces import solve_upper_y_at_interface
 
 tpy_0p4_results = {
@@ -111,9 +111,9 @@ def test_interface_driver(lower_layer_type, lower_is_static, upper_layer_type, u
     if lower_is_incompressible or upper_is_incompressible:
         pytest.skip('Currently the RadialSolver.interfaces does not properly use incompressibility so there are no tests.')
 
-    num_sols_lower = find_num_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
+    num_sols_lower = find_num_shooting_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
     num_ys_lower   = num_sols_lower * 2
-    num_sols_upper = find_num_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
+    num_sols_upper = find_num_shooting_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
     num_ys_upper   = num_sols_upper * 2
 
     # Determine which lower layer y solution to use
@@ -158,9 +158,9 @@ def test_interface_accuracy(lower_layer_type, lower_is_static, upper_layer_type,
         pytest.skip(f'Combination {(lower_layer_type, lower_is_static, upper_layer_type, upper_is_static)} not found (or not implemented) in pre-calculated TidalPy v0.4 results.')
 
     else:
-        num_sols_lower = find_num_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
+        num_sols_lower = find_num_shooting_solutions(lower_layer_type, lower_is_static, lower_is_incompressible)
         num_ys_lower   = num_sols_lower * 2
-        num_sols_upper = find_num_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
+        num_sols_upper = find_num_shooting_solutions(upper_layer_type, upper_is_static, upper_is_incompressible)
         num_ys_upper   = num_sols_upper * 2
 
         # Determine which lower layer y solution to use

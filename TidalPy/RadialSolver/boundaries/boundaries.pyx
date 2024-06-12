@@ -113,7 +113,7 @@ cdef void cf_apply_surface_bc(
 
     # Find the solution to the linear equation at the surface surface_matrix @ constant_vector = bc
     # ZGESV computes the solution to system of linear equations A * X = B for GE matrices
-    # See https://www.netlib.org/lapack/explore-html/d6/d10/group__complex16_g_esolve_ga531713dfc62bc5df387b7bb486a9deeb.html#ga531713dfc62bc5df387b7bb486a9deeb
+    # See https://www.netlib.org/lapack/explore-html/d8/da6/group__gesv_ga0850dc117a6c7ec3cb64905d5de1cd23.html#ga0850dc117a6c7ec3cb64905d5de1cd23
     zgesv(
         num_sols_int_ptr,
         lapack_nrhs_ptr,
