@@ -1,8 +1,11 @@
 # TidalPy Major Change Log
 
-### Version 0.6.0 *PLANNED*
+### Version 0.6.0 (TBD)
 * Other Major Changes
   * Remove support for the older non-cythonized `radial_solver` module.
+
+Dependencies:
+* Added support for CyRK v0.9.0
 
 Fixes:
 * Missing Cython compile arguments in `nondimensional.pyx`.
