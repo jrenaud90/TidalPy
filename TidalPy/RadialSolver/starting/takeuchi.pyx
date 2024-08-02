@@ -1,8 +1,7 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 from libc.math cimport pi
 
-# We need to use a custom cf_csqrt function because Windows does not play nice with libc.complex cython library.
 from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.RadialSolver.starting.common cimport cf_takeuchi_phi_psi
 

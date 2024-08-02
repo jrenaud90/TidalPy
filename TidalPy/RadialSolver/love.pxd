@@ -1,5 +1,6 @@
-cdef void find_love_cf(
-    double complex* complex_love_numbers_ptr,
-    double complex* surface_solutions_ptr,
-    double surface_gravity
-    ) noexcept nogil
+cdef extern from "love_.cpp" nogil:
+
+    void find_love_cf(
+        double* complex_love_numbers_ptr,
+        double* surface_solutions_ptr,
+        double surface_gravity)

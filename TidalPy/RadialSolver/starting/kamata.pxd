@@ -1,5 +1,3 @@
-
-
 cdef void cf_kamata_solid_dynamic_compressible(
     double frequency,
     double radius,

@@ -1,27 +1,58 @@
-cdef class RadialSolverSolution():
+import numpy as np
+cimport numpy as np
+np.import_array()
 
-    cdef public bint success
-    cdef char* _message
-    cdef bytes _message_bytes
 
-    # Result structure information
-    cdef size_t num_ys
+from libcpp cimport bool as cpp_bool
+
+from CyRK.utils.vector cimport vector
+
+cdef extern from "solutions_.cpp" nogil:
+    
+    const int MAX_NUM_Y
+    const int MAX_NUM_Y_REAL
+
+    cdef cppclass RadialSolutionStorageCC:
+        RadialSolutionStorageCC()
+        RadialSolutionStorageCC(
+            size_t num_slices,
+            char num_ytypes
+            )
+        size_t num_slices
+        size_t total_size
+        char[256] message
+        char* message_ptr
+        cpp_bool success
+        char num_ytypes
+
+        vector[double] complex_love_vec
+        double* complex_love_ptr
+        vector[double] full_solution_vec
+        double* full_solution_ptr
+
+        void find_love(double surface_gravity) noexcept nogil
+        set_message(const char* new_message) noexcept nogil
+
+
+cdef class RadialSolverSolution:
+
+    # Size and state information
     cdef size_t num_slices
-    cdef size_t total_size
-    cdef size_t num_ytypes
+    cdef char num_ytypes
+    cdef cpp_bool ytype_names_set
     cdef char* ytypes[5]
-    cdef bint ytypes_set
+
+    # Main storage container
+    cdef RadialSolutionStorageCC* solution_storage_ptr
 
     # Result pointers and data
-    cdef double complex* full_solution_ptr
-    cdef double complex[::1] full_solution_view
+    cdef np.ndarray full_solution_arr
 
     # Love number information
-    cdef double complex* complex_love_ptr
-    cdef double complex[::1] complex_love_view
+    cdef np.ndarray complex_love_arr
 
-    cdef void set_models(self, int* bc_models_ptr) noexcept nogil
-    cdef void set_message(self, str new_message) noexcept
+    cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil
+
 
 cdef size_t cf_find_num_shooting_solutions(
     int layer_type,

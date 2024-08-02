@@ -1,154 +1,158 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport NAN
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.stdio cimport printf
 
 import numpy as np
 cimport numpy as np
 
-from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
-from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
+from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 
 
-cdef class RadialSolverSolution():
+cdef class RadialSolverSolution:
 
     def __init__(
             self,
             size_t num_slices,
-            size_t num_ytypes
+            char num_ytypes
             ):
 
-        # loop indicies
-        cdef size_t i
-        cdef size_t love_array_size
-
-        # Initialize pointers
-        self.full_solution_ptr = NULL
-        self.complex_love_ptr = NULL
-
-        # Initialize status
-        self._message = 'RadialSolverSolution has not had its status set.'
-        self.success = False
-
-        # Store number of solution types
-        self.num_ytypes = num_ytypes
-        self.ytypes_set = False
-        
-        # Store size information
+        # Set state information
+        self.ytype_names_set = False
         self.num_slices = num_slices
-        self.total_size = MAX_NUM_Y * self.num_slices * self.num_ytypes
+        self.num_ytypes = num_ytypes
 
-        # Have the radial solver take control of the full solution memory
-        self.full_solution_ptr = <double complex*> allocate_mem(
-            self.total_size * sizeof(double complex),
-            'full_solution_ptr (RadialSolverSolution; init)'
-            )
-        if not (self.full_solution_ptr is NULL):
-            self.full_solution_view = <double complex[:self.total_size]> self.full_solution_ptr
-        
-        # Set all values of the solution array to NANs. This ensures that if there is a problem with the solver then
-        #  the solutions will be defined (but nan).
-        for i in range(self.total_size):
-            self.full_solution_ptr[i] = NAN
+        # Create C++ instance
+        self.solution_storage_ptr = new RadialSolutionStorageCC(self.num_slices, self.num_ytypes)
+
+        # The RadialSolutionStorage class has full control of memory. This class simply wraps it.
+        cdef np.npy_intp[2] shape   = [num_slices, num_ytypes * MAX_NUM_Y]
+        cdef np.npy_intp* shape_ptr = &shape[0]
+        cdef np.npy_intp ndim       = 2
+
+        # `solution_storage_ptr.full_solution_ptr` is a double pointer but it is really storing double complex data
+        # ordered by y0_real, y0_imag, y1_real, y1_image, ... so we can safely convert it to a complex128 np.ndarray
+        if not (self.solution_storage_ptr.full_solution_ptr is NULL):
+            self.full_solution_arr = np.PyArray_SimpleNewFromData(
+                ndim,
+                shape_ptr,
+                np.NPY_COMPLEX128,
+                self.solution_storage_ptr.full_solution_ptr)
         
         # Initialize Love numbers (3 love numbers for each requested y-type)
         # Love numbers are stored (k, h, l)_ytype0, (k, h, l)_ytype1, (k, h, l)_ytype2, ...
-        love_array_size = 3 * self.num_ytypes
-        self.complex_love_ptr = <double complex*> allocate_mem(
-            love_array_size * sizeof(double complex),
-            'complex_love_ptr (RadialSolverSolution; init)'
-            )
-        if not (self.complex_love_ptr is NULL):
-            self.complex_love_view = <double complex[:love_array_size]> self.complex_love_ptr
-        for i in range(love_array_size):
-            self.complex_love_ptr[i] = NAN
+        # If there is only 1 ytype then return a 1-D array, otherwise return a 2D one where the first index is by y-type
+        if num_ytypes == 1:
+            shape_ptr[0] = 3
+            shape_ptr[1] = 0
+            ndim = 1
+        else:
+            shape_ptr[0] = num_ytypes
+            shape_ptr[1] = 3
+            ndim = 2
 
-    cdef void set_models(self, int* bc_models_ptr) noexcept nogil:
+        # Same note as above, `solution_storage_ptr.complex_love_ptr` is a double pointer that we are converting to a
+        # complex128 np.ndarray.
+        if not (self.solution_storage_ptr.complex_love_ptr is NULL):
+            self.complex_love_arr = np.PyArray_SimpleNewFromData(
+                ndim,
+                shape_ptr,
+                np.NPY_COMPLEX128,
+                self.solution_storage_ptr.complex_love_ptr)
+
+    cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil:
         # Unfortunately this must be done outside of __init__ because the argument is a pointer and python interpretor
         # is used during __init__ and it does not like pointers.
 
         # Find solution types
+        cdef char ytype_i
         cdef int bc_model
-        for i in range(self.num_ytypes):
-            bc_model = bc_models_ptr[i]
+        for ytype_i in range(self.num_ytypes):
+            bc_model = bc_models_ptr[ytype_i]
             if bc_model == 0:
-                self.ytypes[i] = "free"
+                self.ytypes[ytype_i] = "free"
             elif bc_model == 1:
-                self.ytypes[i] = "tidal"
+                self.ytypes[ytype_i] = "tidal"
             elif bc_model == 2:
-                self.ytypes[i] = "loading"
+                self.ytypes[ytype_i] = "loading"
             else:
                 printf("AttributeError:: Unknown boundary condition")
                 exit(EXIT_FAILURE)
-        self.ytypes_set = True
+        self.ytype_names_set = True
 
-    cdef void set_message(self, str new_message) noexcept:
-        self._message_bytes = new_message.encode('utf-8') + b'\x00'
-        self._message = self._message_bytes
+    def __dealloc__(self):
+
+        # Release the heap allocated storage
+        del self.solution_storage_ptr
 
     @property
     def message(self):
         """ Return solver's message """
-        return str(self._message, 'UTF-8')
+        return str(self.solution_storage_ptr.message_ptr, 'UTF-8')
     
+    @property
+    def success(self):
+        """ Return solver's message """
+        return self.solution_storage_ptr.success
+
     @property
     def result(self):
         """ Return result array. """
 
-        if self.success and self.ytypes_set:
-            return np.ascontiguousarray(
-                self.full_solution_view,
-                dtype=np.complex128
-                ).reshape((self.num_slices, self.num_ytypes * MAX_NUM_Y)).T
+        if self.solution_storage_ptr.success:
+            # TODO: Optimize solution storage so that transpose is not required?
+            return self.full_solution_arr.T
         else:
             return None
-        
+
     @property
     def love(self):
         """ Return all complex love numbers. """
-        if self.success and self.ytypes_set:
-            return np.ascontiguousarray(
-                self.complex_love_view,
-                dtype=np.complex128
-            ).reshape((self.num_ytypes, 3))
+        if self.solution_storage_ptr.success:
+            return self.complex_love_arr
         else:
             return None
 
     @property
     def k(self):
         """ Tidal Love number k. """
-        if self.success and self.ytypes_set:
-            return np.ascontiguousarray(
-                self.complex_love_view[0::3],
-                dtype=np.complex128
-            )
+        if self.success:
+            if self.num_ytypes == 1:
+                # 1D Love
+                return self.complex_love_arr[0]
+            else:
+                # 2D Slice skipping other Love Numbers.
+                return self.complex_love_arr[0::3]
         else:
             return None
 
     @property
     def h(self):
         """ Tidal Love number h. """
-        if self.success and self.ytypes_set:
-            return np.ascontiguousarray(
-                self.complex_love_view[1::3],
-                dtype=np.complex128
-            )
+        if self.success:
+            if self.num_ytypes == 1:
+                # 1D Love
+                return self.complex_love_arr[1]
+            else:
+                # 2D Slice skipping other Love Numbers.
+                return self.complex_love_arr[1::3]
         else:
             return None
     
     @property
     def l(self):
         """ Tidal Shida number l. """
-        if self.success and self.ytypes_set:
-            return np.ascontiguousarray(
-                self.complex_love_view[2::3],
-                dtype=np.complex128
-            )
+        if self.success:
+            if self.num_ytypes == 1:
+                # 1D Love
+                return self.complex_love_arr[2]
+            else:
+                # 2D Slice skipping other Love Numbers.
+                return self.complex_love_arr[2::3]
         else:
             return None
-    
+
     def __len__(self):
         """Return number of solution types."""
         return <Py_ssize_t>self.num_ytypes
@@ -156,32 +160,24 @@ cdef class RadialSolverSolution():
     def __getitem__(self, str ytype_name):
         """Get a specific solution type array."""
         
-        cdef size_t i
-        cdef size_t requested_sol_num = 0
-        cdef bint found = False
+        cdef char ytype_i
+        cdef char requested_sol_num = 0
+        cdef cpp_bool found = False
         cdef str sol_test_name
-        for i in range(self.num_ytypes):
-            sol_test_name = str(self.ytypes[i], 'UTF-8')
-            if sol_test_name == ytype_name:
-                requested_sol_num = i
-                found = True
-                break
-        if not found:
-            raise AttributeError('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
-        
-        # Slice the result and return only the requested solution type.
-        if self.success and self.ytypes_set:
+        if self.ytype_names_set and self.solution_storage_ptr.success:
+            for ytype_i in range(self.num_ytypes):
+                sol_test_name = str(self.ytypes[ytype_i], 'UTF-8')
+                if sol_test_name == ytype_name:
+                    requested_sol_num = ytype_i
+                    found = True
+                    break
+            if not found:
+                raise AttributeError('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
+            
+            # Slice the result and return only the requested solution type.
             return self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)]
         else:
             return None
-
-    def __dealloc__(self):
-
-        # The RadialSolverSolution class has full control of the solution so it is responsible for releasing its memory.
-        if not (self.full_solution_ptr is NULL):
-            free_mem(self.full_solution_ptr)
-        if not (self.complex_love_ptr is NULL):
-            free_mem(self.complex_love_ptr)
 
 
 cdef size_t cf_find_num_shooting_solutions(

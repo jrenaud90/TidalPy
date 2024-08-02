@@ -2,6 +2,7 @@ from libc.math cimport NAN, INFINITY
 from libc.float cimport DBL_MAX, DBL_MIN, DBL_MANT_DIG
 
 cdef double complex cmplx_NAN
+cdef double complex cmplx_zero
 cdef double SQRT2
 cdef double LOGE2
 cdef double SQRT2_INV

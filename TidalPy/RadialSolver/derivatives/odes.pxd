@@ -43,7 +43,8 @@ cdef RadialSolverBase cf_build_solver(
     double G_to_use,
 
     # Regular CySolver Inputs
-    (double, double) t_span,
+    double t_start,
+    double t_end,
     double* y0_ptr,
     double* rtols,
     double* atols,

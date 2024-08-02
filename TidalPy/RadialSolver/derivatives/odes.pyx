@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from CyRK.cy.common cimport MAX_STEP, EPS_100
@@ -47,7 +47,7 @@ cdef class SolidDynamicCompressible(RadialSolverBase):
 
         # Convert compressibility parameters (the first lame parameter can be complex)
         cdef double complex lame
-        lame = (<double complex> self.bulk_modulus - (2. / 3.) * self.shear_modulus)
+        lame = (self.bulk_modulus - (2. / 3.) * self.shear_modulus)
 
         # Optimizations
         cdef double r_inverse, density_gravity, dynamic_term, grav_term
@@ -265,7 +265,7 @@ cdef class SolidStaticCompressible(RadialSolverBase):
 
         # Convert compressibility parameters (the first lame parameter can be complex)
         cdef double complex lame
-        lame = (<double complex>self.bulk_modulus - (2. / 3.) * self.shear_modulus)
+        lame = (self.bulk_modulus - (2. / 3.) * self.shear_modulus)
 
         # Optimizations
         cdef double r_inverse, density_gravity, grav_term
@@ -735,7 +735,8 @@ cdef RadialSolverBase cf_build_solver(
         double G_to_use,
 
         # Regular CySolver Inputs
-        (double, double) t_span,
+        double t_start,
+        double t_end,
         double* y0_ptr,
         double* atols_ptr,
         double* rtols_ptr,
@@ -763,7 +764,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -776,7 +778,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -790,7 +793,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -803,7 +807,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -819,7 +824,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -832,7 +838,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -846,7 +853,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
@@ -859,7 +867,8 @@ cdef RadialSolverBase cf_build_solver(
                     degree_l,
                     G_to_use,
                     y0_view,
-                    t_span,
+                    t_start,
+                    t_end,
                     rk_method=rk_method,
                     max_step=max_step,
                     max_num_steps=max_num_steps,
