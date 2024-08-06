@@ -12,7 +12,7 @@
     "include_dirs": [["TidalPy", "utilities"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
   "utilities.conversions": {
     "name": "TidalPy.utilities.conversions.conversions_x",
@@ -54,21 +54,13 @@
     "link_args": [],
     "is_cpp": false
   },
-  "rheology.common": {
-    "name": "TidalPy.rheology.base",
-    "sources": [["TidalPy", "rheology", "base.pyx"]],
-    "include_dirs": [["TidalPy", "rheology", "base"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": false
-  },
   "rheology.models": {
     "name": "TidalPy.rheology.models",
     "sources": [["TidalPy", "rheology", "models.pyx"]],
-    "include_dirs": [["TidalPy", "rheology", "models"]],
+    "include_dirs": [["TidalPy", "rheology", "models"], ["TidalPy", "utilities"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
   "RadialSolver.constants": {
     "name": "TidalPy.RadialSolver.constants",
@@ -86,18 +78,42 @@
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.matrix_types.solid_matrix": {
-    "name": "TidalPy.RadialSolver.matrix_types.solid_matrix",
-    "sources": [["TidalPy", "RadialSolver", "matrix_types", "solid_matrix.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "matrix_types"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
   "RadialSolver.solutions": {
     "name": "TidalPy.RadialSolver.solutions",
     "sources": [["TidalPy", "RadialSolver", "solutions.pyx"]],
     "include_dirs": [["TidalPy", "RadialSolver"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "RadialSolver.derivatives.common": {
+    "name": "TidalPy.RadialSolver.derivatives.common",
+    "sources": [["TidalPy", "RadialSolver", "derivatives", "common.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "RadialSolver.eos.common": {
+    "name": "TidalPy.RadialSolver.eos.common",
+    "sources": [["TidalPy", "RadialSolver", "eos", "common.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "eos"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "RadialSolver.eos.interpolate": {
+    "name": "TidalPy.RadialSolver.eos.interpolate",
+    "sources": [["TidalPy", "RadialSolver", "eos", "interpolate.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "eos"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "RadialSolver.matrix_types.solid_matrix": {
+    "name": "TidalPy.RadialSolver.matrix_types.solid_matrix",
+    "sources": [["TidalPy", "RadialSolver", "matrix_types", "solid_matrix.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "matrix_types"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true

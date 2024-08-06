@@ -13,6 +13,13 @@ Changes
   * Moved shooting method, constants, and radial solver solution class to a new files in `TidalPy.RadialSolver`.
 * Updated GitHub actions.
 
+RadialSolver:
+- Added new EOS folder containing equation of state pre-eval functions. These are called before the viscoelastic-gravitational ODEs are evaluated (at each radial step). The pre-eval functions solve for gravity, density, shear, bulk, viscosity.
+
+Rheology:
+- Moved to a new cython-wrapped C++ backend for rheology classes.
+- Greatly improved extreme-value checking using the correct limits for each rheology (e.g., if freq->0 or inf).
+
 New Features
 * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
 * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.

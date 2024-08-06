@@ -8,6 +8,12 @@ TidalPy-Run*
 # End Cython
 
 # But do track some custom c/cpp files
+!TidalPy/rheology/tpy_constants.hpp
+!TidalPy/rheology/base_.cpp
+!TidalPy/rheology/base_.hpp
+!TidalPy/rheology/models_.cpp
+!TidalPy/rheology/models_.hpp
+
 !TidalPy/RadialSolver/love_.cpp
 !TidalPy/RadialSolver/love_.hpp
 !TidalPy/RadialSolver/solutions_.cpp
