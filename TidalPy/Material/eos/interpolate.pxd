@@ -4,6 +4,7 @@ from libcpp cimport bool as cpp_bool
 from CyRK.utils.memory cimport shared_ptr
 
 from TidalPy.rheology.models cimport RheologyModelBaseCC
+from TidalPy.RadialSolver.derivatives.common cimport ODEInput
 
 cdef struct interpolate_input:
     size_t num_slices

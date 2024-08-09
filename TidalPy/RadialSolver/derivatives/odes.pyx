@@ -130,7 +130,6 @@ cdef void solid_dynamic_compressible(
     dy_ptr[13] = -eos_output.density * gravity
 
 
-
 cdef void solid_dynamic_incompressible(
         double* dy_ptr,
         double radius,

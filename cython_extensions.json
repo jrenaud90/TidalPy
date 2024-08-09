@@ -62,6 +62,39 @@
     "link_args": [],
     "is_cpp": true
   },
+  "Material.eos.common": {
+    "name": "TidalPy.RadialSolver.eos.common",
+    "sources": [["TidalPy", "RadialSolver", "eos", "common.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver", "eos"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material.eos.ode": {
+    "name": "TidalPy.Material.eos.ode",
+    "sources": [["TidalPy", "Material", "eos", "ode.pyx"]],
+    "include_dirs": [["TidalPy", "Material", "eos"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material.eos.solver": {
+    "name": "TidalPy.Material.eos.solver",
+    "sources": [["TidalPy", "Material", "eos", "solver.pyx"]],
+    "include_dirs": [["TidalPy", "Material", "eos"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material.eos.interpolate": {
+    "name": "TidalPy.Material.eos.interpolate",
+    "sources": [["TidalPy", "Material", "eos", "interpolate.pyx"]],
+    "include_dirs": [["TidalPy", "Material", "eos"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "RadialSolver.constants": {
     "name": "TidalPy.RadialSolver.constants",
     "sources": [["TidalPy", "RadialSolver", "constants.pyx"]],
@@ -90,22 +123,6 @@
     "name": "TidalPy.RadialSolver.derivatives.common",
     "sources": [["TidalPy", "RadialSolver", "derivatives", "common.pyx"]],
     "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "RadialSolver.eos.common": {
-    "name": "TidalPy.RadialSolver.eos.common",
-    "sources": [["TidalPy", "RadialSolver", "eos", "common.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "eos"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "RadialSolver.eos.interpolate": {
-    "name": "TidalPy.RadialSolver.eos.interpolate",
-    "sources": [["TidalPy", "RadialSolver", "eos", "interpolate.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "eos"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true

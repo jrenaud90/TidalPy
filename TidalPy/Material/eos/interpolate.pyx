@@ -3,8 +3,9 @@
 
 from CyRK.array.interp cimport interpj_ptr, interp_ptr
 
-from TidalPy.RadialSolver.derivatives.common cimport ODEInput
-from TidalPy.RadialSolver.eos.common cimport EOSOutput
+from TidalPy.Material.eos.common cimport EOSOutput
+from TidalPy.utilities.math.complex cimport cmplx_NAN
+from TidalPy.utilities.constants_x cimport NAN_DBL
 
 cdef void preeval_interpolate(
         # Values that will be updated by the function
@@ -36,11 +37,11 @@ cdef void preeval_interpolate(
         provided_j=-2
         )
 
-    preeval_output.density = interp_out[0]
-    index_j = interp_out[1]
+    output.density = interp_out[0]
+    index_j        = interp_out[1]
 
     # Rheology C++ class only works with double pointers so we need to convert the double complex output to double*
-    cdef double* complex_bulk_ptr = <double*>&preeval_output.bulk_modulus
+    cdef double* complex_bulk_ptr = <double*>&output.bulk_modulus
     cdef double static_bulk
     cdef double bulk_viscosity
     if ode_args.update_bulk:
@@ -61,10 +62,15 @@ cdef void preeval_interpolate(
             )
         
         # Apply bulk rheology
+        output.static_bulk_modulus = static_bulk
+        output.bulk_viscosity      = bulk_viscosity
         eos_data.bulk_rheology.get().call(complex_bulk_ptr, ode_args.frequency, static_bulk, bulk_viscosity)
+    else:
+        output.static_bulk_modulus = NAN_DBL
+        output.bulk_viscosity      = NAN_DBL
+        output.bulk_modulus        = cmplx_NAN
 
-
-    cdef double* complex_shear_ptr = <double*>&preeval_output.shear_modulus
+    cdef double* complex_shear_ptr = <double*>&output.shear_modulus
     cdef double static_shear
     cdef double shear_viscosity
     if ode_args.update_shear:
@@ -85,4 +91,10 @@ cdef void preeval_interpolate(
             )
 
         # Apply shear rheology
+        output.static_shear_modulus = static_shear
+        output.shear_viscosity      = shear_viscosity
         eos_data.shear_rheology.get().call(complex_shear_ptr, ode_args.frequency, static_shear, shear_viscosity)
+    else:
+        output.static_shear_modulus = NAN_DBL
+        output.shear_viscosity      = NAN_DBL
+        output.shear_modulus        = cmplx_NAN
