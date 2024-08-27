@@ -1,3 +1,5 @@
+from libcpp.complex cimport complex as cpp_complex
+
 cdef void cf_top_to_bottom_interface_bc(
     double complex* constant_vector_ptr,
     double complex* layer_above_constant_vector_ptr,

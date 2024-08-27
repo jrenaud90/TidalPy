@@ -3,7 +3,6 @@
 """ starting conditions at the center of the planet based off of Kamata et al. (2015). """
 from libc.math cimport pi
 
-# We need to use a custom cf_csqrt function because Windows does not play nice with libc.complex cython library.
 from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.RadialSolver.starting.common cimport cf_z_calc
 

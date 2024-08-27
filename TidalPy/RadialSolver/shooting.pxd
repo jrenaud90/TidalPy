@@ -1,6 +1,9 @@
-from TidalPy.RadialSolver.solutions cimport RadialSolverSolution
+from libcpp cimport bool as cpp_bool
 
-cdef RadialSolverSolution cf_shooting_solver(
+from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
+
+cdef void cf_shooting_solver(
+    RadialSolutionStorageCC* solution_storage_ptr,
     size_t total_slices,
     double* radius_array_ptr,
     double* density_array_ptr,
@@ -17,17 +20,17 @@ cdef RadialSolverSolution cf_shooting_solver(
     size_t num_bc_models,
     int* bc_models_ptr,
     unsigned int degree_l = *,
-    bint use_kamata = *,
+    cpp_bool use_kamata = *,
     unsigned char integration_method = *,
     double integration_rtol = *,
     double integration_atol = *,
-    bint scale_rtols_by_layer_type = *,
+    cpp_bool scale_rtols_by_layer_type = *,
     size_t max_num_steps = *,
     size_t expected_size = *,
     size_t max_ram_MB = *,
     double max_step = *,
-    bint limit_solution_to_radius = *,
-    bint nondimensionalize = *,
-    bint verbose = *,
-    bint raise_on_fail = *
-    )
+    cpp_bool limit_solution_to_radius = *,
+    cpp_bool nondimensionalize = *,
+    cpp_bool verbose = *,
+    cpp_bool raise_on_fail = *
+    ) noexcept

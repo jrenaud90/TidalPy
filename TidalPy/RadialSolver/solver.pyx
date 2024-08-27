@@ -1,17 +1,20 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libc.math cimport fabs, NAN
+from libcpp.complex cimport complex as cpp_complex
 
 import numpy as np
 cimport numpy as np
+np.import_array()
 
 from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
-from TidalPy.RadialSolver.solutions cimport RadialSolverSolution
+from TidalPy.RadialSolver.solutions cimport RadialSolverSolution, RadialSolutionStorageCC
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
+from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
 
 log = get_logger(__name__)
 
@@ -30,6 +33,7 @@ def radial_solver(
         tuple upper_radius_by_layer,
         unsigned int degree_l = 2,
         tuple solve_for = None,
+        unsigned char core_condition = 0,
         bint use_kamata = False,
         str integration_method = 'RK45',
         double integration_rtol = 1.0e-6,
@@ -90,6 +94,13 @@ def radial_solver(
             - "loading": Surface loading boundary conditions.
             - "free": Free surface boundary conditions.
         For example, if you want the tidal and loading solutions then you can set "solve_for=('tidal', 'loading')".
+    core_condition : unsigned char, default=0
+        Only used with `use_prop_matrix=True`. Defines the starting conditions at the inner boundary of the planet.
+            - 0: Henning & Hurford (2014): "At the core, a special seed matrix Bcore is created with only three columns,
+                 equal to the first, second, and third columns of Y for the properties at the base layer."
+            - 1: Roberts & Nimmo (2008): liquid innermost zone.
+            - 2: Solid innermost zone.
+            - 3: Different solid innermost zone.
     use_kamata : bool, default=False
         If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
         Otherwise, starting solution will be based on Takeuchi and Saito (1972)
@@ -267,39 +278,72 @@ def radial_solver(
             else:
                 raise AttributeError(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
 
-    # Prepare to run
-    cdef RadialSolverSolution result
+    # Build solution storage
+    cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, num_bc_models)
+    solution.set_model_names(bc_models_ptr)
+    cdef RadialSolutionStorageCC* solution_storage_ptr = solution.solution_storage_ptr
+
+    # Convert complex-valued arrays to C++ complex pointers
+    cdef double complex* complex_shear_modulus_ptr = <double complex*>&complex_shear_modulus_array[0]
+
+    # Run requested radial solver method
     try:
-        result = cf_shooting_solver(
-            total_slices,
-            &radius_array[0],
-            &density_array[0],
-            &gravity_array[0],
-            &bulk_modulus_array[0],
-            &complex_shear_modulus_array[0],
-            frequency,
-            planet_bulk_density,
-            num_layers,
-            layer_types_ptr,
-            is_static_by_layer_ptr,
-            is_incompressible_by_layer_ptr,
-            upper_radius_by_layer_ptr,
-            num_bc_models,
-            bc_models_ptr,
-            degree_l,
-            use_kamata,
-            integration_method_int,
-            integration_rtol,
-            integration_atol,
-            scale_rtols_by_layer_type,
-            max_num_steps,
-            expected_size,
-            max_ram_MB,
-            max_step,
-            limit_solution_to_radius,
-            nondimensionalize,
-            verbose,
-            raise_on_fail)
+        if use_prop_matrix:
+            cf_matrix_propagate(
+                solution_storage_ptr,
+                total_slices,
+                &radius_array[0],
+                &density_array[0],
+                &gravity_array[0],
+                &bulk_modulus_array[0],
+                complex_shear_modulus_ptr,
+                frequency,
+                planet_bulk_density,
+                # TODO: In the future the propagation matrix should take in layer types and multiple layers
+                # size_t num_layers,
+                # int* layer_types_ptr,
+                # int* is_static_by_layer_ptr,
+                # int* is_incompressible_by_layer_ptr,
+                # double* upper_radius_by_layer_ptr,
+                num_bc_models,
+                bc_models_ptr,
+                degree_l,
+                core_condition,
+                nondimensionalize,
+                verbose,
+                raise_on_fail)
+        else:
+            cf_shooting_solver(
+                solution_storage_ptr,
+                total_slices,
+                &radius_array[0],
+                &density_array[0],
+                &gravity_array[0],
+                &bulk_modulus_array[0],
+                complex_shear_modulus_ptr,
+                frequency,
+                planet_bulk_density,
+                num_layers,
+                layer_types_ptr,
+                is_static_by_layer_ptr,
+                is_incompressible_by_layer_ptr,
+                upper_radius_by_layer_ptr,
+                num_bc_models,
+                bc_models_ptr,
+                degree_l,
+                use_kamata,
+                integration_method_int,
+                integration_rtol,
+                integration_atol,
+                scale_rtols_by_layer_type,
+                max_num_steps,
+                expected_size,
+                max_ram_MB,
+                max_step,
+                limit_solution_to_radius,
+                nondimensionalize,
+                verbose,
+                raise_on_fail)
     finally:
         # Release heap memory
         if not (layer_assumptions_ptr is NULL):
@@ -312,4 +356,4 @@ def radial_solver(
             free_mem(upper_radius_by_layer_ptr)
             upper_radius_by_layer_ptr = NULL
     
-    return result
+    return solution

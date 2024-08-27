@@ -53,17 +53,20 @@ radial_solver_solution = radial_solver(
     # Options:
     #  - 'solid'
     #  - 'liquid'
+    ## Must be provided but ignored when `use_propagation_matrix = True`
     
     is_static_by_layer,
     # Is each layer using the static tidal assumption (type: tuple of bools)
+    ## Must be provided but ignored when `use_propagation_matrix = True`
     
     is_incompressible_by_layer,
     # Is each layer using the incompressible tidal assumption (type: tuple of bools)
+    ## Must be provided but ignored when `use_propagation_matrix = True`
     
     upper_radius_by_layer,
     # Upper radius of each layer [m] (type: tuple of doubles)
     
-    # # # Below are additional, optional arguments. The default values are shown after the "=". # # #
+    # # # Below are optional arguments. The default values are shown after the "=". # # #
 
     degree_l = 2,
     # Harmonic degree used. 
@@ -87,7 +90,8 @@ radial_solver_solution = radial_solver(
 
     use_propagation_matrix = False,
     # Setting this to True changes the underlying mechanism that TidalPy will use to solve for the radial solutions.
-    # See `Propagation Matrix Method` (when this is set to True) and `Shooting Method` (when this is set to False; the default) sections for more details.
+    # See `Propagation Matrix Method` (when this is set to True) and `Shooting Method` (when this is set to False; the default)
+    # sections in this document for more details.
     
     # The following indented options are only used when `use_propagation_matrix=False` (Shooting Method)
         use_kamata = False,
@@ -141,73 +145,9 @@ radial_solver_solution = radial_solver(
     )
 ```
 
-### Radial Solution
+## `RadialSolverSolution` Class
 The output of `radial_solver` is a `RadialSolverSolution` class. This class has several helpful attributes described below.
 
-```python
-
-radial_solver_solution = radial_solver(...)  # See inputs from the previous section
-
-# Check is the solution was successful.
-# See the following sections for information on why a solution may not be successful.
-radial_solver_solution.success  # == (True / False)
-
-# Check any integration messages (e.g., hints about why the solver failed)
-radial_solver_solution.message
-
-# Get full gravitational-viscoelastic solution at each radial step.
-# This is a np.ndarray (complex) with the shape of [num_ys * num_solve_for, num_radial_steps]
-# See the `solve_for` radial solver input for info on what `num_solve_for` stands for.
-radial_solver_solution.result
-
-# There is a helpful way to directly get the result you are looking for if you solved for multiple Love types.
-radial_solver_solution['tidal']    # Tidal gravitational-viscoelastic results
-radial_solver_solution['loading']  # Loading gravitational-viscoelastic results
-
-# Or you can get all requested complex Love numbers
-# This is a np.ndarray (complex) with the shape of [num_solve_for, 3]
-# The 2nd dimension is, in order, Love/Shida numbers: k, h, l.
-# For example, if you only set `solve_for=('tidal',)` then `radial_solver_solution.love[0, 1]` == tidal k.
-radial_solver_solution.love
-
-# There are also helpful shortcuts for each individual Love number.
-# These are each np.ndarrays but of only size 1 if `num_solve_for==1`
-radial_solver_solution.k
-radial_solver_solution.h
-radial_solver_solution.l
-```
-
-### Common Reasons for Integration Failure:
-Below are a list of common problems that lead to integration failure. These are grouped by message codes which can be
-accessed via `radial_solver_solution.message`.
-
-#### "Error in step size calculation:\n\tRequired step size is less than spacing between numbers."
-This message indicates that the integrator could not solve the problem. 
-- Possible causes:
-    - `integration_rtol` or `integration_atol` is too small. Or, counterintuitively, is too large and led to compounding errors.
-    - If there is a liquid layer and it is not static (via the `is_static_by_layer` variable) then the integrator likely ran into an unstable solution. This is particularly common if the planet's forcing frequency is too small (forcing periods >~ 3 days can cause this). Suggest decreasing forcing period or change the liquid layer to be static.
-
-#### "Maximum number of steps (set by user) exceeded during integration."
-This message indicates that the integrator hit the `max_num_steps` parameter during integration. You can try to increase this value but this is a good indication that the integrator is having difficulty solving the problem. Increasing the max number of steps will likely lead to a very slow integration or raise one of the other problems listed here.
-
-#### "Maximum number of steps (set by system architecture) exceeded during integration."
-This message indicates that the integrator's solution arrays exceeded the `max_ram_MB` size during integration. You can try to increase this value but this is a good indication that the integrator is having difficulty solving the problem. Increasing the max number of ram will likely lead to a very slow integration or raise one of the other problems listed here.
-
-#### Crash
-In the unlikely scenario where the integration crashes with no warnings or exceptions please try the following:
-- If time permits, rerun the code to see if the crash occurs again.
-    - During the rerun, keep an eye on system memory usage to ensure it is not being used at 100%.
-- If crash does reoccur:
-    - Ensure all arrays listed above are the same size. If any 
-
-#### NaNs are returned
-Sometimes the integration is successful but returns NaN results for all the Love Numbers. Try the following:
-- Check the upper radius of each layer. NaNs may result if the specified upper radius is lower than the upper radius specified by the input radius array
-
-
-## `RadialSolverSolution` Class
-
-### Love Numbers
 In addition to the full `y` radial solution results, you can also quickly access the Love numbers using:
 
 ```python
@@ -240,16 +180,127 @@ solution.h = # [Solution 0's h, Solution 1's h, ...]
 solution.l = # [Solution 0's l, Solution 1's l, ...]
 ```
 
+More details on the Radial Solution class.
+
+```python
+
+radial_solver_solution = radial_solver(...)  # See inputs from the previous section
+
+# Check is the solution was successful.
+# See the following sections for information on why a solution may not be successful.
+radial_solver_solution.success  # == (True / False)
+
+# Check any integration messages (e.g., hints about why the solver failed)
+radial_solver_solution.message
+
+# Get full gravitational-viscoelastic solution at each radial step.
+# In the literature these are often represented as `y_1, y_2, y_3, ...`.
+# This is a np.ndarray (complex) with the shape of [num_ys * num_solve_for, num_radial_steps]
+# See the `solve_for` radial solver input for info on what `num_solve_for` stands for.
+radial_solver_solution.result
+
+# There is a helpful way to directly get the result you are looking for if you solved for multiple Love types.
+radial_solver_solution['tidal']    # Tidal gravitational-viscoelastic results
+radial_solver_solution['loading']  # Loading gravitational-viscoelastic results
+
+# Or you can get all requested complex Love numbers
+# This is a np.ndarray (complex) with the shape of [num_solve_for, 3]
+# The 2nd dimension is, in order, Love/Shida numbers: k, h, l.
+# For example, if you only set `solve_for=('tidal',)` then `radial_solver_solution.love[0, 1]` == tidal k.
+radial_solver_solution.love
+
+# There are also helpful shortcuts for each individual Love number.
+# These are each np.ndarrays but of only size 1 if `num_solve_for==1`
+radial_solver_solution.k
+radial_solver_solution.h
+radial_solver_solution.l
+```
+
 **Performance Note**
 
 There is a minor overhead when accessing any of the Solver's attributes (e.g., `.result; .love; .k; .h; .l`).
 If you have a code that accesses these numbers often (more than once) it is better to store them in a local variable.
+However, please note the common problem discussed in the "Undefined or random values for Love numbers" section.
 
 ```python
 k_local = solution.k  # Performs a background lookup and np.ndarray operation to produce an array for all k Love numbers.
 
 # ... Do a bunch of stuff with the new "k_local" variable.
 ```
+
+### Radial Solution Troubleshooting
+
+#### Undefined or random values for Love numbers
+This issue is further described and discussed in GitHub Issue [#59](https://github.com/jrenaud90/TidalPy/issues/59). 
+A common problem when using radial solutions is losing the variable's scope and the values of, for example, the Love
+numbers becoming undefined. 
+
+For example, consider this wrapper function:
+```python
+def wrap():
+    result = radial_solver(...)
+    k_inner = result.k # k_inner is a numpy array of double complex floating point values.
+    return k_inner
+
+k_outer = wrap()
+```
+TidalPy currently stores results in a heap allocated array which is returned when `result.k` is invoked. However, when
+`result` (which is a `RadialSolverSolution` class instance) loses reference at the end of the `wrap` function then this
+array is deallocated. The result is that `k_outer` now points to unallocated memory instead of the desired values.
+
+To work around this, make a copy of the array whose memory is then handled by the python interpreter and not deallocated
+when the scope changes:
+
+```python
+import numpy as np
+
+def wrap():
+    result = radial_solver(...)
+    k_inner = np.copy(result.k)
+    return k_inner
+```
+
+Or, store the value in a stack allocated variable and return it instead (again the python interpreter will handle the
+memory of the variable). This can be done by just accessing the first value of the array (if that is the only value you
+need):
+
+```python
+import numpy as np
+
+def wrap():
+    result = radial_solver(...)
+    k_inner = result.k[0]  # k_inner is now a double complex floating point number rather than an array.
+    return k_inner
+```
+
+## Shooting Method
+
+### Common Reasons for Integration Failure:
+Below are a list of common problems that lead to integration failure. These are grouped by message codes which can be
+accessed via `radial_solver_solution.message`.
+
+#### "Error in step size calculation:\n\tRequired step size is less than spacing between numbers."
+This message indicates that the integrator could not solve the problem. 
+- Possible causes:
+    - `integration_rtol` or `integration_atol` is too small. Or, counterintuitively, is too large and led to compounding errors.
+    - If there is a liquid layer and it is not static (via the `is_static_by_layer` variable) then the integrator likely ran into an unstable solution. This is particularly common if the planet's forcing frequency is too small (forcing periods >~ 3 days can cause this). Suggest decreasing forcing period or change the liquid layer to be static.
+
+#### "Maximum number of steps (set by user) exceeded during integration."
+This message indicates that the integrator hit the `max_num_steps` parameter during integration. You can try to increase this value but this is a good indication that the integrator is having difficulty solving the problem. Increasing the max number of steps will likely lead to a very slow integration or raise one of the other problems listed here.
+
+#### "Maximum number of steps (set by system architecture) exceeded during integration."
+This message indicates that the integrator's solution arrays exceeded the `max_ram_MB` size during integration. You can try to increase this value but this is a good indication that the integrator is having difficulty solving the problem. Increasing the max number of ram will likely lead to a very slow integration or raise one of the other problems listed here.
+
+#### Crash
+In the unlikely scenario where the integration crashes with no warnings or exceptions please try the following:
+- If time permits, rerun the code to see if the crash occurs again.
+    - During the rerun, keep an eye on system memory usage to ensure it is not being used at 100%.
+- If crash does reoccur:
+    - Ensure all arrays listed above are the same size. If any 
+
+#### NaNs are returned
+Sometimes the integration is successful but returns NaN results for all the Love Numbers. Try the following:
+- Check the upper radius of each layer. NaNs may result if the specified upper radius is lower than the upper radius specified by the input radius array
 
 
 ## Propagation Matrix Method

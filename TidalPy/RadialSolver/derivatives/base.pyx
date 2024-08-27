@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 from libc.math cimport pi
 
@@ -16,7 +16,8 @@ cdef class RadialSolverBase(CySolver):
 
             # Regular CySolver Inputs
             const double[::1] y0,
-            (double, double) t_span,
+            double t_start,
+            double t_end,
             unsigned char rk_method = 1,
             double max_step = MAX_STEP,
             double first_step = 0.,
@@ -43,6 +44,8 @@ cdef class RadialSolverBase(CySolver):
         self.bulk_modulus  = 0.
         self.density = 0.
         self.gravity = 0.
+
+        cdef tuple t_span = (t_start, t_end)
 
         # Setup regular CySolver
         super().__init__(

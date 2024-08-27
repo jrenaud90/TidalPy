@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functions to calculate the initial conditions for an overlying liquid layer above another liquid layer.
 
@@ -13,10 +13,8 @@ TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput
 
 from libc.math cimport pi, NAN
 
-from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
+from TidalPy.utilities.math.complex cimport cmplx_NAN, cmplx_zero, cf_build_dblcmplx
 
-cdef double complex cmplx_NAN  = cf_build_dblcmplx(NAN, NAN)
-cdef double complex cmplx_zero = cf_build_dblcmplx(0., 0.)
 
 cdef void cf_solve_upper_y_at_interface(
         double complex* lower_layer_y_ptr,

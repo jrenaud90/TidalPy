@@ -23,8 +23,8 @@ jobs:
         path: dist/*.tar.gz
         name: artifact_sdist
 
-  build_macos_wheel:
-    name: Build MacOS wheel for Python ${{ matrix.python }}
+  build_macos_latest_wheel:
+    name: Build MacOS latest (ARM) wheel for Python ${{ matrix.python }}
     runs-on: macos-latest
     strategy:
       # Ensure that a wheel builder finishes even if another fails
@@ -42,7 +42,7 @@ jobs:
       - name: Install Anaconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          activate-environment: tidalpy_wheel
+          activate-environment: tidalpy_macos_latest_wheel
           auto-update-conda: true
           python-version: ${{ matrix.python }}
           auto-activate-base: false
@@ -61,14 +61,63 @@ jobs:
         run: |
           conda install pytest matplotlib numba numpy scipy cython
           python -m pip install --upgrade build
-          export CC='gcc-13'
+          export CC=gcc
+          export CXX=gcc
           export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
           python -m build --wheel --outdir ./wheelhouse/
   
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
-          name: artifact_MacOs_${{ matrix.python }}_whl
+          name: artifact_MacosLatest_${{ matrix.python }}_whl
+  
+  build_macos_13_wheel:
+    name: Build MacOS-13 (x64-86) wheel for Python ${{ matrix.python }}
+    runs-on: macos-13
+    strategy:
+      # Ensure that a wheel builder finishes even if another fails
+      fail-fast: false
+      matrix:
+        python:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - name: Checkout TidalPy
+        uses: actions/checkout@v4
+
+      - name: Install Anaconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: tidalpy_macos_13_wheel
+          auto-update-conda: true
+          python-version: ${{ matrix.python }}
+          auto-activate-base: false
+
+      - name: Conda info
+        shell: bash -el {0}
+        run: conda info
+
+      - name: install gcc-13  # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
+        shell: bash -el {0}
+        run: |
+          brew install gcc@13
+
+      - name: Install package
+        shell: bash -el {0}
+        run: |
+          conda install pytest matplotlib numba numpy scipy cython
+          python -m pip install --upgrade build
+          export CC=gcc
+          export CXX=gcc
+          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
+          python -m build --wheel --outdir ./wheelhouse/
+  
+      - uses: actions/upload-artifact@v4
+        with:
+          path: ./wheelhouse/*.whl
+          name: artifact_Macos13_${{ matrix.python }}_whl
 
   build_other_wheels:
     name: Build ${{ matrix.platform }} wheels
@@ -79,6 +128,7 @@ jobs:
         platform:
           #              - macos-12  ## macos is not playing nice with cibuildwheel with openmp from cython.
           - windows-2022
+          - windows-latest
           - ubuntu-20.04
 
     steps:
@@ -87,7 +137,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.19.2
 
       - uses: actions/upload-artifact@v4
         with:
@@ -108,7 +158,7 @@ jobs:
 
   upload_all:
     name: Upload wheels to PyPI
-    needs: [build_macos_wheel, build_other_wheels, make_sdist, check_dist]
+    needs: [build_macos_latest_wheel, build_macos_13_wheel, build_other_wheels, make_sdist, check_dist]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -116,7 +166,7 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - uses: pypa/gh-action-pypi-publish@v1.8.11
+      - uses: pypa/gh-action-pypi-publish@v1.9.0
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}

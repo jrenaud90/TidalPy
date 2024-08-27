@@ -453,8 +453,8 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
 ########################################################################################################################
 # Constants
 ########################################################################################################################
-cdef double complex cmplx_NAN = cf_build_dblcmplx(NAN, NAN)
-
+cdef double complex cmplx_NAN  = cf_build_dblcmplx(NAN, NAN)
+cdef double complex cmplx_zero = cf_build_dblcmplx(0.0, 0.0)
 
 ########################################################################################################################
 # Python wrappers
