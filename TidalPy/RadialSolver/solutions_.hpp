@@ -26,18 +26,10 @@ public:
     std::vector<double> full_solution_vec = std::vector<double>(0);
     double* full_solution_ptr = NULL;
 
-    // Private Attributes
-private:
-
-    // Public Methods
-public:
     RadialSolutionStorageCC() { };
     virtual ~RadialSolutionStorageCC() { };
     RadialSolutionStorageCC(size_t num_slices, char num_ytypes);
     
     void set_message(const char* new_message);
     void find_love(double surface_gravity);
-
-    // Private Methods
-private:
 };
