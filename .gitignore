@@ -8,6 +8,8 @@ TidalPy-Run*
 # End Cython
 
 # But do track some custom c/cpp files
+!TidalPy/utilities/arrays/interp_.cpp
+!TidalPy/utilities/arrays/interp_.hpp
 !TidalPy/RadialSolver/love_.cpp
 !TidalPy/RadialSolver/love_.hpp
 !TidalPy/RadialSolver/solutions_.cpp
