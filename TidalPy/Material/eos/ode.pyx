@@ -22,17 +22,19 @@ cdef void eos_solution(
     cdef EOSOutput eos_output
     cdef EOSOutput* eos_output_ptr = &eos_output 
     eos_function(eos_output_ptr, radius, y_ptr, input_args)
-
+    
+    cdef double rho = eos_output.density
+    
     # Solve for gravity and pressure
-    if (radius <= 0.0)  or (radius > eos_input_ptr.planet_radius):
+    if (radius <= 0.)  or (radius > eos_input_ptr.planet_radius):
         dy_ptr[0] = 0.0
         dy_ptr[1] = 0.0
     else:
         # Acceleration due to Gravity
-        dy_ptr[0] = grav_coeff * eos_output.density - 2.0 * eos_output.gravity * (1.0 / radius)
+        dy_ptr[0] = grav_coeff * rho - 2.0 * y_ptr[0] * (1.0 / radius)
 
         # Pressure
-        dy_ptr[1] = -eos_output.density * eos_output.gravity
+        dy_ptr[1] = -rho * y_ptr[0]
 
     # TODO: Track the static shear and bulk as well as the bulk and shear viscosity as additional outputs.
     if eos_input_ptr.final_solve:

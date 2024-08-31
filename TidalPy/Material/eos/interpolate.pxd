@@ -15,5 +15,5 @@ cdef void preeval_interpolate(
         # Input that is used by the pre-eval
         double radius,
         double* radial_solutions,
-        void* preeval_input
+        const void* preeval_input
         ) noexcept nogil
