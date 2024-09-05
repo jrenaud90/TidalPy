@@ -2,16 +2,23 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libc.math cimport fabs, NAN
-from libcpp.complex cimport complex as cpp_complex
+from libcpp cimport bool as cpp_bool
 
 import numpy as np
 cimport numpy as np
 np.import_array()
 
+from CyRK.utils.vector cimport vector
 from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
+from TidalPy.utilities.dimensions.nondimensional cimport (
+    cf_non_dimensionalize_physicals,
+    cf_redimensionalize_physicals,
+    cf_redimensionalize_radial_functions
+    )
+from TidalPy.Material.eos.solver cimport CySolveOutput, solve_eos
 from TidalPy.RadialSolver.solutions cimport RadialSolverSolution, RadialSolutionStorageCC
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
@@ -34,21 +41,21 @@ def radial_solver(
         unsigned int degree_l = 2,
         tuple solve_for = None,
         unsigned char core_condition = 0,
-        bint use_kamata = False,
+        cpp_bool use_kamata = False,
         str integration_method = 'RK45',
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
-        bint scale_rtols_by_layer_type = False,
+        cpp_bool scale_rtols_by_layer_type = False,
         size_t max_num_steps = 500_000,
         size_t expected_size = 500,
         size_t max_ram_MB = 500,
         double max_step = 0,
-        bint limit_solution_to_radius = True,
-        bint nondimensionalize = True,
-        bint use_prop_matrix = False,
-        bint verbose = False,
-        bint warnings = True,
-        bint raise_on_fail = False
+        cpp_bool limit_solution_to_radius = True,
+        cpp_bool nondimensionalize = True,
+        cpp_bool use_prop_matrix = False,
+        cpp_bool verbose = False,
+        cpp_bool warnings = True,
+        cpp_bool raise_on_fail = False
         ):
     """
     Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
@@ -285,6 +292,49 @@ def radial_solver(
 
     # Convert complex-valued arrays to C++ complex pointers
     cdef double complex* complex_shear_modulus_ptr = <double complex*>&complex_shear_modulus_array[0]
+
+    # Solve the equaiton of state for the planet
+
+    # Non-dimensionalize inputs
+    cdef cpp_bool already_nondimed = False
+    cdef double G_to_use = NAN
+    cdef double radius_planet_to_use = NAN
+    cdef double bulk_density_to_use = NAN
+    cdef double frequency_to_use = NAN
+    if nondimensionalize:
+        cf_non_dimensionalize_physicals(
+            total_slices,
+            frequency,
+            radius_planet,
+            planet_bulk_density,
+            radius_array_ptr,
+            density_array_ptr,
+            gravity_array_ptr,
+            bulk_modulus_array_ptr,
+            complex_shear_modulus_array_ptr,
+            &radius_planet_to_use,
+            &bulk_density_to_use,
+            &frequency_to_use,
+            &G_to_use
+            )
+        already_nondimed = True
+
+    cdef vector[CySolveOutput] eos_result = solve_eos(
+        &radius_array[0],
+        total_slices,
+        upper_radius_by_layer_ptr,
+        num_layers,
+        PreEvalFunc* eos_function_bylayer_ptrs,
+        EOS_ODEInput** eos_input_bylayer_ptrs,
+        planet_bulk_density,
+        surface_pressure,
+        G_to_use,
+        unsigned int integration_method = *,
+        double rtol = *,
+        double atol = *,
+        double pressure_tol = *,
+        unsigned int max_iters = *
+        )
 
     # Run requested radial solver method
     try:

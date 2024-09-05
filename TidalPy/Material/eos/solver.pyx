@@ -2,7 +2,7 @@ from libc.stdio cimport printf
 from libc.string cimport memcpy
 from libcpp import bool as cpp_bool
 
-from CyRK cimport cysolve_ivp, CySolveOutput, PreEvalFunc, CySolverResult
+from CyRK cimport cysolve_ivp, CySolverResult
 
 from TidalPy.Material.eos.ode cimport eos_solution
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
@@ -26,8 +26,8 @@ cdef vector[CySolveOutput] solve_eos(
         ) noexcept nogil:
 
     # Don't use rtol or atol arrays
-    cdef double[2] rtols_arr = [1.0e-8, 1.0e-12]
-    cdef double[2] atols_arr = [1.0e-10, 1.0e-15]
+    # cdef double[2] rtols_arr = [1.0e-8, 1.0e-12]
+    # cdef double[2] atols_arr = [1.0e-10, 1.0e-15]
     cdef double* rtols_ptr = NULL #&rtols_arr[0]
     cdef double* atols_ptr = NULL #&atols_arr[0]
     
@@ -87,20 +87,12 @@ cdef vector[CySolveOutput] solve_eos(
     cdef vector[CySolveOutput] layer_solutions = vector[CySolveOutput](0)
     layer_solutions.reserve(num_layers)
     
-    
-    
-    cdef size_t i
-    
-    
     while True:
         
         if not final_run:
             iterations += 1
-#         printf("\n\nNEW IT\n")
         # Step through each macro layer of the planet and solve for density and gravity
         for layer_i in range(num_layers):
-#             printf("\t\tDEBUG-Layer %d\n", layer_i)
-            
             # Setup bounds and initial conditions for next layer's integration
             radial_span_ptr[1] = layer_upper_radii[layer_i]
             if layer_i == 0:
@@ -115,15 +107,12 @@ cdef vector[CySolveOutput] solve_eos(
                 y0_layer_ptr[0] = solution_ptr.solution[top_of_last_layer_index]
                 y0_layer_ptr[1] = solution_ptr.solution[top_of_last_layer_index + 1]
                 
-#                 printf("\t\tDEBUG-Layer %d:: y0=%e, y1=%e\n", layer_i, y0_layer_ptr[0], y0_layer_ptr[1])
-            
             # Get eos function and inputs for this layer
             eos_input_layer_ptr = eos_input_bylayer_ptrs[layer_i]
             eos_function_ptr    = eos_function_bylayer_ptrs[layer_i]
             
             # Convert input pointer to void pointer (required by cysolve)
             args_ptr = <void*>eos_input_layer_ptr
-#             memcpy(eos_input_ptr, <void*>eos_input_layer_ptr, sizeof(EOS_ODEInput))
             
             if final_run:
                 # We now want to make sure that all final calculations are performed.
@@ -142,7 +131,6 @@ cdef vector[CySolveOutput] solve_eos(
                 num_extra = 0
                 use_dense_output = False
             
-#             printf("\t\t LIND:: r_span = %e, %e\n", radial_span_ptr[0], radial_span_ptr[1])
             solution = cysolve_ivp(
                 eos_solution, radial_span_ptr, y0_layer_ptr, num_y,
                 integration_method, rtol, atol, args_ptr, num_extra,
@@ -150,11 +138,6 @@ cdef vector[CySolveOutput] solve_eos(
                 rtols_ptr, atols_ptr, max_step, first_step, expected_size)
             solution_ptr = solution.get()
             last_solution_size = solution_ptr.size
-
-#             printf("\t\tDEBUG:: Integration Msg: %s\n", solution_ptr.message_ptr)
-#             printf("\t\tDEBUG:: Size = %d\n", solution_ptr.size)
-#             for i in range(solution_ptr.size):
-#                 printf("\t\t\t %d:: r = %e g = %e P = %e\n", 2 * i + 1, solution_ptr.time_domain[i], solution_ptr.solution[(num_y + num_extra) * i], solution_ptr.solution[(num_y + num_extra) * i + 1])
 
             if not solution_ptr.success:
                 failed = True
@@ -179,7 +162,6 @@ cdef vector[CySolveOutput] solve_eos(
             if pressure_diff < 0.0:
                 pressire_diff_abs = -pressure_diff
                 
-#             printf("DEBUG:: S = %e; D = %e\n", calculated_surf_pressure, pressure_diff)
             y0_ptr[1] += pressure_diff
 
             # Calculate percent difference to use in convergence check.
@@ -204,7 +186,5 @@ cdef vector[CySolveOutput] solve_eos(
             printf("Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s\n", iterations, solution_ptr.message_ptr)
         else:
             printf("Warning in `solve_eos`: Integrator failed at iteration %d.\n", iterations)
-    
-#     printf("Max Iters = %d\n", iterations)
     
     return layer_solutions

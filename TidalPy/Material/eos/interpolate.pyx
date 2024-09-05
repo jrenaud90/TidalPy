@@ -16,8 +16,8 @@ cdef void preeval_interpolate(
         ) noexcept nogil:
 
     # Cast input to the proper structure for this function
-    cdef EOS_ODEInput* ode_args = <EOS_ODEInput*>preeval_input
-    cdef interpolate_input* eos_data = <interpolate_input*>ode_args.eos_input_ptr
+    cdef EOS_ODEInput* ode_args        = <EOS_ODEInput*>preeval_input
+    cdef InterpolateEOSInput* eos_data = <InterpolateEOSInput*>ode_args.eos_input_ptr
 
     # Cast output to the proper structure
     cdef EOSOutput* output = <EOSOutput*>preeval_output

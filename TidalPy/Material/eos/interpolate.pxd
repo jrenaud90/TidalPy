@@ -2,7 +2,7 @@ from libcpp cimport bool as cpp_bool
 
 from TidalPy.Material.eos.ode cimport EOS_ODEInput
 
-cdef struct interpolate_input:
+cdef struct InterpolateEOSInput:
     size_t num_slices
     double* radius_array_ptr
     double* density_array_ptr
