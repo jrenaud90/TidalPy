@@ -319,6 +319,11 @@ def radial_solver(
             )
         already_nondimed = True
 
+    # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
+    # either via arguments to this function or a more OOP approach where they are built into the layers.
+    # Build arrays of EOS inputs.
+    cdef vector[]  eos_function_bylayer_vec = vector[]()
+
     cdef vector[CySolveOutput] eos_result = solve_eos(
         &radius_array[0],
         total_slices,
