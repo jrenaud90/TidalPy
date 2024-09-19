@@ -4,6 +4,8 @@ from CyRK.utils.vector cimport vector
 
 from TidalPy.Material.eos.ode cimport eos_solution, EOS_ODEInput
 
+ctypedef vector[CySolveOutput] EOSSolutionVec
+
 cdef struct GlobalEOSSolutionStorage:
     vector[double] radius
     vector[double] pressure
@@ -16,9 +18,7 @@ cdef struct GlobalEOSSolutionStorage:
     vector[double] bulk_viscosity
     vector[double complex] complex_bulk_modulus
 
-ctypedef shared_ptr[GlobalEOSSolutionStorage] GlobalEOSSolution
-
-cdef vector[CySolveOutput] solve_eos(
+cdef EOSSolutionVec solve_eos(
     double* radius_array_ptr,
     size_t len_radius_array,
     double* layer_upper_radii,

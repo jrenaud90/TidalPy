@@ -4,11 +4,11 @@ from libcpp import bool as cpp_bool
 
 from CyRK cimport cysolve_ivp, CySolverResult
 
-from TidalPy.Material.eos.ode cimport eos_solution
+from TidalPy.Material.eos.ode cimport eos_diffeq
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 from TidalPy.utilities.constants_x cimport G, PI_DBL, INF_DBL, NAN_DBL
 
-cdef vector[CySolveOutput] solve_eos(
+cdef EOSSolutionVec solve_eos(
         double* radius_array_ptr,
         size_t len_radius_array,
         double* layer_upper_radii,
@@ -84,7 +84,7 @@ cdef vector[CySolveOutput] solve_eos(
     cdef size_t last_solution_size = 0
     cdef CySolveOutput solution
     cdef CySolverResult* solution_ptr = NULL
-    cdef vector[CySolveOutput] layer_solutions = vector[CySolveOutput](0)
+    cdef EOSSolutionVec layer_solutions = EOSSolutionVec(0)
     layer_solutions.reserve(num_layers)
     
     while True:

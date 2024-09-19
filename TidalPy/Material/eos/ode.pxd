@@ -10,7 +10,7 @@ cdef struct EOS_ODEInput:
     cpp_bool update_bulk
     cpp_bool update_shear
 
-cdef void eos_solution(
+cdef void eos_diffeq(
         double* dy_ptr,
         double radius,
         double* y_ptr,

@@ -4,7 +4,7 @@
 from TidalPy.Material.eos.common cimport EOSOutput
 from TidalPy.utilities.constants_x cimport PI_DBL
 
-cdef void eos_solution(
+cdef void eos_diffeq(
         double* dy_ptr,
         double radius,
         double* y_ptr,

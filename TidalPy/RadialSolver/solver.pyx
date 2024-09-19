@@ -18,10 +18,15 @@ from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_redimensionalize_physicals,
     cf_redimensionalize_radial_functions
     )
-from TidalPy.Material.eos.solver cimport CySolveOutput, solve_eos
 from TidalPy.RadialSolver.solutions cimport RadialSolverSolution, RadialSolutionStorageCC
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
+
+# EOS Imports (note these will change in a future release)
+from TidalPy.Material.eos.interpolate cimport preeval_interpolate
+from TidalPy.Material.eos.ode cimport EOS_ODEInput
+from TidalPy.Material.eos.solver cimport EOSSolutionVec, solve_eos
+
 
 log = get_logger(__name__)
 
@@ -322,9 +327,18 @@ def radial_solver(
     # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
     # either via arguments to this function or a more OOP approach where they are built into the layers.
     # Build arrays of EOS inputs.
-    cdef vector[]  eos_function_bylayer_vec = vector[]()
+    cdef vector[preeval_interpolate] eos_function_bylayer_vec = vector[preeval_interpolate](0)
+    eos_function_bylayer_vec.reserve(num_layers)
 
-    cdef vector[CySolveOutput] eos_result = solve_eos(
+    # Build vector of inputs
+    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec = vector[EOS_ODEInput](0)
+    eos_inputs_bylayer_vec.reserve(num_layers)
+
+    for i in range(num_layers):
+        # TODO: For now we are only storing the interpolate version of the EOS for each layer.
+        eos_function_bylayer_vec.push_back(preeval_interpolate)
+
+    cdef EOSSolutionVec eos_result = solve_eos(
         &radius_array[0],
         total_slices,
         upper_radius_by_layer_ptr,
