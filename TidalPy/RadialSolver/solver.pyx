@@ -8,6 +8,7 @@ import numpy as np
 cimport numpy as np
 np.import_array()
 
+from CyRK cimport PreEvalFunc
 from CyRK.utils.vector cimport vector
 from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 
@@ -27,6 +28,7 @@ from TidalPy.Material.eos.interpolate cimport preeval_interpolate
 from TidalPy.Material.eos.ode cimport EOS_ODEInput
 from TidalPy.Material.eos.solver cimport EOSSolutionVec, solve_eos
 
+ctypedef EOS_ODEInput* EOS_ODEInputPtr
 
 log = get_logger(__name__)
 
@@ -60,7 +62,12 @@ def radial_solver(
         cpp_bool use_prop_matrix = False,
         cpp_bool verbose = False,
         cpp_bool warnings = True,
-        cpp_bool raise_on_fail = False
+        cpp_bool raise_on_fail = False,
+        unsigned int eos_integration_method = 2,
+        double eos_rtol = 1.0e-6,
+        double eos_atol = 1.0e-8,
+        double eos_pressure_tol = 0.1,
+        unsigned int eos_max_iters = 40
         ):
     """
     Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
@@ -162,8 +169,18 @@ def radial_solver(
         If True, then warnings will be printed to the terminal during the solution. 
     raise_on_fail : bool, default=False
         If Ture, then the solver will raise an exception if integration was not successful. By default RadialSolver
-        fails silently. 
-
+        fails silently.
+    eos_integration_method : unsigned int, default = 2
+        Integration method used to solve for the planet's equation of state.
+    eos_rtol : double, default = 1.0e-6
+        Integration relative tolerance for equation of state solver.
+    eos_atol : double, default = 1.0e-8
+        Integration absolute tolerance for equation of state solver.
+    eos_pressure_tol : double, default = 0.1
+        Tolerance used when fitting to the surface pressure in the equation of state solver.
+    eos_max_iters : unsigned int, default = 40
+        Maximum number of iterations used to converge surface pressure in equation of state solver. 
+    
     Returns
     -------
     solution : RadialSolverSolution
@@ -334,27 +351,33 @@ def radial_solver(
 
     # Build vector of inputs
     cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec = vector[EOS_ODEInput](0)
+    cdef vector[EOS_ODEInputPtr] eos_inputs_ptrs_bylayer_vec = vector[EOS_ODEInputPtr](0)
+    eos_inputs_ptrs_bylayer_vec.reserve(num_layers)
     eos_inputs_bylayer_vec.reserve(num_layers)
-
     for i in range(num_layers):
         # TODO: For now we are only storing the interpolate version of the EOS for each layer.
         eos_function_bylayer_vec.push_back(preeval_interpolate)
+        eos_inputs_ptrs_bylayer_vec.push_back(&eos_function_bylayer_vec[i])
+
+    # Make pointers to pre-eval data
+    cdef PreEvalFunc* eos_function_bylayer_ptrs = &eos_function_bylayer_vec[0]
+    cdef EOS_ODEInput** eos_input_bylayer_ptrs  = &eos_inputs_ptrs_bylayer_vec[0]
 
     cdef EOSSolutionVec eos_result = solve_eos(
         &radius_array[0],
         total_slices,
         upper_radius_by_layer_ptr,
         num_layers,
-        PreEvalFunc* eos_function_bylayer_ptrs,
-        EOS_ODEInput** eos_input_bylayer_ptrs,
+        eos_function_bylayer_ptrs,
+        eos_input_bylayer_ptrs,
         planet_bulk_density,
         surface_pressure,
         G_to_use,
-        unsigned int integration_method = *,
-        double rtol = *,
-        double atol = *,
-        double pressure_tol = *,
-        unsigned int max_iters = *
+        eos_integration_method,
+        eos_rtol,
+        eos_atol,
+        eos_pressure_tol,
+        eos_max_iters
         )
 
     # Run requested radial solver method
@@ -381,7 +404,8 @@ def radial_solver(
                 core_condition,
                 nondimensionalize,
                 verbose,
-                raise_on_fail)
+                raise_on_fail,
+                already_nondimed)
         else:
             cf_shooting_solver(
                 solution_storage_ptr,
@@ -413,7 +437,8 @@ def radial_solver(
                 limit_solution_to_radius,
                 nondimensionalize,
                 verbose,
-                raise_on_fail)
+                raise_on_fail,
+                already_nondimed)
     finally:
         # Release heap memory
         if not (layer_assumptions_ptr is NULL):

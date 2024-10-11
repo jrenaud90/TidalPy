@@ -19,6 +19,7 @@ cdef void cf_shooting_solver(
     double* upper_radius_by_layer_ptr,
     size_t num_bc_models,
     int* bc_models_ptr,
+    double G_to_use = *,
     unsigned int degree_l = *,
     cpp_bool use_kamata = *,
     unsigned char integration_method = *,
@@ -32,5 +33,6 @@ cdef void cf_shooting_solver(
     cpp_bool limit_solution_to_radius = *,
     cpp_bool nondimensionalize = *,
     cpp_bool verbose = *,
-    cpp_bool raise_on_fail = *
+    cpp_bool raise_on_fail = *,
+    cpp_bool already_nondimed = *
     ) noexcept

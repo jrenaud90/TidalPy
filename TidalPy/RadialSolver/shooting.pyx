@@ -44,6 +44,7 @@ cdef void cf_shooting_solver(
         double* upper_radius_by_layer_ptr,
         size_t num_bc_models,
         int* bc_models_ptr,
+        double G_to_use = G,
         unsigned int degree_l = 2,
         cpp_bool use_kamata = False,
         unsigned char integration_method = 1,
@@ -57,7 +58,8 @@ cdef void cf_shooting_solver(
         cpp_bool limit_solution_to_radius = True,
         cpp_bool nondimensionalize = True,
         cpp_bool verbose = False,
-        cpp_bool raise_on_fail = False
+        cpp_bool raise_on_fail = False,
+        cpp_bool already_nondimed = False
         ) noexcept:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
@@ -106,11 +108,10 @@ cdef void cf_shooting_solver(
             exit(EXIT_FAILURE)
 
     # Non-dimensionalize inputs
-    cdef double G_to_use = NAN
     cdef double radius_planet_to_use = NAN
-    cdef double bulk_density_to_use = NAN
-    cdef double frequency_to_use = NAN
-    if nondimensionalize:
+    cdef double bulk_density_to_use  = NAN
+    cdef double frequency_to_use     = NAN
+    if nondimensionalize and (not already_nondimed):
         cf_non_dimensionalize_physicals(
             total_slices,
             frequency,
@@ -139,7 +140,6 @@ cdef void cf_shooting_solver(
         # Leave inputs alone.
         radius_planet_to_use = radius_planet
         bulk_density_to_use  = planet_bulk_density
-        G_to_use             = G
         frequency_to_use     = frequency
     
     # Pull out any constants now that arrays have had dimensional protocol applied to them.
