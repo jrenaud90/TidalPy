@@ -34,7 +34,6 @@ log = get_logger(__name__)
 def radial_solver(
         double[::1] radius_array,
         double[::1] density_array,
-        double[::1] gravity_array,
         double[::1] bulk_modulus_array,
         double complex[::1] complex_shear_modulus_array,
         double frequency,
@@ -43,6 +42,7 @@ def radial_solver(
         tuple is_static_by_layer,
         tuple is_incompressible_by_layer,
         tuple upper_radius_by_layer,
+        double surface_pressure = 0.0,
         unsigned int degree_l = 2,
         tuple solve_for = None,
         unsigned char core_condition = 0,
@@ -73,8 +73,6 @@ def radial_solver(
         Radius values defined at slices throughout the planet [m].
     density_array : np.ndarray[dtype=np.float64]
         Density at each radius [kg m-3].
-    gravity_array : np.ndarray[dtype=np.float64]
-        Acceleration due to gravity at each radius [m-2].
     bulk_modulus_array : np.ndarray[dtype=np.float64]
         Bulk modulus at each radius [Pa].
     complex_shear_modulus_array : np.ndarray[dtype=np.complex128]
@@ -96,6 +94,9 @@ def radial_solver(
     upper_radius_by_layer : tuple[float64, ...] (Size = number of layers)
         Tuple of the upper radius of each layer.
         Used to determine physical structure of planet.
+    surface_pressure: float64, default=0
+        The pressure at the surface of the planet (defined as radius_array[-1]). [Pa]
+        Used for EOS calculations.
     degree_l : uint32, default=2
         Harmonic degree.
     solve_for : tuple[str, ...] (Size = number of requested solutions), default=None
@@ -181,7 +182,6 @@ def radial_solver(
     cdef size_t total_slices
     total_slices = radius_array.size
     assert density_array.size               == total_slices
-    assert gravity_array.size               == total_slices
     assert bulk_modulus_array.size          == total_slices
     assert complex_shear_modulus_array.size == total_slices
 
@@ -289,6 +289,9 @@ def radial_solver(
                 bc_models_ptr[i] = 2
             else:
                 raise AttributeError(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
+    
+    # Get other inputs needed
+    cdef double radius_planet = radius_array[total_slices - 1]
 
     # Build solution storage
     cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, num_bc_models)
@@ -312,11 +315,10 @@ def radial_solver(
             frequency,
             radius_planet,
             planet_bulk_density,
-            radius_array_ptr,
-            density_array_ptr,
-            gravity_array_ptr,
-            bulk_modulus_array_ptr,
-            complex_shear_modulus_array_ptr,
+            &radius_array[0],
+            &density_array[0],
+            &bulk_modulus_array[0],
+            complex_shear_modulus_ptr,
             &radius_planet_to_use,
             &bulk_density_to_use,
             &frequency_to_use,
@@ -363,7 +365,6 @@ def radial_solver(
                 total_slices,
                 &radius_array[0],
                 &density_array[0],
-                &gravity_array[0],
                 &bulk_modulus_array[0],
                 complex_shear_modulus_ptr,
                 frequency,
