@@ -356,7 +356,11 @@ def radial_solver(
     eos_inputs_bylayer_vec.reserve(num_layers)
     for i in range(num_layers):
         # TODO: For now we are only storing the interpolate version of the EOS for each layer.
+
+        # First build the input so that it is in memory
         eos_function_bylayer_vec.push_back(preeval_interpolate)
+
+        # Then record its memory address (this is what will be used in function calls)
         eos_inputs_ptrs_bylayer_vec.push_back(&eos_function_bylayer_vec[i])
 
     # Make pointers to pre-eval data
