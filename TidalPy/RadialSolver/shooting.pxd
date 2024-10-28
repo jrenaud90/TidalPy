@@ -1,5 +1,6 @@
 from libcpp cimport bool as cpp_bool
 
+from TidalPy.Material.eos.solver cimport EOSSolutionVec
 from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
 
 cdef void cf_shooting_solver(
@@ -12,6 +13,7 @@ cdef void cf_shooting_solver(
     double complex* complex_shear_modulus_array_ptr,
     double frequency,
     double planet_bulk_density,
+    EOSSolutionVec* eos_solution_bylayer_ptr,
     size_t num_layers,
     int* layer_types_ptr,
     int* is_static_by_layer_ptr,

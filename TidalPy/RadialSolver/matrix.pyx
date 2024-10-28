@@ -17,7 +17,8 @@ from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
 
 from scipy.linalg.cython_lapack cimport zgesv
-from CyRK.utils.utils cimport allocate_mem, free_mem
+from CyRK cimport CySolverResult
+from CyRK.utils cimport allocate_mem, free_mem, vector
 
 from TidalPy.utilities.math.complex cimport cmplx_zero, cmplx_NAN, cf_build_dblcmplx
 from TidalPy.utilities.constants_x cimport G
@@ -35,18 +36,15 @@ cdef void cf_matrix_propagate(
         RadialSolutionStorageCC* solution_storage_ptr,
         size_t total_slices,
         double* radius_array_ptr,
-        double* density_array_ptr,
-        double* gravity_array_ptr,
-        double* bulk_modulus_ptr,
-        double complex* complex_shear_modulus_array_ptr,
         double frequency,
         double planet_bulk_density,
+        EOSSolutionVec* eos_solution_bylayer_ptr,
+        size_t num_layers,
         # TODO: In the future the propagation matrix should take in layer types and multiple layers
-        # size_t num_layers,
         # int* layer_types_ptr,
         # int* is_static_by_layer_ptr,
         # int* is_incompressible_by_layer_ptr,
-        # double* upper_radius_by_layer_ptr,
+        double* upper_radius_by_layer_ptr,
         size_t num_bc_models,
         int* bc_models_ptr,
         double G_to_use = G,
@@ -64,6 +62,59 @@ cdef void cf_matrix_propagate(
     cdef cpp_bool error = False
     strcpy(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n")
 
+    # Create gravity and density arrays used to build the matrices
+    cdef vector[double] density_array_vec               = vector[double](0)
+    cdef vector[double] gravity_array_vec               = vector[double](0)
+    cdef vector[double complex] complex_shear_array_vec = vector[double](0)
+    # TODO: Bulk modulus is not used in the propagation matrix method.
+    cdef vector[double complex] complex_bulk_array_vec  = vector[double](0)
+    density_array_vec.reserve(total_slices)
+    gravity_array_vec.reserve(total_slices)
+    complex_shear_array_vec.reserve(total_slices)
+    complex_bulk_array_vec.reserve(total_slices)
+    cdef double* density_array_ptr               = &density_array_vec[0]
+    cdef double* gravity_array_ptr               = &gravity_array_vec[0]
+    cdef double complex* complex_shear_array_ptr = &complex_shear_array_vec[0]
+    cdef double complex* complex_bulk_array_ptr  = &complex_bulk_array_vec[0]
+
+    # Build storage used to call the EOS at each radius
+    # The EOS stores 7 doubles:
+    #   0: Gravity
+    #   1: Pressure
+    #   2: Density
+    #   3: Shear Mod (real)
+    #   4: Shear Mod (imag)
+    #   5: Bulk Mod (real)
+    #   6: Bulk Mod (imag)
+    cdef vector[double] y_array = vector[double](7)
+    cdef double* y_array_ptr    = &y_array[0]
+
+    # Build variables to help solve the EOS.
+    cdef double r
+    cdef int current_layer_i = 0
+    cdef double layer_r      = upper_radius_by_layer_ptr[current_layer_i]
+    cdef CySolverResult* eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
+
+    # Step through the radial steps to find EOS-dependent parameters
+    for i in range(total_slices):
+        r = radius_array_ptr[i]
+
+        # Check if we are using the correct EOS solution (changes with layers)
+        if r > layer_r:
+            current_layer_i += 1
+            layer_r = upper_radius_by_layer_ptr[current_layer_i]
+            eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
+
+        # Call the dense output of the EOS ODE solution to populate the y_interp pointer.
+        eos_solution_ptr.call(r, y_array_ptr)
+
+        # Store results
+        gravity_array_ptr[i]       = y_array_ptr[0]
+        # Skip pressure at y-interp index 1
+        density_array_ptr[i]       = y_array_ptr[2]
+        complex_shear_array_ptr[i] = cf_build_dblcmplx(y_array_ptr[3], y_array_ptr[4])
+        complex_bulk_array_ptr[i]  = cf_build_dblcmplx(y_array_ptr[5], y_array_ptr[6])
+
     # Nondimensional variables
     cdef double mean_radius          = radius_array_ptr[total_slices - 1]
     cdef double planet_radius_to_use = NAN
@@ -74,7 +125,7 @@ cdef void cf_matrix_propagate(
     if nondimensionalize and (not already_nondimed):
         cf_non_dimensionalize_physicals(
             total_slices, frequency, mean_radius, planet_bulk_density, radius_array_ptr, density_array_ptr,
-            gravity_array_ptr, bulk_modulus_ptr, complex_shear_modulus_array_ptr,
+            gravity_array_ptr, complex_bulk_array_ptr, complex_shear_array_ptr,
             &planet_radius_to_use, &bulk_density_to_use, &frequency_to_use, &G_to_use
             )
         
@@ -138,7 +189,7 @@ cdef void cf_matrix_propagate(
         sizeof(double complex) * prop_mat_size,
         "`propagation_mtx_ptr` (cf_matrix_propagate)"
         )
-    
+
     # Populate matricies with the correct layer type. 
     # TODO: Currently only solid, static, incompressible layers are supported for matrix propagation.
     cf_fundamental_matrix(
@@ -146,13 +197,13 @@ cdef void cf_matrix_propagate(
         radius_array_ptr,
         density_array_ptr,
         gravity_array_ptr,
-        complex_shear_modulus_array_ptr,
+        complex_shear_array_ptr,
         fundamental_mtx_ptr,  # Changed variable
         inverse_fundamental_mtx_ptr,  # Changed variable
         derivative_mtx_ptr,  # Changed variable
         degree_l,
         G_to_use
-        ) 
+        )
 
     # Initialize the base of the propagation matrix to the initial conditions
     ## From IcyDwarf: "They are inconsequential on the rest of the solution, so false assumptions are OK."

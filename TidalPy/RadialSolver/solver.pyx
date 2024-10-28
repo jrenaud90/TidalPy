@@ -316,7 +316,7 @@ def radial_solver(
     cdef RadialSolutionStorageCC* solution_storage_ptr = solution.solution_storage_ptr
 
     # Convert complex-valued arrays to C++ complex pointers
-    cdef double complex* complex_shear_modulus_ptr = <double complex*>&complex_shear_modulus_array[0]
+    cdef double complex* complex_shear_modulus_ptr = <double complex*> &complex_shear_modulus_array[0]
 
     # Solve the equaiton of state for the planet
 
@@ -367,7 +367,7 @@ def radial_solver(
     cdef PreEvalFunc* eos_function_bylayer_ptrs = &eos_function_bylayer_vec[0]
     cdef EOS_ODEInput** eos_input_bylayer_ptrs  = &eos_inputs_ptrs_bylayer_vec[0]
 
-    cdef EOSSolutionVec eos_result = solve_eos(
+    cdef EOSSolutionVec eos_solution_bylayer = solve_eos(
         &radius_array[0],
         total_slices,
         upper_radius_by_layer_ptr,
@@ -383,6 +383,7 @@ def radial_solver(
         eos_pressure_tol,
         eos_max_iters
         )
+    cdef EOSSolutionVec* eos_solution_bylayer_ptr = &eos_solution_bylayer
 
     # Run requested radial solver method
     try:
@@ -391,25 +392,25 @@ def radial_solver(
                 solution_storage_ptr,
                 total_slices,
                 &radius_array[0],
-                &density_array[0],
-                &bulk_modulus_array[0],
-                complex_shear_modulus_ptr,
                 frequency,
                 planet_bulk_density,
+                eos_solution_bylayer_ptr,
+                num_layers,
                 # TODO: In the future the propagation matrix should take in layer types and multiple layers
-                # size_t num_layers,
                 # int* layer_types_ptr,
                 # int* is_static_by_layer_ptr,
                 # int* is_incompressible_by_layer_ptr,
-                # double* upper_radius_by_layer_ptr,
+                upper_radius_by_layer_ptr,
                 num_bc_models,
                 bc_models_ptr,
+                G_to_use,
                 degree_l,
                 core_condition,
                 nondimensionalize,
                 verbose,
                 raise_on_fail,
-                already_nondimed)
+                already_nondimed
+                )
         else:
             cf_shooting_solver(
                 solution_storage_ptr,

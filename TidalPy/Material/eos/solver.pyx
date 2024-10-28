@@ -72,13 +72,13 @@ cdef EOSSolutionVec solve_eos(
     cdef size_t len_t_eval     = 0
     
     # Pressure convergence variables
-    cdef size_t surface_pressure_index = 0
+    cdef size_t surface_pressure_index   = 0
     cdef double calculated_surf_pressure = INF_DBL
-    cdef double pressure_diff = INF_DBL
-    cdef unsigned int iterations = 0
-    cdef cpp_bool failed = False
-    cdef cpp_bool max_iters_hit = False
-    cdef cpp_bool final_run = False
+    cdef double pressure_diff            = INF_DBL
+    cdef unsigned int iterations         = 0
+    cdef cpp_bool failed                 = False
+    cdef cpp_bool max_iters_hit          = False
+    cdef cpp_bool final_run              = False
     
     # Integration solution variables
     cdef size_t last_solution_size = 0

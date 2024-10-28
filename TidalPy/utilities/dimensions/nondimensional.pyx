@@ -23,7 +23,7 @@ cdef void cf_non_dimensionalize_physicals(
         double bulk_density,
         double* radius_array_ptr,
         double* density_array_ptr,
-        double* bulk_array_ptr,
+        double_numeric* bulk_array_ptr,
         double_numeric* shear_array_ptr,
         double* radius_planet_to_use,
         double* bulk_density_to_use,
@@ -64,7 +64,7 @@ cdef void cf_redimensionalize_physicals(
         double bulk_density,
         double* radius_array_ptr,
         double* density_array_ptr,
-        double* bulk_array_ptr,
+        double_numeric* bulk_array_ptr,
         double_numeric* shear_array_ptr,
         double* radius_planet_to_use,
         double* bulk_density_to_use,
@@ -159,7 +159,7 @@ def non_dimensionalize_physicals(
         double bulk_density,
         double[::1] radius_array_view,
         double[::1] density_array_view,
-        double[::1] bulk_array_view,
+        double_numeric[::1] bulk_array_view,
         double_numeric[::1] shear_array_view,
         ):
 

@@ -7,6 +7,7 @@ from libc.stdio cimport printf, sprintf
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
 
+from CyRK cimport CySolverResult
 from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
@@ -37,6 +38,7 @@ cdef void cf_shooting_solver(
         double complex* complex_shear_modulus_array_ptr,
         double frequency,
         double planet_bulk_density,
+        EOSSolutionVec* eos_solution_bylayer_ptr,
         size_t num_layers,
         int* layer_types_ptr,
         int* is_static_by_layer_ptr,
@@ -306,6 +308,21 @@ cdef void cf_shooting_solver(
     for i in range(18):
         uppermost_y_per_solution_ptr[i] = cmplx_NAN
 
+    # Layer EOS solution
+    cdef double eos_y_array_ptr = <double complex *> allocate_mem(
+        7 * sizeof(double),
+        'eos_y_array_ptr (radial_solver; init)'
+        )
+    # The EOS stores 7 doubles:
+    #   0: Gravity
+    #   1: Pressure
+    #   2: Density
+    #   3: Shear Mod (real)
+    #   4: Shear Mod (imag)
+    #   5: Bulk Mod (real)
+    #   6: Bulk Mod (imag)
+    cdef CySolverResult* layer_eos_solution_ptr
+
     # Layer specific pointers; set the size based on the layer with the most slices.
     cdef double* layer_radius_ptr
     cdef double* layer_density_ptr
@@ -314,13 +331,20 @@ cdef void cf_shooting_solver(
     cdef double complex* layer_shear_mod_ptr
 
     # Properties at top and bottom of layer
-    cdef double radius_lower = NAN
-    cdef double radius_upper = NAN
+    cdef double[2] radial_span
+    cdef double* radial_span_ptr = &radial_span[0]
+    radial_span_ptr[0] = NAN
+    radial_span_ptr[1] = NAN
+
+    cdef double radius_lower  = NAN
+    cdef double radius_upper  = NAN
     cdef double density_lower = NAN
     cdef double density_upper = NAN
     cdef double gravity_lower = NAN
     cdef double gravity_upper = NAN
-    cdef double bulk_lower = NAN
+    cdef double complex bulk_lower  = cmplx_NAN
+    cdef double complex bulk_upper  = cmplx_NAN
+    cdef double complex shear_upper = cmplx_NAN
     cdef double complex shear_lower = cmplx_NAN
 
     # Properties at interfaces between layers
@@ -395,6 +419,9 @@ cdef void cf_shooting_solver(
         start_index  = start_index_by_layer_ptr[layer_i]
         layer_slices = num_slices_by_layer_ptr[layer_i]
 
+        # Get layer EOS solution
+        layer_eos_solution_ptr = eos_solution_bylayer_ptr[layer_i]
+
         # Get solution and y information
         num_sols   = num_solutions_by_layer_ptr[layer_i]
         num_ys     = 2 * num_sols
@@ -409,13 +436,21 @@ cdef void cf_shooting_solver(
 
         # Get physical parameters at the top and bottom of the layer
         radius_lower  = layer_radius_ptr[0]
-        density_lower = layer_density_ptr[0]
-        gravity_lower = layer_gravity_ptr[0]
-        bulk_lower    = layer_bulk_mod_ptr[0]
-        shear_lower   = layer_shear_mod_ptr[0]
+        layer_eos_solution_ptr.call(radius_lower, eos_y_array_ptr)
+        gravity_lower = eos_y_array_ptr[0]
+        density_lower = eos_y_array_ptr[2]
+        shear_lower   = cf_build_dblcmplx(eos_y_array_ptr[3], eos_y_array_ptr[4])
+        bulk_lower    = cf_build_dblcmplx(eos_y_array_ptr[5], eos_y_array_ptr[6])
+
         radius_upper  = layer_radius_ptr[layer_slices - 1]
-        density_upper = layer_density_ptr[layer_slices - 1]
-        gravity_upper = layer_gravity_ptr[layer_slices - 1]
+        layer_eos_solution_ptr.call(radius_upper, eos_y_array_ptr)
+        gravity_upper = eos_y_array_ptr[0]
+        density_upper = eos_y_array_ptr[2]
+        shear_upper   = cf_build_dblcmplx(eos_y_array_ptr[3], eos_y_array_ptr[4])
+        bulk_upper    = cf_build_dblcmplx(eos_y_array_ptr[5], eos_y_array_ptr[6])
+        
+        radial_span_ptr[0] = radius_lower
+        radial_span_ptr[1] = radius_upper
 
         # Determine max step size (if not provided by user)
         if max_step_from_arrays:
@@ -594,11 +629,32 @@ cdef void cf_shooting_solver(
                     )
 
             ###### Integrate! #######
-            solver._solve(reset=True)
+            solution = cysolve_ivp(
+                eos_solution,
+                radial_span_ptr,
+                &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL],
+                2 * num_ys,
+                integration_method,
+                NAN,             # rtol
+                NAN,             # atol
+                args_ptr,
+                0,               # num_extra
+                max_num_steps,
+                max_ram_MB,
+                False,           # use_dense_output
+                layer_radius_ptr,
+                layer_slices,
+                eos_function_ptr,
+                rtols_ptr,
+                atols_ptr,
+                max_step,
+                0.0,            # first_step_size
+                expected_size)
+            solution_ptr = solution.get()
             #########################
 
             # Check for problems
-            if not solver.success:
+            if not solution_ptr.success:
                 # Problem with integration.
                 error = True
                 sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', layer_i, solution_i, solver._message_ptr)
@@ -818,6 +874,7 @@ cdef void cf_shooting_solver(
         surface_gravity  = gravity_array_ptr[total_slices - 1]
 
     # Free memory
+    free_mem(eos_y_array_ptr)
     if cysolver_setup:
         del solver
 
