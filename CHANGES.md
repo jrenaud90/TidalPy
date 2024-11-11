@@ -9,7 +9,8 @@
 ### Version 0.5.5 (2024-11-11)
 
 Fixes:
-* Fixed dependency compatibility issues
+* Fixed dependency compatibility issues.
+* Fixed incorrect function signature type for scipy's `spherical_jn`.
 
 ### Version 0.5.4 (2024-04-30)
 
