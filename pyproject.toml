@@ -19,7 +19,7 @@ dependencies = [
     "psutil>=5.8.0",
     "pathos>=0.2.0",
     # Install CyRK requirements
-    "cyrk>=0.8.7",
+    "cyrk>=0.8.7, <0.10",
     # Exoplanet data archive
     "astropy",
     "astroquery"
