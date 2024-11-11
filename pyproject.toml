@@ -22,7 +22,10 @@ dependencies = [
     "cyrk>=0.8.7, <0.10",
     # Exoplanet data archive
     "astropy",
-    "astroquery"
+    "astroquery",
+    # Graphics
+    "matplotlib>=3.4.2",
+    "cmcrameri>=1.4",
 ]
 license = {file = "LICENSE.md"}
 readme = "README.md"
