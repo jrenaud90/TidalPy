@@ -5,6 +5,12 @@
   * Remove support for the older non-cythonized `radial_solver` module.
 
 
+
+### Version 0.5.5 (2024-11-11)
+
+Fixes:
+* Fixed dependency compatibility issues
+
 ### Version 0.5.4 (2024-04-30)
 
 Fixes:
