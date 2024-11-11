@@ -113,7 +113,7 @@ requires = [
     "scipy>=1.9.3",
     'cython>=3.0.0',
     'wheel>=0.38',
-    "cyrk>=0.8.7"
+    "cyrk>=0.8.7, <0.10",
 ]
 build-backend = "setuptools.build_meta"
 
