@@ -10,7 +10,7 @@ dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
     "numpy>=1.22, <1.27",
-    "scipy>=1.9.3",
+    "scipy>=1.9.3, <1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
     # Configuration file resources
     "platformdirs>=3.11.0, <4",
     "toml>=0.10.2",
@@ -113,7 +113,7 @@ julia = [
 requires = [
     'setuptools>=64.0.0',
     'numpy>=1.22, <1.27',
-    "scipy>=1.9.3",
+    "scipy>=1.9.3, <1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
     'cython>=3.0.0',
     'wheel>=0.38',
     "cyrk>=0.8.7, <0.10",
