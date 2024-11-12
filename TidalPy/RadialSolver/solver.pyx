@@ -23,9 +23,7 @@ from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
 
 # EOS Imports (note these will change in a future release)
-from TidalPy.Material.eos.interpolate cimport preeval_interpolate
-from TidalPy.Material.eos.ode cimport EOS_ODEInput
-from TidalPy.Material.eos.solver cimport EOSSolutionVec, solve_eos
+from TidalPy.Material.eos cimport EOS_ODEInput, EOSSolutionVec, solve_eos, preeval_interpolate
 
 
 cdef double G = G_
@@ -162,8 +160,12 @@ cdef void cf_radial_solver(
     cdef double* gravity_array_ptr               = &solution_storage_ptr.gravity_ptr[0]
     cdef double* pressure_array_ptr              = &solution_storage_ptr.pressure_ptr[0]
     cdef double* density_array_ptr               = &solution_storage_ptr.density_ptr[0]
-    cdef double complex* complex_shear_array_ptr = &solution_storage_ptr.shear_mod_ptr[0]
-    cdef double complex* complex_bulk_array_ptr  = &solution_storage_ptr.bulk_mod_ptr[0]
+    # The C++ class only stores double pointers (for cross-platform inter-op)
+    # We need to grab the shear and bulk arrays as a double pointers and then recast to double complex
+    cdef double* shear_array_ptr                 = &solution_storage_ptr.shear_mod_ptr[0]
+    cdef double* bulk_array_ptr                  = &solution_storage_ptr.bulk_mod_ptr[0]
+    cdef double complex* complex_shear_array_ptr = <double complex*>shear_array_ptr
+    cdef double complex* complex_bulk_array_ptr  = <double complex*>bulk_array_ptr
 
     # Build storage used to call the EOS at each radius
     # The EOS stores 7 doubles:

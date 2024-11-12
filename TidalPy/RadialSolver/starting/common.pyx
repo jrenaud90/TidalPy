@@ -38,10 +38,13 @@ cdef double complex cf_z_calc(
     # In any case, we will not use the recrusive formula here.
 
     # Have found that the Taylor expansion works well when x_square is small and is faster.
+    cdef double l2            = <double>degree_l * 2.0
+    
+    # TODO: There is an issue with scipy 1.14.X+ on MacOS where the conversion between Py_ssize_t and long is not being accepted. See issue #65
+    cdef long degree_l_ssizet = <long>degree_l
+
     cdef double complex x, z
     cdef double l2_3, l2_5, l2_7, l2_9, l2_11
-    cdef double l2 = <double>degree_l * 2.0
-    cdef long degree_l_ssizet = <long>degree_l
 
     if cf_cabs(x_squared) > 0.1:
         # Use real function
@@ -88,7 +91,7 @@ cdef void cf_takeuchi_phi_psi(
     cdef double complex z6   = z4 * z2
     cdef double complex z8   = z6 * z2
     cdef double complex z10  = z8 * z2
-    cdef double l    = <double> degree_l
+    cdef double l    = <double>degree_l
     cdef double l2   = 2. * l
     cdef double l_3  = 3.  + l2
     cdef double l_5  = 5.  + l2

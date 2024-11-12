@@ -135,12 +135,32 @@ cdef EOSSolutionVec solve_eos(
                 num_extra = 0
                 use_dense_output = False
             
+            ###### Radial Integrate the EOS Through the Planet ######
             integration_result = cysolve_ivp(
-                eos_solution, radial_span_ptr, y0_layer_ptr, num_y,
-                integration_method, rtol, atol, args_ptr, num_extra,
-                max_num_steps, max_ram_MB, use_dense_output, t_eval_ptr, len_t_eval, eos_function_ptr,
-                rtols_ptr, atols_ptr, max_step, first_step, expected_size)
+                eos_solution,        # Differential equation [DiffeqFuncType]
+                radial_span_ptr,     # Radial span [const double*]
+                y0_layer_ptr,        # y0 array [const double*]
+                num_y,               # Integration method [unsigned int]
+                integration_method,  # Integration method [unsigned int]
+                rtol,                # Relative Tolerance (as scalar) [double]
+                atol,                # Absolute Tolerance (as scalar) [double]
+                args_ptr,            # Extra input args to diffeq [void*]
+                num_extra,           # Number of extra outputs tracked [unsigned int]
+                max_num_steps,       # Max number of steps (0 = find good value) [size_t]
+                max_ram_MB,          # Max amount of RAM allowed [size_t]
+                use_dense_output,    # Use dense output [bint]
+                t_eval_ptr,          # Interpolate at radius array [double*]
+                len_t_eval,          # Size of interpolation array [size_t]
+                eos_function_ptr,    # Pre-eval function used in diffeq [PreEvalFunc]
+                rtols_ptr,           # Relative Tolerance (as array) [double*]
+                atols_ptr,           # Absolute Tolerance (as array) [double*]
+                max_step,            # Maximum step size [double]
+                first_step,          # Initial step size (0 = find good value) [doub;e]
+                expected_size        # Expected final integration size (0 = find good value) [size_t]
+                )
             integration_result_ptr = integration_result.get()
+            #########################################################
+
             last_solution_size = integration_result_ptr.size
 
             if not integration_result_ptr.success:
