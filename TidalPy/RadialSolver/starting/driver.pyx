@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy.RadialSolver.starting.takeuchi cimport (
@@ -26,7 +26,7 @@ cdef void cf_find_starting_conditions(
         double frequency,
         double radius,
         double density,
-        double bulk_modulus,
+        double complex bulk_modulus,
         double complex shear_modulus,
         unsigned int degree_l,
         double G_to_use,
@@ -181,7 +181,7 @@ def find_starting_conditions(
     
     # starting conditions are passed as an array with shape [num_solutions, num_ys]
     cdef ssize_t num_ys = starting_conditions_view.shape[1]
-    cdef double complex* starting_conditions_ptr = &starting_conditions_view[0, 0] 
+    cdef double complex* starting_conditions_ptr = <double complex*>&starting_conditions_view[0, 0]
 
     cf_find_starting_conditions(
         layer_type,
@@ -192,7 +192,7 @@ def find_starting_conditions(
         radius,
         density,
         bulk_modulus,
-        shear_modulus,
+        <double complex>shear_modulus,
         degree_l,
         G_to_use,
         num_ys,

@@ -1,9 +1,31 @@
 # TidalPy Major Change Log
 
-### Version 0.6.0 *PLANNED*
+### Version 0.6.0 (TBD)
 * Other Major Changes
-  * Remove support for the older non-cythonized `radial_solver` module.
+  * Removed support for the older non-cythonized `radial_solver` module.
 
+Changes
+* Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
+* Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
+* Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
+  * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
+* Decoupled radial solver from shooting method.
+  * Moved shooting method, constants, and radial solver solution class to a new files in `TidalPy.RadialSolver`.
+* Updated GitHub actions.
+
+New Features
+* Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
+* Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
+* RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
+
+Dependencies
+* Added support for CyRK v0.10.1
+
+Documentation
+* Added documentation for propagation matrix use with radial solver in `Calculating Love Numbers with TidalPy.md`.
+
+Fixes:
+* Missing Cython compile arguments in `nondimensional.pyx`.
 
 
 ### Version 0.5.5 (2024-11-11)

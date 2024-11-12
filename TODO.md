@@ -2,6 +2,8 @@ Immediate ToDos:
 * Figure out why the Tobie / RN compare is so bad for dynamic tides with the new radial solver
 * Non-dim sometimes makes things better; sometimes worse
 * Add sensitivity to bulk and shear to radial solver solutions
+* Like LoadDef, make RadialSovler choose a higher R0 when users request a very high degree l (like for l>10 start at CMB). for stability improvements.
+    * (r/R)^n ~10^-5  <-- Solve for r
 
 Future ToDos:
 * Have functions to take the exoplanet data retrieved from tidalpy.utilities.exoplanets and import it into TidalPy classes

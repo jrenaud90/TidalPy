@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from scipy.linalg.cython_lapack cimport zgesv
@@ -113,14 +113,14 @@ cdef void cf_apply_surface_bc(
 
     # Find the solution to the linear equation at the surface surface_matrix @ constant_vector = bc
     # ZGESV computes the solution to system of linear equations A * X = B for GE matrices
-    # See https://www.netlib.org/lapack/explore-html/d6/d10/group__complex16_g_esolve_ga531713dfc62bc5df387b7bb486a9deeb.html#ga531713dfc62bc5df387b7bb486a9deeb
+    # See https://www.math.utah.edu/software/lapack/lapack-z/zgesv.html
     zgesv(
-        num_sols_int_ptr,
-        lapack_nrhs_ptr,
-        surface_matrix_ptr,   # Modified Variable
-        num_sols_int_ptr,
-        lapack_ipiv_ptr,      # Modified Variable
-        constant_vector_ptr,  # Modified Variable
-        num_sols_int_ptr,
-        bc_solution_info_ptr  # Modified Variable
+        num_sols_int_ptr,     # (Input)
+        lapack_nrhs_ptr,      # (Input)
+        surface_matrix_ptr,   # A; (Input & Output)
+        num_sols_int_ptr,     # (Input)
+        lapack_ipiv_ptr,      # (Output)
+        constant_vector_ptr,  # B -> X (Input & Output)
+        num_sols_int_ptr,     # (Input)
+        bc_solution_info_ptr  # (Ouput)
         )

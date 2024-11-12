@@ -6,7 +6,7 @@ cdef void cf_find_starting_conditions(
     double frequency,
     double radius,
     double density,
-    double bulk_modulus,
+    double complex bulk_modulus,
     double complex shear_modulus,
     unsigned int degree_l,
     double G_to_use,

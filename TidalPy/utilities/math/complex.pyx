@@ -58,6 +58,21 @@ cdef double cf_cabs(double complex z) noexcept nogil:
 cdef double cf_carg(double complex z) noexcept nogil:
     return atan2(z.imag, z.real)
 
+cdef double complex cf_cinv(double complex z) noexcept nogil:
+
+    cdef double z_real = z.real
+    cdef double z_imag = z.imag
+    cdef double denom = ((z_real * z_real) + (z_imag * z_imag))
+    cdef double complex inv
+
+    # Check for extreme values
+    if denom == 0.:
+        # This is to match python's behavior, it is not strictly accurate depending on your definition.
+        inv = cf_build_dblcmplx(INFINITY, NAN)
+    else:
+        inv = cf_build_dblcmplx(z_real / denom, -z_imag / denom)
+
+    return inv
 
 cdef double cf_hypot(const double x, const double y) noexcept nogil:
 
@@ -435,10 +450,18 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
         a_imag = loga.imag
         return cf_cexp(cf_build_dblcmplx((a_real * b), (a_imag * b)))
 
+########################################################################################################################
+# Constants
+########################################################################################################################
+cdef double complex cmplx_NAN  = cf_build_dblcmplx(NAN, NAN)
+cdef double complex cmplx_zero = cf_build_dblcmplx(0.0, 0.0)
 
 ########################################################################################################################
 # Python wrappers
 ########################################################################################################################
+def cinv(double complex z):
+    return cf_cinv(z)
+
 def hypot(const double x, const double y):
     return cf_hypot(x, y)
 

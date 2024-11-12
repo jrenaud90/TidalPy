@@ -1,3 +1,5 @@
+# distutils: language = c
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functionality to non-dimensionalize common variables used for multi-layer tidal calculations.
 
 The scheme is based on that proposed by Martens16 (around page 99)
@@ -21,8 +23,7 @@ cdef void cf_non_dimensionalize_physicals(
         double bulk_density,
         double* radius_array_ptr,
         double* density_array_ptr,
-        double* gravity_array_ptr,
-        double* bulk_array_ptr,
+        double_numeric* bulk_array_ptr,
         double_numeric* shear_array_ptr,
         double* radius_planet_to_use,
         double* bulk_density_to_use,
@@ -47,7 +48,6 @@ cdef void cf_non_dimensionalize_physicals(
     for i in range(num_radius):
         radius_array_ptr[i]    /= length_conversion
         density_array_ptr[i]   /= density_conversion
-        gravity_array_ptr[i]   /= (length_conversion / second2_conversion)
         bulk_array_ptr[i]      /= pascal_conversion
         shear_array_ptr[i]     /= pascal_conversion
 
@@ -64,8 +64,7 @@ cdef void cf_redimensionalize_physicals(
         double bulk_density,
         double* radius_array_ptr,
         double* density_array_ptr,
-        double* gravity_array_ptr,
-        double* bulk_array_ptr,
+        double_numeric* bulk_array_ptr,
         double_numeric* shear_array_ptr,
         double* radius_planet_to_use,
         double* bulk_density_to_use,
@@ -90,7 +89,6 @@ cdef void cf_redimensionalize_physicals(
     for i in range(num_radius):
         radius_array_ptr[i]    *= length_conversion
         density_array_ptr[i]   *= density_conversion
-        gravity_array_ptr[i]   *= (length_conversion / second2_conversion)
         bulk_array_ptr[i]      *= pascal_conversion
         shear_array_ptr[i]     *= pascal_conversion
 
@@ -161,8 +159,7 @@ def non_dimensionalize_physicals(
         double bulk_density,
         double[::1] radius_array_view,
         double[::1] density_array_view,
-        double[::1] gravity_array_view,
-        double[::1] bulk_array_view,
+        double_numeric[::1] bulk_array_view,
         double_numeric[::1] shear_array_view,
         ):
 
@@ -171,7 +168,7 @@ def non_dimensionalize_physicals(
     
     cf_non_dimensionalize_physicals(
         num_radius, frequency, mean_radius, bulk_density,
-        &radius_array_view[0], &density_array_view[0], &gravity_array_view[0],
+        &radius_array_view[0], &density_array_view[0], 
         &bulk_array_view[0], &shear_array_view[0],
         &radius_planet_to_use, &bulk_density_to_use, &frequency_to_use, &G_to_use
         )
@@ -184,7 +181,6 @@ def redimensionalize_physicals(
         double bulk_density,
         double[::1] radius_array_view,
         double[::1] density_array_view,
-        double[::1] gravity_array_view,
         double[::1] bulk_array_view,
         double_numeric[::1] shear_array_view,
         ):
@@ -194,7 +190,7 @@ def redimensionalize_physicals(
     
     cf_redimensionalize_physicals(
         num_radius, frequency, mean_radius, bulk_density,
-        &radius_array_view[0], &density_array_view[0], &gravity_array_view[0],
+        &radius_array_view[0], &density_array_view[0],
         &bulk_array_view[0], &shear_array_view[0],
         &radius_planet_to_use, &bulk_density_to_use, &frequency_to_use, &G_to_use
         )
