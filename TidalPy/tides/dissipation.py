@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.constants import G
 
+from TidalPy.constants import G
 from TidalPy.utilities.performance import njit
 
 if TYPE_CHECKING:

@@ -1,12 +1,12 @@
-from CyRK cimport CySolveOutput, PreEvalFunc
+from CyRK cimport PreEvalFunc, CySolverResult
 from CyRK.utils.memory cimport shared_ptr, make_shared
 from CyRK.utils.vector cimport vector
-from libcpp import bool as cpp_bool
+from libcpp cimport bool as cpp_bool
 
-from TidalPy.Material.eos.ode cimport eos_solution, EOS_ODEInput
+from TidalPy.Material.eos.ode cimport EOS_ODEInput
 
-ctypedef CySolveOutput* CySolveOutputPtr
-ctypedef vector[CySolveOutputPtr] EOSSolutionVec
+ctypedef CySolverResult* CySolveResultPtr
+ctypedef vector[CySolveResultPtr] EOSSolutionVec
 
 cdef struct GlobalEOSSolutionStorage:
     vector[double] radius

@@ -3,7 +3,7 @@
 
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
 
-from TidalPy.Material.eos.common cimport EOSOutput
+from TidalPy.Material.eos.ode cimport EOSOutput
 from TidalPy.utilities.math.complex cimport cmplx_NAN
 
 cdef void preeval_interpolate(

@@ -17,11 +17,10 @@ from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
 
 from scipy.linalg.cython_lapack cimport zgesv
-from CyRK cimport CySolverResult
-from CyRK.utils cimport allocate_mem, free_mem, vector
+from CyRK.utils.utils cimport allocate_mem, free_mem
 
+from TidalPy.constants cimport G
 from TidalPy.utilities.math.complex cimport cmplx_zero, cmplx_NAN, cf_build_dblcmplx
-from TidalPy.utilities.constants_x cimport G
 from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_non_dimensionalize_physicals,
     cf_redimensionalize_physicals,
@@ -43,7 +42,6 @@ cdef void cf_matrix_propagate(
         # int* layer_types_ptr,
         # int* is_static_by_layer_ptr,
         # int* is_incompressible_by_layer_ptr,
-        double* upper_radius_by_layer_ptr,
         size_t num_bc_models,
         int* bc_models_ptr,
         double G_to_use = G,
@@ -64,11 +62,13 @@ cdef void cf_matrix_propagate(
     cdef size_t num_interfaces = num_layers - 1
 
     # Alias pointers to EOS properties
-    cdef double* gravity_array_ptr               = solution_storage_ptr.gravity_ptr
-    # cdef double* pressure_array_ptr              = solution_storage_ptr.pressure_ptr   # Unused
-    cdef double* density_array_ptr               = solution_storage_ptr.density_ptr
-    cdef double complex* complex_shear_array_ptr = solution_storage_ptr.shear_mod_ptr
-    cdef double complex* complex_bulk_array_ptr  = solution_storage_ptr.bulk_mod_ptr
+    cdef double* gravity_array_ptr = solution_storage_ptr.gravity_ptr
+    # cdef double* pressure_array_ptr = solution_storage_ptr.pressure_ptr   # Unused
+    cdef double* density_array_ptr = solution_storage_ptr.density_ptr
+    
+    # Need to recast the storage's shear/bulk double arrays to double complex for local use
+    cdef double complex* complex_shear_array_ptr = <double complex*>solution_storage_ptr.shear_mod_ptr
+    cdef double complex* complex_bulk_array_ptr  = <double complex*>solution_storage_ptr.bulk_mod_ptr
 
     # Pull out constants
     cdef double planet_radius = radius_array_ptr[top_slice_i]

@@ -1,4 +1,9 @@
+from libcpp cimport bool as cpp_bool
+
+
 cdef void cf_find_starting_conditions(
+    cpp_bool* success_ptr,
+    char* message_ptr,
     int layer_type,
     bint is_static,
     bint is_incompressible,
@@ -12,5 +17,5 @@ cdef void cf_find_starting_conditions(
     double G_to_use,
     ssize_t num_ys, 
     double complex* starting_conditions_ptr,
-    bint run_y_checks = *
-    )
+    cpp_bool run_y_checks = *
+    ) noexcept nogil

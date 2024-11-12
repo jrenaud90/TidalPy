@@ -21,6 +21,11 @@ cdef void cf_solid_dynamic_compressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -29,13 +34,10 @@ cdef void cf_solid_dynamic_compressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr        = &eos_array[0]
-    cdef eos_solution                 = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity               = eos_array_ptr[0]
-    cdef double density               = eos_array_ptr[2]
-    cdef double complex shear_modulus = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus  = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -137,6 +139,11 @@ cdef void cf_solid_dynamic_incompressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -145,12 +152,10 @@ cdef void cf_solid_dynamic_incompressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr = &eos_array[0]
-    cdef eos_solution = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity = eos_array_ptr[0]
-    cdef double density = eos_array_ptr[2]
-    cdef double complex shear_modulus = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -235,6 +240,11 @@ cdef void cf_solid_static_compressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -243,13 +253,10 @@ cdef void cf_solid_static_compressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr        = &eos_array[0]
-    cdef eos_solution                 = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity               = eos_array_ptr[0]
-    cdef double density               = eos_array_ptr[2]
-    cdef double complex shear_modulus = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus  = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -263,11 +270,9 @@ cdef void cf_solid_static_compressible(
     cdef double complex lame = (bulk_modulus - (2. / 3.) * shear_modulus)
 
     # Optimizations
-    cdef double r_inverse, density_gravity, grav_term
-
     cdef double r_inverse                = 1. / radius
     cdef double density_gravity          = density * gravity
-    cdef doublegrav_term                 = args_ptr.grav_coeff * density
+    cdef double grav_term                = args_ptr.grav_coeff * density
     cdef double complex lame_2mu         = lame + 2. * shear_modulus
     cdef double complex lame_2mu_inverse = 1. / lame_2mu
     cdef double complex two_shear_r_inv  = 2. * shear_modulus * r_inverse
@@ -347,6 +352,11 @@ cdef void cf_solid_static_incompressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -355,12 +365,10 @@ cdef void cf_solid_static_incompressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr        = &eos_array[0]
-    cdef eos_solution                 = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity               = eos_array_ptr[0]
-    cdef double density               = eos_array_ptr[2]
-    cdef double complex shear_modulus = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -371,18 +379,15 @@ cdef void cf_solid_static_incompressible(
     cdef double complex y6 = cf_build_dblcmplx(y_ptr[10], y_ptr[11])
 
     # Optimizations
-    cdef double r_inverse, density_gravity, grav_term
-    cdef double complex two_shear_r_inv, y1_y3_term
-
     cdef double r_inverse               = 1. / radius
     cdef double density_gravity         = density * gravity
-    cdef double  grav_term              = args_ptr.grav_coeff * density
+    cdef double grav_term               = args_ptr.grav_coeff * density
     cdef double complex two_shear_r_inv = 2. * shear_modulus * r_inverse
     cdef double complex y1_y3_term      = 2. * y1 - args_ptr.llp1 * y3
 
     # Solve for radial derivatives
     cdef double complex dy1 = \
-        y1_y3_term * -1. * r_inverse
+        -1. * y1_y3_term * r_inverse
 
     cdef double complex dy2 = \
         r_inverse * (
@@ -445,6 +450,11 @@ cdef void cf_liquid_dynamic_compressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -453,12 +463,10 @@ cdef void cf_liquid_dynamic_compressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr       = &eos_array[0]
-    cdef eos_solution                = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity              = eos_array_ptr[0]
-    cdef double density              = eos_array_ptr[2]
-    cdef double complex bulk_modulus = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # Pull out y values
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
@@ -538,6 +546,11 @@ cdef void cf_liquid_dynamic_incompressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -546,11 +559,10 @@ cdef void cf_liquid_dynamic_incompressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr = &eos_array[0]
-    cdef eos_solution          = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity        = eos_array_ptr[0]
-    cdef double density        = eos_array_ptr[2]
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # Pull out y values
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
@@ -622,6 +634,11 @@ cdef void cf_liquid_static_incompressible(
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
+    cdef double[7] eos_array 
+    cdef double* eos_array_ptr = &eos_array[0]
+    # Call equation of state solution for this layer.
+    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
     #   1: Pressure
@@ -630,11 +647,10 @@ cdef void cf_liquid_static_incompressible(
     #   4: Shear Mod (imag)
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
-    cdef double[7] eos_array 
-    cdef double* eos_array_ptr = &eos_array[0]
-    cdef eos_solution          = args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    cdef double gravity        = eos_array_ptr[0]
-    cdef double density        = eos_array_ptr[2]
+    cdef double gravity                  = eos_array_ptr[0]
+    cdef double density                  = eos_array_ptr[2]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
 
     # For the static liquid version, only y5 and y7 are defined.
     cdef double complex y5 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])

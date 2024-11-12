@@ -1,8 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.Material.eos.common cimport EOSOutput
-from TidalPy.utilities.constants_x cimport PI_DBL
+from TidalPy.constants cimport PI_DBL
 
 cdef void eos_diffeq(
         double* dy_ptr,

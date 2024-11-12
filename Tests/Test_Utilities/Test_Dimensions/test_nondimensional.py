@@ -5,8 +5,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode = True
 
-from scipy.constants import G as G_
-
+from TidalPy.constants import G
 from TidalPy.utilities.dimensions.nondimensional import non_dimensionalize_physicals, redimensionalize_physicals
 
 
@@ -34,7 +33,7 @@ def test_non_dimensionalize_physicals():
         radius_array_out, density_array_out, gravity_array_out, bulk_array_out, shear_array_out)
     
     # Build conversions for comparison
-    second2_conversion = 1. / (np.pi * G_ * bulk_density)
+    second2_conversion = 1. / (np.pi * G * bulk_density)
     second_conversion  = np.sqrt(second2_conversion)
     length_conversion  = mean_radius
     density_conversion = bulk_density
@@ -48,7 +47,7 @@ def test_non_dimensionalize_physicals():
     assert np.allclose(bulk_array / pascal_conversion, bulk_array_out)
     assert np.allclose(shear_array / pascal_conversion, shear_array_out)
 
-    assert np.isclose(G_nondim, G_ / (length_conversion**3 / (mass_conversion * second2_conversion)))
+    assert np.isclose(G_nondim, G / (length_conversion**3 / (mass_conversion * second2_conversion)))
     assert np.isclose(output_freq_nondim, frequency / (1. / second_conversion))
 
     # Check that the redimensionalize function works too.
@@ -63,5 +62,5 @@ def test_non_dimensionalize_physicals():
     assert np.allclose(gravity_array, gravity_array_out)
     assert np.allclose(bulk_array, bulk_array_out)
     assert np.allclose(shear_array, shear_array_out)
-    assert np.isclose(G_redim, G_)
+    assert np.isclose(G_redim, G)
     assert np.isclose(output_freq_redim, frequency)

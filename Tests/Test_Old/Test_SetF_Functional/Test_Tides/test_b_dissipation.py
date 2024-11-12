@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from scipy.constants import G
 
 import TidalPy
+from TidalPy.constants import G
 
 
 earth_radius = 6.37101e6

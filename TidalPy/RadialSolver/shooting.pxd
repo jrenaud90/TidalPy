@@ -1,6 +1,6 @@
 from libcpp cimport bool as cpp_bool
 
-from CyRK cimport CySolveOutput
+from CyRK cimport CySolverResult
 
 from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
 
@@ -11,12 +11,14 @@ cdef void cf_shooting_solver(
     double* radius_array_ptr,
     double frequency,
     double planet_bulk_density,
-    CySolveOutput** eos_solution_bylayer_ptr,
+    CySolverResult** eos_solution_bylayer_ptr,
     size_t num_layers,
     int* layer_types_ptr,
     int* is_static_by_layer_ptr,
     int* is_incompressible_by_layer_ptr,
     double* upper_radius_by_layer_ptr,
+    size_t* first_slice_index_by_layer_ptr,
+    size_t* num_slices_by_layer_ptr,
     size_t num_bc_models,
     int* bc_models_ptr,
     double G_to_use = *,
@@ -32,4 +34,4 @@ cdef void cf_shooting_solver(
     double max_step = *,
     cpp_bool verbose = *,
     cpp_bool raise_on_fail = *
-    ) noexcept
+    ) noexcept nogil

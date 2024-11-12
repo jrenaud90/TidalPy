@@ -6,7 +6,7 @@ from libc.math cimport abs
 from scipy.special.cython_special cimport spherical_jn
 
 from TidalPy.utilities.math.complex cimport cf_csqrt, cf_cipow, cf_cabs
-from TidalPy.utilities.math.special_x cimport cf_double_factorial
+from TidalPy.utilities.math.special cimport cf_double_factorial
 
 cdef double complex cf_z_calc(
         double complex x_squared,

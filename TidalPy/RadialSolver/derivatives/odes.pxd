@@ -1,4 +1,4 @@
-from CyRK cimport DiffeqFuncType, PreEvalFunc
+from CyRK cimport DiffeqFuncType, PreEvalFunc, CySolverResult
 
 from TidalPy.Material.eos.solver cimport EOSSolutionVec
 
@@ -11,7 +11,7 @@ cdef struct RadialSolverDiffeqArgStruct:
     double G
     double grav_coeff
     double frequency
-    EOSSolutionVec* eos_solution_ptr
+    CySolverResult* eos_solution_ptr
 
 cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,

@@ -1,19 +1,22 @@
-{"utilities.types": {
+{  
+  "constants": {
+    "name": "constants",
+    "sources": [["TidalPy", "constants.pyx"]],
+    "include_dirs": [["TidalPy"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "utilities.types": {
     "name": "TidalPy.utilities.types_x",
     "sources": [["TidalPy", "utilities", "types_x.pyx"]],
     "include_dirs": [["TidalPy", "utilities"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
-  "utilities.constants": {
-    "name": "TidalPy.utilities.constants_x",
-    "sources": [["TidalPy", "utilities", "constants_x.pyx"]],
-    "include_dirs": [["TidalPy", "utilities"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": false
-  },
+
   "utilities.conversions": {
     "name": "TidalPy.utilities.conversions.conversions_x",
     "sources": [["TidalPy", "utilities", "conversions", "conversions_x.pyx"]],
@@ -22,6 +25,7 @@
     "link_args": [],
     "is_cpp": false
   },
+
   "utilities.dimensions.nondimensional": {
     "name": "TidalPy.utilities.dimensions.nondimensional",
     "sources": [["TidalPy", "utilities", "dimensions", "nondimensional.pyx"]],
@@ -30,6 +34,7 @@
     "link_args": [],
     "is_cpp": false
   },
+
   "utilities.math.complex": {
     "name": "TidalPy.utilities.math.complex",
     "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],
@@ -39,13 +44,14 @@
     "is_cpp": false
   },
   "utilities.math.special": {
-    "name": "TidalPy.utilities.math.special_x",
-    "sources": [["TidalPy", "utilities", "math", "special_x.pyx"]],
+    "name": "TidalPy.utilities.math.special",
+    "sources": [["TidalPy", "utilities", "math", "special.pyx"]],
     "include_dirs": [["TidalPy", "utilities", "math"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": false
   },
+
   "utilities.classes.base": {
     "name": "TidalPy.utilities.classes.base_x",
     "sources": [["TidalPy", "utilities", "classes", "base_x.pyx"]],
@@ -54,6 +60,7 @@
     "link_args": [],
     "is_cpp": false
   },
+
   "rheology.common": {
     "name": "TidalPy.rheology.base",
     "sources": [["TidalPy", "rheology", "base.pyx"]],
@@ -71,14 +78,6 @@
     "is_cpp": false
   },
 
-  "Material.EOS.common": {
-    "name": "TidalPy.Material.eos.common",
-    "sources": [["TidalPy", "Material", "eos", "common.pyx"]],
-    "include_dirs": [["TidalPy", "Material", "eos"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
   "Material.EOS.ode": {
     "name": "TidalPy.Material.eos.ode",
     "sources": [["TidalPy", "Material", "eos", "ode.pyx"]],

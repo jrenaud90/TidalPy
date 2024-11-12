@@ -2,9 +2,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from scipy.constants import Stefan_Boltzmann as sbc
 from scipy.special import ellipe
 
+from TidalPy.constants import sbc
 from TidalPy.utilities.performance.numba import njit
 
 if TYPE_CHECKING:

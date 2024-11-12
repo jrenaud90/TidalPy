@@ -1,7 +1,12 @@
 from libcpp cimport bool as cpp_bool
 
 from CyRK cimport PreEvalFunc
-        
+
+cdef struct EOSOutput:
+    double density
+    double complex bulk_modulus
+    double complex shear_modulus
+
 cdef struct EOS_ODEInput:
     double G_to_use
     double planet_radius

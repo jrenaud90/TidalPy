@@ -2,9 +2,9 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 from TidalPy.exceptions import BadValueError
 
-from libc.math cimport sqrt, cbrt, M_PI
+from libc.math cimport sqrt, cbrt
 
-from TidalPy.utilities.constants_x cimport G
+from TidalPy.constants cimport G, PI_DBL
 
 
 cdef inline double cf_m2Au(double meters) noexcept nogil:
@@ -17,11 +17,11 @@ cdef inline double cf_Au2m(double astronomical_units) noexcept nogil:
 
 cdef inline double cf_rads2days(double radians_per_second) noexcept nogil:
 
-    return (2. * M_PI / radians_per_second) / 86400.
+    return (2. * PI_DBL / radians_per_second) / 86400.
 
 cdef inline double cf_days2rads(double days) noexcept nogil:
 
-    return 2. * M_PI / (days * 86400.)
+    return 2. * PI_DBL / (days * 86400.)
 
 cdef inline double cf_sec2myr(double seconds) noexcept nogil:
 

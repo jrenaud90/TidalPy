@@ -5,7 +5,7 @@ import numpy as np
 import TidalPy
 
 
-from TidalPy.utilities.math.special import sqrt_neg
+from TidalPy.utilities.math.numba_special import sqrt_neg
 
 
 def test_sqrt_neg():

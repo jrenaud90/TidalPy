@@ -18,7 +18,7 @@ from libc.math cimport pi
 
 from cython.parallel cimport prange
 
-from TidalPy.utilities.constants_x cimport G
+from TidalPy.constants cimport G
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 

@@ -7,6 +7,10 @@ from libcpp cimport bool as cpp_bool
 
 from CyRK.utils.vector cimport vector
 
+# Need to include love_.cpp in order to get solutions.cpp to see it and use it to link
+cdef extern from "love_.cpp" nogil:
+    pass
+
 cdef extern from "solutions_.cpp" nogil:
     
     const int MAX_NUM_Y
@@ -42,7 +46,7 @@ cdef extern from "solutions_.cpp" nogil:
         double* bulk_mod_ptr
 
         void find_love(double surface_gravity) noexcept nogil
-        set_message(const char* new_message) noexcept nogil
+        void set_message(const char* new_message) noexcept nogil
 
 
 cdef class RadialSolverSolution:

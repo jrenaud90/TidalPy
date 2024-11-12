@@ -1,9 +1,13 @@
+# distutils: language = c++
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
+
 from libc.stdio cimport printf, sprintf
 from libc.string cimport memcpy, strcpy
 
-from CyRK cimport cysolve_ivp, CySolverResult
+from CyRK cimport cysolve_ivp, CySolveOutput
 
-from TidalPy.utilities.constants_x cimport G, PI_DBL, INF_DBL
+from TidalPy.constants cimport G, PI_DBL, INF_DBL
+from TidalPy.Material.eos.ode cimport eos_diffeq
 
 cdef EOSSolutionVec solve_eos(
         cpp_bool* success_ptr,
@@ -108,36 +112,41 @@ cdef EOSSolutionVec solve_eos(
                 radial_span_ptr[0] = layer_upper_radii[layer_i - 1]
                 top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1)
                 # y0 for this layer equals result of last layer
-                y0_layer_ptr[0] = integration_result_ptr.solution[top_of_last_layer_index]
-                y0_layer_ptr[1] = integration_result_ptr.solution[top_of_last_layer_index + 1]
+                if integration_result_ptr:
+                    y0_layer_ptr[0] = integration_result_ptr.solution[top_of_last_layer_index]
+                    y0_layer_ptr[1] = integration_result_ptr.solution[top_of_last_layer_index + 1]
+                else:
+                    # Not sure why that would be null but in any case we are in a fail state.
+                    failed = True
+                    break
                 
             # Get eos function and inputs for this layer
             eos_input_layer_ptr = eos_input_bylayer_ptrs[layer_i]
             eos_function_ptr    = eos_function_bylayer_ptrs[layer_i]
             
-            # Convert input pointer to void pointer (required by cysolve)
-            args_ptr = <void*>eos_input_layer_ptr
-            
             if final_run:
                 # We now want to make sure that all final calculations are performed.
-                eos_input_layer_ptr.update_bulk = True
+                eos_input_layer_ptr.update_bulk  = True
                 eos_input_layer_ptr.update_shear = True
-                eos_input_layer_ptr.final_solve = True
+                eos_input_layer_ptr.final_solve  = True
                 # Capture extra outputs and store interpolators
                 num_extra = 5
                 use_dense_output = True
             else:
                 # During the iterations we do not need to update the complex bulk or shear
-                eos_input_layer_ptr.update_bulk = False
+                eos_input_layer_ptr.update_bulk  = False
                 eos_input_layer_ptr.update_shear = False
                 # We also are not at the final call step. 
-                eos_input_layer_ptr.final_solve = False
+                eos_input_layer_ptr.final_solve  = False
                 num_extra = 0
                 use_dense_output = False
             
+            # Convert input pointer to void pointer (required by cysolve)
+            args_ptr = <void*>eos_input_layer_ptr
+
             ###### Radial Integrate the EOS Through the Planet ######
             integration_result = cysolve_ivp(
-                eos_solution,        # Differential equation [DiffeqFuncType]
+                eos_diffeq,          # Differential equation [DiffeqFuncType]
                 radial_span_ptr,     # Radial span [const double*]
                 y0_layer_ptr,        # y0 array [const double*]
                 num_y,               # Integration method [unsigned int]
@@ -160,7 +169,6 @@ cdef EOSSolutionVec solve_eos(
                 )
             integration_result_ptr = integration_result.get()
             #########################################################
-
             last_solution_size = integration_result_ptr.size
 
             if not integration_result_ptr.success:
