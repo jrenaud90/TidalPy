@@ -41,11 +41,12 @@ cdef double complex cf_z_calc(
     cdef double complex x, z
     cdef double l2_3, l2_5, l2_7, l2_9, l2_11
     cdef double l2 = <double>degree_l * 2.0
+    cdef long degree_l_ssizet = <long>degree_l
 
     if cf_cabs(x_squared) > 0.1:
         # Use real function
         x = cf_csqrt(x_squared)
-        z =  x * spherical_jn(degree_l + 1, x) / spherical_jn(degree_l, x)
+        z =  x * spherical_jn(degree_l_ssizet + 1, x) / spherical_jn(degree_l_ssizet, x)
     else:
         # Use Taylor series; JPR derived this on 2024-02-05
         l2_3  = l2 + 3.0

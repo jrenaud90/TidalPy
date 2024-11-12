@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.0a6.dev2'
+version = '0.6.0a6.dev3'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -10,9 +10,9 @@ dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
     "numpy>=1.22, <1.27",
-    "scipy>=1.9.3",
+    "scipy>=1.9.3, <1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
     # Configuration file resources
-    "platformdirs>=3.11.0",
+    "platformdirs>=3.11.0, <4",
     "toml>=0.10.2",
     # Additional multiprocessing support resources
     "dill>=0.3.2",
@@ -22,7 +22,10 @@ dependencies = [
     "cyrk>=0.10.1",
     # Exoplanet data archive
     "astropy",
-    "astroquery"
+    "astroquery",
+    # Graphics
+    "matplotlib>=3.4.2",
+    "cmcrameri>=1.4",
 ]
 license = {file = "LICENSE.md"}
 readme = "README.md"
@@ -110,7 +113,7 @@ julia = [
 requires = [
     'setuptools>=64.0.0',
     'numpy>=1.22, <1.27',
-    "scipy>=1.9.3",
+    "scipy>=1.9.3, <1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
     'cython>=3.0.0',
     'wheel>=0.38',
     "cyrk>=0.10.1"

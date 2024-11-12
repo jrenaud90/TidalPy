@@ -27,6 +27,13 @@ Documentation
 Fixes:
 * Missing Cython compile arguments in `nondimensional.pyx`.
 
+
+### Version 0.5.5 (2024-11-11)
+
+Fixes:
+* Fixed dependency compatibility issues.
+* Fixed incorrect function signature type for scipy's `spherical_jn`. SciPy v.1.14.X uses a new signature which is breaking on MacOS. Limiting to "SciPy<1.14" for now.
+
 ### Version 0.5.4 (2024-04-30)
 
 Fixes:

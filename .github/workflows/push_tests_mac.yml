@@ -7,12 +7,11 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
 
-  test-macos:
+  test-macos-latest:
     defaults:
       run:
         shell: bash -el {0}
-
-    name: Test TidalPy on MacOS
+    name: Test TidalPy on MacOS (latest; arm64)
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -26,38 +25,95 @@ jobs:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          activate-environment: TidalPy_Test
+          activate-environment: tidalpy_test
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
           auto-activate-base: false
-
+        
       - name: Conda info
         shell: bash -el {0}
         run: conda info
-
-      - name: Install gcc-13  # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
+        
+      - name: install llvm # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
         shell: bash -el {0}
         run: |
-          brew install gcc@13
+          brew install llvm libomp
+
+      - name: Install burnman (if python != 3.12)
+        # Currently released version of burnman does not support py 3.12; so skip its tests for py3.12
+        shell: bash -el {0}
+        if: ${{ matrix.python-version != '3.12' }}
+        run: python -m pip install burnman
+
+      - name: Install package
+        shell: bash -el {0}
+        # export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
+        run: |
+          conda install pytest matplotlib numba numpy scipy cython pytest-xdist
+          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+          export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+          export CC=/opt/homebrew/opt/llvm/bin/clang
+          export CXX=/opt/homebrew/opt/llvm/bin/clang++
+          python -m pip install -v .
+        
+      - name: Run pytest
+        shell: bash -el {0}
+        run: pytest -n auto --capture=sys -v Tests/
+  
+  test-macos-13:
+    defaults:
+      run:
+        shell: bash -el {0}
+    name: Test TidalPy on MacOS (v13; x64-86)
+    runs-on: macos-13
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: tidalpy_test
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+          auto-activate-base: false
+        
+      - name: Conda info
+        shell: bash -el {0}
+        run: conda info
       
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+      - name: install llvm # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
+        shell: bash -el {0}
+        run: |
+          brew install llvm libomp
         
       - name: Install burnman (if python != 3.12)
         # Currently released version of burnman does not support py 3.12; so skip its tests for py3.12
         shell: bash -el {0}
         if: ${{ matrix.python-version != '3.12' }}
         run: python -m pip install burnman
-        
+
       - name: Install package
         shell: bash -el {0}
+        # export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
         run: |
+          conda install nomkl
           conda install pytest matplotlib numba numpy scipy cython pytest-xdist
-          export CC=gcc
-          export CXX=gcc
-          export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
+          export LDFLAGS="-L/usr/local/opt/llvm/lib"
+          export CPPFLAGS="-I/usr/local/opt/llvm/include"
+          export LDFLAGS="-L/usr/local/opt/libomp/lib"
+          export CPPFLAGS="-I/usr/local/opt/libomp/include"
+          export CC=/usr/local/opt/llvm/bin/clang
+          export CXX=/usr/local/opt/llvm/bin/clang++
           python -m pip install -v .
-
+        
       - name: Run pytest
         shell: bash -el {0}
         run: pytest -n auto --capture=sys -v Tests/
