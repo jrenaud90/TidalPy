@@ -2,13 +2,13 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 # Import cythonized functions
-from libc.math cimport NAN, isnan
+from libc.math cimport NAN, isnan, pi
 from libc.stdio cimport printf, sprintf
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
 
-from CyRK cimport CySolverResult
-from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
+from CyRK cimport cysolve_ivp, CySolverResult, CySolveOutput, DiffeqFuncType, PreEvalFunc
+from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem, vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
 from TidalPy.utilities.dimensions.nondimensional cimport (
@@ -22,8 +22,7 @@ from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_shooting_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
 from TidalPy.RadialSolver.interfaces.reversed cimport cf_top_to_bottom_interface_bc
-from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
-from TidalPy.RadialSolver.derivatives.odes cimport cf_build_solver
+from TidalPy.RadialSolver.derivatives.odes cimport RadialSolverDiffeqArgStruct, cf_find_layer_diffeq
 from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc
 from TidalPy.RadialSolver.boundaries.surface_bc cimport cf_get_surface_bc
 from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
@@ -32,10 +31,6 @@ cdef void cf_shooting_solver(
         RadialSolutionStorageCC* solution_storage_ptr,
         size_t total_slices,
         double* radius_array_ptr,
-        double* density_array_ptr,
-        double* gravity_array_ptr,
-        double* bulk_modulus_array_ptr,
-        double complex* complex_shear_modulus_array_ptr,
         double frequency,
         double planet_bulk_density,
         EOSSolutionVec* eos_solution_bylayer_ptr,
@@ -58,10 +53,8 @@ cdef void cf_shooting_solver(
         size_t max_ram_MB = 500,
         double max_step = 0,
         cpp_bool limit_solution_to_radius = True,
-        cpp_bool nondimensionalize = True,
         cpp_bool verbose = False,
-        cpp_bool raise_on_fail = False,
-        cpp_bool already_nondimed = False
+        cpp_bool raise_on_fail = False
         ) noexcept:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
@@ -70,13 +63,15 @@ cdef void cf_shooting_solver(
     cdef char* message_ptr = &message[0]
     cdef cpp_bool error = False
     strcpy(message_ptr, 'RadialSolver.ShootingMethod:: Starting integration\n')
+    solution_storage_ptr.set_message(message_ptr)
     if verbose:
         printf(message_ptr)
 
     # General indexing
-    # Indexing for: Layer | Solution | ys | slices | solutions
+    cdef double radius_check = NAN
     cdef size_t i
-    cdef size_t layer_i
+    cdef size_t current_layer_i
+    cdef size_t first_slice_index
     cdef size_t slice_i
     # Indexing for: Solution | ys | ytypes
     cdef unsigned char solution_i
@@ -87,65 +82,39 @@ cdef void cf_shooting_solver(
     # Type conversions
     cdef double degree_l_dbl = <double>degree_l
 
+    # Alias pointers to EOS properties
+    cdef double* gravity_array_ptr               = solution_storage_ptr.gravity_ptr
+    # cdef double* pressure_array_ptr              = solution_storage_ptr.pressure_ptr   # Unused
+    cdef double* density_array_ptr               = solution_storage_ptr.density_ptr
+    cdef double complex* complex_shear_array_ptr = solution_storage_ptr.shear_mod_ptr
+    cdef double complex* complex_bulk_array_ptr  = solution_storage_ptr.bulk_mod_ptr
+
     # Pull out key information
     cdef size_t top_slice_i    = total_slices - 1
-    cdef double radius_planet  = radius_array_ptr[total_slices - 1]
     cdef size_t num_interfaces = num_layers - 1
 
     # Ensure there is at least one layer.
     if num_layers <= 0:
         error = True
-        strcpy(message_ptr, 'RadialSolver.ShootingMethod:: requires at least one layer.\n')
+        strcpy(message_ptr, 'RadialSolver.ShootingMethod:: requires at least one layer, zero provided.\n')
+        solution_storage_ptr.set_message(message_ptr)
         if raise_on_fail:
             printf(message_ptr)
             exit(EXIT_FAILURE)
 
     # Ensure there are enough slices for radial interpolations.
-    if total_slices <= (3 * num_layers):
+    if total_slices < (3 * num_layers):
         error = True
         strcpy(message_ptr, 'RadialSolver.ShootingMethod:: requires at least 3 radial slices per layer (ideally >= 10 per).\n')
+        solution_storage_ptr.set_message(message_ptr)
         if verbose or raise_on_fail:
             printf(message_ptr)
         if raise_on_fail:
             exit(EXIT_FAILURE)
-
-    # Non-dimensionalize inputs
-    cdef double radius_planet_to_use = NAN
-    cdef double bulk_density_to_use  = NAN
-    cdef double frequency_to_use     = NAN
-    if nondimensionalize and (not already_nondimed):
-        cf_non_dimensionalize_physicals(
-            total_slices,
-            frequency,
-            radius_planet,
-            planet_bulk_density,
-            radius_array_ptr,
-            density_array_ptr,
-            gravity_array_ptr,
-            bulk_modulus_array_ptr,
-            complex_shear_modulus_array_ptr,
-            &radius_planet_to_use,
-            &bulk_density_to_use,
-            &frequency_to_use,
-            &G_to_use
-            )
-        
-        # Ensure that no errors occured during the non-dim process
-        if isnan(radius_planet_to_use) or isnan(bulk_density_to_use) or isnan(frequency_to_use) or isnan(G_to_use):
-            error = True
-            strcpy(message_ptr, 'RadialSolver.ShootingMethod:: NaNs encountered after non-dimensionalize call.\n')
-            if verbose or raise_on_fail:
-                printf(message_ptr)
-            if raise_on_fail:
-                exit(EXIT_FAILURE)
-    else:
-        # Leave inputs alone.
-        radius_planet_to_use = radius_planet
-        bulk_density_to_use  = planet_bulk_density
-        frequency_to_use     = frequency
     
     # Pull out any constants now that arrays have had dimensional protocol applied to them.
-    cdef double surface_gravity = gravity_array_ptr[total_slices - 1]
+    cdef double planet_radius   = radius_array_ptr[top_slice_i]
+    cdef double surface_gravity = gravity_array_ptr[top_slice_i]
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
@@ -161,8 +130,8 @@ cdef void cf_shooting_solver(
         bc_pointer,  # Changed parameter
         bc_models_ptr,
         num_ytypes,
-        radius_planet_to_use,
-        bulk_density_to_use,
+        planet_radius,
+        planet_bulk_density,
         degree_l_dbl
         )
 
@@ -181,8 +150,8 @@ cdef void cf_shooting_solver(
     # For simplicity just make these all as large as the maximum number of ys.
     # Maximum number of ys = 6. Then 2x for conversion from complex to real
     cdef double[12] rtols_array
-    cdef double* rtols_ptr = &rtols_array[0]
     cdef double[12] atols_array
+    cdef double* rtols_ptr = &rtols_array[0]
     cdef double* atols_ptr = &atols_array[0]
 
     for i in range(12):
@@ -190,14 +159,12 @@ cdef void cf_shooting_solver(
         atols_ptr[i] = NAN
 
     # Create storage for flags and information about each layer.
-    cdef size_t* layer_int_data_ptr = <size_t *> allocate_mem(
-        3 * num_layers * sizeof(size_t),
-        'layer_int_data_ptr (radial_solver; init)'
-        )
+    cdef vector[size_t] layer_int_data_vec = vector[size_t](3 * num_layers)
+    cdef size_t* layer_int_data_ptr = &layer_int_data_vec[0]
 
-    cdef size_t* num_solutions_by_layer_ptr = &layer_int_data_ptr[0]
-    cdef size_t* start_index_by_layer_ptr   = &layer_int_data_ptr[num_layers]
-    cdef size_t* num_slices_by_layer_ptr    = &layer_int_data_ptr[2 * num_layers]
+    cdef size_t* num_solutions_by_layer_ptr     = &layer_int_data_ptr[0]
+    cdef size_t* first_slice_index_by_layer_ptr = &layer_int_data_ptr[num_layers]
+    cdef size_t* num_slices_by_layer_ptr        = &layer_int_data_ptr[2 * num_layers]
 
     # Opt: The bools above could be stores in a single char variable (per layer).
     #  Eg., 0x00 All false, 0x01 is solid, 0x10 is static and liquid, 0x11 is static and solid, etc.
@@ -215,23 +182,17 @@ cdef void cf_shooting_solver(
     cdef unsigned char layer_below_num_sols
     cdef unsigned char layer_below_num_ys
     cdef double layer_upper_radius = NAN
-    cdef double radius_check = NAN
     cdef double layer_rtol_real = NAN
     cdef double layer_rtol_imag = NAN
     cdef double layer_atol_real = NAN
     cdef double layer_atol_imag = NAN
 
-    for layer_i in range(num_layers):
+    for current_layer_i in range(num_layers):
         # Pull out information on this layer
-        layer_type         = layer_types_ptr[layer_i]
-        layer_is_static    = is_static_by_layer_ptr[layer_i]
-        layer_is_incomp    = is_incompressible_by_layer_ptr[layer_i]
-        layer_upper_radius = upper_radius_by_layer_ptr[layer_i]
-        
-        # Make any dimension corrections
-        if nondimensionalize:
-            # User provided radii are in MKS and have not been converted using non-dim protocol yet.
-            layer_upper_radius = layer_upper_radius / radius_planet
+        layer_type         = layer_types_ptr[current_layer_i]
+        layer_is_static    = is_static_by_layer_ptr[current_layer_i]
+        layer_is_incomp    = is_incompressible_by_layer_ptr[current_layer_i]
+        layer_upper_radius = upper_radius_by_layer_ptr[current_layer_i]
 
         # Find number of solutions based on this layer's assumptions
         num_sols = cf_find_num_shooting_solutions(
@@ -240,19 +201,19 @@ cdef void cf_shooting_solver(
             layer_is_incomp
             )
         num_ys = 2 * num_sols
-        num_solutions_by_layer_ptr[layer_i] = num_sols
+        num_solutions_by_layer_ptr[current_layer_i] = num_sols
 
         # Determine how many slices are in this layer
-        if layer_i == 0:
+        if current_layer_i == 0:
             # First layer starts at 0.
-            start_index_by_layer_ptr[0] = 0
+            first_slice_index_by_layer_ptr[0] = 0
         else:
             # Not first layer. Starting point is based on number of slices in previous layer.
-            start_index_by_layer_ptr[layer_i] = \
-                start_index_by_layer_ptr[layer_i - 1] + num_slices_by_layer_ptr[layer_i - 1]
+            first_slice_index_by_layer_ptr[current_layer_i] = \
+                first_slice_index_by_layer_ptr[current_layer_i - 1] + num_slices_by_layer_ptr[current_layer_i - 1]
 
         layer_slices = 0
-        for slice_i in range(start_index_by_layer_ptr[layer_i], total_slices):
+        for slice_i in range(first_slice_index_by_layer_ptr[current_layer_i], total_slices):
             radius_check = radius_array_ptr[slice_i]
             if radius_check > layer_upper_radius:
                 # We have passed this layer.
@@ -262,14 +223,15 @@ cdef void cf_shooting_solver(
         if layer_slices <= 3:
             error = True
             strcpy(message_ptr, 'RadialSolver.ShootingMethod:: At least three layer slices per layer are required. Try using more slices in the input arrays.\n')
+            solution_storage_ptr.set_message(message_ptr)
             if verbose or raise_on_fail:
                 printf(message_ptr)
             if raise_on_fail:
                 exit(EXIT_FAILURE)
-        num_slices_by_layer_ptr[layer_i] = layer_slices
+        num_slices_by_layer_ptr[current_layer_i] = layer_slices
 
     # We have all the size information needed to build storage pointers
-    # Main storage pointer is setup like [layer_i][solution_i][y_i + r_i]
+    # Main storage pointer is setup like [current_layer_i][solution_i][y_i + r_i]
     cdef double complex*** main_storage_ptr = <double complex ***> allocate_mem(
         num_layers * sizeof(double complex**),
         'main_storage_ptr (radial_solver; init)'
@@ -278,9 +240,9 @@ cdef void cf_shooting_solver(
     cdef double complex** storage_by_solution_ptr = NULL
     cdef double complex* storage_by_y_ptr = NULL
 
-    for layer_i in range(num_layers):
-        num_sols     = num_solutions_by_layer_ptr[layer_i]
-        layer_slices = num_slices_by_layer_ptr[layer_i]
+    for current_layer_i in range(num_layers):
+        num_sols     = num_solutions_by_layer_ptr[current_layer_i]
+        layer_slices = num_slices_by_layer_ptr[current_layer_i]
         # Number of ys = 2x num sols
         num_ys = 2 * num_sols
 
@@ -297,7 +259,7 @@ cdef void cf_shooting_solver(
 
             storage_by_solution_ptr[solution_i] = storage_by_y_ptr
             storage_by_y_ptr = NULL
-        main_storage_ptr[layer_i] = storage_by_solution_ptr
+        main_storage_ptr[current_layer_i] = storage_by_solution_ptr
         storage_by_solution_ptr = NULL
 
     # Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
@@ -307,21 +269,6 @@ cdef void cf_shooting_solver(
 
     for i in range(18):
         uppermost_y_per_solution_ptr[i] = cmplx_NAN
-
-    # Layer EOS solution
-    cdef double eos_y_array_ptr = <double complex *> allocate_mem(
-        7 * sizeof(double),
-        'eos_y_array_ptr (radial_solver; init)'
-        )
-    # The EOS stores 7 doubles:
-    #   0: Gravity
-    #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
-    cdef CySolverResult* layer_eos_solution_ptr
 
     # Layer specific pointers; set the size based on the layer with the most slices.
     cdef double* layer_radius_ptr
@@ -368,11 +315,8 @@ cdef void cf_shooting_solver(
     cdef double complex dcomplex_tmp = cmplx_NAN
 
     # Solver class
-    cdef RadialSolverBase solver
     cdef double* solver_solution_ptr = NULL
     cdef cpp_bool cysolver_setup = False
-
-    cdef size_t start_index
 
     # No matter the results of the integration, we know the shape and size of the final solution.
     # The number of rows will depend on if the user wants to simultaneously calculate loading Love numbers.
@@ -390,6 +334,28 @@ cdef void cf_shooting_solver(
     cdef int layer_above_type
     cdef cpp_bool layer_above_is_static
     cdef cpp_bool layer_above_is_incomp
+
+    # Each layer will have an equation of state solution which will be called during integration to ensure 
+    # an accurate interpolation occurs at each radius value
+    cdef CySolverResult* eos_solution_ptr = NULL
+
+    # Layer's differential equation will vary by layer type
+    cdef CySolveOutput integration_solution
+    cdef CySolverResult* integration_solution_ptr
+    cdef RadialSolverDiffeqArgStruct diffeq_args
+    cdef RadialSolverDiffeqArgStruct* diffeq_args_ptr = &diffeq_args
+    cdef void* diffeq_args_void_ptr                   = <void*>diffeq_args_ptr
+    cdef PreEvalFunc diffeq_preeval_ptr               = NULL
+    cdef DiffeqFuncType layer_diffeq                  = NULL
+
+    # Set diffeq inputs that do not change with layer
+    diffeq_args_ptr.degree_l   = degree_l_dbl
+    diffeq_args_ptr.lp1        = degree_l_dbl + 1.0
+    diffeq_args_ptr.lm1        = degree_l_dbl - 1.0
+    diffeq_args_ptr.llp1       = degree_l_dbl * (degree_l_dbl + 1.0)
+    diffeq_args_ptr.G          = G_to_use
+    diffeq_args_ptr.grav_coeff = 4.0 * pi * G_to_use
+    diffeq_args_ptr.frequency  = frequency
 
     # The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
     #  ever be is 3, it is more efficient to just preallocate them on the stack rather than dynamically allocate them
@@ -414,40 +380,39 @@ cdef void cf_shooting_solver(
     # Shifted or reversed indices used during collapse.
     cdef size_t layer_i_reversed
 
-    for layer_i in range(num_layers):
+    for current_layer_i in range(num_layers):
         # Get layer's index information
-        start_index  = start_index_by_layer_ptr[layer_i]
-        layer_slices = num_slices_by_layer_ptr[layer_i]
+        layer_slices = num_slices_by_layer_ptr[current_layer_i]
+        first_slice_index = first_slice_index_by_layer_ptr[current_layer_i]
 
         # Get layer EOS solution
-        layer_eos_solution_ptr = eos_solution_bylayer_ptr[layer_i]
+        # Check if we are using the correct EOS solution (changes with layers)
+        eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
 
         # Get solution and y information
-        num_sols   = num_solutions_by_layer_ptr[layer_i]
+        num_sols   = num_solutions_by_layer_ptr[current_layer_i]
         num_ys     = 2 * num_sols
         num_ys_dbl = 2 * num_ys
 
         # Setup pointer array slices starting at this layer's beginning
-        layer_radius_ptr    = &radius_array_ptr[start_index]
-        layer_density_ptr   = &density_array_ptr[start_index]
-        layer_gravity_ptr   = &gravity_array_ptr[start_index]
-        layer_bulk_mod_ptr  = &bulk_modulus_array_ptr[start_index]
-        layer_shear_mod_ptr = &complex_shear_modulus_array_ptr[start_index]
+        layer_radius_ptr    = &radius_array_ptr[first_slice_index]
+        layer_density_ptr   = &density_array_ptr[first_slice_index]
+        layer_gravity_ptr   = &gravity_array_ptr[first_slice_index]
+        layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index]
+        layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index]
 
         # Get physical parameters at the top and bottom of the layer
         radius_lower  = layer_radius_ptr[0]
-        layer_eos_solution_ptr.call(radius_lower, eos_y_array_ptr)
-        gravity_lower = eos_y_array_ptr[0]
-        density_lower = eos_y_array_ptr[2]
-        shear_lower   = cf_build_dblcmplx(eos_y_array_ptr[3], eos_y_array_ptr[4])
-        bulk_lower    = cf_build_dblcmplx(eos_y_array_ptr[5], eos_y_array_ptr[6])
+        gravity_lower = layer_gravity_ptr[0]
+        density_lower = layer_density_ptr[0]
+        shear_lower   = layer_shear_mod_ptr[0]
+        bulk_lower    = layer_bulk_mod_ptr[0]
 
         radius_upper  = layer_radius_ptr[layer_slices - 1]
-        layer_eos_solution_ptr.call(radius_upper, eos_y_array_ptr)
-        gravity_upper = eos_y_array_ptr[0]
-        density_upper = eos_y_array_ptr[2]
-        shear_upper   = cf_build_dblcmplx(eos_y_array_ptr[3], eos_y_array_ptr[4])
-        bulk_upper    = cf_build_dblcmplx(eos_y_array_ptr[5], eos_y_array_ptr[6])
+        gravity_upper = layer_gravity_ptr[layer_slices - 1]
+        density_upper = layer_density_ptr[layer_slices - 1]
+        shear_upper   = layer_shear_mod_ptr[layer_slices - 1]
+        bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1]
         
         radial_span_ptr[0] = radius_lower
         radial_span_ptr[1] = radius_upper
@@ -458,9 +423,9 @@ cdef void cf_shooting_solver(
             max_step_to_use = (radius_upper - radius_lower) / <double>layer_slices
 
         # Get assumptions for layer
-        layer_type      = layer_types_ptr[layer_i]
-        layer_is_static = is_static_by_layer_ptr[layer_i]
-        layer_is_incomp = is_incompressible_by_layer_ptr[layer_i]
+        layer_type      = layer_types_ptr[current_layer_i]
+        layer_is_static = is_static_by_layer_ptr[current_layer_i]
+        layer_is_incomp = is_incompressible_by_layer_ptr[current_layer_i]
 
         # Determine rtols and atols for this layer.
         # Scale rtols by layer type
@@ -503,14 +468,14 @@ cdef void cf_shooting_solver(
                 initial_y_ptr[y_i] = cmplx_NAN
             initial_y_only_real_ptr[y_i] = NAN
         
-        if layer_i == 0:
+        if current_layer_i == 0:
             # Use initial condition function
             cf_find_starting_conditions(
                 layer_type,
                 layer_is_static,
                 layer_is_incomp,
                 use_kamata,
-                frequency_to_use,
+                frequency,
                 radius_lower,
                 density_lower,
                 bulk_lower,
@@ -522,9 +487,9 @@ cdef void cf_shooting_solver(
                 starting_y_check
                 )
         else:
-            layer_below_type      = layer_types_ptr[layer_i - 1]
-            layer_below_is_static = is_static_by_layer_ptr[layer_i - 1]
-            layer_below_is_incomp = is_incompressible_by_layer_ptr[layer_i - 1]
+            layer_below_type      = layer_types_ptr[current_layer_i - 1]
+            layer_below_is_static = is_static_by_layer_ptr[current_layer_i - 1]
+            layer_below_is_incomp = is_incompressible_by_layer_ptr[current_layer_i - 1]
 
             # Find gravity at the base interface using bottom of this layer and top of previous.
             interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
@@ -585,79 +550,49 @@ cdef void cf_shooting_solver(
                 initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
                 initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
 
-        # Build solver instance
-        solver = cf_build_solver(
-            layer_type,
-            layer_is_static,
-            layer_is_incomp,
-            layer_slices,
-            2 * num_ys,  # Solver needs to know how many ys it is working with. 2x ys in this case.
-            layer_radius_ptr,
-            layer_density_ptr,
-            layer_gravity_ptr,
-            layer_bulk_mod_ptr,
-            layer_shear_mod_ptr,
-            frequency_to_use,
-            degree_l,
-            G_to_use,
-            radius_lower,
-            radius_upper,
-            &initial_y_only_real_ptr[0],  # Start the pointer at the beginning of the array
-            atols_ptr,
-            rtols_ptr,
-            integration_method,
-            max_step_to_use,
-            max_num_steps,
-            expected_size,
-            max_ram_MB,
-            limit_solution_to_radius
-            )
-        cysolver_setup = True
+        # Find correct diffeq
+        layer_diffeq = cf_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp)
+
+        # Det diffeq additional arg input's eos solution pointer
+        diffeq_args_ptr.eos_solution_ptr = eos_solution_ptr
 
         # Get storage pointer for this layer
-        storage_by_solution_ptr = main_storage_ptr[layer_i]
+        storage_by_solution_ptr = main_storage_ptr[current_layer_i]
 
         # Solve for each solution
         for solution_i in range(num_sols):
-            if solution_i > 0:
-                # Reset solver with new initial condition (this is already done for j==0)
-                # This pointer has already been passed to the solver during initialization but we need the values at
-                #  the next solution. Pass new pointer at that address.
-                solver.change_y0_pointer(
-                    &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL],
-                    auto_reset_state=False
-                    )
-
             ###### Integrate! #######
-            solution = cysolve_ivp(
-                eos_solution,
-                radial_span_ptr,
-                &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL],
-                2 * num_ys,
-                integration_method,
-                NAN,             # rtol
-                NAN,             # atol
-                args_ptr,
-                0,               # num_extra
-                max_num_steps,
-                max_ram_MB,
-                False,           # use_dense_output
-                layer_radius_ptr,
-                layer_slices,
-                eos_function_ptr,
-                rtols_ptr,
-                atols_ptr,
-                max_step,
-                0.0,            # first_step_size
-                expected_size)
-            solution_ptr = solution.get()
+            integration_solution = cysolve_ivp(
+                layer_diffeq,                                           # Differential equation [DiffeqFuncType]
+                radial_span_ptr,                                        # Radial span [const double*]
+                &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL],  # y0 array [const double*]
+                MAX_NUM_Y_REAL,                                         # Number of ys [const unsigned int]
+                integration_method,                                     # Integration method [unsigned int]
+                NAN,                                                    # Relative Tolerance (as scalar) [double]
+                NAN,                                                    # Absolute Tolerance (as scalar) [double]
+                diffeq_args_void_ptr,                                   # Extra input args to diffeq [void*]
+                0,                                                      # Number of extra outputs tracked [unsigned int]
+                max_num_steps,                                          # Max number of steps (0 = find good value) [size_t]
+                max_ram_MB,                                             # Max amount of RAM allowed [size_t]
+                False,                                                  # Use dense output [bint]
+                layer_radius_ptr,                                       # Interpolate at radius array [double*]
+                layer_slices,                                           # Size of interpolation array [size_t]
+                diffeq_preeval_ptr,                                     # Pre-eval function used in diffeq [PreEvalFunc]
+                rtols_ptr,                                              # Relative Tolerance (as array) [double*]
+                atols_ptr,                                              # Absolute Tolerance (as array) [double*]
+                max_step,                                               # Maximum step size [double]
+                0.0,                                                    # Initial step size (0 = find good value) [doub;e]
+                expected_size                                           # Expected final integration size (0 = find good value) [size_t]
+                )                   
+            integration_solution_ptr = integration_solution.get()
             #########################
 
             # Check for problems
-            if not solution_ptr.success:
+            if not integration_solution_ptr.success:
                 # Problem with integration.
                 error = True
-                sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', layer_i, solution_i, solver._message_ptr)
+                sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', current_layer_i, solution_i, integration_solution_ptr.message_ptr)
+                solution_storage_ptr.set_message(message_ptr)
                 if verbose or raise_on_fail:
                     printf(message_ptr)
                 if raise_on_fail:
@@ -665,7 +600,7 @@ cdef void cf_shooting_solver(
                 break
 
             # If no problems, store results.
-            solver_solution_ptr = solver.solution_y_ptr
+            solver_solution_ptr = &integration_solution_ptr.solution[0]
             # Need to make a copy because the solver pointers will be reallocated during the next solution.
             # Get storage pointer for this solution
             storage_by_y_ptr = storage_by_solution_ptr[solution_i]
@@ -681,22 +616,26 @@ cdef void cf_shooting_solver(
                 # Store top most result for initial condition for the next layer
                 # slice_i should already be set to the top of this layer after the end of the previous loop.
                 uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y_ptr[num_ys * slice_i + y_i]
+            
+            # Decrement the shared pointer for the solution
+            integration_solution.reset()
                 
         if error:
             # Error was encountered during integration
             break
 
         # Prepare for next layer
-        layer_below_num_sols = num_sols
-        layer_below_num_ys   = num_ys
+        layer_below_num_sols     = num_sols
+        layer_below_num_ys       = num_ys
         last_layer_upper_gravity = gravity_upper
         last_layer_upper_density = density_upper
-        del solver
-        cysolver_setup = False
 
     if error:
         error = True
-        sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', solver._message_ptr)
+        sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
+        solution_storage_ptr.set_message(message_ptr)
+        # Decrement the shared pointer for the solution
+        integration_solution.reset()
         if verbose or raise_on_fail:
             printf(message_ptr)
         if raise_on_fail:
@@ -726,11 +665,11 @@ cdef void cf_shooting_solver(
             # Collapse the multiple solutions for each layer into one final combined solution.
 
             # Work from the surface to the core.
-            for layer_i in range(num_layers):
-                layer_i_reversed = num_layers - (layer_i + 1)
+            for current_layer_i in range(num_layers):
+                layer_i_reversed = num_layers - (current_layer_i + 1)
 
                 # Pull out layer information.
-                start_index  = start_index_by_layer_ptr[layer_i_reversed]
+                first_slice_index  = first_slice_index_by_layer_ptr[layer_i_reversed]
                 layer_slices = num_slices_by_layer_ptr[layer_i_reversed]
 
                 # Get solution and y information
@@ -738,11 +677,11 @@ cdef void cf_shooting_solver(
                 num_ys       = 2 * num_sols
 
                 # Setup pointer array slices starting at this layer's beginning
-                layer_radius_ptr    = &radius_array_ptr[start_index]
-                layer_density_ptr   = &density_array_ptr[start_index]
-                layer_gravity_ptr   = &gravity_array_ptr[start_index]
-                layer_bulk_mod_ptr  = &bulk_modulus_array_ptr[start_index]
-                layer_shear_mod_ptr = &complex_shear_modulus_array_ptr[start_index]
+                layer_radius_ptr    = &radius_array_ptr[first_slice_index]
+                layer_density_ptr   = &density_array_ptr[first_slice_index]
+                layer_gravity_ptr   = &gravity_array_ptr[first_slice_index]
+                layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index]
+                layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index]
 
                 # Get physical parameters at the top and bottom of the layer
                 radius_lower  = layer_radius_ptr[0]
@@ -768,7 +707,7 @@ cdef void cf_shooting_solver(
                         uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = \
                             storage_by_solution_ptr[solution_i][(layer_slices - 1) * num_ys + y_i]
 
-                if layer_i == 0:
+                if current_layer_i == 0:
                     # Working on surface (uppermost) layer -- Apply surface boundary conditions.
                     cf_apply_surface_bc(
                         constant_vector_ptr,  # Modified Variable
@@ -789,6 +728,7 @@ cdef void cf_shooting_solver(
                     if bc_solution_info != 0:
                         error = True
                         sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Error encountered while applying surface boundary condition. ZGESV code: %d.\nThe solutions may not be valid at the surface.\n', bc_solution_info)
+                        solution_storage_ptr.set_message(message_ptr)
                         if verbose or raise_on_fail:
                             printf(message_ptr)
                         if raise_on_fail:
@@ -817,8 +757,8 @@ cdef void cf_shooting_solver(
                     layer_radius_ptr,
                     layer_density_ptr,
                     layer_gravity_ptr,
-                    frequency_to_use,
-                    start_index,
+                    frequency,
+                    first_slice_index,
                     layer_slices,
                     num_sols,
                     MAX_NUM_Y,
@@ -852,76 +792,30 @@ cdef void cf_shooting_solver(
             
             # Ready for next y-type
 
-    # Redim the input pointers if they were non-dim'd.
-    if nondimensionalize:
-        cf_redimensionalize_physicals(
-            total_slices,
-            frequency,
-            radius_planet,
-            planet_bulk_density,
-            radius_array_ptr,
-            density_array_ptr,
-            gravity_array_ptr,
-            bulk_modulus_array_ptr,
-            complex_shear_modulus_array_ptr,
-            &radius_planet_to_use,
-            &bulk_density_to_use,
-            &frequency_to_use,
-            &G_to_use
-            )
-        
-        # Reset surface gravity value
-        surface_gravity  = gravity_array_ptr[total_slices - 1]
-
     # Free memory
-    free_mem(eos_y_array_ptr)
-    if cysolver_setup:
-        del solver
-
     # Deconstruct main solution pointer
-    # Main storage pointers are structured like [layer_i][solution_i][y_i + slice_i]
+    # Main storage pointers are structured like [current_layer_i][solution_i][y_i + slice_i]
     # Then main storage
     if not (main_storage_ptr is NULL):
         storage_by_solution_ptr = NULL
         storage_by_y_ptr = NULL
-        for layer_i in range(num_layers):
-            num_sols = num_solutions_by_layer_ptr[layer_i]
-            if not (main_storage_ptr[layer_i] is NULL):
+        for current_layer_i in range(num_layers):
+            num_sols = num_solutions_by_layer_ptr[current_layer_i]
+            if not (main_storage_ptr[current_layer_i] is NULL):
                 for solution_i in range(num_sols):
-                    if not (main_storage_ptr[layer_i][solution_i] is NULL):
-                        free_mem(main_storage_ptr[layer_i][solution_i])
-                        main_storage_ptr[layer_i][solution_i] = NULL
+                    if not (main_storage_ptr[current_layer_i][solution_i] is NULL):
+                        free_mem(main_storage_ptr[current_layer_i][solution_i])
+                        main_storage_ptr[current_layer_i][solution_i] = NULL
                 
-                free_mem(main_storage_ptr[layer_i])
-                main_storage_ptr[layer_i] = NULL
+                free_mem(main_storage_ptr[current_layer_i])
+                main_storage_ptr[current_layer_i] = NULL
         free_mem(main_storage_ptr)
         main_storage_ptr = NULL
 
-    # Release layer information pointers
-    if not (layer_int_data_ptr is NULL):
-        num_solutions_by_layer_ptr = NULL
-        start_index_by_layer_ptr = NULL
-        num_slices_by_layer_ptr = NULL
-        free_mem(layer_int_data_ptr)
-        layer_int_data_ptr = NULL
-
     # Update solution status and return
-    if not error:
-        # Radial solver completed successfully.
-        if nondimensionalize:
-            # Redimensionalize the solution 
-            cf_redimensionalize_radial_functions(
-                solution_ptr,
-                radius_planet,
-                planet_bulk_density,
-                total_slices,
-                num_ytypes)
-
-        # Calculate Love numbers
-        solution_storage_ptr.find_love(surface_gravity)
-
-        # Update status message
-        strcpy(message_ptr, 'RadialSolver.ShootingMethod:: completed without any noted issues.\n')
-
-    solution_storage_ptr.success = not error
-    solution_storage_ptr.set_message(message_ptr)
+    if error:
+        solution_storage_ptr.success = False
+        solution_storage_ptr.set_message(message_ptr)
+    else:
+        solution_storage_ptr.success = True
+        solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: completed without any noted issues.\n')

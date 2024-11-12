@@ -21,8 +21,6 @@ cdef void cf_matrix_propagate(
     double G_to_use = *,
     unsigned int degree_l = *,
     unsigned char core_condition = *,
-    cpp_bool nondimensionalize = *,
     cpp_bool verbose = *,
-    cpp_bool raise_on_fail = *,
-    cpp_bool already_nondimed = *
+    cpp_bool raise_on_fail = *
     ) noexcept nogil

@@ -7,10 +7,6 @@ cdef void cf_shooting_solver(
     RadialSolutionStorageCC* solution_storage_ptr,
     size_t total_slices,
     double* radius_array_ptr,
-    double* density_array_ptr,
-    double* gravity_array_ptr,
-    double* bulk_modulus_array_ptr,
-    double complex* complex_shear_modulus_array_ptr,
     double frequency,
     double planet_bulk_density,
     EOSSolutionVec* eos_solution_bylayer_ptr,
@@ -33,8 +29,6 @@ cdef void cf_shooting_solver(
     size_t max_ram_MB = *,
     double max_step = *,
     cpp_bool limit_solution_to_radius = *,
-    cpp_bool nondimensionalize = *,
     cpp_bool verbose = *,
-    cpp_bool raise_on_fail = *,
-    cpp_bool already_nondimed = *
+    cpp_bool raise_on_fail = *
     ) noexcept

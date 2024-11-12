@@ -8,12 +8,14 @@ import numpy as np
 cimport numpy as np
 np.import_array()
 
-from CyRK cimport PreEvalFunc
+from CyRK cimport PreEvalFunc, CySolverResult
 from CyRK.utils.vector cimport vector
 from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
+
+from TidalPy.utilities.math cimport cf_build_dblcmplx
 from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_non_dimensionalize_physicals,
     cf_redimensionalize_physicals,
@@ -33,10 +35,269 @@ ctypedef EOS_ODEInput* EOS_ODEInputPtr
 log = get_logger(__name__)
 
 
+cdef void cf_radial_solver(
+        RadialSolutionStorageCC* solution_storage_ptr,
+        size_t total_slices,
+        double* radius_array_ptr,
+        double* density_array_ptr,
+        double complex* complex_bulk_modulus_ptr,
+        double complex* complex_shear_modulus_ptr,
+        double frequency,
+        double planet_bulk_density,
+        size_t num_layers,
+        int* layer_types_ptr,
+        int* is_static_by_layer_ptr,
+        int* is_incompressible_by_layer_ptr,
+        double* upper_radius_by_layer_ptr,
+        double surface_pressure,
+        unsigned int degree_l,
+        size_t num_bc_models,
+        int* bc_models_ptr,
+        unsigned char core_condition,
+        cpp_bool use_kamata,
+        unsigned char integration_method,
+        double integration_rtol,
+        double integration_atol,
+        cpp_bool scale_rtols_by_layer_type,
+        size_t max_num_steps,
+        size_t expected_size,
+        size_t max_ram_MB,
+        double max_step,
+        cpp_bool nondimensionalize,
+        cpp_bool use_prop_matrix,
+        cpp_bool verbose,
+        cpp_bool warnings,
+        cpp_bool raise_on_fail,
+        unsigned int eos_integration_method,
+        double eos_rtol,
+        double eos_atol,
+        double eos_pressure_tol,
+        unsigned int eos_max_iters
+        ) noexcept nogil:
+    
+    cdef size_t layer_i
+    
+    # Get other inputs needed
+    cdef double radius_planet = radius_array_ptr[total_slices - 1]
+
+    # Non-dimensionalize inputs
+    cdef double G_to_use = NAN
+    cdef double radius_planet_to_use = NAN
+    cdef double bulk_density_to_use = NAN
+    cdef double frequency_to_use = NAN
+    cdef double surface_pressure_to_use = NAN
+    if nondimensionalize:
+        cf_non_dimensionalize_physicals(
+            total_slices,
+            frequency,
+            radius_planet,
+            planet_bulk_density,
+            radius_array_ptr,
+            density_array_ptr,
+            complex_bulk_modulus_ptr,
+            complex_shear_modulus_ptr,
+            &radius_planet_to_use,
+            &bulk_density_to_use,
+            &frequency_to_use,
+            &surface_pressure_to_use,
+            &G_to_use
+            )
+        for layer_i in range(num_layers):
+            upper_radius_by_layer_ptr[layer_i] /= radius_planet
+
+    # Solve the equaiton of state for the planet
+
+    # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
+    # either via arguments to this function or a more OOP approach where they are built into the layers.
+    # Build arrays of EOS inputs.
+    cdef vector[preeval_interpolate] eos_function_bylayer_vec = vector[preeval_interpolate](0)
+    eos_function_bylayer_vec.reserve(num_layers)
+
+    # Build vector of inputs
+    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec         = vector[EOS_ODEInput](0)
+    cdef vector[EOS_ODEInputPtr] eos_inputs_ptrs_bylayer_vec = vector[EOS_ODEInputPtr](0)
+    eos_inputs_ptrs_bylayer_vec.reserve(num_layers)
+    eos_inputs_bylayer_vec.reserve(num_layers)
+    for i in range(num_layers):
+        # First build the input so that it is in memory
+        # TODO: For now we are only storing the interpolate version of the EOS for each layer.
+        eos_function_bylayer_vec.push_back(preeval_interpolate)
+
+        # Then record its memory address (this is what will be used in function calls)
+        eos_inputs_ptrs_bylayer_vec.push_back(&eos_function_bylayer_vec[i])
+
+    # Make pointers to pre-eval data
+    cdef PreEvalFunc* eos_function_bylayer_ptrs = &eos_function_bylayer_vec[0]
+    cdef EOS_ODEInput** eos_input_bylayer_ptrs  = &eos_inputs_ptrs_bylayer_vec[0]
+
+    cdef EOSSolutionVec eos_solution_bylayer = solve_eos(
+        &solution_storage_ptr.eos_success[0],
+        &solution_storage_ptr.eos_message_ptr[0],
+        radius_array_ptr,
+        total_slices,
+        upper_radius_by_layer_ptr,
+        num_layers,
+        eos_function_bylayer_ptrs,
+        eos_input_bylayer_ptrs,
+        planet_bulk_density,
+        surface_pressure,
+        G_to_use,
+        eos_integration_method,
+        eos_rtol,
+        eos_atol,
+        eos_pressure_tol,
+        eos_max_iters,
+        verbose
+        )
+    cdef EOSSolutionVec* eos_solution_bylayer_ptr = &eos_solution_bylayer
+
+    # Get storage arrays for eos solution properties
+    cdef double* gravity_array_ptr               = &solution_storage_ptr.gravity_ptr[0]
+    cdef double* pressure_array_ptr              = &solution_storage_ptr.pressure_ptr[0]
+    cdef double* density_array_ptr               = &solution_storage_ptr.density_ptr[0]
+    cdef double complex* complex_shear_array_ptr = &solution_storage_ptr.shear_mod_ptr[0]
+    cdef double complex* complex_bulk_array_ptr  = &solution_storage_ptr.bulk_mod_ptr[0]
+
+    # Build storage used to call the EOS at each radius
+    # The EOS stores 7 doubles:
+    #   0: Gravity
+    #   1: Pressure
+    #   2: Density
+    #   3: Shear Mod (real)
+    #   4: Shear Mod (imag)
+    #   5: Bulk Mod (real)
+    #   6: Bulk Mod (imag)
+    cdef double[7] eos_result_array 
+    cdef double* eos_result_array_ptr = &eos_result_array[0]
+
+    # Build variables to help solve the EOS.
+    current_layer_i = 0
+
+    cdef double layer_r = upper_radius_by_layer_ptr[current_layer_i]
+    cdef CySolverResult* eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
+
+    # Step through the radial steps to find EOS-dependent parameters
+    if solution_storage_ptr.eos_success:
+        for i in range(total_slices):
+            radius_check = radius_array_ptr[i]
+
+            # Check if we are using the correct EOS solution (changes with layers)
+            if radius_check > layer_r:
+                current_layer_i += 1
+                layer_r = upper_radius_by_layer_ptr[current_layer_i]
+                eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
+
+            # Call the dense output of the EOS ODE solution to populate the y_interp pointer.
+            eos_solution_ptr.call(radius_check, eos_result_array_ptr)
+
+            # Store results
+            gravity_array_ptr[i]       = eos_result_array_ptr[0]
+            pressure_array_ptr[i]      = eos_result_array_ptr[1]
+            density_array_ptr[i]       = eos_result_array_ptr[2]
+            complex_shear_array_ptr[i] = cf_build_dblcmplx(eos_result_array_ptr[3], eos_result_array_ptr[4])
+            complex_bulk_array_ptr[i]  = cf_build_dblcmplx(eos_result_array_ptr[5], eos_result_array_ptr[6])
+
+        # Run requested radial solver method
+        if use_prop_matrix:
+            cf_matrix_propagate(
+                solution_storage_ptr,
+                total_slices,
+                radius_array_ptr,
+                frequency,
+                planet_bulk_density,
+                eos_solution_bylayer_ptr,
+                num_layers,
+                # TODO: In the future the propagation matrix should take in layer types and multiple layers
+                # int* layer_types_ptr,
+                # int* is_static_by_layer_ptr,
+                # int* is_incompressible_by_layer_ptr,
+                upper_radius_by_layer_ptr,
+                num_bc_models,
+                bc_models_ptr,
+                G_to_use,
+                degree_l,
+                core_condition,
+                nondimensionalize,
+                verbose,
+                raise_on_fail
+                )
+        else:
+            cf_shooting_solver(
+                solution_storage_ptr,
+                total_slices,
+                radius_array_ptr,
+                frequency,
+                planet_bulk_density,
+                num_layers,
+                layer_types_ptr,
+                is_static_by_layer_ptr,
+                is_incompressible_by_layer_ptr,
+                upper_radius_by_layer_ptr,
+                num_bc_models,
+                bc_models_ptr,
+                degree_l,
+                use_kamata,
+                integration_method_int,
+                integration_rtol,
+                integration_atol,
+                scale_rtols_by_layer_type,
+                max_num_steps,
+                expected_size,
+                max_ram_MB,
+                max_step,
+                limit_solution_to_radius,
+                nondimensionalize,
+                verbose,
+                raise_on_fail)
+    
+    # Finalize solution storage
+    # Get a reference pointer to solution array
+    cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_ptr
+    # Cast the solution pointer from double to double complex
+    cdef double complex* solution_ptr = <double complex*>solution_dbl_ptr
+
+    if nondimensionalize:
+        # Redimensionalize eos properties
+        cf_redimensionalize_physicals(
+            total_slices,
+            frequency,
+            radius_planet,
+            planet_bulk_density,
+            radius_array_ptr,
+            density_array_ptr,
+            pressure_array_ptr,
+            gravity_array_ptr,
+            complex_bulk_array_ptr,
+            complex_shear_array_ptr,
+            &radius_planet_to_use,
+            &bulk_density_to_use,
+            &frequency_to_use,
+            &G_to_use
+            )
+
+        for layer_i in range(num_layers):
+            upper_radius_by_layer_ptr[layer_i] *= radius_planet
+
+    cdef double surface_gravity  = gravity_array_ptr[total_slices - 1]
+
+    if solution_storage_ptr.success:
+        if nondimensionalize:
+            # Redimensionalize the solution 
+            cf_redimensionalize_radial_functions(
+                solution_ptr,
+                radius_planet,
+                planet_bulk_density,
+                total_slices,
+                num_bc_models)
+
+        # Calculate Love numbers
+        solution_storage_ptr.find_love(surface_gravity)
+
+
 def radial_solver(
         double[::1] radius_array,
         double[::1] density_array,
-        double[::1] bulk_modulus_array,
+        double complex[::1] complex_bulk_modulus_array,
         double complex[::1] complex_shear_modulus_array,
         double frequency,
         double planet_bulk_density,
@@ -199,7 +460,7 @@ def radial_solver(
     cdef size_t total_slices
     total_slices = radius_array.size
     assert density_array.size               == total_slices
-    assert bulk_modulus_array.size          == total_slices
+    assert complex_bulk_modulus_ptr.size    == total_slices
     assert complex_shear_modulus_array.size == total_slices
 
     # Unpack inefficient user-provided tuples into bool arrays and pass by pointer
@@ -315,135 +576,56 @@ def radial_solver(
     solution.set_model_names(bc_models_ptr)
     cdef RadialSolutionStorageCC* solution_storage_ptr = solution.solution_storage_ptr
 
+    # TODO: For now RadialSolver does not support a robust Equation of State method. 
+    # The user must provide density, shear, and bulk arrays which will be used to find pressure and gravity.
+    cdef double radius_array_ptr  = &radius_array[0]
+    cdef double density_array_ptr = &density_array[0]
+
     # Convert complex-valued arrays to C++ complex pointers
     cdef double complex* complex_shear_modulus_ptr = <double complex*> &complex_shear_modulus_array[0]
+    cdef double complex* complex_bulk_modulus_ptr  = <double complex*> &complex_bulk_modulus_array[0]
 
-    # Solve the equaiton of state for the planet
-
-    # Non-dimensionalize inputs
-    cdef cpp_bool already_nondimed = False
-    cdef double G_to_use = NAN
-    cdef double radius_planet_to_use = NAN
-    cdef double bulk_density_to_use = NAN
-    cdef double frequency_to_use = NAN
-    if nondimensionalize:
-        cf_non_dimensionalize_physicals(
-            total_slices,
-            frequency,
-            radius_planet,
-            planet_bulk_density,
-            &radius_array[0],
-            &density_array[0],
-            &bulk_modulus_array[0],
-            complex_shear_modulus_ptr,
-            &radius_planet_to_use,
-            &bulk_density_to_use,
-            &frequency_to_use,
-            &G_to_use
-            )
-        already_nondimed = True
-
-    # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
-    # either via arguments to this function or a more OOP approach where they are built into the layers.
-    # Build arrays of EOS inputs.
-    cdef vector[preeval_interpolate] eos_function_bylayer_vec = vector[preeval_interpolate](0)
-    eos_function_bylayer_vec.reserve(num_layers)
-
-    # Build vector of inputs
-    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec = vector[EOS_ODEInput](0)
-    cdef vector[EOS_ODEInputPtr] eos_inputs_ptrs_bylayer_vec = vector[EOS_ODEInputPtr](0)
-    eos_inputs_ptrs_bylayer_vec.reserve(num_layers)
-    eos_inputs_bylayer_vec.reserve(num_layers)
-    for i in range(num_layers):
-        # TODO: For now we are only storing the interpolate version of the EOS for each layer.
-
-        # First build the input so that it is in memory
-        eos_function_bylayer_vec.push_back(preeval_interpolate)
-
-        # Then record its memory address (this is what will be used in function calls)
-        eos_inputs_ptrs_bylayer_vec.push_back(&eos_function_bylayer_vec[i])
-
-    # Make pointers to pre-eval data
-    cdef PreEvalFunc* eos_function_bylayer_ptrs = &eos_function_bylayer_vec[0]
-    cdef EOS_ODEInput** eos_input_bylayer_ptrs  = &eos_inputs_ptrs_bylayer_vec[0]
-
-    cdef EOSSolutionVec eos_solution_bylayer = solve_eos(
-        &radius_array[0],
-        total_slices,
-        upper_radius_by_layer_ptr,
-        num_layers,
-        eos_function_bylayer_ptrs,
-        eos_input_bylayer_ptrs,
-        planet_bulk_density,
-        surface_pressure,
-        G_to_use,
-        eos_integration_method,
-        eos_rtol,
-        eos_atol,
-        eos_pressure_tol,
-        eos_max_iters
-        )
-    cdef EOSSolutionVec* eos_solution_bylayer_ptr = &eos_solution_bylayer
-
-    # Run requested radial solver method
+    # Run TidalPy's radial solver function
     try:
-        if use_prop_matrix:
-            cf_matrix_propagate(
-                solution_storage_ptr,
-                total_slices,
-                &radius_array[0],
-                frequency,
-                planet_bulk_density,
-                eos_solution_bylayer_ptr,
-                num_layers,
-                # TODO: In the future the propagation matrix should take in layer types and multiple layers
-                # int* layer_types_ptr,
-                # int* is_static_by_layer_ptr,
-                # int* is_incompressible_by_layer_ptr,
-                upper_radius_by_layer_ptr,
-                num_bc_models,
-                bc_models_ptr,
-                G_to_use,
-                degree_l,
-                core_condition,
-                nondimensionalize,
-                verbose,
-                raise_on_fail,
-                already_nondimed
-                )
-        else:
-            cf_shooting_solver(
-                solution_storage_ptr,
-                total_slices,
-                &radius_array[0],
-                &density_array[0],
-                &gravity_array[0],
-                &bulk_modulus_array[0],
-                complex_shear_modulus_ptr,
-                frequency,
-                planet_bulk_density,
-                num_layers,
-                layer_types_ptr,
-                is_static_by_layer_ptr,
-                is_incompressible_by_layer_ptr,
-                upper_radius_by_layer_ptr,
-                num_bc_models,
-                bc_models_ptr,
-                degree_l,
-                use_kamata,
-                integration_method_int,
-                integration_rtol,
-                integration_atol,
-                scale_rtols_by_layer_type,
-                max_num_steps,
-                expected_size,
-                max_ram_MB,
-                max_step,
-                limit_solution_to_radius,
-                nondimensionalize,
-                verbose,
-                raise_on_fail,
-                already_nondimed)
+        cf_radial_solver(
+            solution_storage_ptr,
+            total_slices,
+            radius_array_ptr,
+            density_array_ptr,
+            complex_bulk_modulus_ptr,
+            complex_shear_modulus_ptr,
+            frequency,
+            planet_bulk_density,
+            num_layers,
+            layer_types,
+            is_static_by_layer,
+            is_incompressible_by_layer,
+            upper_radius_by_layer,
+            surface_pressure,
+            degree_l,
+            num_bc_models,
+            bc_models_ptr,
+            core_condition,
+            use_kamata,
+            integration_method,
+            integration_rtol,
+            integration_atol,
+            scale_rtols_by_layer_type,
+            max_num_steps,
+            expected_size,
+            max_ram_MB,
+            max_step,
+            nondimensionalize,
+            use_prop_matrix,
+            verbose,
+            warnings,
+            raise_on_fail,
+            eos_integration_method,
+            eos_rtol,
+            eos_atol,
+            eos_pressure_tol,
+            eos_max_iters
+            )
     finally:
         # Release heap memory
         if not (layer_assumptions_ptr is NULL):

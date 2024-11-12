@@ -60,6 +60,49 @@ cdef class RadialSolverSolution:
                 shape_ptr,
                 np.NPY_COMPLEX128,
                 self.solution_storage_ptr.complex_love_ptr)
+        
+        # Make arrays for all of the equation of state variables in a similar manner to the above.
+        cdef np.npy_intp[1] eos_float_shape     = [num_slices]
+        cdef np.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
+        cdef np.npy_intp[1] eos_complex_shape   = [2 * num_slices]
+        cdef np.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
+        cdef np.npy_intp eos_ndim                = 1
+
+        if not (self.solution_storage_ptr.eos_properties_ptr is NULL):
+            if not (self.solution_storage_ptr.gravity_ptr is NULL):
+                self.gravity_array = np.PyArray_SimpleNewFromData(
+                    eos_ndim,
+                    eos_float_shape_ptr,
+                    np.NPY_FLOAT64,
+                    self.solution_storage_ptr.gravity_ptr)
+
+            if not (self.solution_storage_ptr.pressure_ptr is NULL):
+                self.pressure_array = np.PyArray_SimpleNewFromData(
+                    eos_ndim,
+                    eos_float_shape_ptr,
+                    np.NPY_FLOAT64,
+                    self.solution_storage_ptr.pressure_ptr)
+            
+            if not (self.solution_storage_ptr.density_ptr is NULL):
+                self.density_array = np.PyArray_SimpleNewFromData(
+                    eos_ndim,
+                    eos_float_shape_ptr,
+                    np.NPY_FLOAT64,
+                    self.solution_storage_ptr.density_ptr)
+            
+            if not (self.solution_storage_ptr.shear_mod_ptr is NULL):
+                self.shear_modulus_array = np.PyArray_SimpleNewFromData(
+                    eos_ndim,
+                    eos_complex_shape_ptr,
+                    np.NPY_COMPLEX128,
+                    self.solution_storage_ptr.shear_mod_ptr)
+            
+            if not (self.solution_storage_ptr.bulk_mod_ptr is NULL):
+                self.bulk_modulus_array = np.PyArray_SimpleNewFromData(
+                    eos_ndim,
+                    eos_complex_shape_ptr,
+                    np.NPY_COMPLEX128,
+                    self.solution_storage_ptr.bulk_mod_ptr)
 
     cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil:
         # Unfortunately this must be done outside of __init__ because the argument is a pointer and python interpretor
@@ -93,8 +136,18 @@ cdef class RadialSolverSolution:
     
     @property
     def success(self):
-        """ Return solver's message """
+        """ Return if the solver was successful message """
         return self.solution_storage_ptr.success
+
+    @property
+    def eos_message(self):
+        """ Return solver's equation of state message """
+        return str(self.solution_storage_ptr.eos_message_ptr, 'UTF-8')
+    
+    @property
+    def eos_success(self):
+        """ Return if the solver's equation of state sub-solver was successful """
+        return self.solution_storage_ptr.eos_success
 
     @property
     def result(self):

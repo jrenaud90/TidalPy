@@ -1,6 +1,7 @@
 from CyRK cimport CySolveOutput, PreEvalFunc
 from CyRK.utils.memory cimport shared_ptr, make_shared
 from CyRK.utils.vector cimport vector
+from libcpp import bool as cpp_bool
 
 from TidalPy.Material.eos.ode cimport eos_solution, EOS_ODEInput
 
@@ -19,6 +20,8 @@ cdef struct GlobalEOSSolutionStorage:
     vector[double complex] complex_bulk_modulus
 
 cdef EOSSolutionVec solve_eos(
+    cpp_bool* success_ptr,
+    char* message_ptr,
     double* radius_array_ptr,
     size_t len_radius_array,
     double* layer_upper_radii,
@@ -32,5 +35,6 @@ cdef EOSSolutionVec solve_eos(
     double rtol = *,
     double atol = *,
     double pressure_tol = *,
-    unsigned int max_iters = *
+    unsigned int max_iters = *,
+    cpp_bool verbose = *
     ) noexcept nogil

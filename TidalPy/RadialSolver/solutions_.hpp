@@ -21,11 +21,27 @@ public:
     bool success      = false;
     char num_ytypes   = 0;
 
-    std::vector<double> complex_love_vec = std::vector<double>(0);
-    double* complex_love_ptr = NULL;
+    // Radial solution attributes
     std::vector<double> full_solution_vec = std::vector<double>(0);
     double* full_solution_ptr = NULL;
 
+    // Equation of state attributes
+    char eos_message[256] = { };
+    char* eos_message_ptr = &message[0];
+    bool eos_success      = false;
+    std::vector<double> eos_properties_vec = std::vector<double>(0);
+    double* eos_properties_ptr = NULL;
+    double* gravity_ptr   = NULL;
+    double* pressure_ptr  = NULL;
+    double* density_ptr   = NULL;
+    double* shear_mod_ptr = NULL;
+    double* bulk_mod_ptr  = NULL;
+
+    // Love number attributes
+    std::vector<double> complex_love_vec = std::vector<double>(0);
+    double* complex_love_ptr = NULL;
+
+    // Constructors and methods
     RadialSolutionStorageCC() { };
     virtual ~RadialSolutionStorageCC() { };
     RadialSolutionStorageCC(size_t num_slices, char num_ytypes);

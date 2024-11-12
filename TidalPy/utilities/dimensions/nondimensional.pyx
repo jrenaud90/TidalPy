@@ -28,6 +28,7 @@ cdef void cf_non_dimensionalize_physicals(
         double* radius_planet_to_use,
         double* bulk_density_to_use,
         double* frequency_to_use,
+        double* surface_pressure_to_use,
         double* G_to_use
         ) noexcept nogil:
 
@@ -52,10 +53,11 @@ cdef void cf_non_dimensionalize_physicals(
         shear_array_ptr[i]     /= pascal_conversion
 
     # Convert non-array pointers
-    radius_planet_to_use[0] = 1.0
-    bulk_density_to_use[0]  = 1.0
-    G_to_use[0]             = G / (length_conversion**3 / (mass_conversion * second2_conversion))
-    frequency_to_use[0]     = frequency / (1. / second_conversion)
+    radius_planet_to_use[0]     = 1.0
+    bulk_density_to_use[0]      = 1.0
+    G_to_use[0]                 = G / (length_conversion**3 / (mass_conversion * second2_conversion))
+    surface_pressure_to_use[0] /= pascal_conversion
+    frequency_to_use[0]         = frequency / (1. / second_conversion)
 
 cdef void cf_redimensionalize_physicals(
         size_t num_radius,
@@ -64,11 +66,14 @@ cdef void cf_redimensionalize_physicals(
         double bulk_density,
         double* radius_array_ptr,
         double* density_array_ptr,
+        double* pressure_array_ptr,
+        double* gravity_array_ptr,
         double_numeric* bulk_array_ptr,
         double_numeric* shear_array_ptr,
         double* radius_planet_to_use,
         double* bulk_density_to_use,
         double* frequency_to_use,
+        double* surface_pressure_to_use,
         double* G_to_use
         ) noexcept nogil:
 
@@ -89,14 +94,17 @@ cdef void cf_redimensionalize_physicals(
     for i in range(num_radius):
         radius_array_ptr[i]    *= length_conversion
         density_array_ptr[i]   *= density_conversion
+        pressure_array_ptr[i]  *= pascal_conversion
+        gravity_array_ptr[i]   *= (length_conversion / second2_conversion)
         bulk_array_ptr[i]      *= pascal_conversion
         shear_array_ptr[i]     *= pascal_conversion
 
     # Convert non-array pointers
-    radius_planet_to_use[0] = mean_radius
-    bulk_density_to_use[0]  = bulk_density
-    G_to_use[0]             = G
-    frequency_to_use[0]     = frequency
+    radius_planet_to_use[0]     = mean_radius
+    bulk_density_to_use[0]      = bulk_density
+    G_to_use[0]                 = G
+    surface_pressure_to_use[0] *= pascal_conversion
+    frequency_to_use[0]         = frequency
 
 
 cdef void cf_redimensionalize_radial_functions(

@@ -38,7 +38,6 @@ cdef void cf_matrix_propagate(
         double* radius_array_ptr,
         double frequency,
         double planet_bulk_density,
-        EOSSolutionVec* eos_solution_bylayer_ptr,
         size_t num_layers,
         # TODO: In the future the propagation matrix should take in layer types and multiple layers
         # int* layer_types_ptr,
@@ -50,10 +49,8 @@ cdef void cf_matrix_propagate(
         double G_to_use = G,
         unsigned int degree_l = 2,
         unsigned char core_condition = 0,
-        cpp_bool nondimensionalize = True,
         cpp_bool verbose = False,
-        cpp_bool raise_on_fail = False,
-        cpp_bool already_nondimed = False
+        cpp_bool raise_on_fail = False
         ) noexcept nogil:
 
     # Setup
@@ -62,86 +59,19 @@ cdef void cf_matrix_propagate(
     cdef cpp_bool error = False
     strcpy(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n")
 
-    # Create gravity and density arrays used to build the matrices
-    cdef vector[double] density_array_vec               = vector[double](0)
-    cdef vector[double] gravity_array_vec               = vector[double](0)
-    cdef vector[double complex] complex_shear_array_vec = vector[double](0)
-    # TODO: Bulk modulus is not used in the propagation matrix method.
-    cdef vector[double complex] complex_bulk_array_vec  = vector[double](0)
-    density_array_vec.reserve(total_slices)
-    gravity_array_vec.reserve(total_slices)
-    complex_shear_array_vec.reserve(total_slices)
-    complex_bulk_array_vec.reserve(total_slices)
-    cdef double* density_array_ptr               = &density_array_vec[0]
-    cdef double* gravity_array_ptr               = &gravity_array_vec[0]
-    cdef double complex* complex_shear_array_ptr = &complex_shear_array_vec[0]
-    cdef double complex* complex_bulk_array_ptr  = &complex_bulk_array_vec[0]
+    # Pull out key information
+    cdef size_t top_slice_i    = total_slices - 1
+    cdef size_t num_interfaces = num_layers - 1
 
-    # Build storage used to call the EOS at each radius
-    # The EOS stores 7 doubles:
-    #   0: Gravity
-    #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
-    cdef vector[double] y_array = vector[double](7)
-    cdef double* y_array_ptr    = &y_array[0]
+    # Alias pointers to EOS properties
+    cdef double* gravity_array_ptr               = solution_storage_ptr.gravity_ptr
+    # cdef double* pressure_array_ptr              = solution_storage_ptr.pressure_ptr   # Unused
+    cdef double* density_array_ptr               = solution_storage_ptr.density_ptr
+    cdef double complex* complex_shear_array_ptr = solution_storage_ptr.shear_mod_ptr
+    cdef double complex* complex_bulk_array_ptr  = solution_storage_ptr.bulk_mod_ptr
 
-    # Build variables to help solve the EOS.
-    cdef double r
-    cdef int current_layer_i = 0
-    cdef double layer_r      = upper_radius_by_layer_ptr[current_layer_i]
-    cdef CySolverResult* eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
-
-    # Step through the radial steps to find EOS-dependent parameters
-    for i in range(total_slices):
-        r = radius_array_ptr[i]
-
-        # Check if we are using the correct EOS solution (changes with layers)
-        if r > layer_r:
-            current_layer_i += 1
-            layer_r = upper_radius_by_layer_ptr[current_layer_i]
-            eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
-
-        # Call the dense output of the EOS ODE solution to populate the y_interp pointer.
-        eos_solution_ptr.call(r, y_array_ptr)
-
-        # Store results
-        gravity_array_ptr[i]       = y_array_ptr[0]
-        # Skip pressure at y-interp index 1
-        density_array_ptr[i]       = y_array_ptr[2]
-        complex_shear_array_ptr[i] = cf_build_dblcmplx(y_array_ptr[3], y_array_ptr[4])
-        complex_bulk_array_ptr[i]  = cf_build_dblcmplx(y_array_ptr[5], y_array_ptr[6])
-
-    # Nondimensional variables
-    cdef double mean_radius          = radius_array_ptr[total_slices - 1]
-    cdef double planet_radius_to_use = NAN
-    cdef double bulk_density_to_use  = NAN
-    cdef double frequency_to_use     = NAN
-    cdef double G_to_use             = NAN
-
-    if nondimensionalize and (not already_nondimed):
-        cf_non_dimensionalize_physicals(
-            total_slices, frequency, mean_radius, planet_bulk_density, radius_array_ptr, density_array_ptr,
-            gravity_array_ptr, complex_bulk_array_ptr, complex_shear_array_ptr,
-            &planet_radius_to_use, &bulk_density_to_use, &frequency_to_use, &G_to_use
-            )
-        
-        # Ensure that no errors occured during the non-dim process
-        if isnan(planet_radius_to_use) or isnan(bulk_density_to_use) or isnan(frequency_to_use) or isnan(G_to_use):
-            strcpy(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: NaNs encountered after non-dimensionalize call.\n")
-            error = True
-            if verbose or raise_on_fail:
-                printf(solution_storage_ptr.message_ptr)
-            if raise_on_fail:
-                exit(EXIT_FAILURE)
-    else:
-        # Leave inputs alone.
-        planet_radius_to_use = mean_radius
-        bulk_density_to_use  = planet_bulk_density
-        frequency_to_use     = frequency
+    # Pull out constants
+    cdef double planet_radius = radius_array_ptr[top_slice_i]
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
@@ -157,8 +87,8 @@ cdef void cf_matrix_propagate(
         bc_pointer,  # Changed parameter
         bc_models_ptr,
         num_ytypes,
-        planet_radius_to_use,
-        bulk_density_to_use,
+        planet_radius,
+        planet_bulk_density,
         degree_l_dbl
         )
 
@@ -450,32 +380,7 @@ cdef void cf_matrix_propagate(
         # Get ready for next y-type solution
         ytype_i += 1
 
-    # Redimensionalize
-    cdef double surface_gravity
-
-    if nondimensionalize:
-        cf_redimensionalize_physicals(
-            total_slices, frequency, mean_radius, planet_bulk_density, radius_array_ptr, density_array_ptr,
-            gravity_array_ptr, bulk_modulus_ptr, complex_shear_modulus_array_ptr,
-            &planet_radius_to_use, &bulk_density_to_use, &frequency_to_use, &G_to_use
-            )
-        
-        # Reset surface gravity value
-        surface_gravity  = gravity_array_ptr[total_slices - 1]
-
     if not error:
-        # Redimensionalize the solution 
-        if nondimensionalize:
-            cf_redimensionalize_radial_functions(
-                solution_ptr,
-                mean_radius,
-                planet_bulk_density,
-                total_slices,
-                num_ytypes)
-        
-        # Calculate Love numbers
-        solution_storage_ptr.find_love(surface_gravity)
-
         # Update status message
         strcpy(solution_storage_ptr.message_ptr, 'RadialSolver (propagation matrix method) completed without any noted issues.\n')
 

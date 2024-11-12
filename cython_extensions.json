@@ -102,14 +102,6 @@
     "link_args": [],
     "is_cpp": true
   },
-  "RadialSolver.derivatives.base": {
-    "name": "TidalPy.RadialSolver.derivatives.base",
-    "sources": [["TidalPy", "RadialSolver", "derivatives", "base.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver", "derivatives"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
   "RadialSolver.derivatives.odes": {
     "name": "TidalPy.RadialSolver.derivatives.odes",
     "sources": [["TidalPy", "RadialSolver", "derivatives", "odes.pyx"]],

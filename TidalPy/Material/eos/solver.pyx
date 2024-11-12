@@ -1,6 +1,5 @@
-from libc.stdio cimport printf
-from libc.string cimport memcpy
-from libcpp import bool as cpp_bool
+from libc.stdio cimport printf, sprintf
+from libc.string cimport memcpy, strcpy
 
 from CyRK cimport cysolve_ivp, CySolverResult
 
@@ -9,6 +8,8 @@ from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 from TidalPy.utilities.constants_x cimport G, PI_DBL, INF_DBL, NAN_DBL
 
 cdef EOSSolutionVec solve_eos(
+        cpp_bool* success_ptr,
+        char* message_ptr,
         double* radius_array_ptr,
         size_t len_radius_array,
         double* layer_upper_radii,
@@ -22,8 +23,13 @@ cdef EOSSolutionVec solve_eos(
         double rtol = 1.0e-8,
         double atol = 1.0e-16,
         double pressure_tol = 1.0e-3,
-        unsigned int max_iters = 100
+        unsigned int max_iters = 100,
+        cpp_bool verbose = True
         ) noexcept nogil:
+
+    # Feedback
+    cdef char[256] local_message
+    cdef char* local_message_ptr = &local_message[0]
 
     # Don't use rtol or atol arrays
     # cdef double[2] rtols_arr = [1.0e-8, 1.0e-12]
@@ -179,12 +185,20 @@ cdef EOSSolutionVec solve_eos(
     
     # Display any warnings
     if max_iters_hit:
-        printf("Warning in `solve_eos`: Maximum number of iterations hit without convergence.\n")
+        strcpy(local_message_ptr, "Warning in `solve_eos`: Maximum number of iterations hit without convergence.\n")
+        if verbose:
+            printf(local_message_ptr)
     
     if failed:
+        success_ptr[0] = False
         if solution_ptr:
-            printf("Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s\n", iterations, solution_ptr.message_ptr)
+            sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s\n", iterations, solution_ptr.message_ptr)
         else:
-            printf("Warning in `solve_eos`: Integrator failed at iteration %d.\n", iterations)
-    
+            sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d.\n", iterations)
+        if verbose:
+            printf(local_message_ptr)
+    else:
+        success_ptr[0] = True
+    strcpy(message_ptr, local_message_ptr)
+
     return layer_solutions

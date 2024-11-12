@@ -24,6 +24,22 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
     // These are also double vectors storing double complex values, double the storage.
     this->complex_love_vec.reserve(2 * 3 * this->num_ytypes);
     this->complex_love_ptr = &this->complex_love_vec[0];
+
+    // The radial solution class will also store the output of the equation of state solver. 
+    // Setup the eos solution vector and associated pointers.
+    // The vector will be 7 x total slices
+    // Array 0: Gravity
+    // Array 1: Pressure
+    // Array 2: Density
+    // Double Array 3a + 3b: Shear Mod (real, imag)
+    // Double Array 4a + 4b: Bulk Mod (real, imag)
+    this->eos_properties_vec.reserve(7 * this->num_slices);
+    this->eos_properties_ptr = &this->full_solution_vec[0];
+    double* gravity_ptr   = &this->eos_properties_ptr[0];
+    double* pressure_ptr  = &this->eos_properties_ptr[this->num_slices];
+    double* density_ptr   = &this->eos_properties_ptr[2 * this->num_slices];
+    double* shear_mod_ptr = &this->eos_properties_ptr[3 * this->num_slices];
+    double* bulk_mod_ptr  = &this->eos_properties_ptr[5 * this->num_slices]; // The jump from 3 to 5 here is because shear_mod_ptr (and this bulk_mod_ptr) is twice as long as the others.
 }
 
 void RadialSolutionStorageCC::find_love(double surface_gravity)
