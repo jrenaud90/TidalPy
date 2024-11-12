@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport PI_DBL
+from TidalPy.constants cimport d_PI_DBL
 
 cdef void eos_diffeq(
         double* dy_ptr,
@@ -15,7 +15,7 @@ cdef void eos_diffeq(
     cdef EOS_ODEInput* eos_input_ptr = <EOS_ODEInput*>input_args
 
     # Other constants
-    cdef double grav_coeff = 4. * PI_DBL * eos_input_ptr.G_to_use
+    cdef double grav_coeff = 4. * d_PI_DBL * eos_input_ptr.G_to_use
 
     # Update viscoelastic parameters using the user-provided equation of state
     cdef EOSOutput eos_output

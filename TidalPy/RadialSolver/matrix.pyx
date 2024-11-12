@@ -19,7 +19,7 @@ from libc.string cimport strcpy
 from scipy.linalg.cython_lapack cimport zgesv
 from CyRK.utils.utils cimport allocate_mem, free_mem
 
-from TidalPy.constants cimport G
+from TidalPy.constants cimport d_G
 from TidalPy.utilities.math.complex cimport cmplx_zero, cmplx_NAN, cf_build_dblcmplx
 from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_non_dimensionalize_physicals,
@@ -44,7 +44,7 @@ cdef void cf_matrix_propagate(
         # int* is_incompressible_by_layer_ptr,
         size_t num_bc_models,
         int* bc_models_ptr,
-        double G_to_use = G,
+        double G_to_use = d_G,
         unsigned int degree_l = 2,
         unsigned char core_condition = 0,
         cpp_bool verbose = False,

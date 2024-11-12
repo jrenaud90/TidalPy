@@ -10,9 +10,9 @@ Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 """
 
-from libc.math cimport pi, sqrt
+from libc.math cimport sqrt
 
-from TidalPy.constants cimport G
+from TidalPy.constants cimport d_G, d_PI_DBL
 
 
 cdef void cf_non_dimensionalize_physicals(
@@ -37,7 +37,7 @@ cdef void cf_non_dimensionalize_physicals(
     cdef size_t i
 
     # Setup conversions
-    cdef double second2_conversion = 1. / (pi * G * bulk_density)
+    cdef double second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
     cdef double second_conversion  = sqrt(second2_conversion)
     cdef double length_conversion  = mean_radius
     cdef double density_conversion = bulk_density
@@ -59,7 +59,7 @@ cdef void cf_non_dimensionalize_physicals(
     # Convert non-array pointers
     radius_planet_to_use[0] = 1.0
     bulk_density_to_use[0]  = 1.0
-    G_to_use[0]             = G / (length_conversion**3 / (mass_conversion * second2_conversion))
+    G_to_use[0]             = d_G / (length_conversion**3 / (mass_conversion * second2_conversion))
     frequency_to_use[0]     = frequency / (1. / second_conversion)
 
     # Scale other inputs
@@ -87,7 +87,7 @@ cdef void cf_redimensionalize_physicals(
     cdef size_t i
 
     # Setup conversions
-    cdef double second2_conversion = 1. / (pi * G * bulk_density)
+    cdef double second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
     cdef double second_conversion  = sqrt(second2_conversion)
     cdef double length_conversion  = mean_radius
     cdef double density_conversion = bulk_density
@@ -109,7 +109,7 @@ cdef void cf_redimensionalize_physicals(
     # Convert non-array pointers
     radius_planet_to_use[0] = mean_radius
     bulk_density_to_use[0]  = bulk_density
-    G_to_use[0]             = G
+    G_to_use[0]             = d_G
     frequency_to_use[0]     = frequency
 
 
@@ -139,7 +139,7 @@ cdef void cf_redimensionalize_radial_functions(
     cdef size_t slice_i, solver_i
 
     # Setup conversions
-    cdef double second2_conversion = 1. / (pi * G * bulk_density)
+    cdef double second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
     cdef double mass_conversion    = bulk_density * mean_radius**3
     cdef double length_conversion  = mean_radius
     cdef double length_conversion3 = length_conversion**3

@@ -1,4 +1,4 @@
-from TidalPy.constants cimport DBL_MAX, DBL_MIN, DBL_MANT_DIG, NAN_DBL, INF_DBL
+from TidalPy.constants cimport d_DBL_MAX, d_DBL_MIN, d_DBL_MANT_DIG, d_NAN_DBL, d_INF_DBL
 
 cdef double complex cmplx_NAN
 cdef double complex cmplx_zero

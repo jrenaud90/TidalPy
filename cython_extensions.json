@@ -1,6 +1,6 @@
 {  
   "constants": {
-    "name": "constants",
+    "name": "TidalPy.constants",
     "sources": [["TidalPy", "constants.pyx"]],
     "include_dirs": [["TidalPy"]],
     "compile_args": [],

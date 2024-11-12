@@ -3,7 +3,7 @@
 
 from libc.math cimport fabs, cos, sin, pi, tgamma, INFINITY, isinf
 
-from TidalPy.constants cimport MIN_FREQUENCY, MAX_FREQUENCY, MIN_MODULUS
+from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
 
@@ -71,11 +71,11 @@ cdef class Newton(RheologyModelBase):
         frequency_abs = fabs(frequency)
 
         # Check for extreme values. If found: use pre-calculated limits.
-        if frequency_abs < MIN_FREQUENCY:
+        if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
-        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+        elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
             return cf_build_dblcmplx(0.0, INFINITY)
-        if modulus < MIN_MODULUS:
+        if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, frequency_abs * viscosity)
 
         return cf_build_dblcmplx(0.0, frequency_abs * viscosity)
@@ -96,11 +96,11 @@ cdef class Maxwell(RheologyModelBase):
         cdef double frequency_abs = fabs(frequency)
 
         # Check for extreme values. If found: use pre-calculated limits.
-        if frequency_abs < MIN_FREQUENCY:
+        if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
-        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+        elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
             return cf_build_dblcmplx(modulus, 0.0)
-        if modulus < MIN_MODULUS:
+        if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, 0.0)
 
         cdef double maxwell_time  = viscosity / modulus
@@ -133,11 +133,11 @@ cdef class Voigt(RheologyModelBase):
         cdef double voigt_visosity = self.voigt_viscosity_scale * viscosity
 
         # Check for extreme values. If found: use pre-calculated limits.
-        if frequency_abs < MIN_FREQUENCY:
+        if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(voigt_modulus, 0.0)
-        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+        elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
             return cf_build_dblcmplx(0.0, INFINITY)
-        if modulus < MIN_MODULUS:
+        if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, voigt_visosity * frequency_abs)
 
         return cf_build_dblcmplx(voigt_modulus, frequency_abs * voigt_visosity)
@@ -165,11 +165,11 @@ cdef class Burgers(RheologyModelBase):
         cdef double frequency_abs = fabs(frequency)
 
         # Check for extreme values. If found: use pre-calculated limits.
-        if frequency_abs < MIN_FREQUENCY:
+        if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
-        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+        elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
             return cf_build_dblcmplx(modulus, 0.0)
-        if modulus < MIN_MODULUS:
+        if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, 0.0)
 
         cdef double voigt_modulus       = self.voigt_modulus_scale * modulus
@@ -213,11 +213,11 @@ cdef class Andrade(RheologyModelBase):
         cdef double frequency_abs = fabs(frequency)
 
         # Check for extreme values. If found: use pre-calculated limits.
-        if frequency_abs < MIN_FREQUENCY:
+        if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
-        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+        elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
             return cf_build_dblcmplx(modulus, 0.0)
-        if modulus < MIN_MODULUS:
+        if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, 0.0)
 
         cdef double maxwell_time = viscosity / modulus
@@ -257,11 +257,11 @@ cdef class SundbergCooper(RheologyModelBase):
         cdef double frequency_abs = fabs(frequency)
 
         # Check for extreme values. If found: use pre-calculated limits.
-        if frequency_abs < MIN_FREQUENCY:
+        if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
-        elif frequency_abs > MAX_FREQUENCY or isinf(frequency_abs):
+        elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
             return cf_build_dblcmplx(modulus, 0.0)
-        if modulus < MIN_MODULUS:
+        if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, 0.0)
 
         cdef double voigt_modulus       = self.voigt_modulus_scale * modulus

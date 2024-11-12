@@ -12,7 +12,7 @@ from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
-from TidalPy.constants cimport G
+from TidalPy.constants cimport d_G
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.solutions cimport cf_find_num_shooting_solutions
@@ -40,7 +40,7 @@ cdef void cf_shooting_solver(
         size_t* num_slices_by_layer_ptr,
         size_t num_bc_models,
         int* bc_models_ptr,
-        double G_to_use = G,
+        double G_to_use = d_G,
         unsigned int degree_l = 2,
         cpp_bool use_kamata = False,
         unsigned char integration_method = 1,

@@ -18,7 +18,7 @@ from libc.math cimport pi
 
 from cython.parallel cimport prange
 
-from TidalPy.constants cimport G
+from TidalPy.constants cimport d_G
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 
@@ -32,7 +32,7 @@ cdef void cf_fundamental_matrix(
         double complex* inverse_fundamental_mtx_ptr,
         double complex* derivative_mtx_ptr,
         unsigned char degree_l = 2,
-        double G_to_use = G
+        double G_to_use = d_G
         ) noexcept nogil:
     """ Construct the fundamental matrix and its inverse for a generic order-l
 
@@ -66,7 +66,7 @@ cdef void cf_fundamental_matrix(
         The matrix, A, that satisfies the equation dy/dr = A * y
     degree_l : unsigned char, default=2
         Harmonic degree.
-    G_to_use : double, default=G
+    G_to_use : double, default=d_G
         Gravitational constant used in calculations. Can be provided for non-dimensionalized solutions.
     """
 
@@ -301,7 +301,7 @@ def fundamental_matrix(
         double complex[:, :, ::1] fundamental_mtx_inverse_view,
         double complex[:, :, ::1] derivative_mtx_view,  
         unsigned char degree_l = 2,
-        double G_to_use = G
+        double G_to_use = d_G
         ):
     """ Construct the fundamental matrix and its inverse using harmonic degree l.
 
@@ -332,7 +332,7 @@ def fundamental_matrix(
         The matrix, A, that satisfies the equation dy/dr = A * y
     degree_l : unsigned char, default=2
         Harmonic degree.
-    G_to_use : double, default=G
+    G_to_use : double, default=d_G
         Gravitational constant used in calculations. Can be provided for non-dimensionalized solutions.
     """ 
 

@@ -6,7 +6,7 @@ from libc.string cimport memcpy, strcpy
 
 from CyRK cimport cysolve_ivp, CySolveOutput
 
-from TidalPy.constants cimport G, PI_DBL, INF_DBL
+from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
 cdef EOSSolutionVec solve_eos(
@@ -20,7 +20,7 @@ cdef EOSSolutionVec solve_eos(
         EOS_ODEInput** eos_input_bylayer_ptrs,
         double planet_bulk_density,
         double surface_pressure = 0.0,
-        double G_to_use = G,
+        double G_to_use = d_G,
         unsigned int integration_method = 2,
         double rtol = 1.0e-8,
         double atol = 1.0e-16,
@@ -44,7 +44,7 @@ cdef EOSSolutionVec solve_eos(
     cdef double r0_gravity = 0.0
     cdef double r0_pressure_guess = \
         surface_pressure + \
-        (2. / 3.) * PI_DBL * G_to_use * planet_radius * planet_radius * planet_bulk_density * planet_bulk_density
+        (2. / 3.) * d_PI_DBL * G_to_use * planet_radius * planet_radius * planet_bulk_density * planet_bulk_density
     
     # Setup bound variables
     cdef double[2] radial_span
@@ -81,8 +81,8 @@ cdef EOSSolutionVec solve_eos(
     
     # Pressure convergence variables
     cdef size_t surface_pressure_index   = 0
-    cdef double calculated_surf_pressure = INF_DBL
-    cdef double pressure_diff            = INF_DBL
+    cdef double calculated_surf_pressure = d_INF_DBL
+    cdef double pressure_diff            = d_INF_DBL
     cdef unsigned int iterations         = 0
     cdef cpp_bool failed                 = False
     cdef cpp_bool max_iters_hit          = False

@@ -4,7 +4,7 @@ from TidalPy.exceptions import BadValueError
 
 from libc.math cimport sqrt, cbrt
 
-from TidalPy.constants cimport G, PI_DBL
+from TidalPy.constants cimport d_G, d_PI_DBL
 
 
 cdef inline double cf_m2Au(double meters) noexcept nogil:
@@ -17,11 +17,11 @@ cdef inline double cf_Au2m(double astronomical_units) noexcept nogil:
 
 cdef inline double cf_rads2days(double radians_per_second) noexcept nogil:
 
-    return (2. * PI_DBL / radians_per_second) / 86400.
+    return (2. * d_PI_DBL / radians_per_second) / 86400.
 
 cdef inline double cf_days2rads(double days) noexcept nogil:
 
-    return 2. * PI_DBL / (days * 86400.)
+    return 2. * d_PI_DBL / (days * 86400.)
 
 cdef inline double cf_sec2myr(double seconds) noexcept nogil:
 
@@ -35,7 +35,7 @@ cdef inline double cf_orbital_motion2semi_a(
         double orbital_motion,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = G) noexcept nogil:
+        double G_to_use = d_G) noexcept nogil:
 
     cdef double semi_major_axis
     semi_major_axis = cbrt(
@@ -48,7 +48,7 @@ cdef inline double cf_semi_a2orbital_motion(
         double semi_major_axis,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = G) noexcept nogil:
+        double G_to_use = d_G) noexcept nogil:
 
     cdef double orbital_motion
     orbital_motion = sqrt(G_to_use * (host_mass + target_mass) / (semi_major_axis * semi_major_axis * semi_major_axis))
@@ -155,7 +155,7 @@ def orbital_motion2semi_a(
         double orbital_motion,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = G):
+        double G_to_use = d_G):
     """ Convert orbital mean motion to semi-major axis (Kepler's 3rd law)
 
     Parameters
@@ -166,7 +166,7 @@ def orbital_motion2semi_a(
         Central body's mass in [kg]
     target_mass : double, default = 0
         Target (or orbiting) body's mass in [kg]
-    G_to_use : double, default = G
+    G_to_use : double, default = d_G
         Gravitational constant [N m2 kg-2]
 
     Returns
@@ -186,7 +186,7 @@ def semi_a2orbital_motion(
         double semi_major_axis,
         double host_mass,
         double target_mass = 0.0,
-        double G_to_use = G):
+        double G_to_use = d_G):
     """ Convert semi-major axis to mean orbital motion (Kepler's 3rd law)
 
     Parameters
@@ -197,7 +197,7 @@ def semi_a2orbital_motion(
         Central body's mass in [kg]
     target_mass : double, default = 0
         Target (or orbiting) body's mass in [kg]
-    G_to_use : double, default = G
+    G_to_use : double, default = d_G
         Gravitational constant [N m2 kg-2]
 
     Returns

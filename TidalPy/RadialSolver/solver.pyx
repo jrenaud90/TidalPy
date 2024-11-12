@@ -13,7 +13,7 @@ from CyRK.utils.vector cimport vector
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
 
-from TidalPy.constants cimport G
+from TidalPy.constants cimport d_G
 from TidalPy.utilities.math cimport cf_build_dblcmplx
 from TidalPy.utilities.dimensions.nondimensional cimport (
     cf_non_dimensionalize_physicals,
@@ -165,7 +165,7 @@ cdef void cf_radial_solver(
         for layer_i in range(num_layers):
             upper_radius_by_layer_ptr[layer_i] /= radius_planet
     else:
-        G_to_use                = G
+        G_to_use                = d_G
         radius_planet_to_use    = radius_planet
         bulk_density_to_use     = planet_bulk_density
         frequency_to_use        = frequency
