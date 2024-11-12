@@ -87,7 +87,7 @@ jobs:
           - "3.11"
           - "3.12"
     steps:
-      - name: Checkout CyRK
+      - name: Checkout TidalPy
         uses: actions/checkout@v4
 
       - name: Install Anaconda
@@ -134,7 +134,6 @@ jobs:
       matrix:
         platform:
           #              - macos-12  ## macos is not playing nice with cibuildwheel with openmp from cython.
-          - windows-2022
           - windows-latest
           - ubuntu-20.04
 
