@@ -3,9 +3,7 @@ from libc.string cimport memcpy, strcpy
 
 from CyRK cimport cysolve_ivp, CySolverResult
 
-from TidalPy.Material.eos.ode cimport eos_diffeq
-from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
-from TidalPy.utilities.constants_x cimport G, PI_DBL, INF_DBL, NAN_DBL
+from TidalPy.utilities.constants_x cimport G, PI_DBL, INF_DBL
 
 cdef EOSSolutionVec solve_eos(
         cpp_bool* success_ptr,
@@ -88,8 +86,8 @@ cdef EOSSolutionVec solve_eos(
     
     # Integration solution variables
     cdef size_t last_solution_size = 0
-    cdef CySolveOutput solution
-    cdef CySolverResult* solution_ptr = NULL
+    cdef CySolveOutput integration_result
+    cdef CySolverResult* integration_result_ptr = NULL
     cdef EOSSolutionVec layer_solutions = EOSSolutionVec(0)
     layer_solutions.reserve(num_layers)
     
@@ -110,8 +108,8 @@ cdef EOSSolutionVec solve_eos(
                 radial_span_ptr[0] = layer_upper_radii[layer_i - 1]
                 top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1)
                 # y0 for this layer equals result of last layer
-                y0_layer_ptr[0] = solution_ptr.solution[top_of_last_layer_index]
-                y0_layer_ptr[1] = solution_ptr.solution[top_of_last_layer_index + 1]
+                y0_layer_ptr[0] = integration_result_ptr.solution[top_of_last_layer_index]
+                y0_layer_ptr[1] = integration_result_ptr.solution[top_of_last_layer_index + 1]
                 
             # Get eos function and inputs for this layer
             eos_input_layer_ptr = eos_input_bylayer_ptrs[layer_i]
@@ -137,20 +135,20 @@ cdef EOSSolutionVec solve_eos(
                 num_extra = 0
                 use_dense_output = False
             
-            solution = cysolve_ivp(
+            integration_result = cysolve_ivp(
                 eos_solution, radial_span_ptr, y0_layer_ptr, num_y,
                 integration_method, rtol, atol, args_ptr, num_extra,
                 max_num_steps, max_ram_MB, use_dense_output, t_eval_ptr, len_t_eval, eos_function_ptr,
                 rtols_ptr, atols_ptr, max_step, first_step, expected_size)
-            solution_ptr = solution.get()
-            last_solution_size = solution_ptr.size
+            integration_result_ptr = integration_result.get()
+            last_solution_size = integration_result_ptr.size
 
-            if not solution_ptr.success:
+            if not integration_result_ptr.success:
                 failed = True
                 break
             
             if final_run:
-                layer_solutions.push_back(solution)
+                layer_solutions.push_back(integration_result_ptr)
 
         if failed:
             break
@@ -160,7 +158,7 @@ cdef EOSSolutionVec solve_eos(
             break
         else:
             surface_pressure_index = num_y * last_solution_size - 1
-            calculated_surf_pressure = solution_ptr.solution[surface_pressure_index]
+            calculated_surf_pressure = integration_result_ptr.solution[surface_pressure_index]
 
             # Update the centeral pressure using the error at the surface as the correction factor
             pressure_diff = surface_pressure - calculated_surf_pressure
@@ -191,8 +189,8 @@ cdef EOSSolutionVec solve_eos(
     
     if failed:
         success_ptr[0] = False
-        if solution_ptr:
-            sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s\n", iterations, solution_ptr.message_ptr)
+        if integration_result_ptr:
+            sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s\n", iterations, integration_result_ptr.message_ptr)
         else:
             sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d.\n", iterations)
         if verbose:

@@ -5,6 +5,7 @@ cdef void cf_non_dimensionalize_physicals(
         double frequency,
         double mean_radius,
         double bulk_density,
+        double surface_pressure,
         double* radius_array_ptr,
         double* density_array_ptr,
         double_numeric* bulk_array_ptr,

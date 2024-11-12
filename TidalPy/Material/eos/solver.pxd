@@ -5,7 +5,8 @@ from libcpp import bool as cpp_bool
 
 from TidalPy.Material.eos.ode cimport eos_solution, EOS_ODEInput
 
-ctypedef vector[CySolveOutput] EOSSolutionVec
+ctypedef CySolveOutput* CySolveOutputPtr
+ctypedef vector[CySolveOutputPtr] EOSSolutionVec
 
 cdef struct GlobalEOSSolutionStorage:
     vector[double] radius

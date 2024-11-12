@@ -33,7 +33,7 @@ cdef void cf_shooting_solver(
         double* radius_array_ptr,
         double frequency,
         double planet_bulk_density,
-        EOSSolutionVec* eos_solution_bylayer_ptr,
+        CySolveOutput** eos_solution_bylayer_ptr,
         size_t num_layers,
         int* layer_types_ptr,
         int* is_static_by_layer_ptr,
@@ -52,7 +52,6 @@ cdef void cf_shooting_solver(
         size_t expected_size = 500,
         size_t max_ram_MB = 500,
         double max_step = 0,
-        cpp_bool limit_solution_to_radius = True,
         cpp_bool verbose = False,
         cpp_bool raise_on_fail = False
         ) noexcept:

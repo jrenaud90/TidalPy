@@ -1,7 +1,9 @@
 from libcpp cimport bool as cpp_bool
 
-from TidalPy.Material.eos.solver cimport EOSSolutionVec
+from CyRK cimport CySolveOutput
+
 from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
+
 
 cdef void cf_shooting_solver(
     RadialSolutionStorageCC* solution_storage_ptr,
@@ -9,7 +11,7 @@ cdef void cf_shooting_solver(
     double* radius_array_ptr,
     double frequency,
     double planet_bulk_density,
-    EOSSolutionVec* eos_solution_bylayer_ptr,
+    CySolveOutput** eos_solution_bylayer_ptr,
     size_t num_layers,
     int* layer_types_ptr,
     int* is_static_by_layer_ptr,
@@ -28,7 +30,6 @@ cdef void cf_shooting_solver(
     size_t expected_size = *,
     size_t max_ram_MB = *,
     double max_step = *,
-    cpp_bool limit_solution_to_radius = *,
     cpp_bool verbose = *,
     cpp_bool raise_on_fail = *
     ) noexcept

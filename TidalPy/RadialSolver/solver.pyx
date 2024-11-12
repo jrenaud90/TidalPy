@@ -1,16 +1,13 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
+
 from libc.math cimport fabs, NAN
-from libcpp cimport bool as cpp_bool
 
-import numpy as np
-cimport numpy as np
-np.import_array()
+from scipy.constants import G as G_
 
-from CyRK cimport PreEvalFunc, CySolverResult
+from CyRK cimport PreEvalFunc, CySolverResult, CySolveOutput
 from CyRK.utils.vector cimport vector
-from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
@@ -29,6 +26,9 @@ from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
 from TidalPy.Material.eos.interpolate cimport preeval_interpolate
 from TidalPy.Material.eos.ode cimport EOS_ODEInput
 from TidalPy.Material.eos.solver cimport EOSSolutionVec, solve_eos
+
+
+cdef double G = G_
 
 ctypedef EOS_ODEInput* EOS_ODEInputPtr
 
@@ -55,7 +55,7 @@ cdef void cf_radial_solver(
         int* bc_models_ptr,
         unsigned char core_condition,
         cpp_bool use_kamata,
-        unsigned char integration_method,
+        unsigned char integration_method_int,
         double integration_rtol,
         double integration_atol,
         cpp_bool scale_rtols_by_layer_type,
@@ -81,17 +81,19 @@ cdef void cf_radial_solver(
     cdef double radius_planet = radius_array_ptr[total_slices - 1]
 
     # Non-dimensionalize inputs
-    cdef double G_to_use = NAN
-    cdef double radius_planet_to_use = NAN
-    cdef double bulk_density_to_use = NAN
-    cdef double frequency_to_use = NAN
+    cdef double G_to_use                = NAN
+    cdef double radius_planet_to_use    = NAN
+    cdef double bulk_density_to_use     = NAN
+    cdef double frequency_to_use        = NAN
     cdef double surface_pressure_to_use = NAN
+    
     if nondimensionalize:
         cf_non_dimensionalize_physicals(
             total_slices,
             frequency,
             radius_planet,
             planet_bulk_density,
+            surface_pressure,
             radius_array_ptr,
             density_array_ptr,
             complex_bulk_modulus_ptr,
@@ -102,22 +104,27 @@ cdef void cf_radial_solver(
             &surface_pressure_to_use,
             &G_to_use
             )
+
         for layer_i in range(num_layers):
             upper_radius_by_layer_ptr[layer_i] /= radius_planet
+    else:
+        G_to_use                = G
+        radius_planet_to_use    = radius_planet
+        bulk_density_to_use     = planet_bulk_density
+        frequency_to_use        = frequency
+        surface_pressure_to_use = surface_pressure
 
     # Solve the equaiton of state for the planet
 
     # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
     # either via arguments to this function or a more OOP approach where they are built into the layers.
     # Build arrays of EOS inputs.
-    cdef vector[preeval_interpolate] eos_function_bylayer_vec = vector[preeval_interpolate](0)
-    eos_function_bylayer_vec.reserve(num_layers)
+    cdef vector[preeval_interpolate] eos_function_bylayer_vec = vector[preeval_interpolate](num_layers)
 
-    # Build vector of inputs
-    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec         = vector[EOS_ODEInput](0)
-    cdef vector[EOS_ODEInputPtr] eos_inputs_ptrs_bylayer_vec = vector[EOS_ODEInputPtr](0)
-    eos_inputs_ptrs_bylayer_vec.reserve(num_layers)
-    eos_inputs_bylayer_vec.reserve(num_layers)
+    # Build vector of EOS inputs
+    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec         = vector[EOS_ODEInput](num_layers)
+    cdef vector[EOS_ODEInputPtr] eos_inputs_ptrs_bylayer_vec = vector[EOS_ODEInputPtr](num_layers)
+
     for i in range(num_layers):
         # First build the input so that it is in memory
         # TODO: For now we are only storing the interpolate version of the EOS for each layer.
@@ -139,8 +146,8 @@ cdef void cf_radial_solver(
         num_layers,
         eos_function_bylayer_ptrs,
         eos_input_bylayer_ptrs,
-        planet_bulk_density,
-        surface_pressure,
+        bulk_density_to_use,
+        surface_pressure_to_use,
         G_to_use,
         eos_integration_method,
         eos_rtol,
@@ -149,7 +156,7 @@ cdef void cf_radial_solver(
         eos_max_iters,
         verbose
         )
-    cdef EOSSolutionVec* eos_solution_bylayer_ptr = &eos_solution_bylayer
+    cdef CySolveOutput** eos_solution_bylayer_ptr = &eos_solution_bylayer[0]
 
     # Get storage arrays for eos solution properties
     cdef double* gravity_array_ptr               = &solution_storage_ptr.gravity_ptr[0]
@@ -171,10 +178,10 @@ cdef void cf_radial_solver(
     cdef double* eos_result_array_ptr = &eos_result_array[0]
 
     # Build variables to help solve the EOS.
-    current_layer_i = 0
+    cdef size_t current_layer_i = 0
 
     cdef double layer_r = upper_radius_by_layer_ptr[current_layer_i]
-    cdef CySolverResult* eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
+    cdef CySolveOutput* eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i]
 
     # Step through the radial steps to find EOS-dependent parameters
     if solution_storage_ptr.eos_success:
@@ -203,8 +210,8 @@ cdef void cf_radial_solver(
                 solution_storage_ptr,
                 total_slices,
                 radius_array_ptr,
-                frequency,
-                planet_bulk_density,
+                frequency_to_use,
+                bulk_density_to_use,
                 eos_solution_bylayer_ptr,
                 num_layers,
                 # TODO: In the future the propagation matrix should take in layer types and multiple layers
@@ -217,7 +224,6 @@ cdef void cf_radial_solver(
                 G_to_use,
                 degree_l,
                 core_condition,
-                nondimensionalize,
                 verbose,
                 raise_on_fail
                 )
@@ -226,8 +232,9 @@ cdef void cf_radial_solver(
                 solution_storage_ptr,
                 total_slices,
                 radius_array_ptr,
-                frequency,
-                planet_bulk_density,
+                frequency_to_use,
+                bulk_density_to_use,
+                eos_solution_bylayer_ptr,
                 num_layers,
                 layer_types_ptr,
                 is_static_by_layer_ptr,
@@ -235,6 +242,7 @@ cdef void cf_radial_solver(
                 upper_radius_by_layer_ptr,
                 num_bc_models,
                 bc_models_ptr,
+                G_to_use,
                 degree_l,
                 use_kamata,
                 integration_method_int,
@@ -245,11 +253,9 @@ cdef void cf_radial_solver(
                 expected_size,
                 max_ram_MB,
                 max_step,
-                limit_solution_to_radius,
-                nondimensionalize,
                 verbose,
                 raise_on_fail)
-    
+
     # Finalize solution storage
     # Get a reference pointer to solution array
     cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_ptr
@@ -318,7 +324,6 @@ def radial_solver(
         size_t expected_size = 500,
         size_t max_ram_MB = 500,
         double max_step = 0,
-        cpp_bool limit_solution_to_radius = True,
         cpp_bool nondimensionalize = True,
         cpp_bool use_prop_matrix = False,
         cpp_bool verbose = False,
@@ -457,15 +462,17 @@ def radial_solver(
     cdef size_t i
 
     # Perform checks and make conversions from python to c
-    cdef size_t total_slices
-    total_slices = radius_array.size
+    cdef size_t total_slices = radius_array.size
     assert density_array.size               == total_slices
     assert complex_bulk_modulus_ptr.size    == total_slices
     assert complex_shear_modulus_array.size == total_slices
 
     # Unpack inefficient user-provided tuples into bool arrays and pass by pointer
-    cdef size_t num_layers
-    num_layers = len(layer_types)
+    cdef size_t num_layers = len(layer_types)
+
+    # Check on solver type
+    if use_prop_matrix and num_layers > 1:
+        raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
 
     # Check that number of assumptions match.
     if len(is_static_by_layer) != num_layers:
@@ -477,24 +484,23 @@ def radial_solver(
 
     # Build array of assumptions
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
-    cdef int* layer_assumptions_ptr = <int *> allocate_mem(
-        3 * num_layers * sizeof(int),
-        'layer_assumptions_ptr (radial_solver; init)'
-        )
+    cdef vector[int] layer_assumptions_vec   = vector[int](3 * num_layers)
+    cdef int* layer_assumptions_ptr          = &layer_assumptions_vec[0]
+
     cdef int* layer_types_ptr                = &layer_assumptions_ptr[0]
     cdef int* is_static_by_layer_ptr         = &layer_assumptions_ptr[num_layers]
     cdef int* is_incompressible_by_layer_ptr = &layer_assumptions_ptr[2 * num_layers]
-    cdef double* upper_radius_by_layer_ptr = <double *> allocate_mem(
-        num_layers * sizeof(double),
-        'upper_radius_by_layer_ptr (radial_solver; init)'
-        )
+
+    cdef vector[double] upper_radius_by_layer_vec = vector[double](num_layers)
+    cdef double* upper_radius_by_layer_ptr = &upper_radius_by_layer_vec[0]
     
     cdef str layer_type
     cdef bint dynamic_liquid = False
 
     # Pull out information for each layer and store in heap memory
     for i in range(num_layers):
-        layer_type                        = layer_types[i]
+        layer_type = layer_types[i]
+        
         is_static_by_layer_ptr[i]         = is_static_by_layer[i]
         is_incompressible_by_layer_ptr[i] = is_incompressible_by_layer[i]
         upper_radius_by_layer_ptr[i]      = upper_radius_by_layer[i]
@@ -567,9 +573,6 @@ def radial_solver(
                 bc_models_ptr[i] = 2
             else:
                 raise AttributeError(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
-    
-    # Get other inputs needed
-    cdef double radius_planet = radius_array[total_slices - 1]
 
     # Build solution storage
     cdef RadialSolverSolution solution = RadialSolverSolution(total_slices, num_bc_models)
@@ -586,56 +589,43 @@ def radial_solver(
     cdef double complex* complex_bulk_modulus_ptr  = <double complex*> &complex_bulk_modulus_array[0]
 
     # Run TidalPy's radial solver function
-    try:
-        cf_radial_solver(
-            solution_storage_ptr,
-            total_slices,
-            radius_array_ptr,
-            density_array_ptr,
-            complex_bulk_modulus_ptr,
-            complex_shear_modulus_ptr,
-            frequency,
-            planet_bulk_density,
-            num_layers,
-            layer_types,
-            is_static_by_layer,
-            is_incompressible_by_layer,
-            upper_radius_by_layer,
-            surface_pressure,
-            degree_l,
-            num_bc_models,
-            bc_models_ptr,
-            core_condition,
-            use_kamata,
-            integration_method,
-            integration_rtol,
-            integration_atol,
-            scale_rtols_by_layer_type,
-            max_num_steps,
-            expected_size,
-            max_ram_MB,
-            max_step,
-            nondimensionalize,
-            use_prop_matrix,
-            verbose,
-            warnings,
-            raise_on_fail,
-            eos_integration_method,
-            eos_rtol,
-            eos_atol,
-            eos_pressure_tol,
-            eos_max_iters
-            )
-    finally:
-        # Release heap memory
-        if not (layer_assumptions_ptr is NULL):
-            layer_types_ptr                = NULL
-            is_static_by_layer_ptr         = NULL
-            is_incompressible_by_layer_ptr = NULL
-            free_mem(layer_assumptions_ptr)
-            layer_assumptions_ptr = NULL
-        if not (upper_radius_by_layer_ptr is NULL):
-            free_mem(upper_radius_by_layer_ptr)
-            upper_radius_by_layer_ptr = NULL
-    
+    cf_radial_solver(
+        solution_storage_ptr,
+        total_slices,
+        radius_array_ptr,
+        density_array_ptr,
+        complex_bulk_modulus_ptr,
+        complex_shear_modulus_ptr,
+        frequency,
+        planet_bulk_density,
+        num_layers,
+        layer_types,
+        is_static_by_layer,
+        is_incompressible_by_layer,
+        upper_radius_by_layer,
+        surface_pressure,
+        degree_l,
+        num_bc_models,
+        bc_models_ptr,
+        core_condition,
+        use_kamata,
+        integration_method_int,
+        integration_rtol,
+        integration_atol,
+        scale_rtols_by_layer_type,
+        max_num_steps,
+        expected_size,
+        max_ram_MB,
+        max_step,
+        nondimensionalize,
+        use_prop_matrix,
+        verbose,
+        warnings,
+        raise_on_fail,
+        eos_integration_method,
+        eos_rtol,
+        eos_atol,
+        eos_pressure_tol,
+        eos_max_iters
+        )
     return solution
