@@ -12,6 +12,7 @@ cdef extern from "eos_solution_.cpp" nogil:
     const size_t EOS_DY_VALUES
 
     cdef cppclass EOSSolutionCC:
+            int error_code
             int iterations
             cpp_bool success
             cpp_bool max_iters_hit
@@ -64,7 +65,7 @@ cdef extern from "eos_solution_.cpp" nogil:
                 size_t len_radius_array,
                 double* y_interp_ptr)
 
-            void rest_radius_array(
+            void change_radius_array(
                 double* radius_array_ptr,
                 const size_t radius_array_size)
             

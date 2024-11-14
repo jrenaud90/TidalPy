@@ -31,6 +31,7 @@ protected:
 
 public:
     int iterations        = -1;
+    int error_code        = 0;
     bool success          = false;
     bool max_iters_hit    = false;
     bool radius_array_set = false;
@@ -95,7 +96,7 @@ public:
         double* y_interp_ptr);
     
     // Prepare storage vectors for interpolation
-    void rest_radius_array(
+    void change_radius_array(
         double* radius_array_ptr,
         const size_t radius_array_size);
     

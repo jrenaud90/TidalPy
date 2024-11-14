@@ -8,14 +8,11 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
         const size_t num_layers,
         double* radius_array_ptr,
         const size_t radius_array_size) :
+            error_code(0),
             success(false),
             num_ytypes(num_ytypes),
-            num_layers(num_layers),
-            num_slices(radius_array_size)
+            num_layers(num_layers)
 {
-    // Find total data size
-    this->total_size = (size_t)MAX_NUM_Y_REAL * this->num_slices * (size_t)this->num_ytypes;
-
     // Create equation of state class instance
     this->eos_solution_sptr = std::make_shared<EOSSolutionCC>(
         upper_radius_bylayer_ptr,
@@ -36,20 +33,62 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
         // These complex arrays are stored as double arrays with twice the length (Cython and C++ don't play nicely with complex across all systems)
         this->complex_shear_array_ptr = &this->eos_solution_sptr->complex_shear_array_vec[0];
         this->complex_bulk_array_ptr  = &this->eos_solution_sptr->complex_bulk_array_vec[0];
+
+        this->change_radius_array(
+            radius_array_ptr,
+            radius_array_size,
+            false  // We are in initialization, this is not an array change.
+            );
+        
+        this->set_message("Radial solution storage initialized successfully.");
     }
-
-    // Reserve space in the storage vectors.
-    // These are double vectors but store double complex values so we need to double the amount of storage.
-    // This is done already by using MAX_NUM_Y_REAL over MAX_NUM_Y
-    this->full_solution_vec.resize(this->total_size);
-    this->full_solution_ptr = &this->full_solution_vec[0];
-
-    // Three Love numbers are stored for each requested y-type.
-    // These are also double vectors storing double complex values, double the storage.
-    this->complex_love_vec.resize(2 * 3 * this->num_ytypes);
-    this->complex_love_ptr = &this->complex_love_vec[0];
+    else
+    {
+        // Equation of state solution storage could not be initialized.
+        this->error_code = -1;
+        sprintf("RadialSolutionStorageCC:: Could not initialize equation of state storage.");
+    }
 }
 
+
+void RadialSolutionStorageCC::change_radius_array(
+        double* radius_array_ptr,
+        const size_t radius_array_size,
+        cpp_bool array_changed)
+{
+    if (this->error_code == 0)
+    {
+        if (array_changed)
+        {
+            // If the array has changed since class initialization then we need to pass the new array to the equation 
+            // of state solver.
+            if (this->eos_solution_sptr.get())
+            {
+                this->eos_solution_sptr->change_radius_array(
+                    radius_array_ptr,
+                    radius_array_size);
+            }
+
+            this->set_message("Radius array changed. Radial solution reset.");
+            this->success = false;
+        }
+
+        // Update properties held by this class instance
+        this->num_slices = radius_array_size;
+        this->total_size = (size_t)MAX_NUM_Y_REAL * this->num_slices * (size_t)this->num_ytypes;
+
+        // Reserve space in the storage vectors.
+        // These are double vectors but store double complex values so we need to double the amount of storage.
+        // This is done already by using MAX_NUM_Y_REAL over MAX_NUM_Y
+        this->full_solution_vec.resize(this->total_size);
+        this->full_solution_ptr = &this->full_solution_vec[0];
+
+        // Three Love numbers are stored for each requested y-type.
+        // These are also double vectors storing double complex values, double the storage.
+        this->complex_love_vec.resize(2 * 3 * this->num_ytypes);
+        this->complex_love_ptr = &this->complex_love_vec[0];
+    }
+}
 
 void RadialSolutionStorageCC::set_message(const char* new_message_ptr)
 {
@@ -60,7 +99,7 @@ void RadialSolutionStorageCC::set_message(const char* new_message_ptr)
 void RadialSolutionStorageCC::find_love()
 {   
     // Uses the equation of state results to calculate the Love numbers.
-    if (this->success && this->eos_solution_sptr->success) [[likely]]
+    if (this->success && this->eos_solution_sptr->success && this->error_code==0) [[likely]]
     {
         const size_t top_slice_i   = this->num_slices - 1;
         const size_t num_output_ys = MAX_NUM_Y_REAL * this->num_ytypes;

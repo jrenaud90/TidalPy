@@ -7,6 +7,7 @@ EOSSolutionCC::EOSSolutionCC(
         double* radius_array_ptr,
         const size_t radius_array_size
         ) :
+            error_code(0),
             num_layers(num_layers)
 {
     this->cysolver_results_bylayer_vec.reserve(num_layers);
@@ -67,7 +68,7 @@ void EOSSolutionCC::call_vectorize(
 }
 
 
-void EOSSolutionCC::rest_radius_array(
+void EOSSolutionCC::change_radius_array(
         double* radius_array_ptr,
         const size_t radius_array_size)
 {

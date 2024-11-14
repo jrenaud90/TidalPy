@@ -30,8 +30,11 @@ cdef extern from "solutions_.cpp" nogil:
 
         RadialSolutionStorageCC()
         RadialSolutionStorageCC(
-            size_t num_slices,
-            char num_ytypes
+            char num_ytypes,
+            double* upper_radius_bylayer_ptr,
+            const size_t num_layers,
+            double* radius_array_ptr,
+            const size_t radius_array_size
             )
         size_t num_slices
         size_t total_size
@@ -55,6 +58,10 @@ cdef extern from "solutions_.cpp" nogil:
         double* complex_shear_array_ptr
         double* complex_bulk_array_ptr
 
+        void change_radius_array(
+            double* radius_array_ptr,
+            const size_t radius_array_size,
+            cpp_bool array_changed)
         void set_message(const char* new_message)
         void find_love()
 
@@ -79,6 +86,8 @@ cdef class RadialSolverSolution:
     # EOS solution arrays
     cdef np.ndarray gravity_array
     cdef np.ndarray pressure_array
+    cdef np.ndarray mass_array
+    cdef np.ndarray moi_array
     cdef np.ndarray density_array
     cdef np.ndarray shear_modulus_array
     cdef np.ndarray bulk_modulus_array

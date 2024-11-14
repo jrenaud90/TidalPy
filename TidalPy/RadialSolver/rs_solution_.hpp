@@ -12,6 +12,10 @@ const int MAX_NUM_Y = 6;
 const int MAX_NUM_Y_REAL = 12; // Maximum number of y values counting both the real and imaginary portions.
 
 
+// Error Codes:
+// -1 : Equation of State storage (EOSSolutionCC) could not be initialized.
+// -2 : (set by python wrapper) Unknown / Unsupported boundary condition provided.
+
 class RadialSolutionStorageCC
 {
 // Attributes
@@ -20,6 +24,7 @@ protected:
 
 public:
     bool success      = false;
+    int error_code    = 0;
     char num_ytypes   = 0;
     char* message_ptr = &message[0];
     size_t num_slices = 0;
@@ -60,6 +65,10 @@ public:
         double* radius_array_ptr,
         const size_t radius_array_size);
     
+    void change_radius_array(
+        double* radius_array_ptr,
+        const size_t radius_array_size,
+        cpp_bool array_changed)
     void set_message(const char* new_message);
     void find_love();
 };
