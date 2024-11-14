@@ -15,6 +15,7 @@ cdef double d_DBL_MAX
 cdef double d_DBL_MIN
 cdef double d_DBL_MANT_DIG
 cdef double d_INF_DBL
+cdef double d_EPS_DBL_100
 cdef double d_EPS_DBL
 cdef double d_NAN_DBL
 

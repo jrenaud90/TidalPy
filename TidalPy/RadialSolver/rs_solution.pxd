@@ -1,14 +1,17 @@
-import numpy as np
 cimport numpy as np
-np.import_array()
-
 
 from libcpp cimport bool as cpp_bool
 
-from CyRK.utils.vector cimport vector
+from libcpp.vector cimport vector
+from libcpp.memory cimport shared_ptr
 
-# Need to include love_.cpp in order to get solutions.cpp to see it and use it to link
+from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
+
+# Need to include love_.cpp and eos_solution_.cpp in order to get solutions.cpp to see it and use it to link
 cdef extern from "love_.cpp" nogil:
+    pass
+
+cdef extern from "eos_solution_.cpp" nogil:
     pass
 
 cdef extern from "solutions_.cpp" nogil:
@@ -17,6 +20,14 @@ cdef extern from "solutions_.cpp" nogil:
     const int MAX_NUM_Y_REAL
 
     cdef cppclass RadialSolutionStorageCC:
+        
+        cpp_bool success
+        char num_ytypes
+        char* message_ptr
+        size_t num_slices
+        size_t num_layers
+        size_t total_size
+
         RadialSolutionStorageCC()
         RadialSolutionStorageCC(
             size_t num_slices,
@@ -29,24 +40,23 @@ cdef extern from "solutions_.cpp" nogil:
         cpp_bool success
         char num_ytypes
 
-        vector[double] complex_love_vec
-        double* complex_love_ptr
+        shared_ptr[EOSSolutionCC] eos_solution_sptr
         vector[double] full_solution_vec
+        vector[double] complex_love_vec
+
         double* full_solution_ptr
-        char[256] eos_message
-        char* eos_message_ptr
-        cpp_bool eos_success
+        double* complex_love_ptr
+        double* radius_array_ptr
+        double* gravity_array_ptr
+        double* pressure_array_ptr
+        double* mass_array_ptr
+        double* moi_array_ptr
+        double* density_array_ptr
+        double* complex_shear_array_ptr
+        double* complex_bulk_array_ptr
 
-        vector[double] eos_properties_vec
-        double* eos_properties_ptr
-        double* gravity_ptr
-        double* pressure_ptr
-        double* density_ptr
-        double* shear_mod_ptr
-        double* bulk_mod_ptr
-
-        void find_love(double surface_gravity) noexcept nogil
-        void set_message(const char* new_message) noexcept nogil
+        void set_message(const char* new_message)
+        void find_love()
 
 
 cdef class RadialSolverSolution:
@@ -58,7 +68,7 @@ cdef class RadialSolverSolution:
     cdef char* ytypes[5]
 
     # Main storage container
-    cdef RadialSolutionStorageCC* solution_storage_ptr
+    cdef shared_ptr[RadialSolutionStorageCC] solution_storage_sptr
 
     # Result pointers and data
     cdef np.ndarray full_solution_arr

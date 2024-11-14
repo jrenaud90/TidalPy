@@ -1,28 +1,18 @@
-from CyRK cimport PreEvalFunc, CySolverResult
-from CyRK.utils.memory cimport shared_ptr, make_shared
-from CyRK.utils.vector cimport vector
+from libcpp.vector cimport vector
+from libcpp.memory cimport shared_ptr
 from libcpp cimport bool as cpp_bool
 
+from CyRK cimport PreEvalFunc, CySolveOutput
+from CyRK.utils.memory cimport shared_ptr, make_shared
+
 from TidalPy.Material.eos.ode cimport EOS_ODEInput
+from TidalPy.Material.eos.eos_solution cimport EOSSolution, EOS_DY_VALUES
 
-ctypedef CySolverResult* CySolveResultPtr
-ctypedef vector[CySolveResultPtr] EOSSolutionVec
+ctypedef vector[CySolveOutput] CySolverResult_sptr_vec
+ctypedef shared_ptr[CySolverResult_sptr_vec] CySolverResult_sptr_vec_sptr
 
-cdef struct GlobalEOSSolutionStorage:
-    vector[double] radius
-    vector[double] pressure
-    vector[double] gravity
-    vector[double] density
-    vector[double] static_shear_modulus
-    vector[double] shear_viscosity
-    vector[double complex] complex_shear_modulus
-    vector[double] static_bulk_modulus
-    vector[double] bulk_viscosity
-    vector[double complex] complex_bulk_modulus
-
-cdef EOSSolutionVec solve_eos(
-    cpp_bool* success_ptr,
-    char* message_ptr,
+cdef void solve_eos(
+    shared_ptr[EOSSolution] eos_solution,
     double* radius_array_ptr,
     size_t len_radius_array,
     double* layer_upper_radii,

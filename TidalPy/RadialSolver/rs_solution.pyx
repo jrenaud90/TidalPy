@@ -3,9 +3,10 @@
 
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.stdio cimport printf
+from libcpp.memory cimport make_shared
 
 import numpy as np
-cimport numpy as np
+np.import_array()
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 
@@ -18,21 +19,32 @@ cdef class RadialSolverSolution:
             char num_ytypes
             ):
 
+        # FIX ME
+        # JPR Left off 24-11-14: Need to re work this init to properly construct the new RadialSolutionStorageCC.
+        # propagate changes to EOS and radial solver solution to solver.pyx, shooting.pyx, matrix.pyx
+        # test and debut
+            
+        printf("DEBUG-\t RadialSolverSolution Point 1\n")
         # Set state information
         self.ytype_names_set = False
         self.num_slices = num_slices
         self.num_ytypes = num_ytypes
 
         # Create C++ instance
-        self.solution_storage_ptr = new RadialSolutionStorageCC(self.num_slices, self.num_ytypes)
+        printf("DEBUG-\t RadialSolverSolution Point 2\n")
+        self.solution_storage_sptr = make_shared[RadialSolutionStorageCC](self.num_slices, self.num_ytypes)
 
         # The RadialSolutionStorage class has full control of memory. This class simply wraps it.
+        # The shape needs to be twice what we expect because the underlying C++ class only works with double arrays 
+        # but at this level we want arrays to double complex
+        printf("DEBUG-\t RadialSolverSolution Point 3\n")
         cdef np.npy_intp[2] shape   = [num_slices, num_ytypes * MAX_NUM_Y]
         cdef np.npy_intp* shape_ptr = &shape[0]
         cdef np.npy_intp ndim       = 2
 
         # `solution_storage_ptr.full_solution_ptr` is a double pointer but it is really storing double complex data
         # ordered by y0_real, y0_imag, y1_real, y1_image, ... so we can safely convert it to a complex128 np.ndarray
+        printf("DEBUG-\t RadialSolverSolution Point 4\n")
         if not (self.solution_storage_ptr.full_solution_ptr is NULL):
             self.full_solution_arr = np.PyArray_SimpleNewFromData(
                 ndim,
@@ -43,6 +55,7 @@ cdef class RadialSolverSolution:
         # Initialize Love numbers (3 love numbers for each requested y-type)
         # Love numbers are stored (k, h, l)_ytype0, (k, h, l)_ytype1, (k, h, l)_ytype2, ...
         # If there is only 1 ytype then return a 1-D array, otherwise return a 2D one where the first index is by y-type
+        printf("DEBUG-\t RadialSolverSolution Point 5\n")
         if num_ytypes == 1:
             shape_ptr[0] = 3
             shape_ptr[1] = 0
@@ -54,6 +67,7 @@ cdef class RadialSolverSolution:
 
         # Same note as above, `solution_storage_ptr.complex_love_ptr` is a double pointer that we are converting to a
         # complex128 np.ndarray.
+        printf("DEBUG-\t RadialSolverSolution Point 6\n")
         if not (self.solution_storage_ptr.complex_love_ptr is NULL):
             self.complex_love_arr = np.PyArray_SimpleNewFromData(
                 ndim,
@@ -62,6 +76,7 @@ cdef class RadialSolverSolution:
                 self.solution_storage_ptr.complex_love_ptr)
         
         # Make arrays for all of the equation of state variables in a similar manner to the above.
+        printf("DEBUG-\t RadialSolverSolution Point 7\n")
         cdef np.npy_intp[1] eos_float_shape     = [num_slices]
         cdef np.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
         cdef np.npy_intp[1] eos_complex_shape   = [2 * num_slices]
@@ -69,6 +84,7 @@ cdef class RadialSolverSolution:
         cdef np.npy_intp eos_ndim                = 1
 
         if not (self.solution_storage_ptr.eos_properties_ptr is NULL):
+            printf("DEBUG-\t RadialSolverSolution Point 8\n")
             if not (self.solution_storage_ptr.gravity_ptr is NULL):
                 self.gravity_array = np.PyArray_SimpleNewFromData(
                     eos_ndim,
@@ -76,13 +92,15 @@ cdef class RadialSolverSolution:
                     np.NPY_FLOAT64,
                     self.solution_storage_ptr.gravity_ptr)
 
+            printf("DEBUG-\t RadialSolverSolution Point 9\n")
             if not (self.solution_storage_ptr.pressure_ptr is NULL):
                 self.pressure_array = np.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
                     np.NPY_FLOAT64,
                     self.solution_storage_ptr.pressure_ptr)
-            
+
+            printf("DEBUG-\t RadialSolverSolution Point 10\n")
             if not (self.solution_storage_ptr.density_ptr is NULL):
                 self.density_array = np.PyArray_SimpleNewFromData(
                     eos_ndim,
@@ -90,6 +108,7 @@ cdef class RadialSolverSolution:
                     np.NPY_FLOAT64,
                     self.solution_storage_ptr.density_ptr)
             
+            printf("DEBUG-\t RadialSolverSolution Point 11\n")
             if not (self.solution_storage_ptr.shear_mod_ptr is NULL):
                 self.shear_modulus_array = np.PyArray_SimpleNewFromData(
                     eos_ndim,
@@ -97,6 +116,7 @@ cdef class RadialSolverSolution:
                     np.NPY_COMPLEX128,
                     self.solution_storage_ptr.shear_mod_ptr)
             
+            printf("DEBUG-\t RadialSolverSolution Point 12\n")
             if not (self.solution_storage_ptr.bulk_mod_ptr is NULL):
                 self.bulk_modulus_array = np.PyArray_SimpleNewFromData(
                     eos_ndim,

@@ -12,8 +12,10 @@ TidalPy-Run*
 !TidalPy/utilities/arrays/interp_.hpp
 !TidalPy/RadialSolver/love_.cpp
 !TidalPy/RadialSolver/love_.hpp
-!TidalPy/RadialSolver/solutions_.cpp
-!TidalPy/RadialSolver/solutions_.hpp
+!TidalPy/RadialSolver/rs_solution_.cpp
+!TidalPy/RadialSolver/rs_solution_.hpp
+!TidalPy/Material/eos/eos_solution_.cpp
+!TidalPy/Material/eos/eos_solution_.hpp
 
 # End TidalPy
 

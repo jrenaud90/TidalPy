@@ -16,5 +16,7 @@ include TidalPy/utilities/arrays/interp_.cpp
 include TidalPy/utilities/arrays/interp_.hpp
 include TidalPy/RadialSolver/love_.cpp
 include TidalPy/RadialSolver/love_.hpp
-include TidalPy/RadialSolver/solutions_.cpp
-include TidalPy/RadialSolver/solutions_.hpp
+include TidalPy/RadialSolver/rs_solution_.cpp
+include TidalPy/RadialSolver/rs_solution_.hpp
+include TidalPy/Material/eos/eos_solution_.cpp
+include TidalPy/Material/eos/eos_solution_.hpp

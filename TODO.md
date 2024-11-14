@@ -1,3 +1,7 @@
+
+v0.6.0:
+* Add in dm/dr and dI/dr (total mass and MOI) to EOS solver.
+
 Immediate ToDos:
 * Figure out why the Tobie / RN compare is so bad for dynamic tides with the new radial solver
 * Non-dim sometimes makes things better; sometimes worse

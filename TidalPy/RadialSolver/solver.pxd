@@ -1,11 +1,13 @@
 
 from libcpp cimport bool as cpp_bool
 
+from CyRK.utils.memory cimport shared_ptr
+
 from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
 
 
 cdef void cf_radial_solver(
-        RadialSolutionStorageCC* solution_storage_ptr,
+        shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
         size_t total_slices,
         double* radius_array_ptr,
         double* density_array_ptr,

@@ -4,14 +4,14 @@
 from libc.stdio cimport printf, sprintf
 from libc.string cimport memcpy, strcpy
 
-from CyRK cimport cysolve_ivp, CySolveOutput
+from CyRK cimport cysolve_ivp, CySolveOutput, CySolverResult
 
 from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL
+from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES, EOS_DY_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
-cdef EOSSolutionVec solve_eos(
-        cpp_bool* success_ptr,
-        char* message_ptr,
+cdef void solve_eos(
+        shared_ptr[EOSSolution] eos_solution_sptr,
         double* radius_array_ptr,
         size_t len_radius_array,
         double* layer_upper_radii,
@@ -28,10 +28,14 @@ cdef EOSSolutionVec solve_eos(
         unsigned int max_iters = 100,
         cpp_bool verbose = True
         ) noexcept nogil:
+    
+    cdef size_t j
 
-    # Feedback
-    cdef char[256] local_message
-    cdef char* local_message_ptr = &local_message[0]
+    # Get raw pointer to the solution storage
+    cdef EOSSolution* eos_solution_ptr = eos_solution_sptr.get()
+
+    # Set the message assuming success, it will be updated if we run into failure 
+    strcpy(eos_solution_ptr.message_ptr, "Equation of state solver finished without issue.")
 
     # Don't use rtol or atol arrays
     # cdef double[2] rtols_arr = [1.0e-8, 1.0e-12]
@@ -40,28 +44,30 @@ cdef EOSSolutionVec solve_eos(
     cdef double* atols_ptr = NULL #&atols_arr[0]
     
     # Determine planetary properties
-    cdef double planet_radius = radius_array_ptr[len_radius_array - 1]
-    cdef double r0_gravity = 0.0
-    cdef double r0_pressure_guess = \
-        surface_pressure + \
-        (2. / 3.) * d_PI_DBL * G_to_use * planet_radius * planet_radius * planet_bulk_density * planet_bulk_density
+    cdef double planet_radius     = radius_array_ptr[len_radius_array - 1]
+    cdef double r0_gravity        = 0.0
+    cdef double r0_pressure_guess = (2. / 3.) * d_PI_DBL * G_to_use * planet_radius**2 * planet_bulk_density**2
+    r0_pressure_guess += surface_pressure
+    
+    cdef double r0_mass = 0.0
+    cdef double r0_moi  = 0.0
     
     # Setup bound variables
     cdef double[2] radial_span
     cdef double* radial_span_ptr = &radial_span[0]
 
     # We need the centeral pressure of the planet. Use the global bulk modulus to calculate this.
-    cdef double[2] y0 = [r0_gravity, r0_pressure_guess]
+    cdef double[4] y0   = [r0_gravity, r0_pressure_guess, r0_mass, r0_moi]
     cdef double* y0_ptr = &y0[0]
 
     # y information
-    cdef unsigned int num_y = 2
-    cdef unsigned int num_extra = 0
+    cdef unsigned int num_y     = EOS_Y_VALUES
+    cdef unsigned int num_extra = EOS_EXTRA_VALUES
 
     # Layer information
     cdef unsigned int layer_i
     cdef size_t top_of_last_layer_index
-    cdef double[2] y0_layer
+    cdef double[4] y0_layer
     cdef double* y0_layer_ptr = &y0_layer[0]
 
     # EOS functions and inputs
@@ -70,10 +76,10 @@ cdef EOSSolutionVec solve_eos(
     cdef EOS_ODEInput* eos_input_layer_ptr = NULL
     
     # Other integration information
+    cdef double max_step
     cdef size_t max_num_steps  = 10_000
     cdef size_t max_ram_MB     = 500
     cdef bint use_dense_output = False
-    cdef double max_step       = 0.3 * planet_radius / num_layers
     cdef double first_step     = 0.0
     cdef size_t expected_size  = 50
     cdef double* t_eval_ptr    = NULL
@@ -92,9 +98,7 @@ cdef EOSSolutionVec solve_eos(
     cdef size_t last_solution_size = 0
     cdef CySolveOutput integration_result
     cdef CySolverResult* integration_result_ptr = NULL
-    cdef EOSSolutionVec layer_solutions = EOSSolutionVec(0)
-    layer_solutions.reserve(num_layers)
-    
+
     while True:
         
         if not final_run:
@@ -106,19 +110,22 @@ cdef EOSSolutionVec solve_eos(
             if layer_i == 0:
                 radial_span_ptr[0] = 0.0
                 # Set y0 for bottom-most layer equal to the global y0
-                y0_layer_ptr[0] = y0_ptr[0]
-                y0_layer_ptr[1] = y0_ptr[1]
+                for j in range(num_y):
+                    y0_layer_ptr[j] = y0_ptr[j]
             else:
                 radial_span_ptr[0] = layer_upper_radii[layer_i - 1]
                 top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1)
                 # y0 for this layer equals result of last layer
                 if integration_result_ptr:
-                    y0_layer_ptr[0] = integration_result_ptr.solution[top_of_last_layer_index]
-                    y0_layer_ptr[1] = integration_result_ptr.solution[top_of_last_layer_index + 1]
+                    for j in range(num_y):
+                        y0_layer_ptr[j] = integration_result_ptr.solution[top_of_last_layer_index + j]
                 else:
                     # Not sure why that would be null but in any case we are in a fail state.
                     failed = True
                     break
+
+            # Set the maximum step size equal to 1/3 the layer's thickness
+            max_step = 0.33 * (radial_span_ptr[1] - radial_span_ptr[0])
                 
             # Get eos function and inputs for this layer
             eos_input_layer_ptr = eos_input_bylayer_ptrs[layer_i]
@@ -176,7 +183,7 @@ cdef EOSSolutionVec solve_eos(
                 break
             
             if final_run:
-                layer_solutions.push_back(integration_result_ptr)
+                eos_solution_ptr.save_cyresult(integration_result)
 
         if failed:
             break
@@ -206,25 +213,32 @@ cdef EOSSolutionVec solve_eos(
         
         if iterations >= max_iters:
             max_iters_hit = True
+            eos_solution_ptr.max_iters_hit = True
             # To ensure that there is some output we will go ahead and do a final run.
             final_run = True
     
+    eos_solution_ptr.iterations = iterations
+    
     # Display any warnings
     if max_iters_hit:
-        strcpy(local_message_ptr, "Warning in `solve_eos`: Maximum number of iterations hit without convergence.\n")
+        strcpy(eos_solution_ptr.message_ptr, "Warning in `solve_eos`: Maximum number of iterations hit without convergence.")
         if verbose:
-            printf(local_message_ptr)
-    
-    if failed:
-        success_ptr[0] = False
-        if integration_result_ptr:
-            sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s\n", iterations, integration_result_ptr.message_ptr)
-        else:
-            sprintf(local_message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d.\n", iterations)
-        if verbose:
-            printf(local_message_ptr)
-    else:
-        success_ptr[0] = True
-    strcpy(message_ptr, local_message_ptr)
+            printf(eos_solution_ptr.message_ptr)
 
-    return layer_solutions
+    if failed:
+        eos_solution_ptr.success = False
+        if integration_result_ptr:
+            sprintf(eos_solution_ptr.message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d. Message: %s", iterations, integration_result_ptr.message_ptr)
+        else:
+            sprintf(eos_solution_ptr.message_ptr, "Warning in `solve_eos`: Integrator failed at iteration %d.", iterations)
+        if verbose:
+            printf(eos_solution_ptr.message_ptr)
+    else:
+        # Set feedback attributes
+        eos_solution_ptr.success = True
+
+        # Set other final parameters
+        eos_solution_ptr.pressure_error = pressire_diff_abs
+
+        # Tell the eos solution to perform a full planet interpolation and store the results. Including surface results 
+        eos_solution_ptr.interpolate_full_planet()

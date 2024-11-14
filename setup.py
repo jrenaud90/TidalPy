@@ -4,7 +4,7 @@ import json
 from setuptools import Extension, setup
 
 import numpy as np
-
+import CyRK
 
 install_platform = platform.system()
 
@@ -41,7 +41,7 @@ for cython_ext, ext_data in cython_ext_dict.items():
             name=ext_data['name'],
             sources=[os.path.join(*tuple(source_path)) for source_path in ext_data['sources']],
             # Always add numpy to any includes
-            include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()],
+            include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()] + CyRK.get_include(),
             extra_compile_args=specific_compile_args,
             define_macros=macro_list,
             extra_link_args=ext_data['link_args'] + extra_link_args,
