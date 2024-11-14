@@ -13,6 +13,7 @@ cdef size_t cf_find_num_shooting_solutions(
 
 cdef void cf_shooting_solver(
     shared_ptr[RadialSolutionStorageCC] solution_storage_ptr,
+    double starting_radius,
     double frequency,
     double planet_bulk_density,
     int* layer_types_ptr,

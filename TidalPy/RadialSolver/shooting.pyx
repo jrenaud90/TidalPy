@@ -97,6 +97,7 @@ def find_num_shooting_solutions(
 
 cdef void cf_shooting_solver(
         shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
+        double starting_radius,
         double frequency,
         double planet_bulk_density,
         int* layer_types_ptr,
@@ -403,6 +404,21 @@ cdef void cf_shooting_solver(
     # Variables used to solve the linear equation at the planet's surface.
     # Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
     cdef int bc_solution_info = -999
+
+    # Deterime starting radius value and the layer it resides in. 
+    cdef double start_radius_tolerance = 1.0e-5
+    if starting_radius == 0.0:
+        # Determine value based on degree l and planet radius
+        # This formulism is based on Hilary Martens thesis and LoadDef manual.
+        # TODO: The tolerance of 1e-5 is based on her testing; perform own testing + make this an input parameter
+        starting_radius = planet_radius * start_radius_tolerance**(1. / degree_l_dbl)
+    
+    # Determine which layer this tolerance resides in
+    cdef size_t start_layer_i = 0
+    for current_layer_i in range(num_layers):
+        if starting_radius <= eos_solution_storage_ptr.upper_radius_bylayer_vec[current_layer_i]:
+            start_layer_i = current_layer_i
+            break
 
     # Shifted or reversed indices used during collapse.
     cdef size_t layer_i_reversed

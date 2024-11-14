@@ -5,7 +5,8 @@ from libc.stdio cimport printf
 from libcpp.memory cimport make_shared
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
-
+cimport numpy as cnp
+cnp.import_array()
 
 cdef class RadialSolverSolution:
 
