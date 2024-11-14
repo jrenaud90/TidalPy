@@ -1,6 +1,10 @@
 
 #include "rs_solution_.hpp"
 
+RadialSolutionStorageCC::RadialSolutionStorageCC( )
+{
+
+}
 
 RadialSolutionStorageCC::RadialSolutionStorageCC(
         char num_ytypes,
@@ -46,15 +50,19 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
     {
         // Equation of state solution storage could not be initialized.
         this->error_code = -1;
-        sprintf("RadialSolutionStorageCC:: Could not initialize equation of state storage.");
+        this->set_message("RadialSolutionStorageCC:: Could not initialize equation of state storage.");
     }
 }
 
+RadialSolutionStorageCC::~RadialSolutionStorageCC( )
+{
+
+}
 
 void RadialSolutionStorageCC::change_radius_array(
         double* radius_array_ptr,
         const size_t radius_array_size,
-        cpp_bool array_changed)
+        bool array_changed)
 {
     if (this->error_code == 0)
     {
@@ -64,9 +72,7 @@ void RadialSolutionStorageCC::change_radius_array(
             // of state solver.
             if (this->eos_solution_sptr.get())
             {
-                this->eos_solution_sptr->change_radius_array(
-                    radius_array_ptr,
-                    radius_array_size);
+                this->eos_solution_sptr->change_radius_array(radius_array_ptr, radius_array_size);
             }
 
             this->set_message("Radius array changed. Radial solution reset.");

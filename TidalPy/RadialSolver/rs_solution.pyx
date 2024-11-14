@@ -1,12 +1,8 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.stdio cimport printf
 from libcpp.memory cimport make_shared
-
-import numpy as np
-np.import_array()
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 
@@ -16,13 +12,17 @@ cdef class RadialSolverSolution:
     def __init__(
             self,
             char num_ytypes,
-            double* upper_radius_bylayer_ptr,
-            const size_t num_layers,
-            double* radius_array_ptr,
-            const size_t radius_array_size
+            double[::1] upper_radius_bylayer_view,
+            double[::1] radius_array_view
             ):
 
         printf("DEBUG-\t RadialSolverSolution Point 1\n")
+        # Build pointers
+        cdef double* upper_radius_bylayer_ptr = &upper_radius_bylayer_view[0]
+        cdef size_t num_layers                = upper_radius_bylayer_view.size
+        cdef double* radius_array_ptr         = &radius_array_view[0]
+        cdef size_t radius_array_size         = radius_array_view.size
+
         # Set state information
         self.ytype_names_set = False
         self.num_ytypes      = num_ytypes
@@ -67,14 +67,14 @@ cdef class RadialSolverSolution:
             self,
             double* radius_array_ptr,
             const size_t radius_array_size,
-            cpp_bool array_changed=True) noexcept:
+            cpp_bool array_changed = True) noexcept:
         """ Change the radius array used by RadialSolver and Equation of State solvers. """
 
         # Update attributes in this class
-        self.num_slices = radius_array_size
+        self.radius_array_size = radius_array_size
 
         if array_changed:
-            # Radius array held by the underlying c++ classes is no longer correct.
+            # Radius array held by the underlying C++ classes is no longer correct.
             # Update it using its methods.
             self.solution_storage_sptr.get().change_radius_array(radius_array_ptr, radius_array_size, array_changed)
         
@@ -84,15 +84,15 @@ cdef class RadialSolverSolution:
         # The shape needs to be twice what we expect because the underlying C++ class only works with double arrays 
         # but at this level we want arrays to be double complex (the 2x factor is built into MAX_NUM_Y_REAL)
         printf("DEBUG-\t RadialSolverSolution Point 3\n")
-        cdef np.npy_intp[2] full_solution_shape   = [self.num_slices, self.num_ytypes * MAX_NUM_Y_REAL]
-        cdef np.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
-        cdef np.npy_intp full_solution_shape_ndim = 2
+        cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * MAX_NUM_Y_REAL]
+        cdef cnp.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
+        cdef cnp.npy_intp full_solution_shape_ndim = 2
 
         # Initialize Love numbers (3 love numbers for each requested y-type)
         # Love numbers are stored (k, h, l)_ytype0, (k, h, l)_ytype1, (k, h, l)_ytype2, ...
-        cdef np.npy_intp[2] love_shape   = [3, 0]
-        cdef np.npy_intp* love_shape_ptr = &love_shape[0]
-        cdef np.npy_intp love_shape_ndim = 1
+        cdef cnp.npy_intp[2] love_shape   = [3, 0]
+        cdef cnp.npy_intp* love_shape_ptr = &love_shape[0]
+        cdef cnp.npy_intp love_shape_ndim = 1
         # If there is only 1 ytype then return a 1-D array, otherwise return a 2D one where the first index is by y-type
         if self.num_ytypes == 1:
             love_shape_ptr[0] = 3
@@ -104,87 +104,88 @@ cdef class RadialSolverSolution:
             love_shape_ndim   = 2
         
         # Make numpy arrays that wrap all of the equation of state class vectors in a similar manner to the above.
-        cdef np.npy_intp[1] eos_float_shape     = [self.num_slices]
-        cdef np.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
-        cdef np.npy_intp[1] eos_complex_shape   = [2 * self.num_slices]
-        cdef np.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
-        cdef np.npy_intp eos_ndim               = 1
+        cdef cnp.npy_intp[1] eos_float_shape     = [self.radius_array_size]
+        cdef cnp.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
+        cdef cnp.npy_intp[1] eos_complex_shape   = [2 * self.radius_array_size]
+        cdef cnp.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
+        cdef cnp.npy_intp eos_ndim               = 1
 
         # `solution_storage_sptr.full_solution_vec` is a double vector but it is really storing double complex data
         # ordered by y0_real, y0_imag, y1_real, y1_image, ... so we can safely convert it to a complex128 np.ndarray
         printf("DEBUG-\t RadialSolverSolution Point 4\n")
         if not self.solution_storage_sptr.get():
-            raise RuntimeError("RadialSolutionStorageCC extension class could not be initialized.")
+            raise RuntimeError("RadialSolutionStorageCC extension class is not initialized.")
         else:
             printf("DEBUG-\t RadialSolverSolution Point 4a\n")
-            self.full_solution_arr = np.PyArray_SimpleNewFromData(
+            self.full_solution_arr = cnp.PyArray_SimpleNewFromData(
                 full_solution_shape_ndim,
                 full_solution_shape_ptr,
-                np.NPY_COMPLEX128,
+                cnp.NPY_COMPLEX128,
                 &self.solution_storage_sptr.get().full_solution_vec[0])
 
             # Same note as above, `solution_storage_sptr.complex_love_vec` is a double vector that we are converting to a
             # complex128 np.ndarray.
             printf("DEBUG-\t RadialSolverSolution Point 4b\n")
-            self.complex_love_arr = np.PyArray_SimpleNewFromData(
+            self.complex_love_arr = cnp.PyArray_SimpleNewFromData(
                 love_shape_ndim,
                 love_shape_ptr,
-                np.NPY_COMPLEX128,
+                cnp.NPY_COMPLEX128,
                 &self.solution_storage_sptr.get().complex_love_vec[0])
 
             if not self.solution_storage_sptr.get().eos_solution_sptr.get():
-                raise RuntimeError("EOSSolutionCC extension class could not be initialized.")
+                raise RuntimeError("EOSSolutionCC extension class is not initialized.")
             else:
                 printf("DEBUG-\t RadialSolverSolution Point 4c\n")
-                self.gravity_array = np.PyArray_SimpleNewFromData(
+                self.gravity_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
-                    np.NPY_FLOAT64,
+                    cnp.NPY_FLOAT64,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().gravity_array_vec[0])
 
-                self.pressure_array = np.PyArray_SimpleNewFromData(
+                self.pressure_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
-                    np.NPY_FLOAT64,
+                    cnp.NPY_FLOAT64,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().pressure_array_vec[0])
                 
-                self.mass_array = np.PyArray_SimpleNewFromData(
+                self.mass_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
-                    np.NPY_FLOAT64,
+                    cnp.NPY_FLOAT64,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().mass_array_vec[0])
                 
-                self.moi_array = np.PyArray_SimpleNewFromData(
+                self.moi_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
-                    np.NPY_FLOAT64,
+                    cnp.NPY_FLOAT64,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().moi_array_vec[0])
 
-                self.density_array = np.PyArray_SimpleNewFromData(
+                self.density_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
-                    np.NPY_FLOAT64,
+                    cnp.NPY_FLOAT64,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().density_array_vec[0])
 
                 printf("DEBUG-\t RadialSolverSolution Point 4d\n")
                 # These arrays are converted to complex128
-                self.shear_modulus_array = np.PyArray_SimpleNewFromData(
+                self.shear_modulus_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_complex_shape_ptr,
-                    np.NPY_COMPLEX128,
+                    cnp.NPY_COMPLEX128,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().complex_shear_array_vec[0])
                 
-                self.bulk_modulus_array = np.PyArray_SimpleNewFromData(
+                self.bulk_modulus_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_complex_shape_ptr,
-                    np.NPY_COMPLEX128,
+                    cnp.NPY_COMPLEX128,
                     &self.solution_storage_sptr.get().eos_solution_sptr.get().complex_bulk_array_vec[0])
 
     def __dealloc__(self):
 
         # Release the heap allocated storage
-        del self.solution_storage_ptr
-
+        del self.eos_solution_sptr
+    
+    # Radial solver storage, feedback properties
     @property
     def error_code(self):
         """ Return solution storage's error code """
@@ -200,6 +201,12 @@ cdef class RadialSolverSolution:
         """ Return if the solver was successful message """
         return self.solution_storage_sptr.get().success
 
+    # Radial solver storage, physical properties
+    @property
+    def planet_radius(self):
+        return self.solution_storage_sptr.get().radius_array_ptr[self.radius_array_size - 1]
+
+    # EOS class properties
     @property
     def eos_error_code(self):
         """ Return solver's equation of state message """
@@ -215,6 +222,38 @@ cdef class RadialSolverSolution:
         """ Return if the solver's equation of state sub-solver was successful """
         return self.solution_storage_sptr.get().eos_solution_sptr.get().success
 
+    @property
+    def mass(self):
+        """ Return's the total planet mass, found by the EOS solver """
+        return self.solution_storage_sptr.get().eos_solution_sptr.get().mass
+    
+    @property
+    def moi(self):
+        """ Return's the planet's real moment of inertia, found by the EOS solver """
+        return self.solution_storage_sptr.get().eos_solution_sptr.get().moi
+    
+    @property
+    def moi_factor(self):
+        """ Return's the planet's moment of inertia factor, found by the EOS solver """
+        cdef double ideal_moi = (2. / 5.) * self.mass * self.planet_radius**2
+        return self.moi / ideal_moi
+    
+    @property
+    def central_pressure(self):
+        """ Return's the pressure at the planet's center, found by the EOS solver """
+        return self.solution_storage_sptr.get().eos_solution_sptr.get().central_pressure
+    
+    @property
+    def surface_pressure(self):
+        """ Return's the pressure at the planet's surface, found by the EOS solver """
+        return self.solution_storage_sptr.get().eos_solution_sptr.get().surface_pressure
+    
+    @property
+    def surface_gravity(self):
+        """ Return's the acceleration due to gravity at the planet's surface, found by the EOS solver """
+        return self.solution_storage_sptr.get().eos_solution_sptr.get().surface_gravity
+
+    # RadialSolver result properties
     @property
     def result(self):
         """ Return result array. """
@@ -297,73 +336,3 @@ cdef class RadialSolverSolution:
             return self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)]
         else:
             return None
-
-
-cdef size_t cf_find_num_shooting_solutions(
-        int layer_type,
-        bint is_static,
-        bint is_incompressible
-        ) noexcept nogil:
-    """ Determine number of solutions required for layer based on assumptions.
-    
-    Parameters
-    ----------
-    layer_type : int
-        - 0: Layer is solid 
-        - 1: Layer is liquid
-    is_static : bool
-        Use static (True) or dynamic (False) assumption.
-    is_incompressible : bool
-        Use incompressible (True) or compressible (False) assumption.
-
-    Returns
-    -------
-    num_sols : int
-        Number of solutions required for layer.
-
-    """
-
-    # Initialize
-    cdef Py_ssize_t num_sols
-    num_sols = 0
-
-    if (layer_type == 0):
-        # Solid
-        if is_static:
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 3
-            else:
-                num_sols = 3
-        else:
-            # Dynamic
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 3
-            else:
-                num_sols = 3
-    else:
-        # Liquid
-        if is_static:
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 1
-            else:
-                num_sols = 1
-        else:
-            # Dynamic
-            if is_incompressible:
-                # TODO: Confirm
-                num_sols = 2
-            else:
-                num_sols = 2
-    return num_sols
-
-
-def find_num_shooting_solutions(
-        int layer_type,
-        bint is_static,
-        bint is_incompressible
-        ):
-    
-    return cf_find_num_shooting_solutions(layer_type, is_static, is_incompressible)

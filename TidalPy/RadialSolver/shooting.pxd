@@ -1,23 +1,23 @@
 from libcpp cimport bool as cpp_bool
+from libcpp.memory cimport shared_ptr
 
-from CyRK cimport CySolverResult, CySolveOutput
+from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
-from TidalPy.Material.eos cimport EOSSolutionVec
-from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
+
+cdef size_t cf_find_num_shooting_solutions(
+    int layer_type,
+    bint is_static,
+    bint is_incompressible
+    ) noexcept nogil
 
 
 cdef void cf_shooting_solver(
-    RadialSolutionStorageCC* solution_storage_ptr,
-    size_t total_slices,
-    double* radius_array_ptr,
+    shared_ptr[RadialSolutionStorageCC] solution_storage_ptr,
     double frequency,
     double planet_bulk_density,
-    EOSSolutionVec eos_solution_bylayer_ptr,
-    size_t num_layers,
     int* layer_types_ptr,
     int* is_static_by_layer_ptr,
     int* is_incompressible_by_layer_ptr,
-    double* upper_radius_by_layer_ptr,
     size_t* first_slice_index_by_layer_ptr,
     size_t* num_slices_by_layer_ptr,
     size_t num_bc_models,

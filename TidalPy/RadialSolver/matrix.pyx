@@ -21,23 +21,16 @@ from CyRK.utils.utils cimport allocate_mem, free_mem
 
 from TidalPy.constants cimport d_G
 from TidalPy.utilities.math.complex cimport cmplx_zero, cmplx_NAN, cf_build_dblcmplx
-from TidalPy.utilities.dimensions.nondimensional cimport (
-    cf_non_dimensionalize_physicals,
-    cf_redimensionalize_physicals,
-    cf_redimensionalize_radial_functions
-    )
+from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.boundaries.surface_bc cimport cf_get_surface_bc
 from TidalPy.RadialSolver.matrix_types.solid_matrix cimport cf_fundamental_matrix
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 
 
 cdef void cf_matrix_propagate(
-        RadialSolutionStorageCC* solution_storage_ptr,
-        size_t total_slices,
-        double* radius_array_ptr,
+        shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
         double frequency,
         double planet_bulk_density,
-        size_t num_layers,
         # TODO: In the future the propagation matrix should take in layer types and multiple layers
         # int* layer_types_ptr,
         # int* is_static_by_layer_ptr,
@@ -54,21 +47,28 @@ cdef void cf_matrix_propagate(
     # Setup
     cdef size_t r_i, i, j, k, jj, ytype_i, slice_i
     cdef size_t last_index_shift_36, index_shift_36, last_index_shift_18, index_shift_18, index_shift_max_y, full_shift
-    cdef cpp_bool error = False
+
+    # Get raw pointer of radial solver storage and eos storage
+    cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
+    cdef EOSSolutionCC* eos_solution_storage_ptr       = solution_storage_sptr.get().eos_solution_sptr.get()
+
     strcpy(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n")
 
     # Pull out key information
+    cdef size_t num_layers     = eos_solution_storage_ptr.num_layers
+    cdef size_t total_slices   = eos_solution_storage_ptr.radius_array_size
     cdef size_t top_slice_i    = total_slices - 1
     cdef size_t num_interfaces = num_layers - 1
 
     # Alias pointers to EOS properties
-    cdef double* gravity_array_ptr = solution_storage_ptr.gravity_ptr
+    cdef double* radius_array_ptr  = &eos_solution_storage_ptr.radius_array_vec[0]
+    cdef double* gravity_array_ptr = &eos_solution_storage_ptr.gravity_array_vec[0]
     # cdef double* pressure_array_ptr = solution_storage_ptr.pressure_ptr   # Unused
-    cdef double* density_array_ptr = solution_storage_ptr.density_ptr
+    cdef double* density_array_ptr = &eos_solution_storage_ptr.density_array_vec[0]
     
     # Need to recast the storage's shear/bulk double arrays to double complex for local use
-    cdef double complex* complex_shear_array_ptr = <double complex*>solution_storage_ptr.shear_mod_ptr
-    cdef double complex* complex_bulk_array_ptr  = <double complex*>solution_storage_ptr.bulk_mod_ptr
+    cdef double complex* complex_shear_array_ptr = <double complex*>&eos_solution_storage_ptr.complex_shear_array_vec[0]
+    cdef double complex* complex_bulk_array_ptr  = <double complex*>&eos_solution_storage_ptr.complex_bulk_array_vec[0]
 
     # Pull out constants
     cdef double planet_radius = radius_array_ptr[top_slice_i]
@@ -182,7 +182,7 @@ cdef void cf_matrix_propagate(
                     propagation_mtx_ptr[j * 6 + k] = cmplx_zero
     else:
         sprintf(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Unknown starting core conditions encountered in `cf_matrix_propagate`: %d (acceptible values: 0, 1, 2, 3)\n", core_condition)
-        error = True
+        solution_storage_ptr.error_code = -20
         if verbose or raise_on_fail:
             printf(solution_storage_ptr.message_ptr)
         if raise_on_fail:
@@ -308,7 +308,7 @@ cdef void cf_matrix_propagate(
     cdef double complex* solution_ptr = <double complex*>solution_dbl_ptr
 
     ytype_i = 0
-    while not error:
+    while solution_storage_ptr.error_code == 0:
 
         # New y-type being solved (tidal, loading, free)
         if ytype_i == num_bc_models:
@@ -339,7 +339,7 @@ cdef void cf_matrix_propagate(
         # Check for errors
         if bc_solution_info_ptr[0] != 0:
             sprintf(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition. ZGESV code: %d \nThe solutions may not be valid at the surface.\n", bc_solution_info)
-            error = True
+            solution_storage_ptr.error_code = -21
             if verbose or raise_on_fail:
                 printf(solution_storage_ptr.message_ptr)
             if raise_on_fail:
@@ -347,8 +347,7 @@ cdef void cf_matrix_propagate(
         
         # Step through each radial step and apply the propagation matrix to the surface solution
         for slice_i in range(total_slices):
-            index_shift_18 = slice_i * 18
-            
+            index_shift_18        = slice_i * 18
             ytype_shift           = ytype_i * MAX_NUM_Y
             solution_slice_ishift = num_bc_models * slice_i
             full_shift            = ytype_shift + solution_slice_ishift
@@ -380,12 +379,10 @@ cdef void cf_matrix_propagate(
         # Get ready for next y-type solution
         ytype_i += 1
 
-    if not error:
+    if solution_storage_ptr.error_code == 0:
         # Update status message
+        solution_storage_ptr.success = True
         strcpy(solution_storage_ptr.message_ptr, 'RadialSolver (propagation matrix method) completed without any noted issues.\n')
-
-    # Set solution status
-    solution_storage_ptr.success = not error
 
     # Free memory
     free_mem(fundamental_mtx_ptr)

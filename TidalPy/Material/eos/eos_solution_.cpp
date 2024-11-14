@@ -1,5 +1,9 @@
 #include "eos_solution_.hpp"
 
+EOSSolutionCC::EOSSolutionCC( )
+{
+    
+}
 
 EOSSolutionCC::EOSSolutionCC(
         double* upper_radius_bylayer_ptr,
@@ -21,9 +25,13 @@ EOSSolutionCC::EOSSolutionCC(
         );
 
     // Use provided radius array to setup various storage vectors
-    this->rest_radius_array(radius_array_ptr, radius_array_size);
+    this->change_radius_array(radius_array_ptr, radius_array_size);
 }
 
+EOSSolutionCC::~EOSSolutionCC( )
+{
+
+}
 
 void EOSSolutionCC::save_cyresult(
         std::shared_ptr<CySolverResult> new_cysolver_result_sptr)
@@ -150,6 +158,13 @@ void EOSSolutionCC::interpolate_full_planet()
         this->complex_shear_array_vec.push_back(y_interp_ptr[6]);
         this->complex_bulk_array_vec.push_back(y_interp_ptr[7]);
         this->complex_bulk_array_vec.push_back(y_interp_ptr[8]);
+
+        // Record central pressure
+        if (current_layer_index == 0 && radius_i == 0)
+        {
+            this->central_pressure = y_interp_ptr[1];
+        }
+        
     }
 
     // At the end we should be at the planet's surface. Use the last interpolated values to set surface constants

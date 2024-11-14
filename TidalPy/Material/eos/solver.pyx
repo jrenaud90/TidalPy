@@ -11,11 +11,7 @@ from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES, E
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
 cdef void solve_eos(
-        shared_ptr[EOSSolution] eos_solution_sptr,
-        double* radius_array_ptr,
-        size_t len_radius_array,
-        double* layer_upper_radii,
-        unsigned int num_layers,
+        shared_ptr[EOSSolutionCC] eos_solution_sptr,
         PreEvalFunc* eos_function_bylayer_ptrs,
         EOS_ODEInput** eos_input_bylayer_ptrs,
         double planet_bulk_density,
@@ -32,7 +28,7 @@ cdef void solve_eos(
     cdef size_t j
 
     # Get raw pointer to the solution storage
-    cdef EOSSolution* eos_solution_ptr = eos_solution_sptr.get()
+    cdef EOSSolutionCC* eos_solution_ptr = eos_solution_sptr.get()
 
     # Set the message assuming success, it will be updated if we run into failure 
     strcpy(eos_solution_ptr.message_ptr, "Equation of state solver finished without issue.")
@@ -44,7 +40,8 @@ cdef void solve_eos(
     cdef double* atols_ptr = NULL #&atols_arr[0]
     
     # Determine planetary properties
-    cdef double planet_radius     = radius_array_ptr[len_radius_array - 1]
+    cdef size_t len_radius_array  = eos_solution_ptr.radius_array_size
+    cdef double planet_radius     = eos_solution_ptr.radius_array_vec[len_radius_array - 1]
     cdef double r0_gravity        = 0.0
     cdef double r0_pressure_guess = (2. / 3.) * d_PI_DBL * G_to_use * planet_radius**2 * planet_bulk_density**2
     r0_pressure_guess += surface_pressure
@@ -104,16 +101,16 @@ cdef void solve_eos(
         if not final_run:
             iterations += 1
         # Step through each macro layer of the planet and solve for density and gravity
-        for layer_i in range(num_layers):
+        for layer_i in range(eos_solution_ptr.num_layers):
             # Setup bounds and initial conditions for next layer's integration
-            radial_span_ptr[1] = layer_upper_radii[layer_i]
+            radial_span_ptr[1] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
             if layer_i == 0:
                 radial_span_ptr[0] = 0.0
                 # Set y0 for bottom-most layer equal to the global y0
                 for j in range(num_y):
                     y0_layer_ptr[j] = y0_ptr[j]
             else:
-                radial_span_ptr[0] = layer_upper_radii[layer_i - 1]
+                radial_span_ptr[0] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i - 1]
                 top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1)
                 # y0 for this layer equals result of last layer
                 if integration_result_ptr:

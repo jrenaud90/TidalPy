@@ -1,7 +1,9 @@
 from libcpp cimport bool as cpp_bool
-
 from libcpp.vector cimport vector
 from libcpp.memory cimport shared_ptr
+
+cimport numpy as cnp
+cnp.import_array()
 
 from CyRK cimport CySolverResult
 
@@ -28,6 +30,7 @@ cdef extern from "eos_solution_.cpp" nogil:
             double pressure_error
             double surface_gravity
             double surface_pressure
+            double central_pressure
             double mass
             double moi
 

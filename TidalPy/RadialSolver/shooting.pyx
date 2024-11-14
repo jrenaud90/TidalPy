@@ -13,9 +13,10 @@ from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
 from TidalPy.constants cimport d_G
+
+from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
 from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
-from TidalPy.RadialSolver.solutions cimport cf_find_num_shooting_solutions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
 from TidalPy.RadialSolver.interfaces.reversed cimport cf_top_to_bottom_interface_bc
 from TidalPy.RadialSolver.derivatives.odes cimport RadialSolverDiffeqArgStruct, cf_find_layer_diffeq
@@ -24,18 +25,83 @@ from TidalPy.RadialSolver.boundaries.surface_bc cimport cf_get_surface_bc
 from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
 
 
+cdef size_t cf_find_num_shooting_solutions(
+        int layer_type,
+        bint is_static,
+        bint is_incompressible
+        ) noexcept nogil:
+    """ Determine number of solutions required for layer based on assumptions.
+    
+    Parameters
+    ----------
+    layer_type : int
+        - 0: Layer is solid 
+        - 1: Layer is liquid
+    is_static : bool
+        Use static (True) or dynamic (False) assumption.
+    is_incompressible : bool
+        Use incompressible (True) or compressible (False) assumption.
+
+    Returns
+    -------
+    num_sols : int
+        Number of solutions required for layer.
+
+    """
+
+    # Initialize
+    cdef Py_ssize_t num_sols
+    num_sols = 0
+
+    if (layer_type == 0):
+        # Solid
+        if is_static:
+            if is_incompressible:
+                # TODO: Confirm
+                num_sols = 3
+            else:
+                num_sols = 3
+        else:
+            # Dynamic
+            if is_incompressible:
+                # TODO: Confirm
+                num_sols = 3
+            else:
+                num_sols = 3
+    else:
+        # Liquid
+        if is_static:
+            if is_incompressible:
+                # TODO: Confirm
+                num_sols = 1
+            else:
+                num_sols = 1
+        else:
+            # Dynamic
+            if is_incompressible:
+                # TODO: Confirm
+                num_sols = 2
+            else:
+                num_sols = 2
+    return num_sols
+
+
+def find_num_shooting_solutions(
+        int layer_type,
+        bint is_static,
+        bint is_incompressible
+        ):
+    
+    return cf_find_num_shooting_solutions(layer_type, is_static, is_incompressible)
+
+
 cdef void cf_shooting_solver(
-        RadialSolutionStorageCC* solution_storage_ptr,
-        size_t total_slices,
-        double* radius_array_ptr,
+        shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
         double frequency,
         double planet_bulk_density,
-        EOSSolutionVec eos_solution_bylayer_ptr,
-        size_t num_layers,
         int* layer_types_ptr,
         int* is_static_by_layer_ptr,
         int* is_incompressible_by_layer_ptr,
-        double* upper_radius_by_layer_ptr,
         size_t* first_slice_index_by_layer_ptr,
         size_t* num_slices_by_layer_ptr,
         size_t num_bc_models,
@@ -60,7 +126,11 @@ cdef void cf_shooting_solver(
     # Feedback
     cdef char[256] message
     cdef char* message_ptr = &message[0]
-    cdef cpp_bool error = False
+
+    # Get raw pointer of radial solver storage and eos storage
+    cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
+    cdef EOSSolutionCC* eos_solution_storage_ptr       = solution_storage_sptr.get().eos_solution_sptr.get()
+
     strcpy(message_ptr, 'RadialSolver.ShootingMethod:: Starting integration\n')
     solution_storage_ptr.set_message(message_ptr)
     if verbose:
@@ -81,20 +151,23 @@ cdef void cf_shooting_solver(
     cdef double degree_l_dbl = <double>degree_l
 
     # Alias pointers to EOS properties
-    cdef double* gravity_array_ptr = solution_storage_ptr.gravity_ptr
+    cdef double* radius_array_ptr  = &eos_solution_storage_ptr.radius_array_vec[0]
+    cdef double* gravity_array_ptr = &eos_solution_storage_ptr.gravity_array_vec[0]
     # cdef double* pressure_array_ptr = solution_storage_ptr.pressure_ptr   # Unused
-    cdef double* density_array_ptr = solution_storage_ptr.density_ptr
+    cdef double* density_array_ptr = &eos_solution_storage_ptr.density_array_vec[0]
 
     # Need to recast the storage's shear/bulk double arrays to double complex for local use
-    cdef double complex* complex_shear_array_ptr = <double complex*>solution_storage_ptr.shear_mod_ptr
-    cdef double complex* complex_bulk_array_ptr  = <double complex*>solution_storage_ptr.bulk_mod_ptr
+    cdef double complex* complex_shear_array_ptr = <double complex*>&eos_solution_storage_ptr.complex_shear_array_vec[0]
+    cdef double complex* complex_bulk_array_ptr  = <double complex*>&eos_solution_storage_ptr.complex_bulk_array_vec[0]
 
     # Pull out key information
-    cdef size_t top_slice_i = total_slices - 1
+    cdef size_t num_layers   = eos_solution_storage_ptr.num_layers
+    cdef size_t total_slices = eos_solution_storage_ptr.radius_array_size
+    cdef size_t top_slice_i  = total_slices - 1
     
     # Pull out any constants now that arrays have had dimensional protocol applied to them.
-    cdef double planet_radius   = radius_array_ptr[top_slice_i]
-    cdef double surface_gravity = gravity_array_ptr[top_slice_i]
+    cdef double planet_radius   = eos_solution_storage_ptr.radius_array_vec[top_slice_i]
+    cdef double surface_gravity = eos_solution_storage_ptr.gravity_array_vec[top_slice_i]
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
@@ -170,7 +243,7 @@ cdef void cf_shooting_solver(
         layer_type         = layer_types_ptr[current_layer_i]
         layer_is_static    = is_static_by_layer_ptr[current_layer_i]
         layer_is_incomp    = is_incompressible_by_layer_ptr[current_layer_i]
-        layer_upper_radius = upper_radius_by_layer_ptr[current_layer_i]
+        layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[current_layer_i]
 
         # Find number of solutions based on this layer's assumptions
         num_sols = cf_find_num_shooting_solutions(
@@ -287,7 +360,7 @@ cdef void cf_shooting_solver(
 
     # Each layer will have an equation of state solution which will be called during integration to ensure 
     # an accurate interpolation occurs at each radius value
-    cdef CySolverResult* eos_solution_ptr = NULL
+    cdef shared_ptr[CySolverResult] eos_solution_sptr
 
     # Layer's differential equation will vary by layer type
     cdef CySolveOutput integration_solution
@@ -336,7 +409,7 @@ cdef void cf_shooting_solver(
 
     printf("DEBUG- Shooting Method Point 10\n")
 
-    while not error:
+    while solution_storage_ptr.error_code == 0:
         printf("DEBUG- Shooting Method Point 11\n")
         for current_layer_i in range(num_layers):
             printf("DEBUG- Shooting Method Point \t\t layer = %d\n", current_layer_i)
@@ -346,7 +419,7 @@ cdef void cf_shooting_solver(
 
             # Get layer EOS solution
             # Check if we are using the correct EOS solution (changes with layers)
-            eos_solution_ptr = eos_solution_bylayer_ptr[current_layer_i].get()
+            eos_solution_sptr = eos_solution_storage_ptr.cysolver_results_bylayer_vec[current_layer_i]
 
             # Get solution and y information
             num_sols   = num_solutions_by_layer_ptr[current_layer_i]
@@ -454,7 +527,7 @@ cdef void cf_shooting_solver(
                     )
                 printf("DEBUG- Shooting Method Point \t\t layer = %d; L6a\n", current_layer_i)
                 if not solution_storage_ptr.success:
-                    error = True
+                    solution_storage_ptr.error_code = -10
                     break
                     
             else:
@@ -528,7 +601,7 @@ cdef void cf_shooting_solver(
             layer_diffeq = cf_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp)
 
             # Det diffeq additional arg input's eos solution pointer
-            diffeq_args_ptr.eos_solution_ptr = eos_solution_ptr
+            diffeq_args_ptr.eos_solution_sptr = eos_solution_sptr
 
             # Get storage pointer for this layer
             storage_by_solution_ptr = main_storage_ptr[current_layer_i]
@@ -571,7 +644,7 @@ cdef void cf_shooting_solver(
                 if not integration_solution_ptr.success:
                     printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4a\n", current_layer_i, solution_i)
                     # Problem with integration.
-                    error = True
+                    solution_storage_ptr.error_code = -11
                     sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', current_layer_i, solution_i, integration_solution_ptr.message_ptr)
                     solution_storage_ptr.set_message(message_ptr)
                     if verbose or raise_on_fail:
@@ -604,7 +677,7 @@ cdef void cf_shooting_solver(
                 integration_solution.reset()
                 printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S6\n", current_layer_i, solution_i)
                     
-            if error:
+            if solution_storage_ptr.error_code != 0:
                 # Error was encountered during integration
                 solution_storage_ptr.success = False
                 break
@@ -619,9 +692,8 @@ cdef void cf_shooting_solver(
         break
 
     printf("DEBUG- Shooting Method Point - POST SOLVE 1\n")
-    if error or not solution_storage_ptr.success:
+    if solution_storage_ptr.error_code != 0 or not solution_storage_ptr.success:
         printf("DEBUG- Shooting Method Point - POST SOLVE 2a\n")
-        error = True
         solution_storage_ptr.success = False
         sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
         solution_storage_ptr.set_message(message_ptr)
@@ -717,7 +789,7 @@ cdef void cf_shooting_solver(
 
                     # Check that the boundary condition was successfully applied.
                     if bc_solution_info != 0:
-                        error = True
+                        solution_storage_ptr.error_code = -12
                         sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Error encountered while applying surface boundary condition. ZGESV code: %d.\nThe solutions may not be valid at the surface.\n', bc_solution_info)
                         solution_storage_ptr.set_message(message_ptr)
                         if verbose or raise_on_fail:
@@ -804,12 +876,11 @@ cdef void cf_shooting_solver(
         main_storage_ptr = NULL
 
     # Update solution status and return
-    if error:
+    if solution_storage_ptr.error_code != 0:
         solution_storage_ptr.success = False
         solution_storage_ptr.set_message(message_ptr)
     else:
         solution_storage_ptr.success = True
         solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: completed without any noted issues.\n')
-
 
     printf("DEBUG- Shooting Method Point - Done!!\n")

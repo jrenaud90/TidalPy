@@ -15,6 +15,16 @@ const int MAX_NUM_Y_REAL = 12; // Maximum number of y values counting both the r
 // Error Codes:
 // -1 : Equation of State storage (EOSSolutionCC) could not be initialized.
 // -2 : (set by python wrapper) Unknown / Unsupported boundary condition provided.
+// -5 : There was a problem with the inputs to radial solver
+
+// -1X : Error in shooting method
+// -10 : Error in finding starting conditions
+// -11 : Numerical integration failed
+// -12 : Error using ZGESV solver with boundary condition
+// 
+// -2X : Error in propagation matrix method
+// -20 : Unknown core starting conditions
+// -21 : Error using ZGESV solver with boundary condition
 
 class RadialSolutionStorageCC
 {
@@ -56,8 +66,8 @@ public:
     double* complex_bulk_array_ptr  = nullptr;
 
     // Constructors and methods
-    virtual ~RadialSolutionStorageCC() { };
-    RadialSolutionStorageCC() { };
+    virtual ~RadialSolutionStorageCC();
+    RadialSolutionStorageCC();
     RadialSolutionStorageCC(
         char num_ytypes,
         double* upper_radius_bylayer_ptr,
@@ -68,7 +78,7 @@ public:
     void change_radius_array(
         double* radius_array_ptr,
         const size_t radius_array_size,
-        cpp_bool array_changed)
+        bool array_changed);
     void set_message(const char* new_message);
     void find_love();
 };

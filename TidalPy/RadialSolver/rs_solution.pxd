@@ -1,4 +1,5 @@
-cimport numpy as np
+cimport numpy as cnp
+cnp.import_array()
 
 from libcpp cimport bool as cpp_bool
 
@@ -14,7 +15,7 @@ cdef extern from "love_.cpp" nogil:
 cdef extern from "eos_solution_.cpp" nogil:
     pass
 
-cdef extern from "solutions_.cpp" nogil:
+cdef extern from "rs_solution_.cpp" nogil:
     
     const int MAX_NUM_Y
     const int MAX_NUM_Y_REAL
@@ -22,6 +23,7 @@ cdef extern from "solutions_.cpp" nogil:
     cdef cppclass RadialSolutionStorageCC:
         
         cpp_bool success
+        int error_code
         char num_ytypes
         char* message_ptr
         size_t num_slices
@@ -69,7 +71,7 @@ cdef extern from "solutions_.cpp" nogil:
 cdef class RadialSolverSolution:
 
     # Size and state information
-    cdef size_t num_slices
+    cdef size_t radius_array_size
     cdef char num_ytypes
     cdef cpp_bool ytype_names_set
     cdef char* ytypes[5]
@@ -78,25 +80,25 @@ cdef class RadialSolverSolution:
     cdef shared_ptr[RadialSolutionStorageCC] solution_storage_sptr
 
     # Result pointers and data
-    cdef np.ndarray full_solution_arr
+    cdef cnp.ndarray full_solution_arr
 
     # Love number information
-    cdef np.ndarray complex_love_arr
+    cdef cnp.ndarray complex_love_arr
 
     # EOS solution arrays
-    cdef np.ndarray gravity_array
-    cdef np.ndarray pressure_array
-    cdef np.ndarray mass_array
-    cdef np.ndarray moi_array
-    cdef np.ndarray density_array
-    cdef np.ndarray shear_modulus_array
-    cdef np.ndarray bulk_modulus_array
+    cdef cnp.ndarray gravity_array
+    cdef cnp.ndarray pressure_array
+    cdef cnp.ndarray mass_array
+    cdef cnp.ndarray moi_array
+    cdef cnp.ndarray density_array
+    cdef cnp.ndarray shear_modulus_array
+    cdef cnp.ndarray bulk_modulus_array
 
-    cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil
-
-
-cdef size_t cf_find_num_shooting_solutions(
-    int layer_type,
-    bint is_static,
-    bint is_incompressible
-    ) noexcept nogil
+    cdef void set_model_names(
+        self,
+        int* bc_models_ptr) noexcept nogil
+    cdef change_radius_array(
+        self,
+        double* radius_array_ptr,
+        const size_t radius_array_size,
+        cpp_bool array_changed = *) noexcept

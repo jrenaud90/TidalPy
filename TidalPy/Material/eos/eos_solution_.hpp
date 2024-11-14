@@ -45,6 +45,7 @@ public:
     double pressure_error   = NULL;
     double surface_gravity  = NULL;
     double surface_pressure = NULL;
+    double central_pressure = NULL;
     double mass             = NULL;
     double moi              = NULL;
     
@@ -71,8 +72,8 @@ protected:
 
 public:
 
-    virtual ~EOSSolutionCC( ) { };
-    EOSSolutionCC( ) { };
+    virtual ~EOSSolutionCC( );
+    EOSSolutionCC( );
     EOSSolutionCC(
         double* upper_radius_bylayer_ptr,
         const size_t num_layers,
@@ -102,4 +103,4 @@ public:
     
     // Run full planet interpolation through each layer.
     void interpolate_full_planet();
-}
+};

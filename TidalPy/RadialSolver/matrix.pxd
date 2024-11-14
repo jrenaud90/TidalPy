@@ -1,15 +1,12 @@
 from libcpp cimport bool as cpp_bool
+from libcpp.memory cimport shared_ptr
 
-from TidalPy.Material.eos.solver cimport EOSSolutionVec
-from TidalPy.RadialSolver.solutions cimport RadialSolutionStorageCC
+from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
 cdef void cf_matrix_propagate(
-    RadialSolutionStorageCC* solution_storage_ptr,
-    size_t total_slices,
-    double* radius_array_ptr,
+    shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
     double frequency,
     double planet_bulk_density,
-    size_t num_layers,
     # TODO: In the future the propagation matrix should take in layer types and multiple layers
     # int* layer_types_ptr,
     # int* is_static_by_layer_ptr,
