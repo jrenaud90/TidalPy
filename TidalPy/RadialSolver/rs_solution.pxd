@@ -86,13 +86,13 @@ cdef class RadialSolverSolution:
     cdef cnp.ndarray complex_love_arr
 
     # EOS solution arrays
-    cdef cnp.ndarray gravity_array
-    cdef cnp.ndarray pressure_array
-    cdef cnp.ndarray mass_array
-    cdef cnp.ndarray moi_array
-    cdef cnp.ndarray density_array
-    cdef cnp.ndarray shear_modulus_array
-    cdef cnp.ndarray bulk_modulus_array
+    cdef public cnp.ndarray gravity_array
+    cdef public cnp.ndarray pressure_array
+    cdef public cnp.ndarray mass_array
+    cdef public cnp.ndarray moi_array
+    cdef public cnp.ndarray density_array
+    cdef public cnp.ndarray shear_modulus_array
+    cdef public cnp.ndarray bulk_modulus_array
 
     cdef void set_model_names(
         self,

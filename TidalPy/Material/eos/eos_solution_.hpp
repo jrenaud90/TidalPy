@@ -46,6 +46,7 @@ public:
     double surface_gravity  = NULL;
     double surface_pressure = NULL;
     double central_pressure = NULL;
+    double radius           = NULL;
     double mass             = NULL;
     double moi              = NULL;
     

@@ -31,6 +31,7 @@ cdef extern from "eos_solution_.cpp" nogil:
             double surface_gravity
             double surface_pressure
             double central_pressure
+            double radius
             double mass
             double moi
 

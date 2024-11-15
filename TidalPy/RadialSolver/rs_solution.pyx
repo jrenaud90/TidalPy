@@ -202,11 +202,6 @@ cdef class RadialSolverSolution:
         """ Return if the solver was successful message """
         return self.solution_storage_sptr.get().success
 
-    # Radial solver storage, physical properties
-    @property
-    def planet_radius(self):
-        return self.solution_storage_sptr.get().radius_array_ptr[self.radius_array_size - 1]
-
     # EOS class properties
     @property
     def eos_error_code(self):
@@ -224,6 +219,11 @@ cdef class RadialSolverSolution:
         return self.solution_storage_sptr.get().eos_solution_sptr.get().success
 
     @property
+    def radius(self):
+        """ Return's the planet's radius, set by user """
+        return self.solution_storage_sptr.get().eos_solution_sptr.get().radius
+
+    @property
     def mass(self):
         """ Return's the total planet mass, found by the EOS solver """
         return self.solution_storage_sptr.get().eos_solution_sptr.get().mass
@@ -236,7 +236,7 @@ cdef class RadialSolverSolution:
     @property
     def moi_factor(self):
         """ Return's the planet's moment of inertia factor, found by the EOS solver """
-        cdef double ideal_moi = (2. / 5.) * self.mass * self.planet_radius**2
+        cdef double ideal_moi = (2. / 5.) * self.mass * self.radius**2
         return self.moi / ideal_moi
     
     @property

@@ -80,6 +80,7 @@ void EOSSolutionCC::change_radius_array(
         double* radius_array_ptr,
         const size_t radius_array_size)
 {
+    this->radius            = radius_array_ptr[radius_array_size - 1];
     this->radius_array_size = radius_array_size;
     if (this->radius_array_set)
     {

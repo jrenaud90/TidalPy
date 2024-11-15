@@ -8,7 +8,6 @@ from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
 cdef void cf_radial_solver(
         shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
-        double starting_radius,
         size_t total_slices,
         double* radius_array_in_ptr,
         double* density_array_in_ptr,
@@ -26,6 +25,8 @@ cdef void cf_radial_solver(
         int* bc_models_ptr,
         unsigned char core_condition,
         cpp_bool use_kamata,
+        double starting_radius,
+        double start_radius_tolerance,
         unsigned char integration_method_int,
         double integration_rtol,
         double integration_atol,

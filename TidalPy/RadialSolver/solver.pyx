@@ -38,7 +38,6 @@ log = get_logger(__name__)
 
 cdef void cf_radial_solver(
         shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
-        double starting_radius,
         size_t total_slices,
         double* radius_array_in_ptr,
         double* density_array_in_ptr,
@@ -56,6 +55,8 @@ cdef void cf_radial_solver(
         int* bc_models_ptr,
         unsigned char core_condition,
         cpp_bool use_kamata,
+        double starting_radius,
+        double start_radius_tolerance,
         unsigned char integration_method_int,
         double integration_rtol,
         double integration_atol,
@@ -285,7 +286,6 @@ cdef void cf_radial_solver(
             printf("DEBUG-cf_radial_solver - Pre shooting method\n")
             cf_shooting_solver(
                 solution_storage_sptr,          # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
-                starting_radius,                # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet.
                 frequency_to_use,               # Forcing frequency [double]
                 bulk_density_to_use,            # Planet bulk density [double]
                 layer_types_ptr,                # Layer type int  array pointer [int*]
@@ -298,6 +298,8 @@ cdef void cf_radial_solver(
                 G_to_use,                       # Gravitational constant [double]
                 degree_l,                       # Harmonic degree [unsigned int]
                 use_kamata,                     # Flag to use Kamata+ (2015)'s starting conditions vs. Takeuchi+Saito (1972) [cpp_bool]
+                starting_radius,                # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
+                start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]
                 integration_method_int,         # Integration method int (0=RK23, 1=RK45, 2=DOP853) [unsigned char]
                 integration_rtol,               # Integration relative tolerance [double]
                 integration_atol,               # Integration absolute tolerance [double]
@@ -368,12 +370,13 @@ def radial_solver(
         tuple is_static_by_layer,
         tuple is_incompressible_by_layer,
         double[::1] upper_radius_by_layer_array,
-        double starting_radius = 0.0,
         double surface_pressure = 0.0,
         unsigned int degree_l = 2,
         tuple solve_for = None,
         unsigned char core_condition = 0,
         cpp_bool use_kamata = False,
+        double starting_radius = 0.0,
+        double start_radius_tolerance = 1.0e-5,
         str integration_method = 'RK45',
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
@@ -427,11 +430,6 @@ def radial_solver(
     upper_radius_by_layer : tuple[float64, ...] (Size = number of layers)
         Tuple of the upper radius of each layer.
         Used to determine physical structure of planet.
-    starting_radius: float64, default=0
-        The initial radius at which to start solving the viscoelastic-gravitational equations.
-        For stability purposes, the higher your degree l, the higher you want your starting r. 
-        If set to 0.0, the default, TidalPy will determine a good starting l based on the planet radius and degree l.
-        If you provide a non-zero value then it must be in [m]
     surface_pressure: float64, default=0
         The pressure at the surface of the planet (defined as radius_array[-1]). [Pa]
         Used for EOS calculations.
@@ -455,6 +453,17 @@ def radial_solver(
     use_kamata : bool, default=False
         If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
         Otherwise, starting solution will be based on Takeuchi and Saito (1972)
+    starting_radius : float64, default=0.0
+        The initial radius at which to start solving the viscoelastic-gravitational equations.
+        For stability purposes, the higher your degree l, the higher you want your starting r. 
+        If set to 0.0, the default, TidalPy will determine a good starting l based on the planet radius and degree l.
+        If you provide a non-zero value then it must be in [m]
+    start_radius_tolerance : float64, default=1.0e-5
+        If `starting_radius` is not provided then TidalPy will use the formula:
+            r = planet_radius * start_radius_tolerance^(1.0 / degree_l)
+        Depending on your layer size and the degree_l, this may be in a layer above the innermost core. 
+        TidalPy will perform a full planet equation of state calculation, but will skip the viscoelastic calculations
+        for layers and radii below the starting value.
     integration_method : int32, default=1
         Which CyRK integration protocol should be used. Options that are currently available are:
             - 0: Runge-Kutta 2(3)
@@ -684,7 +693,6 @@ def radial_solver(
     printf("DEBUG-RadialSolver Point 13a - Pre cf_radial_solver call\n")
     cf_radial_solver(
         solution.solution_storage_sptr,
-        starting_radius,
         total_slices,
         radius_array_ptr,
         density_array_ptr,
@@ -702,6 +710,8 @@ def radial_solver(
         bc_models_ptr,
         core_condition,
         use_kamata,
+        starting_radius,
+        start_radius_tolerance,
         integration_method_int,
         integration_rtol,
         integration_atol,
