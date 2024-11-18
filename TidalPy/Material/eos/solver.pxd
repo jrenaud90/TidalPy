@@ -13,8 +13,8 @@ ctypedef shared_ptr[CySolverResult_sptr_vec] CySolverResult_sptr_vec_sptr
 
 cdef void solve_eos(
     shared_ptr[EOSSolutionCC] eos_solution_sptr,
-    PreEvalFunc* eos_function_bylayer_ptrs,
-    EOS_ODEInput** eos_input_bylayer_ptrs,
+    vector[PreEvalFunc] eos_function_bylayer_ptr_vec,
+    vector[EOS_ODEInput] eos_input_bylayer_vec,
     double planet_bulk_density,
     double surface_pressure = *,
     double G_to_use = *,
@@ -23,5 +23,5 @@ cdef void solve_eos(
     double atol = *,
     double pressure_tol = *,
     unsigned int max_iters = *,
-    cpp_bool verbose = *
+    cpp_bool verbose = True
     ) noexcept nogil

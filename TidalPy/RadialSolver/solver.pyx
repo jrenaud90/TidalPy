@@ -197,13 +197,11 @@ cdef void cf_radial_solver(
 
     # Build vector of EOS inputs
     cdef EOS_ODEInput eos_input
-    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec         = vector[EOS_ODEInput]()
-    cdef vector[EOS_ODEInputPtr] eos_inputs_ptrs_bylayer_vec = vector[EOS_ODEInputPtr]()
+    cdef vector[EOS_ODEInput] eos_inputs_bylayer_vec = vector[EOS_ODEInput]()
     eos_inputs_bylayer_vec.reserve(num_layers)
-    eos_inputs_ptrs_bylayer_vec.reserve(num_layers)
 
     # TODO: Below is specific to interpolate EOS
-    cdef vector[InterpolateEOSInput] specific_eos_input_bylayer_vec = vector[InterpolateEOSInput]()
+    cdef vector[void] specific_eos_input_bylayer_vec = vector[void]()
     specific_eos_input_bylayer_vec.reserve(num_layers)
 
     # Build Equation of State functions and input data structures. Record memory addresses for use by the EOS solver
@@ -229,27 +227,19 @@ cdef void cf_radial_solver(
             eos_inputs_bylayer_vec.emplace_back(
                 G_to_use,                                        # Gravitational constant [double]
                 radius_planet_to_use,                            # Planet radius [double]
-                <void*>&specific_eos_input_bylayer_vec[layer_i], # void-casted pointer to model specific input (created just above)
+                specific_eos_input_bylayer_vec[layer_i],         # void-casted pointer to model specific input (created just above)
                 False,                                           # Final solve flag [bool] (will be updated by EOS solver)
                 False,                                           # Final update shear flag [bool] (will be updated by EOS solver)
                 False                                            # Final update bulk flag [bool] (will be updated by EOS solver)
             )
             # TODO: update bulk/shear flags are overwritten by EOS solver regardless of layer type. They should not ever need to be updated, for example shear for liquid layers?
-
-            # Record pointer to EOS input for this layer
-            eos_inputs_ptrs_bylayer_vec.push_back(&eos_inputs_bylayer_vec[layer_i])
-
-    # Make pointers to pre-eval data
-    cdef PreEvalFunc* eos_function_bylayer_ptrs = &eos_function_bylayer_vec[0]
-    cdef EOS_ODEInput** eos_input_bylayer_ptrs  = &eos_inputs_ptrs_bylayer_vec[0]
-
         
     if solution_storage_ptr.error_code == 0:
         printf("DEBUG-cf_radial_solver EOS Solver\n")
         solve_eos(
             solution_storage_ptr.eos_solution_sptr,  # Equation of state storage C++ class
-            eos_function_bylayer_ptrs,  # EOS specific model function by layer array pointer [PreEvalFunc*]
-            eos_input_bylayer_ptrs,     # Pointer to array of EOS input pointers for each layer [EOS_ODEInput**]
+            eos_function_bylayer_vec,   # EOS specific model function by layer array pointer [vector<PreEvalFunc>]
+            eos_inputs_bylayer_vec,     # Pointer to array of EOS input pointers for each layer [vector<shared_ptr<EOS_ODEInput>>]
             bulk_density_to_use,        # Planet bulk density [double]
             surface_pressure_to_use,    # Planet surface pressure [double]
             G_to_use,                   # Gravitational constant [double]
@@ -260,6 +250,21 @@ cdef void cf_radial_solver(
             eos_max_iters,              # Maximum iterations to find convergence [unsigned int]
             verbose                     # Verbose flag [cpp_bool]
             )
+    
+    printf("DEBUG::radial_solver - EOS Results:\n")
+    printf("\t EOS Solution Sptr            = %p\n", solution_storage_ptr.eos_solution_sptr)
+    printf("\t EOS Solution ptr             = %p\n", solution_storage_ptr.eos_solution_sptr.get())
+    printf("\t EOS CySolver sptr            = %p\n", solution_storage_ptr.eos_solution_sptr.get().cysolver_results_sptr_bylayer_vec[0])
+    printf("\t EOS CySolver ptr (from sptr) = %p\n", solution_storage_ptr.eos_solution_sptr.get().cysolver_results_sptr_bylayer_vec[0].get())
+    printf("\t EOS CySolver ptr (stored)    = %p\n", solution_storage_ptr.eos_solution_sptr.get().cysolver_results_ptr_bylayer_vec[0])
+    printf("\t\t mass = %e\n", solution_storage_ptr.eos_solution_sptr.get().mass)
+    printf("\t\t moi  = %e\n", solution_storage_ptr.eos_solution_sptr.get().moi)
+    printf("\t\t g    = %e\n", solution_storage_ptr.eos_solution_sptr.get().surface_gravity)
+    printf("\t\t Psur = %e\n", solution_storage_ptr.eos_solution_sptr.get().surface_pressure)
+    printf("\t\t R    = %e\n", solution_storage_ptr.eos_solution_sptr.get().radius)
+    printf("\t\t Pcen = %e\n", solution_storage_ptr.eos_solution_sptr.get().central_pressure)
+
+    exit(-86)
 
     # Step through the radial steps to find EOS-dependent parameters
     if eos_solution_storage_ptr.success and solution_storage_ptr.error_code == 0:

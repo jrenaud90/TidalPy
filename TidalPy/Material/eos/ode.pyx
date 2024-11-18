@@ -1,9 +1,11 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
+from libc.stdio cimport printf
 
 from TidalPy.constants cimport d_PI_DBL, d_EPS_DBL_100
 
 cdef double FOUR_PI = 4.0 * d_PI_DBL
+
 
 cdef void eos_diffeq(
         double* dy_ptr,
@@ -12,12 +14,12 @@ cdef void eos_diffeq(
         const void* input_args,
         PreEvalFunc eos_function) noexcept nogil:
     """ Solve for EOS components as a function of radius. """
-
+    printf("DEBUG:: \t\t EOS Diffeq Called.\n")
     # Cast input args to correct structure type
     cdef EOS_ODEInput* eos_input_ptr = <EOS_ODEInput*>input_args
 
     # Other constants
-    cdef double r2 = radius * radius
+    cdef double r2         = radius * radius
     cdef double grav_coeff = FOUR_PI * eos_input_ptr.G_to_use
 
     # Update viscoelastic parameters using the user-provided equation of state
@@ -60,10 +62,10 @@ cdef void eos_diffeq(
     if eos_input_ptr.final_solve:
         # There are two real dy/dt: gravity and pressure and then 9 additional parameters that are saved but
         # not used during integration but which the user may want for reference.
-        dy_ptr[3] = eos_output.density
+        dy_ptr[4] = eos_output.density
 
-        dy_ptr[4] = eos_output.shear_modulus.real
-        dy_ptr[5] = eos_output.shear_modulus.imag
+        dy_ptr[5] = eos_output.shear_modulus.real
+        dy_ptr[6] = eos_output.shear_modulus.imag
 
         dy_ptr[7] = eos_output.bulk_modulus.real
         dy_ptr[8] = eos_output.bulk_modulus.imag

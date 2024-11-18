@@ -52,7 +52,7 @@ public:
     
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec = std::vector<double>();
-    std::vector<std::shared_ptr<CySolverResult>> cysolver_results_bylayer_vec = std::vector<std::shared_ptr<CySolverResult>>();
+    std::vector<std::shared_ptr<CySolverResult>> cysolver_results_sptr_bylayer_vec = std::vector<std::shared_ptr<CySolverResult>>();
 
     // Copy of user-provided radius array
     std::vector<double> radius_array_vec = std::vector<double>();

@@ -11,7 +11,7 @@ cdef struct RadialSolverDiffeqArgStruct:
     double G
     double grav_coeff
     double frequency
-    shared_ptr[CySolverResult] eos_solution_sptr
+    CySolverResult* eos_solution_ptr
 
 cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,

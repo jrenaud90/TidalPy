@@ -36,7 +36,7 @@ cdef extern from "eos_solution_.cpp" nogil:
             double moi
 
             vector[double] upper_radius_bylayer_vec
-            vector[shared_ptr[CySolverResult]] cysolver_results_bylayer_vec
+            vector[shared_ptr[CySolverResult]] cysolver_results_sptr_bylayer_vec
 
             vector[double] radius_array_vec
             vector[double] gravity_array_vec

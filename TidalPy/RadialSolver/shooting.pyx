@@ -138,7 +138,8 @@ cdef void cf_shooting_solver(
         printf(solution_storage_ptr.message_ptr)
 
     # General indexing
-    cdef double radius_check = NAN
+    cdef double last_radius_check = NAN
+    cdef double radius_check      = NAN
     cdef size_t i
     cdef size_t current_layer_i
     cdef size_t layer_i_reversed
@@ -327,6 +328,7 @@ cdef void cf_shooting_solver(
     cdef double interface_gravity        = NAN
     cdef double last_layer_upper_gravity = NAN
     cdef double last_layer_upper_density = NAN
+    cdef double last_layer_upper_radius  = NAN
 
     # Starting solutions (initial conditions / lower boundary conditions)
     # Allocate memory for the initial value arrays now. We don't know the number of solutions or ys. But the max number
@@ -383,7 +385,6 @@ cdef void cf_shooting_solver(
 
     # The diffeq needs to be able to call the EOS solution which is different for each layer.
     # We will load the EOS solution into this argument structure for each layer. For now, set it to null.
-    diffeq_args_ptr.eos_solution_sptr
 
     # Set diffeq inputs that do not change with layer
     diffeq_args_ptr.degree_l   = degree_l_dbl
@@ -438,23 +439,40 @@ cdef void cf_shooting_solver(
     # Determine which layer this starting radius resides in. We will skip the lower layers
     cdef size_t start_layer_i = 0
     cdef size_t last_index_before_start = 0
+    last_radius_check = 0.0
     for current_layer_i in range(num_layers):
         # Check if the radius is in this layer
-        if starting_radius <= eos_solution_storage_ptr.upper_radius_bylayer_vec[current_layer_i]:
+        layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[current_layer_i]
+        if current_layer_i == 0:
+            last_layer_upper_radius = 0.0
+        else:
+            last_layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[current_layer_i - 1]
+
+        if last_layer_upper_radius < starting_radius <= layer_upper_radius:
             # It is!
             start_layer_i = current_layer_i
+            first_slice_index = first_slice_index_by_layer_ptr[current_layer_i]
+            
+            printf("DEBUG- Starting Radius = %e; first slice = %d\n", starting_radius, first_slice_index)
 
             # Now find the last radial slice before the starting radius
-            for slice_i in range(first_slice_index_by_layer_ptr[current_layer_i],
-                                 first_slice_index_by_layer_ptr[current_layer_i] + num_slices_by_layer_ptr[current_layer_i]):
+            for slice_i in range(first_slice_index, first_slice_index + num_slices_by_layer_ptr[current_layer_i]):
                 radius_check = radius_array_ptr[slice_i]
-                if starting_radius >= radius_check:
+                printf("DEBUG- \t\t Starting Radius:: radius_check = %e\n", radius_check)
+                if last_radius_check < starting_radius <= radius_check:
                     if slice_i == 0:
                         last_index_before_start = 0
                     else:
+                        # We found that the starting radius is in-between this slice and the last slice.
+                        # We want to set the last index to the slice before this one.
                         last_index_before_start = slice_i - 1
+                    printf("DEBUG- \t\t Starting Radius::Found slice = %d\n", last_index_before_start)
                     break
+                else:
+                    last_radius_check = radius_check
             break
+        else:
+            last_radius_check = last_layer_upper_radius
 
     # Step through the solution vector and NAN out data below the starting radius
     for ytype_i in range(num_ytypes):
@@ -476,14 +494,19 @@ cdef void cf_shooting_solver(
                 first_slice_index = last_index_before_start + 1
 
                 # When we loop through slices we only want to loop between the starting slice and the top of the layer
-                layer_slices -= last_index_before_start
+                layer_slices -= (last_index_before_start + 1)
             else:
                 first_slice_index = first_slice_index_by_layer_ptr[current_layer_i]
+            
+            printf("DEBUG - Shooting Method:: layer i = %d; first slice = %d; last_index_before_start = %d\n", current_layer_i, first_slice_index, last_index_before_start)
+            printf("DEBUG - Shooting Method:: layerslices = %d\n", layer_slices)
 
             # Get layer EOS solution
             # Check if we are using the correct EOS solution (changes with layers)
-            eos_solution_sptr = eos_solution_storage_ptr.cysolver_results_bylayer_vec[current_layer_i]
+            eos_solution_sptr = eos_solution_storage_ptr.cysolver_results_sptr_bylayer_vec[current_layer_i]
             eos_solution_ptr  = eos_solution_sptr.get()
+            printf("DEBUG:: eos_sptr use count = %d\n", eos_solution_sptr.use_count())
+            printf("DEBUG:: Shooting Method-> EOS sptr = %p; EOS ptr = %p\n", eos_solution_sptr, eos_solution_ptr)
 
             # Get solution and y information
             num_sols   = num_solutions_by_layer_ptr[current_layer_i]
@@ -491,13 +514,13 @@ cdef void cf_shooting_solver(
             num_ys_dbl = 2 * num_ys
 
             # Setup pointer array slices starting at the start of this layer (either base or at starting index)
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L2\n", current_layer_i)
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L2; slices = %d\n", current_layer_i, layer_slices)
             layer_radius_ptr    = &radius_array_ptr[first_slice_index]
             layer_density_ptr   = &density_array_ptr[first_slice_index]
             layer_gravity_ptr   = &gravity_array_ptr[first_slice_index]
             layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index]
             layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index]
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L3\n", current_layer_i)
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L3; slices = %d\n", current_layer_i, layer_slices)
 
             # Get physical parameters at the top and bottom of the layer
             if current_layer_i == start_layer_i:
@@ -506,7 +529,9 @@ cdef void cf_shooting_solver(
                 # Even worse, it may not be at any of the slice indices that are stored.
                 # To get the most accurate result we need to perform an interpolation to find various properties at
                 # this starting radius. 
+                printf("DEBUG- Shooting Method Point \t\t L3b slices = %d\n", layer_slices)
                 eos_solution_ptr.call(starting_radius, eos_interp_array_ptr)
+                printf("DEBUG- Shooting Method Point \t\t L3c slices = %d\n", layer_slices)
 
                 # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
                 # We are storing these in function-global variables because they will be used again during collapse
@@ -528,12 +553,14 @@ cdef void cf_shooting_solver(
                 density_lower = layer_density_ptr[0]
                 shear_lower   = layer_shear_mod_ptr[0]
                 bulk_lower    = layer_bulk_mod_ptr[0]
+            printf("DEBUG- Shooting Method Point \t\t L3d slices = %d\n", layer_slices)
 
             radius_upper  = layer_radius_ptr[layer_slices - 1]
             gravity_upper = layer_gravity_ptr[layer_slices - 1]
             density_upper = layer_density_ptr[layer_slices - 1]
             shear_upper   = layer_shear_mod_ptr[layer_slices - 1]
             bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1]
+            printf("DEBUG:: Radius upper = %e; layer_slices = %d\n", radius_upper, layer_slices)
             
             radial_span_ptr[0] = radius_lower
             radial_span_ptr[1] = radius_upper
@@ -689,7 +716,7 @@ cdef void cf_shooting_solver(
             layer_diffeq = cf_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp)
 
             # Det diffeq additional arg input's eos solution pointer
-            diffeq_args_ptr.eos_solution_sptr = eos_solution_sptr
+            diffeq_args_ptr.eos_solution_ptr = eos_solution_sptr.get()
 
             # Get storage pointer for this layer
             storage_by_solution_ptr = main_storage_ptr[current_layer_i]
@@ -697,6 +724,7 @@ cdef void cf_shooting_solver(
             # Solve for each solution
             for solution_i in range(num_sols):
                 y0_ptr = &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL]
+                printf("DEBUG- Shooting Method Point \t\t\t layer diffeq = %p\n", layer_diffeq)
                 printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S1\n", current_layer_i, solution_i)
                 printf("DEBUG- Shooting Method Point \t\t\t S1:: diffeq ptr = %p; y0 ptr = %p\n", layer_diffeq, &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL])
                 printf("DEBUG- Shooting Method Point \t\t\t S1:: y0 = %e; y1 = %e\n", initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL], initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 1])
@@ -828,7 +856,7 @@ cdef void cf_shooting_solver(
                     first_slice_index = last_index_before_start + 1
 
                     # When we loop through slices we only want to loop between the starting slice and the top of the layer
-                    layer_slices -= last_index_before_start
+                    layer_slices -= (last_index_before_start + 1)
                 else:
                     first_slice_index = first_slice_index_by_layer_ptr[layer_i_reversed]
 

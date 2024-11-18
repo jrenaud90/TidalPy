@@ -12,14 +12,14 @@ from TidalPy.Material.eos.ode cimport eos_diffeq
 
 cdef void solve_eos(
         shared_ptr[EOSSolutionCC] eos_solution_sptr,
-        PreEvalFunc* eos_function_bylayer_ptrs,
-        EOS_ODEInput** eos_input_bylayer_ptrs,
+        vector[PreEvalFunc] eos_function_bylayer_ptr_vec,
+        vector[EOS_ODEInput] eos_input_bylayer_vec,
         double planet_bulk_density,
         double surface_pressure = 0.0,
         double G_to_use = d_G,
         unsigned int integration_method = 2,
-        double rtol = 1.0e-8,
-        double atol = 1.0e-16,
+        double rtol = 1.0e-6,
+        double atol = 1.0e-10,
         double pressure_tol = 1.0e-3,
         unsigned int max_iters = 100,
         cpp_bool verbose = True
@@ -125,8 +125,8 @@ cdef void solve_eos(
             max_step = 0.33 * (radial_span_ptr[1] - radial_span_ptr[0])
                 
             # Get eos function and inputs for this layer
-            eos_input_layer_ptr = eos_input_bylayer_ptrs[layer_i]
-            eos_function_ptr    = eos_function_bylayer_ptrs[layer_i]
+            eos_input_layer_ptr = &eos_input_layer_ptr[layer_i]
+            eos_function_ptr    = eos_function_bylayer_ptr_vec[layer_i]
             
             if final_run:
                 # We now want to make sure that all final calculations are performed.
@@ -134,7 +134,7 @@ cdef void solve_eos(
                 eos_input_layer_ptr.update_shear = True
                 eos_input_layer_ptr.final_solve  = True
                 # Capture extra outputs and store interpolators
-                num_extra = 5
+                num_extra = EOS_EXTRA_VALUES
                 use_dense_output = True
             else:
                 # During the iterations we do not need to update the complex bulk or shear
@@ -189,11 +189,11 @@ cdef void solve_eos(
             # We are done!
             break
         else:
-            surface_pressure_index = num_y * last_solution_size - 1
+            surface_pressure_index   = num_y * last_solution_size - 1
             calculated_surf_pressure = integration_result_ptr.solution[surface_pressure_index]
 
             # Update the centeral pressure using the error at the surface as the correction factor
-            pressure_diff = surface_pressure - calculated_surf_pressure
+            pressure_diff     = surface_pressure - calculated_surf_pressure
             pressire_diff_abs = pressure_diff
             if pressure_diff < 0.0:
                 pressire_diff_abs = -pressure_diff
@@ -239,3 +239,6 @@ cdef void solve_eos(
 
         # Tell the eos solution to perform a full planet interpolation and store the results. Including surface results 
         eos_solution_ptr.interpolate_full_planet()
+
+    # Deconstruct where needed
+    eos_solution_sptr.reset()

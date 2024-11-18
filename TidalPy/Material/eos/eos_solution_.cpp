@@ -1,4 +1,5 @@
 #include "eos_solution_.hpp"
+#include <exception>
 
 EOSSolutionCC::EOSSolutionCC( )
 {
@@ -12,9 +13,11 @@ EOSSolutionCC::EOSSolutionCC(
         const size_t radius_array_size
         ) :
             error_code(0),
+            current_layers_saved(0),
             num_layers(num_layers)
 {
-    this->cysolver_results_bylayer_vec.reserve(num_layers);
+    printf("TidalPy::EOSSolutionCC Constructor Called.\n");
+    this->cysolver_results_sptr_bylayer_vec.reserve(num_layers);
     this->upper_radius_bylayer_vec.reserve(num_layers);
 
     // Store the upper radius of each layer to make it easier to call interpolators later
@@ -30,13 +33,31 @@ EOSSolutionCC::EOSSolutionCC(
 
 EOSSolutionCC::~EOSSolutionCC( )
 {
-
+    printf("TidalPy::EOSSolutionCC Deconstructor Called.\n");
+    // Reset each shared pointer in the cysolver vector
+    for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
+    {
+        this->cysolver_results_sptr_bylayer_vec[i].reset();
+    }
+    // Clear all vectors
+    this->cysolver_results_sptr_bylayer_vec.clear();
+    this->upper_radius_bylayer_vec.clear();
+    this->radius_array_vec.clear();
+    this->gravity_array_vec.clear();
+    this->pressure_array_vec.clear();
+    this->mass_array_vec.clear();
+    this->moi_array_vec.clear();
+    this->density_array_vec.clear();
+    this->complex_shear_array_vec.clear();
+    this->complex_bulk_array_vec.clear();
 }
 
-void EOSSolutionCC::save_cyresult(
-        std::shared_ptr<CySolverResult> new_cysolver_result_sptr)
+void EOSSolutionCC::save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_result_sptr)
 {
-    this->cysolver_results_bylayer_vec.push_back(new_cysolver_result_sptr);
+    printf("EOSSolutionCC::save_cyresult called.\n");
+    // We will save a copy of the shared pointer to ensure that the underlying object does not get deconstructed as long
+    // as this object is alive. We will also save the raw pointer for ease of access and performance. 
+    this->cysolver_results_sptr_bylayer_vec.push_back(new_cysolver_result_sptr);
     this->current_layers_saved++;
 }
 
@@ -46,14 +67,16 @@ void EOSSolutionCC::call(
         const double radius,
         double* y_interp_ptr)
 {
+    printf("TidalPy::EOSSolutionCC.call called.\n");
     if (layer_index < this->current_layers_saved)
     {
-        this->cysolver_results_bylayer_vec[layer_index]->call(radius, y_interp_ptr);
+        this->cysolver_results_sptr_bylayer_vec[layer_index]->call(radius, y_interp_ptr);
     }
     else
     {
         // TODO: Better error handling
         printf("Error! EOSSolution::call was asked to interpolate a layer that it has not saved.");
+        std::exception();
     }
 }
 
@@ -66,12 +89,13 @@ void EOSSolutionCC::call_vectorize(
 {
     if (layer_index < this->current_layers_saved)
     {
-        this->cysolver_results_bylayer_vec[layer_index]->call_vectorize(radius_array_ptr, len_radius_array, y_interp_ptr);
+        this->cysolver_results_sptr_bylayer_vec[layer_index]->call_vectorize(radius_array_ptr, len_radius_array, y_interp_ptr);
     }
     else
     {
         // TODO: Better error handling
         printf("Error! EOSSolution::call was asked to interpolate a layer that it has not saved.");
+        std::exception();
     }
 }
 
@@ -80,6 +104,7 @@ void EOSSolutionCC::change_radius_array(
         double* radius_array_ptr,
         const size_t radius_array_size)
 {
+    printf("TidalPy::EOSSolutionCC.change_radius_array called.\n");
     this->radius            = radius_array_ptr[radius_array_size - 1];
     this->radius_array_size = radius_array_size;
     if (this->radius_array_set)
@@ -122,6 +147,13 @@ void EOSSolutionCC::change_radius_array(
 
 void EOSSolutionCC::interpolate_full_planet()
 {
+    printf("TidalPy::EOSSolutionCC.interpolate_full_planet called.\n");
+    if (this->current_layers_saved == 0)
+    {
+        // No layers have been saved, we can't perform the interpolation.
+        throw std::runtime_error("EOSSolutionCC can not interpolate the planet because no layers have been saved.");
+    }
+    
     size_t current_layer_index        = 0;
     double current_layer_upper_radius = this->upper_radius_bylayer_vec[0];
 
@@ -145,7 +177,7 @@ void EOSSolutionCC::interpolate_full_planet()
         }
 
         // Call interpolate using temp array as holder.
-        this->cysolver_results_bylayer_vec[current_layer_index]->call(radius, y_interp_ptr);
+        this->cysolver_results_sptr_bylayer_vec[current_layer_index]->call(radius, y_interp_ptr);
         
         // Store results
         this->gravity_array_vec.push_back(y_interp_ptr[0]);
