@@ -63,10 +63,10 @@ cdef class RadialSolverSolution:
     cdef shared_ptr[RadialSolutionStorageCC] solution_storage_sptr
 
     # Result pointers and data
-    cdef cnp.ndarray full_solution_arr
+    cdef public cnp.ndarray full_solution_arr
 
     # Love number information
-    cdef cnp.ndarray complex_love_arr
+    cdef public cnp.ndarray complex_love_arr
 
     # EOS solution arrays
     cdef public cnp.ndarray gravity_array

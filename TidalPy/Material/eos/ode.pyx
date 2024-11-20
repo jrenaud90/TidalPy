@@ -14,7 +14,6 @@ cdef void eos_diffeq(
         const void* input_args,
         PreEvalFunc eos_function) noexcept nogil:
     """ Solve for EOS components as a function of radius. """
-    printf("DEBUG:: \t\t EOS Diffeq Called.\n")
     # Cast input args to correct structure type
     cdef EOS_ODEInput* eos_input_ptr = <EOS_ODEInput*>input_args
 

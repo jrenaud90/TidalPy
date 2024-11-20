@@ -85,7 +85,7 @@ cdef class RadialSolverSolution:
         # The shape needs to be twice what we expect because the underlying C++ class only works with double arrays 
         # but at this level we want arrays to be double complex (the 2x factor is built into MAX_NUM_Y_REAL)
         printf("DEBUG-\t RadialSolverSolution Point 3\n")
-        cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * MAX_NUM_Y_REAL]
+        cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * MAX_NUM_Y]
         cdef cnp.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
         cdef cnp.npy_intp full_solution_shape_ndim = 2
 
@@ -107,7 +107,7 @@ cdef class RadialSolverSolution:
         # Make numpy arrays that wrap all of the equation of state class vectors in a similar manner to the above.
         cdef cnp.npy_intp[1] eos_float_shape     = [self.radius_array_size]
         cdef cnp.npy_intp* eos_float_shape_ptr   = &eos_float_shape[0]
-        cdef cnp.npy_intp[1] eos_complex_shape   = [2 * self.radius_array_size]
+        cdef cnp.npy_intp[1] eos_complex_shape   = [self.radius_array_size]
         cdef cnp.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
         cdef cnp.npy_intp eos_ndim               = 1
 
@@ -124,7 +124,7 @@ cdef class RadialSolverSolution:
                 full_solution_shape_ndim,
                 full_solution_shape_ptr,
                 cnp.NPY_COMPLEX128,
-                self.solution_storage_sptr.get().full_solution_vec.data())
+                <double complex*>self.solution_storage_sptr.get().full_solution_vec.data())
 
             # Same note as above, `solution_storage_sptr.complex_love_vec` is a double vector that we are converting to a
             # complex128 np.ndarray.
@@ -133,7 +133,7 @@ cdef class RadialSolverSolution:
                 love_shape_ndim,
                 love_shape_ptr,
                 cnp.NPY_COMPLEX128,
-                self.solution_storage_sptr.get().complex_love_vec.data())
+                <double complex*>self.solution_storage_sptr.get().complex_love_vec.data())
 
             if not eos_solution_ptr:
                 raise RuntimeError("RadialSolverSolution (PyClass):: EOSSolutionCC extension class is not initialized.")
@@ -175,13 +175,13 @@ cdef class RadialSolverSolution:
                     eos_ndim,
                     eos_complex_shape_ptr,
                     cnp.NPY_COMPLEX128,
-                    eos_solution_ptr.complex_shear_array_vec.data())
+                    <double complex*>eos_solution_ptr.complex_shear_array_vec.data())
                 
                 self.bulk_modulus_array = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_complex_shape_ptr,
                     cnp.NPY_COMPLEX128,
-                    eos_solution_ptr.complex_bulk_array_vec.data())
+                    <double complex*>eos_solution_ptr.complex_bulk_array_vec.data())
 
     def __dealloc__(self):
 

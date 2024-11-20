@@ -24,8 +24,8 @@ cdef void cf_find_starting_conditions(
         cpp_bool* success_ptr,
         char* message_ptr,
         int layer_type,
-        cpp_bool is_static,
-        cpp_bool is_incompressible,
+        bint is_static,
+        bint is_incompressible,
         cpp_bool use_kamata,
         double frequency,
         double radius,
@@ -39,8 +39,8 @@ cdef void cf_find_starting_conditions(
         cpp_bool run_y_checks = True
         ) noexcept nogil:
 
-    cdef unsigned char num_sols_for_assumption
-    cdef unsigned char num_ys_for_assumption
+    cdef size_t num_sols_for_assumption
+    cdef size_t num_ys_for_assumption
 
     # Assume we are successful and adjust if we are not
     success_ptr[0] = True
@@ -181,8 +181,8 @@ cdef void cf_find_starting_conditions(
 
 def find_starting_conditions(
         int layer_type,
-        cpp_bool is_static,
-        cpp_bool is_incompressible,
+        bint is_static,
+        bint is_incompressible,
         cpp_bool use_kamata,
         double frequency,
         double radius,

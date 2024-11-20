@@ -7,7 +7,7 @@ from libcpp.memory cimport make_shared
 
 from CyRK cimport cysolve_ivp, CySolveOutput, CySolverResult, DiffeqFuncType
 
-from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL
+from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL, d_EPS_DBL_100
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES, EOS_DY_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
@@ -172,8 +172,8 @@ cdef void solve_eos(
 
             ###### Radial Integrate the EOS Through the Planet ######
             printf("\t\tDEBUG-solve_eos solving layer = %d\n", layer_i)
-            printf("\t\t\t diffeq = &p\n", diffeq)
-            printf("\t\t\t pre eval = &p\n", eos_function_bylayer_ptr_vec[layer_i])
+            printf("\t\t\t diffeq = %p\n", diffeq)
+            printf("\t\t\t pre eval = %p\n", eos_function_bylayer_ptr_vec[layer_i])
             printf("\t\t\t r0 = %e; r1 = %e\n", radial_span_ptr[0], radial_span_ptr[1])
             printf("\t\t\t y0 = %e; y1 = %e; y2 = %e; y3 = %e\n", y0_bylayer_ptr[0], y0_bylayer_ptr[1], y0_bylayer_ptr[2], y0_bylayer_ptr[3])
             printf("\t\t\t num_y = %d; num_extra = %d\n", num_y, num_extra)
@@ -220,7 +220,7 @@ cdef void solve_eos(
             break
         else:
             # Find planet surface pressure and compare to target.
-            surface_pressure_index   = num_y * (last_solution_size - 1)
+            surface_pressure_index   = (last_solution_size * num_y) - (num_y - 2) - 1    # (Total number of slices) - (num_y - location of pressure) - 1
             calculated_surf_pressure = integration_result_ptr.solution[surface_pressure_index]
 
             # Update the centeral pressure using the error at the surface as the correction factor
@@ -230,14 +230,18 @@ cdef void solve_eos(
                 pressire_diff_abs = -pressure_diff
 
             # Calculate percent difference to use in convergence check.
-            if surface_pressure != 0.0:
+            if surface_pressure > d_EPS_DBL_100:
                 pressire_diff_abs /= surface_pressure
+            
+            printf("\t\tDEBUG-solve_eos Surf Pressure Diff: %e\n", pressure_diff)
                 
             # Check if we are done next iteration
             if pressire_diff_abs <= pressure_tol:
                 final_run = True
-            else:                
+            else:
+                printf("\t\tDEBUG-solve_eos Pre-Change y0 -> y1 = %e\n", y0_ptr[1])
                 y0_ptr[1] += pressure_diff
+                printf("\t\tDEBUG-solve_eos Post-Change y0 -> y1 = %e\n", y0_ptr[1])
         
         if iterations >= max_iters:
             max_iters_hit = True

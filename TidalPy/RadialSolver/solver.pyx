@@ -120,135 +120,131 @@ cdef void cf_radial_solver(
     specific_eos_input_bylayer_vec.reserve(num_layers)
     cdef void* specific_eos_void_ptr = NULL
 
-    while solution_storage_ptr.error_code == 0:
+    # Ensure there is at least one layer.
+    printf("DEBUG-cf_radial_solver Check on Layers\n")
+    if num_layers <= 0:
+        solution_storage_ptr.error_code = -5
+        strcpy(message_ptr, 'RadialSolver:: requires at least one layer, zero provided.\n')
+        solution_storage_ptr.set_message(message_ptr)
+        if raise_on_fail:
+            printf(message_ptr)
+            exit(EXIT_FAILURE)
 
-        # Ensure there is at least one layer.
-        printf("DEBUG-cf_radial_solver Check on Layers\n")
-        if num_layers <= 0:
-            solution_storage_ptr.error_code = -5
-            strcpy(message_ptr, 'RadialSolver:: requires at least one layer, zero provided.\n')
-            solution_storage_ptr.set_message(message_ptr)
-            if raise_on_fail:
-                printf(message_ptr)
-                exit(EXIT_FAILURE)
+    printf("DEBUG-cf_radial_solver Start parsing slice index \n")
+    if solution_storage_ptr.error_code == 0:
+        for layer_i in range(num_layers):
 
-        printf("DEBUG-cf_radial_solver Start parsing slice index \n")
-        if solution_storage_ptr.error_code == 0:
-            for layer_i in range(num_layers):
-
-                # Determine starting slice index in this layer
-                if layer_i == 0:
-                    first_slice_index_by_layer_vec[layer_i] = 0
-                else:
-                    first_slice_index_by_layer_vec[layer_i] = num_slices_by_layer_vec[layer_i - 1]
-                
-                # Determine number of slices in layer
-                layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i]
-
-                layer_slices = 0
-                for slice_i in range(first_slice_index_by_layer_vec[layer_i], total_slices):
-                    radius_check = radius_array_in_ptr[slice_i]
-                    if radius_check > layer_upper_radius:
-                        # We have passed this layer.
-                        break
-                    else:
-                        layer_slices += 1
-                
-                if layer_slices <= 3:
-                    solution_storage_ptr.error_code == -5
-                    strcpy(message_ptr, 'RadialSolver:: At least three layer slices per layer are required. Try using more slices in the input arrays.\n')
-                    solution_storage_ptr.set_message(message_ptr)
-                    if verbose or raise_on_fail:
-                        printf(message_ptr)
-                    if raise_on_fail:
-                        exit(EXIT_FAILURE)
-
-                num_slices_by_layer_vec[layer_i] = layer_slices
-
-        # Get other needed inputs
-        radius_planet = radius_array_in_ptr[total_slices - 1]
-    
-        if nondimensionalize and solution_storage_ptr.error_code == 0:
-            cf_non_dimensionalize_physicals(
-                total_slices,
-                frequency,
-                radius_planet,
-                planet_bulk_density,
-                radius_array_in_ptr,
-                density_array_in_ptr,
-                NULL,  # Pressure ptr (not found yet.)
-                NULL,  # Gravity ptr (not found yet.)
-                complex_bulk_modulus_in_ptr,
-                complex_shear_modulus_in_ptr,
-                &radius_planet_to_use,
-                &bulk_density_to_use,
-                &surface_pressure_to_use,
-                &frequency_to_use,
-                &G_to_use
-                )
-
-            for layer_i in range(num_layers):
-                eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] /= radius_planet
+            # Determine starting slice index in this layer
+            if layer_i == 0:
+                first_slice_index_by_layer_vec[layer_i] = 0
+            else:
+                first_slice_index_by_layer_vec[layer_i] = num_slices_by_layer_vec[layer_i - 1]
             
-            # Change starting radius if it was provided (if it is set to default then it is 0 and this won't have an effect)
-            starting_radius /= radius_planet
+            # Determine number of slices in layer
+            layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i]
 
-            # Update the radius array inside the C++ classes
-            solution_storage_ptr.change_radius_array(radius_array_in_ptr, total_slices, True)
+            layer_slices = 0
+            for slice_i in range(first_slice_index_by_layer_vec[layer_i], total_slices):
+                radius_check = radius_array_in_ptr[slice_i]
+                if radius_check > layer_upper_radius:
+                    # We have passed this layer.
+                    break
+                else:
+                    layer_slices += 1
+            
+            if layer_slices <= 3:
+                solution_storage_ptr.error_code == -5
+                strcpy(message_ptr, 'RadialSolver:: At least three layer slices per layer are required. Try using more slices in the input arrays.\n')
+                solution_storage_ptr.set_message(message_ptr)
+                if verbose or raise_on_fail:
+                    printf(message_ptr)
+                if raise_on_fail:
+                    exit(EXIT_FAILURE)
 
-        else:
-            G_to_use                = d_G
-            radius_planet_to_use    = radius_planet
-            bulk_density_to_use     = planet_bulk_density
-            frequency_to_use        = frequency
-            surface_pressure_to_use = surface_pressure
+            num_slices_by_layer_vec[layer_i] = layer_slices
 
-        # Solve the equaiton of state for the planet
+    # Get other needed inputs
+    radius_planet = radius_array_in_ptr[total_slices - 1]
 
-        # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
-        # either via arguments to this function or a more OOP approach where they are built into the layers.
-        # Build arrays of EOS inputs.
-        printf("DEBUG-cf_radial_solver EOS setup\n")
-        # Build Equation of State functions and input data structures. Record memory addresses for use by the EOS solver
-        if solution_storage_ptr.error_code == 0:
-            for layer_i in range(num_layers):
-                # TODO: Below is specific to interpolate EOS. For now we are only storing the interpolate version of the EOS for each layer.
-                printf("DEBUG-cf_radial_solver EOS setup 1\n")
-                eos_function_bylayer_vec[layer_i] = preeval_interpolate
+    if nondimensionalize and solution_storage_ptr.error_code == 0:
+        cf_non_dimensionalize_physicals(
+            total_slices,
+            frequency,
+            radius_planet,
+            planet_bulk_density,
+            radius_array_in_ptr,
+            density_array_in_ptr,
+            NULL,  # Pressure ptr (not found yet.)
+            NULL,  # Gravity ptr (not found yet.)
+            complex_bulk_modulus_in_ptr,
+            complex_shear_modulus_in_ptr,
+            &radius_planet_to_use,
+            &bulk_density_to_use,
+            &surface_pressure_to_use,
+            &frequency_to_use,
+            &G_to_use
+            )
 
-                # Build EOS input
-                printf("DEBUG-cf_radial_solver EOS setup 2\n")
-                bottom_slice_index = first_slice_index_by_layer_vec[layer_i]
-
-                # Build EOS input for specific EOS model
-                # TODO: Below is specific to interpolate EOS.
-                printf("DEBUG-cf_radial_solver EOS setup 3; bottom slice = %d\n", bottom_slice_index)
-                specific_eos_input_bylayer_vec.emplace_back(
-                    num_slices_by_layer_vec[layer_i],                   # Number of slices for this layer [size_t]
-                    &radius_array_in_ptr[bottom_slice_index],           # Radius array pointer [double*]
-                    &density_array_in_ptr[bottom_slice_index],          # Density array pointer [double*]
-                    &complex_bulk_modulus_in_ptr[bottom_slice_index],   # Complex bulk array pointer [double complex*]
-                    &complex_shear_modulus_in_ptr[bottom_slice_index],  # Complex shear array pointer [double complex*]
-                    )
-                printf("DEBUG-cf_radial_solver EOS setup 4\n")
-                specific_eos_void_ptr = <void*>&specific_eos_input_bylayer_vec.back()
-                
-                # Build input for generalized EOS solver
-                printf("DEBUG-cf_radial_solver EOS setup 5\n")
-                eos_inputs_bylayer_vec.emplace_back(
-                    G_to_use,                                 # Gravitational constant [double]
-                    radius_planet_to_use,                     # Planet radius [double]
-                    specific_eos_void_ptr,                    # void-casted pointer to model specific input (created just above)
-                    False,                                    # Final solve flag [bool] (will be updated by EOS solver)
-                    False,                                    # Final update shear flag [bool] (will be updated by EOS solver)
-                    False                                     # Final update bulk flag [bool] (will be updated by EOS solver)
-                )
-                # TODO: update bulk/shear flags are overwritten by EOS solver regardless of layer type. They should not ever need to be updated, for example shear for liquid layers?
+        for layer_i in range(num_layers):
+            eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] /= radius_planet
         
-        if solution_storage_ptr.error_code != 0:
-            break
-    
-        printf("DEBUG-cf_radial_solver EOS Solver\n")
+        # Change starting radius if it was provided (if it is set to default then it is 0 and this won't have an effect)
+        starting_radius /= radius_planet
+
+        # Update the radius array inside the C++ classes
+        solution_storage_ptr.change_radius_array(radius_array_in_ptr, total_slices, True)
+
+    else:
+        G_to_use                = d_G
+        radius_planet_to_use    = radius_planet
+        bulk_density_to_use     = planet_bulk_density
+        frequency_to_use        = frequency
+        surface_pressure_to_use = surface_pressure
+
+    # Solve the equaiton of state for the planet
+
+    # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
+    # either via arguments to this function or a more OOP approach where they are built into the layers.
+    # Build arrays of EOS inputs.
+    printf("DEBUG-cf_radial_solver EOS setup\n")
+    # Build Equation of State functions and input data structures. Record memory addresses for use by the EOS solver
+    if solution_storage_ptr.error_code == 0:
+        for layer_i in range(num_layers):
+            # TODO: Below is specific to interpolate EOS. For now we are only storing the interpolate version of the EOS for each layer.
+            printf("DEBUG-cf_radial_solver EOS setup 1\n")
+            eos_function_bylayer_vec[layer_i] = preeval_interpolate
+
+            # Build EOS input
+            printf("DEBUG-cf_radial_solver EOS setup 2\n")
+            bottom_slice_index = first_slice_index_by_layer_vec[layer_i]
+
+            # Build EOS input for specific EOS model
+            # TODO: Below is specific to interpolate EOS.
+            printf("DEBUG-cf_radial_solver EOS setup 3; bottom slice = %d\n", bottom_slice_index)
+            specific_eos_input_bylayer_vec.emplace_back(
+                num_slices_by_layer_vec[layer_i],                   # Number of slices for this layer [size_t]
+                &radius_array_in_ptr[bottom_slice_index],           # Radius array pointer [double*]
+                &density_array_in_ptr[bottom_slice_index],          # Density array pointer [double*]
+                &complex_bulk_modulus_in_ptr[bottom_slice_index],   # Complex bulk array pointer [double complex*]
+                &complex_shear_modulus_in_ptr[bottom_slice_index],  # Complex shear array pointer [double complex*]
+                )
+            printf("DEBUG-cf_radial_solver EOS setup 4\n")
+            specific_eos_void_ptr = <void*>&specific_eos_input_bylayer_vec.back()
+            
+            # Build input for generalized EOS solver
+            printf("DEBUG-cf_radial_solver EOS setup 5\n")
+            eos_inputs_bylayer_vec.emplace_back(
+                G_to_use,                                 # Gravitational constant [double]
+                radius_planet_to_use,                     # Planet radius [double]
+                specific_eos_void_ptr,                    # void-casted pointer to model specific input (created just above)
+                False,                                    # Final solve flag [bool] (will be updated by EOS solver)
+                False,                                    # Final update shear flag [bool] (will be updated by EOS solver)
+                False                                     # Final update bulk flag [bool] (will be updated by EOS solver)
+            )
+            # TODO: update bulk/shear flags are overwritten by EOS solver regardless of layer type. They should not ever need to be updated, for example shear for liquid layers?
+
+    printf("DEBUG-cf_radial_solver EOS Solver\n")
+    if solution_storage_ptr.error_code == 0:
         solve_eos(
             eos_solution_storage_ptr,   # Equation of state storage C++ class
             eos_function_bylayer_vec,   # EOS specific model function by layer array pointer [vector<PreEvalFunc>]
@@ -263,7 +259,7 @@ cdef void cf_radial_solver(
             eos_max_iters,              # Maximum iterations to find convergence [unsigned int]
             verbose                     # Verbose flag [cpp_bool]
             )
-    
+
         printf("DEBUG::radial_solver - EOS Results:\n")
         printf("\t EOS Solution ptr             = %p\n", eos_solution_storage_ptr)
         printf("\t EOS CySolver sptr            = %p\n", eos_solution_storage_ptr.cysolver_results_sptr_bylayer_vec[0])
@@ -275,62 +271,58 @@ cdef void cf_radial_solver(
         printf("\t\t R    = %e\n", eos_solution_storage_ptr.radius)
         printf("\t\t Pcen = %e\n", eos_solution_storage_ptr.central_pressure)
 
-        exit(-86)
 
-        # Step through the radial steps to find EOS-dependent parameters
-        if solution_storage_ptr.error_code != 0:
-            break
-
-        if eos_solution_storage_ptr.success:
-            # Run requested radial solver method
-            if use_prop_matrix:
-                printf("DEBUG-cf_radial_solver - Pre matrox propgation method\n")
-                cf_matrix_propagate(
-                    solution_storage_ptr,     # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
-                    frequency_to_use,          # Forcing frequency [double]
-                    bulk_density_to_use,       # Planet bulk density [double]
-                    # TODO: In the future the propagation matrix should take in layer types and multiple layers
-                    # int* layer_types_ptr,
-                    # int* is_static_by_layer_ptr,
-                    # int* is_incompressible_by_layer_ptr,
-                    num_bc_models,             # Number of boundary conditions requested by user [size_t]
-                    bc_models_ptr,             # Boundary condition model int array pointer [int*]
-                    G_to_use,                  # Gravitational constant [double]
-                    degree_l,                  # Harmonic degree [unsigned int]
-                    core_condition,            # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
-                    verbose,                   # Verbose flag [cpp_bool]
-                    raise_on_fail              # Flag to allow for early crashes when integration fails [cpp_bool]
-                    )
-            else:
-                printf("DEBUG-cf_radial_solver - Pre shooting method\n")
-                cf_shooting_solver(
-                    solution_storage_ptr,          # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
-                    frequency_to_use,               # Forcing frequency [double]
-                    bulk_density_to_use,            # Planet bulk density [double]
-                    layer_types_ptr,                # Layer type int  array pointer [int*]
-                    is_static_by_layer_ptr,         # Layer is_static flag array pointer [int*]
-                    is_incompressible_by_layer_ptr, # Pointer array of layer is_incompressible flag array pointer [int*]
-                    first_slice_index_by_layer_vec, # First radial slice of each layer array pointer [size_t*]
-                    num_slices_by_layer_vec,        # Number of radial slices in each layer array pointer [size_t*]
-                    num_bc_models,                  # Number of boundary conditions requested by user [size_t]
-                    bc_models_ptr,                  # Boundary condition model int array pointer [int*]
-                    G_to_use,                       # Gravitational constant [double]
-                    degree_l,                       # Harmonic degree [unsigned int]
-                    use_kamata,                     # Flag to use Kamata+ (2015)'s starting conditions vs. Takeuchi+Saito (1972) [cpp_bool]
-                    starting_radius,                # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
-                    start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]
-                    integration_method_int,         # Integration method int (0=RK23, 1=RK45, 2=DOP853) [unsigned char]
-                    integration_rtol,               # Integration relative tolerance [double]
-                    integration_atol,               # Integration absolute tolerance [double]
-                    scale_rtols_by_layer_type,      # Flag for if tolerances should vary with layer type (using pre-defined scaling) [cpp_bool]
-                    max_num_steps,                  # Maximum number of integration steps allowed [size_t]
-                    expected_size,                  # Expected number of integration steps required for the average layer [size_t]
-                    max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
-                    max_step,                       # Maximum allowed step size per layer [double]
-                    verbose,                        # Verbose flag [cpp_bool]
-                    raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
-                    )
-                printf("DEBUG-cf_radial_solver - Post shooting method\n")
+    # Step through the radial steps to find EOS-dependent parameters
+    if eos_solution_storage_ptr.success and solution_storage_ptr.error_code == 0:
+        # Run requested radial solver method
+        if use_prop_matrix:
+            printf("DEBUG-cf_radial_solver - Pre matrox propgation method\n")
+            cf_matrix_propagate(
+                solution_storage_ptr,     # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
+                frequency_to_use,          # Forcing frequency [double]
+                bulk_density_to_use,       # Planet bulk density [double]
+                # TODO: In the future the propagation matrix should take in layer types and multiple layers
+                # int* layer_types_ptr,
+                # int* is_static_by_layer_ptr,
+                # int* is_incompressible_by_layer_ptr,
+                num_bc_models,             # Number of boundary conditions requested by user [size_t]
+                bc_models_ptr,             # Boundary condition model int array pointer [int*]
+                G_to_use,                  # Gravitational constant [double]
+                degree_l,                  # Harmonic degree [unsigned int]
+                core_condition,            # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
+                verbose,                   # Verbose flag [cpp_bool]
+                raise_on_fail              # Flag to allow for early crashes when integration fails [cpp_bool]
+                )
+        else:
+            printf("DEBUG-cf_radial_solver - Pre shooting method\n")
+            cf_shooting_solver(
+                solution_storage_ptr,          # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
+                frequency_to_use,               # Forcing frequency [double]
+                bulk_density_to_use,            # Planet bulk density [double]
+                layer_types_ptr,                # Layer type int  array pointer [int*]
+                is_static_by_layer_ptr,         # Layer is_static flag array pointer [int*]
+                is_incompressible_by_layer_ptr, # Pointer array of layer is_incompressible flag array pointer [int*]
+                first_slice_index_by_layer_vec, # First radial slice of each layer array pointer [size_t*]
+                num_slices_by_layer_vec,        # Number of radial slices in each layer array pointer [size_t*]
+                num_bc_models,                  # Number of boundary conditions requested by user [size_t]
+                bc_models_ptr,                  # Boundary condition model int array pointer [int*]
+                G_to_use,                       # Gravitational constant [double]
+                degree_l,                       # Harmonic degree [unsigned int]
+                use_kamata,                     # Flag to use Kamata+ (2015)'s starting conditions vs. Takeuchi+Saito (1972) [cpp_bool]
+                starting_radius,                # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
+                start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]
+                integration_method_int,         # Integration method int (0=RK23, 1=RK45, 2=DOP853) [unsigned char]
+                integration_rtol,               # Integration relative tolerance [double]
+                integration_atol,               # Integration absolute tolerance [double]
+                scale_rtols_by_layer_type,      # Flag for if tolerances should vary with layer type (using pre-defined scaling) [cpp_bool]
+                max_num_steps,                  # Maximum number of integration steps allowed [size_t]
+                expected_size,                  # Expected number of integration steps required for the average layer [size_t]
+                max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
+                max_step,                       # Maximum allowed step size per layer [double]
+                verbose,                        # Verbose flag [cpp_bool]
+                raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
+                )
+            printf("DEBUG-cf_radial_solver - Post shooting method\n")
 
     # Finalize solution storage
     if nondimensionalize:

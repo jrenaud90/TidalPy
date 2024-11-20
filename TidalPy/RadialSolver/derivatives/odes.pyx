@@ -19,7 +19,6 @@ cdef void cf_solid_dynamic_compressible(
     """
 
     # Recast the additional arguments
-    printf("DEBUG \t\t\t cf_solid_dynamic_compressible Diffeq Pt 1\n")
     cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
 
     # Update Equation of State at this radius value
@@ -27,10 +26,12 @@ cdef void cf_solid_dynamic_compressible(
     cdef double[9] eos_array
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    # printf("DEBUG \t\t\t eos_sptr use count = %d\n", args_ptr.eos_solution_ptr.use_count())
-    printf("DEBUG \t\t\t Diffeq Pt 2b r = %e; eos_sptr = %p; eos_ptr = %p\n", radius, args_ptr.eos_solution_ptr)
+    # printf("cf_solid_dynamic_compressible \t\t r = %e; args_ptr = %p\n", radius, args_ptr)
     args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
-    printf("DEBUG \t\t\t Diffeq Pt 3\n")
+    cdef size_t i
+    #for i in range(9):
+        #printf("cf_solid_dynamic_compressible \t\t\t eos_y%d = %e\n", i, eos_array_ptr[i])
+
 
     # Pull out results.
     # The EOS stores 7 doubles:
@@ -42,9 +43,9 @@ cdef void cf_solid_dynamic_compressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -58,6 +59,13 @@ cdef void cf_solid_dynamic_compressible(
     cdef double complex lame = (bulk_modulus - (2. / 3.) * shear_modulus)
 
     # Optimizations
+    # printf("DIFFEQ DEBUG\t\t\t lame       = %e %e\n", lame.real, lame.imag)
+    # printf("DIFFEQ DEBUG\t\t\t freq       = %e\n", args_ptr.frequency)
+    # printf("DIFFEQ DEBUG\t\t\t Grav Coeff = %e\n", args_ptr.grav_coeff)
+    # printf("DIFFEQ DEBUG\t\t\t G          = %e\n", args_ptr.G)
+    # printf("DIFFEQ DEBUG\t\t\t l          = %e\n", args_ptr.degree_l)
+    # printf("DIFFEQ DEBUG\t\t\t llp1       = %e\n", args_ptr.llp1)
+
     cdef double r_inverse                = 1. / radius
     cdef double density_gravity          = density * gravity
     cdef double dynamic_term             = -args_ptr.frequency * args_ptr.frequency * density * radius
@@ -114,7 +122,6 @@ cdef void cf_solid_dynamic_compressible(
             y1_y3_term * grav_term
         )
 
-    printf("DEBUG \t\t\t Diffeq Pt 4")
     # Convert back to floats
     dy_ptr[0]  = dy1.real
     dy_ptr[1]  = dy1.imag
@@ -161,9 +168,9 @@ cdef void cf_solid_dynamic_incompressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -262,9 +269,9 @@ cdef void cf_solid_static_compressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -374,9 +381,9 @@ cdef void cf_solid_static_incompressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # Pull out y values
     cdef double complex y1 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])
@@ -472,9 +479,9 @@ cdef void cf_liquid_dynamic_compressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # Pull out y values
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
@@ -568,9 +575,9 @@ cdef void cf_liquid_dynamic_incompressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # Pull out y values
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
@@ -656,9 +663,9 @@ cdef void cf_liquid_static_incompressible(
     #   5: Bulk Mod (real)
     #   6: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
-    cdef double density                  = eos_array_ptr[2]
-    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[3], eos_array_ptr[4])
-    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double density                  = eos_array_ptr[4]
+    cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
+    cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
 
     # For the static liquid version, only y5 and y7 are defined.
     cdef double complex y5 = cf_build_dblcmplx(y_ptr[0], y_ptr[1])

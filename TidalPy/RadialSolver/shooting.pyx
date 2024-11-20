@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 # Import cythonized functions
-from libc.math cimport NAN, isnan, pi, fmin
+from libc.math cimport NAN, isnan, fmin
 from libc.stdio cimport printf, sprintf
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
@@ -12,7 +12,7 @@ from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
-from TidalPy.constants cimport d_G
+from TidalPy.constants cimport d_G, d_PI_DBL
 
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
@@ -222,11 +222,11 @@ cdef void cf_shooting_solver(
     #  Eg., 0x00 All false, 0x01 is solid, 0x10 is static and liquid, 0x11 is static and solid, etc.
 
     cdef int layer_type
-    cdef int layer_is_static
-    cdef int layer_is_incomp
+    cdef bint layer_is_static
+    cdef bint layer_is_incomp
     cdef int layer_below_type
-    cdef int layer_below_is_static
-    cdef int layer_below_is_incomp
+    cdef bint layer_below_is_static
+    cdef bint layer_below_is_incomp
     cdef size_t layer_slices
     cdef size_t num_sols
     cdef size_t num_ys
@@ -377,7 +377,6 @@ cdef void cf_shooting_solver(
     # extra arguments, a point (cast to void*) will be passed to the diffeq's while solving the ODE.
     cdef RadialSolverDiffeqArgStruct diffeq_args
     cdef RadialSolverDiffeqArgStruct* diffeq_args_ptr = &diffeq_args
-    cdef void* diffeq_args_void_ptr                   = <void*>diffeq_args_ptr
     cdef PreEvalFunc diffeq_preeval_ptr               = NULL
     cdef DiffeqFuncType layer_diffeq                  = NULL
     cdef double* y0_ptr                               = NULL
@@ -391,7 +390,7 @@ cdef void cf_shooting_solver(
     diffeq_args_ptr.lm1        = degree_l_dbl - 1.0
     diffeq_args_ptr.llp1       = degree_l_dbl * (degree_l_dbl + 1.0)
     diffeq_args_ptr.G          = G_to_use
-    diffeq_args_ptr.grav_coeff = 4.0 * pi * G_to_use
+    diffeq_args_ptr.grav_coeff = 4.0 * d_PI_DBL * G_to_use
     diffeq_args_ptr.frequency  = frequency
 
     # The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
@@ -481,340 +480,341 @@ cdef void cf_shooting_solver(
                 solution_ptr[slice_i * MAX_NUM_Y_REAL + ytype_i * MAX_NUM_Y_REAL + y_i] = cmplx_NAN
 
     printf("DEBUG- Shooting Method Point 10\n")
-    while solution_storage_ptr.error_code == 0:
-        printf("DEBUG- Shooting Method Point 11\n")
-        for current_layer_i in range(start_layer_i, num_layers):
-            printf("DEBUG- Shooting Method Point \t\t layer = %d\n", current_layer_i)
-            # Get layer's index information
-            layer_slices = num_slices_by_layer_vec[current_layer_i]
-            if current_layer_i == start_layer_i:
-                # The first slice index is not going to actually be the bottom-most index
-                # Instead it is the one right at or above our starting radius.
-                first_slice_index = last_index_before_start + 1
+    printf("DEBUG- Shooting Method Point 11; start layer i = %d; num_layers = %d\n", start_layer_i, num_layers)
+    for current_layer_i in range(start_layer_i, num_layers):
+        printf("DEBUG- Shooting Method Point \t\t layer = %d\n", current_layer_i)
+        # Get layer's index information
+        layer_slices = num_slices_by_layer_vec[current_layer_i]
+        if current_layer_i == start_layer_i:
+            # The first slice index is not going to actually be the bottom-most index
+            # Instead it is the one right at or above our starting radius.
+            first_slice_index = last_index_before_start + 1
 
-                # When we loop through slices we only want to loop between the starting slice and the top of the layer
-                layer_slices -= (last_index_before_start + 1)
-            else:
-                first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
+            # When we loop through slices we only want to loop between the starting slice and the top of the layer
+            layer_slices -= (last_index_before_start + 1)
+        else:
+            first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
+        
+        printf("DEBUG - Shooting Method:: layer i = %d; first slice = %d; last_index_before_start = %d\n", current_layer_i, first_slice_index, last_index_before_start)
+        printf("DEBUG - Shooting Method:: layerslices = %d\n", layer_slices)
+
+        # Get layer EOS solution
+        # Check if we are using the correct EOS solution (changes with layers)
+        eos_solution_sptr = eos_solution_storage_ptr.cysolver_results_sptr_bylayer_vec[current_layer_i]
+        eos_solution_ptr  = eos_solution_sptr.get()
+        printf("DEBUG:: eos_sptr use count = %d\n", eos_solution_sptr.use_count())
+        printf("DEBUG:: Shooting Method-> EOS sptr = %p; EOS ptr = %p\n", eos_solution_sptr, eos_solution_ptr)
+
+        # Get solution and y information
+        num_sols   = num_solutions_by_layer_ptr[current_layer_i]
+        num_ys     = 2 * num_sols
+        num_ys_dbl = 2 * num_ys
+
+        # Setup pointer array slices starting at the start of this layer (either base or at starting index)
+        printf("DEBUG- Shooting Method Point \t\t layer = %d; L2; slices = %d\n", current_layer_i, layer_slices)
+        layer_radius_ptr    = &radius_array_ptr[first_slice_index]
+        layer_density_ptr   = &density_array_ptr[first_slice_index]
+        layer_gravity_ptr   = &gravity_array_ptr[first_slice_index]
+        layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index]
+        layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index]
+        printf("DEBUG- Shooting Method Point \t\t layer = %d; L3; slices = %d\n", current_layer_i, layer_slices)
+
+        # Get physical parameters at the top and bottom of the layer
+        if current_layer_i == start_layer_i:
+            # In the first layer we can not use the physical properties at the bottom of the arrays
+            # because the starting radius may not be at the bottom.
+            # Even worse, it may not be at any of the slice indices that are stored.
+            # To get the most accurate result we need to perform an interpolation to find various properties at
+            # this starting radius. 
+            printf("DEBUG- Shooting Method Point \t\t L3b slices = %d\n", layer_slices)
+            eos_solution_ptr.call(starting_radius, eos_interp_array_ptr)
+            printf("DEBUG- Shooting Method Point \t\t L3c; g0 = %e; rho0 = %e; shear0 = %e %e; bulk0 = %e, %e\n", eos_interp_array_ptr[0], eos_interp_array_ptr[4], eos_interp_array_ptr[5], eos_interp_array_ptr[6], eos_interp_array_ptr[7], eos_interp_array_ptr[8])
+
+            # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
+            # We are storing these in function-global variables because they will be used again during collapse
+            starting_gravity = eos_interp_array_ptr[0]
+            starting_density = eos_interp_array_ptr[4]
+            starting_shear   = cf_build_dblcmplx(eos_interp_array_ptr[5], eos_interp_array_ptr[6])
+            starting_bulk    = cf_build_dblcmplx(eos_interp_array_ptr[7], eos_interp_array_ptr[8])
             
-            printf("DEBUG - Shooting Method:: layer i = %d; first slice = %d; last_index_before_start = %d\n", current_layer_i, first_slice_index, last_index_before_start)
-            printf("DEBUG - Shooting Method:: layerslices = %d\n", layer_slices)
+            # Now set local variables used in this loop
+            radius_lower  = starting_radius
+            gravity_lower = starting_gravity
+            density_lower = starting_density
+            shear_lower   = starting_shear
+            bulk_lower    = starting_bulk
+        else:
+            # Otherwise we can just use the values at the base of the layer
+            radius_lower  = layer_radius_ptr[0]
+            gravity_lower = layer_gravity_ptr[0]
+            density_lower = layer_density_ptr[0]
+            shear_lower   = layer_shear_mod_ptr[0]
+            bulk_lower    = layer_bulk_mod_ptr[0]
+        printf("DEBUG- Shooting Method Point \t\t L3d slices = %d\n", layer_slices)
 
-            # Get layer EOS solution
-            # Check if we are using the correct EOS solution (changes with layers)
-            eos_solution_sptr = eos_solution_storage_ptr.cysolver_results_sptr_bylayer_vec[current_layer_i]
-            eos_solution_ptr  = eos_solution_sptr.get()
-            printf("DEBUG:: eos_sptr use count = %d\n", eos_solution_sptr.use_count())
-            printf("DEBUG:: Shooting Method-> EOS sptr = %p; EOS ptr = %p\n", eos_solution_sptr, eos_solution_ptr)
+        radius_upper  = layer_radius_ptr[layer_slices - 1]
+        gravity_upper = layer_gravity_ptr[layer_slices - 1]
+        density_upper = layer_density_ptr[layer_slices - 1]
+        shear_upper   = layer_shear_mod_ptr[layer_slices - 1]
+        bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1]
+        printf("DEBUG:: Radius upper = %e; layer_slices = %d\n", radius_upper, layer_slices)
+        
+        radial_span_ptr[0] = radius_lower
+        radial_span_ptr[1] = radius_upper
 
-            # Get solution and y information
-            num_sols   = num_solutions_by_layer_ptr[current_layer_i]
-            num_ys     = 2 * num_sols
-            num_ys_dbl = 2 * num_ys
+        # Determine max step size (if not provided by user)
+        if max_step_from_arrays:
+            # Maximum step size during integration can not exceed ~1/3 of the layer size.
+            max_step_to_use = 0.33 * (radial_span_ptr[1] - radial_span_ptr[0])
 
-            # Setup pointer array slices starting at the start of this layer (either base or at starting index)
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L2; slices = %d\n", current_layer_i, layer_slices)
-            layer_radius_ptr    = &radius_array_ptr[first_slice_index]
-            layer_density_ptr   = &density_array_ptr[first_slice_index]
-            layer_gravity_ptr   = &gravity_array_ptr[first_slice_index]
-            layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index]
-            layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index]
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L3; slices = %d\n", current_layer_i, layer_slices)
+        # Get assumptions for layer
+        layer_type      = layer_types_ptr[current_layer_i]
+        layer_is_static = is_static_by_layer_ptr[current_layer_i]
+        layer_is_incomp = is_incompressible_by_layer_ptr[current_layer_i]
 
-            # Get physical parameters at the top and bottom of the layer
-            if current_layer_i == start_layer_i:
-                # In the first layer we can not use the physical properties at the bottom of the arrays
-                # because the starting radius may not be at the bottom.
-                # Even worse, it may not be at any of the slice indices that are stored.
-                # To get the most accurate result we need to perform an interpolation to find various properties at
-                # this starting radius. 
-                printf("DEBUG- Shooting Method Point \t\t L3b slices = %d\n", layer_slices)
-                eos_solution_ptr.call(starting_radius, eos_interp_array_ptr)
-                printf("DEBUG- Shooting Method Point \t\t L3c slices = %d\n", layer_slices)
+        # Determine rtols and atols for this layer.
+        # Scale rtols by layer type
+        printf("DEBUG- Shooting Method Point \t\t layer = %d; L4\n", current_layer_i)
+        for y_i in range(num_ys):
+            # Default is that each layer's rtol and atol equal user input.
+            # TODO: Change up the tolerance scaling between real and imaginary?
+            layer_rtol_real = integration_rtol
+            layer_rtol_imag = integration_rtol
+            layer_atol_real = integration_atol
+            layer_atol_imag = integration_atol
 
-                # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
-                # We are storing these in function-global variables because they will be used again during collapse
-                starting_gravity = eos_interp_array_ptr[0]
-                starting_density = eos_interp_array_ptr[4]
-                starting_shear   = cf_build_dblcmplx(eos_interp_array_ptr[5], eos_interp_array_ptr[6])
-                starting_bulk    = cf_build_dblcmplx(eos_interp_array_ptr[7], eos_interp_array_ptr[8])
-                
-                # Now set local variables used in this loop
-                radius_lower  = starting_radius
-                gravity_lower = starting_gravity
-                density_lower = starting_density
-                shear_lower   = starting_shear
-                bulk_lower    = starting_bulk
-            else:
-                # Otherwise we can just use the values at the base of the layer
-                radius_lower  = layer_radius_ptr[0]
-                gravity_lower = layer_gravity_ptr[0]
-                density_lower = layer_density_ptr[0]
-                shear_lower   = layer_shear_mod_ptr[0]
-                bulk_lower    = layer_bulk_mod_ptr[0]
-            printf("DEBUG- Shooting Method Point \t\t L3d slices = %d\n", layer_slices)
-
-            radius_upper  = layer_radius_ptr[layer_slices - 1]
-            gravity_upper = layer_gravity_ptr[layer_slices - 1]
-            density_upper = layer_density_ptr[layer_slices - 1]
-            shear_upper   = layer_shear_mod_ptr[layer_slices - 1]
-            bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1]
-            printf("DEBUG:: Radius upper = %e; layer_slices = %d\n", radius_upper, layer_slices)
-            
-            radial_span_ptr[0] = radius_lower
-            radial_span_ptr[1] = radius_upper
-
-            # Determine max step size (if not provided by user)
-            if max_step_from_arrays:
-                # Maximum step size during integration can not exceed ~1/3 of the layer size.
-                max_step_to_use = 0.33 * (radial_span_ptr[1] - radial_span_ptr[0])
-
-            # Get assumptions for layer
-            layer_type      = layer_types_ptr[current_layer_i]
-            layer_is_static = is_static_by_layer_ptr[current_layer_i]
-            layer_is_incomp = is_incompressible_by_layer_ptr[current_layer_i]
-
-            # Determine rtols and atols for this layer.
-            # Scale rtols by layer type
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L4\n", current_layer_i)
-            for y_i in range(num_ys):
-                # Default is that each layer's rtol and atol equal user input.
-                # TODO: Change up the tolerance scaling between real and imaginary?
-                layer_rtol_real = integration_rtol
-                layer_rtol_imag = integration_rtol
-                layer_atol_real = integration_atol
-                layer_atol_imag = integration_atol
-
-                if scale_rtols_by_layer_type:
-                    # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
-                    # TODO test that these scales are the best. See Issue #44
-                    if layer_type == 0:
-                        # Solid layer
-                        # Scale y2 and y3 by 0.1
-                        if (y_i == 1) or (y_i == 2):
+            if scale_rtols_by_layer_type:
+                # Certain layer assumptions can affect solution stability so use additional scales on the relevant rtols
+                # TODO test that these scales are the best. See Issue #44
+                if layer_type == 0:
+                    # Solid layer
+                    # Scale y2 and y3 by 0.1
+                    if (y_i == 1) or (y_i == 2):
+                        # Scale both the real and imaginary portions by the same amount.
+                        layer_rtol_real *= 0.1
+                        layer_rtol_imag *= 0.1
+                else:
+                    # Liquid layer
+                    if not layer_is_static:
+                        # Scale dynamic liquid layer's y2 by additional 0.01.
+                        if (y_i == 1):
                             # Scale both the real and imaginary portions by the same amount.
-                            layer_rtol_real *= 0.1
-                            layer_rtol_imag *= 0.1
-                    else:
-                        # Liquid layer
-                        if not layer_is_static:
-                            # Scale dynamic liquid layer's y2 by additional 0.01.
-                            if (y_i == 1):
-                                # Scale both the real and imaginary portions by the same amount.
-                                layer_rtol_real *= 0.01
-                                layer_rtol_imag *= 0.01
-                # Populate rtol and atol pointers.
-                rtols_ptr[2 * y_i]     = layer_rtol_real
-                rtols_ptr[2 * y_i + 1] = layer_rtol_imag
-                atols_ptr[2 * y_i]     = layer_atol_real
-                atols_ptr[2 * y_i + 1] = layer_atol_imag
+                            layer_rtol_real *= 0.01
+                            layer_rtol_imag *= 0.01
+            # Populate rtol and atol pointers.
+            rtols_ptr[2 * y_i]     = layer_rtol_real
+            rtols_ptr[2 * y_i + 1] = layer_rtol_imag
+            atols_ptr[2 * y_i]     = layer_atol_real
+            atols_ptr[2 * y_i + 1] = layer_atol_imag
 
-            # Set initial y to nan for now.
-            # OPT: this is for debugging purposes. could likely be commented out in the future for small performance gain.
-            for y_i in range(36):
-                if y_i < 18:
-                    initial_y_ptr[y_i] = cmplx_NAN
-                initial_y_only_real_ptr[y_i] = NAN
-            
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L5\n", current_layer_i)
-            if current_layer_i == start_layer_i:
-                # In the first layer. Use initial condition function to find initial conditions
-                printf("DEBUG- Shooting Method Point \t\t layer = %d; L5a\n", current_layer_i)
-                cf_find_starting_conditions(
-                    &solution_storage_ptr.success,
-                    solution_storage_ptr.message_ptr,
-                    layer_type,
-                    layer_is_static,
-                    layer_is_incomp,
-                    use_kamata,
-                    frequency,
-                    radius_lower,
-                    density_lower,
-                    bulk_lower,
-                    shear_lower,
-                    degree_l,
-                    G_to_use,
-                    MAX_NUM_Y, 
-                    initial_y_ptr,  # Modified Variable
-                    starting_y_check
-                    )
-                printf("DEBUG- Shooting Method Point \t\t layer = %d; L6a\n", current_layer_i)
-                if not solution_storage_ptr.success:
-                    solution_storage_ptr.error_code = -10
-                    break
-                    
+        # Set initial y to nan for now.
+        # OPT: this is for debugging purposes. could likely be commented out in the future for small performance gain.
+        for y_i in range(36):
+            if y_i < 18:
+                initial_y_ptr[y_i] = cmplx_NAN
+            initial_y_only_real_ptr[y_i] = NAN
+        
+        printf("DEBUG- Shooting Method Point \t\t layer = %d; L5\n", current_layer_i)
+        if current_layer_i == start_layer_i:
+            # In the first layer. Use initial condition function to find initial conditions
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L5a\n", current_layer_i)
+            cf_find_starting_conditions(
+                &solution_storage_ptr.success,
+                solution_storage_ptr.message_ptr,
+                layer_type,
+                layer_is_static,
+                layer_is_incomp,
+                use_kamata,
+                frequency,
+                radius_lower,
+                density_lower,
+                bulk_lower,
+                shear_lower,
+                degree_l,
+                G_to_use,
+                MAX_NUM_Y, 
+                initial_y_ptr,  # Modified Variable
+                starting_y_check
+                )
+
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L6a\n", current_layer_i)
+            if not solution_storage_ptr.success:
+                solution_storage_ptr.error_code = -10
+                break
+                
+        else:
+            # Not in the first layer. Use interface function to find initial conditions
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L5b\n", current_layer_i)
+            layer_below_type      = layer_types_ptr[current_layer_i - 1]
+            layer_below_is_static = is_static_by_layer_ptr[current_layer_i - 1]
+            layer_below_is_incomp = is_incompressible_by_layer_ptr[current_layer_i - 1]
+
+            # Find gravity at the base interface using bottom of this layer and top of previous.
+            interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
+
+            # Find the density needed for some initial conditions.
+            if (layer_type == 0) and (layer_below_type == 0):
+                # Both layers are solid. A liquid interface density is not needed.
+                static_liquid_density = NAN
+            elif not (layer_type == 0) and (layer_below_type == 0):
+                # Layer below is solid, this layer is liquid. Use its density.
+                static_liquid_density = density_lower
+            elif (layer_type == 0) and not (layer_below_type == 0):
+                # Layer below is liquid, this layer is solid. Use layer below's density.
+                static_liquid_density = last_layer_upper_density
             else:
-                # Not in the first layer. Use interface function to find initial conditions
-                printf("DEBUG- Shooting Method Point \t\t layer = %d; L5b\n", current_layer_i)
-                layer_below_type      = layer_types_ptr[current_layer_i - 1]
-                layer_below_is_static = is_static_by_layer_ptr[current_layer_i - 1]
-                layer_below_is_incomp = is_incompressible_by_layer_ptr[current_layer_i - 1]
-
-                # Find gravity at the base interface using bottom of this layer and top of previous.
-                interface_gravity = 0.5 * (gravity_lower + last_layer_upper_gravity)
-
-                # Find the density needed for some initial conditions.
-                if (layer_type == 0) and (layer_below_type == 0):
-                    # Both layers are solid. A liquid interface density is not needed.
-                    static_liquid_density = NAN
-                elif not (layer_type == 0) and (layer_below_type == 0):
-                    # Layer below is solid, this layer is liquid. Use its density.
+                # Both layers are liquid. Choose the layer's density which is static.
+                if layer_is_static and layer_below_is_static:
+                    # Both layers are static.
+                    # TODO: Not sure what to do here so just use this layer's density.
                     static_liquid_density = density_lower
-                elif (layer_type == 0) and not (layer_below_type == 0):
-                    # Layer below is liquid, this layer is solid. Use layer below's density.
+                elif layer_is_static and not layer_below_is_static:
+                    # This layer is static, one below is not. Use this layer's density
+                    static_liquid_density = density_lower
+                elif not layer_is_static and layer_below_is_static:
+                    # This layer is dynamic, layer below is static. Use layer below's density
                     static_liquid_density = last_layer_upper_density
                 else:
-                    # Both layers are liquid. Choose the layer's density which is static.
-                    if layer_is_static and layer_below_is_static:
-                        # Both layers are static.
-                        # TODO: Not sure what to do here so just use this layer's density.
-                        static_liquid_density = density_lower
-                    elif layer_is_static and not layer_below_is_static:
-                        # This layer is static, one below is not. Use this layer's density
-                        static_liquid_density = density_lower
-                    elif not layer_is_static and layer_below_is_static:
-                        # This layer is dynamic, layer below is static. Use layer below's density
-                        static_liquid_density = last_layer_upper_density
-                    else:
-                        # Both layers are dynamic. Static liquid density is not needed.
-                        static_liquid_density = NAN
+                    # Both layers are dynamic. Static liquid density is not needed.
+                    static_liquid_density = NAN
 
-                # Find the starting values for this layer using the results a the top of the previous layer + an interface
-                #  function.
-                printf("DEBUG- Shooting Method Point \t\t layer = %d; L6b1\n", current_layer_i)
-                cf_solve_upper_y_at_interface(
-                    uppermost_y_per_solution_ptr,
-                    initial_y_ptr,
-                    layer_below_num_sols,
-                    num_sols,
-                    MAX_NUM_Y,
-                    layer_below_type,
-                    layer_below_is_static,
-                    layer_below_is_incomp,
-                    layer_type,
-                    layer_is_static,
-                    layer_is_incomp,
-                    interface_gravity,
-                    static_liquid_density,
-                    G_to_use
-                    )
-                printf("DEBUG- Shooting Method Point \t\t layer = %d; L6b2\n", current_layer_i)
+            # Find the starting values for this layer using the results a the top of the previous layer + an interface
+            #  function.
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L6b1\n", current_layer_i)
+            cf_solve_upper_y_at_interface(
+                uppermost_y_per_solution_ptr,
+                initial_y_ptr,
+                layer_below_num_sols,
+                num_sols,
+                MAX_NUM_Y,
+                layer_below_type,
+                layer_below_is_static,
+                layer_below_is_incomp,
+                layer_type,
+                layer_is_static,
+                layer_is_incomp,
+                interface_gravity,
+                static_liquid_density,
+                G_to_use
+                )
+            printf("DEBUG- Shooting Method Point \t\t layer = %d; L6b2\n", current_layer_i)
 
-            # Reset the uppermost y value array
-            for i in range(18):
-                uppermost_y_per_solution_ptr[i] = cmplx_NAN
+        # Reset the uppermost y value array
+        for i in range(18):
+            uppermost_y_per_solution_ptr[i] = cmplx_NAN
 
-            # Change initial conditions into 2x real values instead of complex for integration
-            for solution_i in range(num_sols):
-                for y_i in range(num_ys):
-                    dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
-                    initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
-                    initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
+        # Change initial conditions into 2x real values instead of complex for integration
+        for solution_i in range(num_sols):
+            for y_i in range(num_ys):
+                dcomplex_tmp = initial_y_ptr[solution_i * MAX_NUM_Y + y_i]
+                initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i]     = dcomplex_tmp.real
+                initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2 * y_i + 1] = dcomplex_tmp.imag
 
-            # Find correct diffeq
-            layer_diffeq = cf_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp)
+        # Find correct diffeq
+        layer_diffeq = cf_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp)
 
-            # Det diffeq additional arg input's eos solution pointer
-            diffeq_args_ptr.eos_solution_ptr = eos_solution_sptr.get()
+        # Det diffeq additional arg input's eos solution pointer
+        diffeq_args_ptr.eos_solution_ptr = eos_solution_sptr.get()
 
-            # Get storage pointer for this layer
-            storage_by_solution_ptr = main_storage_ptr[current_layer_i]
+        # Get storage pointer for this layer
+        storage_by_solution_ptr = main_storage_ptr[current_layer_i]
 
-            # Solve for each solution
-            for solution_i in range(num_sols):
-                y0_ptr = &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL]
-                printf("DEBUG- Shooting Method Point \t\t\t layer diffeq = %p\n", layer_diffeq)
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S1\n", current_layer_i, solution_i)
-                printf("DEBUG- Shooting Method Point \t\t\t S1:: diffeq ptr = %p; y0 ptr = %p\n", layer_diffeq, &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL])
-                printf("DEBUG- Shooting Method Point \t\t\t S1:: y0 = %e; y1 = %e\n", initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL], initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 1])
-                printf("DEBUG- Shooting Method Point \t\t\t S1:: r0 = %e; r1 = %e\n", radial_span_ptr[0], radial_span_ptr[1])
-                ###### Integrate! #######
-                integration_solution = cysolve_ivp(
-                    layer_diffeq,          # Differential equation [DiffeqFuncType]
-                    radial_span_ptr,       # Radial span [const double*]
-                    y0_ptr,                # y0 array [const double*]
-                    MAX_NUM_Y_REAL,        # Number of ys [const unsigned int]
-                    integration_method,    # Integration method [unsigned int]
-                    NAN,                   # Relative Tolerance (as scalar) [double]
-                    NAN,                   # Absolute Tolerance (as scalar) [double]
-                    diffeq_args_void_ptr,  # Extra input args to diffeq [void*]
-                    0,                     # Number of extra outputs tracked [unsigned int]
-                    max_num_steps,         # Max number of steps (0 = find good value) [size_t]
-                    max_ram_MB,            # Max amount of RAM allowed [size_t]
-                    False,                 # Use dense output [bint]
-                    layer_radius_ptr,      # Interpolate at radius array [double*]
-                    layer_slices,          # Size of interpolation array [size_t]
-                    diffeq_preeval_ptr,    # Pre-eval function used in diffeq [PreEvalFunc]
-                    rtols_ptr,             # Relative Tolerance (as array) [double*]
-                    atols_ptr,             # Absolute Tolerance (as array) [double*]
-                    max_step,              # Maximum step size [double]
-                    0.0,                   # Initial step size (0 = find good value) [doub;e]
-                    expected_size          # Expected final integration size (0 = find good value) [size_t]
-                    )
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S2\n", current_layer_i, solution_i)
-                integration_solution_ptr = integration_solution.get()
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S3\n", current_layer_i, solution_i)
-                #########################
+        # Solve for each solution
+        for solution_i in range(num_sols):
+            y0_ptr = &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL]
+            printf("DEBUG- Shooting Method Point \t\t\t layer diffeq = %p\n", layer_diffeq)
+            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S1\n", current_layer_i, solution_i)
+            printf("DEBUG- Shooting Method Point \t\t\t S1:: diffeq ptr = %p; y0 ptr = %p\n", layer_diffeq, &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL])
+            printf("DEBUG- Shooting Method Point \t\t\t S1:: ")
+            for y_i in range(6):
+                printf("y0_%d = %e %e, ", y_i, initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i], initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i + 1])
+            printf("\n")
+            printf("DEBUG- Shooting Method Point \t\t\t S1:: r0 = %e; r1 = %e;; rtol0 = %e; atol0 = %e; rtol10 = %e; atol10 = %e; max_step = %e\n", radial_span_ptr[0], radial_span_ptr[1], rtols_ptr[0], atols_ptr[0], rtols_ptr[10], atols_ptr[10], max_step_to_use)
+            ###### Integrate! #######
+            integration_solution = cysolve_ivp(
+                layer_diffeq,            # Differential equation [DiffeqFuncType]
+                radial_span_ptr,         # Radial span [const double*]
+                y0_ptr,                  # y0 array [const double*]
+                MAX_NUM_Y_REAL,          # Number of ys [size_t]
+                integration_method,      # Integration method [int]
+                NAN,                     # Relative Tolerance (as scalar) [double]
+                NAN,                     # Absolute Tolerance (as scalar) [double]
+                <void*>diffeq_args_ptr,  # Extra input args to diffeq [void*]
+                0,                       # Number of extra outputs tracked [size_t]
+                max_num_steps,           # Max number of steps (0 = find good value) [size_t]
+                max_ram_MB,              # Max amount of RAM allowed [size_t]
+                False,                   # Use dense output [bint]
+                layer_radius_ptr,        # Interpolate at radius array [double*]
+                layer_slices,            # Size of interpolation array [size_t]
+                diffeq_preeval_ptr,      # Pre-eval function used in diffeq [PreEvalFunc]
+                rtols_ptr,               # Relative Tolerance (as array) [double*]
+                atols_ptr,               # Absolute Tolerance (as array) [double*]
+                max_step_to_use,         # Maximum step size [double]
+                0.0,                     # Initial step size (0 = find good value) [doub;e]
+                expected_size            # Expected final integration size (0 = find good value) [size_t]
+                )
+            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S2\n", current_layer_i, solution_i)
+            integration_solution_ptr = integration_solution.get()
+            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S3; success = %d\n", current_layer_i, solution_i, integration_solution_ptr.success)
+            printf("DEBUG- \t\t\t int num y = %d; num dy = %d; int method = %d\n", integration_solution_ptr.num_y, integration_solution_ptr.num_dy, integration_solution_ptr.integrator_method)
+            #########################
 
-                # Check for problems
-                if not integration_solution_ptr.success:
-                    printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4a\n", current_layer_i, solution_i)
-                    # Problem with integration.
-                    solution_storage_ptr.error_code = -11
-                    sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', current_layer_i, solution_i, integration_solution_ptr.message_ptr)
-                    solution_storage_ptr.set_message(message_ptr)
-                    if verbose or raise_on_fail:
-                        printf(message_ptr)
-                    if raise_on_fail:
-                        exit(EXIT_FAILURE)
-                    break
-
-                # If no problems, store results.
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4b\n", current_layer_i, solution_i)
-                integrator_data_ptr = &integration_solution_ptr.solution[0]
-                # Need to make a copy because the solver pointers will be reallocated during the next solution.
-                # Get storage pointer for this solution
-                storage_by_y_ptr = storage_by_solution_ptr[solution_i]
-
-                for y_i in range(num_ys):
-                    for slice_i in range(layer_slices):
-                        # Convert 2x real ys to 1x complex ys
-                        storage_by_y_ptr[num_ys * slice_i + y_i] = cf_build_dblcmplx(
-                            integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i)],
-                            integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i) + 1]
-                            )
-
-                    # Store top most result for initial condition for the next layer
-                    # slice_i should already be set to the top of this layer after the end of the previous loop.
-                    uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y_ptr[num_ys * slice_i + y_i]
-                
-                # Decrement the shared pointer for the solution
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S5\n", current_layer_i, solution_i)
-                integration_solution.reset()
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S6\n", current_layer_i, solution_i)
-                    
-            if solution_storage_ptr.error_code != 0:
-                # Error was encountered during integration
-                solution_storage_ptr.success = False
+            # Check for problems
+            if not integration_solution_ptr.success:
+                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4a\n", current_layer_i, solution_i)
+                # Problem with integration.
+                solution_storage_ptr.error_code = -11
+                sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', current_layer_i, solution_i, integration_solution_ptr.message_ptr)
+                printf(message_ptr)
+                solution_storage_ptr.set_message(message_ptr)
+                if verbose or raise_on_fail:
+                    printf(message_ptr)
+                if raise_on_fail:
+                    exit(EXIT_FAILURE)
                 break
 
-            # Prepare for next layer
-            layer_below_num_sols     = num_sols
-            layer_below_num_ys       = num_ys
-            last_layer_upper_gravity = gravity_upper
-            last_layer_upper_density = density_upper
+            # If no problems, store results.
+            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4b\n", current_layer_i, solution_i)
+            integrator_data_ptr = &integration_solution_ptr.solution[0]
+            # Need to make a copy because the solver pointers will be reallocated during the next solution.
+            # Get storage pointer for this solution
+            storage_by_y_ptr = storage_by_solution_ptr[solution_i]
 
-        # Break out of success while loop
-        break
+            for y_i in range(num_ys):
+                for slice_i in range(layer_slices):
+                    # Convert 2x real ys to 1x complex ys
+                    storage_by_y_ptr[num_ys * slice_i + y_i] = cf_build_dblcmplx(
+                        integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i)],
+                        integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i) + 1]
+                        )
+
+                # Store top most result for initial condition for the next layer
+                # slice_i should already be set to the top of this layer after the end of the previous loop.
+                uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y_ptr[num_ys * slice_i + y_i]
+            
+            # Decrement the shared pointer for the solution
+            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S5\n", current_layer_i, solution_i)
+            integration_solution.reset()
+            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S6\n", current_layer_i, solution_i)
+                
+        if solution_storage_ptr.error_code != 0:
+            # Error was encountered during integration
+            solution_storage_ptr.success = False
+            break
+
+        # Prepare for next layer
+        layer_below_num_sols     = num_sols
+        layer_below_num_ys       = num_ys
+        last_layer_upper_gravity = gravity_upper
+        last_layer_upper_density = density_upper
 
     printf("DEBUG- Shooting Method Point - POST SOLVE 1\n")
-    if solution_storage_ptr.error_code != 0 or not solution_storage_ptr.success:
+    if solution_storage_ptr.error_code < 0 or not solution_storage_ptr.success:
         printf("DEBUG- Shooting Method Point - POST SOLVE 2a\n")
         solution_storage_ptr.success = False
         sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
         solution_storage_ptr.set_message(message_ptr)
-        # Decrement the shared pointer for the solution
-        integration_solution.reset()
+
         if verbose or raise_on_fail:
             printf(message_ptr)
         if raise_on_fail:
