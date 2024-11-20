@@ -735,7 +735,7 @@ cdef void cf_shooting_solver(
                 layer_diffeq,            # Differential equation [DiffeqFuncType]
                 radial_span_ptr,         # Radial span [const double*]
                 y0_ptr,                  # y0 array [const double*]
-                MAX_NUM_Y_REAL,          # Number of ys [size_t]
+                num_ys_dbl,              # Number of ys [size_t]
                 integration_method,      # Integration method [int]
                 NAN,                     # Relative Tolerance (as scalar) [double]
                 NAN,                     # Absolute Tolerance (as scalar) [double]

@@ -138,7 +138,7 @@ cdef void cf_radial_solver(
             if layer_i == 0:
                 first_slice_index_by_layer_vec[layer_i] = 0
             else:
-                first_slice_index_by_layer_vec[layer_i] = num_slices_by_layer_vec[layer_i - 1]
+                first_slice_index_by_layer_vec[layer_i] = first_slice_index_by_layer_vec[layer_i - 1] + num_slices_by_layer_vec[layer_i - 1]
             
             # Determine number of slices in layer
             layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i]
@@ -396,7 +396,7 @@ def radial_solver(
         double eos_rtol = 1.0e-3,
         double eos_atol = 1.0e-5,
         double eos_pressure_tol = 1.0e-3,
-        unsigned int eos_max_iters = 40,
+        int eos_max_iters = 40,
         cpp_bool verbose = False,
         cpp_bool warnings = True,
         cpp_bool raise_on_fail = False,
