@@ -34,15 +34,15 @@ protected:
 
 public:
     bool success      = false;
-    int error_code    = 0;
     char num_ytypes   = 0;
+    int error_code    = -100;
     char* message_ptr = &message[0];
     size_t num_slices = 0;
     size_t num_layers = 0;
     size_t total_size = 0;
     
     // Equation of state solution
-    std::shared_ptr<EOSSolutionCC> eos_solution_sptr = std::make_shared<EOSSolutionCC>();
+    std::unique_ptr<EOSSolutionCC> eos_solution_uptr = nullptr;
 
     // Radial solution results
     std::vector<double> full_solution_vec = std::vector<double>();
@@ -50,34 +50,20 @@ public:
     // Love number attributes
     std::vector<double> complex_love_vec = std::vector<double>();
 
-    // Raw pointers to radial solver storage
-    double* full_solution_ptr = nullptr;
-    double* complex_love_ptr  = nullptr;
-
-    // Raw pointers to equation of state storage
-    double* radius_array_ptr   = nullptr;
-    double* gravity_array_ptr  = nullptr;
-    double* pressure_array_ptr = nullptr;
-    double* mass_array_ptr     = nullptr;
-    double* moi_array_ptr      = nullptr;
-    double* density_array_ptr  = nullptr;
-    // These complex arrays are stored as double arrays with twice the length (Cython and C++ don't play nicely with complex across all systems)
-    double* complex_shear_array_ptr = nullptr;
-    double* complex_bulk_array_ptr  = nullptr;
-
     // Constructors and methods
     virtual ~RadialSolutionStorageCC();
     RadialSolutionStorageCC();
     RadialSolutionStorageCC(
         char num_ytypes,
         double* upper_radius_bylayer_ptr,
-        const size_t num_layers,
+        size_t num_layers,
         double* radius_array_ptr,
-        const size_t radius_array_size);
+        size_t size_radius_array);
     
+    EOSSolutionCC* get_eos_solution_ptr();
     void change_radius_array(
-        double* radius_array_ptr,
-        const size_t radius_array_size,
+        double* new_radius_array_ptr,
+        size_t new_size_radius_array,
         bool array_changed);
     void set_message(const char* new_message);
     void find_love();

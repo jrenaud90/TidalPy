@@ -1,3 +1,6 @@
+from libcpp cimport bool as cpp_bool
+
+
 cdef void cf_collapse_layer_solution(
     double complex* solution_ptr,
     double complex* constant_vector_ptr,
@@ -8,12 +11,12 @@ cdef void cf_collapse_layer_solution(
     double frequency_to_use,
     size_t layer_start_index,
     size_t num_layer_slices,
-    unsigned char num_sols,
-    unsigned char max_num_y,
-    unsigned char num_ys,
-    unsigned char num_output_ys,
-    unsigned char ytype_i,
+    size_t num_sols,
+    size_t max_num_y,
+    size_t num_ys,
+    size_t num_output_ys,
+    size_t ytype_i,
     int layer_type,
-    bint layer_is_static,
-    bint layer_is_incomp
+    cpp_bool layer_is_static,
+    cpp_bool layer_is_incomp
     ) noexcept nogil

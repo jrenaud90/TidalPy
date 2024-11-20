@@ -28,7 +28,7 @@ from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 
 
 cdef void cf_matrix_propagate(
-        shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
+        RadialSolutionStorageCC* solution_storage_ptr,
         double frequency,
         double planet_bulk_density,
         # TODO: In the future the propagation matrix should take in layer types and multiple layers
@@ -38,8 +38,8 @@ cdef void cf_matrix_propagate(
         size_t num_bc_models,
         int* bc_models_ptr,
         double G_to_use = d_G,
-        unsigned int degree_l = 2,
-        unsigned char core_condition = 0,
+        int degree_l = 2,
+        char core_condition = 0,
         cpp_bool verbose = False,
         cpp_bool raise_on_fail = False
         ) noexcept nogil:
@@ -49,8 +49,7 @@ cdef void cf_matrix_propagate(
     cdef size_t last_index_shift_36, index_shift_36, last_index_shift_18, index_shift_18, index_shift_max_y, full_shift
 
     # Get raw pointer of radial solver storage and eos storage
-    cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
-    cdef EOSSolutionCC* eos_solution_storage_ptr       = solution_storage_sptr.get().eos_solution_sptr.get()
+    cdef EOSSolutionCC* eos_solution_storage_ptr = solution_storage_ptr.get_eos_solution_ptr()
 
     strcpy(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n")
 
@@ -303,7 +302,7 @@ cdef void cf_matrix_propagate(
     cdef size_t solution_slice_ishift
 
     # Build solution
-    cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_ptr
+    cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_vec.data()
     # Cast the solution pointer from double to double complex
     cdef double complex* solution_ptr = <double complex*>solution_dbl_ptr
 

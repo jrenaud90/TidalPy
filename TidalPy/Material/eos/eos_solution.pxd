@@ -51,10 +51,11 @@ cdef extern from "eos_solution_.cpp" nogil:
 
             EOSSolutionCC()
             EOSSolutionCC(
-                double* upper_radius_bylayer_ptr,
-                const size_t num_layers,
-                double* radius_array_ptr,
-                const size_t radius_array_size)
+                    double* upper_radius_bylayer_ptr,
+                    size_t num_layers,
+                    double* radius_array_ptr,
+                    size_t radius_array_size
+                )
             
             void save_cyresult(
                 shared_ptr[CySolverResult] new_cysolver_result_sptr)
@@ -70,7 +71,7 @@ cdef extern from "eos_solution_.cpp" nogil:
                 double* y_interp_ptr)
 
             void change_radius_array(
-                double* radius_array_ptr,
-                const size_t radius_array_size)
+                double* new_radius_ptr,
+                size_t new_radius_size)
             
             void interpolate_full_planet()

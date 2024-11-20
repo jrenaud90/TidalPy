@@ -17,16 +17,16 @@ cdef void cf_top_to_bottom_interface_bc(
         double layer_above_lower_density,
         int layer_type,
         int layer_above_type,
-        bint layer_is_static,
-        bint layer_above_is_static,
-        bint layer_is_incomp,
-        bint layer_above_is_incomp,
-        unsigned char num_sols,
-        unsigned char max_num_y
+        cpp_bool layer_is_static,
+        cpp_bool layer_above_is_static,
+        cpp_bool layer_is_incomp,
+        cpp_bool layer_above_is_incomp,
+        size_t num_sols,
+        size_t max_num_y
         ) noexcept nogil:
     
     # Loop variables
-    cdef unsigned char solution_i
+    cdef size_t solution_i
     
     # Interfaces are defined at the bottom of the layer in question. However, this function is calculating
     #  the transition at the top of each layer as it works its way down.
@@ -34,8 +34,8 @@ cdef void cf_top_to_bottom_interface_bc(
     cdef double interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
     cdef double liquid_density_at_interface = NAN
 
-    cdef bint layer_is_solid = False
-    cdef bint layer_above_is_solid = False
+    cdef cpp_bool layer_is_solid = False
+    cdef cpp_bool layer_above_is_solid = False
     if layer_type == 0:
         layer_is_solid = True
     if layer_above_type == 0:

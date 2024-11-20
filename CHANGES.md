@@ -12,6 +12,7 @@
 * Decoupled radial solver from shooting method.
   * Moved shooting method, constants, and radial solver solution class to a new files in `TidalPy.RadialSolver`.
 * Updated GitHub actions.
+* Moved to more consistent and robust types (e.g., int for degree_l vs. prior unsigned-char; unsigned-int).
 
 **New Features**
 * Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
@@ -20,7 +21,7 @@
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
 
 **Dependencies**
-* Added support for CyRK v0.11.2
+* Added support for CyRK v0.11.3
 
 **Documentation**
 * Added documentation for propagation matrix use with radial solver in `Calculating Love Numbers with TidalPy.md`.

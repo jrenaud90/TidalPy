@@ -4,7 +4,7 @@ from libcpp.memory cimport shared_ptr
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
 cdef void cf_matrix_propagate(
-    shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
+    RadialSolutionStorageCC* solution_storage_ptr,
     double frequency,
     double planet_bulk_density,
     # TODO: In the future the propagation matrix should take in layer types and multiple layers
@@ -14,8 +14,8 @@ cdef void cf_matrix_propagate(
     size_t num_bc_models,
     int* bc_models_ptr,
     double G_to_use = *,
-    unsigned int degree_l = *,
-    unsigned char core_condition = *,
+    int degree_l = *,
+    char core_condition = *,
     cpp_bool verbose = *,
     cpp_bool raise_on_fail = *
     ) noexcept nogil

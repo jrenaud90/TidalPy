@@ -55,7 +55,7 @@ cdef void eos_diffeq(
         dy_ptr[2] = FOUR_PI * rho * r2
 
         # Moment of inertia (r^2 multipled by dm which was found above)
-        dy_ptr[3] = dy_ptr[2] * r2
+        dy_ptr[3] = (2.0 / 3.0) * dy_ptr[2] * r2
 
     # Store other parameters
     # TODO: Track the static shear and bulk as well as the bulk and shear viscosity as additional outputs.

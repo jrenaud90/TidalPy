@@ -1,7 +1,6 @@
 
 from libcpp cimport bool as cpp_bool
-
-from CyRK.utils.memory cimport shared_ptr
+from libcpp.memory cimport shared_ptr
 
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
@@ -17,17 +16,17 @@ cdef void cf_radial_solver(
         double planet_bulk_density,
         size_t num_layers,
         int* layer_types_ptr,
-        int* is_static_by_layer_ptr,
-        int* is_incompressible_by_layer_ptr,
+        bint* is_static_by_layer_ptr,
+        bint* is_incompressible_by_layer_ptr,
         double surface_pressure,
-        unsigned int degree_l,
+        int degree_l,
         size_t num_bc_models,
         int* bc_models_ptr,
-        unsigned char core_condition,
+        int core_condition,
         cpp_bool use_kamata,
         double starting_radius,
         double start_radius_tolerance,
-        unsigned char integration_method_int,
+        int integration_method_int,
         double integration_rtol,
         double integration_atol,
         cpp_bool scale_rtols_by_layer_type,
@@ -37,11 +36,11 @@ cdef void cf_radial_solver(
         double max_step,
         cpp_bool nondimensionalize,
         cpp_bool use_prop_matrix,
-        unsigned int eos_integration_method,
+        int eos_integration_method,
         double eos_rtol,
         double eos_atol,
         double eos_pressure_tol,
-        unsigned int eos_max_iters,
+        int eos_max_iters,
         cpp_bool verbose,
         cpp_bool warnings,
         cpp_bool raise_on_fail,

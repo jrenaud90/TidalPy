@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstdio>
+#include <cstring>
 #include <vector>
 #include <memory>
-#include <string>
 
 #include "cysolution.hpp"  // Part of the CyRK python package. Header should be included in setup using CyRK.get_include()
 
@@ -31,7 +31,7 @@ protected:
 
 public:
     int iterations        = -1;
-    int error_code        = 0;
+    int error_code        = -100;
     bool success          = false;
     bool max_iters_hit    = false;
     bool radius_array_set = false;
@@ -76,15 +76,19 @@ public:
     virtual ~EOSSolutionCC( );
     EOSSolutionCC( );
     EOSSolutionCC(
-        double* upper_radius_bylayer_ptr,
-        const size_t num_layers,
-        double* radius_array_ptr,
-        const size_t radius_array_size
+            double* upper_radius_bylayer_ptr,
+            size_t num_layers,
+            double* radius_array_ptr,
+            size_t radius_array_size
         );
 
+    // Prepare storage vectors for interpolation
+    void change_radius_array(
+        double* new_radius_ptr,
+        size_t new_radius_size);
+    
     // Save result of cysolve_ivp integration
-    void save_cyresult(
-        std::shared_ptr<CySolverResult> new_cysolver_result_sptr);
+    void save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_result_sptr);
     
     // Call a specific layer's interpolate function.
     void call(
@@ -96,11 +100,6 @@ public:
         const double* radius_array_ptr,
         size_t len_radius_array,
         double* y_interp_ptr);
-    
-    // Prepare storage vectors for interpolation
-    void change_radius_array(
-        double* radius_array_ptr,
-        const size_t radius_array_size);
     
     // Run full planet interpolation through each layer.
     void interpolate_full_planet();

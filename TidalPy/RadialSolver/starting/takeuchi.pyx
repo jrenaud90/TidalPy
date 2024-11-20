@@ -16,9 +16,9 @@ cdef void cf_takeuchi_solid_dynamic_compressible(
         double density,
         double complex bulk_modulus,
         double complex shear_modulus,
-        unsigned char degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the starting guess at the bottom of a solid layer using the dynamic assumption.
@@ -178,9 +178,9 @@ cdef void cf_takeuchi_solid_static_compressible(
         double density,
         double complex bulk_modulus,
         double complex shear_modulus,
-        unsigned char degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the starting guess at the bottom of a solid layer using the static assumption.
@@ -336,9 +336,9 @@ cdef void cf_takeuchi_liquid_dynamic_compressible(
         double radius,
         double density,
         double complex bulk_modulus,
-        unsigned char degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the starting guess at the bottom of a liquid layer using the dynamic assumption.

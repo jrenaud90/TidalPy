@@ -96,22 +96,22 @@ def find_num_shooting_solutions(
 
 
 cdef void cf_shooting_solver(
-        shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
+        RadialSolutionStorageCC* solution_storage_ptr,
         double frequency,
         double planet_bulk_density,
         int* layer_types_ptr,
-        int* is_static_by_layer_ptr,
-        int* is_incompressible_by_layer_ptr,
-        size_t* first_slice_index_by_layer_ptr,
-        size_t* num_slices_by_layer_ptr,
+        bint* is_static_by_layer_ptr,
+        bint* is_incompressible_by_layer_ptr,
+        vector[size_t] first_slice_index_by_layer_vec,
+        vector[size_t] num_slices_by_layer_vec,
         size_t num_bc_models,
         int* bc_models_ptr,
         double G_to_use = d_G,
-        unsigned int degree_l = 2,
+        int degree_l = 2,
         cpp_bool use_kamata = False,
         double starting_radius = 0.0,
         double start_radius_tolerance = 1.0e-5,
-        unsigned char integration_method = 1,
+        int integration_method = 1,
         double integration_rtol = 1.0e-6,
         double integration_atol = 1.0e-12,
         cpp_bool scale_rtols_by_layer_type = False,
@@ -130,8 +130,7 @@ cdef void cf_shooting_solver(
     cdef char* message_ptr = &message[0]
 
     # Get raw pointer of radial solver storage and eos storage
-    cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
-    cdef EOSSolutionCC* eos_solution_storage_ptr       = solution_storage_sptr.get().eos_solution_sptr.get()
+    cdef EOSSolutionCC* eos_solution_storage_ptr = solution_storage_ptr.get_eos_solution_ptr()
 
     solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: Starting integration\n')
     if verbose:
@@ -146,9 +145,9 @@ cdef void cf_shooting_solver(
     cdef size_t first_slice_index
     cdef size_t slice_i
     # Indexing for: Solution | ys | ytypes
-    cdef unsigned char solution_i
-    cdef unsigned char y_i
-    cdef unsigned char ytype_i
+    cdef size_t solution_i
+    cdef size_t y_i
+    cdef size_t ytype_i
 
     # Type conversions
     cdef double degree_l_dbl = <double>degree_l
@@ -229,11 +228,11 @@ cdef void cf_shooting_solver(
     cdef int layer_below_is_static
     cdef int layer_below_is_incomp
     cdef size_t layer_slices
-    cdef unsigned char num_sols
-    cdef unsigned char num_ys
-    cdef unsigned char num_ys_dbl
-    cdef unsigned char layer_below_num_sols
-    cdef unsigned char layer_below_num_ys
+    cdef size_t num_sols
+    cdef size_t num_ys
+    cdef size_t num_ys_dbl
+    cdef size_t layer_below_num_sols
+    cdef size_t layer_below_num_ys
     cdef double layer_upper_radius = NAN
     cdef double layer_rtol_real    = NAN
     cdef double layer_rtol_imag    = NAN
@@ -269,7 +268,7 @@ cdef void cf_shooting_solver(
 
     for current_layer_i in range(num_layers):
         num_sols     = num_solutions_by_layer_ptr[current_layer_i]
-        layer_slices = num_slices_by_layer_ptr[current_layer_i]
+        layer_slices = num_slices_by_layer_vec[current_layer_i]
         # Number of ys = 2x num sols
         num_ys = 2 * num_sols
 
@@ -349,7 +348,7 @@ cdef void cf_shooting_solver(
     cdef size_t num_output_ys = MAX_NUM_Y * num_ytypes
 
     # Get a reference pointer to solution array
-    cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_ptr
+    cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_vec.data()
     # Cast the solution pointer from double to double complex
     cdef double complex* solution_ptr = <double complex*>solution_dbl_ptr
 
@@ -451,12 +450,12 @@ cdef void cf_shooting_solver(
         if last_layer_upper_radius < starting_radius <= layer_upper_radius:
             # It is!
             start_layer_i = current_layer_i
-            first_slice_index = first_slice_index_by_layer_ptr[current_layer_i]
+            first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
             
             printf("DEBUG- Starting Radius = %e; first slice = %d\n", starting_radius, first_slice_index)
 
             # Now find the last radial slice before the starting radius
-            for slice_i in range(first_slice_index, first_slice_index + num_slices_by_layer_ptr[current_layer_i]):
+            for slice_i in range(first_slice_index, first_slice_index + num_slices_by_layer_vec[current_layer_i]):
                 radius_check = radius_array_ptr[slice_i]
                 printf("DEBUG- \t\t Starting Radius:: radius_check = %e\n", radius_check)
                 if last_radius_check < starting_radius <= radius_check:
@@ -487,7 +486,7 @@ cdef void cf_shooting_solver(
         for current_layer_i in range(start_layer_i, num_layers):
             printf("DEBUG- Shooting Method Point \t\t layer = %d\n", current_layer_i)
             # Get layer's index information
-            layer_slices = num_slices_by_layer_ptr[current_layer_i]
+            layer_slices = num_slices_by_layer_vec[current_layer_i]
             if current_layer_i == start_layer_i:
                 # The first slice index is not going to actually be the bottom-most index
                 # Instead it is the one right at or above our starting radius.
@@ -496,7 +495,7 @@ cdef void cf_shooting_solver(
                 # When we loop through slices we only want to loop between the starting slice and the top of the layer
                 layer_slices -= (last_index_before_start + 1)
             else:
-                first_slice_index = first_slice_index_by_layer_ptr[current_layer_i]
+                first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
             
             printf("DEBUG - Shooting Method:: layer i = %d; first slice = %d; last_index_before_start = %d\n", current_layer_i, first_slice_index, last_index_before_start)
             printf("DEBUG - Shooting Method:: layerslices = %d\n", layer_slices)
@@ -849,7 +848,7 @@ cdef void cf_shooting_solver(
                 layer_i_reversed = num_layers - (current_layer_i + 1)
 
                 # Pull out layer information.
-                layer_slices       = num_slices_by_layer_ptr[layer_i_reversed]
+                layer_slices       = num_slices_by_layer_vec[layer_i_reversed]
                 if layer_i_reversed == start_layer_i:
                     # The first slice index is not going to actually be the bottom-most index
                     # Instead it is the one right at or above our starting radius.
@@ -858,7 +857,7 @@ cdef void cf_shooting_solver(
                     # When we loop through slices we only want to loop between the starting slice and the top of the layer
                     layer_slices -= (last_index_before_start + 1)
                 else:
-                    first_slice_index = first_slice_index_by_layer_ptr[layer_i_reversed]
+                    first_slice_index = first_slice_index_by_layer_vec[layer_i_reversed]
 
                 # Get solution and y information
                 num_sols     = num_solutions_by_layer_ptr[layer_i_reversed]

@@ -8,9 +8,9 @@ EOSSolutionCC::EOSSolutionCC( )
 
 EOSSolutionCC::EOSSolutionCC(
         double* upper_radius_bylayer_ptr,
-        const size_t num_layers,
+        size_t num_layers,
         double* radius_array_ptr,
-        const size_t radius_array_size
+        size_t radius_array_size
         ) :
             error_code(0),
             current_layers_saved(0),
@@ -21,11 +21,7 @@ EOSSolutionCC::EOSSolutionCC(
     this->upper_radius_bylayer_vec.reserve(num_layers);
 
     // Store the upper radius of each layer to make it easier to call interpolators later
-    this->upper_radius_bylayer_vec.insert(
-        this->upper_radius_bylayer_vec.begin(),
-        upper_radius_bylayer_ptr,
-        upper_radius_bylayer_ptr + num_layers
-        );
+    std::memcpy(this->upper_radius_bylayer_vec.data(), upper_radius_bylayer_ptr, this->num_layers * sizeof(double));
 
     // Use provided radius array to setup various storage vectors
     this->change_radius_array(radius_array_ptr, radius_array_size);
@@ -101,12 +97,11 @@ void EOSSolutionCC::call_vectorize(
 
 
 void EOSSolutionCC::change_radius_array(
-        double* radius_array_ptr,
-        const size_t radius_array_size)
+        double* new_radius_ptr,
+        size_t new_radius_size)
 {
     printf("TidalPy::EOSSolutionCC.change_radius_array called.\n");
-    this->radius            = radius_array_ptr[radius_array_size - 1];
-    this->radius_array_size = radius_array_size;
+    this->radius_array_size = new_radius_size;
     if (this->radius_array_set)
     {
         // Radius array was already set before. Reset the storage array vectors.
@@ -118,30 +113,35 @@ void EOSSolutionCC::change_radius_array(
         this->density_array_vec.clear();
         this->complex_shear_array_vec.clear();
         this->complex_bulk_array_vec.clear();
+        this->cysolver_results_sptr_bylayer_vec.clear();
 
         // Indicate that all vectors are cleared.
         this->other_vecs_set = false;
     }
     this->radius_array_set = true;
 
+    printf("TidalPy::EOSSolutionCC.change_radius_array 2.\n");
     // Reserve capacity in vectors for new radius array size
-    this->radius_array_vec.reserve(radius_array_size);
-    this->gravity_array_vec.reserve(radius_array_size);
-    this->pressure_array_vec.reserve(radius_array_size);
-    this->mass_array_vec.reserve(radius_array_size);
-    this->moi_array_vec.reserve(radius_array_size);
-    this->density_array_vec.reserve(radius_array_size);
+    this->gravity_array_vec.reserve(this->radius_array_size);
+    this->pressure_array_vec.reserve(this->radius_array_size);
+    this->mass_array_vec.reserve(this->radius_array_size);
+    this->moi_array_vec.reserve(this->radius_array_size);
+    this->density_array_vec.reserve(this->radius_array_size);
     
     // These complex arrays are stored as double arrays with twice the length (Cython and C++ don't play nicely with complex across all systems)
-    this->complex_shear_array_vec.reserve(2 * radius_array_size);
-    this->complex_bulk_array_vec.reserve(2 * radius_array_size);
+    printf("TidalPy::EOSSolutionCC.change_radius_array 3.\n");
+    this->complex_shear_array_vec.reserve(2 * this->radius_array_size);
+    this->complex_bulk_array_vec.reserve(2 * this->radius_array_size);
 
     // Copy over the radius array values
-    this->radius_array_vec.insert(
-        this->radius_array_vec.begin(),
-        radius_array_ptr,
-        radius_array_ptr + radius_array_size
-        );
+    printf("TidalPy::EOSSolutionCC.change_radius_array 4.\n");
+    this->radius_array_vec.resize(this->radius_array_size);
+    std::memcpy(this->radius_array_vec.data(), new_radius_ptr, new_radius_size * sizeof(double));
+
+    // Get constants
+    printf("TidalPy::EOSSolutionCC.change_radius_array 5. r vec size = %d\n", this->radius_array_vec.size());
+    this->radius = this->radius_array_vec.back();
+    printf("TidalPy::EOSSolutionCC.change_radius_array 6.\n");
 }
 
 
@@ -151,7 +151,8 @@ void EOSSolutionCC::interpolate_full_planet()
     if (this->current_layers_saved == 0)
     {
         // No layers have been saved, we can't perform the interpolation.
-        throw std::runtime_error("EOSSolutionCC can not interpolate the planet because no layers have been saved.");
+        printf("EOSSolutionCC::interpolate_full_planet : Can not interpolate full planet, no layer eos data is saved.");
+        throw std::exception();
     }
     
     size_t current_layer_index        = 0;

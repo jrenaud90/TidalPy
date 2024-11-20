@@ -4,7 +4,7 @@ cnp.import_array()
 from libcpp cimport bool as cpp_bool
 
 from libcpp.vector cimport vector
-from libcpp.memory cimport shared_ptr
+from libcpp.memory cimport shared_ptr, unique_ptr
 
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 
@@ -22,47 +22,30 @@ cdef extern from "rs_solution_.cpp" nogil:
 
     cdef cppclass RadialSolutionStorageCC:
         
-        cpp_bool success
-        int error_code
-        char num_ytypes
-        char* message_ptr
-        size_t num_slices
-        size_t num_layers
-        size_t total_size
-
         RadialSolutionStorageCC()
         RadialSolutionStorageCC(
             char num_ytypes,
             double* upper_radius_bylayer_ptr,
-            const size_t num_layers,
+            size_t num_layers,
             double* radius_array_ptr,
-            const size_t radius_array_size
+            size_t size_radius_array
             )
-        size_t num_slices
-        size_t total_size
-        char[256] message
-        char* message_ptr
-        cpp_bool success
-        char num_ytypes
 
-        shared_ptr[EOSSolutionCC] eos_solution_sptr
+        cpp_bool success
+        int error_code
+        char* message_ptr
+        size_t num_ytypes
+        size_t num_slices
+        size_t num_layers
+        size_t total_size
+        unique_ptr[EOSSolutionCC] eos_solution_uptr
         vector[double] full_solution_vec
         vector[double] complex_love_vec
 
-        double* full_solution_ptr
-        double* complex_love_ptr
-        double* radius_array_ptr
-        double* gravity_array_ptr
-        double* pressure_array_ptr
-        double* mass_array_ptr
-        double* moi_array_ptr
-        double* density_array_ptr
-        double* complex_shear_array_ptr
-        double* complex_bulk_array_ptr
-
+        EOSSolutionCC* get_eos_solution_ptr()
         void change_radius_array(
-            double* radius_array_ptr,
-            const size_t radius_array_size,
+            double* new_radius_array_ptr,
+            size_t new_size_radius_array,
             cpp_bool array_changed)
         void set_message(const char* new_message)
         void find_love()
@@ -72,7 +55,7 @@ cdef class RadialSolverSolution:
 
     # Size and state information
     cdef size_t radius_array_size
-    cdef char num_ytypes
+    cdef size_t num_ytypes
     cdef cpp_bool ytype_names_set
     cdef char* ytypes[5]
 
@@ -99,6 +82,6 @@ cdef class RadialSolverSolution:
         int* bc_models_ptr) noexcept nogil
     cdef change_radius_array(
         self,
-        double* radius_array_ptr,
-        const size_t radius_array_size,
+        double* new_radius_array_ptr,
+        size_t new_size_radius_array,
         cpp_bool array_changed = *) noexcept

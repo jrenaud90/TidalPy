@@ -23,7 +23,7 @@ from TidalPy.utilities.math.complex cimport cf_cinv
 
 
 cdef void cf_fundamental_matrix(
-        Py_ssize_t num_radial_slices,
+        size_t num_radial_slices,
         double* radius_array_ptr,
         double* density_array_ptr,
         double* gravity_array_ptr,
@@ -31,7 +31,7 @@ cdef void cf_fundamental_matrix(
         double complex* fundamental_mtx_ptr,
         double complex* inverse_fundamental_mtx_ptr,
         double complex* derivative_mtx_ptr,
-        unsigned char degree_l = 2,
+        int degree_l = 2,
         double G_to_use = d_G
         ) noexcept nogil:
     """ Construct the fundamental matrix and its inverse for a generic order-l
@@ -91,7 +91,7 @@ cdef void cf_fundamental_matrix(
     cdef double dlp1         = (2. * degree_l_dbl + 1.)
     cdef double dlp3         = (2. * degree_l_dbl + 3.)
 
-    for r_i in prange(num_radial_slices):
+    for r_i in prange(<Py_ssize_t>num_radial_slices):
 
         # Shift index by 36 (for the inner 6x6 matrix)
         index_shift = r_i * 36

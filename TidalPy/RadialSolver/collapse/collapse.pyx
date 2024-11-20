@@ -11,25 +11,25 @@ cdef void cf_collapse_layer_solution(
         double frequency_to_use,
         size_t layer_start_index,
         size_t num_layer_slices,
-        unsigned char num_sols,
-        unsigned char max_num_y,
-        unsigned char num_ys,
-        unsigned char num_output_ys,
-        unsigned char ytype_i,
+        size_t num_sols,
+        size_t max_num_y,
+        size_t num_ys,
+        size_t num_output_ys,
+        size_t ytype_i,
         int layer_type,
-        bint layer_is_static,
-        bint layer_is_incomp
+        cpp_bool layer_is_static,
+        cpp_bool layer_is_incomp
         ) noexcept nogil:
 
     # Use constant vectors to find the full y from all of the solutions in this layer
-    cdef unsigned char solution_i
-    cdef unsigned char y_i
-    cdef unsigned char y_rhs_i
-    cdef unsigned char lhs_y_index
+    cdef size_t solution_i
+    cdef size_t y_i
+    cdef size_t y_rhs_i
+    cdef size_t lhs_y_index
     cdef size_t slice_i
     cdef size_t slice_i_shifted
     cdef size_t slice_end
-    cdef bint calculate_y3
+    cdef cpp_bool calculate_y3
 
     slice_end = layer_start_index + num_layer_slices
     calculate_y3 = False
