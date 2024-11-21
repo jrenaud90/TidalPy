@@ -61,10 +61,9 @@ void EOSSolutionCC::save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_r
 void EOSSolutionCC::call(
         const size_t layer_index,
         const double radius,
-        double* y_interp_ptr)
+        double* y_interp_ptr) const
 {
-    printf("TidalPy::EOSSolutionCC.call called.\n");
-    if (layer_index < this->current_layers_saved)
+    if (layer_index < this->current_layers_saved) [[unlikely]]
     {
         this->cysolver_results_sptr_bylayer_vec[layer_index]->call(radius, y_interp_ptr);
     }
@@ -81,7 +80,7 @@ void EOSSolutionCC::call_vectorize(
         const size_t layer_index,
         const double* radius_array_ptr,
         size_t len_radius_array,
-        double* y_interp_ptr)
+        double* y_interp_ptr) const
 {
     if (layer_index < this->current_layers_saved)
     {

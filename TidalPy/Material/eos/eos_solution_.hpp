@@ -94,12 +94,12 @@ public:
     void call(
         const size_t layer_index,
         const double radius,
-        double* y_interp_ptr);
+        double* y_interp_ptr) const;
     void call_vectorize(
         const size_t layer_index,
         const double* radius_array_ptr,
         size_t len_radius_array,
-        double* y_interp_ptr);
+        double* y_interp_ptr) const;
     
     // Run full planet interpolation through each layer.
     void interpolate_full_planet();

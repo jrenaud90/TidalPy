@@ -105,7 +105,7 @@ cdef void cf_radial_solver(
     cdef double radius_planet_to_use    = NAN
     cdef double bulk_density_to_use     = NAN
     cdef double frequency_to_use        = NAN
-    cdef double surface_pressure_to_use = NAN
+    cdef double surface_pressure_to_use = surface_pressure
     
     # Equation of state variables
     cdef size_t bottom_slice_index
@@ -184,12 +184,16 @@ cdef void cf_radial_solver(
             &frequency_to_use,
             &G_to_use
             )
+        
+        printf("NON DIM -- R = %e; rho = %e; P = %e; f = %e; G = %e\n",radius_planet_to_use, bulk_density_to_use, surface_pressure_to_use, frequency_to_use, G_to_use)
 
         for layer_i in range(num_layers):
             eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] /= radius_planet
         
         # Change starting radius if it was provided (if it is set to default then it is 0 and this won't have an effect)
         starting_radius /= radius_planet
+
+        # TODO Scale pressure tolerance by pasacal conversion?
 
         # Update the radius array inside the C++ classes
         solution_storage_ptr.change_radius_array(radius_array_in_ptr, total_slices, True)

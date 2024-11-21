@@ -27,7 +27,7 @@ cdef void cf_solid_dynamic_compressible(
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
     # printf("cf_solid_dynamic_compressible \t\t r = %e; args_ptr = %p\n", radius, args_ptr)
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     cdef size_t i
     #for i in range(9):
         #printf("cf_solid_dynamic_compressible \t\t\t eos_y%d = %e\n", i, eos_array_ptr[i])
@@ -157,7 +157,7 @@ cdef void cf_solid_dynamic_incompressible(
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
@@ -258,7 +258,7 @@ cdef void cf_solid_static_compressible(
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
@@ -370,7 +370,7 @@ cdef void cf_solid_static_incompressible(
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
@@ -468,7 +468,7 @@ cdef void cf_liquid_dynamic_compressible(
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
@@ -564,7 +564,7 @@ cdef void cf_liquid_dynamic_incompressible(
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
@@ -652,7 +652,7 @@ cdef void cf_liquid_static_incompressible(
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(radius, eos_array_ptr)
+    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity

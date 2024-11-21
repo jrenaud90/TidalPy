@@ -1,6 +1,8 @@
 from libcpp.memory cimport shared_ptr
 
-from CyRK cimport DiffeqFuncType, PreEvalFunc, CySolverResult
+from CyRK cimport DiffeqFuncType, PreEvalFunc
+
+from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 
 
 cdef struct RadialSolverDiffeqArgStruct:
@@ -11,7 +13,8 @@ cdef struct RadialSolverDiffeqArgStruct:
     double G
     double grav_coeff
     double frequency
-    CySolverResult* eos_solution_ptr
+    size_t layer_index
+    EOSSolutionCC* eos_solution_ptr
 
 cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,

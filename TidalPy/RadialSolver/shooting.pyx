@@ -385,13 +385,15 @@ cdef void cf_shooting_solver(
     # We will load the EOS solution into this argument structure for each layer. For now, set it to null.
 
     # Set diffeq inputs that do not change with layer
-    diffeq_args_ptr.degree_l   = degree_l_dbl
-    diffeq_args_ptr.lp1        = degree_l_dbl + 1.0
-    diffeq_args_ptr.lm1        = degree_l_dbl - 1.0
-    diffeq_args_ptr.llp1       = degree_l_dbl * (degree_l_dbl + 1.0)
-    diffeq_args_ptr.G          = G_to_use
-    diffeq_args_ptr.grav_coeff = 4.0 * d_PI_DBL * G_to_use
-    diffeq_args_ptr.frequency  = frequency
+    diffeq_args_ptr.degree_l         = degree_l_dbl
+    diffeq_args_ptr.lp1              = degree_l_dbl + 1.0
+    diffeq_args_ptr.lm1              = degree_l_dbl - 1.0
+    diffeq_args_ptr.llp1             = degree_l_dbl * (degree_l_dbl + 1.0)
+    diffeq_args_ptr.G                = G_to_use
+    diffeq_args_ptr.grav_coeff       = 4.0 * d_PI_DBL * G_to_use
+    diffeq_args_ptr.frequency        = frequency
+    diffeq_args_ptr.layer_index      = 0
+    diffeq_args_ptr.eos_solution_ptr = eos_solution_storage_ptr
 
     # The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
     #  ever be is 3, it is more efficient to just preallocate them on the stack rather than dynamically allocate them
@@ -713,8 +715,8 @@ cdef void cf_shooting_solver(
         # Find correct diffeq
         layer_diffeq = cf_find_layer_diffeq(layer_type, layer_is_static, layer_is_incomp)
 
-        # Det diffeq additional arg input's eos solution pointer
-        diffeq_args_ptr.eos_solution_ptr = eos_solution_sptr.get()
+        # Set the layer index to current layer in the additional diffeq arg struct
+        diffeq_args_ptr.layer_index = current_layer_i
 
         # Get storage pointer for this layer
         storage_by_solution_ptr = main_storage_ptr[current_layer_i]
@@ -724,12 +726,13 @@ cdef void cf_shooting_solver(
             y0_ptr = &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL]
             printf("DEBUG- Shooting Method Point \t\t\t layer diffeq = %p\n", layer_diffeq)
             printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S1\n", current_layer_i, solution_i)
-            printf("DEBUG- Shooting Method Point \t\t\t S1:: diffeq ptr = %p; y0 ptr = %p\n", layer_diffeq, &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL])
             printf("DEBUG- Shooting Method Point \t\t\t S1:: ")
             for y_i in range(6):
-                printf("y0_%d = %e %e, ", y_i, initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i], initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i + 1])
+                printf("y0_%d = %e %e\n", y_i, initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i], initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i + 1])
+                printf("rtol_%d = %e %e, atol_%d = %e %e\n", y_i, rtols_ptr[2 * y_i], rtols_ptr[2 * y_i + 1], y_i, atols_ptr[2 * y_i], atols_ptr[2 * y_i + 1])
             printf("\n")
-            printf("DEBUG- Shooting Method Point \t\t\t S1:: r0 = %e; r1 = %e;; rtol0 = %e; atol0 = %e; rtol10 = %e; atol10 = %e; max_step = %e\n", radial_span_ptr[0], radial_span_ptr[1], rtols_ptr[0], atols_ptr[0], rtols_ptr[10], atols_ptr[10], max_step_to_use)
+            printf("LAYER SLICES = %d; r_eval0 = %e; r_evalN = %e\n", layer_slices, layer_radius_ptr[0], layer_radius_ptr[layer_slices-1])
+            printf("LAYER SLICES = %d; r_0 = %e; r_N = %e\n", layer_slices, radial_span_ptr[0], radial_span_ptr[1])
             ###### Integrate! #######
             integration_solution = cysolve_ivp(
                 layer_diffeq,            # Differential equation [DiffeqFuncType]
