@@ -153,14 +153,14 @@ cdef void cf_shooting_solver(
     cdef double degree_l_dbl = <double>degree_l
 
     # Alias pointers to EOS properties
-    cdef double* radius_array_ptr  = &eos_solution_storage_ptr.radius_array_vec[0]
-    cdef double* gravity_array_ptr = &eos_solution_storage_ptr.gravity_array_vec[0]
+    cdef double* radius_array_ptr  = eos_solution_storage_ptr.radius_array_vec.data()
+    cdef double* gravity_array_ptr = eos_solution_storage_ptr.gravity_array_vec.data()
     # cdef double* pressure_array_ptr = eos_solution_storage_ptr.pressure_array_vec   # Unused
-    cdef double* density_array_ptr = &eos_solution_storage_ptr.density_array_vec[0]
+    cdef double* density_array_ptr = eos_solution_storage_ptr.density_array_vec.data()
 
     # Need to recast the storage's shear/bulk double arrays to double complex for local use
-    cdef double complex* complex_shear_array_ptr = <double complex*>&eos_solution_storage_ptr.complex_shear_array_vec[0]
-    cdef double complex* complex_bulk_array_ptr  = <double complex*>&eos_solution_storage_ptr.complex_bulk_array_vec[0]
+    cdef double complex* complex_shear_array_ptr = <double complex*>eos_solution_storage_ptr.complex_shear_array_vec.data()
+    cdef double complex* complex_bulk_array_ptr  = <double complex*>eos_solution_storage_ptr.complex_bulk_array_vec.data()
 
     # Pull out key information
     cdef size_t num_layers   = eos_solution_storage_ptr.num_layers
@@ -194,7 +194,7 @@ cdef void cf_shooting_solver(
     # Max step size
     cdef double max_step_to_use        = NAN
     cdef cpp_bool max_step_from_arrays = False
-    if max_step == 0:
+    if max_step == 0.0:
         # If max_step is zero use the array information to determine max_step_size
         max_step_from_arrays = True
     else:
@@ -215,8 +215,8 @@ cdef void cf_shooting_solver(
 
     # Create storage for flags and information about each layer.
     cdef vector[size_t] num_solutions_by_layer_vec = vector[size_t]()
-    num_solutions_by_layer_vec.reserve(num_layers)
-    cdef size_t* num_solutions_by_layer_ptr = &num_solutions_by_layer_vec[0]
+    num_solutions_by_layer_vec.resize(num_layers)
+    cdef size_t* num_solutions_by_layer_ptr = num_solutions_by_layer_vec.data()
 
     # Opt: The bools above could be stores in a single char variable (per layer).
     #  Eg., 0x00 All false, 0x01 is solid, 0x10 is static and liquid, 0x11 is static and solid, etc.
@@ -348,29 +348,23 @@ cdef void cf_shooting_solver(
     cdef size_t num_output_ys = MAX_NUM_Y * num_ytypes
 
     # Get a reference pointer to solution array
-    cdef double* solution_dbl_ptr = solution_storage_ptr.full_solution_vec.data()
     # Cast the solution pointer from double to double complex
-    cdef double complex* solution_ptr = <double complex*>solution_dbl_ptr
+    cdef double complex* solution_ptr = <double complex*>solution_storage_ptr.full_solution_vec.data()
 
     # During collapse, variables for the layer above the target one are used. Declare these and preset them.
     cdef double layer_above_lower_gravity
     cdef double layer_above_lower_density
     cdef double liquid_density_at_interface
     cdef int layer_above_type
-    cdef cpp_bool layer_above_is_static
-    cdef cpp_bool layer_above_is_incomp
+    cdef bint layer_above_is_static
+    cdef bint layer_above_is_incomp
     printf("DEBUG- Shooting Method Point 6\n")
-
-    # Each layer will have an equation of state solution which will be called during integration to ensure 
-    # an accurate interpolation occurs at each radius value
-    cdef shared_ptr[CySolverResult] eos_solution_sptr
-    cdef CySolverResult* eos_solution_ptr
 
     # Layer's differential equation will vary by layer type
     cdef double[9] eos_interp_array  # The "9" here is the number of variables (dependent + extra) found in the EOS solver. See TidalPy.Material.eos.solver.pyx for details.
     cdef double* eos_interp_array_ptr = &eos_interp_array[0]
     cdef CySolveOutput integration_solution
-    cdef CySolverResult* integration_solution_ptr
+    cdef CySolverResult* integration_solution_ptr = NULL
     cdef double* integrator_data_ptr = NULL
 
     # The radial solver diffeq's require additional inputs other than "y" and "r". Build a structure that stores these
@@ -500,13 +494,6 @@ cdef void cf_shooting_solver(
         printf("DEBUG - Shooting Method:: layer i = %d; first slice = %d; last_index_before_start = %d\n", current_layer_i, first_slice_index, last_index_before_start)
         printf("DEBUG - Shooting Method:: layerslices = %d\n", layer_slices)
 
-        # Get layer EOS solution
-        # Check if we are using the correct EOS solution (changes with layers)
-        eos_solution_sptr = eos_solution_storage_ptr.cysolver_results_sptr_bylayer_vec[current_layer_i]
-        eos_solution_ptr  = eos_solution_sptr.get()
-        printf("DEBUG:: eos_sptr use count = %d\n", eos_solution_sptr.use_count())
-        printf("DEBUG:: Shooting Method-> EOS sptr = %p; EOS ptr = %p\n", eos_solution_sptr, eos_solution_ptr)
-
         # Get solution and y information
         num_sols   = num_solutions_by_layer_ptr[current_layer_i]
         num_ys     = 2 * num_sols
@@ -529,7 +516,7 @@ cdef void cf_shooting_solver(
             # To get the most accurate result we need to perform an interpolation to find various properties at
             # this starting radius. 
             printf("DEBUG- Shooting Method Point \t\t L3b slices = %d\n", layer_slices)
-            eos_solution_ptr.call(starting_radius, eos_interp_array_ptr)
+            eos_solution_storage_ptr.call(current_layer_i, starting_radius, eos_interp_array_ptr)
             printf("DEBUG- Shooting Method Point \t\t L3c; g0 = %e; rho0 = %e; shear0 = %e %e; bulk0 = %e, %e\n", eos_interp_array_ptr[0], eos_interp_array_ptr[4], eos_interp_array_ptr[5], eos_interp_array_ptr[6], eos_interp_array_ptr[7], eos_interp_array_ptr[8])
 
             # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 

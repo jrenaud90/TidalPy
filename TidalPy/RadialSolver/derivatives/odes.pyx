@@ -1,7 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
+from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs
+from TidalPy.constants cimport d_EPS_DBL
+
+cdef double d_EPS_DBL_10 = 10.0 * d_EPS_DBL
 
 from libc.stdio cimport printf
 
@@ -469,6 +472,7 @@ cdef void cf_liquid_dynamic_compressible(
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
     args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    # printf("cf_liquid_dynamic_compressible ------------|| r = %e ||------------\n", radius)
     # Pull out results.
     # The EOS stores 7 doubles:
     #   0: Gravity
@@ -482,6 +486,7 @@ cdef void cf_liquid_dynamic_compressible(
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
     cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
+    # printf("\t g = %e; rho = %e; shear = %e, %e; bulk = %e %e\n", gravity, density, shear_modulus.real, shear_modulus.imag, bulk_modulus.real, bulk_modulus.imag)
 
     # Pull out y values
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
@@ -489,6 +494,7 @@ cdef void cf_liquid_dynamic_compressible(
     cdef double complex y2 = cf_build_dblcmplx(y_ptr[2], y_ptr[3])
     cdef double complex y5 = cf_build_dblcmplx(y_ptr[4], y_ptr[5])
     cdef double complex y6 = cf_build_dblcmplx(y_ptr[6], y_ptr[7])
+    # printf("\t y1 = %e %e; y2 = %e %e; y5 = %e, %e; y6 = %e %e\n", y1.real, y1.imag, y2.real, y2.imag, y5.real, y5.imag, y6.real, y6.imag)
 
     # Optimizations
     cdef double r_inverse         = 1. / radius
@@ -509,8 +515,33 @@ cdef void cf_liquid_dynamic_compressible(
 
     # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
     #   other derivatives.
-    y3 = (1. / dynamic_term) * (y2 - density_gravity * y1 + density * y5)
-    y1_y3_term = 2. * y1 - args_ptr.llp1 * y3
+    
+    # cdef long double complex t0 = (1. / dynamic_term)
+    # cdef long double complex t1 = y2
+    # cdef long double complex t2 = -density_gravity * y1
+    # cdef long double complex t3 = density * y5
+    # cdef long double complex tadd12 = t1 + t2
+    # cdef long double complex tadd123 = tadd12 + t3
+    # cdef long double complex multi = tadd123 * t0
+
+    # printf("\t1/w = %e %e; y2 = %e %e; -rho g y1 = %e %e; rho y5 = %e %e\n", t0.real, t0.imag, t1.real, t1.imag, t2.real, t2.imag, t3.real, t3.imag)
+    # printf("\tadd = %e %e; Multi = %e %e\n", tadd123.real, tadd123.imag, multi.real, multi.imag)
+    # cdef double complex y2y5 = y2 + density * y5
+    # printf("\ty2y5 = %e %e; d_EPS_DBL_10 = %e\n", y2y5.real, y2y5.imag, d_EPS_DBL_10)
+    # if cf_cabs(y2y5) < d_EPS_DBL_10:
+    #     printf("\tHIT BREAKER\n")
+    #     y2y5 = 0.0
+
+    cdef long double y2y5_r = <long double>y2.real + <long double>(density * y5.real)
+    cdef long double y2y5_i = <long double>y2.imag + <long double>(density * y5.imag)
+    cdef long double y3_r   = (1. / dynamic_term) * (y2y5_r - <long double>(density_gravity * y1.real))
+    cdef long double y3_i   = (1. / dynamic_term) * (y2y5_i - <long double>(density_gravity * y1.imag))
+    cdef double complex y3 = cf_build_dblcmplx(<double>y3_r, <double>y3_i)
+
+    # cdef double complex y2y5 = y2 + density * y5
+    # cdef double complex y3 = (1. / dynamic_term) * (y2y5 - density_gravity * y1)
+    cdef double complex y1_y3_term = 2. * y1 - args_ptr.llp1 * y3
+    # printf("\ty3 = %e %e; y1y3 = %e %e\n", y3.real, y3.imag, y1_y3_term.real, y1_y3_term.imag)
 
     # Eqs. 11--14 in KMN15 equations look like they don't match TS72 because they applied the rheology already.
     #    and substituted y3.
@@ -548,6 +579,9 @@ cdef void cf_liquid_dynamic_compressible(
     dy_ptr[5] = dy5.imag
     dy_ptr[6] = dy6.real
     dy_ptr[7] = dy6.imag
+
+    # printf("\t dy1 = %e %e; dy2 = %e %e; dy5 = %e, %e; dy6 = %e %e\n", dy1.real, dy1.imag, dy2.real, dy2.imag, dy5.real, dy5.imag, dy6.real, dy6.imag)
+    # printf("\n")
 
 
 cdef void cf_liquid_dynamic_incompressible(

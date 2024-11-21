@@ -28,6 +28,7 @@
 
 **Fixes**
 * Missing Cython compile arguments in `nondimensional.pyx`.
+* Fixed incorrect type in dynamic liquid layers that may have been causing some incorrect errors to propagate.
 
 
 ### Version 0.5.5 (2024-11-11)
