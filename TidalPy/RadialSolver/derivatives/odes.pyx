@@ -1,8 +1,16 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs
+from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs, cf_cinv
 from TidalPy.constants cimport d_EPS_DBL
+from libc.float cimport DBL_DIG
+
+from libc.math cimport fabs
+from libcpp cimport bool as cpp_bool
+from libcpp.cmath cimport ilogb, ldexp
+from libcpp.limits cimport numeric_limits
+
+from libc.float cimport DBL_MIN_EXP
 
 cdef double d_EPS_DBL_10 = 10.0 * d_EPS_DBL
 
@@ -456,6 +464,27 @@ cdef void cf_solid_static_incompressible(
     dy_ptr[10] = dy6.real
     dy_ptr[11] = dy6.imag
 
+cdef cpp_bool equal_zero_within_ulps(double x, size_t n) noexcept nogil:
+    #// Since `epsilon()` is the gap size (ULP, unit in the last place)
+    #// of floating-point numbers in interval [1, 2), we can scale it to
+    #// the gap size in interval [2^e, 2^{e+1}), where `e` is the exponent
+    #// of `x` and `y`.
+ 
+    #// If `x` and `y` have different gap sizes (which means they have
+    #// different exponents), we take the smaller one. Taking the bigger
+    #// one is also reasonable, I guess.
+    cdef double m = min(fabs(x), 0.0)
+ 
+    # // Subnormal numbers have fixed exponent, which is `min_exponent - 1`.
+    cdef int exp
+    if m < numeric_limits[double].min():
+        exp = <int>DBL_MIN_EXP - 1
+    else:
+        exp = ilogb(m)
+ 
+    #// We consider `x` and `y` equal if the difference between them is
+    #// within `n` ULPs.
+    return fabs(x) <= n * ldexp(numeric_limits[double].epsilon(), exp)
 
 cdef void cf_liquid_dynamic_compressible(
         double* dy_ptr,
@@ -511,37 +540,33 @@ cdef void cf_liquid_dynamic_compressible(
 
     # For the liquid layer it is assumed that the shear modulus is zero so the lame parameter simply
     #    equals the bulk modulus. Until bulk dissipation is considered, it will always be real-valued
-    cdef double complex lame_inverse = 1. / bulk_modulus
+    cdef double complex lame_inverse = cf_cinv(bulk_modulus)
 
     # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
     #   other derivatives.
     
-    # cdef long double complex t0 = (1. / dynamic_term)
-    # cdef long double complex t1 = y2
-    # cdef long double complex t2 = -density_gravity * y1
-    # cdef long double complex t3 = density * y5
-    # cdef long double complex tadd12 = t1 + t2
-    # cdef long double complex tadd123 = tadd12 + t3
-    # cdef long double complex multi = tadd123 * t0
+    # TODO: There are issues with this summation and the floating point errors. If you sum term 1 + 2 + 3 you get one
+    # Answer, if you sum 1 + 3 + 2 you get another. In either case the sum is close to zero in a lot of cases
+    # So the differences here can cause sign changes or large swings in outcomes. 
+    # cdef double complex y3 = (1. / dynamic_term) * (y2 - density_gravity * y1 + density * y5)
 
-    # printf("\t1/w = %e %e; y2 = %e %e; -rho g y1 = %e %e; rho y5 = %e %e\n", t0.real, t0.imag, t1.real, t1.imag, t2.real, t2.imag, t3.real, t3.imag)
-    # printf("\tadd = %e %e; Multi = %e %e\n", tadd123.real, tadd123.imag, multi.real, multi.imag)
-    # cdef double complex y2y5 = y2 + density * y5
-    # printf("\ty2y5 = %e %e; d_EPS_DBL_10 = %e\n", y2y5.real, y2y5.imag, d_EPS_DBL_10)
-    # if cf_cabs(y2y5) < d_EPS_DBL_10:
-    #     printf("\tHIT BREAKER\n")
-    #     y2y5 = 0.0
+    # After some testing, found that dividing out the y2 and then checking if the sum is < eps may help.
+    # cdef double complex y3 = (y2 / dynamic_term) * (1.0 - density_gravity * y1/y2 + density * y5/y2)
+    # cdef double complex y1y2   = y1 / y2
+    # cdef double complex y5y2   = y5 / y2
+    cdef double complex coeff_r  = (args_ptr.llp1 / (f2 * radius))
+    # cdef double complex y3_sum = (y2 + density * y5)
+    # y3_sum -= density_gravity * y1
 
-    cdef long double y2y5_r = <long double>y2.real + <long double>(density * y5.real)
-    cdef long double y2y5_i = <long double>y2.imag + <long double>(density * y5.imag)
-    cdef long double y3_r   = (1. / dynamic_term) * (y2y5_r - <long double>(density_gravity * y1.real))
-    cdef long double y3_i   = (1. / dynamic_term) * (y2y5_i - <long double>(density_gravity * y1.imag))
-    cdef double complex y3 = cf_build_dblcmplx(<double>y3_r, <double>y3_i)
-
-    # cdef double complex y2y5 = y2 + density * y5
-    # cdef double complex y3 = (1. / dynamic_term) * (y2y5 - density_gravity * y1)
-    cdef double complex y1_y3_term = 2. * y1 - args_ptr.llp1 * y3
-    # printf("\ty3 = %e %e; y1y3 = %e %e\n", y3.real, y3.imag, y1_y3_term.real, y1_y3_term.imag)
+    # if cf_cabs(y3_sum) < d_EPS_DBL:
+    #     y3 = cf_build_dblcmplx(0.0, 0.0)
+    #     y1_y3_term = 2. * y1
+    # else:
+    # y3 = coeff * y3_sum
+    cdef double complex y1_y3_term = \
+        (y1 * (2.0 - gravity * coeff_r)) + \
+        (y2 * coeff_r / density) + \
+        (y5 * coeff_r)
 
     # Eqs. 11--14 in KMN15 equations look like they don't match TS72 because they applied the rheology already.
     #    and substituted y3.

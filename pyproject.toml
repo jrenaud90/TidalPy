@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.0a7.dev4'
+version = '0.6.0a7.dev8'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -25,7 +25,7 @@ dependencies = [
     "astroquery",
     # Graphics
     "matplotlib>=3.4.2",
-    "cmcrameri>=1.4",
+    "cmcrameri>=1.4"
 ]
 license = {file = "LICENSE.md"}
 readme = "README.md"

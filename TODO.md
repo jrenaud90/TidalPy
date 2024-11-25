@@ -1,6 +1,7 @@
 
 v0.6.0:
 * Add in dm/dr and dI/dr (total mass and MOI) to EOS solver.
+* Create issue for higher precision. Look around line 548 in RadialSolver.odes.pyx
 
 * Tests:
     * radial_solver when starting_radius is provided. when it is not. when it is provided and its very large relative to planet (ensure nans are being produced at lower layers)
