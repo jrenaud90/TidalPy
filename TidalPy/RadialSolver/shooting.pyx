@@ -772,6 +772,11 @@ cdef void cf_shooting_solver(
                 if raise_on_fail:
                     exit(EXIT_FAILURE)
                 break
+            
+            # Store diagnostic data
+            printf("SHOOTING DIAGNOSTIC:: num interps = %d; size = %d; steps taken = %d\n", integration_solution_ptr.num_interpolates, integration_solution_ptr.size, integration_solution_ptr.steps_taken)
+            solution_storage_ptr.shooting_method_steps_taken_vec[3 * current_layer_i + solution_i] = \
+                integration_solution_ptr.steps_taken
 
             # If no problems, store results.
             printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4b\n", current_layer_i, solution_i)

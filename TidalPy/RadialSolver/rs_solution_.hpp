@@ -51,6 +51,9 @@ public:
     // Love number attributes
     std::vector<double> complex_love_vec = std::vector<double>();
 
+    // Diagnostic data
+    std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
+
     // Constructors and methods
     virtual ~RadialSolutionStorageCC();
     RadialSolutionStorageCC();

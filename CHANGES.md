@@ -21,7 +21,7 @@
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
 
 **Dependencies**
-* Added support for CyRK v0.11.3
+* Added support for CyRK v0.11.5
 
 **Documentation**
 * Added documentation for propagation matrix use with radial solver in `Calculating Love Numbers with TidalPy.md`.

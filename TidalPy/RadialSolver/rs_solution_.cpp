@@ -26,6 +26,17 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
         this->num_slices
         );
     
+    // Setup diagnostic array. Size = max possible number of solutions per layer (3) * num layers
+    this->shooting_method_steps_taken_vec.resize(3 * this->num_layers);
+    // Set steps taken to 0
+    for (size_t layer_i = 0; layer_i < this->num_layers; layer_i++)
+    {
+        this->shooting_method_steps_taken_vec[3 * layer_i]     = 0;
+        this->shooting_method_steps_taken_vec[3 * layer_i + 1] = 0;
+        this->shooting_method_steps_taken_vec[3 * layer_i + 2] = 0;
+    }
+
+    // Setup radius array based vectors
     if (this->eos_solution_uptr.get())
     {
         this->change_radius_array(

@@ -41,6 +41,20 @@ cdef class RadialSolverSolution:
             # C++ solution storage could not be initialized.
             raise RuntimeError("RadialSolutionStorageCC extension class could not be initialized.")
         
+        # Setup shooting method diagnostic arrays
+        cdef cnp.npy_intp[2] steps_taken_shape   = [3, num_layers]
+        cdef cnp.npy_intp* steps_taken_shape_ptr = &steps_taken_shape[0]
+        cdef cnp.npy_intp steps_taken_ndim       = 2
+        self.shooting_method_steps_taken_array = cnp.PyArray_SimpleNewFromData(
+            steps_taken_ndim,
+            steps_taken_shape_ptr,
+            # The below should be "cnp.NPY_UINTP" to ensure that the pointer is for a size_t*. 
+            # But it looks like numpy does not have an enum for this, even though their documentation says it does:
+            # https://numpy.org/devdocs/reference/c-api/dtype.html#c.NPY_TYPES.NPY_UINTP
+            # Track question related to this here: https://stackoverflow.com/questions/79231405/no-enum-for-numpy-uintp
+            cnp.NPY_UINT64,
+            self.solution_storage_sptr.get().shooting_method_steps_taken_vec.data())
+
         # Finish initialization with provided array
         self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
 

@@ -45,6 +45,7 @@ cdef extern from "rs_solution_.cpp" nogil:
         unique_ptr[EOSSolutionCC] eos_solution_uptr
         vector[double] full_solution_vec
         vector[double] complex_love_vec
+        vector[size_t] shooting_method_steps_taken_vec
 
         EOSSolutionCC* get_eos_solution_ptr()
         void change_radius_array(
@@ -83,6 +84,9 @@ cdef class RadialSolverSolution:
     cdef public cnp.ndarray density_array
     cdef public cnp.ndarray shear_modulus_array
     cdef public cnp.ndarray bulk_modulus_array
+
+    # Shooting method diagnostics
+    cdef public cnp.ndarray shooting_method_steps_taken_array
 
     cdef void set_model_names(
         self,
