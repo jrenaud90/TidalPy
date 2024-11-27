@@ -7,9 +7,10 @@
 
 #include "eos_solution_.hpp"
 #include "love_.hpp"
+#include "nondimensional_.hpp"
 
-const int MAX_NUM_Y = 6;
-const int MAX_NUM_Y_REAL = 12; // Maximum number of y values counting both the real and imaginary portions.
+const size_t MAX_NUM_Y      = 6;
+const size_t MAX_NUM_Y_REAL = 12; // Maximum number of y values counting both the real and imaginary portions.
 
 
 // Error Codes:
@@ -67,4 +68,7 @@ public:
         bool array_changed);
     void set_message(const char* new_message);
     void find_love();
+    void dimensionalize_data(
+        NonDimensionalScalesCC* nondim_scales,
+        bool redimensionalize);
 };

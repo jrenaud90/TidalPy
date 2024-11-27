@@ -282,3 +282,5 @@ cdef void solve_eos(
         # Tell the eos solution to perform a full planet interpolation and store the results. Including surface results 
         printf("\tDEBUG-solve_eos 10b3\n")
         eos_solution_ptr.interpolate_full_planet()
+
+    printf("solve_eos Finished\n")

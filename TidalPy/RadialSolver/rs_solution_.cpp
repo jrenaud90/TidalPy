@@ -44,9 +44,11 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
     }
 }
 
+#include <cstdio>
+
 RadialSolutionStorageCC::~RadialSolutionStorageCC( )
 {
-
+    printf("RadialSolutionStorageCC Deconstructor Called; addr: %p.\n", this);
 }
 
 EOSSolutionCC* RadialSolutionStorageCC::get_eos_solution_ptr()
@@ -126,5 +128,76 @@ void RadialSolutionStorageCC::find_love()
         // Could pass a new message to update the state but it will overwrite any error message that is already there.
         // TODO: Think about doing an append or logging system in the future.
         // this->set_message("Can not update Love number values when solution is not complete or is unsuccessful.")
+    }
+}
+
+void RadialSolutionStorageCC::dimensionalize_data(
+            NonDimensionalScalesCC* nondim_scales,
+            bool redimensionalize)
+{
+
+    // Perform dimensionalization on the EOS solution first.
+    double* full_solution_ptr       = this->full_solution_vec.data();
+    EOSSolutionCC* eos_solution_ptr = this->get_eos_solution_ptr();
+    eos_solution_ptr->dimensionalize_data(nondim_scales, redimensionalize);
+
+    const double displacement_scale = (nondim_scales->second2_conversion / nondim_scales->length_conversion);
+    const double stress_scale       = (nondim_scales->mass_conversion / nondim_scales->length3_conversion);
+    const double potential_scale    = (1. / nondim_scales->length_conversion);
+
+    // Redimensionalize the radial solutions
+    printf("RS SOLUTION:: REDIM CALLED\n");
+
+    printf("nondim scales (ptr = %p):\n", nondim_scales);
+    printf("\t length = %e\n", nondim_scales->length_conversion);
+    printf("\t leng3  = %e\n", nondim_scales->length3_conversion);
+    printf("\t densit = %e\n", nondim_scales->density_conversion);
+    printf("\t pascal = %e\n", nondim_scales->pascal_conversion);
+    printf("\t sec    = %e\n", nondim_scales->second_conversion);
+    printf("\t sec2   = %e\n", nondim_scales->second2_conversion);
+    printf("\t mass   = %e\n", nondim_scales->mass_conversion);
+
+    printf("RS SOLUTION:: displacement scale = %e\n", displacement_scale);
+    printf("RS SOLUTION:: stress scale = %e\n", stress_scale);
+    printf("RS SOLUTION:: potential scale = %e\n", potential_scale);
+    if (this->success)
+    {
+        for (size_t solver_i = 0; solver_i < this->num_ytypes; solver_i++)
+        {
+            const size_t bc_stride = solver_i * MAX_NUM_Y_REAL;
+            printf("\t solver_i = %d; stride = %d\n", solver_i, bc_stride);
+            for (size_t slice_i = 0; slice_i < this->num_slices; slice_i++)
+            {
+                const size_t slice_stride = bc_stride + slice_i * MAX_NUM_Y_REAL * this->num_ytypes;
+                printf("\t\t slice = %d; slice stride = %d\n", slice_i, slice_stride);
+                //    y1, y3 are the radial and tangential displacements with units of [s2 m-1]
+                //    y2, y4 are the radial and tangential stresses with units of [kg m-3]
+                //    y5 is the tidal potential which is unitless and thus needs no conversion.
+                //    y6 is a "potential stress" with units of [m-1]
+                // y1 (real and imag)
+                full_solution_ptr[slice_stride + 0] *= displacement_scale;
+                full_solution_ptr[slice_stride + 1] *= displacement_scale;
+                
+                // y3 (real and imag)
+                full_solution_ptr[slice_stride + 4] *= displacement_scale;
+                full_solution_ptr[slice_stride + 5] *= displacement_scale;
+
+                // y2 (real and imag)
+                full_solution_ptr[slice_stride + 2] *= stress_scale;
+                full_solution_ptr[slice_stride + 3] *= stress_scale;
+
+                // y4 (real and imag)
+                full_solution_ptr[slice_stride + 6] *= stress_scale;
+                full_solution_ptr[slice_stride + 7] *= stress_scale;
+
+                // y5 (real and imag)
+                // full_solution_ptr[slice_stride + 8] *= 1.0;
+                // full_solution_ptr[slice_stride + 9] *= 1.0;
+
+                // y6 (real and imag)
+                full_solution_ptr[slice_stride + 10] *= potential_scale;
+                full_solution_ptr[slice_stride + 11] *= potential_scale;
+            }
+        }
     }
 }

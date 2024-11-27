@@ -20,3 +20,4 @@ include TidalPy/RadialSolver/rs_solution_.cpp
 include TidalPy/RadialSolver/rs_solution_.hpp
 include TidalPy/Material/eos/eos_solution_.cpp
 include TidalPy/Material/eos/eos_solution_.hpp
+include TidalPy/utilities/dimensions/nondimensional_.hpp

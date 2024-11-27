@@ -16,6 +16,7 @@ TidalPy-Run*
 !TidalPy/RadialSolver/rs_solution_.hpp
 !TidalPy/Material/eos/eos_solution_.cpp
 !TidalPy/Material/eos/eos_solution_.hpp
+!TidalPy/utilities/dimensions/nondimensional_.hpp
 
 # End TidalPy
 

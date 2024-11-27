@@ -219,6 +219,16 @@ cdef class RadialSolverSolution:
     def eos_success(self):
         """ Return if the solver's equation of state sub-solver was successful """
         return self.solution_storage_sptr.get().get_eos_solution_ptr().success
+    
+    @property
+    def eos_pressure_error(self):
+        """ Return the surface pressure error found by the equation of state sub-solver """
+        return self.solution_storage_sptr.get().get_eos_solution_ptr().pressure_error
+    
+    @property
+    def eos_iterations(self):
+        """ Return the number of iterations performed by the EOS sub-solver to find convergence on surface pressure """
+        return self.solution_storage_sptr.get().get_eos_solution_ptr().iterations
 
     @property
     def radius(self):

@@ -6,7 +6,8 @@ cimport numpy as np
 
 from libc.stdio cimport printf
 from libc.stdlib cimport exit
-from libc.math cimport NAN
+
+from TidalPy.constants cimport d_NAN_DBL
 
 
 cdef void cf_get_surface_bc(
@@ -35,7 +36,7 @@ cdef void cf_get_surface_bc(
     # Inititalize all boundary conditions to NaN
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     for i in range(15):
-        boundary_conditions_ptr[i] = NAN
+        boundary_conditions_ptr[i] = d_NAN_DBL
     
     for j in range(num_bcs):
         if bc_model_ptr[j] == 0:

@@ -7,6 +7,8 @@
 
 #include "cysolution.hpp"  // Part of the CyRK python package. Header should be included in setup using CyRK.get_include()
 
+#include "nondimensional_.hpp" // Part of the TidalPy.utilities module
+
 static const size_t EOS_Y_VALUES = 4;
 static const size_t EOS_EXTRA_VALUES = 5;
 static const size_t EOS_DY_VALUES = 9;
@@ -30,8 +32,10 @@ protected:
     char message[256] = { };
 
 public:
-    int iterations        = -1;
-    int error_code        = -100;
+    int iterations             = -1;
+    int error_code             = -100;
+    int nondim_status          = 0;
+    int solution_nondim_status = 0;
     bool success          = false;
     bool max_iters_hit    = false;
     bool radius_array_set = false;
@@ -49,6 +53,13 @@ public:
     double radius           = NULL;
     double mass             = NULL;
     double moi              = NULL;
+
+    double redim_length_scale  = NULL;
+    double redim_gravity_scale = NULL;
+    double redim_mass_scale    = NULL;
+    double redim_density_scale = NULL;
+    double redim_moi_scale     = NULL;
+    double redim_pascal_scale  = NULL;
     
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec = std::vector<double>();
@@ -103,4 +114,7 @@ public:
     
     // Run full planet interpolation through each layer.
     void interpolate_full_planet();
+    void dimensionalize_data(
+        NonDimensionalScalesCC* nondim_scales,
+        bool redimensionalize);
 };

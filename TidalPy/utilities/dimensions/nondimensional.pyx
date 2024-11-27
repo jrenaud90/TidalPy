@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functionality to non-dimensionalize common variables used for multi-layer tidal calculations.
 
@@ -12,280 +12,83 @@ Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 from libc.math cimport sqrt
 
-from TidalPy.constants cimport d_G, d_PI_DBL
+from TidalPy.constants cimport d_G, d_PI_DBL, d_NAN_DBL
 
 
-cdef void cf_non_dimensionalize_physicals(
-        size_t num_radius,
+cdef class NonDimensionalScalesClass:
+    """ Python wrapper for the `NonDimensionalScales` struct. """
+
+    cdef NonDimensionalScalesCC nondim_scales
+
+    def __init__(self):
+        # Initialize everything to nan
+        self.nondim_scales.second2_conversion = d_NAN_DBL
+        self.nondim_scales.second_conversion  = d_NAN_DBL
+        self.nondim_scales.length_conversion  = d_NAN_DBL
+        self.nondim_scales.length3_conversion = d_NAN_DBL
+        self.nondim_scales.density_conversion = d_NAN_DBL
+        self.nondim_scales.mass_conversion    = d_NAN_DBL
+        self.nondim_scales.pascal_conversion  = d_NAN_DBL
+    
+    @property
+    def second2_conversion(self):
+        return self.nondim_scales.second2_conversion
+
+    @property
+    def second_conversion(self):
+        return self.nondim_scales.second_conversion
+    
+    @property
+    def length_conversion(self):
+        return self.nondim_scales.length_conversion
+    
+    @property
+    def length3_conversion(self):
+        return self.nondim_scales.length3_conversion
+    
+    @property
+    def density_conversion(self):
+        return self.nondim_scales.density_conversion
+
+    @property
+    def mass_conversion(self):
+        return self.nondim_scales.mass_conversion
+    
+    @property
+    def pascal_conversion(self):
+        return self.nondim_scales.pascal_conversion
+
+
+cdef void cf_build_nondimensional_scales(
+        NonDimensionalScalesCC* non_dim_scales_ptr,
         double frequency,
         double mean_radius,
-        double bulk_density,
-        double* radius_array_ptr,
-        double* density_array_ptr,
-        double* pressure_array_ptr,
-        double* gravity_array_ptr,
-        double_numeric* bulk_array_ptr,
-        double_numeric* shear_array_ptr,
-        double* radius_planet_to_use,
-        double* bulk_density_to_use,
-        double* surface_pressure_to_use,
-        double* frequency_to_use,
-        double* G_to_use
+        double bulk_density
         ) noexcept nogil:
 
-    # Setup loop variables
-    cdef size_t i
-
-    # Setup conversions
-    cdef double second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
-    cdef double second_conversion  = sqrt(second2_conversion)
-    cdef double length_conversion  = mean_radius
-    cdef double density_conversion = bulk_density
-    cdef double mass_conversion    = bulk_density * mean_radius**3
-    cdef double pascal_conversion  = mass_conversion / (length_conversion * second2_conversion)
-
-    # Convert array pointers
-    for i in range(num_radius):
-        radius_array_ptr[i]    /= length_conversion
-        density_array_ptr[i]   /= density_conversion
-        bulk_array_ptr[i]      /= pascal_conversion
-        shear_array_ptr[i]     /= pascal_conversion
-        
-        if gravity_array_ptr:
-            gravity_array_ptr[i] /= (length_conversion / second2_conversion)
-        if pressure_array_ptr:
-            pressure_array_ptr[i] /= pascal_conversion
-
-    # Convert non-array pointers
-    radius_planet_to_use[0] = 1.0
-    bulk_density_to_use[0]  = 1.0
-    G_to_use[0]             = d_G / (length_conversion**3 / (mass_conversion * second2_conversion))
-    frequency_to_use[0]     = frequency / (1. / second_conversion)
-
-    # Scale other inputs
-    surface_pressure_to_use[0] /= pascal_conversion
+    non_dim_scales_ptr.second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
+    non_dim_scales_ptr.second_conversion  = sqrt(non_dim_scales_ptr.second2_conversion)
+    non_dim_scales_ptr.length_conversion  = mean_radius
+    non_dim_scales_ptr.length3_conversion = mean_radius * mean_radius * mean_radius
+    non_dim_scales_ptr.density_conversion = bulk_density
+    non_dim_scales_ptr.mass_conversion    = bulk_density * non_dim_scales_ptr.length3_conversion
+    non_dim_scales_ptr.pascal_conversion  = \
+        non_dim_scales_ptr.mass_conversion / (non_dim_scales_ptr.length_conversion * non_dim_scales_ptr.second2_conversion)
 
 
-cdef void cf_redimensionalize_physicals(
-        size_t num_radius,
+def build_nondimensional_scales(
         double frequency,
         double mean_radius,
-        double bulk_density,
-        double* radius_array_ptr,
-        double* density_array_ptr,
-        double* pressure_array_ptr,
-        double* gravity_array_ptr,
-        double_numeric* bulk_array_ptr,
-        double_numeric* shear_array_ptr,
-        double* radius_planet_to_use,
-        double* bulk_density_to_use,
-        double* frequency_to_use,
-        double* G_to_use
-        ) noexcept nogil:
-
-    # Setup loop variables
-    cdef size_t i
-
-    # Setup conversions
-    cdef double second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
-    cdef double second_conversion  = sqrt(second2_conversion)
-    cdef double length_conversion  = mean_radius
-    cdef double density_conversion = bulk_density
-    cdef double mass_conversion    = bulk_density * mean_radius**3
-    cdef double pascal_conversion  = mass_conversion / (length_conversion * second2_conversion)
-
-    # Convert array pointers
-    for i in range(num_radius):
-        radius_array_ptr[i]    *= length_conversion
-        density_array_ptr[i]   *= density_conversion
-        bulk_array_ptr[i]      *= pascal_conversion
-        shear_array_ptr[i]     *= pascal_conversion
-
-        if gravity_array_ptr:
-            gravity_array_ptr[i] *= (length_conversion / second2_conversion)
-        if pressure_array_ptr:
-            pressure_array_ptr[i] *= pascal_conversion
-
-    # Convert non-array pointers
-    radius_planet_to_use[0] = mean_radius
-    bulk_density_to_use[0]  = bulk_density
-    G_to_use[0]             = d_G
-    frequency_to_use[0]     = frequency
-
-
-cdef void cf_redimensionalize_radial_functions(
-        double complex* radial_function_ptr,
-        double mean_radius,
-        double bulk_density,
-        size_t num_slices,
-        size_t num_solutions) noexcept nogil:
-    """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
-
-    Parameters
-    ----------
-    radial_function_ptr : complex128*
-        Non-dimensionalized radial solutions as a function of radius.
-    mean_radius : float64
-        Mean radius of the planet, used in scaling [m]
-    bulk_density : float64
-        Bulk density of the planet, used in scaling [m]
-    num_slices : uint32
-        Number of radial slices, used for looping.
-    num_solutions : uint32
-        Number of solutions to loop through (size of radial_function_ptr is 6 * num_solutions * num_slices)
-
-    """
-    # Loop variables
-    cdef size_t slice_i, solver_i
-
-    # Setup conversions
-    cdef double second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
-    cdef double mass_conversion    = bulk_density * mean_radius**3
-    cdef double length_conversion  = mean_radius
-    cdef double length_conversion3 = length_conversion**3
-
-    for solver_i in range(num_solutions):
-        for slice_i in range(num_slices):
-            # Convert displacements
-            #    y1, y3 are the radial and tangential displacements with units of [s2 m-1]
-            #    y2, y4 are the radial and tangential stresses with units of [kg m-3]
-            #    y5 is the tidal potential which is unitless and thus needs no conversion.
-            #    y6 is a "potential stress" with units of [m-1]
-
-            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 0] *= \
-                (second2_conversion / length_conversion)
-            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 2] *= \
-                (second2_conversion / length_conversion)
-
-            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 1] *= \
-                (mass_conversion / length_conversion3)
-            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 3] *= \
-                (mass_conversion / length_conversion3)
-
-            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 4] *= \
-                1.
-            radial_function_ptr[slice_i * 6 * num_solutions + solver_i * 6 + 5] *= \
-                (1. / length_conversion)
-
-
-def non_dimensionalize_physicals(
-        double frequency,
-        double mean_radius,
-        double bulk_density,
-        double surface_pressure,
-        double[::1] radius_array_view,
-        double[::1] density_array_view,
-        double_numeric[::1] bulk_array_view,
-        double_numeric[::1] shear_array_view,
-        double[::1] pressure_array_view = None,
-        double[::1] gravity_array_view = None,
+        double bulk_density
         ):
 
-    cdef size_t num_radius = radius_array_view.size
-    cdef double radius_planet_to_use, bulk_density_to_use, frequency_to_use, G_to_use
+    cdef NonDimensionalScalesClass non_dim_scales = NonDimensionalScalesClass()
 
-    cdef double* pressure_array_ptr = NULL
-    if pressure_array_view is not None:
-        pressure_array_ptr = &pressure_array_view[0]
-    
-    cdef double* gravity_array_ptr = NULL
-    if gravity_array_view is not None:
-        gravity_array_ptr = &gravity_array_view[0]
-
-    cdef double surface_pressure_to_use = surface_pressure
-
-    cf_non_dimensionalize_physicals(
-        num_radius,
+    cf_build_nondimensional_scales(
+        &non_dim_scales.nondim_scales,
         frequency,
         mean_radius,
-        bulk_density,
-        &radius_array_view[0],
-        &density_array_view[0],
-        pressure_array_ptr,
-        gravity_array_ptr,
-        &bulk_array_view[0],
-        &shear_array_view[0],
-        &radius_planet_to_use,
-        &bulk_density_to_use,
-        &surface_pressure_to_use,
-        &frequency_to_use,
-        &G_to_use
+        bulk_density
         )
-    
-    return radius_planet_to_use, bulk_density_to_use, surface_pressure_to_use, frequency_to_use, G_to_use
 
-def redimensionalize_physicals(
-        double frequency,
-        double mean_radius,
-        double bulk_density,
-        double[::1] radius_array_view,
-        double[::1] density_array_view,
-        double_numeric[::1] bulk_array_view,
-        double_numeric[::1] shear_array_view,
-        double[::1] pressure_array_view = None,
-        double[::1] gravity_array_view = None,
-        ):
-
-    cdef size_t num_radius = radius_array_view.size
-    cdef double radius_planet_to_use, bulk_density_to_use, frequency_to_use, G_to_use
-
-    cdef double* pressure_array_ptr = NULL
-    if pressure_array_view is not None:
-        pressure_array_ptr = &pressure_array_view[0]
-    
-    cdef double* gravity_array_ptr = NULL
-    if gravity_array_view is not None:
-        gravity_array_ptr = &gravity_array_view[0]
-
-    cf_redimensionalize_physicals(
-        num_radius,
-        frequency,
-        mean_radius,
-        bulk_density,
-        &radius_array_view[0],
-        &density_array_view[0],
-        pressure_array_ptr,
-        gravity_array_ptr,
-        &bulk_array_view[0],
-        &shear_array_view[0],
-        &radius_planet_to_use,
-        &bulk_density_to_use,
-        &frequency_to_use,
-        &G_to_use
-        )
-    
-    return radius_planet_to_use, bulk_density_to_use, frequency_to_use, G_to_use
-
-def redimensionalize_radial_functions(
-    double complex[:, ::1] radial_function_view,
-    double mean_radius,
-    double bulk_density):
-    """ A function to re-dimensionalize physical parameters that have been previously non-dimensionalized.
-
-    Parameters
-    ----------
-    radial_function_view : double complex[:, ::1]
-        Non-dimensionalized radial solutions as a function of radius.
-    mean_radius : float64
-        Mean radius of the planet, used in scaling [m]
-    bulk_density : float64
-        Bulk density of the planet, used in scaling [m]
-    num_slices : uint32
-        Number of radial slices, used for looping.
-    num_solutions : uint32, default=1
-        Number of solutions to loop through (size of radial_function_ptr is 6 * num_solutions * num_slices)
-
-    """
-    # Size of arrays
-    cdef size_t num_solutions, num_slices
-    num_solutions = <size_t> (radial_function_view.shape[0] / 6)
-    num_slices = radial_function_view.shape[1]
-
-    # Call cython function
-    cf_redimensionalize_radial_functions(
-        &radial_function_view.T[0, 0],
-        mean_radius,
-        bulk_density,
-        num_slices,
-        num_solutions
-    )
+    return non_dim_scales

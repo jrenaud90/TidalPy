@@ -32,7 +32,7 @@
     "include_dirs": [["TidalPy", "utilities", "dimensions"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
 
   "utilities.math.complex": {
@@ -81,7 +81,7 @@
   "Material.EOS.eos_solution": {
     "name": "TidalPy.Material.eos.eos_solution",
     "sources": [["TidalPy", "Material", "eos", "eos_solution.pyx"]],
-    "include_dirs": [["TidalPy", "Material", "eos"]],
+    "include_dirs": [["TidalPy", "Material", "eos"], ["TidalPy", "utilities", "dimensions"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
@@ -138,7 +138,7 @@
   "RadialSolver.solutions": {
     "name": "TidalPy.RadialSolver.rs_solution",
     "sources": [["TidalPy", "RadialSolver", "rs_solution.pyx"]],
-    "include_dirs": [["TidalPy", "RadialSolver"], ["TidalPy", "Material", "eos"]],
+    "include_dirs": [["TidalPy", "RadialSolver"], ["TidalPy", "Material", "eos"], ["TidalPy", "utilities", "dimensions"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true

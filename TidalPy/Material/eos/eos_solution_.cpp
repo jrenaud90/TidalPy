@@ -29,7 +29,7 @@ EOSSolutionCC::EOSSolutionCC(
 
 EOSSolutionCC::~EOSSolutionCC( )
 {
-    printf("TidalPy::EOSSolutionCC Deconstructor Called.\n");
+    printf("TidalPy::EOSSolutionCC Deconstructor Called; addr = %p.\n", this);
     // Reset each shared pointer in the cysolver vector
     for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
     {
@@ -63,28 +63,62 @@ void EOSSolutionCC::call(
         const double radius,
         double* y_interp_ptr) const
 {
-    if (layer_index < this->current_layers_saved) [[unlikely]]
+    if (layer_index < this->current_layers_saved) [[likely]]
     {
         this->cysolver_results_sptr_bylayer_vec[layer_index]->call(radius, y_interp_ptr);
-    }
-    else
-    {
-        // TODO: Better error handling
-        printf("Error! EOSSolution::call was asked to interpolate a layer that it has not saved.");
-        std::exception();
-    }
-}
 
+        if (this->nondim_status == 1)
+        {
+            // Acceleration due to Gravity
+            y_interp_ptr[0] *= this->redim_gravity_scale;
 
-void EOSSolutionCC::call_vectorize(
-        const size_t layer_index,
-        const double* radius_array_ptr,
-        size_t len_radius_array,
-        double* y_interp_ptr) const
-{
-    if (layer_index < this->current_layers_saved)
-    {
-        this->cysolver_results_sptr_bylayer_vec[layer_index]->call_vectorize(radius_array_ptr, len_radius_array, y_interp_ptr);
+            // Pressure
+            y_interp_ptr[1] *= this->redim_pascal_scale;
+
+            // These assume sphereical symmetry
+            // Total mass
+            y_interp_ptr[2] *= this->redim_mass_scale;
+
+            // Moment of inertia (r^2 multipled by dm which was found above)
+            y_interp_ptr[3] *= this->redim_moi_scale;
+
+            // Density
+            y_interp_ptr[4] *= this->redim_density_scale;
+            
+            // Shear modulus (real and complex)
+            y_interp_ptr[5] *= this->redim_pascal_scale;
+            y_interp_ptr[6] *= this->redim_pascal_scale;
+
+            // Bulk modulus (real and complex)
+            y_interp_ptr[7] *= this->redim_pascal_scale;
+            y_interp_ptr[8] *= this->redim_pascal_scale;
+        }
+        else if (this->nondim_status == -1)
+        {
+            // Acceleration due to Gravity
+            y_interp_ptr[0] /= this->redim_gravity_scale;
+
+            // Pressure
+            y_interp_ptr[1] /= this->redim_pascal_scale;
+
+            // These assume sphereical symmetry
+            // Total mass
+            y_interp_ptr[2] /= this->redim_mass_scale;
+
+            // Moment of inertia (r^2 multipled by dm which was found above)
+            y_interp_ptr[3] /= this->redim_moi_scale;
+
+            // Density
+            y_interp_ptr[4] /= this->redim_density_scale;
+            
+            // Shear modulus (real and complex)
+            y_interp_ptr[5] /= this->redim_pascal_scale;
+            y_interp_ptr[6] /= this->redim_pascal_scale;
+
+            // Bulk modulus (real and complex)
+            y_interp_ptr[7] /= this->redim_pascal_scale;
+            y_interp_ptr[8] /= this->redim_pascal_scale;
+        }
     }
     else
     {
@@ -147,6 +181,8 @@ void EOSSolutionCC::change_radius_array(
 void EOSSolutionCC::interpolate_full_planet()
 {
     printf("TidalPy::EOSSolutionCC.interpolate_full_planet called.\n");
+    this->solution_nondim_status = this->nondim_status;
+
     if (this->current_layers_saved == 0)
     {
         // No layers have been saved, we can't perform the interpolation.
@@ -208,4 +244,117 @@ void EOSSolutionCC::interpolate_full_planet()
 
     // Finished
     this->other_vecs_set = true;
+}
+
+#include <cstdio>
+
+void EOSSolutionCC::dimensionalize_data(NonDimensionalScalesCC* nondim_scales, bool redimensionalize)
+{   
+
+    printf("EOSSolutionCC::dimensionalize_data Called.\n");
+    printf("nondim scales (ptr = %p):\n", nondim_scales);
+    printf("\t length = %e\n", nondim_scales->length_conversion);
+    printf("\t leng3  = %e\n", nondim_scales->length3_conversion);
+    printf("\t densit = %e\n", nondim_scales->density_conversion);
+    printf("\t pascal = %e\n", nondim_scales->pascal_conversion);
+    printf("\t sec    = %e\n", nondim_scales->second_conversion);
+    printf("\t sec2   = %e\n", nondim_scales->second2_conversion);
+    printf("\t mass   = %e\n", nondim_scales->mass_conversion);
+
+    // Save scalers
+    this->redim_length_scale  = nondim_scales->length_conversion;
+    this->redim_gravity_scale = nondim_scales->length_conversion / nondim_scales->second2_conversion;
+    this->redim_mass_scale    = nondim_scales->mass_conversion;
+    this->redim_density_scale = nondim_scales->density_conversion;
+    this->redim_moi_scale     = nondim_scales->mass_conversion * nondim_scales->length_conversion * nondim_scales->length_conversion;
+    this->redim_pascal_scale  = nondim_scales->pascal_conversion;
+
+    // Figure out how to set flags used during eos solution calls
+    if (this->solution_nondim_status == 0)
+    {
+        // EOS was not explicitly non-dim'd or re-dim'd when solution was found. 
+        if (redimensionalize)
+        {
+            // User is now "redimensionalizing." Thus we assume that the solution was non-dim'd
+            this->nondim_status = 1;
+        }
+        else
+        {
+            // User is now "dimensionalizing." Thus we assume that the solution was dim'd
+            this->nondim_status = -1;
+        }
+    }
+    else
+    {
+        // TODO: Deal with this case! For now push the problem to the user when they try to call...
+    }
+
+    // Update other constants
+    if (redimensionalize)
+    {
+        this->pressure_error *= this->redim_pascal_scale;
+    }
+    else
+    {
+        this->pressure_error /= this->redim_pascal_scale;
+    }
+
+    // Update layer data
+    for (size_t layer_i = 0; layer_i < this->num_layers; layer_i++)
+    {
+        if (redimensionalize)
+        {
+            this->upper_radius_bylayer_vec[layer_i] *= this->redim_length_scale;
+        }
+        else
+        {
+            this->upper_radius_bylayer_vec[layer_i] /= this->redim_length_scale;
+        }
+    }
+    
+    if (this->other_vecs_set)
+    {
+        // Work through arrays
+        for (size_t slice_i = 0; slice_i < this->radius_array_size; slice_i++)
+        {
+            if (redimensionalize)
+            {
+                this->radius_array_vec[slice_i]   *= this->redim_length_scale;
+                this->gravity_array_vec[slice_i]  *= this->redim_gravity_scale;
+                this->pressure_array_vec[slice_i] *= this->redim_pascal_scale;
+                this->mass_array_vec[slice_i]     *= this->redim_mass_scale;
+                this->moi_array_vec[slice_i]      *= this->redim_moi_scale;
+                this->density_array_vec[slice_i]  *= this->redim_density_scale;
+
+                // These complex arrays are stored as double arrays with twice the length (Cython and C++ don't play nicely with complex across all systems)
+                this->complex_shear_array_vec[2 * slice_i]     *= this->redim_pascal_scale;
+                this->complex_shear_array_vec[2 * slice_i + 1] *= this->redim_pascal_scale;
+                this->complex_bulk_array_vec[2 * slice_i]      *= this->redim_pascal_scale;
+                this->complex_bulk_array_vec[2 * slice_i + 1]  *= this->redim_pascal_scale;
+            }
+            else
+            {
+                this->radius_array_vec[slice_i]   /= this->redim_length_scale;
+                this->gravity_array_vec[slice_i]  /= this->redim_gravity_scale;
+                this->pressure_array_vec[slice_i] /= this->redim_pascal_scale;
+                this->mass_array_vec[slice_i]     /= this->redim_mass_scale;
+                this->moi_array_vec[slice_i]      /= this->redim_moi_scale;
+                this->density_array_vec[slice_i]  /= this->redim_density_scale;
+
+                // These complex arrays are stored as double arrays with twice the length (Cython and C++ don't play nicely with complex across all systems)
+                this->complex_shear_array_vec[2 * slice_i]     /= this->redim_pascal_scale;
+                this->complex_shear_array_vec[2 * slice_i + 1] /= this->redim_pascal_scale;
+                this->complex_bulk_array_vec[2 * slice_i]      /= this->redim_pascal_scale;
+                this->complex_bulk_array_vec[2 * slice_i + 1]  /= this->redim_pascal_scale;
+            }
+        }
+
+        // Update global constants
+        this->radius           = this->radius_array_vec[this->radius_array_size - 1];
+        this->surface_gravity  = this->gravity_array_vec[this->radius_array_size - 1];
+        this->surface_pressure = this->pressure_array_vec[this->radius_array_size - 1];
+        this->mass             = this->mass_array_vec[this->radius_array_size - 1];
+        this->moi              = this->moi_array_vec[this->radius_array_size - 1];
+        this->central_pressure = this->pressure_array_vec[0];
+    }
 }

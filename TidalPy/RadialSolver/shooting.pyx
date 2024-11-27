@@ -171,6 +171,14 @@ cdef void cf_shooting_solver(
     cdef double planet_radius   = eos_solution_storage_ptr.radius
     cdef double surface_gravity = eos_solution_storage_ptr.surface_gravity
 
+    printf("SHOOTING-- DIMS::\n")
+    printf("\t\tr0, r1 = %e %e\n", radius_array_ptr[0], radius_array_ptr[1])
+    printf("\t\tg0, g1 = %e %e\n", gravity_array_ptr[0], gravity_array_ptr[1])
+    printf("\t\trho0, rho1 = %e %e\n", density_array_ptr[0], density_array_ptr[1])
+    printf("\t\tmu0, mu1 = (%e %e) (%e %e)\n", complex_shear_array_ptr[0].real, complex_shear_array_ptr[0].imag, complex_shear_array_ptr[1].real, complex_shear_array_ptr[1].imag)
+    printf("\t\tK0, K1 = (%e %e) (%e %e)\n", complex_bulk_array_ptr[0].real, complex_bulk_array_ptr[0].imag, complex_bulk_array_ptr[1].real, complex_bulk_array_ptr[1].imag)
+
+
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
     # The [5] represents the maximum number of solvers that can be invoked with a single call to radial_solver
@@ -180,6 +188,7 @@ cdef void cf_shooting_solver(
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     cdef double[15] boundary_conditions
     cdef double* bc_pointer = &boundary_conditions[0]
+    printf("SHOOTING-- BCs:: R= %e; bulk rho= %e\n", planet_radius, planet_bulk_density)
     cf_get_surface_bc(
         bc_pointer,  # Changed parameter
         bc_models_ptr,
@@ -607,6 +616,7 @@ cdef void cf_shooting_solver(
         if current_layer_i == start_layer_i:
             # In the first layer. Use initial condition function to find initial conditions
             printf("DEBUG- Shooting Method Point \t\t layer = %d; L5a\n", current_layer_i)
+            printf("SHOOTING STARTING COND:: w = %e; rl = %e; rhol = %e; Kl=(%e, %e); mul=(%e, %e); G=%e", frequency, radius_lower, density_lower, bulk_lower.real, bulk_lower.imag, shear_lower.real, shear_lower.imag, G_to_use)
             cf_find_starting_conditions(
                 &solution_storage_ptr.success,
                 solution_storage_ptr.message_ptr,
@@ -1005,4 +1015,4 @@ cdef void cf_shooting_solver(
         solution_storage_ptr.success = True
         solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: completed without any noted issues.\n')
 
-    printf("DEBUG- Shooting Method Point - Done!!\n")
+    printf("DEBUG- Shooting Method Done!!\n")

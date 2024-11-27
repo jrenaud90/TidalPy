@@ -4,7 +4,7 @@
 
 from libc.stdio cimport printf
 from libc.stdlib cimport exit, EXIT_FAILURE
-from libc.math cimport fabs, NAN
+from libc.math cimport fabs
 from libc.string cimport strcpy
 from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.vector cimport vector
@@ -14,12 +14,8 @@ from CyRK cimport PreEvalFunc
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
 
-from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY
-from TidalPy.utilities.dimensions.nondimensional cimport (
-    cf_non_dimensionalize_physicals,
-    cf_redimensionalize_physicals,
-    cf_redimensionalize_radial_functions
-    )
+from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN_DBL
+from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
@@ -93,8 +89,8 @@ cdef void cf_radial_solver(
     num_slices_by_layer_vec.resize(num_layers)
 
     cdef size_t layer_slices       = 0
-    cdef double radius_check       = NAN
-    cdef double layer_upper_radius = NAN
+    cdef double radius_check       = d_NAN_DBL
+    cdef double layer_upper_radius = d_NAN_DBL
 
     # Pull out raw pointers to avoid repeated calls to the getter
     cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
@@ -102,11 +98,12 @@ cdef void cf_radial_solver(
 
     # Physical parameters
     cdef double radius_planet
-    cdef double G_to_use                = NAN
-    cdef double radius_planet_to_use    = NAN
-    cdef double bulk_density_to_use     = NAN
-    cdef double frequency_to_use        = NAN
-    cdef double surface_pressure_to_use = surface_pressure
+    cdef double G_to_use                = d_NAN_DBL
+    cdef double radius_planet_to_use    = d_NAN_DBL
+    cdef double bulk_density_to_use     = d_NAN_DBL
+    cdef double frequency_to_use        = d_NAN_DBL
+    cdef double starting_radius_to_use  = d_NAN_DBL
+    cdef double surface_pressure_to_use = d_NAN_DBL
     
     # Equation of state variables
     cdef size_t bottom_slice_index
@@ -167,34 +164,51 @@ cdef void cf_radial_solver(
     # Get other needed inputs
     radius_planet = radius_array_in_ptr[total_slices - 1]
 
+    cdef NonDimensionalScalesCC non_dim_scales
     if nondimensionalize and solution_storage_ptr.error_code == 0:
-        cf_non_dimensionalize_physicals(
-            total_slices,
+
+        # Create scales used to non-dimensionalize various properties
+        cf_build_nondimensional_scales(
+            &non_dim_scales,
             frequency,
             radius_planet,
-            planet_bulk_density,
-            radius_array_in_ptr,
-            density_array_in_ptr,
-            NULL,  # Pressure ptr (not found yet.)
-            NULL,  # Gravity ptr (not found yet.)
-            complex_bulk_modulus_in_ptr,
-            complex_shear_modulus_in_ptr,
-            &radius_planet_to_use,
-            &bulk_density_to_use,
-            &surface_pressure_to_use,
-            &frequency_to_use,
-            &G_to_use
+            planet_bulk_density
             )
-        
-        printf("NON DIM -- R = %e; rho = %e; P = %e; f = %e; G = %e\n",radius_planet_to_use, bulk_density_to_use, surface_pressure_to_use, frequency_to_use, G_to_use)
 
+        printf("nondim scales (ptr = %p):\n", &non_dim_scales)
+        printf("\t length = %e\n", non_dim_scales.length_conversion)
+        printf("\t leng3  = %e\n", non_dim_scales.length3_conversion)
+        printf("\t densit = %e\n", non_dim_scales.density_conversion)
+        printf("\t pascal = %e\n", non_dim_scales.pascal_conversion)
+        printf("\t sec    = %e\n", non_dim_scales.second_conversion)
+        printf("\t sec2   = %e\n", non_dim_scales.second2_conversion)
+        printf("\t mass   = %e\n", non_dim_scales.mass_conversion)
+
+        # Convert array pointers
+        for slice_i in range(total_slices):
+            radius_array_in_ptr[slice_i]          /= non_dim_scales.length_conversion
+            density_array_in_ptr[slice_i]         /= non_dim_scales.density_conversion
+            complex_bulk_modulus_in_ptr[slice_i]  /= non_dim_scales.pascal_conversion
+            complex_shear_modulus_in_ptr[slice_i] /= non_dim_scales.pascal_conversion
+        
         for layer_i in range(num_layers):
-            eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] /= radius_planet
-        
-        # Change starting radius if it was provided (if it is set to default then it is 0 and this won't have an effect)
-        starting_radius /= radius_planet
+            eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] /= non_dim_scales.length_conversion
+            
+        # Convert non-array constants
+        G_to_use                = d_G / (non_dim_scales.length3_conversion / (non_dim_scales.mass_conversion * non_dim_scales.second2_conversion))
+        radius_planet_to_use    = radius_planet / non_dim_scales.length_conversion
+        bulk_density_to_use     = planet_bulk_density / non_dim_scales.density_conversion
+        frequency_to_use        = frequency / (1. / non_dim_scales.second_conversion)
+        surface_pressure_to_use = surface_pressure / non_dim_scales.pascal_conversion
+        starting_radius_to_use  = starting_radius / non_dim_scales.length_conversion
 
-        # TODO Scale pressure tolerance by pasacal conversion?
+        # Scale tolerances
+        # TODO: What about rtol and atol for EOS and radial solver?
+        # TODO How about these other tolerances?
+        # eos_pressure_tol /= non_dim_scales.pascal_conversion
+        # start_radius_tolerance /= non_dim_scales.length_conversion
+
+        printf("NON DIM -- R = %e; rho = %e; P = %e; f = %e; G = %e\n",radius_planet_to_use, bulk_density_to_use, surface_pressure_to_use, frequency_to_use, G_to_use)
 
         # Update the radius array inside the C++ classes
         solution_storage_ptr.change_radius_array(radius_array_in_ptr, total_slices, True)
@@ -205,6 +219,7 @@ cdef void cf_radial_solver(
         bulk_density_to_use     = planet_bulk_density
         frequency_to_use        = frequency
         surface_pressure_to_use = surface_pressure
+        starting_radius_to_use  = starting_radius
 
     # Solve the equation of state for the planet
 
@@ -337,43 +352,39 @@ cdef void cf_radial_solver(
             printf("DEBUG-cf_radial_solver - Post shooting method\n")
 
     # Finalize solution storage
+    cdef size_t solver_i
+    cdef size_t bc_stride
+    cdef size_t solver_stride
+    cdef double complex* full_solution_ptr = NULL
     if nondimensionalize:
-        # Redimensionalize eos properties
-        cf_redimensionalize_physicals(
-            total_slices,
-            frequency,
-            radius_planet,
-            planet_bulk_density,
-            eos_solution_storage_ptr.radius_array_vec.data(),
-            eos_solution_storage_ptr.density_array_vec.data(),
-            eos_solution_storage_ptr.pressure_array_vec.data(),
-            eos_solution_storage_ptr.gravity_array_vec.data(),
-            eos_solution_storage_ptr.complex_bulk_array_vec.data(),
-            eos_solution_storage_ptr.complex_shear_array_vec.data(),
-            &radius_planet_to_use,
-            &bulk_density_to_use,
-            &frequency_to_use,
-            &G_to_use
-            )
+        printf("DEBUG-cf_radial_solver - Redimensionalizing\n")
+        # Redimensionalize user-provided inputs that are provided as pointers so that this function returns to the same state.
+        printf("nondim scales (ptr = %p):\n", &non_dim_scales)
+        printf("\t length = %e\n", non_dim_scales.length_conversion)
+        printf("\t leng3  = %e\n", non_dim_scales.length3_conversion)
+        printf("\t densit = %e\n", non_dim_scales.density_conversion)
+        printf("\t pascal = %e\n", non_dim_scales.pascal_conversion)
+        printf("\t sec    = %e\n", non_dim_scales.second_conversion)
+        printf("\t sec2   = %e\n", non_dim_scales.second2_conversion)
+        printf("\t mass   = %e\n", non_dim_scales.mass_conversion)
 
-        for layer_i in range(num_layers):
-            eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] *= radius_planet
+        solution_storage_sptr.get().dimensionalize_data(&non_dim_scales, True)
+
+        # Redimensionalize user-provided inputs that are provided as pointers so that this function returns to the same state.
+        for slice_i in range(total_slices):
+            radius_array_in_ptr[slice_i]          *= non_dim_scales.length_conversion
+            density_array_in_ptr[slice_i]         *= non_dim_scales.density_conversion
+            complex_bulk_modulus_in_ptr[slice_i]  *= non_dim_scales.pascal_conversion
+            complex_shear_modulus_in_ptr[slice_i] *= non_dim_scales.pascal_conversion
 
     if solution_storage_ptr.success:
         printf("DEBUG-cf_radial_solver - Successful closeout\n")
-        if nondimensionalize:
-            # Redimensionalize the solution 
-            cf_redimensionalize_radial_functions(
-                <double complex*>solution_storage_ptr.full_solution_vec.data(),
-                radius_planet,
-                planet_bulk_density,
-                total_slices,
-                num_bc_models)
-
         # Calculate Love numbers
         printf("DEBUG-cf_radial_solver - Pre find-love\n")
         solution_storage_ptr.find_love()
         printf("DEBUG-cf_radial_solver - Post find-love\n")
+    
+    printf("radial_solver_cf Finished\n")
 
 
 def radial_solver(
@@ -555,17 +566,11 @@ def radial_solver(
     """
 
     printf("DEBUG-RadialSolver Point 1\n")
-
     cdef size_t total_slices = radius_array.size
-
-    # Unpack inefficient user-provided tuples into bool arrays and pass by pointer
-    cdef size_t num_layers = len(layer_types)
-
-    # Check on solver type
-    if use_prop_matrix and num_layers > 1:
-        raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
+    cdef size_t num_layers   = len(layer_types)
 
     printf("DEBUG-RadialSolver Point 2\n")
+    # Perform checks
     if perform_checks:
         assert density_array.size               == total_slices
         assert complex_bulk_modulus_array.size  == total_slices
@@ -584,6 +589,12 @@ def radial_solver(
             raise ValueError('Forcing frequency is too small (are you sure you are in rad s-1?).')
         elif fabs(frequency) > d_MAX_FREQUENCY:
             raise ValueError('Forcing frequency is too large (are you sure you are in rad s-1?).')
+        
+        if use_prop_matrix:
+            raise NotImplementedError("Propagation matrix technique is not fully implemented or tested.")
+
+        if use_prop_matrix and num_layers > 1:
+            raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
         
     printf("DEBUG-RadialSolver Point 3\n")
     # Build array of assumptions
@@ -777,5 +788,5 @@ def radial_solver(
         raise_on_fail,
         )
     printf("DEBUG-RadialSolver Point 13b - Post cf_radial_solver call\n")
-
+    printf("RadialSolver Finished\n")
     return solution

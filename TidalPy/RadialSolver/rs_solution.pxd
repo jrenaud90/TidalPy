@@ -6,6 +6,7 @@ from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
 from libcpp.memory cimport shared_ptr, unique_ptr
 
+from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 
 # Need to include love_.cpp and eos_solution_.cpp in order to get solutions.cpp to see it and use it to link
@@ -13,6 +14,9 @@ cdef extern from "love_.cpp" nogil:
     pass
 
 cdef extern from "eos_solution_.cpp" nogil:
+    pass
+
+cdef extern from "nondimensional_.hpp" nogil:
     pass
 
 cdef extern from "rs_solution_.cpp" nogil:
@@ -49,6 +53,9 @@ cdef extern from "rs_solution_.cpp" nogil:
             cpp_bool array_changed)
         void set_message(const char* new_message)
         void find_love()
+        void dimensionalize_data(
+            NonDimensionalScalesCC* nondim_scales,
+            cpp_bool redimensionalize)
 
 
 cdef class RadialSolverSolution:
