@@ -12,7 +12,7 @@ from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
 from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
-from TidalPy.constants cimport d_G, d_PI_DBL
+from TidalPy.constants cimport d_G, d_PI_DBL, d_EPS_DBL
 
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
@@ -527,11 +527,14 @@ cdef void cf_shooting_solver(
             # this starting radius. 
             printf("DEBUG- Shooting Method Point \t\t L3b slices = %d\n", layer_slices)
             eos_solution_storage_ptr.call(current_layer_i, starting_radius, eos_interp_array_ptr)
-            printf("DEBUG- Shooting Method Point \t\t L3c; g0 = %e; rho0 = %e; shear0 = %e %e; bulk0 = %e, %e\n", eos_interp_array_ptr[0], eos_interp_array_ptr[4], eos_interp_array_ptr[5], eos_interp_array_ptr[6], eos_interp_array_ptr[7], eos_interp_array_ptr[8])
+            printf("DEBUG- Shooting Method Point \t\t L3c; r0 = %e; g0 = %e; P0 = %e; M0 = %e; rho0 = %e; shear0 = %e %e; bulk0 = %e, %e\n",starting_radius, eos_interp_array_ptr[0], eos_interp_array_ptr[1], eos_interp_array_ptr[2], eos_interp_array_ptr[4], eos_interp_array_ptr[5], eos_interp_array_ptr[6], eos_interp_array_ptr[7], eos_interp_array_ptr[8])
 
             # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
             # We are storing these in function-global variables because they will be used again during collapse
             starting_gravity = eos_interp_array_ptr[0]
+            # TODO: Sometimes at very small r the g can be negative. Probably an issue with the EOS but for now just put a force check in?
+            if starting_gravity < d_EPS_DBL:
+                starting_gravity = d_EPS_DBL
             starting_density = eos_interp_array_ptr[4]
             starting_shear   = cf_build_dblcmplx(eos_interp_array_ptr[5], eos_interp_array_ptr[6])
             starting_bulk    = cf_build_dblcmplx(eos_interp_array_ptr[7], eos_interp_array_ptr[8])
@@ -617,7 +620,9 @@ cdef void cf_shooting_solver(
         if current_layer_i == start_layer_i:
             # In the first layer. Use initial condition function to find initial conditions
             printf("DEBUG- Shooting Method Point \t\t layer = %d; L5a\n", current_layer_i)
-            printf("SHOOTING STARTING COND:: w = %e; rl = %e; rhol = %e; Kl=(%e, %e); mul=(%e, %e); G=%e", frequency, radius_lower, density_lower, bulk_lower.real, bulk_lower.imag, shear_lower.real, shear_lower.imag, G_to_use)
+            printf("SHOOTING STARTING COND:: w = %e; rl = %e; rhol = %e; Kl=(%e, %e); mul=(%e, %e); G=%e\n", frequency, radius_lower, density_lower, bulk_lower.real, bulk_lower.imag, shear_lower.real, shear_lower.imag, G_to_use)
+            printf("Starting Condition In: layer type = %d, static = %d, incomp = %d, kamata = %d, w = %e, radius_lower = %e, density_lower = %e, bulk_lower = (%e; %e)\n", layer_type, layer_is_static, layer_is_incomp, use_kamata, frequency, radius_lower, density_lower, bulk_lower.real, bulk_lower.imag)
+            printf("Starting Condition In: shear_lower = (%e; %e); l = %d\n; G = %e; Max y = %d", shear_lower.real, shear_lower.imag, degree_l, G_to_use, MAX_NUM_Y, )
             cf_find_starting_conditions(
                 &solution_storage_ptr.success,
                 solution_storage_ptr.message_ptr,
@@ -819,8 +824,11 @@ cdef void cf_shooting_solver(
     if solution_storage_ptr.error_code < 0 or not solution_storage_ptr.success:
         printf("DEBUG- Shooting Method Point - POST SOLVE 2a\n")
         solution_storage_ptr.success = False
-        sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
-        solution_storage_ptr.set_message(message_ptr)
+        printf("DEBUG- Shooting Method Point - POST SOLVE 2a2\n")
+        if integration_solution_ptr:
+            sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
+            solution_storage_ptr.set_message(message_ptr)
+        printf("DEBUG- Shooting Method Point - POST SOLVE 2a4\n")
 
         if verbose or raise_on_fail:
             printf(message_ptr)
@@ -1015,11 +1023,14 @@ cdef void cf_shooting_solver(
         main_storage_ptr = NULL
 
     # Update solution status and return
+    printf("DEBUG- Shooting Point - ZZ2\n")
     if solution_storage_ptr.error_code != 0:
+        printf("DEBUG- Shooting Point - ZZ2a\n")
         solution_storage_ptr.success = False
-        solution_storage_ptr.set_message(message_ptr)
     else:
+        printf("DEBUG- Shooting Point - ZZ2b\n")
         solution_storage_ptr.success = True
         solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: completed without any noted issues.\n')
 
-    printf("DEBUG- Shooting Method Done!!\n")
+    printf("DEBUG- Shooting Method Done!! message = \n")
+    printf(solution_storage_ptr.message_ptr)

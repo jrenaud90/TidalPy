@@ -2,6 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libc.string cimport strcpy
+from libc.stdio cimport printf
 
 from TidalPy.RadialSolver.starting.takeuchi cimport (
     cf_takeuchi_solid_dynamic_compressible,
@@ -136,7 +137,7 @@ cdef void cf_find_starting_conditions(
     else:
         if is_incompressible:
             success_ptr[0] = False
-            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nReccomend using Kamata (set use_kamata=True) instead.')
+            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.')
         if (layer_type == 0):
             # Solid layer
             if is_static:
@@ -223,5 +224,10 @@ def find_starting_conditions(
         run_y_checks
         )
     
+    cdef str py_message
     if not success:
-        raise Exception(str(message_ptr, encoding='UTF-8'))
+        py_message = str(message_ptr, encoding='UTF-8')
+        if 'not implemented' in py_message:
+            raise NotImplementedError(py_message)
+        else:
+            raise Exception(py_message)

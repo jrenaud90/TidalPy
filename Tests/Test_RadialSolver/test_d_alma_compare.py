@@ -54,7 +54,7 @@ ocean_r  = 210.e3
 core_r   = 190.e3
 
 N = 100
-radius_array = np.linspace(0.1, planet_r, N)
+radius_array = np.linspace(0.0, planet_r, N)
 crust_index = radius_array > ocean_r
 ocean_index = np.logical_and(radius_array > core_r, radius_array <= ocean_r)
 core_index  = radius_array <= core_r
@@ -82,7 +82,7 @@ newton_inst.vectorize_modulus_viscosity(frequency, shear_array[ocean_index], vis
 complex_shear[ocean_index] = complex_shear_liq
 
 # ALMA using an incompressible model. Fake that with a high bulk.
-bulk_array = 1.0e15 * np.ones_like(radius_array)
+bulk_array = 1.0e15 * np.ones(radius_array.size, dtype=np.complex128, order='C')
 
 # Find volume fracs
 pi43 = (4. / 3.) * np.pi
@@ -100,7 +100,7 @@ layer_indices   = (core_index, ocean_index, crust_index)
 layer_types  = ("solid", "liquid", "solid")
 is_static_by_layer = (True, True, True)
 is_incompressible_by_layer = (False, True, True)
-upper_radius_by_layer = (core_r, ocean_r, crust_r)
+upper_radius_by_layer = np.asarray((core_r, ocean_r, crust_r))
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4, 5))
 def test_radial_solver_alma_compare(degree_l):
@@ -108,13 +108,14 @@ def test_radial_solver_alma_compare(degree_l):
 
     # TODO: See if we can get radial_solver to compute l=5 test.
     if degree_l == 5:
-        pytest.skip('Current version of TidalPy is not able to match ALMA for l=5+')
+        # pass
+        pytest.skip('Current version of TidalPy is not able to match ALMA (the imaginary part is the problem) for l=5+')
         
-    success_threshold_real = 0.7
-    success_threshold_imag = 0.10
+    success_threshold_real = 0.1
+    success_threshold_imag = 0.1
 
-    integration_rtol = 1.0e-3
-    integration_atol = 1.0e-6
+    integration_rtol = 1.0e-10
+    integration_atol = 1.0e-14
 
     # Pull out ALMA results
     alma_k, alma_h, alma_l = alma_results[degree_l]
@@ -123,7 +124,6 @@ def test_radial_solver_alma_compare(degree_l):
     solution = radial_solver(
         radius_array,
         density_array,
-        gravity_array,
         bulk_array,
         complex_shear,
         frequency,
@@ -138,22 +138,22 @@ def test_radial_solver_alma_compare(degree_l):
         integration_method="rk45",
         integration_rtol=integration_rtol,
         integration_atol=integration_atol,
-        scale_rtols_by_layer_type=False,
+        scale_rtols_bylayer_type=False,
         max_num_steps=10_000_000,
         expected_size=1000,
         max_ram_MB=1500,
         max_step=0,
-        limit_solution_to_radius=True,
         nondimensionalize=True,
+        starting_radius=0.0,
         verbose=False,
         raise_on_fail=False)
 
     if not solution.success:
         raise AssertionError(solution.message)
 
-    tidalpy_k = solution.k[0]
-    tidalpy_h = solution.h[0]
-    tidalpy_l = solution.l[0]
+    tidalpy_k = solution.k
+    tidalpy_h = solution.h
+    tidalpy_l = solution.l
 
     for name, tpy, alma in (('k', tidalpy_k, alma_k), ('h', tidalpy_h, alma_h), ('l', tidalpy_l, alma_l)):
         tpy_real  = np.real(tpy)
@@ -166,8 +166,8 @@ def test_radial_solver_alma_compare(degree_l):
         imag_pctdiff = (2. * (tpy_imag - alma_imag) / (tpy_imag + alma_imag))
 
         if not np.abs(real_pctdiff) <= success_threshold_real:
-            raise AssertionError(f'Failed at degree={degree_l} for Re[{name}]:: {real_pctdiff}.')
+            raise AssertionError(f'Failed at degree={degree_l} for Re[{name}]:: {real_pctdiff} (TidalPy = {tpy_real}; ALMA = {alma_real}).')
         if not np.abs(imag_pctdiff) <= success_threshold_imag:
-            raise AssertionError(f'Failed at degree={degree_l} for Im[{name}]:: {imag_pctdiff}.')
+            raise AssertionError(f'Failed at degree={degree_l} for Im[{name}]:: {imag_pctdiff} (TidalPy = {tpy_imag}; ALMA = {alma_imag}).')
 
     del solution

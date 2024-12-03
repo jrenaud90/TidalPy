@@ -794,4 +794,9 @@ def radial_solver(
     
     # Finalize radial solver solution storage
     solution.finalize_python_storage()
+
+    if not solution.success:
+        # TODO Make a better faster way to do this check?? Basically need to overhaul all exception handling.
+        if "not implemented" in solution.message:
+            raise NotImplementedError(solution.message)
     return solution
