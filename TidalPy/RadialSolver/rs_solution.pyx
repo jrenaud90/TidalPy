@@ -17,8 +17,6 @@ cdef class RadialSolverSolution:
             double[::1] upper_radius_bylayer_view,
             double[::1] radius_array_view
             ):
-
-        printf("DEBUG-\t RadialSolverSolution Point 1\n")
         # Build pointers
         cdef double* upper_radius_bylayer_ptr = &upper_radius_bylayer_view[0]
         self.num_layers                       = upper_radius_bylayer_view.size
@@ -30,7 +28,6 @@ cdef class RadialSolverSolution:
         self.num_ytypes      = num_ytypes
 
         # Create C++ storage instance
-        printf("DEBUG-\t RadialSolverSolution Point 2\n")
         self.solution_storage_sptr = make_shared[RadialSolutionStorageCC](
             self.num_ytypes,
             upper_radius_bylayer_ptr,
@@ -86,7 +83,6 @@ cdef class RadialSolverSolution:
         # The RadialSolutionStorageCC class has full control of memory. This class simply wraps it.
         # The shape needs to be twice what we expect because the underlying C++ class only works with double arrays 
         # but at this level we want arrays to be double complex (the 2x factor is built into MAX_NUM_Y_REAL)
-        printf("DEBUG-\t RadialSolverSolution Point 3\n")
         cdef cnp.npy_intp[2] full_solution_shape   = [self.radius_array_size, self.num_ytypes * MAX_NUM_Y]
         cdef cnp.npy_intp* full_solution_shape_ptr = &full_solution_shape[0]
         cdef cnp.npy_intp full_solution_shape_ndim = 2
@@ -102,8 +98,8 @@ cdef class RadialSolverSolution:
             love_shape_ptr[1] = 0
             love_shape_ndim   = 1
         else:
-            love_shape_ptr[0] = self.num_ytypes
-            love_shape_ptr[1] = 3
+            love_shape_ptr[0] = 3
+            love_shape_ptr[1] = self.num_ytypes
             love_shape_ndim   = 2
         
         # Make numpy arrays that wrap all of the equation of state class vectors in a similar manner to the above.
@@ -117,11 +113,9 @@ cdef class RadialSolverSolution:
         # ordered by y0_real, y0_imag, y1_real, y1_image, ... so we can safely convert it to a complex128 np.ndarray
         cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
 
-        printf("DEBUG-\t RadialSolverSolution Point 4\n")
         if not self.solution_storage_ptr:
             raise RuntimeError("RadialSolverSolution (PyClass):: RadialSolutionStorageCC extension class is not initialized.")
         else:
-            printf("DEBUG-\t RadialSolverSolution Point 4a\n")
             self.full_solution_arr = cnp.PyArray_SimpleNewFromData(
                 full_solution_shape_ndim,
                 full_solution_shape_ptr,
@@ -130,7 +124,6 @@ cdef class RadialSolverSolution:
 
             # Same note as above, `solution_storage_sptr.complex_love_vec` is a double vector that we are converting to a
             # complex128 np.ndarray.
-            printf("DEBUG-\t RadialSolverSolution Point 4b\n")
             self.complex_love_arr = cnp.PyArray_SimpleNewFromData(
                 love_shape_ndim,
                 love_shape_ptr,
@@ -140,7 +133,12 @@ cdef class RadialSolverSolution:
             if not eos_solution_ptr:
                 raise RuntimeError("RadialSolverSolution (PyClass):: EOSSolutionCC extension class is not initialized.")
             else:
-                printf("DEBUG-\t RadialSolverSolution Point 4c\n")
+                self.radius_array_cnp = cnp.PyArray_SimpleNewFromData(
+                    eos_ndim,
+                    eos_float_shape_ptr,
+                    cnp.NPY_FLOAT64,
+                    eos_solution_ptr.radius_array_vec.data())
+
                 self.gravity_array_cnp = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
                     eos_float_shape_ptr,
@@ -171,7 +169,6 @@ cdef class RadialSolverSolution:
                     cnp.NPY_FLOAT64,
                     eos_solution_ptr.density_array_vec.data())
 
-                printf("DEBUG-\t RadialSolverSolution Point 4d\n")
                 # These arrays are converted to complex128
                 self.shear_modulus_array_cnp = cnp.PyArray_SimpleNewFromData(
                     eos_ndim,
@@ -214,6 +211,11 @@ cdef class RadialSolverSolution:
             # Track question related to this here: https://stackoverflow.com/questions/79231405/no-enum-for-numpy-uintp
             cnp.NPY_UINT64,
             self.solution_storage_ptr.shooting_method_steps_taken_vec.data())
+    
+    def plot_ys(self):
+        if self.success:
+            from TidalPy.utilities.graphics.multilayer import yplot
+            yplot(self.result, self.radius_array)
 
     def __dealloc__(self):
 
@@ -268,6 +270,10 @@ cdef class RadialSolverSolution:
         return np.copy(self.eos_steps_taken_array)
     
     # EOS Solution arrays
+    @property
+    def radius_array(self):
+        return np.copy(self.radius_array_cnp)
+
     @property
     def gravity_array(self):
         return np.copy(self.gravity_array_cnp)

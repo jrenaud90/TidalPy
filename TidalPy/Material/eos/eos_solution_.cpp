@@ -16,7 +16,6 @@ EOSSolutionCC::EOSSolutionCC(
             current_layers_saved(0),
             num_layers(num_layers)
 {
-    printf("TidalPy::EOSSolutionCC Constructor Called.\n");
     this->cysolver_results_sptr_bylayer_vec.reserve(num_layers);
     this->upper_radius_bylayer_vec.reserve(num_layers);
 
@@ -29,7 +28,6 @@ EOSSolutionCC::EOSSolutionCC(
 
 EOSSolutionCC::~EOSSolutionCC( )
 {
-    printf("TidalPy::EOSSolutionCC Deconstructor Called; addr = %p.\n", this);
     // Reset each shared pointer in the cysolver vector
     for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
     {
@@ -50,7 +48,6 @@ EOSSolutionCC::~EOSSolutionCC( )
 
 void EOSSolutionCC::save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_result_sptr)
 {
-    printf("EOSSolutionCC::save_cyresult called.\n");
     // We will save a copy of the shared pointer to ensure that the underlying object does not get deconstructed as long
     // as this object is alive. We will also save the raw pointer for ease of access and performance. 
     this->cysolver_results_sptr_bylayer_vec.push_back(new_cysolver_result_sptr);
@@ -61,7 +58,6 @@ void EOSSolutionCC::save_steps_taken(size_t steps_taken)
 {
     this->steps_taken_vec.push_back(steps_taken);
     this->num_cyolver_calls++;
-    printf("EOSSolutionCC::save_steps_taken called. Steps taken = %d; new num cysolver calls = %d\n", steps_taken, this->num_cyolver_calls);
 }
 
 void EOSSolutionCC::call(
@@ -129,7 +125,6 @@ void EOSSolutionCC::call(
     else
     {
         // TODO: Better error handling
-        printf("Error! EOSSolution::call was asked to interpolate a layer that it has not saved.");
         std::exception();
     }
 }
@@ -139,7 +134,6 @@ void EOSSolutionCC::change_radius_array(
         double* new_radius_ptr,
         size_t new_radius_size)
 {
-    printf("TidalPy::EOSSolutionCC.change_radius_array called.\n");
     this->radius_array_size = new_radius_size;
     if (this->radius_array_set)
     {
@@ -159,7 +153,6 @@ void EOSSolutionCC::change_radius_array(
     }
     this->radius_array_set = true;
 
-    printf("TidalPy::EOSSolutionCC.change_radius_array 2.\n");
     // Reserve capacity in vectors for new radius array size
     this->gravity_array_vec.reserve(this->radius_array_size);
     this->pressure_array_vec.reserve(this->radius_array_size);
@@ -168,31 +161,25 @@ void EOSSolutionCC::change_radius_array(
     this->density_array_vec.reserve(this->radius_array_size);
     
     // These complex arrays are stored as double arrays with twice the length (Cython and C++ don't play nicely with complex across all systems)
-    printf("TidalPy::EOSSolutionCC.change_radius_array 3.\n");
     this->complex_shear_array_vec.reserve(2 * this->radius_array_size);
     this->complex_bulk_array_vec.reserve(2 * this->radius_array_size);
 
     // Copy over the radius array values
-    printf("TidalPy::EOSSolutionCC.change_radius_array 4.\n");
     this->radius_array_vec.resize(this->radius_array_size);
     std::memcpy(this->radius_array_vec.data(), new_radius_ptr, new_radius_size * sizeof(double));
 
     // Get constants
-    printf("TidalPy::EOSSolutionCC.change_radius_array 5. r vec size = %d\n", this->radius_array_vec.size());
     this->radius = this->radius_array_vec.back();
-    printf("TidalPy::EOSSolutionCC.change_radius_array 6.\n");
 }
 
 
 void EOSSolutionCC::interpolate_full_planet()
 {
-    printf("TidalPy::EOSSolutionCC.interpolate_full_planet called.\n");
     this->solution_nondim_status = this->nondim_status;
 
     if (this->current_layers_saved == 0)
     {
         // No layers have been saved, we can't perform the interpolation.
-        printf("EOSSolutionCC::interpolate_full_planet : Can not interpolate full planet, no layer eos data is saved.");
         throw std::exception();
     }
     
@@ -256,17 +243,6 @@ void EOSSolutionCC::interpolate_full_planet()
 
 void EOSSolutionCC::dimensionalize_data(NonDimensionalScalesCC* nondim_scales, bool redimensionalize)
 {   
-
-    printf("EOSSolutionCC::dimensionalize_data Called.\n");
-    printf("nondim scales (ptr = %p):\n", nondim_scales);
-    printf("\t length = %e\n", nondim_scales->length_conversion);
-    printf("\t leng3  = %e\n", nondim_scales->length3_conversion);
-    printf("\t densit = %e\n", nondim_scales->density_conversion);
-    printf("\t pascal = %e\n", nondim_scales->pascal_conversion);
-    printf("\t sec    = %e\n", nondim_scales->second_conversion);
-    printf("\t sec2   = %e\n", nondim_scales->second2_conversion);
-    printf("\t mass   = %e\n", nondim_scales->mass_conversion);
-
     // Save scalers
     this->redim_length_scale  = nondim_scales->length_conversion;
     this->redim_gravity_scale = nondim_scales->length_conversion / nondim_scales->second2_conversion;

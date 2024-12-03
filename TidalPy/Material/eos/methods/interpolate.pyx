@@ -2,7 +2,6 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
-from libc.stdio cimport printf
 
 from TidalPy.Material.eos.ode cimport EOSOutput
 from TidalPy.utilities.math.complex cimport cmplx_NAN
@@ -17,7 +16,6 @@ cdef void preeval_interpolate(
         ) noexcept nogil:
 
     # Cast input to the proper structure for this function
-    # printf("\t\tpreeval_interpolate called.\n")
     cdef EOS_ODEInput* ode_args        = <EOS_ODEInput*>preeval_input
     cdef InterpolateEOSInput* eos_data = <InterpolateEOSInput*>ode_args.eos_input_ptr
 

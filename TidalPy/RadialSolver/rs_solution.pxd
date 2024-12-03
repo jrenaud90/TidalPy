@@ -28,7 +28,7 @@ cdef extern from "rs_solution_.cpp" nogil:
         
         RadialSolutionStorageCC()
         RadialSolutionStorageCC(
-            char num_ytypes,
+            size_t num_ytypes,
             double* upper_radius_bylayer_ptr,
             size_t num_layers,
             double* radius_array_ptr,
@@ -63,8 +63,8 @@ cdef class RadialSolverSolution:
 
     # Size and state information
     cdef size_t radius_array_size
-    cdef size_t num_ytypes
-    cdef size_t num_layers
+    cdef public size_t num_ytypes
+    cdef public size_t num_layers
     cdef cpp_bool ytype_names_set
     cdef char* ytypes[5]
 
@@ -73,12 +73,13 @@ cdef class RadialSolverSolution:
     cdef RadialSolutionStorageCC* solution_storage_ptr
 
     # Result pointers and data
-    cdef public cnp.ndarray full_solution_arr
+    cdef cnp.ndarray full_solution_arr
 
     # Love number information
-    cdef public cnp.ndarray complex_love_arr
+    cdef cnp.ndarray complex_love_arr
 
     # EOS solution arrays
+    cdef cnp.ndarray radius_array_cnp
     cdef cnp.ndarray gravity_array_cnp
     cdef cnp.ndarray pressure_array_cnp
     cdef cnp.ndarray mass_array_cnp

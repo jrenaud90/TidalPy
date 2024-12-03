@@ -35,9 +35,9 @@ protected:
 
 public:
     bool success      = false;
-    char num_ytypes   = 0;
     int error_code    = -100;
     char* message_ptr = &message[0];
+    size_t num_ytypes = 0;
     size_t num_slices = 0;
     size_t num_layers = 0;
     size_t total_size = 0;
@@ -58,7 +58,7 @@ public:
     virtual ~RadialSolutionStorageCC();
     RadialSolutionStorageCC();
     RadialSolutionStorageCC(
-        char num_ytypes,
+        size_t num_ytypes,
         double* upper_radius_bylayer_ptr,
         size_t num_layers,
         double* radius_array_ptr,

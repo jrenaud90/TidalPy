@@ -14,8 +14,6 @@ from libc.float cimport DBL_MIN_EXP
 
 cdef double d_EPS_DBL_10 = 10.0 * d_EPS_DBL
 
-from libc.stdio cimport printf
-
 cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,
         double radius,
@@ -37,12 +35,7 @@ cdef void cf_solid_dynamic_compressible(
     cdef double[9] eos_array
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    # printf("cf_solid_dynamic_compressible \t\t r = %e; rs_args_ptr = %p\n", radius, rs_args_ptr)
     rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
-    cdef size_t i
-    #for i in range(9):
-        #printf("cf_solid_dynamic_compressible \t\t\t eos_y%d = %e\n", i, eos_array_ptr[i])
-
 
     # Pull out results.
     # The EOS stores 9 doubles:
@@ -72,13 +65,6 @@ cdef void cf_solid_dynamic_compressible(
     cdef double complex lame = (bulk_modulus - (2. / 3.) * shear_modulus)
 
     # Optimizations
-    # printf("DIFFEQ DEBUG\t\t\t lame       = %e %e\n", lame.real, lame.imag)
-    # printf("DIFFEQ DEBUG\t\t\t freq       = %e\n", rs_args_ptr.frequency)
-    # printf("DIFFEQ DEBUG\t\t\t Grav Coeff = %e\n", rs_args_ptr.grav_coeff)
-    # printf("DIFFEQ DEBUG\t\t\t G          = %e\n", rs_args_ptr.G)
-    # printf("DIFFEQ DEBUG\t\t\t l          = %e\n", rs_args_ptr.degree_l)
-    # printf("DIFFEQ DEBUG\t\t\t llp1       = %e\n", rs_args_ptr.llp1)
-
     cdef double r_inverse                = 1. / radius
     cdef double density_gravity          = density * gravity
     cdef double dynamic_term             = -rs_args_ptr.frequency * rs_args_ptr.frequency * density * radius
@@ -531,8 +517,6 @@ cdef void cf_liquid_dynamic_compressible(
     cdef double complex y2 = cf_build_dblcmplx(y_ptr[2], y_ptr[3])
     cdef double complex y5 = cf_build_dblcmplx(y_ptr[4], y_ptr[5])
     cdef double complex y6 = cf_build_dblcmplx(y_ptr[6], y_ptr[7])
-    # printf("\t y1 = %e %e; y2 = %e %e; y5 = %e, %e; y6 = %e %e\n", y1.real, y1.imag, y2.real, y2.imag, y5.real, y5.imag, y6.real, y6.imag)
-
     # Optimizations
     cdef double r_inverse         = 1. / radius
     cdef double density_gravity   = density * gravity

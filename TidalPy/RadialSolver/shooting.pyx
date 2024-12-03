@@ -124,7 +124,6 @@ cdef void cf_shooting_solver(
         ) noexcept nogil:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
-    printf("DEBUG- Shooting Method Point 0\n")
     # Feedback
     cdef char[256] message
     cdef char* message_ptr = &message[0]
@@ -171,24 +170,14 @@ cdef void cf_shooting_solver(
     cdef double planet_radius   = eos_solution_storage_ptr.radius
     cdef double surface_gravity = eos_solution_storage_ptr.surface_gravity
 
-    printf("SHOOTING-- DIMS::\n")
-    printf("\t\tr0, r1 = %e %e\n", radius_array_ptr[0], radius_array_ptr[1])
-    printf("\t\tg0, g1 = %e %e\n", gravity_array_ptr[0], gravity_array_ptr[1])
-    printf("\t\trho0, rho1 = %e %e\n", density_array_ptr[0], density_array_ptr[1])
-    printf("\t\tmu0, mu1 = (%e %e) (%e %e)\n", complex_shear_array_ptr[0].real, complex_shear_array_ptr[0].imag, complex_shear_array_ptr[1].real, complex_shear_array_ptr[1].imag)
-    printf("\t\tK0, K1 = (%e %e) (%e %e)\n", complex_bulk_array_ptr[0].real, complex_bulk_array_ptr[0].imag, complex_bulk_array_ptr[1].real, complex_bulk_array_ptr[1].imag)
-
-
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
     # The [5] represents the maximum number of solvers that can be invoked with a single call to radial_solver
     cdef size_t num_ytypes = num_bc_models
-    printf("DEBUG- Shooting Method Point 1\n")
 
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     cdef double[15] boundary_conditions
     cdef double* bc_pointer = &boundary_conditions[0]
-    printf("SHOOTING-- BCs:: R= %e; bulk rho= %e\n", planet_radius, planet_bulk_density)
     cf_get_surface_bc(
         bc_pointer,  # Changed parameter
         bc_models_ptr,
@@ -197,7 +186,6 @@ cdef void cf_shooting_solver(
         planet_bulk_density,
         degree_l_dbl
         )
-    printf("DEBUG- Shooting Method Point 2\n")
 
     # Integration information
     # Max step size
@@ -247,7 +235,6 @@ cdef void cf_shooting_solver(
     cdef double layer_rtol_imag    = NAN
     cdef double layer_atol_real    = NAN
     cdef double layer_atol_imag    = NAN
-    printf("DEBUG- Shooting Method Point 3\n")
 
     for current_layer_i in range(num_layers):
         # Pull out information on this layer
@@ -297,7 +284,6 @@ cdef void cf_shooting_solver(
         main_storage_ptr[current_layer_i] = storage_by_solution_ptr
         storage_by_solution_ptr = NULL
 
-    printf("DEBUG- Shooting Method Point 4\n")
     # Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
     #  worst.
     cdef double complex[18] uppermost_y_per_solution
@@ -329,7 +315,6 @@ cdef void cf_shooting_solver(
     cdef double complex bulk_upper  = cmplx_NAN
     cdef double complex shear_upper = cmplx_NAN
     cdef double complex shear_lower = cmplx_NAN
-    printf("DEBUG- Shooting Method Point 5\n")
 
     # Properties at interfaces between layers
     cdef double static_liquid_density    = NAN
@@ -367,7 +352,6 @@ cdef void cf_shooting_solver(
     cdef int layer_above_type
     cdef bint layer_above_is_static
     cdef bint layer_above_is_incomp
-    printf("DEBUG- Shooting Method Point 6\n")
 
     # Layer's differential equation will vary by layer type
     cdef double[9] eos_interp_array  # The "9" here is the number of variables (dependent + extra) found in the EOS solver. See TidalPy.Material.eos.solver.pyx for details.
@@ -402,21 +386,18 @@ cdef void cf_shooting_solver(
     # The constant vectors are the same size as the number of solutions in the layer. But since the largest they can
     #  ever be is 3, it is more efficient to just preallocate them on the stack rather than dynamically allocate them
     #  on the heap.
-    printf("DEBUG- Shooting Method Point 7\n")
     cdef double complex[3] constant_vector
     cdef double complex* constant_vector_ptr = &constant_vector[0]
     cdef double complex[3] layer_above_constant_vector
     cdef double complex* layer_above_constant_vector_ptr = &layer_above_constant_vector[0]
     cdef double complex[6] surface_solutions
     cdef double complex* surface_solutions_ptr = &surface_solutions[0]
-    printf("DEBUG- Shooting Method Point 8\n")
 
     for i in range(6):
         if i < 3:
             constant_vector_ptr[i] = cmplx_NAN
             layer_above_constant_vector_ptr[i] = cmplx_NAN
         surface_solutions_ptr[i] = cmplx_NAN
-    printf("DEBUG- Shooting Method Point 9\n")
 
     # Variables used to solve the linear equation at the planet's surface.
     # Info = flag set by the solver. Set equal to -999. This will indicate that the solver has not been called yet.
@@ -457,12 +438,9 @@ cdef void cf_shooting_solver(
             start_layer_i = current_layer_i
             first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
             
-            printf("DEBUG- Starting Radius = %e; first slice = %d\n", starting_radius, first_slice_index)
-
             # Now find the last radial slice before the starting radius
             for slice_i in range(first_slice_index, first_slice_index + num_slices_by_layer_vec[current_layer_i]):
                 radius_check = radius_array_ptr[slice_i]
-                printf("DEBUG- \t\t Starting Radius:: radius_check = %e\n", radius_check)
                 if last_radius_check < starting_radius <= radius_check:
                     if slice_i == 0:
                         last_index_before_start = 0
@@ -470,7 +448,6 @@ cdef void cf_shooting_solver(
                         # We found that the starting radius is in-between this slice and the last slice.
                         # We want to set the last index to the slice before this one.
                         last_index_before_start = slice_i - 1
-                    printf("DEBUG- \t\t Starting Radius::Found slice = %d\n", last_index_before_start)
                     break
                 else:
                     last_radius_check = radius_check
@@ -485,10 +462,7 @@ cdef void cf_shooting_solver(
                 # TODO: Check that this indexing is correct.
                 solution_ptr[slice_i * MAX_NUM_Y_REAL + ytype_i * MAX_NUM_Y_REAL + y_i] = cmplx_NAN
 
-    printf("DEBUG- Shooting Method Point 10\n")
-    printf("DEBUG- Shooting Method Point 11; start layer i = %d; num_layers = %d\n", start_layer_i, num_layers)
     for current_layer_i in range(start_layer_i, num_layers):
-        printf("DEBUG- Shooting Method Point \t\t layer = %d\n", current_layer_i)
         # Get layer's index information
         layer_slices = num_slices_by_layer_vec[current_layer_i]
         if current_layer_i == start_layer_i:
@@ -500,9 +474,6 @@ cdef void cf_shooting_solver(
             layer_slices -= (last_index_before_start + 1)
         else:
             first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
-        
-        printf("DEBUG - Shooting Method:: layer i = %d; first slice = %d; last_index_before_start = %d\n", current_layer_i, first_slice_index, last_index_before_start)
-        printf("DEBUG - Shooting Method:: layerslices = %d\n", layer_slices)
 
         # Get solution and y information
         num_sols   = num_solutions_by_layer_ptr[current_layer_i]
@@ -510,13 +481,11 @@ cdef void cf_shooting_solver(
         num_ys_dbl = 2 * num_ys
 
         # Setup pointer array slices starting at the start of this layer (either base or at starting index)
-        printf("DEBUG- Shooting Method Point \t\t layer = %d; L2; slices = %d\n", current_layer_i, layer_slices)
         layer_radius_ptr    = &radius_array_ptr[first_slice_index]
         layer_density_ptr   = &density_array_ptr[first_slice_index]
         layer_gravity_ptr   = &gravity_array_ptr[first_slice_index]
         layer_shear_mod_ptr = &complex_shear_array_ptr[first_slice_index]
         layer_bulk_mod_ptr  = &complex_bulk_array_ptr[first_slice_index]
-        printf("DEBUG- Shooting Method Point \t\t layer = %d; L3; slices = %d\n", current_layer_i, layer_slices)
 
         # Get physical parameters at the top and bottom of the layer
         if current_layer_i == start_layer_i:
@@ -525,9 +494,7 @@ cdef void cf_shooting_solver(
             # Even worse, it may not be at any of the slice indices that are stored.
             # To get the most accurate result we need to perform an interpolation to find various properties at
             # this starting radius. 
-            printf("DEBUG- Shooting Method Point \t\t L3b slices = %d\n", layer_slices)
             eos_solution_storage_ptr.call(current_layer_i, starting_radius, eos_interp_array_ptr)
-            printf("DEBUG- Shooting Method Point \t\t L3c; r0 = %e; g0 = %e; P0 = %e; M0 = %e; rho0 = %e; shear0 = %e %e; bulk0 = %e, %e\n",starting_radius, eos_interp_array_ptr[0], eos_interp_array_ptr[1], eos_interp_array_ptr[2], eos_interp_array_ptr[4], eos_interp_array_ptr[5], eos_interp_array_ptr[6], eos_interp_array_ptr[7], eos_interp_array_ptr[8])
 
             # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
             # We are storing these in function-global variables because they will be used again during collapse
@@ -552,14 +519,12 @@ cdef void cf_shooting_solver(
             density_lower = layer_density_ptr[0]
             shear_lower   = layer_shear_mod_ptr[0]
             bulk_lower    = layer_bulk_mod_ptr[0]
-        printf("DEBUG- Shooting Method Point \t\t L3d slices = %d\n", layer_slices)
 
         radius_upper  = layer_radius_ptr[layer_slices - 1]
         gravity_upper = layer_gravity_ptr[layer_slices - 1]
         density_upper = layer_density_ptr[layer_slices - 1]
         shear_upper   = layer_shear_mod_ptr[layer_slices - 1]
         bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1]
-        printf("DEBUG:: Radius upper = %e; layer_slices = %d\n", radius_upper, layer_slices)
         
         radial_span_ptr[0] = radius_lower
         radial_span_ptr[1] = radius_upper
@@ -576,7 +541,6 @@ cdef void cf_shooting_solver(
 
         # Determine rtols and atols for this layer.
         # Scale rtols by layer type
-        printf("DEBUG- Shooting Method Point \t\t layer = %d; L4\n", current_layer_i)
         for y_i in range(num_ys):
             # Default is that each layer's rtol and atol equal user input.
             # TODO: Change up the tolerance scaling between real and imaginary?
@@ -616,13 +580,8 @@ cdef void cf_shooting_solver(
                 initial_y_ptr[y_i] = cmplx_NAN
             initial_y_only_real_ptr[y_i] = NAN
         
-        printf("DEBUG- Shooting Method Point \t\t layer = %d; L5\n", current_layer_i)
         if current_layer_i == start_layer_i:
             # In the first layer. Use initial condition function to find initial conditions
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L5a\n", current_layer_i)
-            printf("SHOOTING STARTING COND:: w = %e; rl = %e; rhol = %e; Kl=(%e, %e); mul=(%e, %e); G=%e\n", frequency, radius_lower, density_lower, bulk_lower.real, bulk_lower.imag, shear_lower.real, shear_lower.imag, G_to_use)
-            printf("Starting Condition In: layer type = %d, static = %d, incomp = %d, kamata = %d, w = %e, radius_lower = %e, density_lower = %e, bulk_lower = (%e; %e)\n", layer_type, layer_is_static, layer_is_incomp, use_kamata, frequency, radius_lower, density_lower, bulk_lower.real, bulk_lower.imag)
-            printf("Starting Condition In: shear_lower = (%e; %e); l = %d\n; G = %e; Max y = %d", shear_lower.real, shear_lower.imag, degree_l, G_to_use, MAX_NUM_Y, )
             cf_find_starting_conditions(
                 &solution_storage_ptr.success,
                 solution_storage_ptr.message_ptr,
@@ -642,14 +601,12 @@ cdef void cf_shooting_solver(
                 starting_y_check
                 )
 
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L6a\n", current_layer_i)
             if not solution_storage_ptr.success:
                 solution_storage_ptr.error_code = -10
                 break
                 
         else:
             # Not in the first layer. Use interface function to find initial conditions
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L5b\n", current_layer_i)
             layer_below_type      = layer_types_ptr[current_layer_i - 1]
             layer_below_is_static = is_static_by_layer_ptr[current_layer_i - 1]
             layer_below_is_incomp = is_incompressible_by_layer_ptr[current_layer_i - 1]
@@ -685,7 +642,6 @@ cdef void cf_shooting_solver(
 
             # Find the starting values for this layer using the results a the top of the previous layer + an interface
             #  function.
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L6b1\n", current_layer_i)
             cf_solve_upper_y_at_interface(
                 uppermost_y_per_solution_ptr,
                 initial_y_ptr,
@@ -702,7 +658,6 @@ cdef void cf_shooting_solver(
                 static_liquid_density,
                 G_to_use
                 )
-            printf("DEBUG- Shooting Method Point \t\t layer = %d; L6b2\n", current_layer_i)
 
         # Reset the uppermost y value array
         for i in range(18):
@@ -727,15 +682,7 @@ cdef void cf_shooting_solver(
         # Solve for each solution
         for solution_i in range(num_sols):
             y0_ptr = &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL]
-            printf("DEBUG- Shooting Method Point \t\t\t layer diffeq = %p\n", layer_diffeq)
-            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S1\n", current_layer_i, solution_i)
-            printf("DEBUG- Shooting Method Point \t\t\t S1:: ")
-            for y_i in range(6):
-                printf("y0_%d = %e %e\n", y_i, initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i], initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL + 2*y_i + 1])
-                printf("rtol_%d = %e %e, atol_%d = %e %e\n", y_i, rtols_ptr[2 * y_i], rtols_ptr[2 * y_i + 1], y_i, atols_ptr[2 * y_i], atols_ptr[2 * y_i + 1])
-            printf("\n")
-            printf("LAYER SLICES = %d; r_eval0 = %e; r_evalN = %e\n", layer_slices, layer_radius_ptr[0], layer_radius_ptr[layer_slices-1])
-            printf("LAYER SLICES = %d; r_0 = %e; r_N = %e\n", layer_slices, radial_span_ptr[0], radial_span_ptr[1])
+            
             ###### Integrate! #######
             integration_solution = cysolve_ivp(
                 layer_diffeq,            # Differential equation [DiffeqFuncType]
@@ -760,19 +707,14 @@ cdef void cf_shooting_solver(
                 0.0,                     # Initial step size (0 = find good value) [doub;e]
                 expected_size            # Expected final integration size (0 = find good value) [size_t]
                 )
-            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S2\n", current_layer_i, solution_i)
             integration_solution_ptr = integration_solution.get()
-            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S3; success = %d\n", current_layer_i, solution_i, integration_solution_ptr.success)
-            printf("DEBUG- \t\t\t int num y = %d; num dy = %d; int method = %d\n", integration_solution_ptr.num_y, integration_solution_ptr.num_dy, integration_solution_ptr.integrator_method)
             #########################
 
             # Check for problems
             if not integration_solution_ptr.success:
-                printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4a\n", current_layer_i, solution_i)
                 # Problem with integration.
                 solution_storage_ptr.error_code = -11
                 sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', current_layer_i, solution_i, integration_solution_ptr.message_ptr)
-                printf(message_ptr)
                 solution_storage_ptr.set_message(message_ptr)
                 if verbose or raise_on_fail:
                     printf(message_ptr)
@@ -781,12 +723,10 @@ cdef void cf_shooting_solver(
                 break
             
             # Store diagnostic data
-            printf("SHOOTING DIAGNOSTIC:: num interps = %d; size = %d; steps taken = %d\n", integration_solution_ptr.num_interpolates, integration_solution_ptr.size, integration_solution_ptr.steps_taken)
             solution_storage_ptr.shooting_method_steps_taken_vec[(3 * current_layer_i) + solution_i] = \
                 integration_solution_ptr.steps_taken
 
             # If no problems, store results.
-            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S4b\n", current_layer_i, solution_i)
             integrator_data_ptr = &integration_solution_ptr.solution[0]
             # Need to make a copy because the solver pointers will be reallocated during the next solution.
             # Get storage pointer for this solution
@@ -805,9 +745,7 @@ cdef void cf_shooting_solver(
                 uppermost_y_per_solution_ptr[solution_i * MAX_NUM_Y + y_i] = storage_by_y_ptr[num_ys * slice_i + y_i]
             
             # Decrement the shared pointer for the solution
-            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S5\n", current_layer_i, solution_i)
             integration_solution.reset()
-            printf("DEBUG- Shooting Method Point \t\t\t layer = %d; Solution = %d S6\n", current_layer_i, solution_i)
                 
         if solution_storage_ptr.error_code != 0:
             # Error was encountered during integration
@@ -820,22 +758,17 @@ cdef void cf_shooting_solver(
         last_layer_upper_gravity = gravity_upper
         last_layer_upper_density = density_upper
 
-    printf("DEBUG- Shooting Method Point - POST SOLVE 1\n")
     if solution_storage_ptr.error_code < 0 or not solution_storage_ptr.success:
-        printf("DEBUG- Shooting Method Point - POST SOLVE 2a\n")
         solution_storage_ptr.success = False
-        printf("DEBUG- Shooting Method Point - POST SOLVE 2a2\n")
         if integration_solution_ptr:
             sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
             solution_storage_ptr.set_message(message_ptr)
-        printf("DEBUG- Shooting Method Point - POST SOLVE 2a4\n")
 
         if verbose or raise_on_fail:
             printf(message_ptr)
         if raise_on_fail:
             exit(EXIT_FAILURE)
     else:
-        printf("DEBUG- Shooting Method Point - POST SOLVE 2b\n")
         # No errors. Proceed with collapsing all sub-solutions into final full solution.
         strcpy(message_ptr, 'Integration completed for all layers. Beginning solution collapse.\n')
 
@@ -1023,14 +956,8 @@ cdef void cf_shooting_solver(
         main_storage_ptr = NULL
 
     # Update solution status and return
-    printf("DEBUG- Shooting Point - ZZ2\n")
     if solution_storage_ptr.error_code != 0:
-        printf("DEBUG- Shooting Point - ZZ2a\n")
         solution_storage_ptr.success = False
     else:
-        printf("DEBUG- Shooting Point - ZZ2b\n")
         solution_storage_ptr.success = True
         solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: completed without any noted issues.\n')
-
-    printf("DEBUG- Shooting Method Done!! message = \n")
-    printf(solution_storage_ptr.message_ptr)

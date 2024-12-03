@@ -1,5 +1,6 @@
 
 #include "rs_solution_.hpp"
+#include <cstdio>
 
 RadialSolutionStorageCC::RadialSolutionStorageCC( )
 {
@@ -7,14 +8,14 @@ RadialSolutionStorageCC::RadialSolutionStorageCC( )
 }
 
 RadialSolutionStorageCC::RadialSolutionStorageCC(
-        char num_ytypes,
+        size_t num_ytypes,
         double* upper_radius_bylayer_ptr,
         size_t num_layers,
         double* radius_array_ptr,
         size_t size_radius_array) :
             success(false),
-            num_ytypes(num_ytypes),
             error_code(0),
+            num_ytypes(num_ytypes),
             num_slices(size_radius_array),
             num_layers(num_layers)
 {
@@ -59,7 +60,7 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
 
 RadialSolutionStorageCC::~RadialSolutionStorageCC( )
 {
-    printf("RadialSolutionStorageCC Deconstructor Called; addr: %p.\n", this);
+
 }
 
 EOSSolutionCC* RadialSolutionStorageCC::get_eos_solution_ptr()
@@ -120,18 +121,21 @@ void RadialSolutionStorageCC::find_love()
         double surface_solutions[MAX_NUM_Y_REAL] = { };
         double* surface_solutions_ptr            = &surface_solutions[0];
 
-        for (char ytype_i = 0; ytype_i < this->num_ytypes; ytype_i++)
+        for (size_t ytype_i = 0; ytype_i < this->num_ytypes; ytype_i++)
         {
             // Pull out surface solutions for this y-type
-            for (int y_i = 0; y_i < MAX_NUM_Y_REAL; y_i++)
+            for (size_t y_i = 0; y_i < MAX_NUM_Y_REAL; y_i++)
             {
                 const size_t lhs_y_index = ytype_i * MAX_NUM_Y_REAL + y_i;
                 surface_solutions_ptr[y_i] = this->full_solution_vec[top_slice_i * num_output_ys + lhs_y_index];
             }
+            double* love_ptr = &this->complex_love_vec[2 * 3 * ytype_i];
             find_love_cf(
-                &this->complex_love_vec[2 * 3 * ytype_i],
+                love_ptr,
                 surface_solutions_ptr,
                 this->eos_solution_uptr->surface_gravity);
+            printf("SURF for ytype = %d. y0 = (%e %e); y3 = (%e %e)\n", ytype_i, surface_solutions_ptr[0], surface_solutions_ptr[1], surface_solutions_ptr[4], surface_solutions_ptr[5]);
+            printf("LOVE for ytype = %d. k = (%e %e); h = (%e %e); l = (%e %e)\n", ytype_i, love_ptr[0], love_ptr[1], love_ptr[2], love_ptr[3], love_ptr[4], love_ptr[5]);
         }
     }
     else
@@ -157,30 +161,14 @@ void RadialSolutionStorageCC::dimensionalize_data(
     const double potential_scale    = (1. / nondim_scales->length_conversion);
 
     // Redimensionalize the radial solutions
-    printf("RS SOLUTION:: REDIM CALLED\n");
-
-    printf("nondim scales (ptr = %p):\n", nondim_scales);
-    printf("\t length = %e\n", nondim_scales->length_conversion);
-    printf("\t leng3  = %e\n", nondim_scales->length3_conversion);
-    printf("\t densit = %e\n", nondim_scales->density_conversion);
-    printf("\t pascal = %e\n", nondim_scales->pascal_conversion);
-    printf("\t sec    = %e\n", nondim_scales->second_conversion);
-    printf("\t sec2   = %e\n", nondim_scales->second2_conversion);
-    printf("\t mass   = %e\n", nondim_scales->mass_conversion);
-
-    printf("RS SOLUTION:: displacement scale = %e\n", displacement_scale);
-    printf("RS SOLUTION:: stress scale = %e\n", stress_scale);
-    printf("RS SOLUTION:: potential scale = %e\n", potential_scale);
     if (this->success)
     {
         for (size_t solver_i = 0; solver_i < this->num_ytypes; solver_i++)
         {
             const size_t bc_stride = solver_i * MAX_NUM_Y_REAL;
-            printf("\t solver_i = %d; stride = %d\n", solver_i, bc_stride);
             for (size_t slice_i = 0; slice_i < this->num_slices; slice_i++)
             {
                 const size_t slice_stride = bc_stride + slice_i * MAX_NUM_Y_REAL * this->num_ytypes;
-                printf("\t\t slice = %d; slice stride = %d\n", slice_i, slice_stride);
                 //    y1, y3 are the radial and tangential displacements with units of [s2 m-1]
                 //    y2, y4 are the radial and tangential stresses with units of [kg m-3]
                 //    y5 is the tidal potential which is unitless and thus needs no conversion.

@@ -2,9 +2,10 @@
 v0.6.0:
 * Add in dm/dr and dI/dr (total mass and MOI) to EOS solver.
 * Create issue for higher precision. Look around line 548 in RadialSolver.odes.pyx
-
+* Why do love numbers change when using different number of radial slices? See Radial benchmark 3
 * Tests:
     * radial_solver when starting_radius is provided. when it is not. when it is provided and its very large relative to planet (ensure nans are being produced at lower layers)
+    * Add tests for radial solver when asking for more than 1 ytype
 
 Immediate ToDos:
 * Figure out why the Tobie / RN compare is so bad for dynamic tides with the new radial solver

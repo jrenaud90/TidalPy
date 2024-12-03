@@ -2,7 +2,6 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from libc.string cimport strcpy
-from libc.stdio cimport printf
 
 from TidalPy.RadialSolver.starting.takeuchi cimport (
     cf_takeuchi_solid_dynamic_compressible,
