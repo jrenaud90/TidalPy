@@ -20,50 +20,50 @@ cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef void cf_solid_dynamic_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef void cf_solid_static_compressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef void cf_solid_static_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef void cf_liquid_dynamic_compressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef void cf_liquid_dynamic_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef void cf_liquid_static_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
-        PreEvalFunc eos_func) noexcept nogil
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
 cdef DiffeqFuncType cf_find_layer_diffeq(
         int layer_type,

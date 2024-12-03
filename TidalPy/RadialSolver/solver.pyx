@@ -27,7 +27,6 @@ from TidalPy.Material.eos.methods cimport InterpolateEOSInput, preeval_interpola
 
 
 ctypedef EOS_ODEInput* EOS_ODEInputPtr
-ctypedef void* VoidPtr
 
 log = get_logger(__name__)
 
@@ -116,7 +115,7 @@ cdef void cf_radial_solver(
     # EOS Input is stored as void pointers because each model may have different input requirements.
     cdef vector[InterpolateEOSInput] specific_eos_input_bylayer_vec = vector[InterpolateEOSInput]() # TODO: Only for specific EOS model; have a vector[void] ??
     specific_eos_input_bylayer_vec.reserve(num_layers)
-    cdef void* specific_eos_void_ptr = NULL
+    cdef char* specific_eos_char_ptr = NULL
 
     # Ensure there is at least one layer.
     printf("DEBUG-cf_radial_solver Check on Layers\n")
@@ -252,14 +251,14 @@ cdef void cf_radial_solver(
                     &complex_shear_modulus_in_ptr[bottom_slice_index],  # Complex shear array pointer [double complex*]
                     )
                 printf("DEBUG-cf_radial_solver EOS setup 4\n")
-                specific_eos_void_ptr = <void*>&specific_eos_input_bylayer_vec.back()
+                specific_eos_char_ptr = <char*>&specific_eos_input_bylayer_vec.back()
                 
                 # Build input for generalized EOS solver
                 printf("DEBUG-cf_radial_solver EOS setup 5\n")
                 eos_inputs_bylayer_vec.emplace_back(
                     G_to_use,                 # Gravitational constant [double]
                     radius_planet_to_use,     # Planet radius [double]
-                    specific_eos_void_ptr,    # void-casted pointer to model specific input (created just above)
+                    specific_eos_char_ptr,    # void-casted pointer to model specific input (created just above)
                     False,                    # Final solve flag [bool] (will be updated by EOS solver)
                     False,                    # Final update shear flag [bool] (will be updated by EOS solver)
                     False                     # Final update bulk flag [bool] (will be updated by EOS solver)
@@ -336,7 +335,7 @@ cdef void cf_radial_solver(
                 G_to_use,                       # Gravitational constant [double]
                 degree_l,                       # Harmonic degree [unsigned int]
                 use_kamata,                     # Flag to use Kamata+ (2015)'s starting conditions vs. Takeuchi+Saito (1972) [cpp_bool]
-                starting_radius,                # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
+                starting_radius_to_use,         # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
                 start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]
                 integration_method_int,         # Integration method int (0=RK23, 1=RK45, 2=DOP853) [unsigned char]
                 integration_rtol,               # Integration relative tolerance [double]
@@ -596,6 +595,9 @@ def radial_solver(
         if use_prop_matrix and num_layers > 1:
             raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
         
+        if (starting_radius != 0.0) and (starting_radius > 0.90 * radius_array[total_slices - 1]):
+            raise AttributeError('Starting radius is above 90\% of the planet radius. Try a lower radius.')
+        
     printf("DEBUG-RadialSolver Point 3\n")
     # Build array of assumptions
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
@@ -789,4 +791,7 @@ def radial_solver(
         )
     printf("DEBUG-RadialSolver Point 13b - Post cf_radial_solver call\n")
     printf("RadialSolver Finished\n")
+    
+    # Finalize radial solver solution storage
+    solution.finalize_python_storage()
     return solution

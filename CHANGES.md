@@ -21,12 +21,13 @@
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
 
 **Dependencies**
-* Added support for CyRK v0.11.5
+* Added support for CyRK v0.12.1
 
 **Documentation**
 * Added documentation for propagation matrix use with radial solver in `Calculating Love Numbers with TidalPy.md`.
 
 **Fixes**
+* Fixed issue where radial solver arrays could dealloc while references still pointed to them (hanging pointers).
 * Missing Cython compile arguments in `nondimensional.pyx`.
 * Fixed incorrect type in dynamic liquid layers that may have been causing some incorrect errors to propagate.
 

@@ -70,8 +70,9 @@ cdef void solve_eos(
     cdef double* y0_bylayer_ptr = &y0_bylayer[0]
 
     # EOS functions and inputs
-    cdef void* args_ptr                    = NULL
+    cdef char* args_ptr                    = NULL
     cdef EOS_ODEInput* eos_input_layer_ptr = NULL
+    cdef size_t sizeof_args                = sizeof(EOS_ODEInput)
     
     # Other integration information
     printf("DEBUG-solve_eos 5\n")
@@ -168,7 +169,7 @@ cdef void solve_eos(
             
             # Convert input pointer to void pointer (required by cysolve)
             printf("DEBUG-solve_eos 7I\n")
-            args_ptr = <void*>eos_input_layer_ptr
+            args_ptr = <char*>eos_input_layer_ptr
 
             ###### Radial Integrate the EOS Through the Planet ######
             printf("\t\tDEBUG-solve_eos solving layer = %d\n", layer_i)
@@ -185,7 +186,8 @@ cdef void solve_eos(
                 integration_method,  # Integration method [int]
                 rtol,                # Relative Tolerance (as scalar) [double]
                 atol,                # Absolute Tolerance (as scalar) [double]
-                args_ptr,            # Extra input args to diffeq [void*]
+                args_ptr,            # Extra input args to diffeq [char*]
+                sizeof_args,         # Size of argument structure in bytes [size_t]
                 num_extra,           # Number of extra outputs tracked [size_t]
                 max_num_steps,       # Max number of steps (0 = find good value) [size_t]
                 max_ram_MB,          # Max amount of RAM allowed [size_t]
@@ -203,6 +205,7 @@ cdef void solve_eos(
             integration_result_ptr = integration_result.get()
             #########################################################
             last_solution_size = integration_result_ptr.size
+            eos_solution_ptr.save_steps_taken(integration_result_ptr.steps_taken)
 
             if not integration_result_ptr.success:
                 failed = True

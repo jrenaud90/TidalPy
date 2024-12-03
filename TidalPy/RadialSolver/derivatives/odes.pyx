@@ -20,7 +20,7 @@ cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
     """
 
@@ -30,29 +30,31 @@ cdef void cf_solid_dynamic_compressible(
     """
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
 
     cdef double[9] eos_array
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    # printf("cf_solid_dynamic_compressible \t\t r = %e; args_ptr = %p\n", radius, args_ptr)
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    # printf("cf_solid_dynamic_compressible \t\t r = %e; rs_args_ptr = %p\n", radius, rs_args_ptr)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     cdef size_t i
     #for i in range(9):
         #printf("cf_solid_dynamic_compressible \t\t\t eos_y%d = %e\n", i, eos_array_ptr[i])
 
 
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
@@ -71,20 +73,20 @@ cdef void cf_solid_dynamic_compressible(
 
     # Optimizations
     # printf("DIFFEQ DEBUG\t\t\t lame       = %e %e\n", lame.real, lame.imag)
-    # printf("DIFFEQ DEBUG\t\t\t freq       = %e\n", args_ptr.frequency)
-    # printf("DIFFEQ DEBUG\t\t\t Grav Coeff = %e\n", args_ptr.grav_coeff)
-    # printf("DIFFEQ DEBUG\t\t\t G          = %e\n", args_ptr.G)
-    # printf("DIFFEQ DEBUG\t\t\t l          = %e\n", args_ptr.degree_l)
-    # printf("DIFFEQ DEBUG\t\t\t llp1       = %e\n", args_ptr.llp1)
+    # printf("DIFFEQ DEBUG\t\t\t freq       = %e\n", rs_args_ptr.frequency)
+    # printf("DIFFEQ DEBUG\t\t\t Grav Coeff = %e\n", rs_args_ptr.grav_coeff)
+    # printf("DIFFEQ DEBUG\t\t\t G          = %e\n", rs_args_ptr.G)
+    # printf("DIFFEQ DEBUG\t\t\t l          = %e\n", rs_args_ptr.degree_l)
+    # printf("DIFFEQ DEBUG\t\t\t llp1       = %e\n", rs_args_ptr.llp1)
 
     cdef double r_inverse                = 1. / radius
     cdef double density_gravity          = density * gravity
-    cdef double dynamic_term             = -args_ptr.frequency * args_ptr.frequency * density * radius
-    cdef double grav_term                = args_ptr.grav_coeff * density
+    cdef double dynamic_term             = -rs_args_ptr.frequency * rs_args_ptr.frequency * density * radius
+    cdef double grav_term                = rs_args_ptr.grav_coeff * density
     cdef double complex lame_2mu         = lame + 2. * shear_modulus
     cdef double complex lame_2mu_inverse = 1. / lame_2mu
     cdef double complex two_shear_r_inv  = 2. * shear_modulus * r_inverse
-    cdef double complex y1_y3_term       = 2. * y1 - args_ptr.llp1 * y3
+    cdef double complex y1_y3_term       = 2. * y1 - rs_args_ptr.llp1 * y3
 
     # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
     #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
@@ -99,8 +101,8 @@ cdef void cf_solid_dynamic_compressible(
         r_inverse * (
             y1 * (dynamic_term - 2. * density_gravity) +
             y2 * -2. +
-            y4 * args_ptr.llp1 +
-            y5 * density * args_ptr.lp1 +
+            y4 * rs_args_ptr.llp1 +
+            y5 * density * rs_args_ptr.lp1 +
             y6 * -density * radius +
             dy1 * 2. * lame +
             y1_y3_term * (2. * (lame + shear_modulus) * r_inverse - density_gravity)
@@ -123,13 +125,13 @@ cdef void cf_solid_dynamic_compressible(
 
     cdef double complex dy5 = \
         y1 * grav_term + \
-        y5 * -args_ptr.lp1 * r_inverse + \
+        y5 * -rs_args_ptr.lp1 * r_inverse + \
         y6
 
     cdef double complex dy6 = \
         r_inverse * (
-            y1 * grav_term * args_ptr.lm1 +
-            y6 * args_ptr.lm1 +
+            y1 * grav_term * rs_args_ptr.lm1 +
+            y6 * rs_args_ptr.lm1 +
             y1_y3_term * grav_term
         )
 
@@ -152,7 +154,7 @@ cdef void cf_solid_dynamic_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
     """
 
@@ -162,22 +164,24 @@ cdef void cf_solid_dynamic_incompressible(
     """
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
@@ -194,10 +198,10 @@ cdef void cf_solid_dynamic_incompressible(
     # Optimizations
     cdef double r_inverse               = 1. / radius
     cdef double density_gravity         = density * gravity
-    cdef double dynamic_term            = -args_ptr.frequency * args_ptr.frequency * density * radius
-    cdef double grav_term               = args_ptr.grav_coeff * density
+    cdef double dynamic_term            = -rs_args_ptr.frequency * rs_args_ptr.frequency * density * radius
+    cdef double grav_term               = rs_args_ptr.grav_coeff * density
     cdef double complex two_shear_r_inv = 2. * shear_modulus * r_inverse
-    cdef double complex y1_y3_term      = 2. * y1 - args_ptr.llp1 * y3
+    cdef double complex y1_y3_term      = 2. * y1 - rs_args_ptr.llp1 * y3
 
     # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
     #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
@@ -208,9 +212,9 @@ cdef void cf_solid_dynamic_incompressible(
     cdef double complex dy2 = \
         r_inverse * (
             y1 * (dynamic_term + 12. * shear_modulus * r_inverse - 4. * density_gravity) +
-            y3 * args_ptr.llp1 * (density_gravity - 6. * shear_modulus * r_inverse) +
-            y4 * args_ptr.llp1 +
-            y5 * density * args_ptr.lp1 +
+            y3 * rs_args_ptr.llp1 * (density_gravity - 6. * shear_modulus * r_inverse) +
+            y4 * rs_args_ptr.llp1 +
+            y5 * density * rs_args_ptr.lp1 +
             y6 * -density * radius
         )
 
@@ -223,20 +227,20 @@ cdef void cf_solid_dynamic_incompressible(
         r_inverse * (
             y1 * (density_gravity - 3. * two_shear_r_inv) +
             y2 * -1. +
-            y3 * (dynamic_term + two_shear_r_inv * (2. * args_ptr.llp1 - 1.)) +
+            y3 * (dynamic_term + two_shear_r_inv * (2. * rs_args_ptr.llp1 - 1.)) +
             y4 * -3. +
             y5 * -density
         )
 
     cdef double complex dy5 = \
         y1 * grav_term + \
-        y5 * -args_ptr.lp1 * r_inverse + \
+        y5 * -rs_args_ptr.lp1 * r_inverse + \
         y6
 
     cdef double complex dy6 = \
         r_inverse * (
-            y1 * grav_term * args_ptr.lm1 +
-            y6 * args_ptr.lm1 +
+            y1 * grav_term * rs_args_ptr.lm1 +
+            y6 * rs_args_ptr.lm1 +
             y1_y3_term * grav_term
         )
 
@@ -259,26 +263,28 @@ cdef void cf_solid_static_compressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
@@ -298,11 +304,11 @@ cdef void cf_solid_static_compressible(
     # Optimizations
     cdef double r_inverse                = 1. / radius
     cdef double density_gravity          = density * gravity
-    cdef double grav_term                = args_ptr.grav_coeff * density
+    cdef double grav_term                = rs_args_ptr.grav_coeff * density
     cdef double complex lame_2mu         = lame + 2. * shear_modulus
     cdef double complex lame_2mu_inverse = 1. / lame_2mu
     cdef double complex two_shear_r_inv  = 2. * shear_modulus * r_inverse
-    cdef double complex y1_y3_term       = 2. * y1 - args_ptr.llp1 * y3
+    cdef double complex y1_y3_term       = 2. * y1 - rs_args_ptr.llp1 * y3
 
     # See Eq. 82 in TS72 or Eqs. 4--9 in KMN15 or Eqs. 13--18 in B15
     #   Note: There appears to be a missing factor of mu^2 in some of the terms in KMN15.
@@ -318,8 +324,8 @@ cdef void cf_solid_static_compressible(
         r_inverse * (
             y1 * -2. * density_gravity +
             y2 * -2. +
-            y4 * args_ptr.llp1 +
-            y5 * density * args_ptr.lp1 +
+            y4 * rs_args_ptr.llp1 +
+            y5 * density * rs_args_ptr.lp1 +
             y6 * -density * radius +
             dy1 * 2. * lame +
             y1_y3_term * (2. * (lame + shear_modulus) * r_inverse - density_gravity)
@@ -342,13 +348,13 @@ cdef void cf_solid_static_compressible(
 
     cdef double complex dy5 = \
         y1 * grav_term + \
-        y5 * -args_ptr.lp1 * r_inverse + \
+        y5 * -rs_args_ptr.lp1 * r_inverse + \
         y6
 
     cdef double complex dy6 = \
         r_inverse * (
-            y1 * grav_term * args_ptr.lm1 +
-            y6 * args_ptr.lm1 +
+            y1 * grav_term * rs_args_ptr.lm1 +
+            y6 * rs_args_ptr.lm1 +
             y1_y3_term * grav_term
         )
 
@@ -371,26 +377,28 @@ cdef void cf_solid_static_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
@@ -407,9 +415,9 @@ cdef void cf_solid_static_incompressible(
     # Optimizations
     cdef double r_inverse               = 1. / radius
     cdef double density_gravity         = density * gravity
-    cdef double grav_term               = args_ptr.grav_coeff * density
+    cdef double grav_term               = rs_args_ptr.grav_coeff * density
     cdef double complex two_shear_r_inv = 2. * shear_modulus * r_inverse
-    cdef double complex y1_y3_term      = 2. * y1 - args_ptr.llp1 * y3
+    cdef double complex y1_y3_term      = 2. * y1 - rs_args_ptr.llp1 * y3
 
     # Solve for radial derivatives
     cdef double complex dy1 = \
@@ -418,9 +426,9 @@ cdef void cf_solid_static_incompressible(
     cdef double complex dy2 = \
         r_inverse * (
             y1 * (12. * shear_modulus * r_inverse - 4. * density_gravity) +
-            y3 * args_ptr.llp1 * (density_gravity - 6. * shear_modulus * r_inverse) +
-            y4 * args_ptr.llp1 +
-            y5 * density * args_ptr.lp1 +
+            y3 * rs_args_ptr.llp1 * (density_gravity - 6. * shear_modulus * r_inverse) +
+            y4 * rs_args_ptr.llp1 +
+            y5 * density * rs_args_ptr.lp1 +
             y6 * -density * radius
         )
 
@@ -433,20 +441,20 @@ cdef void cf_solid_static_incompressible(
         r_inverse * (
             y1 * (density_gravity - 3. * two_shear_r_inv) +
             y2 * -1. +
-            y3 * (two_shear_r_inv * (2. * args_ptr.llp1 - 1.)) +
+            y3 * (two_shear_r_inv * (2. * rs_args_ptr.llp1 - 1.)) +
             y4 * -3. +
             y5 * -density
         )
 
     cdef double complex dy5 = \
         y1 * grav_term + \
-        y5 * -args_ptr.lp1 * r_inverse + \
+        y5 * -rs_args_ptr.lp1 * r_inverse + \
         y6
 
     cdef double complex dy6 = \
         r_inverse * (
-            y1 * grav_term * args_ptr.lm1 +
-            y6 * args_ptr.lm1 +
+            y1 * grav_term * rs_args_ptr.lm1 +
+            y6 * rs_args_ptr.lm1 +
             y1_y3_term * grav_term
         )
 
@@ -490,32 +498,32 @@ cdef void cf_liquid_dynamic_compressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
-    # printf("cf_liquid_dynamic_compressible ------------|| r = %e ||------------\n", radius)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
     cdef double complex bulk_modulus     = cf_build_dblcmplx(eos_array_ptr[7], eos_array_ptr[8])
-    # printf("\t g = %e; rho = %e; shear = %e, %e; bulk = %e %e\n", gravity, density, shear_modulus.real, shear_modulus.imag, bulk_modulus.real, bulk_modulus.imag)
 
     # Pull out y values
     # For the dynamic version, y4 = 0 always in a liquid layer and y3 is defined by y1, y2, and y5 analytically
@@ -528,10 +536,10 @@ cdef void cf_liquid_dynamic_compressible(
     # Optimizations
     cdef double r_inverse         = 1. / radius
     cdef double density_gravity   = density * gravity
-    cdef double f2                = args_ptr.frequency * args_ptr.frequency
+    cdef double f2                = rs_args_ptr.frequency * rs_args_ptr.frequency
     cdef double dynamic_term_no_r = -f2 * density
     cdef double dynamic_term      = dynamic_term_no_r * radius
-    cdef double grav_term         = args_ptr.grav_coeff * density
+    cdef double grav_term         = rs_args_ptr.grav_coeff * density
 
     # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
     # if dynamic_term < EPS_100:
@@ -554,7 +562,7 @@ cdef void cf_liquid_dynamic_compressible(
     # cdef double complex y3 = (y2 / dynamic_term) * (1.0 - density_gravity * y1/y2 + density * y5/y2)
     # cdef double complex y1y2   = y1 / y2
     # cdef double complex y5y2   = y5 / y2
-    cdef double complex coeff_r  = (args_ptr.llp1 / (f2 * radius))
+    cdef double complex coeff_r  = (rs_args_ptr.llp1 / (f2 * radius))
     # cdef double complex y3_sum = (y2 + density * y5)
     # y3_sum -= density_gravity * y1
 
@@ -580,18 +588,18 @@ cdef void cf_liquid_dynamic_compressible(
     #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
     cdef double complex dy2 = \
         y1 * (dynamic_term_no_r - 2. * density_gravity * r_inverse) + \
-        y5 * density * args_ptr.lp1 * r_inverse - \
+        y5 * density * rs_args_ptr.lp1 * r_inverse - \
         y6 * density - \
         y1_y3_term * density_gravity * r_inverse
 
     cdef double complex dy5 = \
         y1 * grav_term - \
-        y5 * args_ptr.lp1 * r_inverse + \
+        y5 * rs_args_ptr.lp1 * r_inverse + \
         y6
 
     cdef double complex dy6 = \
         r_inverse * (
-            args_ptr.lm1 * (y1 * grav_term + y6) +
+            rs_args_ptr.lm1 * (y1 * grav_term + y6) +
             y1_y3_term * grav_term
         )
 
@@ -605,34 +613,33 @@ cdef void cf_liquid_dynamic_compressible(
     dy_ptr[6] = dy6.real
     dy_ptr[7] = dy6.imag
 
-    # printf("\t dy1 = %e %e; dy2 = %e %e; dy5 = %e, %e; dy6 = %e %e\n", dy1.real, dy1.imag, dy2.real, dy2.imag, dy5.real, dy5.imag, dy6.real, dy6.imag)
-    # printf("\n")
-
 
 cdef void cf_liquid_dynamic_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
@@ -648,8 +655,8 @@ cdef void cf_liquid_dynamic_incompressible(
     # Optimizations
     cdef double r_inverse       = 1. / radius
     cdef double density_gravity = density * gravity
-    cdef double dynamic_term    = -args_ptr.frequency * args_ptr.frequency * density * radius
-    cdef double grav_term       = args_ptr.grav_coeff * density
+    cdef double dynamic_term    = -rs_args_ptr.frequency * rs_args_ptr.frequency * density * radius
+    cdef double grav_term       = rs_args_ptr.grav_coeff * density
 
     # Check if dynamic term is close to zero. It will always be negative so compare to negative eps
     # if dynamic_term < EPS_100:
@@ -659,7 +666,7 @@ cdef void cf_liquid_dynamic_incompressible(
     # y3 derivative is undetermined for a liquid layer, but we can calculate its value which is still used in the
     #   other derivatives.
     cdef double complex y3 = (1. / dynamic_term) * (y2 + density * y5 - density_gravity * y1)
-    cdef double complex y1_y3_term = 2. * y1 - args_ptr.llp1 * y3
+    cdef double complex y1_y3_term = 2. * y1 - rs_args_ptr.llp1 * y3
 
     cdef double complex dy1 = \
         y1_y3_term * -r_inverse
@@ -667,7 +674,7 @@ cdef void cf_liquid_dynamic_incompressible(
     cdef double complex dy2 = \
         r_inverse * (
             y1 * (dynamic_term - 2. * density_gravity) +
-            y5 * density * args_ptr.lp1 +
+            y5 * density * rs_args_ptr.lp1 +
             y6 * -density * radius +
             # TODO: In the solid version there is a [2. * (lame + shear_modulus) * r_inverse] coefficient for y1_y3_term
             #   In TS72 the first term is gone. Shouldn't Lame + mu = Lame = Bulk for liquid layer?
@@ -676,13 +683,13 @@ cdef void cf_liquid_dynamic_incompressible(
 
     cdef double complex dy5 = \
         y1 * grav_term + \
-        y5 * -args_ptr.lp1 * r_inverse + \
+        y5 * -rs_args_ptr.lp1 * r_inverse + \
         y6
 
     cdef double complex dy6 = \
         r_inverse * (
-            y1 * grav_term * args_ptr.lm1 +
-            y6 * args_ptr.lm1 +
+            y1 * grav_term * rs_args_ptr.lm1 +
+            y6 * rs_args_ptr.lm1 +
             y1_y3_term * grav_term
         )
 
@@ -701,26 +708,28 @@ cdef void cf_liquid_static_incompressible(
         double* dy_ptr,
         double radius,
         double* y_ptr,
-        const void* void_args_ptr,
+        char* args_ptr,
         PreEvalFunc unused) noexcept nogil:
 
     # Recast the additional arguments
-    cdef RadialSolverDiffeqArgStruct* args_ptr = <RadialSolverDiffeqArgStruct*>void_args_ptr
+    cdef RadialSolverDiffeqArgStruct* rs_args_ptr = <RadialSolverDiffeqArgStruct*>args_ptr
 
     # Update Equation of State at this radius value
     cdef double[9] eos_array 
     cdef double* eos_array_ptr = &eos_array[0]
     # Call equation of state solution for this layer.
-    args_ptr.eos_solution_ptr.call(args_ptr.layer_index, radius, eos_array_ptr)
+    rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
     # Pull out results.
-    # The EOS stores 7 doubles:
+    # The EOS stores 9 doubles:
     #   0: Gravity
     #   1: Pressure
-    #   2: Density
-    #   3: Shear Mod (real)
-    #   4: Shear Mod (imag)
-    #   5: Bulk Mod (real)
-    #   6: Bulk Mod (imag)
+    #   2: Mass
+    #   3: Moment of Inertia
+    #   4: Density
+    #   5: Shear Mod (real)
+    #   6: Shear Mod (imag)
+    #   7: Bulk Mod (real)
+    #   8: Bulk Mod (imag)
     cdef double gravity                  = eos_array_ptr[0]
     cdef double density                  = eos_array_ptr[4]
     cdef double complex shear_modulus    = cf_build_dblcmplx(eos_array_ptr[5], eos_array_ptr[6])
@@ -732,16 +741,16 @@ cdef void cf_liquid_static_incompressible(
 
     # Optimizations
     cdef double r_inverse = 1. / radius
-    cdef double grav_term = args_ptr.grav_coeff * density / gravity
+    cdef double grav_term = rs_args_ptr.grav_coeff * density / gravity
 
     # See Eq. 18 in S75
     cdef double complex dy5 = \
-        y5 * (grav_term - args_ptr.lp1 * r_inverse) + \
+        y5 * (grav_term - rs_args_ptr.lp1 * r_inverse) + \
         y7
 
     cdef double complex dy7 = \
-        y5 * 2. * args_ptr.lm1 * r_inverse * grav_term + \
-        y7 * (args_ptr.lm1 * r_inverse - grav_term)
+        y5 * 2. * rs_args_ptr.lm1 * r_inverse * grav_term + \
+        y7 * (rs_args_ptr.lm1 * r_inverse - grav_term)
 
     # Convert back to floats; stor in output array
     dy_ptr[0] = dy5.real

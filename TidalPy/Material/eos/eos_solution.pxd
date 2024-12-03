@@ -33,6 +33,7 @@ cdef extern from "eos_solution_.cpp" nogil:
             size_t current_layers_saved
             size_t num_layers
             size_t radius_array_size
+            size_t num_cyolver_calls
 
             double pressure_error
             double surface_gravity
@@ -51,6 +52,7 @@ cdef extern from "eos_solution_.cpp" nogil:
 
             vector[double] upper_radius_bylayer_vec
             vector[shared_ptr[CySolverResult]] cysolver_results_sptr_bylayer_vec
+            vector[size_t] steps_taken_vec
 
             vector[double] radius_array_vec
             vector[double] gravity_array_vec
@@ -73,6 +75,8 @@ cdef extern from "eos_solution_.cpp" nogil:
             
             void save_cyresult(
                 shared_ptr[CySolverResult] new_cysolver_result_sptr)
+            void save_steps_taken(
+                size_t steps_taken)
             
             void call(
                 const size_t layer_index,

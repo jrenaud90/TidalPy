@@ -2,20 +2,22 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from CyRK.array.interp cimport interpj_ptr, interp_ptr, interp_complex_ptr
+from libc.stdio cimport printf
 
 from TidalPy.Material.eos.ode cimport EOSOutput
 from TidalPy.utilities.math.complex cimport cmplx_NAN
 
 cdef void preeval_interpolate(
         # Values that will be updated by the function
-        void* preeval_output,
+        char* preeval_output,
         # Input that is used by the pre-eval
         double radius,
         double* radial_solutions,
-        const void* preeval_input
+        char* preeval_input
         ) noexcept nogil:
 
     # Cast input to the proper structure for this function
+    # printf("\t\tpreeval_interpolate called.\n")
     cdef EOS_ODEInput* ode_args        = <EOS_ODEInput*>preeval_input
     cdef InterpolateEOSInput* eos_data = <InterpolateEOSInput*>ode_args.eos_input_ptr
 

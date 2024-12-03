@@ -57,6 +57,12 @@ void EOSSolutionCC::save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_r
     this->current_layers_saved++;
 }
 
+void EOSSolutionCC::save_steps_taken(size_t steps_taken)
+{
+    this->steps_taken_vec.push_back(steps_taken);
+    this->num_cyolver_calls++;
+    printf("EOSSolutionCC::save_steps_taken called. Steps taken = %d; new num cysolver calls = %d\n", steps_taken, this->num_cyolver_calls);
+}
 
 void EOSSolutionCC::call(
         const size_t layer_index,

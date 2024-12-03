@@ -45,6 +45,7 @@ public:
     size_t current_layers_saved = 0;
     size_t num_layers           = 0;
     size_t radius_array_size    = 0;
+    size_t num_cyolver_calls    = 0;
 
     double pressure_error   = NULL;
     double surface_gravity  = NULL;
@@ -64,6 +65,7 @@ public:
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec = std::vector<double>();
     std::vector<std::shared_ptr<CySolverResult>> cysolver_results_sptr_bylayer_vec = std::vector<std::shared_ptr<CySolverResult>>();
+    std::vector<size_t> steps_taken_vec = std::vector<size_t>();
 
     // Copy of user-provided radius array
     std::vector<double> radius_array_vec = std::vector<double>();
@@ -97,9 +99,10 @@ public:
     void change_radius_array(
         double* new_radius_ptr,
         size_t new_radius_size);
-    
+
     // Save result of cysolve_ivp integration
     void save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_result_sptr);
+    void save_steps_taken(size_t steps_taken);
     
     // Call a specific layer's interpolate function.
     void call(

@@ -64,11 +64,13 @@ cdef class RadialSolverSolution:
     # Size and state information
     cdef size_t radius_array_size
     cdef size_t num_ytypes
+    cdef size_t num_layers
     cdef cpp_bool ytype_names_set
     cdef char* ytypes[5]
 
     # Main storage container
     cdef shared_ptr[RadialSolutionStorageCC] solution_storage_sptr
+    cdef RadialSolutionStorageCC* solution_storage_ptr
 
     # Result pointers and data
     cdef public cnp.ndarray full_solution_arr
@@ -77,20 +79,24 @@ cdef class RadialSolverSolution:
     cdef public cnp.ndarray complex_love_arr
 
     # EOS solution arrays
-    cdef public cnp.ndarray gravity_array
-    cdef public cnp.ndarray pressure_array
-    cdef public cnp.ndarray mass_array
-    cdef public cnp.ndarray moi_array
-    cdef public cnp.ndarray density_array
-    cdef public cnp.ndarray shear_modulus_array
-    cdef public cnp.ndarray bulk_modulus_array
+    cdef cnp.ndarray gravity_array_cnp
+    cdef cnp.ndarray pressure_array_cnp
+    cdef cnp.ndarray mass_array_cnp
+    cdef cnp.ndarray moi_array_cnp
+    cdef cnp.ndarray density_array_cnp
+    cdef cnp.ndarray shear_modulus_array_cnp
+    cdef cnp.ndarray bulk_modulus_array_cnp
 
     # Shooting method diagnostics
-    cdef public cnp.ndarray shooting_method_steps_taken_array
+    cdef cnp.ndarray shooting_method_steps_taken_array
+    cdef cnp.ndarray eos_steps_taken_array
+
+    cdef void finalize_python_storage(self) noexcept
 
     cdef void set_model_names(
         self,
         int* bc_models_ptr) noexcept nogil
+
     cdef change_radius_array(
         self,
         double* new_radius_array_ptr,

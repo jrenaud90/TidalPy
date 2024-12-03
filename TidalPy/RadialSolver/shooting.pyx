@@ -377,8 +377,9 @@ cdef void cf_shooting_solver(
     cdef double* integrator_data_ptr = NULL
 
     # The radial solver diffeq's require additional inputs other than "y" and "r". Build a structure that stores these
-    # extra arguments, a point (cast to void*) will be passed to the diffeq's while solving the ODE.
+    # extra arguments, a point (cast to char*) will be passed to the diffeq's while solving the ODE.
     cdef RadialSolverDiffeqArgStruct diffeq_args
+    cdef size_t sizeof_args                           = sizeof(RadialSolverDiffeqArgStruct)
     cdef RadialSolverDiffeqArgStruct* diffeq_args_ptr = &diffeq_args
     cdef PreEvalFunc diffeq_preeval_ptr               = NULL
     cdef DiffeqFuncType layer_diffeq                  = NULL
@@ -739,7 +740,8 @@ cdef void cf_shooting_solver(
                 integration_method,      # Integration method [int]
                 NAN,                     # Relative Tolerance (as scalar) [double]
                 NAN,                     # Absolute Tolerance (as scalar) [double]
-                <void*>diffeq_args_ptr,  # Extra input args to diffeq [void*]
+                <char*>diffeq_args_ptr,  # Extra input args to diffeq [char*]
+                sizeof_args,             # Size of additional argument structure [size_t]
                 0,                       # Number of extra outputs tracked [size_t]
                 max_num_steps,           # Max number of steps (0 = find good value) [size_t]
                 max_ram_MB,              # Max amount of RAM allowed [size_t]
@@ -775,7 +777,7 @@ cdef void cf_shooting_solver(
             
             # Store diagnostic data
             printf("SHOOTING DIAGNOSTIC:: num interps = %d; size = %d; steps taken = %d\n", integration_solution_ptr.num_interpolates, integration_solution_ptr.size, integration_solution_ptr.steps_taken)
-            solution_storage_ptr.shooting_method_steps_taken_vec[3 * current_layer_i + solution_i] = \
+            solution_storage_ptr.shooting_method_steps_taken_vec[(3 * current_layer_i) + solution_i] = \
                 integration_solution_ptr.steps_taken
 
             # If no problems, store results.

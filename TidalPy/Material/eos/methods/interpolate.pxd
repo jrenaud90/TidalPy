@@ -13,9 +13,9 @@ cdef struct InterpolateEOSInput:
 
 cdef void preeval_interpolate(
         # Values that will be updated by the function
-        void* preeval_output,
+        char* preeval_output,
         # Input that is used by the pre-eval
         double radius,
         double* radial_solutions,
-        const void* preeval_input
+        char* preeval_input
         ) noexcept nogil
