@@ -89,18 +89,9 @@ cdef class RadialSolverSolution:
 
         # Initialize Love numbers (3 love numbers for each requested y-type)
         # Love numbers are stored (k, h, l)_ytype0, (k, h, l)_ytype1, (k, h, l)_ytype2, ...
-        cdef cnp.npy_intp[2] love_shape   = [3, 0]
+        cdef cnp.npy_intp[1] love_shape   = [self.num_ytypes * 3]
         cdef cnp.npy_intp* love_shape_ptr = &love_shape[0]
         cdef cnp.npy_intp love_shape_ndim = 1
-        # If there is only 1 ytype then return a 1-D array, otherwise return a 2D one where the first index is by y-type
-        if self.num_ytypes == 1:
-            love_shape_ptr[0] = 3
-            love_shape_ptr[1] = 0
-            love_shape_ndim   = 1
-        else:
-            love_shape_ptr[0] = 3
-            love_shape_ptr[1] = self.num_ytypes
-            love_shape_ndim   = 2
         
         # Make numpy arrays that wrap all of the equation of state class vectors in a similar manner to the above.
         cdef cnp.npy_intp[1] eos_float_shape     = [self.radius_array_size]
@@ -354,7 +345,7 @@ cdef class RadialSolverSolution:
     def love(self):
         """ Return all complex love numbers. """
         if self.success and (self.error_code == 0):
-            return np.copy(self.complex_love_arr)
+            return np.copy(self.complex_love_arr).reshape(self.num_ytypes, 3)
         else:
             return None
 

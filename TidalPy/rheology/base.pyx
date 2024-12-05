@@ -20,6 +20,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             **kwargs):
 
         # Setup base class
+        self.name_prefix = 'RheologyModelBase'
         super().__init__(class_name=class_name, **kwargs)
 
         # Define model specific parameters
