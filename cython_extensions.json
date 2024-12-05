@@ -35,6 +35,14 @@
     "is_cpp": true
   },
 
+  "utilities.math.numerics": {
+    "name": "TidalPy.utilities.math.numerics",
+    "sources": [["TidalPy", "utilities", "math", "numerics.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "math"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": false
+  },
   "utilities.math.complex": {
     "name": "TidalPy.utilities.math.complex",
     "sources": [["TidalPy", "utilities", "math", "complex.pyx"]],

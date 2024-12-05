@@ -15,6 +15,7 @@ from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError
 
 from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN_DBL
+from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
@@ -86,6 +87,8 @@ cdef void cf_radial_solver(
     num_slices_by_layer_vec.resize(num_layers)
 
     cdef size_t layer_slices       = 0
+    cdef size_t interface_check    = 0
+    cdef cpp_bool top_layer        = False
     cdef double radius_check       = d_NAN_DBL
     cdef double layer_upper_radius = d_NAN_DBL
 
@@ -125,7 +128,10 @@ cdef void cf_radial_solver(
             exit(EXIT_FAILURE)
 
     if solution_storage_ptr.error_code == 0:
+        top_layer = False
         for layer_i in range(num_layers):
+            if layer_i == num_layers - 1:
+                top_layer = True
 
             # Determine starting slice index in this layer
             if layer_i == 0:
@@ -137,17 +143,25 @@ cdef void cf_radial_solver(
             layer_upper_radius = eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i]
 
             layer_slices = 0
+            interface_check = 0
             for slice_i in range(first_slice_index_by_layer_vec[layer_i], total_slices):
                 radius_check = radius_array_in_ptr[slice_i]
-                if radius_check > layer_upper_radius:
+                
+                # TidalPy requires that each layer's upper radius be provided twice for interface layers and once for top-most layers. 
+                if cf_isclose(radius_check, layer_upper_radius):
+                    # Found slice that matches this layer's upper radius. We want to grab one for sure.
+                    interface_check += 1
+                    # We do not want to grab a second (there would be two for interface layers)
+                    if interface_check > 1:
+                        break
+                elif radius_check > layer_upper_radius:
                     # We have passed this layer.
                     break
-                else:
-                    layer_slices += 1
+                layer_slices += 1
             
-            if layer_slices <= 3:
+            if layer_slices < 5:
                 solution_storage_ptr.error_code == -5
-                strcpy(message_ptr, 'RadialSolver:: At least three layer slices per layer are required. Try using more slices in the input arrays.\n')
+                strcpy(message_ptr, 'RadialSolver:: At least five layer slices per layer are required. Try using more slices in the input arrays.\n')
                 solution_storage_ptr.set_message(message_ptr)
                 if verbose or raise_on_fail:
                     printf(message_ptr)
@@ -513,10 +527,15 @@ def radial_solver(
         Also contains the EOS solver solution for the entire planet.
     """
 
-    cdef size_t layer_i
+    cdef size_t layer_i, slice_i
     cdef double last_layer_r = 0.
     cdef size_t total_slices = radius_array.size
     cdef size_t num_layers   = len(layer_types)
+    cdef size_t layer_check, slice_check
+    cdef cpp_bool top_layer
+    cdef double last_layer_radius
+    cdef double layer_radius
+    cdef double radius_check, last_radius_check
 
     # Perform checks
     if perform_checks:
@@ -530,8 +549,6 @@ def radial_solver(
             raise AttributeError('Number of `is_incompressible_bylayer` must match number of `layer_types`.')
         if upper_radius_bylayer_array.size != num_layers:
             raise AttributeError('Number of `upper_radius_by_layer` must match number of `layer_types`.')
-        if radius_array[0] != 0.:
-            raise AttributeError('Radius array must start at zero.')
         
         last_layer_r = 0.0
         for layer_i in range(num_layers):
@@ -552,6 +569,54 @@ def radial_solver(
         
         if (starting_radius != 0.0) and (starting_radius > 0.90 * radius_array[total_slices - 1]):
             raise AttributeError('Starting radius is above 90\% of the planet radius. Try a lower radius.')
+
+        # Check radius array. TidalPy requires very specific requirements for the radius array format.
+        #  1) Must start at 0.
+        #  2) Radius must be ordered in ascending order.
+        #  3) Each layer must have the starting radius and the ending radius. Yes that means there will be duplicate values of r at interfaces.
+        #  4) There must be at least 5 sub slices in each layer
+        if radius_array[0] != 0.0:
+            raise AttributeError('Radius array must start at zero.')
+        
+        last_layer_radius = 0.0
+        for layer_i in range(num_layers):
+            
+            if layer_i == num_layers - 1:
+                top_layer = True
+            else:
+                top_layer = False
+            layer_radius = upper_radius_bylayer_array[layer_i]
+            
+            slice_check = 0
+            layer_check = 0
+            last_radius_check = 0.0
+            for slice_i in range(total_slices):
+                radius_check = radius_array[slice_i]
+                if radius_check < 0.0:
+                    raise AttributeError("A negative radius value was found in `radius_array`.")
+                
+                if radius_check < last_radius_check:
+                    # Array must be ascending order. Duplicates are required at interfaces but nothing should be less than previous.
+                    raise AttributeError("Radius array must be in ascending order.")
+
+                if cf_isclose(radius_check, layer_radius):
+                    layer_check += 1
+                if last_layer_radius <= radius_check <= layer_radius:
+                    # Inside the layer.
+                    slice_check += 1
+                last_radius_check = radius_check
+            last_layer_radius = layer_radius
+            
+            if slice_check < 5:
+                raise AttributeError("A minimum of 5 sub-slices (including top and bottom) are required for each layer.")
+
+            if top_layer:
+                # Top layer works for both single layer planets or multi-layer since a single layer is the top layer.
+                if layer_check != 1:
+                    raise AttributeError(f"Radius of layer {layer_i} found {layer_check} times. Expected 1 time (non-interface layer).")
+            else:
+                if layer_check != 2:
+                    raise AttributeError(f"Radius of layer {layer_i} found {layer_check} times. Expected 2 times (interface layer).")
         
     # Build array of assumptions
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.

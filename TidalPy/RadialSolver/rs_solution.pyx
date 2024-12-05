@@ -1,7 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.stdio cimport printf
 from libcpp.memory cimport make_shared
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
@@ -203,6 +202,32 @@ cdef class RadialSolverSolution:
             cnp.NPY_UINT64,
             self.solution_storage_ptr.shooting_method_steps_taken_vec.data())
     
+    def eos_call(self, double radius):
+        
+        cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+
+        cdef int layer_index = -1
+        cdef size_t layer_i
+        cdef double layer_r = 0.0
+        cdef double last_layer_r = 0.0
+
+        for layer_i in range(eos_solution_ptr.upper_radius_bylayer_vec.size()):
+            layer_r = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+            if last_layer_r <= radius < layer_r:
+                layer_index = <int>layer_i
+                break
+            last_layer_r = layer_r
+            
+        if layer_index < 0:
+            raise ValueError("Could not find correct layer for provided radius.")
+
+        cdef cnp.ndarray eos_interp      = np.empty(9, dtype=np.float64, order='C')
+        cdef double[::1] eos_interp_view = eos_interp
+        cdef double* eos_interp_ptr      = &eos_interp_view[0]
+
+        eos_solution_ptr.call(<size_t>layer_index, radius, eos_interp_ptr)
+        return eos_interp
+
     def plot_ys(self):
         if self.success:
             from TidalPy.utilities.graphics.multilayer import yplot

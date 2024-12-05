@@ -17,7 +17,7 @@ EOSSolutionCC::EOSSolutionCC(
             num_layers(num_layers)
 {
     this->cysolver_results_sptr_bylayer_vec.reserve(num_layers);
-    this->upper_radius_bylayer_vec.reserve(num_layers);
+    this->upper_radius_bylayer_vec.resize(num_layers);
 
     // Store the upper radius of each layer to make it easier to call interpolators later
     std::memcpy(this->upper_radius_bylayer_vec.data(), upper_radius_bylayer_ptr, this->num_layers * sizeof(double));

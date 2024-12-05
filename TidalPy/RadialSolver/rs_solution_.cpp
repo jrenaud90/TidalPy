@@ -134,8 +134,6 @@ void RadialSolutionStorageCC::find_love()
                 love_ptr,
                 surface_solutions_ptr,
                 this->eos_solution_uptr->surface_gravity);
-            printf("SURF for ytype = %d. y0 = (%e %e); y3 = (%e %e)\n", ytype_i, surface_solutions_ptr[0], surface_solutions_ptr[1], surface_solutions_ptr[4], surface_solutions_ptr[5]);
-            printf("LOVE for ytype = %d. k = (%e %e); h = (%e %e); l = (%e %e)\n", ytype_i, love_ptr[0], love_ptr[1], love_ptr[2], love_ptr[3], love_ptr[4], love_ptr[5]);
         }
     }
     else

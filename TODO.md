@@ -1,5 +1,8 @@
 
 v0.6.0:
+Urgent:
+- eos.call can not be called after solver is done because the input has died. Make the input into a pure C++ class that can be subclassed by specific models. Have a vector of shared pointers to that parent class stored in the eos solution. 
+
 * Add in dm/dr and dI/dr (total mass and MOI) to EOS solver.
 * Create issue for higher precision. Look around line 548 in RadialSolver.odes.pyx
 * Why do love numbers change when using different number of radial slices? See Radial benchmark 3

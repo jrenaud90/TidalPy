@@ -20,6 +20,8 @@
 * RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
 * Many quality of life additions to the `RadialSolverSolution` including the ability to quickly plot the radial solution arrays using `<RadialSolverSolution instance>.plot_ys()`.
+* New numerics module `TidalPy.math.numerics`
+  * New cythonized `isclose` function that matches functionality of python's `math.isclose`
 
 **Dependencies**
 * Added support for CyRK v0.12.1

@@ -4,7 +4,7 @@
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs, cf_cinv
 from TidalPy.constants cimport d_EPS_DBL
 from libc.float cimport DBL_DIG
-
+from libc.stdio cimport printf
 from libc.math cimport fabs
 from libcpp cimport bool as cpp_bool
 from libcpp.cmath cimport ilogb, ldexp
@@ -34,6 +34,7 @@ cdef void cf_solid_dynamic_compressible(
 
     cdef double[9] eos_array
     cdef double* eos_array_ptr = &eos_array[0]
+    
     # Call equation of state solution for this layer.
     rs_args_ptr.eos_solution_ptr.call(rs_args_ptr.layer_index, radius, eos_array_ptr)
 
