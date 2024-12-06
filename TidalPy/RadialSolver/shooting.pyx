@@ -422,8 +422,9 @@ cdef void cf_shooting_solver(
     cdef double complex starting_bulk  = NAN
 
     # Determine which layer this starting radius resides in. We will skip the lower layers
-    cdef size_t start_layer_i = 0
+    cdef size_t start_layer_i           = 0
     cdef size_t last_index_before_start = 0
+    cdef size_t start_index_in_layer    = 0
     last_radius_check = 0.0
     for current_layer_i in range(num_layers):
         # Check if the radius is in this layer
@@ -439,6 +440,7 @@ cdef void cf_shooting_solver(
             first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
             
             # Now find the last radial slice before the starting radius
+            start_index_in_layer = 0
             for slice_i in range(first_slice_index, first_slice_index + num_slices_by_layer_vec[current_layer_i]):
                 radius_check = radius_array_ptr[slice_i]
                 if last_radius_check < starting_radius <= radius_check:
@@ -450,6 +452,7 @@ cdef void cf_shooting_solver(
                         last_index_before_start = slice_i - 1
                     break
                 else:
+                    start_index_in_layer += 1
                     last_radius_check = radius_check
             break
         else:
@@ -471,7 +474,7 @@ cdef void cf_shooting_solver(
             first_slice_index = last_index_before_start + 1
 
             # When we loop through slices we only want to loop between the starting slice and the top of the layer
-            layer_slices -= (last_index_before_start + 1)
+            layer_slices -= start_index_in_layer
         else:
             first_slice_index = first_slice_index_by_layer_vec[current_layer_i]
 

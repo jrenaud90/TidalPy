@@ -127,6 +127,14 @@
     "link_args": [],
     "is_cpp": true
   },
+  "RadialSolver.helpers": {
+    "name": "TidalPy.RadialSolver.helpers",
+    "sources": [["TidalPy", "RadialSolver", "helpers.pyx"]],
+    "include_dirs": [["TidalPy", "RadialSolver"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "RadialSolver.love": {
     "name": "TidalPy.RadialSolver.love",
     "sources": [["TidalPy", "RadialSolver", "love.pyx"]],

@@ -22,6 +22,7 @@
 * Many quality of life additions to the `RadialSolverSolution` including the ability to quickly plot the radial solution arrays using `<RadialSolverSolution instance>.plot_ys()`.
 * New numerics module `TidalPy.math.numerics`
   * New cythonized `isclose` function that matches functionality of python's `math.isclose`
+* New helper function to create RadialSolver inputs for constant property arrays. `TidalPy.RadialSolver.helpers import build_planet_constant_layers`.
 
 **Dependencies**
 * Added support for CyRK v0.12.1
@@ -32,7 +33,7 @@
 **Fixes**
 * Fixed issue where radial solver arrays could dealloc while references still pointed to them (hanging pointers).
 * Missing Cython compile arguments in `nondimensional.pyx`.
-* Fixed incorrect type in dynamic liquid layers that may have been causing some incorrect errors to propagate.
+* Fixed incorrect type in dynamic liquid layers that may have been causing some errors to propagate.
 
 
 ### Version 0.5.5 (2024-11-11)
