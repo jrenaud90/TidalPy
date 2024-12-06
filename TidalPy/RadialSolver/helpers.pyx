@@ -8,6 +8,7 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
+from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.rheology.base cimport RheologyModelBase
 
 def build_planet_constant_layers(
@@ -24,7 +25,7 @@ def build_planet_constant_layers(
         tuple layer_is_incompressible_tuple,
         tuple shear_rheology_model_tuple,
         tuple bulk_rheology_model_tuple,
-        tuple radius_fraction_tuple = None,
+        tuple thickness_fraction_tuple = None,
         tuple volume_fraction_tuple = None,
         tuple slices_tuple = None,
         size_t slice_per_layer = 10,
@@ -52,9 +53,9 @@ def build_planet_constant_layers(
 
     cdef double rad_frac, last_layer_frac, vol_frac
     cdef list radius_fraction_list
-    if radius_fraction_tuple is None:
+    if thickness_fraction_tuple is None:
         if volume_fraction_tuple is None:
-            raise AttributeError("Must provide either `radius_fraction_tuple` or `volume_fraction_tuple`.")
+            raise AttributeError("Must provide either `thickness_fraction_tuple` or `volume_fraction_tuple`.")
         assert len(volume_fraction_tuple) == num_layers
         radius_fraction_list = list()
         last_layer_frac = 0.0
@@ -63,15 +64,15 @@ def build_planet_constant_layers(
             rad_frac = cbrt(vol_frac + last_layer_frac**3)
             radius_fraction_list.append(rad_frac)
             last_layer_frac = rad_frac
-        radius_fraction_tuple = tuple(radius_fraction_list)
+        thickness_fraction_tuple = tuple(radius_fraction_list)
     elif perform_checks:
-        assert len(radius_fraction_tuple) == num_layers
+        assert len(thickness_fraction_tuple) == num_layers
     
     cdef double total_rad_frac = 0.0
     cdef size_t layer_slices = 0
     cdef size_t total_slices = 0
     for layer_i in range(num_layers):
-        rad_frac = radius_fraction_tuple[layer_i]
+        rad_frac = thickness_fraction_tuple[layer_i]
         if rad_frac <= 0.0:
             raise AttributeError("Negative or zero radius fraction encountered.")
         total_rad_frac += rad_frac
@@ -91,7 +92,7 @@ def build_planet_constant_layers(
             if not isinstance(bulk_rheology_model_tuple[layer_i], RheologyModelBase):
                 raise AttributeError(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
     
-    if total_rad_frac != 1.0:
+    if not cf_isclose(total_rad_frac, 1.0):
         raise ValueError(f"Unexpected value found for total radius fraction, {total_rad_frac} (expected 1.0).")
     
     # Build required arrays
@@ -133,7 +134,7 @@ def build_planet_constant_layers(
             layer_slices = slices_tuple[layer_i]
         else:
             layer_slices = slice_per_layer
-        rad_frac = radius_fraction_tuple[layer_i]
+        rad_frac = thickness_fraction_tuple[layer_i]
 
         # Pull out other data
         layer_density      = density_tuple[layer_i]
