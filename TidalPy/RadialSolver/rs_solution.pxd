@@ -98,7 +98,7 @@ cdef class RadialSolverSolution:
         self,
         int* bc_models_ptr) noexcept nogil
 
-    cdef change_radius_array(
+    cdef void change_radius_array(
         self,
         double* new_radius_array_ptr,
         size_t new_size_radius_array,

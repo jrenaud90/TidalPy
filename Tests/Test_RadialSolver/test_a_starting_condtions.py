@@ -6,7 +6,7 @@ import TidalPy
 TidalPy.test_mode = True
 
 from TidalPy.rheology.models import Maxwell
-from TidalPy.RadialSolver.solutions import find_num_shooting_solutions
+from TidalPy.RadialSolver.shooting import find_num_shooting_solutions
 from TidalPy.RadialSolver.starting.driver import find_starting_conditions
 
 frequency    = 0.1

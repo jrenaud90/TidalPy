@@ -53,11 +53,19 @@ crust_r  = 252.e3
 ocean_r  = 210.e3
 core_r   = 190.e3
 
-N = 100
-radius_array = np.linspace(0.0, planet_r, N)
-crust_index = radius_array > ocean_r
-ocean_index = np.logical_and(radius_array > core_r, radius_array <= ocean_r)
-core_index  = radius_array <= core_r
+N = 50
+radius_array = np.concatenate((
+    np.linspace(0.0, core_r, N),
+    np.linspace(core_r, ocean_r, N),
+    np.linspace(ocean_r, planet_r, N)
+    ))
+core_index  = np.zeros(radius_array.size, dtype=bool)
+ocean_index = np.zeros(radius_array.size, dtype=bool)
+crust_index = np.zeros(radius_array.size, dtype=bool)
+core_index[np.arange(0, N)] = True
+ocean_index[np.arange(N, 2 * N)] = True
+crust_index[np.arange(2 * N, 3 * N)] = True
+
 viscosity_array = np.empty_like(radius_array)
 viscosity_array[core_index]  = 1.e17
 viscosity_array[ocean_index] = 1.e04
@@ -87,13 +95,10 @@ bulk_array = 1.0e15 * np.ones(radius_array.size, dtype=np.complex128, order='C')
 # Find volume fracs
 pi43 = (4. / 3.) * np.pi
 planet_v = pi43 * planet_r**3
-core_vfrac = pi43 * radius_array[core_index][-1]**3 / planet_v
-ocean_vfrac = pi43 * (radius_array[ocean_index][-1]**3 - radius_array[core_index][-1]**3) / planet_v
-crust_vfrac = pi43 * (radius_array[crust_index][-1]**3 - radius_array[ocean_index][-1]**3) / planet_v
+core_vfrac = pi43 * core_r**3 / planet_v
+ocean_vfrac = pi43 * (ocean_r**3 - core_r**3) / planet_v
+crust_vfrac = pi43 * (crust_r**3 - ocean_r**3) / planet_v
 planet_bulk_density = core_density * core_vfrac + ocean_density * ocean_vfrac + crust_density * crust_vfrac
-
-volume_array, mass_array, gravity_array = \
-    calculate_mass_gravity_arrays(radius_array, density_array, gravity_constant=G)
 
 # Setup TidalPy's layer flags
 layer_indices   = (core_index, ocean_index, crust_index)
@@ -121,7 +126,7 @@ def test_radial_solver_alma_compare(degree_l):
     alma_k, alma_h, alma_l = alma_results[degree_l]
 
     # Calculate solution using the radial solver
-    solution = radial_solver(
+    inputs = (
         radius_array,
         density_array,
         bulk_array,
@@ -132,6 +137,8 @@ def test_radial_solver_alma_compare(degree_l):
         is_static_by_layer,
         is_incompressible_by_layer,
         upper_radius_by_layer,
+    )
+    kwarg_inputs = dict(
         degree_l=degree_l,
         solve_for=None,
         use_kamata=True,
@@ -146,7 +153,9 @@ def test_radial_solver_alma_compare(degree_l):
         nondimensionalize=True,
         starting_radius=0.0,
         verbose=False,
-        raise_on_fail=False)
+        raise_on_fail=False
+    )
+    solution = radial_solver(*inputs, **kwarg_inputs)
 
     if not solution.success:
         raise AssertionError(solution.message)
@@ -166,8 +175,10 @@ def test_radial_solver_alma_compare(degree_l):
         imag_pctdiff = (2. * (tpy_imag - alma_imag) / (tpy_imag + alma_imag))
 
         if not np.abs(real_pctdiff) <= success_threshold_real:
+            import pdb; pdb.set_trace()
             raise AssertionError(f'Failed at degree={degree_l} for Re[{name}]:: {real_pctdiff} (TidalPy = {tpy_real}; ALMA = {alma_real}).')
         if not np.abs(imag_pctdiff) <= success_threshold_imag:
+            import pdb; pdb.set_trace()
             raise AssertionError(f'Failed at degree={degree_l} for Im[{name}]:: {imag_pctdiff} (TidalPy = {tpy_imag}; ALMA = {alma_imag}).')
 
     del solution

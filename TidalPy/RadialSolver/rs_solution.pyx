@@ -62,7 +62,7 @@ cdef class RadialSolverSolution:
                 self.solution_storage_ptr.set_message("AttributeError:: Unknown boundary condition provided")
         self.ytype_names_set = True
 
-    cdef change_radius_array(
+    cdef void change_radius_array(
             self,
             double* new_radius_array_ptr,
             size_t new_size_radius_array,
