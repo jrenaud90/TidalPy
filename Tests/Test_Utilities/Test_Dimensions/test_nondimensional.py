@@ -48,7 +48,7 @@ def test_build_nondimensional_scales():
     # Check that they are the correct values.
     second2_conv = 1. / (PI_DBL * G * bulk_density)
     assert isclose(test_struct.second2_conversion, second2_conv)
-    assert isclose(test_struct.second_conversion, second2_conv)
+    assert isclose(test_struct.second_conversion, np.sqrt(second2_conv))
     assert isclose(test_struct.length_conversion, mean_radius)
     assert isclose(test_struct.length3_conversion, mean_radius**3)
     assert isclose(test_struct.density_conversion, bulk_density)

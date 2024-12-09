@@ -32,3 +32,6 @@ reinit()
 
 # Import module functions
 from .cache import clear_cache, clear_data
+
+# Import RadialSolver
+from TidalPy.RadialSolver import radial_solver
