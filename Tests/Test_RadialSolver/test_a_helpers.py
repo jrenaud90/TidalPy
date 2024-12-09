@@ -8,7 +8,7 @@ import TidalPy
 TidalPy.test_mode = True
 
 from TidalPy.rheology import Maxwell, Andrade
-from TidalPy.RadialSolver.helpers import build_planet_constant_layers
+from TidalPy.RadialSolver.helpers import build_rs_input_homogenous_layers, PlanetBuildData
 
 planet_radius     = 1.0e6
 forcing_frequency = 1.0e-5
@@ -50,7 +50,7 @@ volume_fraction_lists    = [
 @pytest.mark.parametrize('use_slices_tuple', (True, False))
 @pytest.mark.parametrize('num_layers', (1, 2, 3, 4, 5))
 def test_build_planet_constant_layers(num_layers, use_slices_tuple):
-    """ Test the `build_planet_constant_layers` helper function. """
+    """ Test the `build_rs_input_homogenous_layers` helper function. """
 
     slice_per_layer = 15
     if use_slices_tuple:
@@ -73,19 +73,19 @@ def test_build_planet_constant_layers(num_layers, use_slices_tuple):
         tuple(bulk_rheology_model_list[:num_layers])
     )
     
-    rad_frac_result = build_planet_constant_layers(
+    rad_frac_result = build_rs_input_homogenous_layers(
         *common_inputs,
         radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
         slices_tuple=slices_tuple,
         slice_per_layer=slice_per_layer)
     
-    vol_frac_result = build_planet_constant_layers(
+    vol_frac_result = build_rs_input_homogenous_layers(
         *common_inputs,
         volume_fraction_tuple=tuple(volume_fraction_lists[num_layers-1]),
         slices_tuple=slices_tuple,
         slice_per_layer=slice_per_layer)
     
-    thick_frac_result = build_planet_constant_layers(
+    thick_frac_result = build_rs_input_homogenous_layers(
         *common_inputs,
         thickness_fraction_tuple=tuple(thickness_fraction_lists[num_layers-1]),
         slices_tuple=slices_tuple,
@@ -93,10 +93,22 @@ def test_build_planet_constant_layers(num_layers, use_slices_tuple):
     
     # Check that output is correct
     for res in (rad_frac_result, vol_frac_result, thick_frac_result):
-        assert type(res) == tuple
+        assert isinstance(res, PlanetBuildData)
         assert len(res) == 10
+
+        # Check all fields are present
+        assert res.radius_array is not None
+        assert res.density_array is not None
+        assert res.complex_bulk_modulus_array is not None
+        assert res.complex_shear_modulus_array is not None
+        assert res.frequency is not None
+        assert res.planet_bulk_density is not None
+        assert res.layer_types is not None
+        assert res.is_static_bylayer is not None
+        assert res.is_incompressible_bylayer is not None
+        assert res.upper_radius_bylayer_array is not None
         
-        # Unpack
+        # Unpack as a tuple
         radius_array, density_array, complex_bulk_array, complex_shear_array, freq, planet_bulk_density, \
             layer_type_tuple, layer_is_static_tuple, layer_is_incompressible_tuple, upper_radius_array = res
         
@@ -164,14 +176,14 @@ def test_build_planet_constant_layers_exceptions():
             inputs = copy(common_inputs_list)
             inputs[list_change] = tuple(common_inputs_list[:num_layers_2])
 
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(inputs),
             radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
             perform_checks=True)
     
     # Check missing structure inputs
     with pytest.raises(AttributeError):
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             thickness_fraction_tuple=None,
             radius_fraction_tuple=None,
@@ -183,20 +195,20 @@ def test_build_planet_constant_layers_exceptions():
         for list_change in (10, 11):
             inputs = copy(common_inputs_list)
             inputs[list_change] = tuple(['Maxwell', 'Andrade', 'Maxwell', 'Andrade', 'Maxwell'])
-            result = build_planet_constant_layers(
+            result = build_rs_input_homogenous_layers(
                 *tuple(inputs),
                 radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
                 perform_checks=True)
             
     # Check bad number of slices
     with pytest.raises(AttributeError):
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
             slices_tuple=(6, 10, 3, 12, 8),
             perform_checks=True)
     with pytest.raises(AttributeError):
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
             slice_per_layer=3,
@@ -205,43 +217,43 @@ def test_build_planet_constant_layers_exceptions():
     # Check bad structure inputs
     with pytest.raises(AttributeError):
         # Too short
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=(0.1, 0.3, 0.45, 0.63, 0.9),
             perform_checks=True)
     with pytest.raises(AttributeError):
         # Too far
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=(0.1, 0.3, 0.45, 0.63, 1.5),
             perform_checks=True)
     with pytest.raises(AttributeError):
         # Wrong order
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=(0.1, 0.3, 0.45, 1.0, 0.63),
             perform_checks=True)
     with pytest.raises(ValueError):
         # Too large volume
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             volume_fraction_tuple=(0.00100000, 0.02600000, 0.6412500, 0.15892200, 0.74995300),
             perform_checks=True)
     with pytest.raises(ValueError):
         # Too small volume
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             volume_fraction_tuple=(0.00100000, 0.02600000, 0.0412500, 0.15892200, 0.14995300),
             perform_checks=True)
     with pytest.raises(ValueError):
         # Too large thickness
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             volume_fraction_tuple=(0.1, 0.2, 0.65, 0.18, 0.37),
             perform_checks=True)
     with pytest.raises(ValueError):
         # Too small thickness
-        result = build_planet_constant_layers(
+        result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             volume_fraction_tuple=(0.1, 0.2, 0.05, 0.18, 0.07),
             perform_checks=True)

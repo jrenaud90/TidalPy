@@ -8,10 +8,26 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
+from collections import namedtuple
+
 from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.rheology.base cimport RheologyModelBase
 
-def build_planet_constant_layers(
+PlanetBuildData = namedtuple("PlanetBuildData", 
+    (
+        "radius_array",
+        "density_array",
+        "complex_bulk_modulus_array",
+        "complex_shear_modulus_array",
+        "frequency",
+        "planet_bulk_density",
+        "layer_types",
+        "is_static_bylayer",
+        "is_incompressible_bylayer",
+        "upper_radius_bylayer_array"
+    ))
+
+def build_rs_input_homogenous_layers(
         double planet_radius,
         double forcing_frequency,
         tuple density_tuple,
@@ -233,7 +249,7 @@ def build_planet_constant_layers(
     planet_bulk_density /= R3 
     
     # Build outputs
-    cdef tuple rs_outputs = (
+    rs_outputs = PlanetBuildData(
         radius_array,
         density_array,
         complex_bulk_array,

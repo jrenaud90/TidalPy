@@ -1,2 +1,2 @@
 from TidalPy.RadialSolver.solver import radial_solver
-from TidalPy.RadialSolver.helpers import build_planet_constant_layers
+from TidalPy.RadialSolver.helpers import build_rs_input_homogenous_layers

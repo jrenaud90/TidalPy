@@ -210,3 +210,56 @@ radial_solver_solution.bulk_modulus_array
             return self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)]
         else:
             return None
+
+# Helper Functions
+
+## `build_planet_constant_layers`
+
+Import with `from TidalPy.RadialSolver import build_rs_input_homogenous_layers`
+
+Creates radial solver inputs based on user provided parameters for a planet with homogenous layers (each layer has a constant density, viscosity, shear, etc.).
+Checks will be performed to ensure that the inputs are valid.
+
+Arguments and use case:
+```python
+output = build_rs_input_homogenous_layers(
+    planet_radius,                    # Radius of planet (float64) [m]
+    forcing_frequency,                # Forcing frequency, used to solve for the complex shear / bulk modulus (float64) [rad s-1]
+    density_tuple,                    # Tuple of floats for each layer's constant density. (Tuple[float64]; len = num_layers)
+    static_bulk_modulus_tuple,        # Tuple of floats for each layer's constant static bulk modulus. (Tuple[float64]; len = num_layers)
+    static_shear_modulus_tuple,       # Tuple of floats for each layer's constant static shear modulus. (Tuple[float64]; len = num_layers)
+    bulk_viscosity_tuple,             # Tuple of floats for each layer's constant bulk viscosity. (Tuple[float64]; len = num_layers)
+    shear_viscosity_tuple,            # Tuple of floats for each layer's constant shear viscosity. (Tuple[float64]; len = num_layers)
+    layer_type_tuple,                 # Tuple of strings for each layer type. (Tuple[str]; len = num_layers)
+    layer_is_static_tuple,            # Tuple of booleans for if each layer should use the static assumption. (Tuple[bool]; len = num_layers)
+    layer_is_incompressible_tuple,    # Tuple of booleans for if each layer should use the incompressible assumption. (Tuple[bool]; len = num_layers)
+    shear_rheology_model_tuple,       # Tuple of rheology instances for each layer's complex shear calculation. (Tuple[RheologyModelBase]; len = num_layers)
+    bulk_rheology_model_tuple,        # Tuple of rheology instances for each layer's complex bulk calculation. (Tuple[RheologyModelBase]; len = num_layers)
+    # One of the following tuples must be provided. They define the layer geometry
+    radius_fraction_tuple = None,     # Tuple of floats for each layer's radius fraction (R_layer / R_Planet).  (Tuple[float64]; len = num_layers)
+    thickness_fraction_tuple = None,  # Tuple of floats for each layer's thickness fraction ((R_layer - R_layer_below) / R_Planet).  (Tuple[float64]; len = num_layers)
+    volume_fraction_tuple = None,     # Tuple of floats for each layer's volume fraction (V_layer / V_Planet).  (Tuple[float64]; len = num_layers)
+    # Each layer is further sub-divided into slices. At least 5 slices per layer is required. 
+    slices_tuple = None,              # Tuple of ints for the number of subslices each layer should be built with. (Tuple[int]; len = num_layers)
+    slice_per_layer = 10,             # Number of slices to build all layers with. Used for each layer if `slices_tuple` is not provided (int)
+    cpp_bool perform_checks = True    # Flag to tell function to perform additional checks on inputs. There is a small performance hit, but recommended unless you are sure your input is valid. (boolean)
+
+# The output is a named tuple with the following attributes:
+output.radius_array
+output.density_array
+output.complex_bulk_modulus_array
+output.complex_shear_modulus_array
+output.frequency
+output.planet_bulk_density
+output.layer_types
+output.is_static_bylayer
+output.is_incompressible_bylayer
+output.upper_radius_bylayer_array
+
+# These are all of the required, positional arguments of TidalPy's `radial_solver` function. 
+# They can be easily passed to the solver
+solution = radial_solver(
+    *output
+    # Any changes to keyword arguments here....
+    )
+```
