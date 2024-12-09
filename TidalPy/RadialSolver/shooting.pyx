@@ -528,7 +528,7 @@ cdef void cf_shooting_solver(
         density_upper = layer_density_ptr[layer_slices - 1]
         shear_upper   = layer_shear_mod_ptr[layer_slices - 1]
         bulk_upper    = layer_bulk_mod_ptr[layer_slices - 1]
-        
+
         radial_span_ptr[0] = radius_lower
         radial_span_ptr[1] = radius_upper
 
@@ -685,7 +685,7 @@ cdef void cf_shooting_solver(
         # Solve for each solution
         for solution_i in range(num_sols):
             y0_ptr = &initial_y_only_real_ptr[solution_i * MAX_NUM_Y_REAL]
-            
+
             ###### Integrate! #######
             integration_solution = cysolve_ivp(
                 layer_diffeq,            # Differential equation [DiffeqFuncType]

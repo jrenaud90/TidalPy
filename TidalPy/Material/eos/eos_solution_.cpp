@@ -1,5 +1,35 @@
 #include "eos_solution_.hpp"
 #include <exception>
+#include <cmath>
+
+
+bool isclose(double a, double b)
+{
+    // TODO: Make the numerics.pyx utility a c file that we can import here instead of reimplementing it here.
+    const double rtol = 1.0e-9;
+    const double atol = 0.0;
+
+    if (isnan(a))
+    {
+        return false;
+    }
+
+    if (isnan(b))
+    {
+        return false;
+    }
+
+    if (a == b)
+    {
+        return true;
+    }
+    
+    const double lhs = std::fabs(a - b);
+    const double rhs = std::fmax(rtol * std::fmax(std::fabs(a), std::fabs(b)), atol);
+
+    return lhs <= rhs;
+}
+
 
 EOSSolutionCC::EOSSolutionCC( )
 {
@@ -189,20 +219,44 @@ void EOSSolutionCC::interpolate_full_planet()
     double y_interp_arr[EOS_DY_VALUES];
     double* y_interp_ptr = &y_interp_arr[0];
 
+    bool ready_for_next_layer = false;
+
+    size_t interface_check = 0;
+
     for (size_t radius_i = 0; radius_i < this->radius_array_size; radius_i++)
     {
         const double radius = this->radius_array_vec[radius_i];
 
-        if (radius > current_layer_upper_radius)
+        if (isclose(radius, current_layer_upper_radius))
+        {
+            // At the layer's radius. We want to capture it once at interfaces (there will be two of the same radii for interface layers)
+            if (interface_check == 1)
+            {
+                // No longer in current layer
+                ready_for_next_layer = true;
+            }
+            interface_check++;
+        }
+        else if (radius > current_layer_upper_radius)
         {
             // No longer in current layer
+            ready_for_next_layer = true;
+        }
+
+        if (ready_for_next_layer)
+        {
             current_layer_index++;
             if (current_layer_index > (this->num_layers - 1))
             {
                 // Outside of the planet
                 break;
             }
-            current_layer_upper_radius = this->upper_radius_bylayer_vec[current_layer_index];
+            else
+            {
+                interface_check = 0;
+                current_layer_upper_radius = this->upper_radius_bylayer_vec[current_layer_index];
+                ready_for_next_layer = false;
+            }
         }
 
         // Call interpolate using temp array as holder.

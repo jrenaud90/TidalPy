@@ -1,9 +1,9 @@
 # Calculating Love Numbers using TidalPy's RadialSolver module and functions
 _Instructions and examples on how to use TidalPy's `RadialSolver` module._
 
-TidalPy's `RadialSolver` package allows a user to estiamte a planet's global, viscoelastic
+TidalPy's `RadialSolver` package allows a user to estimate a planet's global, viscoelastic
 [Love numbers](https://en.wikipedia.org/wiki/Love_number). These numbers can then be used to determine the magnitude of tidal
-dissipation, speed of rotational/orbital changes, and provide predictions for gravity field measurements. 
+dissipation, speed of rotational/orbital changes, and provide predictions for gravity or distance measurements. 
 
 TidalPy uses a numerical shooting methods which integrates a set of 3x6 viscoelastic-gravitational ordinary differential equations
 from the core of the planet to its surface. The final result is a super position of the three different solutions where each
