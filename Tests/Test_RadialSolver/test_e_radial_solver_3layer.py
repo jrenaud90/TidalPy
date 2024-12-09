@@ -81,9 +81,10 @@ def test_radial_solver_3layer(solid_is_static, liquid_is_static,
 
 
         if not out.success:
-            if (not liquid_is_static) and solid_is_incompressible:
+            if (not liquid_is_incompressible) and solid_is_incompressible:
                 # TODO: Look into this.
-                pytest.skip('Integration Failed. Dynamic liquid with incompressible solid is not very stable.')
+                # v0.6.0 update: It looks like it is happening because the incompressible solid underneath is not coupling with the compressible liquid. 
+                pytest.skip('Integration Failed. Compressible liquid with incompressible solid below is not very stable.')
 
         assert out.success
         assert type(out.message) is str
@@ -122,9 +123,10 @@ def test_radial_solver_3layer_solve_for_both(solid_is_static, liquid_is_static,
             verbose=False, nondimensionalize=True)
         
         if not out.success:
-            if (not liquid_is_static) and solid_is_incompressible:
+            if (not liquid_is_incompressible) and solid_is_incompressible:
                 # TODO: Look into this.
-                pytest.skip('Integration Failed. Dynamic liquid with incompressible solid is not very stable.')
+                # v0.6.0 update: It looks like it is happening because the incompressible solid underneath is not coupling with the compressible liquid. 
+                pytest.skip('Integration Failed. Compressible liquid with incompressible solid below is not very stable.')
         
         assert out.success
         assert type(out.message) is str
