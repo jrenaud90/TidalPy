@@ -1,5 +1,6 @@
 cdef void cf_fundamental_matrix(
-    size_t num_radial_slices,
+    Py_ssize_t first_slice_index,
+    Py_ssize_t num_radial_slices,
     double* radius_array_ptr,
     double* density_array_ptr,
     double* gravity_array_ptr,

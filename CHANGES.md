@@ -1,38 +1,81 @@
 # TidalPy Major Change Log
 
-### Version 0.6.0 (TBD)
-**Other Major Changes**
-  * Removed support for the older non-cythonized `radial_solver` module.
+## Version 0.6.0 (TBD)
+#### Removed
+* Removed support for the older non-cythonized `TidalPy.radial_solver` module in favor of `TidalPy.RadialSolver`
 
-**Changes**
+#### RadialSolver Changes
 * Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
-* Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
-* Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
-  * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
 * Decoupled radial solver from shooting method.
-  * Moved shooting method, constants, and radial solver solution class to a new files in `TidalPy.RadialSolver`.
+  * Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
+  * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
+* Added Propagation Matrix technique to RadialSolver
+  * This is simplified for now. Only planets with 1 solid, static, incompressible layer are allowed. 
+    * Other assumptions can be approximated, e.g., liquid layers use a small shear modulus.
+    * Multiple layers should also work if you have discontinuities in density, shear, etc. within your "one layer".
+  * A cythonized solid fundamental matrix implementation can be found in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
+* New radial slicing scheme required:
+  * TidalPy now requires `radial_solver` input arrays to be defined in a precise manner:
+    * `radius_array` must start at 0.
+    * Each layer's upper and lower radius must be in the `radius_array`. That means if there is more than one layer there will be two identical radius values!
+      * E.g., if a planet has a ICB at 1000km and a CMB at 3500km. Then `radius_array` must be setup with 2 values of 1000km and 2 values of 3500km. 
+      * Other parameters should be defined on a "as layer" basis. So shear modulus at the 1st 1000km would be the shear of the inner core, at the 2nd 1000km it would be the shear modulus of the outer core. Likewise shear modulus at the 1st 3500km would be for the outer core and at the 2nd 3500km would be the shear modulus for the mantle. Same goes for density and bulk modulus.
+* Changes to `radial_solver` arguments:
+  * `radial_solver` no longer requires `gravity_array`.
+    * New with this update is a self-consistent equation of state solver (EOSS) that is called from `radial_solver`. This EOSS is used to find gravity(r).
+  * Bulk modulus must now be provided as a complex-valued array
+    * If the imaginary portion is provided (e.g., found via a rheology) then bulk dissipation is now tracked. 
+    * If imaginary portions are zero, then bulk dissipation is ignored as in TidalPy v0.5.x and earlier.
+  * Several arguments have had slight name refactors which may break calls that used keyword arguments. Review the RadialSolver documentation or `TidalPy.RadialSolver.solver.pyx` for the new argument names.
+  * `upper_radius_bylayer_array` must now be provided as a numpy array (previously a tuple of floats was acceptable).
+  * Added new optional argument `surface_pressure` (default=0.0) used with EOSS to find pressure convergence.
+  * Added new optional argument `core_model` (default=0) used to set the lower boundary condition when the propagation matrix technique is used. Options are:
+    * 0 : Core condition is determined from the fundamental matrix
+    * 1 : Liquid Inner Core (Based on Roberts & Nimmo 2008)
+    * 2 : Solid Inner Core (Based on Henning & Hurford 2014)
+    * 3 : Liquid Inner Core (based on Tobie+2005; As determined by Marc Neveu for IcyDwarf).
+  * Added new optional argument `starting_radius` (default=0.0) to allow the user to set the initial radius for the radial solution.
+    * Setting the solution radius higher in the planet can improve solution stability when using the shooting method. There is a trade off with accuracy so advise testing.
+    * The starting radius must be > 0.0, if 0.0 is provided (the default) then TidalPy will use the Martens technique to find a suitable starting radius (function of `degree_l`, planet radius, and the new optional argument `start_radius_tolerance` which defaults to 1.0e-5).
+  * Removed `limit_solution_to_radius` argument.
+  * Added new optional argument `use_prop_matrix` (default=False) to use the propagation matrix technique over the shooting method.
+  * Equation of State Solver arguments:
+    * `eos_method_bylayer` - EOSS method to use for each layer (currently only "interpolate" is supported).
+    * `eos_integration_method` Runge-Kutta method to use for EOSS (default="RK45"). `eos_rtol` and `eos_atol` can also be provided to control integration error.
+    * `eos_pressure_tol` (default=1.0e-3) and `eos_max_iters` (default=40) control the pressure convergence of the EOSS.
+  * Added optional argument `perform_checks` (default=True) that performs many checks on the user input before running the solution (small performance penalty, but highly recommend leaving on until your inputs are tested).
+
+**New RadialSolver Helpers**
+* To assist with the generation of valid inputs to `radial_solver`, TidalPy now provides two helper functions:
+  * `from TidalPy.RadialSolver import build_rs_input_homogenous_layers` takes in attributes for a planet made of layers with constant physical properties and then provides the arrays and other required `radial_solver` inputs that conform to the new `radius_array` scheme. 
+
+**Expanded RadialSolverSolution Attributes and Methods**
+* The output of `radial_solver`, an instance of the `RadialSolverSolution` has been greatly expanded to provide much more data to the user. Full details can be found in the new RadialSolver documentation. Highlights include:
+  * EOSS results like `<solution>.mass`, `<solution>.moi`, `<solution>.moi_factor`, `<solution>.central_pressure`, `<solution>.surface_gravity`.
+  * Diagnostic data like number of integration steps required per layer to find a solutions `<solution>.steps_taken`, or EOSS diagnostics: `<solution>.eos_iterations`, `<solution>.eos_pressure_error`, `<solution>.eos_success`, `<solution>.eos_message`, `<solution>.eos_steps_taken`.
+  * Method to quickly plot the viscoelastic-gravitational solution y's `<solution>.plot_ys()`.
+  * In addition to the previously provided attributes like `<solution>.love`, `<solution>.k`, `<solution>.h`, `<solution>.l`, `<solution>.result`.
+
+#### Cython Changes
+* Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
+
+#### Other Changes
 * Updated GitHub actions.
 * Moved to more consistent and robust types (e.g., int for degree_l vs. prior unsigned-char; unsigned-int).
-
-**New Features**
-* Added Cythonized Propagation Matrix functions for solid fundamental matrix in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
 * Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
-* RadialSolver now has an optional argument `warning_verbose` (default=True) which can be set to false to suppress warnings.
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
-* Many quality of life additions to the `RadialSolverSolution` including the ability to quickly plot the radial solution arrays using `<RadialSolverSolution instance>.plot_ys()`.
-* New numerics module `TidalPy.math.numerics`
+* New numerics module `TidalPy.math.numerics` for low-level floating point functions.
   * New cythonized `isclose` function that matches functionality of python's `math.isclose`
-* New helper function to create RadialSolver inputs for constant property arrays. `TidalPy.RadialSolver.helpers import build_planet_constant_layers`.
 
-**Dependencies**
+#### Dependencies
 * Added support for CyRK v0.12.1
 
-**Documentation**
+#### Documentation
 * Added documentation for propagation matrix use with radial solver in `Calculating Love Numbers with TidalPy.md`.
 
-**Fixes**
-* Fixed issue where radial solver arrays could dealloc while references still pointed to them (hanging pointers).
-* Missing Cython compile arguments in `nondimensional.pyx`.
+#### Fixes
+* Fixed issue where `radial_solver` arrays could dealloc while references still pointed to them (hanging pointers).
+* Missing Cython compile arguments in TidalPy's utilities, `nondimensional.pyx`.
 * Fixed incorrect type in dynamic liquid layers that may have been causing some errors to propagate.
 
 

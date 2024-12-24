@@ -22,7 +22,7 @@ cdef void cf_radial_solver(
         int degree_l,
         size_t num_bc_models,
         int* bc_models_ptr,
-        int core_condition,
+        int core_model,
         cpp_bool use_kamata,
         double starting_radius,
         double start_radius_tolerance,

@@ -53,7 +53,7 @@ crust_r  = 252.e3
 ocean_r  = 210.e3
 core_r   = 190.e3
 
-N = 5
+N = 10
 radius_array = np.concatenate((
     np.linspace(0.0, core_r, N, dtype=np.float64),
     np.linspace(core_r, ocean_r, N, dtype=np.float64),
@@ -74,6 +74,11 @@ shear_array = np.empty_like(radius_array)
 shear_array[core_index]  = 1.00e11
 shear_array[ocean_index] = 0.00e00
 shear_array[crust_index] = 4.00e09
+shear_array_propmat = np.empty_like(radius_array)
+shear_array_propmat[core_index]  = 1.00e11
+shear_array_propmat[ocean_index] = 0.0
+shear_array_propmat[crust_index] = 4.00e09
+
 density_array = np.empty_like(radius_array)
 core_density = 2.400e3
 ocean_density = 1.000e3
@@ -84,10 +89,15 @@ density_array[crust_index] = crust_density
 complex_shear = np.empty(radius_array.size, dtype=np.complex128)
 maxwell_inst = Maxwell()
 maxwell_inst.vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear)
+complex_shear_propmat = np.empty(radius_array.size, dtype=np.complex128)
+maxwell_inst.vectorize_modulus_viscosity(frequency, shear_array_propmat, viscosity_array, complex_shear_propmat)
 newton_inst = Newton()
 complex_shear_liq = np.empty(density_array[ocean_index].size, dtype=np.complex128)
 newton_inst.vectorize_modulus_viscosity(frequency, shear_array[ocean_index], viscosity_array[ocean_index], complex_shear_liq)
 complex_shear[ocean_index] = complex_shear_liq
+complex_shear_liq_propmat = np.empty(density_array[ocean_index].size, dtype=np.complex128)
+newton_inst.vectorize_modulus_viscosity(frequency, shear_array_propmat[ocean_index], viscosity_array[ocean_index], complex_shear_liq_propmat)
+complex_shear_propmat[ocean_index] = complex_shear_liq_propmat
 
 # ALMA using an incompressible model. Fake that with a high bulk.
 bulk_array = 1.0e15 * np.ones(radius_array.size, dtype=np.complex128, order='C')
@@ -107,8 +117,13 @@ is_incompressible_by_layer = (False, True, True)
 upper_radius_by_layer = np.asarray((core_r, ocean_r, crust_r), dtype=np.float64, order='C')
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4, 5))
-def test_radial_solver_alma_compare(degree_l):
+@pytest.mark.parametrize('use_prop_matrix', (True, False))
+def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
     """ Compare TidalPy's `radial_solver` to ALMA for an Enceladus-like planet. """
+    
+    if use_prop_matrix:
+        # Have tried increasing the number of slices, still does not match well.
+        pytest.skip("Can not currently match ALMA results when using propagation matrix technique.")
 
     success_threshold_real = 0.01
     success_threshold_imag = 0.01
@@ -120,22 +135,38 @@ def test_radial_solver_alma_compare(degree_l):
     alma_k, alma_h, alma_l = alma_results[degree_l]
 
     # Calculate solution using the radial solver
-    inputs = (
-        radius_array,
-        density_array,
-        bulk_array,
-        complex_shear,
-        frequency,
-        planet_bulk_density,
-        layer_types,
-        is_static_by_layer,
-        is_incompressible_by_layer,
-        upper_radius_by_layer,
-    )
+    if use_prop_matrix:
+        inputs = (
+            radius_array,
+            density_array,
+            bulk_array,
+            complex_shear_propmat,
+            frequency,
+            planet_bulk_density,
+            ('solid',),
+            (True,),
+            (True,),
+            np.asarray((upper_radius_by_layer[-1],), dtype=np.float64, order='C'),
+        )
+    else:
+        inputs = (
+            radius_array,
+            density_array,
+            bulk_array,
+            complex_shear,
+            frequency,
+            planet_bulk_density,
+            layer_types,
+            is_static_by_layer,
+            is_incompressible_by_layer,
+            upper_radius_by_layer,
+        )
     kwarg_inputs = dict(
         degree_l=degree_l,
         solve_for=None,
         use_kamata=True,
+        use_prop_matrix=use_prop_matrix,
+        core_model=0,
         integration_method="DOP853",
         integration_rtol=integration_rtol,
         integration_atol=integration_atol,

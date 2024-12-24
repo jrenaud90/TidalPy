@@ -3,6 +3,8 @@ v0.6.0:
 Urgent:
 - eos.call can not be called after solver is done because the input has died. Make the input into a pure C++ class that can be subclassed by specific models. Have a vector of shared pointers to that parent class stored in the eos solution. 
 
+- Fix logger to only use one project level logger
+- look at the degree_l=1 surface condition difference in hilary martens load def manual. Use that?
 
 - tests:
     - radial_solver.helpers.build_planet_constant_layers

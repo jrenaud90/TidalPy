@@ -135,7 +135,7 @@ def calculate_mode_response_coupled(
                 upper_radius_bylayer_array,
                 degree_l,
                 solve_for=solve_for_tuple,
-                core_condition=0,
+                core_model=0,
                 use_kamata=use_kamata,
                 starting_radius = 0.0,
                 start_radius_tolerance = 1.0e-5,

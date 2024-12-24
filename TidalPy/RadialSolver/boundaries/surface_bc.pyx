@@ -51,6 +51,7 @@ cdef void cf_get_surface_bc(
             boundary_conditions_ptr[j * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_to_use
         elif bc_model_ptr[j] == 2:
             # Loading Potential
+            # See Eq. 6 in Beuthe (2015) and Eq. 9 of Saito (1974)
             boundary_conditions_ptr[j * 3 + 0] = (-1. / 3.) * (2. * degree_l_dbl + 1.) * bulk_density_to_use
             boundary_conditions_ptr[j * 3 + 1] = 0.
             boundary_conditions_ptr[j * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_to_use
@@ -64,11 +65,11 @@ cdef void cf_get_surface_bc(
 
 
 def get_surface_bc(
-    int[::1] bc_model_view,
-    double radius_to_use,
-    double bulk_density_to_use,
-    double degree_l_dbl,
-    ):
+        int[::1] bc_model_view,
+        double radius_to_use,
+        double bulk_density_to_use,
+        double degree_l_dbl,
+        ):
 
     cdef int* bc_model_ptr = &bc_model_view[0]
     cdef size_t num_bcs = bc_model_view.size

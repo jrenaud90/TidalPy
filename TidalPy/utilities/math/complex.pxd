@@ -2,6 +2,7 @@ from TidalPy.constants cimport d_DBL_MAX, d_DBL_MIN, d_DBL_MANT_DIG, d_NAN_DBL, 
 
 cdef double complex cmplx_NAN
 cdef double complex cmplx_zero
+cdef double complex cmplx_one
 cdef double SQRT2
 cdef double LOGE2
 cdef double SQRT2_INV

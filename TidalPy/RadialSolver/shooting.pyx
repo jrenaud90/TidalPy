@@ -2,17 +2,17 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 # Import cythonized functions
-from libc.math cimport NAN, isnan, fmin
+from libc.math cimport NAN, fmin
 from libc.stdio cimport printf, sprintf
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
 
 from CyRK cimport cysolve_ivp, CySolverResult, CySolveOutput, DiffeqFuncType, PreEvalFunc
-from CyRK.utils.utils cimport allocate_mem, reallocate_mem, free_mem
+from CyRK.utils.utils cimport allocate_mem, free_mem
 from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
-from TidalPy.constants cimport d_G, d_PI_DBL, d_EPS_DBL
+from TidalPy.constants cimport d_PI_DBL, d_EPS_DBL
 
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
@@ -106,21 +106,21 @@ cdef void cf_shooting_solver(
         vector[size_t] num_slices_by_layer_vec,
         size_t num_bc_models,
         int* bc_models_ptr,
-        double G_to_use = d_G,
-        int degree_l = 2,
-        cpp_bool use_kamata = False,
-        double starting_radius = 0.0,
-        double start_radius_tolerance = 1.0e-5,
-        int integration_method = 1,
-        double integration_rtol = 1.0e-6,
-        double integration_atol = 1.0e-12,
-        cpp_bool scale_rtols_by_layer_type = False,
-        size_t max_num_steps = 500_000,
-        size_t expected_size = 500,
-        size_t max_ram_MB = 500,
-        double max_step = 0,
-        cpp_bool verbose = False,
-        cpp_bool raise_on_fail = False
+        double G_to_use,
+        int degree_l,
+        cpp_bool use_kamata,
+        double starting_radius,
+        double start_radius_tolerance,
+        int integration_method,
+        double integration_rtol,
+        double integration_atol,
+        cpp_bool scale_rtols_by_layer_type,
+        size_t max_num_steps,
+        size_t expected_size,
+        size_t max_ram_MB ,
+        double max_step,
+        cpp_bool verbose,
+        cpp_bool raise_on_fail
         ) noexcept nogil:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """

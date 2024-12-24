@@ -49,7 +49,7 @@ cdef void cf_radial_solver(
         int degree_l,
         size_t num_bc_models,
         int* bc_models_ptr,
-        int core_condition,
+        int core_model,
         cpp_bool use_kamata,
         double starting_radius,
         double start_radius_tolerance,
@@ -73,7 +73,7 @@ cdef void cf_radial_solver(
         cpp_bool warnings,
         cpp_bool raise_on_fail,
         ) noexcept nogil:
-    
+
     cdef size_t layer_i, slice_i
     # Feedback
     cdef char[256] message
@@ -279,24 +279,29 @@ cdef void cf_radial_solver(
             )
 
     # Step through the radial steps to find EOS-dependent parameters
+    cdef size_t i
     if eos_solution_storage_ptr.success and solution_storage_ptr.error_code == 0:
         # Run requested radial solver method
         if use_prop_matrix:
             cf_matrix_propagate(
-                solution_storage_ptr,     # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
-                frequency_to_use,          # Forcing frequency [double]
-                bulk_density_to_use,       # Planet bulk density [double]
+                solution_storage_ptr,           # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
+                frequency_to_use,               # Forcing frequency [double]
+                bulk_density_to_use,            # Planet bulk density [double]
                 # TODO: In the future the propagation matrix should take in layer types and multiple layers
                 # int* layer_types_ptr,
                 # int* is_static_bylayer_ptr,
                 # int* is_incompressible_bylayer_ptr,
-                num_bc_models,             # Number of boundary conditions requested by user [size_t]
-                bc_models_ptr,             # Boundary condition model int array pointer [int*]
-                G_to_use,                  # Gravitational constant [double]
-                degree_l,                  # Harmonic degree [unsigned int]
-                core_condition,            # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
-                verbose,                   # Verbose flag [cpp_bool]
-                raise_on_fail              # Flag to allow for early crashes when integration fails [cpp_bool]
+                first_slice_index_by_layer_vec, # First radial slice of each layer array pointer [size_t*]
+                num_slices_by_layer_vec,        # Number of radial slices in each layer array pointer [size_t*]
+                num_bc_models,                  # Number of boundary conditions requested by user [size_t]
+                bc_models_ptr,                  # Boundary condition model int array pointer [int*]
+                G_to_use,                       # Gravitational constant [double]
+                degree_l,                       # Harmonic degree [unsigned int]
+                starting_radius_to_use,         # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
+                start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]                
+                core_model,                 # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
+                verbose,                        # Verbose flag [cpp_bool]
+                raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
                 )
         else:
             cf_shooting_solver(
@@ -321,7 +326,7 @@ cdef void cf_radial_solver(
                 scale_rtols_bylayer_type,       # Flag for if tolerances should vary with layer type (using pre-defined scaling) [cpp_bool]
                 max_num_steps,                  # Maximum number of integration steps allowed [size_t]
                 expected_size,                  # Expected number of integration steps required for the average layer [size_t]
-                max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
+                max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallelized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
                 max_step,                       # Maximum allowed step size per layer [double]
                 verbose,                        # Verbose flag [cpp_bool]
                 raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
@@ -361,9 +366,9 @@ def radial_solver(
         tuple is_incompressible_bylayer,
         double[::1] upper_radius_bylayer_array,
         double surface_pressure = 0.0,
-        unsigned int degree_l = 2,
+        int degree_l = 2,
         tuple solve_for = None,
-        unsigned char core_condition = 0,
+        int core_model = 0,
         cpp_bool use_kamata = False,
         double starting_radius = 0.0,
         double start_radius_tolerance = 1.0e-5,
@@ -434,7 +439,7 @@ def radial_solver(
             - "loading": Surface loading boundary conditions.
             - "free": Free surface boundary conditions.
         For example, if you want the tidal and loading solutions then you can set "solve_for=('tidal', 'loading')".
-    core_condition : unsigned char, default=0
+    core_model : uint32, default=0
         Only used with `use_prop_matrix=True`. Defines the starting conditions at the inner boundary of the planet.
             - 0: Henning & Hurford (2014): "At the core, a special seed matrix Bcore is created with only three columns,
                  equal to the first, second, and third columns of Y for the properties at the base layer."
@@ -480,14 +485,14 @@ def radial_solver(
         The integrator will use this value and the "max_num_steps" to determine a true limit on the maximum number
         steps allowed (picking the lower value.). If system RAM is limited (or if multiple RadialSolvers will run in
         parallel) it maybe worth setting this lower than the default.
-        The default of 500MB is equivalent to a max_num_steps ~ 5 Mllion.
+        The default of 500MB is equivalent to a max_num_steps ~ 5 Million.
     max_step : float64, default=0
         Maximum step size the adaptive step size integrator is allowed to take. 
         Setting to 0 (default) will tell the integrator to determine an ideal max step size.
     limit_solution_to_radius : bool, default=True
         If True, then the solution will be limited to the points passed by the radius array.
     nondimensionalize : bool, default=True
-        If Ture, then inputs will be non-dimensionalized before integration is performed.
+        If True, then inputs will be non-dimensionalized before integration is performed.
         Results will be redimensionalized before being returned.
     use_prop_matrix : bool, default=False
         If True, RadialSolver will use a propagation matrix method rather than the default shooting method.
@@ -510,11 +515,11 @@ def radial_solver(
     eos_max_iters : unsigned int, default = 40
         Maximum number of iterations used to converge surface pressure in equation of state solver.
     verbose : bool, default=False
-        If True, then additioal information will be printed to the terminal during the solution. 
+        If True, then additional information will be printed to the terminal during the solution. 
     warnings : bool, default=True
         If True, then warnings will be printed to the terminal during the solution. 
     raise_on_fail : bool, default=False
-        If Ture, then the solver will raise an exception if integration was not successful. By default RadialSolver
+        If True, then the solver will raise an exception if integration was not successful. By default RadialSolver
         fails silently.
     perform_checks : bool, default=True
         Performs sanity checks that raise python exceptions. If turned off then these checks will be skipped providing 
@@ -562,10 +567,14 @@ def radial_solver(
             raise ValueError('Forcing frequency is too large (are you sure you are in rad s-1?).')
         
         if use_prop_matrix:
-            raise NotImplementedError("Propagation matrix technique is not fully implemented or tested.")
-
-        if use_prop_matrix and num_layers > 1:
-            raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
+            if num_layers > 1:
+                raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
+            if layer_types[0].lower() != 'solid':
+                raise AttributeError("The Propagation matrix technique only works for solid layers. For liquid layers you can set layer type to solid and use a small shear modulus to mimic liquid layers.")
+            if not is_static_bylayer[0]:
+                raise AttributeError("The Propagation matrix technique does not allow for dynamic layers.")
+            if not is_incompressible_bylayer[0]:
+                raise AttributeError("The Propagation matrix technique does not allow for compressible layers.")
         
         if (starting_radius != 0.0) and (starting_radius > 0.90 * radius_array[total_slices - 1]):
             raise AttributeError('Starting radius is above 90\% of the planet radius. Try a lower radius.')
@@ -772,7 +781,7 @@ def radial_solver(
         degree_l,
         num_bc_models,
         bc_models_ptr,
-        core_condition,
+        core_model,
         use_kamata,
         starting_radius,
         start_radius_tolerance,

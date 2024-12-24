@@ -119,6 +119,7 @@
     "is_cpp": true
   },
 
+
   "RadialSolver.constants": {
     "name": "TidalPy.RadialSolver.constants",
     "sources": [["TidalPy", "RadialSolver", "constants.pyx"]],
@@ -255,7 +256,6 @@
     "link_args": [],
     "is_cpp": true
   },
-  
   "RadialSolver.matrix": {
     "name": "TidalPy.RadialSolver.matrix",
     "sources": [["TidalPy", "RadialSolver", "matrix.pyx"]],
@@ -268,6 +268,16 @@
     "name": "TidalPy.RadialSolver.solver",
     "sources": [["TidalPy", "RadialSolver", "solver.pyx"]],
     "include_dirs": [["TidalPy", "RadialSolver", "solver"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+
+  "tides.multilayer.radial_sensitivity": {
+    "name": "TidalPy.tides.multilayer.radial_sensitivity",
+    "sources": [["TidalPy", "tides", "multilayer", "radial_sensitivity.pyx"]],
+    "include_dirs": [["TidalPy", "tides", "multilayer"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true

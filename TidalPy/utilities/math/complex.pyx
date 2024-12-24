@@ -460,6 +460,7 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
 ########################################################################################################################
 cdef double complex cmplx_NAN  = cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
 cdef double complex cmplx_zero = cf_build_dblcmplx(0.0, 0.0)
+cdef double complex cmplx_one  = cf_build_dblcmplx(1.0, 0.0)
 
 ########################################################################################################################
 # Python wrappers

@@ -54,8 +54,7 @@ cdef void cf_apply_surface_bc(
         constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 1]
         constant_vector_ptr[2] = bc_pointer[ytype_i * 3 + 2]
 
-        # The definitions above need to be transposed as the LAPACK solver TidalPy uses requires
-        #  FORTRAN-ordered arrays.
+        # The definitions above need to be transposed as the zgesv solver requires FORTRAN-ordered arrays.
         surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1]
         surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * max_num_y + 3]
         surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * max_num_y + 5]

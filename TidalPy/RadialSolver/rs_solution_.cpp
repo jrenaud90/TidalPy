@@ -1,10 +1,8 @@
 
 #include "rs_solution_.hpp"
-#include <cstdio>
 
 RadialSolutionStorageCC::RadialSolutionStorageCC( )
 {
-
 }
 
 RadialSolutionStorageCC::RadialSolutionStorageCC(
@@ -56,11 +54,8 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
     }
 }
 
-#include <cstdio>
-
 RadialSolutionStorageCC::~RadialSolutionStorageCC( )
 {
-
 }
 
 EOSSolutionCC* RadialSolutionStorageCC::get_eos_solution_ptr()
