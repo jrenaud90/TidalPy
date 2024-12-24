@@ -56,8 +56,9 @@
   * Method to quickly plot the viscoelastic-gravitational solution y's `<solution>.plot_ys()`.
   * In addition to the previously provided attributes like `<solution>.love`, `<solution>.k`, `<solution>.h`, `<solution>.l`, `<solution>.result`.
 
-#### Cython Changes
+#### Cython / C Changes
 * Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
+  * Avoiding using these manual heap allocations whenever possible. Many new uses of smart pointers and C++ vectors.
 
 #### Other Changes
 * Updated GitHub actions.
@@ -66,6 +67,7 @@
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
 * New numerics module `TidalPy.math.numerics` for low-level floating point functions.
   * New cythonized `isclose` function that matches functionality of python's `math.isclose`
+* Cythonized radial sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.radial_sensitivity.pyx` (based on Tobie+2005)
 
 #### Dependencies
 * Added support for CyRK v0.12.1
