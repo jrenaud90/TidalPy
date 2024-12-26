@@ -1,4 +1,4 @@
-cdef void cf_saito_liquid_static_inccompressible(
+cdef void cf_saito_liquid_static_incompressible(
         double radius,
         int degree_l,
         size_t num_ys, 

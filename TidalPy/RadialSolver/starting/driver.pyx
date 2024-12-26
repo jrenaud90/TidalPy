@@ -9,7 +9,7 @@ from TidalPy.RadialSolver.starting.takeuchi cimport (
     cf_takeuchi_liquid_dynamic_compressible
     )
 
-from TidalPy.RadialSolver.starting.saito cimport cf_saito_liquid_static_inccompressible
+from TidalPy.RadialSolver.starting.saito cimport cf_saito_liquid_static_incompressible
 
 from TidalPy.RadialSolver.starting.kamata cimport (
     cf_kamata_solid_dynamic_compressible,
@@ -18,7 +18,6 @@ from TidalPy.RadialSolver.starting.kamata cimport (
     cf_kamata_liquid_dynamic_compressible,
     cf_kamata_liquid_dynamic_incompressible
     )
-
 
 cdef void cf_find_starting_conditions(
         cpp_bool* success_ptr,
@@ -55,7 +54,7 @@ cdef void cf_find_starting_conditions(
                 success_ptr[0] = False
                 strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
         if success_ptr[0]:
-            cf_saito_liquid_static_inccompressible(
+            cf_saito_liquid_static_incompressible(
                 radius, degree_l, num_ys, starting_conditions_ptr
                 )
         
@@ -137,46 +136,47 @@ cdef void cf_find_starting_conditions(
         if is_incompressible:
             success_ptr[0] = False
             strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.')
-        if (layer_type == 0):
-            # Solid layer
-            if is_static:
-                if run_y_checks:
-                    num_sols_for_assumption = 3
-                    num_ys_for_assumption   = 6
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_takeuchi_solid_static_compressible(
-                        radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
-                    )
-            else:
-                if run_y_checks:
-                    num_sols_for_assumption = 3
-                    num_ys_for_assumption   = 6
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions:: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_takeuchi_solid_dynamic_compressible(
-                        frequency, radius, density, bulk_modulus, shear_modulus,
-                        degree_l, G_to_use, num_ys, starting_conditions_ptr
-                        )
         else:
-            if is_static:
-                # Handled by Saito
-                pass
-            else:
-                if run_y_checks:
-                    num_sols_for_assumption = 2
-                    num_ys_for_assumption   = 4
-                    if num_ys_for_assumption != num_ys:
-                        success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
-                if success_ptr[0]:
-                    cf_takeuchi_liquid_dynamic_compressible(
-                        frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
+            if (layer_type == 0):
+                # Solid layer
+                if is_static:
+                    if run_y_checks:
+                        num_sols_for_assumption = 3
+                        num_ys_for_assumption   = 6
+                        if num_ys_for_assumption != num_ys:
+                            success_ptr[0] = False
+                            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                    if success_ptr[0]:
+                        cf_takeuchi_solid_static_compressible(
+                            radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
                         )
+                else:
+                    if run_y_checks:
+                        num_sols_for_assumption = 3
+                        num_ys_for_assumption   = 6
+                        if num_ys_for_assumption != num_ys:
+                            success_ptr[0] = False
+                            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions:: Incorrect number of ys for given the starting condition assumptions.')
+                    if success_ptr[0]:
+                        cf_takeuchi_solid_dynamic_compressible(
+                            frequency, radius, density, bulk_modulus, shear_modulus,
+                            degree_l, G_to_use, num_ys, starting_conditions_ptr
+                            )
+            else:
+                if is_static:
+                    # Handled by Saito
+                    pass
+                else:
+                    if run_y_checks:
+                        num_sols_for_assumption = 2
+                        num_ys_for_assumption   = 4
+                        if num_ys_for_assumption != num_ys:
+                            success_ptr[0] = False
+                            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                    if success_ptr[0]:
+                        cf_takeuchi_liquid_dynamic_compressible(
+                            frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
+                            )
     
 
 def find_starting_conditions(

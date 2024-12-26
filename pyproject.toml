@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.0a13.dev1'
+version = '0.6.0a13.dev2'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -19,7 +19,7 @@ dependencies = [
     "psutil>=5.8.0",
     "pathos>=0.2.0",
     # Install CyRK requirements
-    "cyrk>=0.12.1", # "cyrk @ git+https://github.com/jrenaud90/CyRK.git@debug",
+    "cyrk>=0.12.1, <0.13.0", # "cyrk @ git+https://github.com/jrenaud90/CyRK.git@debug",
     # Exoplanet data archive
     "astropy",
     "astroquery",
@@ -116,7 +116,7 @@ requires = [
     "scipy>=1.9.3, <1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
     'cython>=3.0.0',
     'wheel>=0.38',
-    "cyrk>=0.12.1", # "cyrk @ git+https://github.com/jrenaud90/CyRK.git@debug",
+    "cyrk>=0.12.1, <0.13.0", # "cyrk @ git+https://github.com/jrenaud90/CyRK.git@debug",
 ]
 build-backend = "setuptools.build_meta"
 

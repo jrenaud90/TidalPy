@@ -274,9 +274,17 @@
   },
 
 
-  "tides.multilayer.radial_sensitivity": {
-    "name": "TidalPy.tides.multilayer.radial_sensitivity",
-    "sources": [["TidalPy", "tides", "multilayer", "radial_sensitivity.pyx"]],
+  "tides.multilayer.sensitivity": {
+    "name": "TidalPy.tides.multilayer.sensitivity",
+    "sources": [["TidalPy", "tides", "multilayer", "sensitivity.pyx"]],
+    "include_dirs": [["TidalPy", "tides", "multilayer"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "tides.multilayer.heating": {
+    "name": "TidalPy.tides.multilayer.heating",
+    "sources": [["TidalPy", "tides", "multilayer", "heating.pyx"]],
     "include_dirs": [["TidalPy", "tides", "multilayer"]],
     "compile_args": [],
     "link_args": [],
