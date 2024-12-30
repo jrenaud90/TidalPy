@@ -14,8 +14,9 @@ from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 
 # Model planet - 2layers
 N = 20
+planet_R = 1.e6
 density_array = 5000. * np.ones(N)
-radius_array = np.linspace(0., 1.e6, N)
+radius_array = np.linspace(0., planet_R, N)
 R = radius_array[-1]
 volume_array = (4. / 3.) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
 mass_array = volume_array * density_array[1:]
@@ -75,14 +76,13 @@ input_kwargs = {
     'colatitude_matrix'          : colatitude_matrix,
     'time_matrix'                : time_matrix,
     'voxel_volume'               : voxel_volumes,
-    'layer_types'                : ['solid'],
-    'is_static_bylayer'          : [False],
-    'is_incompressible_bylayer'  : [False],
+    'layer_types'                : ('solid',),
+    'is_static_bylayer'          : (False,),
+    'is_incompressible_bylayer'  : (False,),
     'obliquity'                  : obliquity,
     'solve_load_numbers'         : False,
-    'complex_compliance_input'   : None,
     'force_mode_calculation'     : False,
-    'order_l'                    : 2,
+    'degree_l'                   : 2,
     'use_modes'                  : False,
     'use_static_potential'       : False,
     'use_simple_potential'       : False,
@@ -543,26 +543,33 @@ def test_collapse_multilayer_modes_liquid_solid():
     mantle_index = np.zeros(radius_array.size, dtype=bool)
     core_index[np.arange(0, N_half)] = True
     mantle_index[np.arange(N_half, N)] = True
-    input_kwargs_to_use['shear_array'][core_index] = 7000.
-    input_kwargs_to_use['density_array'][core_index] = 0.
-    input_kwargs_to_use['layer_types'] = ['liquid', 'solid']
-    input_kwargs_to_use['is_static_bylayer'] = [True, False]
-    input_kwargs_to_use['upper_radius_bylayer_array'] = np.asarray((r_core, R), dtype=np.float64)
+    input_kwargs_to_use['shear_array'][core_index] = 0.
+    input_kwargs_to_use['density_array'][core_index] = 7000.
+    input_kwargs_to_use['layer_types'] = ('liquid', 'solid')
+    input_kwargs_to_use['is_static_bylayer'] = (True, False)
+    input_kwargs_to_use['is_incompressible_bylayer'] = (True, False)
+    input_kwargs_to_use['upper_radius_bylayer_array'] = np.asarray((r_core, planet_R), dtype=np.float64)
+
+    radius_array_to_use = np.concatenate((
+        np.linspace(0., r_core, N_half),
+        np.linspace(r_core, planet_R, N_half)
+    ))
+    input_kwargs_to_use['radius_array'] = radius_array_to_use
 
     heating, volumetric_heating, strains, stresses, \
     total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array_to_use.shape, *longitude_matrix.shape[:2])
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
     assert tidal_potential.shape == colatitude_matrix.shape[:2]
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
-    assert complex_shears_avg.shape == radius_array.shape
-    assert tidal_y_avg.shape == (6, *radius_array.shape)
+    assert complex_shears_avg.shape == radius_array_to_use.shape
+    assert tidal_y_avg.shape == (6, *radius_array_to_use.shape)
 
     assert heating.dtype in [float, np.float64]
     assert volumetric_heating.dtype in [float, np.float64]

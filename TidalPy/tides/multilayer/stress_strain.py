@@ -11,7 +11,6 @@ B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
-from numba import prange
 
 from TidalPy.utilities.performance import njit
 
@@ -22,7 +21,7 @@ StressType = np.ndarray
 StrainType = np.ndarray
 
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def calculate_strain_stress(
     tidal_potential: np.ndarray,
     tidal_potential_partial_theta: np.ndarray, tidal_potential_partial_phi: np.ndarray,
@@ -31,7 +30,7 @@ def calculate_strain_stress(
     tidal_solution_y: np.ndarray,
     longitude_array: np.ndarray, colatitude_array: np.ndarray, time_array: np.ndarray,
     radius_array: np.ndarray, shear_moduli: np.ndarray, bulk_moduli: np.ndarray,
-    frequency: 'FloatArray', order_l: int = 2
+    frequency: 'FloatArray', degree_l: int = 2
     ) -> Tuple[StrainType, StressType]:
     """ Calculate tidal strain tensor using the tidal potential and its partial derivatives as well as the y-solution
     vector.
@@ -71,7 +70,7 @@ def calculate_strain_stress(
         Bulk modulus as a function of radius [Pa]
     frequency : FloatArray
         Forcing frequency used to calculate tidal heating [rad s-1]
-    order_l : int = 2
+    degree_l : int = 2
         Tidal harmonic order
 
     Returns
@@ -115,7 +114,7 @@ def calculate_strain_stress(
     strains = np.empty((6, n_radius, n_longitude, n_colatitude, n_time), dtype=np.complex128)
     stresses = np.empty((6, n_radius, n_longitude, n_colatitude, n_time), dtype=np.complex128)
 
-    for ri in prange(n_radius):
+    for ri in range(n_radius):
         # Pull out radius dependent parameters
         radius = radius_array[ri]
         shear  = shear_moduli[ri]
@@ -126,22 +125,43 @@ def calculate_strain_stress(
         y4     = tidal_solution_y[3, ri]
         
         # Optimizations
-        radius_inv = 1. / radius
-        lame       = bulk - (2. / 3.) * shear
-        y4_shear   = y4 / shear
-        dy1_dr     = (1. / (lame + 2. * shear)) * (y2 - (lame * radius_inv) * (2. * y1 - order_l * (order_l + 1.) * y3))
-        y3_r       = y3 * radius_inv
-        y1_r       = y1 * radius_inv
+        lame = bulk - (2. / 3.) * shear
+        lame_2shear = (lame + 2. * shear)
+        if shear == 0.0:
+            y4_shear   = 0.0
+        else:
+            y4_shear   = y4 / shear
 
-        for ci in prange(n_colatitude):
+        if radius == 0.0:
+            radius_inv = np.nan
+            dy1_dr     = np.nan
+            y3_r       = np.nan
+            y1_r       = np.nan
+        else:
+            radius_inv = 1. / radius
+            if lame_2shear == 0.0:
+                dy1_dr = np.nan
+            else:
+                dy1_dr = (1. / lame_2shear) * (y2 - (lame * radius_inv) * (2. * y1 - degree_l * (degree_l + 1.) * y3))
+            y3_r       = y3 * radius_inv
+            y1_r       = y1 * radius_inv
+
+        for ci in range(n_colatitude):
             colatitude = colatitude_array[ci]
             sin_theta = np.sin(colatitude)
-            cot_theta = 1. / np.tan(colatitude)
-            for li in prange(n_longitude):
+            if sin_theta == 0.0:
+                sin_theta_inv = np.nan
+            else:
+                sin_theta_inv = 1. / sin_theta
+            tan_theta = np.tan(colatitude)
+            if tan_theta == 0.0:
+                cot_theta = np.nan
+            else:
+                cot_theta = 1. / tan_theta
+            for li in range(n_longitude):
                 # longitude = longitude_domain[li]
-                for ti in prange(n_time):
+                for ti in range(n_time):
                     # time = time_domain[ti]
-                    
                     tp       = tidal_potential[li, ci, ti]
                     tp_p_t   = tidal_potential_partial_theta[li, ci, ti]
                     tp_p_p   = tidal_potential_partial_phi[li, ci, ti]
@@ -151,9 +171,9 @@ def calculate_strain_stress(
 
                     # Any optimizations
                     y1_r_tidal_potential = y1_r * tp
-                    s2_t1 = (1. / sin_theta**2) * tp_p2_p2 + cot_theta * tp_p_t
-                    s4_t0 = tp_p_p / sin_theta
-                    s5_t0 = 2. * (tp_p2_tp - cot_theta * tp_p_p) / sin_theta
+                    s2_t1 = (sin_theta_inv**2) * tp_p2_p2 + cot_theta * tp_p_t
+                    s4_t0 = tp_p_p * sin_theta_inv
+                    s5_t0 = 2. * (tp_p2_tp - cot_theta * tp_p_p) * sin_theta_inv
 
                     # \epsilon_{rr}
                     strains[0, ri, li, ci, ti] = dy1_dr * tp

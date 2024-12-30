@@ -82,9 +82,6 @@ def calculate_mode_response_coupled(
 
     # Setup flags
     mode_skipped = False
-
-    if complex_compliance_input is None:
-        complex_compliance_input = tuple()
     
     if solve_load_numbers:
         solve_for_tuple = ('tidal', 'loading')
@@ -103,13 +100,13 @@ def calculate_mode_response_coupled(
 
     else:
         # Calculate Complex Shear Modulus at this mode's frequency
-        complex_shear_modulus = np.empty(radius_array.size, dtype=np.complex128)
+        complex_shears_at_mode = np.empty(radius_array.size, dtype=np.complex128)
 
         shear_rheology_inst.vectorize_modulus_viscosity(
             mode_frequency,
             shear_array,
             shear_viscosity_array,
-            complex_shear_modulus)
+            complex_shears_at_mode)
 
         # Calculate Complex Bulk Modulus at this mode's frequency
         complex_bulk_modulus = np.empty(radius_array.size, dtype=np.complex128)
@@ -126,7 +123,7 @@ def calculate_mode_response_coupled(
                 radius_array,
                 density_array,
                 complex_bulk_modulus,
-                complex_shear_modulus,
+                complex_shears_at_mode,
                 mode_frequency,
                 planet_bulk_density,
                 layer_types,
@@ -159,18 +156,21 @@ def calculate_mode_response_coupled(
                 warnings = verbose,
                 raise_on_fail = False,
                 perform_checks = True)
+        if not radial_solution_at_mode.success:
+            raise Exception(f"RadialSolver failed to find a solution at this mode: {radial_solution_at_mode.message}")
+
         tidal_y_at_mode = radial_solution_at_mode.result
         if solve_load_numbers:
             love_numbers = (radial_solution_at_mode.k[0], radial_solution_at_mode.h[0], radial_solution_at_mode.l[0])
         else:
-            love_numbers = (radial_solution_at_mode.k[0], radial_solution_at_mode.h[0], radial_solution_at_mode.l[0])
+            love_numbers = (radial_solution_at_mode.k, radial_solution_at_mode.h, radial_solution_at_mode.l)
 
         # Calculate stresses and heating
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
             *tidal_potential_tuple,
             tidal_y_at_mode,
-            longitude_domain, colatitude_domain, time_domain, radius_array, complex_shear_modulus, complex_bulk_modulus,
-            frequency=mode_frequency, order_l=degree_l
+            longitude_domain, colatitude_domain, time_domain, radius_array, complex_shears_at_mode, complex_bulk_modulus,
+            frequency=mode_frequency, degree_l=degree_l
             )
 
     return mode_skipped, strains_at_mode, stresses_at_mode, complex_shears_at_mode, tidal_y_at_mode, love_numbers
@@ -256,21 +256,16 @@ def collapse_multilayer_modes(
 
     """
 
-    # If no inputs to the complex compliance function were provided then set it equal to an empty tuple which
-    #    will cause the complex compliance function to resort to default.
-    if complex_compliance_input is None:
-        complex_compliance_input = tuple()
-
-    # Clean up inputs
-    is_solid_by_layer  = tuple(is_solid_by_layer)
-    is_static_by_layer = tuple(is_static_by_layer)
-    indices_by_layer   = tuple(indices_by_layer)
-
     # Certain variables are calculated across the radius, longitude, colatitude, and time domains.
     #   longitude, colatitude, and time are provided as matrices that must be in this order:
     #   [longitude_N, latitude_N, time_N]
     # Check that dimensions make sense
     assert radius_array.shape == shear_array.shape
+
+    # Cleanup inputs
+    layer_types               = tuple(layer_types)
+    is_static_bylayer         = tuple(is_static_bylayer)
+    is_incompressible_bylayer = tuple(is_incompressible_bylayer)
 
     # The shear array may have zero values for liquid layers. This will cause an issue with complex compliance calc.
     #     make it small instead
