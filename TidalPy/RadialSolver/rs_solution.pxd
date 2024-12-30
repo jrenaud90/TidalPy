@@ -37,6 +37,7 @@ cdef extern from "rs_solution_.cpp" nogil:
 
         cpp_bool success
         int error_code
+        int degree_l
         char* message_ptr
         size_t num_ytypes
         size_t num_slices

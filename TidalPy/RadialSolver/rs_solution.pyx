@@ -14,7 +14,8 @@ cdef class RadialSolverSolution:
             self,
             size_t num_ytypes,
             double[::1] upper_radius_bylayer_view,
-            double[::1] radius_array_view
+            double[::1] radius_array_view,
+            int degree_l
             ):
         # Build pointers
         cdef double* upper_radius_bylayer_ptr = &upper_radius_bylayer_view[0]
@@ -32,7 +33,8 @@ cdef class RadialSolverSolution:
             upper_radius_bylayer_ptr,
             self.num_layers,
             radius_array_ptr,
-            radius_array_size)
+            radius_array_size,
+            degree_l)
         self.solution_storage_ptr = self.solution_storage_sptr.get()
 
         if not self.solution_storage_ptr:
@@ -229,9 +231,39 @@ cdef class RadialSolverSolution:
         return eos_interp
 
     def plot_ys(self):
+        cdef list result_list
+        cdef list radius_list
+        cdef list labels
+        cdef size_t ytype_i
+        cdef size_t stored_ytypes = 0
+        cdef str ytype_name
+
         if self.success:
             from TidalPy.utilities.graphics.multilayer import yplot
-            yplot(self.result, self.radius_array)
+            if self.num_ytypes <= 0:
+                raise AttributeError("`RadialSolverSolution` can not plot ys because number of ytypes is less than 1.")
+            elif self.num_ytypes == 1:
+                if self.result is not None:
+                    return yplot(self.result, self.radius_array)
+                else:
+                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+            else:
+                result_list = list()
+                radius_list = list()
+                labels      = list()
+                for ytype_i in range(self.num_ytypes):
+                    ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
+                    if self.get_result_by_ytype_name(ytype_name) is not None:
+                        result_list.append(self.get_result_by_ytype_name(ytype_name))
+                        radius_list.append(self.radius_array)
+                        labels.append(ytype_name.title())
+                        stored_ytypes += 1
+                if stored_ytypes > 1:
+                    return yplot(result_list, radius_list, labels=labels)
+                else:
+                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+        else:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
 
     def __dealloc__(self):
 
@@ -357,6 +389,11 @@ cdef class RadialSolverSolution:
 
     # RadialSolver result properties
     @property
+    def degree_l(self):
+        """ Return the harmonic degree used to perform the calculation. """
+        return self.solution_storage_ptr.degree_l
+
+    @property
     def result(self):
         """ Return result array. """
 
@@ -418,13 +455,8 @@ cdef class RadialSolverSolution:
         """ Number of integration steps by layer and solution. """
         return np.copy(self.shooting_method_steps_taken_array)
 
-    def __len__(self):
-        """Return number of solution types."""
-        return <Py_ssize_t>self.num_ytypes
-    
-    def __getitem__(self, str ytype_name):
+    def get_result_by_ytype_name(self, str ytype_name):
         """Get a specific solution type array."""
-        
         cdef char ytype_i
         cdef char requested_sol_num = 0
         cdef cpp_bool found = False
@@ -432,7 +464,7 @@ cdef class RadialSolverSolution:
         if self.ytype_names_set and self.success and (self.error_code == 0):
             for ytype_i in range(self.num_ytypes):
                 sol_test_name = str(self.ytypes[ytype_i], 'UTF-8')
-                if sol_test_name == ytype_name:
+                if sol_test_name == ytype_name.lower():
                     requested_sol_num = ytype_i
                     found = True
                     break
@@ -443,3 +475,11 @@ cdef class RadialSolverSolution:
             return np.copy(self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)])
         else:
             return None
+
+    def __len__(self):
+        """Return number of solution types."""
+        return <Py_ssize_t>self.num_ytypes
+    
+    def __getitem__(self, str ytype_name):
+        """Wrapper for `get_result_by_ytype_name`."""
+        return self.get_result_by_ytype_name(ytype_name)

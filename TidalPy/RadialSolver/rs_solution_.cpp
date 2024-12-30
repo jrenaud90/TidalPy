@@ -10,9 +10,11 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
         double* upper_radius_bylayer_ptr,
         size_t num_layers,
         double* radius_array_ptr,
-        size_t size_radius_array) :
+        size_t size_radius_array,
+        int degree_l) :
             success(false),
             error_code(0),
+            degree_l(degree_l),
             num_ytypes(num_ytypes),
             num_slices(size_radius_array),
             num_layers(num_layers)

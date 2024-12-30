@@ -8,8 +8,8 @@ import TidalPy
 
 
 from TidalPy.constants import G
-from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress, calc_sensitivity_to_shear
-from TidalPy.radial_solver import radial_solver
+from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
+from TidalPy.RadialSolver import radial_solver
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple
 from TidalPy.utilities.conversions import orbital_motion2semi_a
 
@@ -61,15 +61,6 @@ def test_calc_displacements():
         perform_checks = True
         )
 
-    # Decompose the results
-    sensitivity_to_shear = calc_sensitivity_to_shear(
-        radial_solution.result,
-        radial_solution.radius_array,
-        radial_solution.shear_modulus_array,
-        radial_solution.bulk_modulus_array,
-        degree_l=2,
-        perform_checks=True)
-
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
         tidal_potential_simple(
@@ -119,15 +110,6 @@ def test_calc_strains_simple():
         use_prop_matrix = True,
         perform_checks = True
         )
-
-    # Decompose the results
-    sensitivity_to_shear = calc_sensitivity_to_shear(
-        radial_solution.result,
-        radial_solution.radius_array,
-        radial_solution.shear_modulus_array,
-        radial_solution.bulk_modulus_array,
-        degree_l=2,
-        perform_checks=True)
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \
@@ -182,15 +164,6 @@ def test_calc_strains_nsr():
         use_prop_matrix = True,
         perform_checks = True
         )
-
-    # Decompose the results
-    sensitivity_to_shear =  calc_sensitivity_to_shear(
-        radial_solution.result,
-        radial_solution.radius_array,
-        radial_solution.shear_modulus_array,
-        radial_solution.bulk_modulus_array,
-        degree_l=2,
-        perform_checks=True)
 
     # Calculate tidal potential and its partial derivatives
     frequencies_by_name, modes_by_name, potential_tuple_by_mode = \

@@ -169,4 +169,4 @@ def yplot(
     if show_plot:
         plt.show()
 
-    return fig_tidal_y
+    return fig_tidal_y, axes_tidal_y

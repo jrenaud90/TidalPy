@@ -36,6 +36,7 @@ protected:
 public:
     bool success      = false;
     int error_code    = -100;
+    int degree_l      = 0;
     char* message_ptr = &message[0];
     size_t num_ytypes = 0;
     size_t num_slices = 0;
@@ -62,7 +63,8 @@ public:
         double* upper_radius_bylayer_ptr,
         size_t num_layers,
         double* radius_array_ptr,
-        size_t size_radius_array);
+        size_t size_radius_array,
+        int degree_l);
     
     EOSSolutionCC* get_eos_solution_ptr();
     void change_radius_array(

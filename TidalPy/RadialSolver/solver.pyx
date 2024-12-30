@@ -759,7 +759,12 @@ def radial_solver(
     cdef double complex* complex_bulk_modulus_ptr  = <double complex*> &complex_bulk_modulus_array[0]
 
     # Build solution storage
-    cdef RadialSolverSolution solution = RadialSolverSolution(num_bc_models, upper_radius_bylayer_array, radius_array)
+    cdef RadialSolverSolution solution = RadialSolverSolution(
+        num_bc_models,
+        upper_radius_bylayer_array,
+        radius_array,
+        degree_l
+        )
     
     solution.set_model_names(bc_models_ptr)
 
