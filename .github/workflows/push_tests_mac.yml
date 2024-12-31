@@ -50,11 +50,7 @@ jobs:
           export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
           export CC=/opt/homebrew/opt/llvm/bin/clang
           export CXX=/opt/homebrew/opt/llvm/bin/clang++
-          python -m pip install -v .
-      
-      - name: Install burnman
-        shell: bash -el {0}
-        run: python -m pip install -v .[burnman]
+          python -m pip install -v .[burnman]
         
       - name: Run pytest
         shell: bash -el {0}
