@@ -1,4 +1,4 @@
 from .displacements import calculate_displacements
 from TidalPy.tides.multilayer.heating import calc_radial_volumetric_tidal_heating_from_rs_solution, calc_radial_volumetric_tidal_heating
 from .stress_strain import calculate_strain_stress
-from TidalPy.tides.multilayer.radial_sensitivity import calc_sensitivity_to_bulk, calc_sensitivity_to_shear
+from TidalPy.tides.multilayer.sensitivity import calc_sensitivity_to_bulk, calc_sensitivity_to_shear

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from . import TidalPotentialModeOutput, PotentialTupleModeOutput
 
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def tidal_potential(
     radius: 'FloatArray', longitude: 'FloatArray', colatitude: 'FloatArray', time: 'FloatArray',
     orbital_frequency: 'FloatArray', rotation_frequency: 'FloatArray',

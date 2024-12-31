@@ -21,7 +21,7 @@ DissipTermsMix = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
 UniqueFreqType = Dict[FreqSig, 'FloatArray']
 ResultsByFreqType = Dict[FreqSig, Dict[int, DissipTermsMix]]
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def calculate_terms(
     spin_frequency: 'FloatArray', orbital_frequency: 'FloatArray',
     semi_major_axis: 'FloatArray', radius: float,
