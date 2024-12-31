@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.0a13.dev4'
+version = '0.6.0a13.dev5'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -97,7 +97,7 @@ graphics = [
 # Extending installs
 burnman = [
     "autograd",
-    "burnman"
+    "burnman>=2.1.0, <3"
 ]
 
 cartopy = [

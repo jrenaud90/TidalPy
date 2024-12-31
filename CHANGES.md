@@ -70,7 +70,8 @@
 * Cythonized radial sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.radial_sensitivity.pyx` (based on Tobie+2005)
 
 #### Dependencies
-* Added support for CyRK v0.12.1
+* Added support for CyRK v0.12.x
+* Added support for Burnman v0.2.x
 
 #### Documentation
 * Added documentation for propagation matrix use with radial solver in `Calculating Love Numbers with TidalPy.md`.

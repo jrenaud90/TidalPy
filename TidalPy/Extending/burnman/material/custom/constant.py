@@ -52,8 +52,8 @@ class ConstantMaterial(Material):
         return self.params['isothermal_bulk_modulus'] * np.ones_like(self.temperature)
 
     @material_property
-    def adiabatic_bulk_modulus(self):
-        return self.params['adiabatic_bulk_modulus'] * np.ones_like(self.temperature)
+    def isothermal_bulk_modulus_reuss(self):
+        return self.params['isothermal_bulk_modulus_reuss'] * np.ones_like(self.temperature)
 
     @material_property
     def isothermal_compressibility(self):

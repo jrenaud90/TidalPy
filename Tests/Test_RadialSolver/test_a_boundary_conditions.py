@@ -35,7 +35,7 @@ def test_get_surface_bc(degree_l):
 
     # Test with 1 model
     for model_type in (0, 1, 2):
-        bc_models = np.asarray((model_type,), dtype=np.int_)
+        bc_models = np.asarray((model_type,), dtype=np.intc)
         boundary_condition_array = get_surface_bc(
             bc_models,
             radius,
@@ -48,7 +48,7 @@ def test_get_surface_bc(degree_l):
     
     # Test with 2 models
     for model_pair in ((0, 0), (0, 1), (1, 0), (1, 1,), (1, 2), (2, 1), (2, 2)):
-        bc_models = np.asarray(model_pair, dtype=np.int_)
+        bc_models = np.asarray(model_pair, dtype=np.intc)
         boundary_condition_array = get_surface_bc(
             bc_models,
             radius,
@@ -60,7 +60,7 @@ def test_get_surface_bc(degree_l):
     
     # Test with 3 models
     for model_pair in ((0, 0, 0), (0, 1, 2), (1, 1, 1), (2, 2, 2), (2, 1, 0)):
-        bc_models = np.asarray(model_pair, dtype=np.int_)
+        bc_models = np.asarray(model_pair, dtype=np.intc)
         boundary_condition_array = get_surface_bc(
             bc_models,
             radius,
