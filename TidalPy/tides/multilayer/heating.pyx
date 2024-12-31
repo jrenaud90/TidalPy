@@ -18,7 +18,7 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
-from TidalPy.constants cimport d_G
+from TidalPy.constants cimport d_G, d_NAN_DBL
 from TidalPy.RadialSolver cimport RadialSolverSolution
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.tides.multilayer.sensitivity cimport cf_calc_sensitivity_to_shear, cf_calc_sensitivity_to_bulk
@@ -70,21 +70,26 @@ cdef void cf_calc_radial_volumetric_tidal_heating(
         (3. / 2.) * G_to_use * host_mass**2 * world_radius**(5 - 1) / semi_major_axis**6
     cdef double G_2lp1 = G_to_use / (2.0 * degree_l + 1.0)
 
+    cdef double r
     cdef Py_ssize_t slice_i
     cdef Py_ssize_t total_slices_ssize = <Py_ssize_t>total_slices
     cdef double volumetric_tidal_heating
     for slice_i in range(total_slices_ssize):
-        volumetric_tidal_heating = \
-            tidal_susceptibility_overR * G_2lp1 / (radius_arr_ptr[slice_i]**2) * portion_to_be_upgraded * (
-                radial_sensitivity_to_bulk_arr_ptr[slice_i] * complex_bulk_modulus_arr_ptr[slice_i].imag +
-                radial_sensitivity_to_shear_arr_ptr[slice_i] * complex_shear_modulus_arr_ptr[slice_i].imag
-            )
-        if (volumetric_tidal_heating < 0.0) or isnan(volumetric_tidal_heating):
-            # TODO: Finding that the heating rate as a function of depth can go negative. Setting those to zero for now.
-            # TODO: This check was from a older version of TidalPy (Pre v0.5.0) so it may no longer be needed.
+        r = radius_arr_ptr[slice_i]
+        if r == 0.0:
             volumetric_tidal_heating_arr_ptr[slice_i] = 0.0
         else:
-            volumetric_tidal_heating_arr_ptr[slice_i] = volumetric_tidal_heating
+            volumetric_tidal_heating = \
+                tidal_susceptibility_overR * G_2lp1 / (r**2) * portion_to_be_upgraded * (
+                    radial_sensitivity_to_bulk_arr_ptr[slice_i] * complex_bulk_modulus_arr_ptr[slice_i].imag +
+                    radial_sensitivity_to_shear_arr_ptr[slice_i] * complex_shear_modulus_arr_ptr[slice_i].imag
+                )
+            if (volumetric_tidal_heating < 0.0) or isnan(volumetric_tidal_heating):
+                # TODO: Finding that the heating rate as a function of depth can go negative. Setting those to zero for now.
+                # TODO: This check was from a older version of TidalPy (Pre v0.5.0) so it may no longer be needed.
+                volumetric_tidal_heating_arr_ptr[slice_i] = 0.0
+            else:
+                volumetric_tidal_heating_arr_ptr[slice_i] = volumetric_tidal_heating
 
 
 def calc_radial_volumetric_tidal_heating(
@@ -122,7 +127,7 @@ def calc_radial_volumetric_tidal_heating(
     cdef double complex* complex_bulk_modulus_arr_ptr  = &complex_bulk_modulus_arr[0]
     
     # Create output array, initialize with zero instead of empty / nan
-    cdef cnp.ndarray volumetric_tidal_heating_arr      = np.zeros(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] volumetric_tidal_heating_arr = np.zeros(total_slices, dtype=np.float64, order='C')
     cdef double[::1] volumetric_tidal_heating_arr_view = volumetric_tidal_heating_arr
     cdef double* volumetric_tidal_heating_arr_ptr      = &volumetric_tidal_heating_arr_view[0]
 
@@ -160,9 +165,9 @@ def calc_radial_volumetric_tidal_heating_from_rs_solution(
     if num_ytypes != 1:
         raise NotImplementedError("`calc_radial_volumetric_tidal_heating_from_rs_solution` currently only supports radial solver solutions with one ytype (e.g., just 'tidal' or just 'loading').")
     cdef size_t total_slices = rs_solution.radius_array_size
-    cdef cnp.ndarray radial_volumetric_tidal_heating_arr = np.zeros(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] radial_volumetric_tidal_heating_arr = np.zeros(total_slices, dtype=np.float64, order='C')
     cdef double[::1] radial_volumetric_tidal_heating_view = radial_volumetric_tidal_heating_arr
-    cdef double* radial_volumetric_tidal_heating_ptr = &radial_volumetric_tidal_heating_view[0]
+    cdef double* radial_volumetric_tidal_heating_ptr      = &radial_volumetric_tidal_heating_view[0]
 
     # Get other metadata
     cdef int degree_l = rs_solution.degree_l
@@ -177,8 +182,8 @@ def calc_radial_volumetric_tidal_heating_from_rs_solution(
     cdef double* radial_sensitivity_to_shear_ptr = &radial_sensitivity_to_shear_vec[0]
 
     # Get physical state pointers
-    cdef EOSSolutionCC* eos_solution_ptr = rs_solution.solution_storage_ptr.get_eos_solution_ptr()
-    cdef double* radius_array_ptr = eos_solution_ptr.radius_array_vec.data()
+    cdef EOSSolutionCC* eos_solution_ptr     = rs_solution.solution_storage_ptr.get_eos_solution_ptr()
+    cdef double* radius_array_ptr            = eos_solution_ptr.radius_array_vec.data()
     cdef double* shear_modulus_array_dbl_ptr = eos_solution_ptr.complex_shear_array_vec.data()
     cdef double* bulk_modulus_array_dbl_ptr  = eos_solution_ptr.complex_bulk_array_vec.data()
     cdef double* rs_radial_solution_dbl_ptr  = rs_solution.solution_storage_ptr.full_solution_vec.data()

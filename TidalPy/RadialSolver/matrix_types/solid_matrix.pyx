@@ -349,9 +349,9 @@ def fundamental_matrix(
             raise ValueError('Unexpected size encountered for complex shear array.')
     
     # Build output arrays
-    cdef cnp.ndarray fundamental_mtx_arr         = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
-    cdef cnp.ndarray inverse_fundamental_mtx_arr = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
-    cdef cnp.ndarray derivative_mtx_arr          = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=3] fundamental_mtx_arr         = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=3] inverse_fundamental_mtx_arr = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=3] derivative_mtx_arr          = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
 
     cdef double complex[:, :, ::1] fundamental_mtx_view         = fundamental_mtx_arr
     cdef double complex[:, :, ::1] inverse_fundamental_mtx_view = inverse_fundamental_mtx_arr

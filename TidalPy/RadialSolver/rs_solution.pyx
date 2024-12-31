@@ -223,7 +223,7 @@ cdef class RadialSolverSolution:
         if layer_index < 0:
             raise ValueError("Could not find correct layer for provided radius.")
 
-        cdef cnp.ndarray eos_interp      = np.empty(9, dtype=np.float64, order='C')
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(9, dtype=np.float64, order='C')
         cdef double[::1] eos_interp_view = eos_interp
         cdef double* eos_interp_ptr      = &eos_interp_view[0]
 

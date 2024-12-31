@@ -146,15 +146,15 @@ def build_rs_input_homogenous_layers(
         raise ValueError(f"Unexpected value found for total radius fraction, {total_thick_frac} (expected 1.0).")
     
     # Build required arrays
-    cdef cnp.ndarray upper_radius_array    = np.nan * np.ones(num_layers, dtype=np.float64, order='C')
-    cdef cnp.ndarray radius_array          = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
-    cdef cnp.ndarray density_array         = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
-    cdef cnp.ndarray shear_viscosity_array = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
-    cdef cnp.ndarray bulk_viscosity_array  = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
-    cdef cnp.ndarray shear_array           = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
-    cdef cnp.ndarray bulk_array            = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
-    cdef cnp.ndarray complex_shear_array   = np.nan * np.ones(total_slices, dtype=np.complex128, order='C')
-    cdef cnp.ndarray complex_bulk_array    = np.nan * np.ones(total_slices, dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array     = np.nan * np.ones(num_layers, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] radius_array           = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] density_array          = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] shear_viscosity_array  = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] bulk_viscosity_array   = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] shear_array            = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] bulk_array             = np.nan * np.ones(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=1] complex_shear_array = np.nan * np.ones(total_slices, dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=1] complex_bulk_array  = np.nan * np.ones(total_slices, dtype=np.complex128, order='C')
 
     cdef double* modulus_ptr                 = NULL
     cdef double* viscosity_ptr               = NULL

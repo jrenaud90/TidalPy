@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 import numpy as np
-cimport numpy as np
+cimport numpy as cnp
 
 from libc.stdio cimport printf
 from libc.stdlib cimport exit
@@ -75,7 +75,7 @@ def get_surface_bc(
     cdef size_t num_bcs = bc_model_view.size
 
     # Build output array
-    cdef np.ndarray[np.float64_t, ndim=1] boundary_conditions_arr = np.empty(15, dtype=np.float64)
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] boundary_conditions_arr = np.empty(15, dtype=np.float64)
     cdef double[::1] boundary_conditions_view = boundary_conditions_arr
     cdef double* boundary_conditions_ptr = &boundary_conditions_view[0]
     cf_get_surface_bc(
