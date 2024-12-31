@@ -18,8 +18,6 @@ ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/
 from libc.math cimport pi
 from libcpp cimport bool as cpp_bool
 
-from cython.parallel cimport prange
-
 import numpy as np
 cimport numpy as cnp
 cnp.import_array()
@@ -100,7 +98,7 @@ cdef void cf_fundamental_matrix(
     cdef double dlp1         = (2. * degree_l_dbl + 1.)
     cdef double dlp3         = (2. * degree_l_dbl + 3.)
 
-    for slice_i in prange(first_slice_index, num_radial_slices):
+    for slice_i in range(first_slice_index, num_radial_slices):
 
         # Shift index by 36 (for the inner 6x6 matrix)
         index_shift = slice_i * 36

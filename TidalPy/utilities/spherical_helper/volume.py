@@ -1,7 +1,6 @@
 """ Functions to help calculate the volume of voxels in a spherical geometry
 """
 import numpy as np
-from numba import prange
 
 from TidalPy.utilities.performance import njit
 
@@ -61,7 +60,7 @@ def calculate_voxel_volumes_npy(radius_array: np.ndarray, longitude_array: np.nd
     return voxel_volumes
 
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def calculate_voxel_volumes(radius_array: np.ndarray, longitude_array: np.ndarray, colatitude_array: np.ndarray):
     """ Calculate the volume of all voxels within a sphere assuming spherical geometry.
 
@@ -112,12 +111,12 @@ def calculate_voxel_volumes(radius_array: np.ndarray, longitude_array: np.ndarra
     # Initialize empty array for voxel volumes
     voxel_volumes = np.empty((n_r, n_long, n_colat), dtype=np.float64)
 
-    for i_r in prange(n_r):
+    for i_r in range(n_r):
         r = radius_array[i_r]
         dr = dr_array[i_r]
-        for i_long in prange(n_long):
+        for i_long in range(n_long):
             dlong = dlong_array[i_long]
-            for i_colat in prange(n_colat):
+            for i_colat in range(n_colat):
                 colat = colatitude_array[i_colat]
                 dcolat = dcolat_array[i_colat]
 
