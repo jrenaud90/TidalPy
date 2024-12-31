@@ -23,7 +23,7 @@
     "include_dirs": [["TidalPy", "utilities", "conversions"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
 
   "utilities.dimensions.nondimensional": {
@@ -41,7 +41,7 @@
     "include_dirs": [["TidalPy", "utilities", "math"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
   "utilities.math.complex": {
     "name": "TidalPy.utilities.math.complex",
@@ -49,7 +49,7 @@
     "include_dirs": [["TidalPy", "utilities", "math"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
   "utilities.math.special": {
     "name": "TidalPy.utilities.math.special",
@@ -57,7 +57,7 @@
     "include_dirs": [["TidalPy", "utilities", "math"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
 
   "utilities.classes.base": {
@@ -66,7 +66,7 @@
     "include_dirs": [["TidalPy", "utilities", "classes"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
 
   "rheology.common": {
@@ -75,7 +75,7 @@
     "include_dirs": [["TidalPy", "rheology", "base"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
   "rheology.models": {
     "name": "TidalPy.rheology.models",
@@ -83,7 +83,7 @@
     "include_dirs": [["TidalPy", "rheology", "models"]],
     "compile_args": [],
     "link_args": [],
-    "is_cpp": false
+    "is_cpp": true
   },
 
   "Material.EOS.eos_solution": {
