@@ -19,6 +19,66 @@ cdef void cf_apply_surface_bc(
         cpp_bool layer_is_static,
         cpp_bool layer_is_incomp
         ) noexcept nogil:
+    """
+    cf_apply_surface_bc
+
+    Apply boundary conditions at the planet's surface by solving a linear system of equations. 
+    This function calculates the necessary coefficients for the specified boundary conditions.
+
+    Parameters
+    ----------
+    constant_vector_ptr : double complex*
+        Pointer to the vector of constants used to collapse the multiple radial solver solutions into a single solution. 
+        This vector is updated in place with the solution to the linear system.
+    bc_solution_info_ptr : int*
+        Pointer to an integer that stores the output status of the LAPACK solver.
+    bc_pointer : double*
+        Pointer to the array holding boundary condition values for the uppermost layer.
+    uppermost_y_per_solution_ptr : double complex*
+        Pointer to the array containing y-values for each solutions at the top of the uppermost layer.
+    surface_gravity : double
+        The gravitational acceleration at the surface of the planet.
+    G_to_use : double
+        The gravitational constant used in calculations.
+    num_sols : size_t
+        Number of solutions being calculated in the current layer.
+    max_num_y : size_t
+        Maximum number of y-values per solution.
+    ytype_i : size_t
+        Index representing the type of y-value to process.
+    layer_type : int
+        Integer representing the type of the uppermost layer (0: solid, 1: liquid).
+    layer_is_static : cpp_bool
+        Flag indicating if the uppermost layer is static.
+    layer_is_incomp : cpp_bool
+        Flag indicating if the uppermost layer is incompressible.
+
+    Notes
+    -----
+    - The function handles three two types of layers: solid and liquid.
+    - The LAPACK solver `zgesv` is used to solve the linear equation at the surface.
+    - For solid layers, three boundary conditions are applied. Liquid layers apply one or two, 
+    depending on whether the layer is static or dynamic.
+    - If unused elements are present in the constant vector, they are set to `NAN` to catch unintended usage.
+
+    References
+    ----------
+    - Papers:
+        - KMN15: Kamata et al. (2015; JGR-P)
+        - S74: Saito (1974; JPE)
+        - KTC21: Kervazo et al. (2021; A&A)
+    - ZGESV documentation: https://www.math.utah.edu/software/lapack/lapack-z/zgesv.html
+    - Relevant equations from literature:
+        - B.37 in KTC21, Eq. 16 in KMN15 (solid layer)
+        - Eq. 17, Eq. 10 in S74 (liquid static layer)
+        - Eq. B.38 in KTC21, Eq. 17 in KMN15 (liquid dynamic layer)
+
+    Raises
+    ------
+    None
+        The function assumes correct inputs and does not explicitly raise exceptions. The LAPACK 
+        solver status output (`bc_solution_info_ptr`) should be checked for errors.
+    """
     
     # Variables used to solve the linear equation at the planet's surface.
     # These are passed to the LAPACK solver.
@@ -122,5 +182,5 @@ cdef void cf_apply_surface_bc(
         lapack_ipiv_ptr,      # (Output)
         constant_vector_ptr,  # B -> X (Input & Output)
         num_sols_int_ptr,     # (Input)
-        bc_solution_info_ptr  # (Ouput)
+        bc_solution_info_ptr  # (Output)
         )

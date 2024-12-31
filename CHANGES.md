@@ -67,7 +67,8 @@
 * New `constants.pyx` isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
 * New numerics module `TidalPy.math.numerics` for low-level floating point functions.
   * New cythonized `isclose` function that matches functionality of python's `math.isclose`
-* Cythonized radial sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.radial_sensitivity.pyx` (based on Tobie+2005)
+* Cythonized radial sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.sensitivity` (based on Tobie+2005)
+* Cythonized radial heating functions that use the sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.heating` (based on Tobie+2005)
 
 #### Dependencies
 * Added support for CyRK v0.12.x

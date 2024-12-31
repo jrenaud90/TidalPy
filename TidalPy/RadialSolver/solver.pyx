@@ -405,7 +405,7 @@ def radial_solver(
         It must start at zero and end at the planet's surface.
     density_array : np.ndarray[dtype=np.float64]
         Density at each radius [kg m-3].
-    bulk_modulus_array : np.ndarray[dtype=np.float64]
+    complex_bulk_modulus_array : np.ndarray[dtype=np.complex128]
         Bulk modulus at each radius [Pa].
     complex_shear_modulus_array : np.ndarray[dtype=np.complex128]
         Complex shear modulus at each radius [Pa].
@@ -465,7 +465,7 @@ def radial_solver(
             - 0: Runge-Kutta 2(3)
             - 1: Runge-Kutta 4(5)
             - 2: Runge-Kutta / DOP 8(5/3)
-    integration_rtol : float64, default=1.0e-4
+    integration_rtol : float64, default=1.0e-6
         Relative integration tolerance. Lower tolerance will lead to more precise results at increased computation.
     integration_atol : float64, default=1.0e-12
         Absolute integration tolerance (when solution is near 0).
@@ -544,9 +544,13 @@ def radial_solver(
 
     # Perform checks
     if perform_checks:
-        assert density_array.size               == total_slices
-        assert complex_bulk_modulus_array.size  == total_slices
-        assert complex_shear_modulus_array.size == total_slices
+        if density_array.size != total_slices:
+            raise AttributeError("`density_array` array must be the same size as radius array.")
+        if complex_bulk_modulus_array.size != total_slices:
+            raise AttributeError("`complex_bulk_modulus_array` array must be the same size as radius array.")
+        if complex_shear_modulus_array.size != total_slices:
+            raise AttributeError("`complex_shear_modulus_array` array must be the same size as radius array.")
+
         # Check that number of assumptions match.
         if len(is_static_bylayer) != num_layers:
             raise AttributeError('Number of `is_static_bylayer` must match number of `layer_types`.')
