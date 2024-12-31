@@ -1,1 +1,1 @@
-cdef double cf_double_factorial(unsigned char n) noexcept nogil
+cdef double cf_double_factorial(int n) noexcept nogil

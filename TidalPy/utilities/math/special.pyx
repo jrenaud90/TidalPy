@@ -1,3 +1,6 @@
+# distutils: language = c++
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
+
 from libc.math cimport tgamma, NAN
 
 cdef double[51] pre_calculated_doubles
@@ -55,7 +58,7 @@ pre_calculated_doubles_ptr[ 49] = 58435841445947288807899666579456.00
 pre_calculated_doubles_ptr[ 50] = 520469842636666553028024352112640.00
 
 
-cdef double cf_double_factorial(unsigned char n) noexcept nogil:
+cdef double cf_double_factorial(int n) noexcept nogil:
 
     if n < 51:
         # Use precalculated doubles
@@ -68,7 +71,7 @@ cdef double cf_double_factorial(unsigned char n) noexcept nogil:
         return NAN
 
 
-def double_factorial(unsigned char n):
+def double_factorial(int n):
     
     if n >= 171:
         raise ValueError('C function `tgamma` experiences overflow for l > 170.')
