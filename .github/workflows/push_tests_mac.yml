@@ -43,7 +43,7 @@ jobs:
         shell: bash -el {0}
         # export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
         run: |
-          conda install pytest matplotlib numba numpy scipy cython
+          conda install pytest matplotlib numba numpy scipy cython pytest-xdist
           export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
           export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
           export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
@@ -54,7 +54,7 @@ jobs:
         
       - name: Run pytest
         shell: bash -el {0}
-        run: pytest -v Tests/
+        run: pytest -n auto -v Tests/
   
   test-macos-13:
     defaults:
