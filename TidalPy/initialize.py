@@ -40,15 +40,21 @@ def initialize():
 
     # Setup pathing
     from TidalPy.paths import timestamped_str
-    output_dir = os.path.join(os.getcwd(), TidalPy.config['pathing']['save_directory'])
-    if TidalPy.config['pathing']['append_datetime']:
-        output_dir = timestamped_str(output_dir, date=True, time=True, second=False, millisecond=False, preappend=False)
-    TidalPy._output_dir = output_dir
+    if TidalPy.config:
+        output_dir = os.path.join(os.getcwd(), TidalPy.config['pathing']['save_directory'])
+        if TidalPy.config['pathing']['append_datetime']:
+            output_dir = timestamped_str(output_dir, date=True, time=True, second=False, millisecond=False, preappend=False)
+        TidalPy._output_dir = output_dir
+    else:
+        TidalPy._output_dir = os.getcwd()
 
     # Setup world configuration directory path
     from TidalPy.configurations import set_world_dir
-    if TidalPy.config['configs']['use_cwd_for_world_dir']:
-        set_world_dir(os.getcwd())
+    if TidalPy.config:
+        if TidalPy.config['configs']['use_cwd_for_world_dir']:
+            set_world_dir(os.getcwd())
+        else:
+            set_world_dir('default')
     else:
         set_world_dir('default')
 
@@ -63,23 +69,29 @@ def initialize():
     else:
         log.debug('TidalPy initializing...')
 
-    if TidalPy.config['configs']['save_configs_locally'] or TidalPy.config['logging']['write_log_to_disk']:
-        log.debug(f'Output directory: {TidalPy._output_dir}')
+    if TidalPy.config:
+        if TidalPy.config['configs']['save_configs_locally'] or TidalPy.config['logging']['write_log_to_disk']:
+            log.debug(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
-    if TidalPy.config['configs']['save_configs_locally']:
-        # Create output directory if it does not exist
-        Path(TidalPy._output_dir).mkdir(parents=True, exist_ok=True)
+    if TidalPy.config:
+        if TidalPy.config['configs']['save_configs_locally']:
+            # Create output directory if it does not exist
+            Path(TidalPy._output_dir).mkdir(parents=True, exist_ok=True)
 
-        # Save TidalPy configurations to that directory.
-        config_file_name = f'TidalPy_Configs.toml'
-        config_file_path = os.path.join(TidalPy._output_dir, config_file_name)
-        with open(config_file_path, 'w') as config_file:
-            toml.dump(TidalPy.config, config_file)
+            # Save TidalPy configurations to that directory.
+            config_file_name = f'TidalPy_Configs.toml'
+            config_file_path = os.path.join(TidalPy._output_dir, config_file_name)
+            with open(config_file_path, 'w') as config_file:
+                toml.dump(TidalPy.config, config_file)
 
     # Load any other parameters from config to top-level program
-    TidalPy.extensive_logging = TidalPy.config['debug']['extensive_logging']
-    TidalPy.extensive_checks  = TidalPy.config['debug']['extensive_checks']
+    if TidalPy.config:
+        TidalPy.extensive_logging = TidalPy.config['debug']['extensive_logging']
+        TidalPy.extensive_checks  = TidalPy.config['debug']['extensive_checks']
+    else:
+        TidalPy.extensive_logging = False
+        TidalPy.extensive_checks  = False
 
     # Finish initialization
     TidalPy._tidalpy_init = True
