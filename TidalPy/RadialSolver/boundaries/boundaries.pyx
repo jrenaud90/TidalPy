@@ -2,8 +2,8 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from scipy.linalg.cython_lapack cimport zgesv
-from libc.math cimport NAN, pi
 
+from TidalPy.constants cimport d_PI_DBL, d_NAN_DBL
 
 cdef void cf_apply_surface_bc(
         double complex* constant_vector_ptr,
@@ -139,11 +139,11 @@ cdef void cf_apply_surface_bc(
             # y_7 = y_6 + (4 pi G / g) y_2
             constant_vector_ptr[0] = \
                 bc_pointer[ytype_i * 3 + 2] + \
-                bc_pointer[ytype_i * 3 + 0] * (4. * pi * G_to_use / surface_gravity)
+                bc_pointer[ytype_i * 3 + 0] * (4. * d_PI_DBL * G_to_use / surface_gravity)
 
             # These are unused. Set to NAN so if they do get used we might be able to catch it.
-            constant_vector_ptr[1] = NAN
-            constant_vector_ptr[2] = NAN
+            constant_vector_ptr[1] = d_NAN_DBL
+            constant_vector_ptr[2] = d_NAN_DBL
 
             # Note: for a static liquid layer, y_7 held in index 1 (index 0 is y_5).
             surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1]
@@ -162,7 +162,7 @@ cdef void cf_apply_surface_bc(
             constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 2]
 
             # The last constant is unused. Set to NAN so if they do get used we might be able to catch it.
-            constant_vector_ptr[2] = NAN
+            constant_vector_ptr[2] = d_NAN_DBL
 
             # Build y-solution matrix to be applied to the surface.
             # Note: for a dynamic liquid, y_2 and y_6 are held at indices 1 and 3 respectively

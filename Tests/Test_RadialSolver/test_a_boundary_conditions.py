@@ -3,9 +3,6 @@ from math import isnan
 
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode = True
-
 from TidalPy.RadialSolver.boundaries.surface_bc import get_surface_bc
 
 

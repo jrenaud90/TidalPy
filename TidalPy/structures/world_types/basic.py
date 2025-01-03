@@ -18,7 +18,7 @@ from .. import PhysicalObjSpherical
 from ..helpers.orbit_config import pull_out_orbit_from_config
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 if TYPE_CHECKING:
     from TidalPy.stellar import EquilibFuncType
@@ -132,8 +132,7 @@ class BaseWorld(PhysicalObjSpherical):
         try:
             self._equilibrium_insolation_func = equilibrium_insolation_functions[insol_equilib_func]
         except KeyError:
-            log.error(f'Unknown equilibrium insolation function model encountered in {self}.')
-            raise UnknownModelError
+            raise UnknownModelError(f'Unknown equilibrium insolation function model encountered in {self}.')
 
         # Setup geometry
         if reinit_geometry:

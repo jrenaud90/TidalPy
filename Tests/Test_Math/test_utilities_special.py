@@ -3,9 +3,6 @@ from scipy.special import factorial2
 
 import pytest
 
-import TidalPy
-TidalPy.test_mode = True
-
 from TidalPy.utilities.math.special import double_factorial
 
 @pytest.mark.parametrize('l', (0, 2, 3, 4, 5, 10, 20, 100))

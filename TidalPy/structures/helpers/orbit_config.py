@@ -5,7 +5,7 @@ import numpy as np
 from TidalPy.utilities.conversions.conversions import Au2m, days2rads, rads2days
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 def pull_out_orbit_from_config(world_config: dict) -> Tuple[float, float, float]:

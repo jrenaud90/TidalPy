@@ -15,14 +15,13 @@ HH14  : Henning & Hurford (2014, DOI: 10.1088/0004-637X/789/1/30)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
 """
 
-from libc.math cimport pi
 from libcpp cimport bool as cpp_bool
 
 import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
-from TidalPy.constants cimport d_G
+from TidalPy.constants cimport d_G, d_PI_DBL
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 
@@ -123,7 +122,7 @@ cdef void cf_fundamental_matrix(
         rgp_s  = rgp * mu_inv
         r_s    = radius * mu_inv
         pr_s   = density * r_s
-        piGp   = pi * G_to_use * density
+        piGp   = d_PI_DBL * G_to_use * density
         
         # D Coefficients
         coeff = (1. / dlp1)

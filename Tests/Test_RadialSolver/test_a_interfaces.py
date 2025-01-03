@@ -2,9 +2,6 @@ import pytest
 
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode = True
-
 from TidalPy.RadialSolver.shooting import find_num_shooting_solutions
 from TidalPy.RadialSolver.interfaces.interfaces import solve_upper_y_at_interface
 

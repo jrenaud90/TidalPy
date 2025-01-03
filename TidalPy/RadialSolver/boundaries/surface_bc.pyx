@@ -7,6 +7,7 @@ cimport numpy as cnp
 from libc.stdio cimport printf
 from libc.stdlib cimport exit
 
+from TidalPy.exceptions import ArgumentException, UnknownModelError
 from TidalPy.constants cimport d_NAN_DBL
 
 
@@ -149,13 +150,13 @@ def get_surface_bc(
     
     if error_code < 0:
         if error_code == -1:
-            raise AttributeError(f"Unsupported number of boundaries conditions encountered."
+            raise ArgumentException(f"Unsupported number of boundaries conditions encountered."
                 "Provided: {num_bcs} when maximum supported is 5.")
         elif error_code == -2:
-            raise AttributeError(f"Unsupported number of boundaries conditions encountered."
+            raise ArgumentException(f"Unsupported number of boundaries conditions encountered."
                 "Provided: {num_bcs} when minimum supported is 1.")
         elif error_code == -3:
-            raise AttributeError(f"Unknown boundary condition model. Supported models are:\n"
+            raise UnknownModelError(f"Unknown boundary condition model. Supported models are:\n"
                 "\t0: Free Surface.\n"
                 "\t1: Tidal Potential.\n"
                 "\t2: Loading Potential.\n")

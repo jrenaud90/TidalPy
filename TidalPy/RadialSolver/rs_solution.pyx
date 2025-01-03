@@ -8,6 +8,9 @@ cimport numpy as cnp
 import numpy as np
 cnp.import_array()
 
+from TidalPy.exceptions import ArgumentException
+
+
 cdef class RadialSolverSolution:
 
     def __init__(
@@ -61,7 +64,7 @@ cdef class RadialSolverSolution:
                 self.ytypes[ytype_i] = "loading"
             else:
                 self.solution_storage_ptr.error_code = -2
-                self.solution_storage_ptr.set_message("AttributeError:: Unknown boundary condition provided")
+                self.solution_storage_ptr.set_message("ArgumentException:: Unknown boundary condition provided")
         self.ytype_names_set = True
 
     cdef void change_radius_array(
@@ -469,7 +472,7 @@ cdef class RadialSolverSolution:
                     found = True
                     break
             if not found:
-                raise AttributeError('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
+                raise ArgumentException('Unknown solution type requested. Key must match names passed to radial_solver "solve_for" argument and be lower case.')
             
             # Slice the result and return only the requested solution type.
             return np.copy(self.result[MAX_NUM_Y * (requested_sol_num): MAX_NUM_Y * (requested_sol_num + 1)])

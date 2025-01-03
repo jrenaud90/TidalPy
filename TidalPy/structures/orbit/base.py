@@ -10,7 +10,7 @@ from ..helpers.orbit_config import pull_out_orbit_from_config
 from ..world_types import all_world_types, AllWorldType, StarWorld
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:
@@ -145,11 +145,7 @@ class OrbitBase(TidalPyClass):
             else:
                 if star_host:
                     # User said star host, but this does not appear to be the case
-                    log.error(
-                        f"User set star_host to True for orbit: {self}, but star and tidal host were both "
-                        f"provided and not the same instance."
-                        )
-                    raise TidalPyOrbitError('Tidal and Star not same instance for star_host')
+                    raise TidalPyOrbitError(f"User set star_host to True for orbit: {self}, but star and tidal host were both provided and not the same instance.")
 
         if star is not None:
             if copy_star:
@@ -253,7 +249,7 @@ class OrbitBase(TidalPyClass):
             If `True`, the orbit's `update_orbit` method will be called after the world has been added.
         """
 
-        log.info(f'Adding {star_world} to orbit ({self}) as star.')
+        log.debug(f'Adding {star_world} to orbit ({self}) as star.')
 
         # Check that the star is an instance of the expected class
         if not isinstance(star_world,  StarWorld):
@@ -263,11 +259,7 @@ class OrbitBase(TidalPyClass):
                 )
 
         if not isinstance(star_world, all_world_types):
-            log.error(
-                f'Star world is being added to orbit: {self}, but is of type {type(star_world)}. '
-                'This is not supported.'
-                )
-            raise TidalPyOrbitError('Unsupported world type encountered.')
+            raise TidalPyOrbitError(f'Star world is being added to orbit: {self}, but is of type {type(star_world)}. This is not supported.')
 
         # Add star to orbit
         if self._star is not None:
@@ -308,16 +300,12 @@ class OrbitBase(TidalPyClass):
         """
 
         if is_tidal_host:
-            log.info(f'Adding {tidal_world} to orbit ({self}) as tidal world and host.')
+            log.debug(f'Adding {tidal_world} to orbit ({self}) as tidal world and host.')
         else:
-            log.info(f'Adding {tidal_world} to orbit ({self}) as tidal world.')
+            log.debug(f'Adding {tidal_world} to orbit ({self}) as tidal world.')
 
         if not isinstance(tidal_world, all_world_types):
-            log.error(
-                f'Tidal world is being added to orbit: {self}, but is of type {type(tidal_world)}. '
-                'This is not supported.'
-                )
-            raise TidalPyOrbitError('Unsupported world type encountered.')
+            raise TidalPyOrbitError(f'Tidal world is being added to orbit: {self}, but is of type {type(tidal_world)}. This is not supported.')
 
         # Add to tidal objects list
         if is_tidal_host:
@@ -659,10 +647,6 @@ class OrbitBase(TidalPyClass):
 
         # To avoid issues duplicate array pointers - just raise an error if too much information was provided.
         if orbital_freq_provided and orbital_period_provided and orbital_semi_a_provided:
-            log.error(
-                f'All of: orbital motion, orbital period, and semi-major axis were provided to {self}. '
-                f'Please provide only one.'
-                )
             raise TidalPyOrbitError(
                 f'All of: orbital motion, orbital period, and semi-major axis were provided to {self}. '
                 f'Please provide only one.'
@@ -670,10 +654,6 @@ class OrbitBase(TidalPyClass):
         if (orbital_freq_provided and orbital_period_provided) or \
                 (orbital_period_provided and orbital_semi_a_provided) or \
                 (orbital_freq_provided and orbital_semi_a_provided):
-            log.error(
-                f'Two of: orbital motion, orbital period, and semi-major axis were provided to {self}. '
-                f'Please provide only one.'
-                )
             raise TidalPyOrbitError(
                 f'Two of: orbital motion, orbital period, and semi-major axis were provided to {self}. '
                 f'Please provide only one.'
@@ -1305,11 +1285,7 @@ class OrbitBase(TidalPyClass):
         # Check if it is an integer and if it makes sense given the number of objects stored in this orbit
         if type(world_signature) == int:
             if world_signature >= len(self.tidal_objects):
-                log.error(
-                    f'World signature provided as int, {world_signature}, but does not make sense with number of '
-                    f'tidal objects within orbit: {len(self.tidal_objects)}.'
-                    )
-                raise BadWorldSignature
+                raise BadWorldSignature(f'World signature provided as int, {world_signature}, but does not make sense with number of tidal objects within orbit: {len(self.tidal_objects)}.')
             elif world_signature == 0:
                 # This is the index of the tidal host
                 return_host_tide_raiser = True
@@ -1328,11 +1304,7 @@ class OrbitBase(TidalPyClass):
                 # Name needs to be titlecase
                 world_signature = world_signature.title()
             else:
-                log.error(
-                    f'World signature provided as str, {world_signature}, but does not match any known tidal '
-                    f'world_types stored in orbit.'
-                    )
-                raise BadWorldSignature
+                raise BadWorldSignature(f'World signature provided as str, {world_signature}, but does not match any known tidal world_types stored in orbit.')
             if world_signature in [self.tidal_host.name, self.tidal_host.name.lower(), self.tidal_host.name.title()]:
                 # This is the name of the tidal host
                 return_host_tide_raiser = True
@@ -1347,21 +1319,13 @@ class OrbitBase(TidalPyClass):
                 world_index = self.all_tidal_world_orbit_index_by_instance[world_signature]
                 return world_index
             else:
-                log.error(
-                    f'World signature provided as instance, {world_signature}, but does not match any known tidal '
-                    f'world_types stored in orbit.'
-                    )
-                raise BadWorldSignature
+                raise BadWorldSignature(f'World signature provided as instance, {world_signature}, but does not match any known tidal world_types stored in orbit.')
 
         if return_host_tide_raiser:
 
             if return_tidal_host:
                 # Only time the tidal host's actual orbital properties should be returned.
                 if self.star_host:
-                    log.error(
-                        f'Trying to get/set the stellar distance of the tidal host, but tidal host is the star '
-                        f'in: {self}'
-                        )
                     raise TidalPyOrbitError(
                         f'Trying to set the stellar distance of the tidal host, but tidal host is '
                         f'the star in: {self}'
@@ -1371,7 +1335,6 @@ class OrbitBase(TidalPyClass):
             else:
                 # Recall this method, but to get the tide raiser's index.
                 if self.host_tide_raiser is None:
-                    log.error("Trying to access tidal host parameters but the host's tide raiser has not been set.")
                     raise TidalPyOrbitError(
                         "Trying to access tidal host parameters but the host's tide raiser has not "
                         "been set."
@@ -1379,8 +1342,7 @@ class OrbitBase(TidalPyClass):
                 return self.world_signature_to_index(self.host_tide_raiser)
 
         # No idea what type the world signature is...
-        log.error(f'World signature provided as an unexpected type: {type(world_signature)}.')
-        raise BadWorldSignatureType
+        raise BadWorldSignatureType(f'World signature provided as an unexpected type: {type(world_signature)}.')
 
     # # Conversions
     def semi_a2orbital_motion(

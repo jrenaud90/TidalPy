@@ -14,6 +14,7 @@ from typing import List
 import numpy as np
 
 from TidalPy import version
+from TidalPy.exceptions import ArgumentException
 from TidalPy.utilities.numpy_helper.array_other import find_nearest
 from TidalPy.utilities.string_helper import convert_time_to_hhmmss
 
@@ -69,7 +70,7 @@ def multiprocessing_run(
     else:
         procs_to_use = max_procs
     if procs_to_use > max_system_procs:
-        raise AttributeError('User provided processor number is larger than system number.')
+        raise ArgumentException('User provided processor number is larger than system number.')
     if procs_to_use <= 3:
         if allow_low_procs:
             warnings.warn('Low number of processors available for use.')

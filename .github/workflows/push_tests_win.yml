@@ -5,6 +5,9 @@ name: Windows Tests
 
 on: [push, pull_request, workflow_dispatch]
 
+env:
+  TIDALPY_TEST_MODE: 1
+
 jobs:
   test-win:
     name: Test TidalPy on Windows

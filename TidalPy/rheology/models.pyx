@@ -1,9 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport fabs, cos, sin, pi, tgamma, INFINITY, isinf
+from libc.math cimport fabs, cos, sin, tgamma, isinf
 
-from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS
+from TidalPy.exceptions import UnknownModelError
+from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS, d_PI_DBL, d_INF_DBL
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
 
@@ -32,7 +33,7 @@ def find_rheology(str rheology_name):
     elif (rheology_name_clean == 'sundberg') or (rheology_name_clean == 'sundbergcooper'):
         return SundbergCooper
     else:
-        raise AttributeError(f'Unknown rheological model requested: {rheology_name}.')
+        raise UnknownModelError(f'Unknown rheological model requested: {rheology_name}.')
 
 
 ########################################################################################################################
@@ -74,7 +75,7 @@ cdef class Newton(RheologyModelBase):
         if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
         elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
-            return cf_build_dblcmplx(0.0, INFINITY)
+            return cf_build_dblcmplx(0.0, d_INF_DBL)
         if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, frequency_abs * viscosity)
 
@@ -136,7 +137,7 @@ cdef class Voigt(RheologyModelBase):
         if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(voigt_modulus, 0.0)
         elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
-            return cf_build_dblcmplx(0.0, INFINITY)
+            return cf_build_dblcmplx(0.0, d_INF_DBL)
         if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, voigt_visosity * frequency_abs)
 
@@ -201,7 +202,7 @@ cdef class Andrade(RheologyModelBase):
         self.alpha           = new_args[0]
         self.zeta            = new_args[1]
         self.alpha_factorial = tgamma(self.alpha + 1.)
-        self.sine_term       = cos(pi * self.alpha / 2.) - 1.0j * sin(pi * self.alpha / 2.)
+        self.sine_term       = cos(d_PI_DBL * self.alpha / 2.) - 1.0j * sin(d_PI_DBL * self.alpha / 2.)
 
     cdef double complex _implementation(
             self,
@@ -245,7 +246,7 @@ cdef class SundbergCooper(RheologyModelBase):
         self.alpha                 = new_args[2]
         self.zeta                  = new_args[3]
         self.alpha_factorial       = tgamma(self.alpha + 1.)
-        self.sine_term             = cos(pi * self.alpha / 2.) - 1.0j * sin(pi * self.alpha / 2.)
+        self.sine_term             = cos(d_PI_DBL * self.alpha / 2.) - 1.0j * sin(d_PI_DBL * self.alpha / 2.)
 
     cdef double complex _implementation(
             self,

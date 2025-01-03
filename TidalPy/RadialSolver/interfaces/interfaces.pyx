@@ -11,8 +11,7 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from libc.math cimport pi, NAN
-
+from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cmplx_zero, cf_build_dblcmplx
 
 
@@ -74,7 +73,7 @@ cdef void cf_solve_upper_y_at_interface(
     cdef double complex frac_2   = cmplx_NAN
     cdef double complex const_1  = cmplx_NAN
 
-    cdef double g_const = 4. * pi * G_to_use
+    cdef double g_const = 4. * d_PI_DBL * G_to_use
 
     # Initialize upper y to nan
     for yi_upper in range(18):

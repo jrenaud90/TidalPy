@@ -1,8 +1,8 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ starting conditions at the center of the planet based off of Kamata et al. (2015). """
-from libc.math cimport pi
 
+from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.RadialSolver.starting.common cimport cf_z_calc
 
@@ -62,7 +62,7 @@ cdef void cf_kamata_solid_dynamic_compressible(
     cdef double complex lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants
-    cdef double gamma          = 4. * pi * G_to_use * density / 3.
+    cdef double gamma          = 4. * d_PI_DBL * G_to_use * density / 3.
     cdef double dynamic_term   = frequency * frequency
     cdef double complex alpha2 = (lame + 2. * shear_modulus) / density
     cdef double complex beta2  = shear_modulus / density
@@ -197,7 +197,7 @@ cdef void cf_kamata_solid_static_compressible(
     cdef double complex lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants
-    cdef double gamma          = 4. * pi * G_to_use * density / 3.
+    cdef double gamma          = 4. * d_PI_DBL * G_to_use * density / 3.
     cdef double complex alpha2 = (lame + 2. * shear_modulus) / density
     cdef double complex beta2  = shear_modulus / density
 
@@ -328,7 +328,7 @@ cdef void cf_kamata_solid_dynamic_incompressible(
     """
 
     # Constants
-    cdef double gamma         = 4. * pi * G_to_use * density / 3.
+    cdef double gamma         = 4. * d_PI_DBL * G_to_use * density / 3.
     cdef double dynamic_term  = frequency * frequency
     cdef double complex beta2 = shear_modulus / density
 
@@ -462,7 +462,7 @@ cdef void cf_kamata_liquid_dynamic_compressible(
     cdef double degree_l_dbl = <double>degree_l
 
     # Helper functions
-    cdef double gamma          = (4. * pi * G_to_use * density / 3.)
+    cdef double gamma          = (4. * d_PI_DBL * G_to_use * density / 3.)
     cdef double f              = -dynamic_term / gamma
     cdef double h              = f - (degree_l_dbl + 1.)
     cdef double complex alpha2 = lame / density
@@ -546,7 +546,7 @@ cdef void cf_kamata_liquid_dynamic_incompressible(
     cdef double dlp1         = 2. * degree_l_dbl + 1.
 
     # Helper functions
-    cdef double gamma = (4. * pi * G_to_use * density / 3.)
+    cdef double gamma = (4. * d_PI_DBL * G_to_use * density / 3.)
     cdef double f     = -dynamic_term / gamma
     cdef double h     = f - lp1
 

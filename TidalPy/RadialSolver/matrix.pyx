@@ -494,4 +494,4 @@ cdef void cf_matrix_propagate(
         solution_storage_ptr.success = False
     else:
         solution_storage_ptr.success = True
-        solution_storage_ptr.set_message('RadialSolver.MatrixPropagation:: completed without any noted issues.\n')
+        solution_storage_ptr.set_message('RadialSolver.MatrixPropagation: Completed without any noted issues.')

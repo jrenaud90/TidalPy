@@ -1,6 +1,3 @@
-import TidalPy
-TidalPy.test_mode = True
-
 def test_exoplanet_download():
     """Tests the exoplanet archive download utility."""
 

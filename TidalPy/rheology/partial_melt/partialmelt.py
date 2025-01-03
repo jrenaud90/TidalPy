@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from TidalPy.rheology import Rheology
     from TidalPy.structures.layers import PhysicalLayerType
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 @njit(cacheable=True)
 def calculate_melt_fraction(temperature: float, solidus: float, liquidus: float) -> float:

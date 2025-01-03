@@ -16,7 +16,7 @@ from ..dissipation import calc_tidal_susceptibility, calc_tidal_susceptibility_r
 from ..modes.mode_manipulation import find_mode_manipulators
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:

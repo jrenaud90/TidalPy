@@ -10,7 +10,7 @@ from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError,
 from .basic import LayerBase
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:

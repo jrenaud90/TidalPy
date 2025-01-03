@@ -6,6 +6,9 @@ on:
     types:
       - published
 
+env:
+  TIDALPY_TEST_MODE: 1
+  
 jobs:
   make_sdist:
     name: Make SDist

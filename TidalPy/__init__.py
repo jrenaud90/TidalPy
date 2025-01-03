@@ -3,6 +3,14 @@ import importlib.metadata
 __version__ = importlib.metadata.version("TidalPy")
 version = __version__
 
+# Set test_mode to False (used to turn off logging during testing)
+_test_mode = False
+
+import os
+if 'TIDALPY_TEST_MODE' in os.environ:
+    if os.environ['TIDALPY_TEST_MODE']:
+        _test_mode = True
+
 import time
 
 # Initial Runtime
@@ -32,3 +40,20 @@ reinit()
 
 # Import module functions
 from .cache import clear_cache, clear_data
+
+def test_mode():
+    """ Turn on test mode and reinitialize TidalPy """
+    global _test_mode
+
+    if _test_mode:
+        # Don't need to do anything.
+        pass
+    else:
+        _test_mode = True
+        reinit()
+
+def log_to_file():
+    """ Quick switch to turn on saving logs to file """
+    if not config['logging']['write_log_to_disk']:
+        config['logging']['write_log_to_disk'] = True
+        reinit()

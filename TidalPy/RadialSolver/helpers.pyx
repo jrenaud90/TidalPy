@@ -15,8 +15,9 @@ from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.rheology.base cimport RheologyModelBase
 
-import logging
-log = logging.getLogger('TidalPy')
+from TidalPy.exceptions import ArgumentException
+from TidalPy.logger import get_logger
+log = get_logger('TidalPy')
 
 
 PlanetBuildData = namedtuple("PlanetBuildData", 
@@ -61,27 +62,27 @@ def build_rs_input_homogenous_layers(
     cdef size_t num_layers = len(density_tuple)
     if perform_checks:
         if len(static_bulk_modulus_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `static_bulk_modulus_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `static_bulk_modulus_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(static_shear_modulus_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `static_shear_modulus_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `static_shear_modulus_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(bulk_viscosity_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `bulk_viscosity_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `bulk_viscosity_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(shear_viscosity_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `shear_viscosity_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `shear_viscosity_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(layer_type_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `layer_type_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `layer_type_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(layer_is_static_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `layer_is_static_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `layer_is_static_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(layer_is_incompressible_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `layer_is_incompressible_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `layer_is_incompressible_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(shear_rheology_model_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `shear_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `shear_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(bulk_rheology_model_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `bulk_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `bulk_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
 
         if slices_tuple is not None:
             if len(slices_tuple) != num_layers:
-                raise AttributeError("Unexpected length found for `slices_tuple`. All input tuples must be the same length (equal to the number of layers).")
+                raise ArgumentException("Unexpected length found for `slices_tuple`. All input tuples must be the same length (equal to the number of layers).")
 
     # Convert to radius fractions
     cdef double thickness_frac, last_layer_frac, vol_frac, layer_radius
@@ -89,17 +90,17 @@ def build_rs_input_homogenous_layers(
     if thickness_fraction_tuple is None:
         if volume_fraction_tuple is None:
             if radius_fraction_tuple is None:
-                raise AttributeError("Must provide `thickness_fraction_tuple`, `radius_fraction_tuple`, or `volume_fraction_tuple`.")
+                raise ArgumentException("Must provide `thickness_fraction_tuple`, `radius_fraction_tuple`, or `volume_fraction_tuple`.")
             else:
                 if perform_checks:
                     if len(radius_fraction_tuple) != num_layers:
-                        raise AttributeError("Unexpected length found for `radius_fraction_tuple`. All input tuples must be the same length (equal to the number of layers).")
+                        raise ArgumentException("Unexpected length found for `radius_fraction_tuple`. All input tuples must be the same length (equal to the number of layers).")
                 thickness_fraction_list = list()
                 last_layer_frac = 0.0
                 for layer_i in range(num_layers):
                     if perform_checks:
                         if radius_fraction_tuple[layer_i] <= last_layer_frac:
-                            raise AttributeError("`radius_fraction_tuple` entries must be ordered from smallest to largest with no repeated values.")
+                            raise ArgumentException("`radius_fraction_tuple` entries must be ordered from smallest to largest with no repeated values.")
 
                     thickness_frac = (radius_fraction_tuple[layer_i] - last_layer_frac)
                     thickness_fraction_list.append(thickness_frac)
@@ -107,11 +108,11 @@ def build_rs_input_homogenous_layers(
                 if perform_checks:
                     # Check that the last layer is at the planet surface
                     if not cf_isclose(last_layer_frac, 1.0):
-                        raise AttributeError(f"The last entry in `radius_fraction_tuple` must be equal to 1 for the top of planet (found {last_layer_frac}).")
+                        raise ArgumentException(f"The last entry in `radius_fraction_tuple` must be equal to 1 for the top of planet (found {last_layer_frac}).")
         else:
             if perform_checks:
                 if len(volume_fraction_tuple) != num_layers:
-                    raise AttributeError("Unexpected length found for `volume_fraction_tuple`. All input tuples must be the same length (equal to the number of layers).")
+                    raise ArgumentException("Unexpected length found for `volume_fraction_tuple`. All input tuples must be the same length (equal to the number of layers).")
             thickness_fraction_list = list()
             radius_below = 0.0
             for layer_i in range(num_layers):
@@ -123,7 +124,7 @@ def build_rs_input_homogenous_layers(
         thickness_fraction_tuple = tuple(thickness_fraction_list)
     elif perform_checks:
         if len(thickness_fraction_tuple) != num_layers:
-                raise AttributeError("Unexpected length found for `thickness_fraction_tuple`. All input tuples must be the same length (equal to the number of layers).")
+                raise ArgumentException("Unexpected length found for `thickness_fraction_tuple`. All input tuples must be the same length (equal to the number of layers).")
     
     cdef double total_thick_frac = 0.0
     cdef size_t layer_slices = 0
@@ -131,7 +132,7 @@ def build_rs_input_homogenous_layers(
     for layer_i in range(num_layers):
         thickness_frac = thickness_fraction_tuple[layer_i]
         if thickness_frac <= 0.0:
-            raise AttributeError("Negative or zero radius fraction encountered.")
+            raise ArgumentException("Negative or zero radius fraction encountered.")
         total_thick_frac += thickness_frac
         
         if slices_tuple is not None:
@@ -139,15 +140,15 @@ def build_rs_input_homogenous_layers(
         else:
             layer_slices = slice_per_layer
         if layer_slices < 5:
-            raise AttributeError(f"Layer {layer_i} has {layer_slices} slices when at least 5 are required.")
+            raise ArgumentException(f"Layer {layer_i} has {layer_slices} slices when at least 5 are required.")
         total_slices += layer_slices
 
         # Check if rheology classes are the correct instances
         if perform_checks:
             if not isinstance(shear_rheology_model_tuple[layer_i], RheologyModelBase):
-                raise AttributeError(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
+                raise ArgumentException(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
             if not isinstance(bulk_rheology_model_tuple[layer_i], RheologyModelBase):
-                raise AttributeError(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
+                raise ArgumentException(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
     
     if not cf_isclose(total_thick_frac, 1.0):
         raise ValueError(f"Unexpected value found for total radius fraction, {total_thick_frac} (expected 1.0).")
@@ -300,33 +301,33 @@ def build_rs_input_from_data(
     cdef double r
     if perform_checks:
         if layer_upper_radius_tuple[num_layers - 1] != planet_radius:
-            raise AttributeError("Upper radius of last layer must be equal to planet's radius (last element of `radius_array`).")
+            raise ArgumentException("Upper radius of last layer must be equal to planet's radius (last element of `radius_array`).")
         if len(layer_type_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `layer_type_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `layer_type_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(layer_is_static_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `layer_is_static_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `layer_is_static_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(layer_is_incompressible_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `layer_is_incompressible_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `layer_is_incompressible_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(shear_rheology_model_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `shear_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `shear_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(bulk_rheology_model_tuple) != num_layers:
-            raise AttributeError("Unexpected length found for `bulk_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
+            raise ArgumentException("Unexpected length found for `bulk_rheology_model_tuple`. All input tuples must be the same length (equal to the number of layers).")
         
         if len(density_array) != initial_num_slices:
-            raise AttributeError("Unexpected length found for `density_array`. All input arrays must be the same length (equal to the size of radius array).")
+            raise ArgumentException("Unexpected length found for `density_array`. All input arrays must be the same length (equal to the size of radius array).")
         if len(static_bulk_modulus_array) != initial_num_slices:
-            raise AttributeError("Unexpected length found for `static_bulk_modulus_array`. All input arrays must be the same length (equal to the size of radius array).")
+            raise ArgumentException("Unexpected length found for `static_bulk_modulus_array`. All input arrays must be the same length (equal to the size of radius array).")
         if len(static_shear_modulus_array) != initial_num_slices:
-            raise AttributeError("Unexpected length found for `static_shear_modulus_array`. All input arrays must be the same length (equal to the size of radius array).")
+            raise ArgumentException("Unexpected length found for `static_shear_modulus_array`. All input arrays must be the same length (equal to the size of radius array).")
         if len(bulk_viscosity_array) != initial_num_slices:
-            raise AttributeError("Unexpected length found for `bulk_viscosity_array`. All input arrays must be the same length (equal to the size of radius array).")
+            raise ArgumentException("Unexpected length found for `bulk_viscosity_array`. All input arrays must be the same length (equal to the size of radius array).")
         if len(shear_viscosity_array) != initial_num_slices:
-            raise AttributeError("Unexpected length found for `shear_viscosity_array`. All input arrays must be the same length (equal to the size of radius array).")
+            raise ArgumentException("Unexpected length found for `shear_viscosity_array`. All input arrays must be the same length (equal to the size of radius array).")
 
         for slice_i in range(initial_num_slices):
             if slice_i > 0:
                 if r > radius_array[slice_i]:
-                    raise AttributeError("`radius_array` must be provided in ascending order.")
+                    raise ArgumentException("`radius_array` must be provided in ascending order.")
             r = radius_array[slice_i]
 
     # Start performing corrections on input arrays
@@ -351,7 +352,6 @@ def build_rs_input_from_data(
     cdef double slice_volume = 0.0
     cdef double growing_mass = 0.0
     cdef double last_r3, r3
-    cdef str message
     cdef cpp_bool r_present
     for layer_i in range(num_layers):
         layer_upper_radius = layer_upper_radius_tuple[layer_i]
@@ -447,9 +447,7 @@ def build_rs_input_from_data(
 
         # Check that there are enough slices for this layer
         if layer_slices < 5:
-            message = f"Layer {layer_i} has {layer_slices} slices when at least 5 are required."
-            log.error(message)
-            raise AttributeError(message)
+            raise ArgumentException(f"Layer {layer_i} has {layer_slices} slices when at least 5 are required.")
         
         # Perform other calculations for this layer
         if first_slice_in_layer == 0:
@@ -473,9 +471,9 @@ def build_rs_input_from_data(
         # Check if rheology classes are the correct instances
         if perform_checks:
             if not isinstance(shear_rheology_model_tuple[layer_i], RheologyModelBase):
-                raise AttributeError(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
+                raise ArgumentException(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
             if not isinstance(bulk_rheology_model_tuple[layer_i], RheologyModelBase):
-                raise AttributeError(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
+                raise ArgumentException(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
     
     # Get other global parameters
     cdef double planet_bulk_density = growing_mass / ((4. / 3.) * d_PI_DBL * planet_radius**3)

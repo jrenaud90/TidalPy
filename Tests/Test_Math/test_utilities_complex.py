@@ -5,8 +5,6 @@ from math import isclose, isinf, isnan, nan, inf
 import pytest
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode = True
 
 from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow, cinv, cabs, cabs2
 

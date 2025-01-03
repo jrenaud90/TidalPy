@@ -18,6 +18,7 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
+from TidalPy.exceptions import ArgumentException
 from TidalPy.constants cimport d_G, d_NAN_DBL
 from TidalPy.RadialSolver cimport RadialSolverSolution
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
@@ -111,13 +112,13 @@ def calc_radial_volumetric_tidal_heating(
     cdef size_t total_slices = radius_arr.size
     if perform_checks:
         if radial_sensitivity_to_shear_arr.size != total_slices:
-            raise AttributeError("Unexpected size found for `radial_sensitivity_to_shear_arr`.")
+            raise ArgumentException("Unexpected size found for `radial_sensitivity_to_shear_arr`.")
         if complex_shear_modulus_arr.size != total_slices:
-            raise AttributeError("Unexpected size found for `complex_shear_modulus_arr`.")
+            raise ArgumentException("Unexpected size found for `complex_shear_modulus_arr`.")
         if radial_sensitivity_to_bulk_arr.size != total_slices:
-            raise AttributeError("Unexpected size found for `radial_sensitivity_to_bulk_arr`.")
+            raise ArgumentException("Unexpected size found for `radial_sensitivity_to_bulk_arr`.")
         if complex_bulk_modulus_arr.size != total_slices:
-            raise AttributeError("Unexpected size found for `complex_bulk_modulus_arr`.")
+            raise ArgumentException("Unexpected size found for `complex_bulk_modulus_arr`.")
     
     # Setup array pointers
     cdef double* radius_arr_ptr                        = &radius_arr[0]

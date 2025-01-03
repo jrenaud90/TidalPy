@@ -3,7 +3,7 @@ from pathlib import Path
 import TidalPy
 from TidalPy.logger import get_logger
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 def set_output_dir(new_output_dir: str) -> str:
     """Sets new output directory for TidalPy data and logs.
