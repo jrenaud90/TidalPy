@@ -303,7 +303,7 @@ cdef void cf_radial_solver(
                 degree_l,                       # Harmonic degree [unsigned int]
                 starting_radius_to_use,         # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
                 start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]                
-                core_model,                 # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
+                core_model,                     # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
                 verbose,                        # Verbose flag [cpp_bool]
                 raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
                 )

@@ -22,6 +22,7 @@ cimport numpy as cnp
 cnp.import_array()
 from scipy.linalg.cython_lapack cimport zgesv
 
+from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.complex cimport cmplx_one, cmplx_zero, cmplx_NAN, cf_build_dblcmplx
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
@@ -244,6 +245,7 @@ cdef void cf_matrix_propagate(
     #    Found that the core_model=0 approach matches the shooting method the best.
     index_shift_18 = (first_slice_index - 1) * 18
     index_shift_36 = (first_slice_index - 1) * 36
+    cdef double grav_constant
     if core_model == 0:
         # Henning & Hurford (2014): "At the core, a special seed matrix Bcore is created with only three columns,
         # equal to the first, second, and third columns of Y for the properties at the base layer."
@@ -288,6 +290,41 @@ cdef void cf_matrix_propagate(
                     propagation_mtx_ptr[row_shift_index + k] = cf_build_dblcmplx(0.01, 0.)
                 elif (j == 5) and (k == 2):
                     propagation_mtx_ptr[row_shift_index + k] = cmplx_one
+                else:
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
+    elif core_model == 4:
+        # Liquid Inner Core (based on trying to exactly match Roberts & Nimmo 2008)
+        for j in range(6):
+            row_shift_index = index_shift_18 + (j * 3)
+            for k in range(3):
+                if (j == 0) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = cf_build_dblcmplx(0.05, 0.)
+                elif (j == 1) and (k == 1):
+                    propagation_mtx_ptr[row_shift_index + k] = cf_build_dblcmplx(0.01, 0.)
+                elif (j == 5) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one
+                else:
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
+    elif core_model == 5:
+        # Interface matrix from SVC Eq. 1.150
+        grav_constant = (4. / 3.) * d_PI_DBL * G_to_use * density_array_ptr[first_slice_index - 1]
+        for j in range(6):
+            row_shift_index = index_shift_18 + (j * 3)
+            for k in range(3):
+                if (j == 0) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = -radius_array_ptr[first_slice_index - 1]**(degree_l - 1) / grav_constant
+                elif (j == 0) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one
+                elif (j == 1) and (k == 1):
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one
+                elif (j == 2) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = density_array_ptr[first_slice_index - 1] * grav_constant * radius_array_ptr[first_slice_index - 1]
+                elif (j == 4) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = radius_array_ptr[first_slice_index - 1]**degree_l
+                elif (j == 5) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = 2.0 * (degree_l - 1) * radius_array_ptr[first_slice_index - 1]**(degree_l - 1)
+                elif (j == 5) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = 3.0 * grav_constant
                 else:
                     propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
     else:
