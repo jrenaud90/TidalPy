@@ -71,6 +71,11 @@
 * Cythonized radial heating functions that use the sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.heating` (based on Tobie+2005)
 * Improved logging so it is less spamy.
 * Logger now logs all exceptions raised.
+* Moved TidalPy's default config and world config dir to user's "Documents" folder (from system appdata folder). 
+  * If upgrading from previous version of TidalPy, you can safely delete the old config directory.
+    * On Windows the old dir was: "'C:\\Users\\<username>\\AppData\\Local\\TidalPy'"; The new dir is "'C:\\Users\\<username>\\Documents\\TidalPy'"
+    * On Mac the old dir was: "'/Users/<username>/Library/Application Support/TidalPy'"; The new dir is "'/Users/<username>/Documents/TidalPy'"
+    * On Linux the old dir was: "'/Users/<username>/.local/share/TidalPy'"; The new dir is "'/home/<username>/Documents/TidalPy'"
 
 #### Dependencies
 * Added support for CyRK v0.12.x
