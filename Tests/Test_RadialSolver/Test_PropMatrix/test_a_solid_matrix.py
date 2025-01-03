@@ -4,10 +4,6 @@ import pathlib
 import pytest
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode()
-
-
 from TidalPy.constants import G
 from TidalPy.RadialSolver.matrix_types.solid_matrix import fundamental_matrix
 

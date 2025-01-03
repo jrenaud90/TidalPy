@@ -80,6 +80,7 @@
     * On Mac the old dir was: "'/Users/<username>/Library/Application Support/TidalPy'"; The new dir is "'/Users/<username>/Documents/TidalPy'"
     * On Linux the old dir was: "'/Users/<username>/.local/share/TidalPy'"; The new dir is "'/home/<username>/Documents/TidalPy'"
 * New switch `TidalPy.log_to_file()` to quickly turn on saving log to file (this can also be adjusted in the TidalPy configurations).
+* TidalPy now looks for an environment variable "TIDALPY_TEST_MODE" to turn on test mode during first initialization (can later be changed using the `TidalPy.test_mode()` command or setting `TidalPy._test_mode = False; TidalPy.reinit()`).
 
 #### Dependencies
 * Added support for CyRK v0.12.x

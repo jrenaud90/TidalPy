@@ -6,6 +6,11 @@ version = __version__
 # Set test_mode to False (used to turn off logging during testing)
 _test_mode = False
 
+import os
+if 'TIDALPY_TEST_MODE' in os.environ:
+    if os.environ['TIDALPY_TEST_MODE']:
+        _test_mode = True
+
 import time
 
 # Initial Runtime

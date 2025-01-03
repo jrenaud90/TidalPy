@@ -2,9 +2,6 @@ import pytest
 
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode()
-
 from math import isnan, isclose, sqrt
 
 from TidalPy.constants import G, PI_DBL

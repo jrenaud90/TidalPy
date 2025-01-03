@@ -2,9 +2,6 @@ import pytest
 
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode()
-
 from TidalPy.rheology.models import Maxwell
 from TidalPy.RadialSolver.shooting import find_num_shooting_solutions
 from TidalPy.RadialSolver.starting.driver import find_starting_conditions

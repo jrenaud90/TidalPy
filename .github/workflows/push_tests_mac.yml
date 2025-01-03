@@ -5,6 +5,9 @@ name: MacOS Tests
 
 on: [push, pull_request, workflow_dispatch]
 
+env:
+  TIDALPY_TEST_MODE: 1
+
 jobs:
 
   test-macos-latest:
