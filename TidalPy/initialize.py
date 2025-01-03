@@ -53,7 +53,8 @@ def initialize():
         set_world_dir('default')
 
     # Setup logging
-    from TidalPy.logger import get_logger
+    from TidalPy.logger import initialize_handlers, get_logger
+    initialize_handlers()
     log = get_logger("TidalPy")
     # Reset initialization status
     if TidalPy._tidalpy_init:

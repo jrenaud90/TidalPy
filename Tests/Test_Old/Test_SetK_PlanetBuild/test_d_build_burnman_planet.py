@@ -5,7 +5,7 @@ import toml
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode = True
+TidalPy.test_mode()
 
 from TidalPy.structures import build_world, scale_from_world
 from TidalPy.Extending.burnman import burnman_installed

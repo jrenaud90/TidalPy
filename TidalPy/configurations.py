@@ -126,6 +126,9 @@ def get_default_config() -> dict:
     # Load configurations (these may have been changed by the user) to dict
     config_dict = toml.load(config_path)
 
+    # Update path
+    TidalPy._config_path = config_path
+
     return config_dict
 
 def set_config(config_path: str) -> dict:
@@ -151,6 +154,9 @@ def set_config(config_path: str) -> dict:
     
         # Load configurations (these may have been changed by the user) to dict
         TidalPy.config = toml.load(config_path)
+
+        # Update path
+        TidalPy._config_path = config_path
 
 def get_default_world_dir() -> str:
     """ Find the directory containing TidalPy's world configuration files.

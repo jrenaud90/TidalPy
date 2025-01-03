@@ -2,7 +2,7 @@ import numpy as np
 from math import isclose, isnan
 
 import TidalPy
-TidalPy.test_mode = True
+TidalPy.test_mode()
 
 from TidalPy.rheology import (
     Elastic,

@@ -1,7 +1,7 @@
 import pytest
 
 import TidalPy
-TidalPy.test_mode = True
+TidalPy.test_mode()
 
 from math import isclose as py_isclose
 from math import nan

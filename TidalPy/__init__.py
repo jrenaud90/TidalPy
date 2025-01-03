@@ -3,6 +3,9 @@ import importlib.metadata
 __version__ = importlib.metadata.version("TidalPy")
 version = __version__
 
+# Set test_mode to False (used to turn off logging during testing)
+_test_mode = False
+
 import time
 
 # Initial Runtime
@@ -32,3 +35,14 @@ reinit()
 
 # Import module functions
 from .cache import clear_cache, clear_data
+
+def test_mode():
+    """ Turn on test mode and reinitialize TidalPy """
+    global _test_mode
+
+    if _test_mode:
+        # Don't need to do anything.
+        pass
+    else:
+        _test_mode = True
+        reinit()

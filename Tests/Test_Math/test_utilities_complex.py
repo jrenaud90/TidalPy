@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode = True
+TidalPy.test_mode()
 
 from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow, cinv, cabs, cabs2
 

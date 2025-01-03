@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode = True
+TidalPy.test_mode()
 
 
 from TidalPy.RadialSolver import radial_solver

@@ -83,7 +83,8 @@
 * Fixed issue where `radial_solver` arrays could dealloc while references still pointed to them (hanging pointers).
 * Missing Cython compile arguments in TidalPy's utilities, `nondimensional.pyx`.
 * Fixed incorrect type in dynamic liquid layers that may have been causing some errors to propagate.
-
+* Fixed issue where `TidalPy._config_path` was not being updated.
+* Fixed issue where log files could not be created.
 
 ### Version 0.5.5 (2024-11-11)
 

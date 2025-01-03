@@ -5,7 +5,7 @@ from copy import copy
 import numpy as np
 
 import TidalPy
-TidalPy.test_mode = True
+TidalPy.test_mode()
 
 from TidalPy.rheology import Maxwell, Andrade
 from TidalPy.RadialSolver.helpers import build_rs_input_homogenous_layers, PlanetBuildData, build_rs_input_from_data
