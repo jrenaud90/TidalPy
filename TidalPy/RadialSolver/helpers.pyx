@@ -11,13 +11,13 @@ cnp.import_array()
 
 from collections import namedtuple
 
-from TidalPy.exceptions import ArgumentException
 from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.rheology.base cimport RheologyModelBase
 
-import logging
-log = logging.getLogger('TidalPy')
+from TidalPy.exceptions import ArgumentException
+from TidalPy.logger import get_logger
+log = get_logger('TidalPy')
 
 
 PlanetBuildData = namedtuple("PlanetBuildData", 

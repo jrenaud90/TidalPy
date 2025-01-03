@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Common base class for all TidalPy rheology models. """
 
-from libc.math cimport NAN
+from TidalPy.constants cimport d_NAN_DBL
 
 from TidalPy.exceptions import ArgumentException
 from TidalPy.logger import get_logger
@@ -60,7 +60,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             ) noexcept nogil:
 
         cdef double complex out
-        out = NAN + 1.0j * NAN
+        out = d_NAN_DBL + 1.0j * d_NAN_DBL
         return out
 
     cdef void _vectorize_frequency(

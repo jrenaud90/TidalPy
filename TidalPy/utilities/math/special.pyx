@@ -1,7 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.math cimport tgamma, NAN
+from libc.math cimport tgamma
+
+from TidalPy.constants cimport d_NAN_DBL
 
 cdef double[51] pre_calculated_doubles
 cdef double* pre_calculated_doubles_ptr = &pre_calculated_doubles[0]
@@ -68,7 +70,7 @@ cdef double cf_double_factorial(int n) noexcept nogil:
         return tgamma(<double>n + 1.) / cf_double_factorial(n - 1)
     else:
         # ValueError('C function `tgamma` experiences overflow for l > 170.')
-        return NAN
+        return d_NAN_DBL
 
 
 def double_factorial(int n):

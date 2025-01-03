@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 # Import cythonized functions
-from libc.math cimport NAN, fmin
+from libc.math cimport fmin
 from libc.stdio cimport printf, sprintf
 from libc.stdlib cimport exit, EXIT_FAILURE
 from libc.string cimport strcpy
@@ -12,7 +12,7 @@ from CyRK.utils.utils cimport allocate_mem, free_mem
 from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
-from TidalPy.constants cimport d_PI_DBL, d_EPS_DBL
+from TidalPy.constants cimport d_PI_DBL, d_EPS_DBL, d_NAN_DBL
 
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
@@ -136,8 +136,8 @@ cdef void cf_shooting_solver(
         printf(solution_storage_ptr.message_ptr)
 
     # General indexing
-    cdef double last_radius_check = NAN
-    cdef double radius_check      = NAN
+    cdef double last_radius_check = d_NAN_DBL
+    cdef double radius_check      = d_NAN_DBL
     cdef size_t i
     cdef size_t current_layer_i
     cdef size_t layer_i_reversed
@@ -189,7 +189,7 @@ cdef void cf_shooting_solver(
 
     # Integration information
     # Max step size
-    cdef double max_step_to_use        = NAN
+    cdef double max_step_to_use        = d_NAN_DBL
     cdef cpp_bool max_step_from_arrays = False
     if max_step == 0.0:
         # If max_step is zero use the array information to determine max_step_size
@@ -207,8 +207,8 @@ cdef void cf_shooting_solver(
     cdef double* atols_ptr = &atols_array[0]
 
     for i in range(12):
-        rtols_ptr[i] = NAN
-        atols_ptr[i] = NAN
+        rtols_ptr[i] = d_NAN_DBL
+        atols_ptr[i] = d_NAN_DBL
 
     # Create storage for flags and information about each layer.
     cdef vector[size_t] num_solutions_by_layer_vec = vector[size_t]()
@@ -230,11 +230,11 @@ cdef void cf_shooting_solver(
     cdef size_t num_ys_dbl
     cdef size_t layer_below_num_sols
     cdef size_t layer_below_num_ys
-    cdef double layer_upper_radius = NAN
-    cdef double layer_rtol_real    = NAN
-    cdef double layer_rtol_imag    = NAN
-    cdef double layer_atol_real    = NAN
-    cdef double layer_atol_imag    = NAN
+    cdef double layer_upper_radius = d_NAN_DBL
+    cdef double layer_rtol_real    = d_NAN_DBL
+    cdef double layer_rtol_imag    = d_NAN_DBL
+    cdef double layer_atol_real    = d_NAN_DBL
+    cdef double layer_atol_imag    = d_NAN_DBL
 
     for current_layer_i in range(num_layers):
         # Pull out information on this layer
@@ -302,26 +302,26 @@ cdef void cf_shooting_solver(
     # Properties at top and bottom of layer
     cdef double[2] radial_span
     cdef double* radial_span_ptr = &radial_span[0]
-    radial_span_ptr[0] = NAN
-    radial_span_ptr[1] = NAN
+    radial_span_ptr[0] = d_NAN_DBL
+    radial_span_ptr[1] = d_NAN_DBL
 
-    cdef double radius_lower  = NAN
-    cdef double radius_upper  = NAN
-    cdef double density_lower = NAN
-    cdef double density_upper = NAN
-    cdef double gravity_lower = NAN
-    cdef double gravity_upper = NAN
+    cdef double radius_lower  = d_NAN_DBL
+    cdef double radius_upper  = d_NAN_DBL
+    cdef double density_lower = d_NAN_DBL
+    cdef double density_upper = d_NAN_DBL
+    cdef double gravity_lower = d_NAN_DBL
+    cdef double gravity_upper = d_NAN_DBL
     cdef double complex bulk_lower  = cmplx_NAN
     cdef double complex bulk_upper  = cmplx_NAN
     cdef double complex shear_upper = cmplx_NAN
     cdef double complex shear_lower = cmplx_NAN
 
     # Properties at interfaces between layers
-    cdef double static_liquid_density    = NAN
-    cdef double interface_gravity        = NAN
-    cdef double last_layer_upper_gravity = NAN
-    cdef double last_layer_upper_density = NAN
-    cdef double last_layer_upper_radius  = NAN
+    cdef double static_liquid_density    = d_NAN_DBL
+    cdef double interface_gravity        = d_NAN_DBL
+    cdef double last_layer_upper_gravity = d_NAN_DBL
+    cdef double last_layer_upper_density = d_NAN_DBL
+    cdef double last_layer_upper_radius  = d_NAN_DBL
 
     # Starting solutions (initial conditions / lower boundary conditions)
     # Allocate memory for the initial value arrays now. We don't know the number of solutions or ys. But the max number
@@ -416,10 +416,10 @@ cdef void cf_shooting_solver(
         starting_radius = fmin(starting_radius, 0.95 * planet_radius)
     
     # Other physical properties at this starting radius (these will be set later)
-    cdef double starting_gravity       = NAN
-    cdef double starting_density       = NAN
-    cdef double complex starting_shear = NAN
-    cdef double complex starting_bulk  = NAN
+    cdef double starting_gravity       = d_NAN_DBL
+    cdef double starting_density       = d_NAN_DBL
+    cdef double complex starting_shear = d_NAN_DBL
+    cdef double complex starting_bulk  = d_NAN_DBL
 
     # Determine which layer this starting radius resides in. We will skip the lower layers
     cdef size_t start_layer_i           = 0
@@ -581,7 +581,7 @@ cdef void cf_shooting_solver(
         for y_i in range(36):
             if y_i < 18:
                 initial_y_ptr[y_i] = cmplx_NAN
-            initial_y_only_real_ptr[y_i] = NAN
+            initial_y_only_real_ptr[y_i] = d_NAN_DBL
         
         if current_layer_i == start_layer_i:
             # In the first layer. Use initial condition function to find initial conditions
@@ -620,7 +620,7 @@ cdef void cf_shooting_solver(
             # Find the density needed for some initial conditions.
             if (layer_type == 0) and (layer_below_type == 0):
                 # Both layers are solid. A liquid interface density is not needed.
-                static_liquid_density = NAN
+                static_liquid_density = d_NAN_DBL
             elif not (layer_type == 0) and (layer_below_type == 0):
                 # Layer below is solid, this layer is liquid. Use its density.
                 static_liquid_density = density_lower
@@ -641,7 +641,7 @@ cdef void cf_shooting_solver(
                     static_liquid_density = last_layer_upper_density
                 else:
                     # Both layers are dynamic. Static liquid density is not needed.
-                    static_liquid_density = NAN
+                    static_liquid_density = d_NAN_DBL
 
             # Find the starting values for this layer using the results a the top of the previous layer + an interface
             #  function.
@@ -693,8 +693,8 @@ cdef void cf_shooting_solver(
                 y0_ptr,                  # y0 array [const double*]
                 num_ys_dbl,              # Number of ys [size_t]
                 integration_method,      # Integration method [int]
-                NAN,                     # Relative Tolerance (as scalar) [double]
-                NAN,                     # Absolute Tolerance (as scalar) [double]
+                d_NAN_DBL,                     # Relative Tolerance (as scalar) [double]
+                d_NAN_DBL,                     # Absolute Tolerance (as scalar) [double]
                 <char*>diffeq_args_ptr,  # Extra input args to diffeq [char*]
                 sizeof_args,             # Size of additional argument structure [size_t]
                 0,                       # Number of extra outputs tracked [size_t]
@@ -783,9 +783,9 @@ cdef void cf_shooting_solver(
             constant_vector_ptr[0] = cmplx_NAN
             constant_vector_ptr[1] = cmplx_NAN
             constant_vector_ptr[2] = cmplx_NAN
-            layer_above_lower_gravity   = NAN
-            layer_above_lower_density   = NAN
-            liquid_density_at_interface = NAN
+            layer_above_lower_gravity   = d_NAN_DBL
+            layer_above_lower_density   = d_NAN_DBL
+            liquid_density_at_interface = d_NAN_DBL
             layer_above_type            = 9
             layer_above_is_static       = False
             layer_above_is_incomp       = False
