@@ -10,7 +10,7 @@ from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType

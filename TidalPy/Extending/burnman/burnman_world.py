@@ -7,7 +7,7 @@ from TidalPy.exceptions import InitiatedPropertyChangeError
 from TidalPy.Extending.burnman.package import burnman, burnman_installed
 from TidalPy.structures.world_types.layered import LayeredWorld
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 class BurnManWorld(LayeredWorld):
     """ BurnManWorld

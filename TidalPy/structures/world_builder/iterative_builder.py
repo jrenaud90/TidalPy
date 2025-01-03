@@ -22,7 +22,7 @@ from TidalPy.exceptions import IncompatibleModelError
 from . import build_from_world
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 

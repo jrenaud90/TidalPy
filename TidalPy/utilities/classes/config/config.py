@@ -10,7 +10,7 @@ from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetEr
 from TidalPy.utilities.classes.base import TidalPyClass
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 class ConfigHolder(TidalPyClass):

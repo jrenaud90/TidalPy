@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType
     from TidalPy.structures.layers import PhysicalLayerType
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 class Radiogenics(LayerModelHolder):

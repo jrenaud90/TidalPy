@@ -69,6 +69,7 @@
   * New cythonized `isclose` function that matches functionality of python's `math.isclose`
 * Cythonized radial sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.sensitivity` (based on Tobie+2005)
 * Cythonized radial heating functions that use the sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.heating` (based on Tobie+2005)
+* Improved logging so it is less spamy.
 
 #### Dependencies
 * Added support for CyRK v0.12.x

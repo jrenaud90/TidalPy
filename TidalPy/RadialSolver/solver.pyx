@@ -29,7 +29,7 @@ from TidalPy.Material.eos.methods cimport InterpolateEOSInput, preeval_interpola
 
 ctypedef EOS_ODEInput* EOS_ODEInputPtr
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 cdef void cf_radial_solver(

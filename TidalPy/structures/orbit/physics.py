@@ -9,7 +9,7 @@ from .base import OrbitBase
 from ..world_types import all_tidal_world_types
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:

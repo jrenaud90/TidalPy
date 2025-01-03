@@ -54,16 +54,16 @@ def initialize():
 
     # Setup logging
     from TidalPy.logger import get_logger
-    log = get_logger(__name__)
+    log = get_logger("TidalPy")
     # Reset initialization status
     if TidalPy._tidalpy_init:
         TidalPy._tidalpy_init = False
-        log.info('TidalPy reinitializing...')
+        log.debug('TidalPy reinitializing...')
     else:
-        log.info('TidalPy initializing...')
+        log.debug('TidalPy initializing...')
 
     if TidalPy.config['configs']['save_configs_locally'] or TidalPy.config['logging']['write_log_to_disk']:
-        log.info(f'Output directory: {TidalPy._output_dir}')
+        log.debug(f'Output directory: {TidalPy._output_dir}')
 
     # Save a copy of TidalPy's current configurations to the save_dir
     if TidalPy.config['configs']['save_configs_locally']:
@@ -82,4 +82,4 @@ def initialize():
 
     # Finish initialization
     TidalPy._tidalpy_init = True
-    log.info('TidalPy initialization complete.')
+    log.debug('TidalPy initialization complete.')

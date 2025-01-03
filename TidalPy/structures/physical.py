@@ -19,7 +19,7 @@ from TidalPy.utilities.classes import ConfigHolder
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatNone
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 class PhysicalObjSpherical(ConfigHolder):

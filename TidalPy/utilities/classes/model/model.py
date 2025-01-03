@@ -10,7 +10,7 @@ from TidalPy.utilities.dictionary_utils import nested_get, nested_place
 from TidalPy.utilities.classes.config.config import ConfigHolder
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 if TYPE_CHECKING:
     from TidalPy.structures.layers import PhysicalLayerType

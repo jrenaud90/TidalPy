@@ -1,7 +1,7 @@
 import TidalPy
 from TidalPy.utilities.dictionary_utils import nested_merge
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 burnman_installed = True
 try:

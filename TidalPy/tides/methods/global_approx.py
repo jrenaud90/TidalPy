@@ -10,7 +10,7 @@ from .base import TidesBase
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:

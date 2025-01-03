@@ -13,7 +13,7 @@ from .tidal import TidalWorld
 from ..layers import GasLayer, LayerType, PhysicsLayer
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 

@@ -10,7 +10,7 @@ from ..helpers.orbit_config import pull_out_orbit_from_config
 from ..world_types import all_world_types, AllWorldType, StarWorld
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:
@@ -253,7 +253,7 @@ class OrbitBase(TidalPyClass):
             If `True`, the orbit's `update_orbit` method will be called after the world has been added.
         """
 
-        log.info(f'Adding {star_world} to orbit ({self}) as star.')
+        log.debug(f'Adding {star_world} to orbit ({self}) as star.')
 
         # Check that the star is an instance of the expected class
         if not isinstance(star_world,  StarWorld):
@@ -308,9 +308,9 @@ class OrbitBase(TidalPyClass):
         """
 
         if is_tidal_host:
-            log.info(f'Adding {tidal_world} to orbit ({self}) as tidal world and host.')
+            log.debug(f'Adding {tidal_world} to orbit ({self}) as tidal world and host.')
         else:
-            log.info(f'Adding {tidal_world} to orbit ({self}) as tidal world.')
+            log.debug(f'Adding {tidal_world} to orbit ({self}) as tidal world.')
 
         if not isinstance(tidal_world, all_world_types):
             log.error(

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .cooling_models import CoolingOutputType
 
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 class CoolingModel(LayerModelHolder):
