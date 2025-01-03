@@ -141,3 +141,17 @@ def get_logger(logger_name: str) -> logging.Logger:
     # None are currently required
 
     return logger
+
+# Intercept exceptions and log them
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    log = get_logger("TidalPy")
+
+    log.error("Uncaught Exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+    raise exc_type(exc_value)
+
+sys.excepthook = handle_exception
