@@ -209,8 +209,7 @@ class GlobalApproxTides(TidesBase):
                     break
 
             if ctl_calc_func is None:
-                log.error(f'Unknown CTL function requested for {self}: {ctl_calc_method}.')
-                raise UnknownModelError('Unknown CTL function requested.')
+                raise UnknownModelError(f'Unknown CTL function requested for {self}: {ctl_calc_method}.')
             else:
                 self._ctl_calc_method = ctl_calc_func
 

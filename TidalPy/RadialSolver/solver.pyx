@@ -16,7 +16,7 @@ cnp.import_array()
 from CyRK cimport PreEvalFunc
 
 from TidalPy.logger import get_logger
-from TidalPy.exceptions import UnknownModelError
+from TidalPy.exceptions import UnknownModelError, ArgumentException
 
 from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN_DBL
 from TidalPy.utilities.math.numerics cimport cf_isclose
@@ -553,24 +553,24 @@ def radial_solver(
     # Perform checks
     if perform_checks:
         if density_array.size != total_slices:
-            raise AttributeError("`density_array` array must be the same size as radius array.")
+            raise ArgumentException("`density_array` array must be the same size as radius array.")
         if complex_bulk_modulus_array.size != total_slices:
-            raise AttributeError("`complex_bulk_modulus_array` array must be the same size as radius array.")
+            raise ArgumentException("`complex_bulk_modulus_array` array must be the same size as radius array.")
         if complex_shear_modulus_array.size != total_slices:
-            raise AttributeError("`complex_shear_modulus_array` array must be the same size as radius array.")
+            raise ArgumentException("`complex_shear_modulus_array` array must be the same size as radius array.")
 
         # Check that number of assumptions match.
         if len(is_static_bylayer) != num_layers:
-            raise AttributeError('Number of `is_static_bylayer` must match number of `layer_types`.')
+            raise ArgumentException('Number of `is_static_bylayer` must match number of `layer_types`.')
         if len(is_incompressible_bylayer) != num_layers:
-            raise AttributeError('Number of `is_incompressible_bylayer` must match number of `layer_types`.')
+            raise ArgumentException('Number of `is_incompressible_bylayer` must match number of `layer_types`.')
         if upper_radius_bylayer_array.size != num_layers:
-            raise AttributeError('Number of `upper_radius_by_layer` must match number of `layer_types`.')
+            raise ArgumentException('Number of `upper_radius_by_layer` must match number of `layer_types`.')
         
         last_layer_r = 0.0
         for layer_i in range(num_layers):
             if upper_radius_bylayer_array[layer_i] <= last_layer_r:
-                raise AttributeError("`upper_radius_bylayer_array` must be in ascending order.")
+                raise ArgumentException("`upper_radius_bylayer_array` must be in ascending order.")
             last_layer_r = upper_radius_bylayer_array[layer_i]
 
         if fabs(frequency) < d_MIN_FREQUENCY:
@@ -582,14 +582,14 @@ def radial_solver(
             if num_layers > 1:
                 raise NotImplementedError("Currently, TidalPy's propagation matrix technique only works for 1-layer worlds. For 2 layer worlds where the lower layer is a liquid: you can start the solver at the bottom of the upper solid layer.")
             if layer_types[0].lower() != 'solid':
-                raise AttributeError("The Propagation matrix technique only works for solid layers. For liquid layers you can set layer type to solid and use a small shear modulus to mimic liquid layers.")
+                raise ArgumentException("The Propagation matrix technique only works for solid layers. For liquid layers you can set layer type to solid and use a small shear modulus to mimic liquid layers.")
             if not is_static_bylayer[0]:
-                raise AttributeError("The Propagation matrix technique does not allow for dynamic layers.")
+                raise ArgumentException("The Propagation matrix technique does not allow for dynamic layers.")
             if not is_incompressible_bylayer[0]:
-                raise AttributeError("The Propagation matrix technique does not allow for compressible layers.")
+                raise ArgumentException("The Propagation matrix technique does not allow for compressible layers.")
         
         if (starting_radius != 0.0) and (starting_radius > 0.90 * radius_array[total_slices - 1]):
-            raise AttributeError('Starting radius is above 90\% of the planet radius. Try a lower radius.')
+            raise ArgumentException('Starting radius is above 90\% of the planet radius. Try a lower radius.')
 
         # Check radius array. TidalPy requires very specific requirements for the radius array format.
         #  1) Must start at 0.
@@ -597,7 +597,7 @@ def radial_solver(
         #  3) Each layer must have the starting radius and the ending radius. Yes that means there will be duplicate values of r at interfaces.
         #  4) There must be at least 5 sub slices in each layer
         if radius_array[0] != 0.0:
-            raise AttributeError('Radius array must start at zero.')
+            raise ArgumentException('Radius array must start at zero.')
         
         last_layer_radius = 0.0
         for layer_i in range(num_layers):
@@ -614,11 +614,11 @@ def radial_solver(
             for slice_i in range(total_slices):
                 radius_check = radius_array[slice_i]
                 if radius_check < 0.0:
-                    raise AttributeError("A negative radius value was found in `radius_array`.")
+                    raise ArgumentException("A negative radius value was found in `radius_array`.")
                 
                 if radius_check < last_radius_check:
                     # Array must be ascending order. Duplicates are required at interfaces but nothing should be less than previous.
-                    raise AttributeError("Radius array must be in ascending order.")
+                    raise ArgumentException("Radius array must be in ascending order.")
 
                 if cf_isclose(radius_check, layer_radius):
                     layer_check += 1
@@ -629,15 +629,15 @@ def radial_solver(
             last_layer_radius = layer_radius
             
             if slice_check < 5:
-                raise AttributeError("A minimum of 5 sub-slices (including top and bottom) are required for each layer.")
+                raise ArgumentException("A minimum of 5 sub-slices (including top and bottom) are required for each layer.")
 
             if top_layer:
                 # Top layer works for both single layer planets or multi-layer since a single layer is the top layer.
                 if layer_check != 1:
-                    raise AttributeError(f"Radius of layer {layer_i} found {layer_check} times. Expected 1 time (non-interface layer).")
+                    raise ArgumentException(f"Radius of layer {layer_i} found {layer_check} times. Expected 1 time (non-interface layer).")
             else:
                 if layer_check != 2:
-                    raise AttributeError(f"Radius of layer {layer_i} found {layer_check} times. Expected 2 times (interface layer).")
+                    raise ArgumentException(f"Radius of layer {layer_i} found {layer_check} times. Expected 2 times (interface layer).")
         
     # Build array of assumptions
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
@@ -672,7 +672,6 @@ def radial_solver(
             layer_types_ptr[layer_i] = 1
         else:
             layer_types_ptr[layer_i] = -1
-            log.error(f"Layer type {layer_type} is not supported. Currently supported types: 'solid', 'liquid'.")
             raise UnknownModelError(f"Layer type {layer_type} is not supported. Currently supported types: 'solid', 'liquid'.")
     
     # Check for dynamic liquid layer stability
@@ -698,7 +697,6 @@ def radial_solver(
     elif integration_method_lower == 'dop853':
         integration_method_int = 2
     else:
-        log.error(f"Unsupported integration method provided: {integration_method_lower}.")
         raise UnknownModelError(f"Unsupported integration method provided: {integration_method_lower}.")
     
     cdef str eos_integration_method_lower = eos_integration_method.lower()
@@ -710,7 +708,6 @@ def radial_solver(
     elif eos_integration_method_lower == 'dop853':
         eos_integration_method_int = 2
     else:
-        log.error(f"Unsupported EOS integration method provided: {eos_integration_method_lower}.")
         raise UnknownModelError(f"Unsupported EOS integration method provided: {eos_integration_method_lower}.")
 
     # Convert EOS methods from string to int
@@ -744,7 +741,7 @@ def radial_solver(
         bc_models_ptr[0] = 1
     else:
         if type(solve_for) != tuple:
-            raise AttributeError(
+            raise ArgumentException(
                 '`solve_for` argument must be a tuple of strings. For example:\n'
                 '   ("tidal",)  # If you just want tidal Love numbers.\n'
                 '   ("tidal", "loading")  # If you just want tidal and loading Love numbers.'
@@ -759,7 +756,7 @@ def radial_solver(
             elif solve_for_tmp == "loading":
                 bc_models_ptr[i] = 2
             else:
-                raise AttributeError(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
+                raise ArgumentException(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
     
     # TODO: For now RadialSolver does not support a robust Equation of State method. 
     # The user must provide density, shear, and bulk arrays which will be used to find pressure and gravity.

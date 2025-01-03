@@ -132,8 +132,7 @@ class BaseWorld(PhysicalObjSpherical):
         try:
             self._equilibrium_insolation_func = equilibrium_insolation_functions[insol_equilib_func]
         except KeyError:
-            log.error(f'Unknown equilibrium insolation function model encountered in {self}.')
-            raise UnknownModelError
+            raise UnknownModelError(f'Unknown equilibrium insolation function model encountered in {self}.')
 
         # Setup geometry
         if reinit_geometry:

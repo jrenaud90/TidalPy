@@ -166,7 +166,7 @@ def test_build_planet_constant_layers_exceptions():
     ]
 
     # Check different layer lens
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         num_layers_2 = 3
 
         for list_change in (2, 3, 4, 5, 6, 7, 8, 9):
@@ -179,7 +179,7 @@ def test_build_planet_constant_layers_exceptions():
             perform_checks=True)
     
     # Check missing structure inputs
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             thickness_fraction_tuple=None,
@@ -188,7 +188,7 @@ def test_build_planet_constant_layers_exceptions():
             perform_checks=True)
     
     # Check error is raised if incorrect
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         for list_change in (10, 11):
             inputs = copy(common_inputs_list)
             inputs[list_change] = tuple(['Maxwell', 'Andrade', 'Maxwell', 'Andrade', 'Maxwell'])
@@ -198,13 +198,13 @@ def test_build_planet_constant_layers_exceptions():
                 perform_checks=True)
             
     # Check bad number of slices
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
             slices_tuple=(6, 10, 3, 12, 8),
             perform_checks=True)
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=tuple(radius_fraction_lists[num_layers-1]),
@@ -212,19 +212,19 @@ def test_build_planet_constant_layers_exceptions():
             perform_checks=True)
     
     # Check bad structure inputs
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         # Too short
         result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=(0.1, 0.3, 0.45, 0.63, 0.9),
             perform_checks=True)
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         # Too far
         result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
             radius_fraction_tuple=(0.1, 0.3, 0.45, 0.63, 1.5),
             perform_checks=True)
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         # Wrong order
         result = build_rs_input_homogenous_layers(
             *tuple(common_inputs_list),
@@ -360,7 +360,7 @@ def test_build_rs_input_from_data_check_errors():
     bulk_rheology_models = (Andrade(), Maxwell())
 
     # Radius array does not end at planet radius according to upper radius list
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             np.linspace(0., 9.5, N),
@@ -379,7 +379,7 @@ def test_build_rs_input_from_data_check_errors():
             warnings = False)
     
     # Incorrect number of layers on assumption tuples
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -397,7 +397,7 @@ def test_build_rs_input_from_data_check_errors():
             perform_checks = True,
             warnings = False)
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -415,7 +415,7 @@ def test_build_rs_input_from_data_check_errors():
             perform_checks = True,
             warnings = False)
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -447,7 +447,7 @@ def test_build_rs_input_from_data_check_errors():
     layer_is_incompressibles = (True, False)
     shear_rheology_models = (Maxwell(), Andrade())
     bulk_rheology_models = (Andrade(), Maxwell())
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array2,
@@ -466,7 +466,7 @@ def test_build_rs_input_from_data_check_errors():
             warnings = False)
     
     # Arrays with mismatched sizes
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -484,7 +484,7 @@ def test_build_rs_input_from_data_check_errors():
             perform_checks = True,
             warnings = False)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -502,7 +502,7 @@ def test_build_rs_input_from_data_check_errors():
             perform_checks = True,
             warnings = False)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -520,7 +520,7 @@ def test_build_rs_input_from_data_check_errors():
             perform_checks = True,
             warnings = False)
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -538,7 +538,7 @@ def test_build_rs_input_from_data_check_errors():
             perform_checks = True,
             warnings = False)
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array,
@@ -562,7 +562,7 @@ def test_build_rs_input_from_data_check_errors():
     radius_array3[50] = radius_array3[51]
     radius_array3[51] = tmp
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         output = build_rs_input_from_data(
             forcing_frequency,
             radius_array3,

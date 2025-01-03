@@ -4,8 +4,10 @@
 
 from libc.math cimport NAN
 
-import logging
-log = logging.getLogger(__name__)
+from TidalPy.exceptions import ArgumentException
+from TidalPy.logger import get_logger
+
+log = get_logger("TidalPy")
 
 
 cdef class RheologyModelBase(TidalPyBaseExtensionClass):
@@ -44,8 +46,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         if self.debug_mode:
             log.debug(f'{self}: Additional arguments changed.')
         if num_args != self.expected_num_args:
-            log.error(f'{self}: Unsupported number of arguments provided.')
-            raise AttributeError(f'Unsupported number of arguments provided to {self}.')
+            raise ArgumentException(f'Unsupported number of arguments provided to {self}.')
 
         # Add args to any constant parameter references.
         # Since this is a base class; there are no additional arguments so nothing happens here.
@@ -103,7 +104,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         n2 = len(output_view)
 
         if (n2 != n) :
-            raise AttributeError('Arrays must all be the same size.')
+            raise ArgumentException('Arrays must all be the same size.')
 
         self._vectorize_frequency(&frequency_view[0], modulus, viscosity, &output_view[0], n)
 
@@ -121,7 +122,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         n3 = len(output_view)
 
         if (n2 != n) or (n3 != n) or (n2 != n3):
-            raise AttributeError('Arrays must all be the same size.')
+            raise ArgumentException('Arrays must all be the same size.')
 
         self._vectorize_modulus_viscosity(frequency, &modulus_view[0], &viscosity_view[0], &output_view[0], n)
 

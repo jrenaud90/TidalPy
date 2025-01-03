@@ -387,10 +387,6 @@ class WorldConfigHolder(ConfigHolder):
                 )
 
         if config is None and self.default_config is None:
-            log.error(
-                f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
-                f"{self.__class__.__name__} and no defaults are set."
-                )
             raise ParameterMissingError(
                 f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
                 f"{self.__class__.__name__} and no defaults are set."

@@ -51,11 +51,7 @@ class LayeredWorld(TidalWorld):
         """
 
         if 'layers' not in world_config:
-            log.error(
-                "Layered world's configurations do not contain layer information. "
-                "Construction can not be completed."
-                )
-            raise ParameterMissingError("Layered world's configurations do not contain layer information.")
+            raise ParameterMissingError("Layered world's configurations do not contain layer information. Construction can not be completed.")
 
         super().__init__(world_config, name, initialize=False)
 
@@ -76,8 +72,7 @@ class LayeredWorld(TidalWorld):
 
             # Check for issues
             if any(bad_symbol in layer_name for bad_symbol in BAD_LAYER_SYMBOLS):
-                log.error(f'An illegal symbol was found in {layer_name} for {self}.')
-                raise TidalPyWorldError('Illegal symbol found in layer name.')
+                raise TidalPyWorldError(f'An illegal symbol was found in {layer_name} for {self}.')
 
             # Pull out configuration info
             layer_type = layer_config['type']
@@ -374,8 +369,7 @@ class LayeredWorld(TidalWorld):
             pressure_above = self.pressure_above
 
         if pressure_above is None:
-            log.error(f'Not enough information to build static pressure for {self}.')
-            raise MissingArgumentError
+            raise MissingArgumentError(f'Not enough information to build static pressure for {self}.')
 
         else:
             # Calculate pressures from top down

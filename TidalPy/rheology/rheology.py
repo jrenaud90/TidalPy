@@ -183,10 +183,8 @@ class Rheology(LayerConfigHolder):
         # It is fine to only pass one state property, but we need the other to perform calculations. The method will
         #    check if the other property is already set, but if it isn't then an exception will be raised.
         if viscosity is None and self.viscosity is None:
-            log.error('Rheology set_state called and viscosity is not set and was not provided.')
             raise MissingArgumentError('Viscosity was not provided and is not already set.')
         if shear_modulus is None and self.shear_modulus is None:
-            log.error('Rheology set_state called and shear modulus is not set and was not provided.')
             raise MissingArgumentError('Shear Modulus was not provided and is not already set.')
 
         # Check for unusual values

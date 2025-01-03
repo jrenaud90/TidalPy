@@ -15,7 +15,7 @@ def test_invalid_density_array_size():
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -36,7 +36,7 @@ def test_invalid_upper_radius_bylayer_order():
     is_incompressible_bylayer = (True, False)
     upper_radius_bylayer_array = np.array([1000.0, 500.0], dtype=np.float64)  # Incorrect order
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -80,7 +80,7 @@ def test_invalid_radius_array_start():
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -103,7 +103,7 @@ def test_invalid_radius_array():
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -114,7 +114,7 @@ def test_invalid_radius_array():
     radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
     radius_array[4] = -radius_array[4]
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -156,7 +156,7 @@ def test_layer_missing_interface_value():
     is_incompressible_bylayer = (False, False)
     upper_radius_bylayer_array = np.array([500.0, 1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -168,7 +168,7 @@ def test_layer_missing_interface_value():
         np.linspace(0, 490, 5, dtype=np.float64), # Should end at 500
         np.linspace(500, 1000, 5, dtype=np.float64)
     ))
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -180,7 +180,7 @@ def test_layer_missing_interface_value():
         np.linspace(0, 490, 5, dtype=np.float64), # Should end at 500
         np.linspace(510, 1000, 5, dtype=np.float64) # Should start at 500
     ))
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -201,7 +201,7 @@ def test_layer_too_few_slices():
     is_incompressible_bylayer = (False, False)
     upper_radius_bylayer_array = np.array([500.0, 1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -240,7 +240,7 @@ def test_prop_matrix_limitations_layer_assumptions():
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -253,7 +253,7 @@ def test_prop_matrix_limitations_layer_assumptions():
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -266,7 +266,7 @@ def test_prop_matrix_limitations_layer_assumptions():
     is_incompressible_bylayer = (False,)  # Must be incompressible for prop matrix
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -284,7 +284,7 @@ def test_bad_starting_radius():
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
@@ -293,7 +293,7 @@ def test_bad_starting_radius():
             starting_radius = 0.91 * 1000  # Must be less than 90% total radius.
         )
     
-    with pytest.raises(AttributeError):
+    with pytest.raises(ArgumentException):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,

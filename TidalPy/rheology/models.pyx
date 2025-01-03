@@ -3,6 +3,7 @@
 
 from libc.math cimport fabs, cos, sin, pi, tgamma, INFINITY, isinf
 
+from TidalPy.exceptions import UnknownModelError
 from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
@@ -32,7 +33,7 @@ def find_rheology(str rheology_name):
     elif (rheology_name_clean == 'sundberg') or (rheology_name_clean == 'sundbergcooper'):
         return SundbergCooper
     else:
-        raise AttributeError(f'Unknown rheological model requested: {rheology_name}.')
+        raise UnknownModelError(f'Unknown rheological model requested: {rheology_name}.')
 
 
 ########################################################################################################################

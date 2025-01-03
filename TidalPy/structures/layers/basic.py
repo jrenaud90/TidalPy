@@ -109,19 +109,15 @@ class LayerBase(PhysicalObjSpherical):
         self._use_bulk_density = self.config['use_bulk_density']
 
         if initialize_geometry:
-            try:
-                radius_layer_below = None
-                if self.layer_below is not None:
-                    radius_layer_below = self.layer_below.radius
+            radius_layer_below = None
+            if self.layer_below is not None:
+                radius_layer_below = self.layer_below.radius
 
-                radius, thickness, volume, mass, density = \
-                    find_geometry_from_config(
-                        self.config, self.layer_index, self.is_top_layer,
-                        self.world.radius, self.world.mass, radius_layer_below
-                        )
-            except ParameterMissingError as e:
-                log.error(f'Not enough information provided to determine geometry for {self}.')
-                raise e
+            radius, thickness, volume, mass, density = \
+                find_geometry_from_config(
+                    self.config, self.layer_index, self.is_top_layer,
+                    self.world.radius, self.world.mass, radius_layer_below
+                    )
 
             # Set the layer's geometry
             #     OPT: some of set_geometry will end up redoing some of the above calculations, but they are not
@@ -261,7 +257,6 @@ class LayerBase(PhysicalObjSpherical):
                 # Bottom layer: thickness = radius
                 thickness = radius
             else:
-                log.error(f'Layer thickness can not be determined for {self}')
                 raise MissingArgumentError
 
         # Gravity (and therefore pressure) will depend on the mass contained below this layer

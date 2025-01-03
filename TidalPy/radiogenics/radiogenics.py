@@ -146,7 +146,6 @@ class Radiogenics(LayerModelHolder):
                     self._isos_massfrac.append(iso_data['element_concentration'])
                     self._isos_concentration.append(iso_data['iso_mass_fraction'])
                 except KeyError:
-                    log.error(f'One or more parameters are missing for isotope {isotope} in {self}.')
                     raise ParameterMissingError(f'One or more parameters are missing for isotope {isotope} in {self}.')
 
             # Add the isotope data to the config so that the argument builder can find them

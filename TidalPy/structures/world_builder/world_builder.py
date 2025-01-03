@@ -67,12 +67,11 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         elif world_name.lower() in known_worlds:
             world_config = known_worlds[world_name.lower()]
         else:
-            log.error(
+            raise UnknownWorld(
                 f'The user provided world name, {world_name}, can not be found in the directory of pre-built '
                 f'world configs. Please add a new config to this directory or provide a manual world '
                 f'configuration dictionary. Pre-built world configs can be found in:\n{get_worlds_dir()}'
                 )
-            raise UnknownWorld
 
         log.debug(f'World configuration dictionary found for {world_name}.')
 
@@ -91,8 +90,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         world = BurnManWorld(world_config, burnman_world, burnman_layers, name=world_name)
 
     elif world_type not in world_types:
-        log.error(f'The world type, {world_type}, for {world_name} is unknown or not yet implemented.')
-        raise UnknownWorldType
+        raise UnknownWorldType(f'The world type, {world_type}, for {world_name} is unknown or not yet implemented.')
     
     else:
         # Get the world class

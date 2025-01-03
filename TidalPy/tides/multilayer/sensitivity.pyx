@@ -14,6 +14,7 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
+from TidalPy.exceptions import ArgumentException
 from TidalPy.constants cimport d_NAN_DBL
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs, cf_cabs2
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
@@ -258,13 +259,13 @@ def calc_sensitivity_to_bulk(
     cdef size_t num_ytypes   = int(radial_solutions.shape[0] / 6)
     if perform_checks:
         if num_ytypes < 1:
-            raise AttributeError(f"Unexpected number of ytypes encountered ({num_ytypes}).")
+            raise ArgumentException(f"Unexpected number of ytypes encountered ({num_ytypes}).")
         if shear_modulus_array.size != total_slices:
-            raise AttributeError("Unexpected size encountered for `shear_modulus_array`.")
+            raise ArgumentException("Unexpected size encountered for `shear_modulus_array`.")
         if bulk_modulus_array.size != total_slices:
-            raise AttributeError("Unexpected size encountered for `bulk_modulus_array`.")
+            raise ArgumentException("Unexpected size encountered for `bulk_modulus_array`.")
         if radial_solutions.shape[1] != total_slices:
-            raise AttributeError("Unexpected size encountered for `radial_solutions` (axis=1).")
+            raise ArgumentException("Unexpected size encountered for `radial_solutions` (axis=1).")
 
     # Build output array
     cdef cnp.ndarray sensitivity_to_bulk_array
@@ -302,13 +303,13 @@ def calc_sensitivity_to_shear(
     cdef size_t num_ytypes   = int(radial_solutions.shape[0] / 6)
     if perform_checks:
         if num_ytypes < 1:
-            raise AttributeError(f"Unexpected number of ytypes encountered ({num_ytypes}).")
+            raise ArgumentException(f"Unexpected number of ytypes encountered ({num_ytypes}).")
         if shear_modulus_array.size != total_slices:
-            raise AttributeError("Unexpected size encountered for `shear_modulus_array`.")
+            raise ArgumentException("Unexpected size encountered for `shear_modulus_array`.")
         if bulk_modulus_array.size != total_slices:
-            raise AttributeError("Unexpected size encountered for `bulk_modulus_array`.")
+            raise ArgumentException("Unexpected size encountered for `bulk_modulus_array`.")
         if radial_solutions.shape[1] != total_slices:
-            raise AttributeError("Unexpected size encountered for `radial_solutions` (axis=1).")
+            raise ArgumentException("Unexpected size encountered for `radial_solutions` (axis=1).")
 
     # Build output array
     cdef cnp.ndarray sensitivity_to_shear_array
