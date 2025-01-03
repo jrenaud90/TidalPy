@@ -46,3 +46,9 @@ def test_mode():
     else:
         _test_mode = True
         reinit()
+
+def log_to_file():
+    """ Quick switch to turn on saving logs to file """
+    if not config['logging']['write_log_to_disk']:
+        config['logging']['write_log_to_disk'] = True
+        reinit()

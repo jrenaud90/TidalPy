@@ -76,6 +76,7 @@
     * On Windows the old dir was: "'C:\\Users\\<username>\\AppData\\Local\\TidalPy'"; The new dir is "'C:\\Users\\<username>\\Documents\\TidalPy'"
     * On Mac the old dir was: "'/Users/<username>/Library/Application Support/TidalPy'"; The new dir is "'/Users/<username>/Documents/TidalPy'"
     * On Linux the old dir was: "'/Users/<username>/.local/share/TidalPy'"; The new dir is "'/home/<username>/Documents/TidalPy'"
+* New switch `TidalPy.log_to_file()` to quickly turn on saving log to file (this can also be adjusted in the TidalPy configurations).
 
 #### Dependencies
 * Added support for CyRK v0.12.x
