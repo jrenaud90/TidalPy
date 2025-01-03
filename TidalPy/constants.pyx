@@ -8,11 +8,17 @@
 # Forcing Frequency Extremes
 # Assume that any forcing period larger than a Myr leads to a zero in frequency.
 # Converting to frequency is roughly 1.0e-14 rads s-1
+import TidalPy
+
 cdef double d_MIN_FREQUENCY = 1.0e-14
+if TidalPy.config:
+    d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
 MIN_FREQUENCY = d_MIN_FREQUENCY
 
 # Assume max frequency is for a forcing period of 1 micro-second
 cdef double d_MAX_FREQUENCY = 1.0e8
+if TidalPy.config:
+    d_MAX_FREQUENCY = TidalPy.config['tides']['modes']['maximum_frequency']
 MAX_FREQUENCY = d_MAX_FREQUENCY
 
 # Shear/Bulk Modulus Extremes
