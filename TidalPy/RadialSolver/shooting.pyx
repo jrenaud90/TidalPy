@@ -117,7 +117,7 @@ cdef void cf_shooting_solver(
         cpp_bool scale_rtols_by_layer_type,
         size_t max_num_steps,
         size_t expected_size,
-        size_t max_ram_MB ,
+        size_t max_ram_MB,
         double max_step,
         cpp_bool verbose,
         cpp_bool raise_on_fail
@@ -963,4 +963,4 @@ cdef void cf_shooting_solver(
         solution_storage_ptr.success = False
     else:
         solution_storage_ptr.success = True
-        solution_storage_ptr.set_message('RadialSolver.ShootingMethod:: completed without any noted issues.\n')
+        solution_storage_ptr.set_message('RadialSolver.ShootingMethod: Completed without any noted issues.')

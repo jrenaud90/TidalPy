@@ -54,7 +54,9 @@ def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, 
                 integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
                 scale_rtols_bylayer_type=False,
                 max_num_steps=5_000_000, expected_size=250, max_step=0,
-                verbose=False, nondimensionalize=True, starting_radius=0.1)
+                verbose=False, nondimensionalize=True, starting_radius=0.1,
+                log_info=True  # For this test lets also check that logging info kwarg works.
+            )
 
             assert out.success
             assert type(out.message) is str

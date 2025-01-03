@@ -9,6 +9,10 @@ from libc.string cimport strcpy
 from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.vector cimport vector
 
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
+
 from CyRK cimport PreEvalFunc
 
 from TidalPy.logger import get_logger
@@ -391,7 +395,8 @@ def radial_solver(
         cpp_bool verbose = False,
         cpp_bool warnings = True,
         cpp_bool raise_on_fail = False,
-        cpp_bool perform_checks = True
+        cpp_bool perform_checks = True,
+        cpp_bool log_info = False
         ):
     """
     Solves the viscoelastic-gravitational problem for a planet comprised of solid and liquid layers.
@@ -524,6 +529,9 @@ def radial_solver(
     perform_checks : bool, default=True
         Performs sanity checks that raise python exceptions. If turned off then these checks will be skipped providing 
         some boost to performance but at the risk of uncaught exceptions (crashes).
+    log_info : bool, default=False
+        Flag to turn on logging of key information (diagnostic and physical) from the RadialSolverSolution.
+        Note there is a performance hit if this is true, particularly if file logging is enabled.
     
     Returns
     -------
@@ -822,4 +830,34 @@ def radial_solver(
         # TODO Make a better faster way to do this check?? Basically need to overhaul all exception handling.
         if "not implemented" in solution.message:
             raise NotImplementedError(solution.message)
+    
+    cdef str log_message = ''
+    if log_info:
+        log_message += "\n\tEquation of State Solver:"
+        log_message += f"\n\t\tSuccess:           {solution.eos_success}"
+        log_message += f"\n\t\tError code:        {solution.eos_error_code}"
+        log_message += f"\n\t\tMessage:           {solution.eos_message}"
+        if solution.eos_success:
+            log_message += f"\n\t\tIterations:        {solution.eos_iterations}"
+            log_message += f"\n\t\tPressure Error:    {solution.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tCentral Pressure:  {solution.central_pressure:0.3e}"
+            log_message += f"\n\t\tMass:              {solution.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tMOI (factor):      {solution.moi:0.3e} ({solution.moi_factor:0.3f})"
+            log_message += f"\n\t\tSurface gravity:   {solution.surface_gravity:0.3e}\n"
+        log_message += "\n\tRadial Solver Results:"
+        log_message += f"\n\t\tSuccess:     {solution.success}"
+        log_message += f"\n\t\tError code:  {solution.error_code}"
+        log_message += f"\n\t\tMessage:     {solution.message}"
+        log_message += f"\n\t\tSteps Taken: {solution.steps_taken}"
+        if solution.success:
+            log_message += f"\n\t\tk_{solution.degree_l} =        {solution.k}"
+            log_message += f"\n\t\th_{solution.degree_l} =        {solution.h}"
+            log_message += f"\n\t\tl_{solution.degree_l} =        {solution.l}"
+        
+        log.info(log_message)
+    
+    if warnings:
+        if np.any(solution.steps_taken > 7_000):
+            log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}). Recommend checking for instabilities (a good method is looking at `<solution>.plot_ys()`).")
+
     return solution

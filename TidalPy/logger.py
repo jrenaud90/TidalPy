@@ -66,11 +66,16 @@ def get_console_handler(error_stream=False):
 
 def get_file_handler() -> logging.FileHandler:
     """ Get file handler for TidalPy's logger. """
-    assert TidalPy.config is not None
+    if TidalPy.config is None:
+        return None
+
+    if TidalPy.config['logging'] is None:
+        return None
 
     if not TidalPy.config['logging']['write_log_to_disk']:
         # User does not want log written to disk.
         return None
+    
     if (not TidalPy.config['logging']['write_log_notebook']) and TidalPy._in_jupyter:
         # User does not want log written while using Jupyter notebook; which we are in.
         return None

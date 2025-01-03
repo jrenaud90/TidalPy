@@ -20,6 +20,7 @@
     * Each layer's upper and lower radius must be in the `radius_array`. That means if there is more than one layer there will be two identical radius values!
       * E.g., if a planet has a ICB at 1000km and a CMB at 3500km. Then `radius_array` must be setup with 2 values of 1000km and 2 values of 3500km. 
       * Other parameters should be defined on a "as layer" basis. So shear modulus at the 1st 1000km would be the shear of the inner core, at the 2nd 1000km it would be the shear modulus of the outer core. Likewise shear modulus at the 1st 3500km would be for the outer core and at the 2nd 3500km would be the shear modulus for the mantle. Same goes for density and bulk modulus.
+* Added warning to check for instabilities (based on large number of steps taken; requires `warnings=True`).
 * Changes to `radial_solver` arguments:
   * `radial_solver` no longer requires `gravity_array`.
     * New with this update is a self-consistent equation of state solver (EOSS) that is called from `radial_solver`. This EOSS is used to find gravity(r).
@@ -44,6 +45,8 @@
     * `eos_integration_method` Runge-Kutta method to use for EOSS (default="RK45"). `eos_rtol` and `eos_atol` can also be provided to control integration error.
     * `eos_pressure_tol` (default=1.0e-3) and `eos_max_iters` (default=40) control the pressure convergence of the EOSS.
   * Added optional argument `perform_checks` (default=True) that performs many checks on the user input before running the solution (small performance penalty, but highly recommend leaving on until your inputs are tested).
+  * Added optional argument `log_info` (default=False) that will log key physical and diagnostic information to TidalPy's log (which can be set to be consol print, log file, or both via TidalPy's configurations). 
+    * Note there is a performance hit when using this, particularly if logging to file is enabled.
 
 **New RadialSolver Helpers**
 * To assist with the generation of valid inputs to `radial_solver`, TidalPy now provides two helper functions:
