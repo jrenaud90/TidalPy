@@ -57,7 +57,7 @@ jobs:
         
       - name: Run pytest
         shell: bash -el {0}
-        run: pytest -n auto -v Tests/
+        run: pytest -v Tests/
   
   test-macos-13:
     defaults:
