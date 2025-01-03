@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from TidalPy.exceptions import UnknownModelError
+from TidalPy.exceptions import UnknownModelError, ArgumentException
 from TidalPy.RadialSolver import radial_solver
 
 

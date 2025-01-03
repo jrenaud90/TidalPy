@@ -4,6 +4,7 @@ from copy import copy
 
 import numpy as np
 
+from TidalPy.exceptions import ArgumentException
 from TidalPy.rheology import Maxwell, Andrade
 from TidalPy.RadialSolver.helpers import build_rs_input_homogenous_layers, PlanetBuildData, build_rs_input_from_data
 
