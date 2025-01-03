@@ -1,6 +1,6 @@
-cdef void cf_saito_liquid_static_inccompressible(
+cdef void cf_saito_liquid_static_incompressible(
         double radius,
-        unsigned char degree_l,
-        ssize_t num_ys, 
+        int degree_l,
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil

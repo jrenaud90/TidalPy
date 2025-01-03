@@ -8,7 +8,7 @@ import numpy as np
 import TidalPy
 TidalPy.test_mode = True
 
-from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow, cinv
+from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow, cinv, cabs, cabs2
 
 
 def compare_values(value_1, value_2):
@@ -60,6 +60,22 @@ standard_list_float = (
     -inf,
     inf
     )
+
+@pytest.mark.parametrize('z', standard_list_complex)
+def test_cabs(z):
+
+    np_result = np.abs(z)
+    tpy_result = cabs(z)
+
+    compare_values_complex(np_result, tpy_result)
+
+@pytest.mark.parametrize('z', standard_list_complex)
+def test_cabs2(z):
+
+    np_result = np.abs(z)**2
+    tpy_result = cabs2(z)
+
+    compare_values_complex(np_result, tpy_result)
 
 @pytest.mark.parametrize('z', standard_list_complex)
 def test_cinv(z):

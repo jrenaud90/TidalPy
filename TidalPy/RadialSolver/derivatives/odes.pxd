@@ -1,59 +1,71 @@
-from TidalPy.RadialSolver.derivatives.base cimport RadialSolverBase
+from libcpp.memory cimport shared_ptr
+
+from CyRK cimport DiffeqFuncType, PreEvalFunc
+
+from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 
 
-cdef class SolidDynamicCompressible(RadialSolverBase):
-    pass
+cdef struct RadialSolverDiffeqArgStruct:
+    double degree_l
+    double lp1
+    double lm1
+    double llp1
+    double G
+    double grav_coeff
+    double frequency
+    size_t layer_index
+    EOSSolutionCC* eos_solution_ptr
 
-cdef class SolidDynamicIncompressible(RadialSolverBase):
-    pass
+cdef void cf_solid_dynamic_compressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef class SolidStaticCompressible(RadialSolverBase):
-    pass
+cdef void cf_solid_dynamic_incompressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef class SolidStaticIncompressible(RadialSolverBase):
-    pass
+cdef void cf_solid_static_compressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef class LiquidDynamicCompressible(RadialSolverBase):
-    pass
+cdef void cf_solid_static_incompressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef class LiquidDynamicIncompressible(RadialSolverBase):
-    pass
+cdef void cf_liquid_dynamic_compressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef class LiquidStaticCompressible(RadialSolverBase):
-    pass
+cdef void cf_liquid_dynamic_incompressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef class LiquidStaticIncompressible(RadialSolverBase):
-    pass
+cdef void cf_liquid_static_incompressible(
+        double* dy_ptr,
+        double radius,
+        double* y_ptr,
+        char* args_ptr,
+        PreEvalFunc unused) noexcept nogil
 
-cdef RadialSolverBase cf_build_solver(
-    int layer_type,
-    bint is_static,
-    bint is_incomp,
-
-    # RadialSolverBase Inputs
-    size_t num_slices,
-    size_t num_ys,
-    double* radius_array_ptr,
-    double* density_array_ptr,
-    double* gravity_array_ptr,
-    double* bulk_modulus_array_ptr,
-    double complex* shear_modulus_array_ptr,
-    double frequency_to_use,
-    unsigned char degree_l,
-    double G_to_use,
-
-    # Regular CySolver Inputs
-    double t_start,
-    double t_end,
-    double* y0_ptr,
-    double* rtols,
-    double* atols,
-    unsigned char rk_method,
-    double max_step,
-    size_t max_num_steps,
-    size_t expected_size,
-    size_t max_ram_MB,
-
-    # Additional optional arguments for RadialSolver class
-    bint limit_solution_to_radius
-    )
+cdef DiffeqFuncType cf_find_layer_diffeq(
+        int layer_type,
+        int layer_is_static,
+        int layer_is_incomp) noexcept nogil

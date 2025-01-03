@@ -1,9 +1,9 @@
 # Calculating Love Numbers using TidalPy's RadialSolver module and functions
 _Instructions and examples on how to use TidalPy's `RadialSolver` module._
 
-TidalPy's `RadialSolver` package allows a user to estiamte a planet's global, viscoelastic
+TidalPy's `RadialSolver` package allows a user to estimate a planet's global, viscoelastic
 [Love numbers](https://en.wikipedia.org/wiki/Love_number). These numbers can then be used to determine the magnitude of tidal
-dissipation, speed of rotational/orbital changes, and provide predictions for gravity field measurements. 
+dissipation, speed of rotational/orbital changes, and provide predictions for gravity or distance measurements. 
 
 TidalPy uses a numerical shooting methods which integrates a set of 3x6 viscoelastic-gravitational ordinary differential equations
 from the core of the planet to its surface. The final result is a super position of the three different solutions where each
@@ -19,7 +19,7 @@ If you suspect that an array may not be C-contiguous you can use the numpy funct
 
 ```python
 from TidalPy.RadialSolver import radial_solver
-radial_solver_solution = radial_solver(
+rs_solution = radial_solver(
     # Following arrays should define the respective physical properties throughout the planet. 
     # It is recommended to use at least 20 slices per layer (so the arrays should be 20+ x num_layers in size).
     # These arrays can be numpy np.ndarrays.
@@ -150,71 +150,6 @@ The output of `radial_solver` is a `RadialSolverSolution` class. This class has 
 
 In addition to the full `y` radial solution results, you can also quickly access the Love numbers using:
 
-```python
-solution.love  
-# Returns all Love numbers for each solution type specified.
-```
-
-These are returned in a 2D array structured like [num_solution_types : love_number] where the first column is the
-solution type. If you are only solving for tidal Love numbers then there will only be one solution in the "0" location.
-If you are solving for multiple solutions then they will be stored in order (e.g., if you solve for tidal and load then
-tidal will be at 0 and load at 1). The second column is used to access the three Love numbers:
-- index 0: k Love number.
-- index 1: h Love number.
-- index 2: l Shida number.
-
-Example:
-
-Say you want to access the h Love number for solution 0:
-
-```python
-k = solution.love[0, 1]
-```
-
-There are shortcuts to make accessing specific Love numbers easier. The following attributes will return arrays for the
-respective Love number for each solution type.
-
-```python
-solution.k = # [Solution 0's k, Solution 1's k, ...]
-solution.h = # [Solution 0's h, Solution 1's h, ...]
-solution.l = # [Solution 0's l, Solution 1's l, ...]
-```
-
-More details on the Radial Solution class.
-
-```python
-
-radial_solver_solution = radial_solver(...)  # See inputs from the previous section
-
-# Check is the solution was successful.
-# See the following sections for information on why a solution may not be successful.
-radial_solver_solution.success  # == (True / False)
-
-# Check any integration messages (e.g., hints about why the solver failed)
-radial_solver_solution.message
-
-# Get full gravitational-viscoelastic solution at each radial step.
-# In the literature these are often represented as `y_1, y_2, y_3, ...`.
-# This is a np.ndarray (complex) with the shape of [num_ys * num_solve_for, num_radial_steps]
-# See the `solve_for` radial solver input for info on what `num_solve_for` stands for.
-radial_solver_solution.result
-
-# There is a helpful way to directly get the result you are looking for if you solved for multiple Love types.
-radial_solver_solution['tidal']    # Tidal gravitational-viscoelastic results
-radial_solver_solution['loading']  # Loading gravitational-viscoelastic results
-
-# Or you can get all requested complex Love numbers
-# This is a np.ndarray (complex) with the shape of [num_solve_for, 3]
-# The 2nd dimension is, in order, Love/Shida numbers: k, h, l.
-# For example, if you only set `solve_for=('tidal',)` then `radial_solver_solution.love[0, 1]` == tidal k.
-radial_solver_solution.love
-
-# There are also helpful shortcuts for each individual Love number.
-# These are each np.ndarrays but of only size 1 if `num_solve_for==1`
-radial_solver_solution.k
-radial_solver_solution.h
-radial_solver_solution.l
-```
 
 **Performance Note**
 
@@ -277,7 +212,7 @@ def wrap():
 
 ### Common Reasons for Integration Failure:
 Below are a list of common problems that lead to integration failure. These are grouped by message codes which can be
-accessed via `radial_solver_solution.message`.
+accessed via `rs_solution.message`.
 
 #### "Error in step size calculation:\n\tRequired step size is less than spacing between numbers."
 This message indicates that the integrator could not solve the problem. 
@@ -329,3 +264,150 @@ TidalPy implements the fundamental matrix defined by SVC16 Eq. 2.42 and its inve
 * Propagator Matrix Technique
     * [Roberts & Nimmo (2008)](https://ui.adsabs.harvard.edu/abs/2008Icar..194..675R/abstract)
     * [Henning & Hurford (2014)](https://ui.adsabs.harvard.edu/abs/2014ApJ...789...30H/abstract)
+
+
+## Radial Solver Solution
+`TidalPy.RadialSolver.radial_solver` functions stores the viscoelastic-gravitational solution, results of solving a 
+planet's equation of state, and other parameters and meta data in a cythonized python class `TidalPy.RadialSolver.rs_solution.RadialSolverSolution`. This document details how to access this API from both Python and Cython.
+
+### Python API
+The example below outlines which parameters are available via Python from the `RadialSolverSolution` class instance.
+
+```python
+
+rs_solution = radial_solver(...)  # See inputs from the previous section
+
+# Check is the solution was successful.
+# See the following sections for information on why a solution may not be successful.
+rs_solution.success     # == (True / False)
+rs_solution.error_code  # Equals 0 if no error.
+
+# Check any integration messages (e.g., hints about why the solver failed)
+rs_solution.message
+
+# Parameters held by the equation of state solution
+# See more details about these attributes in the "Equation of State Solver.md" documentation.
+rs_solution.eos_error_code
+rs_solution.eos_message
+rs_solution.eos_success
+rs_solution.eos_pressure_error
+rs_solution.eos_iterations
+rs_solution.eos_steps_taken
+
+# Physical parameters held by the EOS solution
+# Arrays defined radially throughout the planet
+rs_solution.radius_array
+rs_solution.gravity_array
+rs_solution.pressure_array
+rs_solution.mass_array
+rs_solution.moi_array
+rs_solution.density_array
+rs_solution.shear_modulus_array  # Complex-valued
+rs_solution.bulk_modulus_array   # Complex-valued
+
+# Scalars (usually defined at surface or core)
+rs_solution.radius
+rs_solution.mass
+rs_solution.moi
+rs_solution.moi_factor
+rs_solution.central_pressure
+rs_solution.surface_pressure
+rs_solution.surface_gravity
+
+# Radial solver outputs
+rs_solution.degree_l  # Which harmonic degree was used to perform calculations.
+
+# TidalPy's radial solver uses an integration technique which solves ODEs throughout each layer of a planet. The number of integration steps is variable and determined by the local error in the calculations.
+# The larger the number of steps, the lower the error but the larger the computation time. You can control what error level is acceptable by adjusting `radial_solver`s `integration_rtol`, `integration_atol`, and the `integration_method` used. Furthermore, you can force `radial_solver` to automatically fail if too many integration steps are taken by adjusting `max_num_steps` and `max_ram_MB` (useful if running MCMCs that may enter a bad parameter space leading to unstable results). 
+# The solution records the number of steps taken for each solution (up to 3) in each layer. This is a np.ndarray of ints structured as [num_layers, 3]. Note that the second dimension is for the solution number. Solid layers will have 3 solutions, dynamic liquid layers will have 2, and static liquid layers will only have 1; the unused solutions will be set to 0.
+# This parameter is useful to look at to both tweak tolerances to maximize performance and to check for instability (generally speaking, radial solver should not need more than ~100 steps per solution per layer) in complex scenarios this may rise to ~1000 but if you see >10_000 then it is very likely that the solution is unstable. See `rs_solution.plot_ys()` for another way to check for instability.
+rs_solution.steps_taken
+
+# All radial function results are stored in the `result` array. This is a M x 6 x N where N is the number of radial steps, M is the number of solution types (e.g., "Tidal", "Loading", etc.)
+# The "6" represents the 6 different radial functions. For Solid layers these are the traditional y1, y2, y3 ... (TidalPy uses the Takeuchi & Saito (1972) format of these values).
+# Liquid layers do not define y4 so it will always be nan in these layers. Static liquid layers further do not have a defined y2, y3, y5, y6. TidalPy uses the method of Saito (1974) to define a new "y7" which takes the place of "y6" in this array; all other values should be nan. 
+rs_solution.result
+
+# The radial functions can be quickly plotted as a function of radius using the following method. This is a useful debugging tool to check for instability.
+# Instability generally looks like very large spikes, very constant sinusoidal results, or just results that do not smoothly change with radius.
+# If multiple solution types were requested, then this will plot each on the same plots as a different color.
+# This function returns a tuple containing the matplotlib (`Figure`, array of `Axis`).
+rs_solution.plot_ys()
+
+# There is a helpful way to directly get the radial solution results for a specified solution type, if multiple solutions were requested.
+rs_solution['tidal']    # Tidal gravitational-viscoelastic results
+rs_solution['loading']  # Loading gravitational-viscoelastic results
+
+# Complex Love numbers can be accessed using the `love` attribute which is a np.ndarray (complex) with the shape of [num_solve_for, 3]
+# The first dimension is solution type. If you are only solving for tidal Love numbers then there will only be one solution in the "0" location.
+# tidal will be at 0 and load at 1). The second dimension is used to access the three Love numbers:
+# - index 0: k Love number.
+# - index 1: h Love number.
+# - index 2: l Shida number.
+# For example, if you only set `solve_for=('tidal',)` then `rs_solution.love[0, 0]` == tidal k, `rs_solution.love[0, 1]` == tidal h.
+rs_solution.love
+
+# There are also helpful shortcuts for each individual Love number.
+# These are complex scalars if only one solution type is requested. Otherwise they are np.ndarrays.
+rs_solution.k
+rs_solution.h
+rs_solution.l
+```
+
+## Helper Functions
+
+TidalPy's radial solver function is particular on the format of its inputs. It can be easy to make a mistake which leads to solution failures, exceptions, or crashes[^1].
+The helper functions in this section are designed to give users an easy interface to provide data that is then translated into the inputs required by the `radial_solver` function.
+
+[^1]: If a crash does occur, please report it on TidalPy's GitHub issues page. Please include the exact inputs used.
+
+### `build_planet_constant_layers`
+
+Import with `from TidalPy.RadialSolver import build_rs_input_homogenous_layers`
+
+Creates radial solver inputs based on user provided parameters for a planet with homogenous layers (each layer has a constant density, viscosity, shear, etc.).
+Checks will be performed to ensure that the inputs are valid.
+
+Arguments and use case:
+```python
+output = build_rs_input_homogenous_layers(
+    planet_radius,                    # Radius of planet (float64) [m]
+    forcing_frequency,                # Forcing frequency, used to solve for the complex shear / bulk modulus (float64) [rad s-1]
+    density_tuple,                    # Tuple of floats for each layer's constant density. (Tuple[float64]; len = num_layers)
+    static_bulk_modulus_tuple,        # Tuple of floats for each layer's constant static bulk modulus. (Tuple[float64]; len = num_layers)
+    static_shear_modulus_tuple,       # Tuple of floats for each layer's constant static shear modulus. (Tuple[float64]; len = num_layers)
+    bulk_viscosity_tuple,             # Tuple of floats for each layer's constant bulk viscosity. (Tuple[float64]; len = num_layers)
+    shear_viscosity_tuple,            # Tuple of floats for each layer's constant shear viscosity. (Tuple[float64]; len = num_layers)
+    layer_type_tuple,                 # Tuple of strings for each layer type. (Tuple[str]; len = num_layers)
+    layer_is_static_tuple,            # Tuple of booleans for if each layer should use the static assumption. (Tuple[bool]; len = num_layers)
+    layer_is_incompressible_tuple,    # Tuple of booleans for if each layer should use the incompressible assumption. (Tuple[bool]; len = num_layers)
+    shear_rheology_model_tuple,       # Tuple of rheology instances for each layer's complex shear calculation. (Tuple[RheologyModelBase]; len = num_layers)
+    bulk_rheology_model_tuple,        # Tuple of rheology instances for each layer's complex bulk calculation. (Tuple[RheologyModelBase]; len = num_layers)
+    # One of the following tuples must be provided. They define the layer geometry
+    radius_fraction_tuple = None,     # Tuple of floats for each layer's radius fraction (R_layer / R_Planet).  (Tuple[float64]; len = num_layers)
+    thickness_fraction_tuple = None,  # Tuple of floats for each layer's thickness fraction ((R_layer - R_layer_below) / R_Planet).  (Tuple[float64]; len = num_layers)
+    volume_fraction_tuple = None,     # Tuple of floats for each layer's volume fraction (V_layer / V_Planet).  (Tuple[float64]; len = num_layers)
+    # Each layer is further sub-divided into slices. At least 5 slices per layer is required. 
+    slices_tuple = None,              # Tuple of ints for the number of subslices each layer should be built with. (Tuple[int]; len = num_layers)
+    slice_per_layer = 10,             # Number of slices to build all layers with. Used for each layer if `slices_tuple` is not provided (int)
+    cpp_bool perform_checks = True    # Flag to tell function to perform additional checks on inputs. There is a small performance hit, but recommended unless you are sure your input is valid. (boolean)
+
+# The output is a named tuple with the following attributes:
+output.radius_array
+output.density_array
+output.complex_bulk_modulus_array
+output.complex_shear_modulus_array
+output.frequency
+output.planet_bulk_density
+output.layer_types
+output.is_static_bylayer
+output.is_incompressible_bylayer
+output.upper_radius_bylayer_array
+
+# These are all of the required, positional arguments of TidalPy's `radial_solver` function. 
+# They can be easily passed to the solver
+solution = radial_solver(
+    *output
+    # Any changes to keyword arguments here....
+    )
+```

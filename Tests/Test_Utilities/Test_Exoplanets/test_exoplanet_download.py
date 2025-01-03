@@ -20,8 +20,6 @@ def test_exoplanet_download():
     
     assert len(exoplanet_data) > 0
 
-TidalPy.test_mode = True
-
 def test_exoplanet_download_stellar_type():
     """Tests the exoplanet archive download utility using the different kinds of stellar types."""
 

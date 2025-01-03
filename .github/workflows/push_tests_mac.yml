@@ -39,12 +39,6 @@ jobs:
         run: |
           brew install llvm libomp
 
-      - name: Install burnman (if python != 3.12)
-        # Currently released version of burnman does not support py 3.12; so skip its tests for py3.12
-        shell: bash -el {0}
-        if: ${{ matrix.python-version != '3.12' }}
-        run: python -m pip install burnman
-
       - name: Install package
         shell: bash -el {0}
         # export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp -lgomp"
@@ -56,11 +50,11 @@ jobs:
           export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
           export CC=/opt/homebrew/opt/llvm/bin/clang
           export CXX=/opt/homebrew/opt/llvm/bin/clang++
-          python -m pip install -v .
+          python -m pip install -v .[burnman]
         
       - name: Run pytest
         shell: bash -el {0}
-        run: pytest -n auto --capture=sys -v Tests/
+        run: pytest -n auto -v Tests/
   
   test-macos-13:
     defaults:

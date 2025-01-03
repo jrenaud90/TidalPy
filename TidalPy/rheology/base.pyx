@@ -1,10 +1,8 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Common base class for all TidalPy rheology models. """
 
 from libc.math cimport NAN
-
-from cython.parallel import prange
 
 import logging
 log = logging.getLogger(__name__)
@@ -20,6 +18,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             **kwargs):
 
         # Setup base class
+        self.name_prefix = 'RheologyModelBase'
         super().__init__(class_name=class_name, **kwargs)
 
         # Define model specific parameters
@@ -74,7 +73,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
 
         cdef Py_ssize_t i
 
-        for i in prange(n):
+        for i in range(n):
             output_ptr[i] = self._implementation(frequency_ptr[i], modulus, viscosity)
 
     cdef void _vectorize_modulus_viscosity(
@@ -88,7 +87,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
 
         cdef Py_ssize_t i
 
-        for i in prange(n):
+        for i in range(n):
             output_ptr[i] = self._implementation(frequency, modulus_ptr[i], viscosity_ptr[i])
 
     def vectorize_frequency(

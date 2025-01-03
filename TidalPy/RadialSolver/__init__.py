@@ -1,1 +1,2 @@
 from TidalPy.RadialSolver.solver import radial_solver
+from TidalPy.RadialSolver.helpers import build_rs_input_homogenous_layers, build_rs_input_from_data

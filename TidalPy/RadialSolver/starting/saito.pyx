@@ -6,11 +6,11 @@
 ########################################################################################################################
 
 
-cdef void cf_saito_liquid_static_inccompressible(
+cdef void cf_saito_liquid_static_incompressible(
         double radius,
-        unsigned char degree_l,
-        ssize_t num_ys, 
-        double complex* initial_conditions_ptr
+        int degree_l,
+        size_t num_ys, 
+        double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the initial guess at the bottom of a liquid layer using the static assumption.
 
@@ -28,23 +28,20 @@ cdef void cf_saito_liquid_static_inccompressible(
 
     Parameters
     ----------
-    radius : float
+    radius : double
         Radius where the radial functions are calculated. [m]
-    degree_l : int = 2
+    degree_l : unsigned char
         Tidal harmonic order.
-    G_to_use : float = G
-        Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
-
-    Returns
-    -------
-    solid_guesses : np.ndarray
-        The one independent liquid guess (sn1)
-
+    num_ys : ssize_t
+        Number of radial solutions for this layer type.
+    starting_conditions_ptr : double complex*, <Output>
+        Desired starting conditions for this layer.
+        One independent liquid guess (sn1)
     """
 
     # See Eq. 19 in Saito 1974
     # # y5 solution 0
-    initial_conditions_ptr[0] = radius**degree_l
+    starting_conditions_ptr[0] = radius**degree_l
 
     # # y7 solution 0
-    initial_conditions_ptr[1] = 2. * (degree_l - 1.) * radius**(degree_l - 1.)
+    starting_conditions_ptr[1] = 2. * (degree_l - 1.) * radius**(degree_l - 1.)

@@ -1,8 +1,8 @@
 import numpy as np
-from scipy.constants import R
 
-from ...utilities.performance.numba import njit
-from ...utilities.types import FloatArray, float_lognat_max
+from TidalPy.constants import R
+from TidalPy.utilities.performance.numba import njit
+from TidalPy.utilities.types import FloatArray, float_lognat_max
 
 
 @njit(cacheable=True)

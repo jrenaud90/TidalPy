@@ -32,7 +32,7 @@ class LowPressureIceConst(ConstantMaterial):
 
         # Calculated
         self.params['shear_modulus'] = self.params['shear_wave_velocity']**2 * self.params['density']
-        self.params['adiabatic_bulk_modulus'] = self.params['p_wave_velocity']**2 * self.params['density'] - \
+        self.params['isothermal_bulk_modulus_reuss'] = self.params['p_wave_velocity']**2 * self.params['density'] - \
                                                 (4. / 3.) * self.params['shear_modulus']
         self.params['molar_heat_capacity_p'] = 1960 * self.params['molar_mass']
 
@@ -57,7 +57,7 @@ class HighPressureIceConst(ConstantMaterial):
 
         # Calculated
         self.params['shear_modulus'] = self.params['shear_wave_velocity']**2 * self.params['density']
-        self.params['adiabatic_bulk_modulus'] = self.params['p_wave_velocity']**2 * self.params['density'] - \
+        self.params['isothermal_bulk_modulus_reuss'] = self.params['p_wave_velocity']**2 * self.params['density'] - \
                                                 (4. / 3.) * self.params['shear_modulus']
         self.params['molar_heat_capacity_p'] = 1960 * self.params['molar_mass']
         super().__init__()

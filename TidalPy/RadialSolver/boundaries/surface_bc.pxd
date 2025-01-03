@@ -1,4 +1,4 @@
-cdef void cf_get_surface_bc(
+cdef int cf_get_surface_bc(
     double* boundary_conditions_ptr,
     int* bc_model_ptr,
     size_t num_bcs,

@@ -14,15 +14,20 @@ SVC16 : Sabadini, Vermeerson, & Cambiotti (2016, DOI: 10.1007/978-94-017-7552-6)
 HH14  : Henning & Hurford (2014, DOI: 10.1088/0004-637X/789/1/30)
 ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/master/IcyDwarf/Thermal.h)
 """
+
 from libc.math cimport pi
+from libcpp cimport bool as cpp_bool
 
-from cython.parallel cimport prange
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
 
-from TidalPy.utilities.constants_x cimport G
+from TidalPy.constants cimport d_G
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 
 cdef void cf_fundamental_matrix(
+        Py_ssize_t first_slice_index,
         Py_ssize_t num_radial_slices,
         double* radius_array_ptr,
         double* density_array_ptr,
@@ -31,8 +36,8 @@ cdef void cf_fundamental_matrix(
         double complex* fundamental_mtx_ptr,
         double complex* inverse_fundamental_mtx_ptr,
         double complex* derivative_mtx_ptr,
-        unsigned char degree_l = 2,
-        double G_to_use = G
+        int degree_l = 2,
+        double G_to_use = d_G
         ) noexcept nogil:
     """ Construct the fundamental matrix and its inverse for a generic order-l
 
@@ -44,6 +49,8 @@ cdef void cf_fundamental_matrix(
 
     Parameters
     ----------
+    first_slice_index : Py_ssize_t
+        Initial radial index to start populating matrices at.
     num_radial_slices : Py_ssize_t
         Number of radial slices
     radius_array_ptr : double
@@ -66,11 +73,11 @@ cdef void cf_fundamental_matrix(
         The matrix, A, that satisfies the equation dy/dr = A * y
     degree_l : unsigned char, default=2
         Harmonic degree.
-    G_to_use : double, default=G
+    G_to_use : double, default=d_G
         Gravitational constant used in calculations. Can be provided for non-dimensionalized solutions.
     """
 
-    cdef Py_ssize_t r_i, index_shift
+    cdef Py_ssize_t slice_i, index_shift
     
     cdef double radius, gravity, density
     cdef double complex complex_shear
@@ -91,16 +98,16 @@ cdef void cf_fundamental_matrix(
     cdef double dlp1         = (2. * degree_l_dbl + 1.)
     cdef double dlp3         = (2. * degree_l_dbl + 3.)
 
-    for r_i in prange(num_radial_slices):
+    for slice_i in range(first_slice_index, num_radial_slices):
 
         # Shift index by 36 (for the inner 6x6 matrix)
-        index_shift = r_i * 36
+        index_shift = slice_i * 36
 
         # Unpack radially dependent variables
-        radius        = radius_array_ptr[r_i]
-        complex_shear = complex_shear_array_ptr[r_i]
-        gravity       = gravity_array_ptr[r_i]
-        density       = density_array_ptr[r_i]
+        radius        = radius_array_ptr[slice_i]
+        complex_shear = complex_shear_array_ptr[slice_i]
+        gravity       = gravity_array_ptr[slice_i]
+        density       = density_array_ptr[slice_i]
 
         # Radius-based optimizations
         r_inv  = 1. / radius
@@ -297,11 +304,9 @@ def fundamental_matrix(
         double[::1] density_array_view,
         double[::1] gravity_array_view,
         double complex[::1] complex_shear_array_view,
-        double complex[:, :, ::1] fundamental_mtx_view,
-        double complex[:, :, ::1] fundamental_mtx_inverse_view,
-        double complex[:, :, ::1] derivative_mtx_view,  
-        unsigned char degree_l = 2,
-        double G_to_use = G
+        int degree_l = 2,
+        double G_to_use = d_G,
+        cpp_bool perform_checks = True
         ):
     """ Construct the fundamental matrix and its inverse using harmonic degree l.
 
@@ -321,54 +326,48 @@ def fundamental_matrix(
         Pointer to array of acceleration due to gravity at each radius [m s-2]
     complex_shear_array_view : double complex
         Pointer to array of Complex shear modulus at each radius [Pa]
-    fundamental_mtx_view : double complex[:, ::1]
-        _Return Value_
-        Fundamental matrix used in the propagation technique
-    fundamental_mtx_inverse_view : double complex[:, ::1]
-        _Return Value_
-        The inverse of the fundamental matrix used in the propagation technique
-    derivative_mtx_view : double complex[:, ::1]
-        _Return Value_
-        The matrix, A, that satisfies the equation dy/dr = A * y
-    degree_l : unsigned char, default=2
+    degree_l : int, default=2
         Harmonic degree.
-    G_to_use : double, default=G
+    G_to_use : double, default=d_G
         Gravitational constant used in calculations. Can be provided for non-dimensionalized solutions.
+    perform_checks : bool, default=True
+        If True, then checks will be performed on the input arguments to check for issues.
     """ 
 
     cdef Py_ssize_t num_radial_slices
     num_radial_slices = len(radius_array_view)
 
     # Check for unexpected shapes and sizes of return matrices
-    if len(density_array_view) != num_radial_slices:
-        raise ValueError('Unexpected size encountered for density array.')
-    if len(gravity_array_view) != num_radial_slices:
-        raise ValueError('Unexpected size encountered for gravity array.')
-    if len(complex_shear_array_view) != num_radial_slices:
-        raise ValueError('Unexpected size encountered for complex shear array.')
-    if (fundamental_mtx_view.shape[0] != num_radial_slices) or \
-            (fundamental_mtx_view.shape[1] != 6) or \
-            (fundamental_mtx_view.shape[2] != 6):
-        raise ValueError('Unexpected shape encountered for Fundamental Matrix.')
-    if (fundamental_mtx_inverse_view.shape[0] != num_radial_slices) or \
-            (fundamental_mtx_inverse_view.shape[1] != 6) or \
-            (fundamental_mtx_inverse_view.shape[2] != 6):
-        raise ValueError('Unexpected shape encountered for Fundamental Matrix (inv).')
-    if (derivative_mtx_view.shape[0] != num_radial_slices) or \
-            (derivative_mtx_view.shape[1] != 6) or \
-            (derivative_mtx_view.shape[2] != 6):
-        raise ValueError('Unexpected shape encountered for Derivative Matrix.')
+    if perform_checks:
+        if len(density_array_view) != num_radial_slices:
+            raise ValueError('Unexpected size encountered for density array.')
+        if len(gravity_array_view) != num_radial_slices:
+            raise ValueError('Unexpected size encountered for gravity array.')
+        if len(complex_shear_array_view) != num_radial_slices:
+            raise ValueError('Unexpected size encountered for complex shear array.')
+    
+    # Build output arrays
+    cdef cnp.ndarray[cnp.complex128_t, ndim=3] fundamental_mtx_arr         = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=3] inverse_fundamental_mtx_arr = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=3] derivative_mtx_arr          = np.empty((num_radial_slices, 6, 6), dtype=np.complex128, order='C')
+
+    cdef double complex[:, :, ::1] fundamental_mtx_view         = fundamental_mtx_arr
+    cdef double complex[:, :, ::1] inverse_fundamental_mtx_view = inverse_fundamental_mtx_arr
+    cdef double complex[:, :, ::1] derivative_mtx_view          = derivative_mtx_arr
 
     # Call cdef function.
     cf_fundamental_matrix(
+        0,
         num_radial_slices,
         &radius_array_view[0],
         &density_array_view[0],
         &gravity_array_view[0],
         &complex_shear_array_view[0],
         &fundamental_mtx_view[0, 0, 0],
-        &fundamental_mtx_inverse_view[0, 0, 0],
+        &inverse_fundamental_mtx_view[0, 0, 0],
         &derivative_mtx_view[0, 0, 0],
         degree_l,
         G_to_use
     )
+
+    return fundamental_mtx_arr, inverse_fundamental_mtx_arr, derivative_mtx_arr
