@@ -20,7 +20,7 @@ def test_invalid_density_array_size():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_invalid_upper_radius_bylayer_order():
@@ -41,7 +41,7 @@ def test_invalid_upper_radius_bylayer_order():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_invalid_frequency_range():
@@ -59,7 +59,7 @@ def test_invalid_frequency_range():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1e-20, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
     
     with pytest.raises(ValueError):
@@ -67,7 +67,7 @@ def test_invalid_frequency_range():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1e10, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_invalid_radius_array_start():
@@ -85,7 +85,7 @@ def test_invalid_radius_array_start():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_invalid_radius_array():
@@ -108,7 +108,7 @@ def test_invalid_radius_array():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
     radius_array = np.linspace(0, 1000, 10, dtype=np.float64)
@@ -119,7 +119,7 @@ def test_invalid_radius_array():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_invalid_layer_type():
@@ -140,7 +140,7 @@ def test_invalid_layer_type():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_layer_missing_interface_value():
@@ -161,7 +161,7 @@ def test_layer_missing_interface_value():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
     
     radius_array = np.concatenate((
@@ -173,7 +173,7 @@ def test_layer_missing_interface_value():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
     
     radius_array = np.concatenate((
@@ -185,7 +185,7 @@ def test_layer_missing_interface_value():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
 
 def test_layer_too_few_slices():
@@ -206,7 +206,7 @@ def test_layer_too_few_slices():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array
+            upper_radius_bylayer_array, raise_on_fail=True
         )
     
 def test_prop_matrix_limitations_too_many_layers():
@@ -227,7 +227,7 @@ def test_prop_matrix_limitations_too_many_layers():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True
+            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
         )
 
 def test_prop_matrix_limitations_layer_assumptions():
@@ -245,7 +245,7 @@ def test_prop_matrix_limitations_layer_assumptions():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True
+            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
         )
     
     layer_types = ("solid",)
@@ -258,7 +258,7 @@ def test_prop_matrix_limitations_layer_assumptions():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True
+            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
         )
     
     layer_types = ("solid",)
@@ -271,7 +271,7 @@ def test_prop_matrix_limitations_layer_assumptions():
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
-            upper_radius_bylayer_array, use_prop_matrix=True
+            upper_radius_bylayer_array, use_prop_matrix=True, raise_on_fail=True
         )
 
 def test_bad_starting_radius():
@@ -290,7 +290,8 @@ def test_bad_starting_radius():
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
             upper_radius_bylayer_array,
-            starting_radius = 0.91 * 1000  # Must be less than 90% total radius.
+            starting_radius = 0.91 * 1000,  # Must be less than 90% total radius.
+            raise_on_fail=True
         )
     
     with pytest.raises(ArgumentException):
@@ -299,5 +300,6 @@ def test_bad_starting_radius():
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,
             is_static_bylayer, is_incompressible_bylayer,
             upper_radius_bylayer_array,
-            starting_radius = 0.91 * 1000  # Must be less than 90% total radius.
+            starting_radius = 0.91 * 1000,  # Must be less than 90% total radius.
+            raise_on_fail=True
         )

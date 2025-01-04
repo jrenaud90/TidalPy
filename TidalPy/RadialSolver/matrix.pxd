@@ -4,7 +4,7 @@ from libcpp.vector cimport vector
 
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
-cdef void cf_matrix_propagate(
+cdef int cf_matrix_propagate(
     RadialSolutionStorageCC* solution_storage_ptr,
     double frequency,
     double planet_bulk_density,
@@ -21,6 +21,5 @@ cdef void cf_matrix_propagate(
     double starting_radius,
     double start_radius_tolerance,
     int core_model,
-    cpp_bool verbose,
-    cpp_bool raise_on_fail
+    cpp_bool verbose
     ) noexcept nogil

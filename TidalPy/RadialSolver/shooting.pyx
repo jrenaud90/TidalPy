@@ -95,7 +95,7 @@ def find_num_shooting_solutions(
     return cf_find_num_shooting_solutions(layer_type, is_static, is_incompressible)
 
 
-cdef void cf_shooting_solver(
+cdef int cf_shooting_solver(
         RadialSolutionStorageCC* solution_storage_ptr,
         double frequency,
         double planet_bulk_density,
@@ -119,8 +119,7 @@ cdef void cf_shooting_solver(
         size_t expected_size,
         size_t max_ram_MB,
         double max_step,
-        cpp_bool verbose,
-        cpp_bool raise_on_fail
+        cpp_bool verbose
         ) noexcept nogil:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
@@ -713,21 +712,20 @@ cdef void cf_shooting_solver(
             integration_solution_ptr = integration_solution.get()
             #########################
 
+            # Store diagnostic data
+            solution_storage_ptr.shooting_method_steps_taken_vec[(3 * current_layer_i) + solution_i] = \
+                integration_solution_ptr.steps_taken
+
             # Check for problems
             if not integration_solution_ptr.success:
                 # Problem with integration.
                 solution_storage_ptr.error_code = -11
+                solution_storage_ptr.success = False
                 sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration problem at layer %d; solution %d:\n\t%s.\n', current_layer_i, solution_i, integration_solution_ptr.message_ptr)
                 solution_storage_ptr.set_message(message_ptr)
-                if verbose or raise_on_fail:
+                if verbose :
                     printf(message_ptr)
-                if raise_on_fail:
-                    exit(EXIT_FAILURE)
-                break
-            
-            # Store diagnostic data
-            solution_storage_ptr.shooting_method_steps_taken_vec[(3 * current_layer_i) + solution_i] = \
-                integration_solution_ptr.steps_taken
+                return solution_storage_ptr.error_code
 
             # If no problems, store results.
             integrator_data_ptr = &integration_solution_ptr.solution[0]
@@ -753,7 +751,7 @@ cdef void cf_shooting_solver(
         if solution_storage_ptr.error_code != 0:
             # Error was encountered during integration
             solution_storage_ptr.success = False
-            break
+            return solution_storage_ptr.error_code
 
         # Prepare for next layer
         layer_below_num_sols     = num_sols
@@ -767,10 +765,10 @@ cdef void cf_shooting_solver(
             sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Integration failed:\n\t%s.\n', integration_solution_ptr.message_ptr)
             solution_storage_ptr.set_message(message_ptr)
 
-        if verbose or raise_on_fail:
+        if verbose:
             printf(message_ptr)
-        if raise_on_fail:
-            exit(EXIT_FAILURE)
+        return solution_storage_ptr.error_code
+
     else:
         # No errors. Proceed with collapsing all sub-solutions into final full solution.
         strcpy(message_ptr, 'Integration completed for all layers. Beginning solution collapse.\n')
@@ -876,11 +874,9 @@ cdef void cf_shooting_solver(
                         solution_storage_ptr.error_code = -12
                         sprintf(message_ptr, 'RadialSolver.ShootingMethod:: Error encountered while applying surface boundary condition. ZGESV code: %d.\nThe solutions may not be valid at the surface.\n', bc_solution_info)
                         solution_storage_ptr.set_message(message_ptr)
-                        if verbose or raise_on_fail:
+                        if verbose:
                             printf(message_ptr)
-                        if raise_on_fail:
-                            exit(EXIT_FAILURE)
-                        break
+                        return solution_storage_ptr.error_code
                 else:
                     # Working on interior layers. Will need to find the constants of integration based on the layer above.
                     cf_top_to_bottom_interface_bc(
@@ -964,3 +960,6 @@ cdef void cf_shooting_solver(
     else:
         solution_storage_ptr.success = True
         solution_storage_ptr.set_message('RadialSolver.ShootingMethod: Completed without any noted issues.')
+
+    # Done!
+    return solution_storage_ptr.error_code

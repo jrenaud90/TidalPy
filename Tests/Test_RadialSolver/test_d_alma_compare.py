@@ -178,7 +178,7 @@ def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
         nondimensionalize=False,
         starting_radius=0.0,
         verbose=False,
-        raise_on_fail=False,
+        raise_on_fail=True,
         perform_checks=True
     )
     solution = radial_solver(*inputs, **kwarg_inputs)

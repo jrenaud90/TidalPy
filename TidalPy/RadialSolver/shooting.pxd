@@ -12,7 +12,7 @@ cdef size_t cf_find_num_shooting_solutions(
     ) noexcept nogil
 
 
-cdef void cf_shooting_solver(
+cdef int cf_shooting_solver(
     RadialSolutionStorageCC* solution_storage_ptr,
     double frequency,
     double planet_bulk_density,
@@ -36,6 +36,5 @@ cdef void cf_shooting_solver(
     size_t expected_size,
     size_t max_ram_MB,
     double max_step,
-    cpp_bool verbose,
-    cpp_bool raise_on_fail
+    cpp_bool verbose
     ) noexcept nogil
