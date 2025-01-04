@@ -21,6 +21,8 @@ The TidalPy package is divided into several modules some of which rely on each o
 - `TidalPy.cooling`: Functions related to a planet/layer's cooling (convective, conductive, etc.).
 - `TidalPy.dynamic`: Functions related to a planet's orbital and spin evolution.
 - `TidalPy.radiogenics`: Functions related to a planet/layer's radiogenic heating.
+- `TidalPy.RadialSolver` : Functions related to solving for a planet's Love numbers.
+    - See more info in "Documentation/RadialSolver"
 - `TidalPy.rheology`: Functions related to a planet/layer's rheological properties (complex shear, viscosity, etc.).
 - `TidalPy.stellar`: Functions related to calculating insolation and habitable zones.
 - `TidalPy.structures`: The heart of TidalPy's OOP implementation --- various classes for layers and planets.

@@ -10,10 +10,10 @@ TidalPy is in early alpha and needs lots of improvements and help! If you are in
 
 TidalPy is an open-source project and improves with each new contribution from the community. If you would like to contribute, please follow these steps:
 * Find an issue or new feature you want to tackle (a good place to start is to look in the **Issues tab** for the label "Beginner").
-* Fork a new branch off of the latest version of the `Master` branch on your Github account or local machine.
+* Fork a new branch off of the latest version of the `main` branch on your Github account or local machine.
 * Work on making the code corrections that fix the issue or implement a new feature.
     * If you are implementing a new feature, please try to build test cases in the /Tests/ directory so that future bugs can be quickly squashed.
-* [Rebase](https://www.atlassian.com/git/tutorials/merging-vs-rebasing) from the master branch (to ensure your code works with any recent changes to TidalPy since you preformed your initial fork).
+* [Rebase](https://www.atlassian.com/git/tutorials/merging-vs-rebasing) from the main branch (to ensure your code works with any recent changes to TidalPy since you preformed your initial fork).
 * Run TidalPy's tests (see below) to ensure your changes did not negatively impact other parts of the code.
 * Assuming all tests pass, make a new [Pull Request](https://help.github.com/en/articles/creating-a-pull-request-from-a-fork) at github.com/jrenaud90/TidalPy
 
@@ -39,3 +39,8 @@ Ideally, all bugs or future features should be added to TidalPy's [Github page](
 <Working Code that is unoptimized>
 ```
 These tags are particularly helpful when making a pull request that has issues you need help on.
+
+# Style Guide
+TidalPy largely follows the Google/Numpy style guide which can be found [here](https://numpydoc.readthedocs.io/en/latest/format.html).
+
+There are examples of the ideal styling in the `Documentation/Style Templates` directory.
