@@ -83,6 +83,7 @@
 * TidalPy now looks for an environment variable "TIDALPY_TEST_MODE" to turn on test mode during first initialization (can later be changed using the `TidalPy.test_mode()` command or setting `TidalPy._test_mode = False; TidalPy.reinit()`).
 * Made use of more TidalPy-specific exceptions.
 * Tweaked the `TidalPy.utilities.graphics -> yplot`.
+* User can now override TidalPy.config using `TidalPy.reinit(<new config toml file path; or dictionary of configs>).
 
 #### Dependencies
 * Added support for CyRK v0.12.x
