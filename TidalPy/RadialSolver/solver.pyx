@@ -826,30 +826,8 @@ def radial_solver(
     # Finalize radial solver solution storage
     solution.finalize_python_storage()
     
-    cdef str log_message = ''
     if log_info:
-        log_message += "\n\tEquation of State Solver:"
-        log_message += f"\n\t\tSuccess:           {solution.eos_success}"
-        log_message += f"\n\t\tError code:        {solution.eos_error_code}"
-        log_message += f"\n\t\tMessage:           {solution.eos_message}"
-        if solution.eos_success:
-            log_message += f"\n\t\tIterations:        {solution.eos_iterations}"
-            log_message += f"\n\t\tPressure Error:    {solution.eos_pressure_error:0.3e}"
-            log_message += f"\n\t\tCentral Pressure:  {solution.central_pressure:0.3e}"
-            log_message += f"\n\t\tMass:              {solution.eos_pressure_error:0.3e}"
-            log_message += f"\n\t\tMOI (factor):      {solution.moi:0.3e} ({solution.moi_factor:0.3f})"
-            log_message += f"\n\t\tSurface gravity:   {solution.surface_gravity:0.3e}\n"
-        log_message += "\n\tRadial Solver Results:"
-        log_message += f"\n\t\tSuccess:     {solution.success}"
-        log_message += f"\n\t\tError code:  {solution.error_code}"
-        log_message += f"\n\t\tMessage:     {solution.message}"
-        log_message += f"\n\t\tSteps Taken: {solution.steps_taken}"
-        if solution.success:
-            log_message += f"\n\t\tk_{solution.degree_l} =        {solution.k}"
-            log_message += f"\n\t\th_{solution.degree_l} =        {solution.h}"
-            log_message += f"\n\t\tl_{solution.degree_l} =        {solution.l}"
-        
-        log.info(log_message)
+        solution.print_diagnostics(print_diagnostics = False, log_diagnostics = True)
     
     if ((not solution.success) or (rs_error_code < 0)) and raise_on_fail:
         if "not implemented" in solution.message:

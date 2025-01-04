@@ -9,6 +9,9 @@ import numpy as np
 cnp.import_array()
 
 from TidalPy.exceptions import ArgumentException
+from TidalPy.logger import get_logger
+
+log = get_logger("TidalPy")
 
 
 cdef class RadialSolverSolution:
@@ -267,6 +270,37 @@ cdef class RadialSolverSolution:
                     raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
         else:
             raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
+    
+    def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
+        cdef str log_message
+        log_message += "\n\tEquation of State Solver:"
+        log_message += f"\n\t\tSuccess:           {self.eos_success}"
+        log_message += f"\n\t\tError code:        {self.eos_error_code}"
+        log_message += f"\n\t\tMessage:           {self.eos_message}"
+        if self.eos_success:
+            log_message += f"\n\t\tIterations:        {self.eos_iterations}"
+            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
+            log_message += f"\n\t\tMass:              {self.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tMOI (factor):      {self.moi:0.3e} ({self.moi_factor:0.3f})"
+            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
+        log_message += "\n\tRadial Solver Results:"
+        log_message += f"\n\t\tSuccess:     {self.success}"
+        log_message += f"\n\t\tError code:  {self.error_code}"
+        log_message += f"\n\t\tMessage:     {self.message}"
+        log_message += f"\n\t\tSteps Taken: {self.steps_taken}"
+        if self.success:
+            log_message += f"\n\t\tk_{self.degree_l} =        {self.k}"
+            log_message += f"\n\t\th_{self.degree_l} =        {self.h}"
+            log_message += f"\n\t\tl_{self.degree_l} =        {self.l}"
+        if print_diagnostics:
+            print(log_diagnostics)
+            return None
+        if log_diagnostics:
+            log.info(log_diagnostics)
+            return None
+        if not print_diagnostics and not log_diagnostics:
+            return log_diagnostics
 
     def __dealloc__(self):
 
