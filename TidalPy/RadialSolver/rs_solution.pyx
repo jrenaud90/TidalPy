@@ -272,7 +272,7 @@ cdef class RadialSolverSolution:
             raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
     
     def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
-        cdef str log_message
+        cdef str log_message = ""
         log_message += "\n\tEquation of State Solver:"
         log_message += f"\n\t\tSuccess:           {self.eos_success}"
         log_message += f"\n\t\tError code:        {self.eos_error_code}"
