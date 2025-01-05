@@ -3,7 +3,7 @@
 import importlib.util
 
 from .grid_plot import GridPlot
-from .planet_plot import geotherm_plot
+from .planet_plot import planet_plot
 
 if importlib.util.find_spec('cartopy') is not None:
     spec = importlib.util.find_spec('cartopy')

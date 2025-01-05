@@ -41,9 +41,11 @@ rs_solution.bulk_modulus_array   # Complex-valued
 
 # Scalars (usually defined at surface or core)
 rs_solution.radius
+rs_solution.volume
 rs_solution.mass
 rs_solution.moi
 rs_solution.moi_factor
+rs_solution.density_bulk
 rs_solution.central_pressure
 rs_solution.surface_pressure
 rs_solution.surface_gravity
@@ -88,6 +90,9 @@ rs_solution.steps_taken
 # If multiple solution types were requested, then this will plot each on the same plots as a different color.
 # This function returns a tuple containing the matplotlib (`Figure`, array of `Axis`).
 rs_solution.plot_ys()  # Note () - this is a function
+
+# There are helper functions to quickly plot the interior structure of the planet found by the EOS solver
+rs_solution.plot_interior()
 
 # The solution has a built in tool to create a string of information and data.
 # This will print out top line results and help diagnose problems.

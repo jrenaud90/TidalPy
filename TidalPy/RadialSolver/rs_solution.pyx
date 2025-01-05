@@ -4,6 +4,8 @@
 from libcpp.memory cimport make_shared
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
+from TidalPy.constants cimport d_PI_DBL
+
 cimport numpy as cnp
 import numpy as np
 cnp.import_array()
@@ -270,6 +272,26 @@ cdef class RadialSolverSolution:
                     raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
         else:
             raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
+        
+    def plot_interior(self):
+        if self.eos_success:
+            from TidalPy.utilities.graphics.planet_plot import planet_plot
+
+            return planet_plot(
+                self.radius_array,
+                self.gravity_array,
+                self.pressure_array,
+                self.density_array,
+                None,
+                self.shear_modulus_array,
+                self.bulk_modulus_array,
+                self.radius,
+                self.density_bulk,
+                planet_name=None,
+                use_scatter=False,
+                depth_plot=False,
+                auto_show=True,
+                annotate=True)
     
     def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
         cdef str log_message = ""
@@ -392,6 +414,11 @@ cdef class RadialSolverSolution:
     def radius(self):
         """ Return's the planet's radius, set by user """
         return self.solution_storage_ptr.get_eos_solution_ptr().radius
+    
+    @property
+    def volume(self):
+        """ Return's the planet's volume, calculated by its radius """
+        return (4.0 / 3.0) * d_PI_DBL * self.radius**3
 
     @property
     def mass(self):
@@ -408,6 +435,11 @@ cdef class RadialSolverSolution:
         """ Return's the planet's moment of inertia factor, found by the EOS solver """
         cdef double ideal_moi = (2. / 5.) * self.mass * self.radius**2
         return self.moi / ideal_moi
+    
+    @property
+    def density_bulk(self):
+        """ Return's the planet's bulk density """
+        return self.mass / self.volume
     
     @property
     def central_pressure(self):

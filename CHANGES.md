@@ -22,6 +22,7 @@
       * Other parameters should be defined on a "as layer" basis. So shear modulus at the 1st 1000km would be the shear of the inner core, at the 2nd 1000km it would be the shear modulus of the outer core. Likewise shear modulus at the 1st 3500km would be for the outer core and at the 2nd 3500km would be the shear modulus for the mantle. Same goes for density and bulk modulus.
 * Added warning to check for instabilities (based on large number of steps taken; requires `warnings=True`).
 * Changes to `radial_solver` arguments:
+  * Many changes to the order as well as additions and removals of arguments to `radial_solver` highly suggest looking through the updated documentation.
   * `radial_solver` no longer requires `gravity_array`.
     * New with this update is a self-consistent equation of state solver (EOSS) that is called from `radial_solver`. This EOSS is used to find gravity(r).
   * Bulk modulus must now be provided as a complex-valued array
@@ -31,10 +32,6 @@
   * `upper_radius_bylayer_array` must now be provided as a numpy array (previously a tuple of floats was acceptable).
   * Added new optional argument `surface_pressure` (default=0.0) used with EOSS to find pressure convergence.
   * Added new optional argument `core_model` (default=0) used to set the lower boundary condition when the propagation matrix technique is used. Options are:
-    * 0 : Core condition is determined from the fundamental matrix
-    * 1 : Liquid Inner Core (Based on Roberts & Nimmo 2008)
-    * 2 : Solid Inner Core (Based on Henning & Hurford 2014)
-    * 3 : Liquid Inner Core (based on Tobie+2005; As determined by Marc Neveu for IcyDwarf).
   * Added new optional argument `starting_radius` (default=0.0) to allow the user to set the initial radius for the radial solution.
     * Setting the solution radius higher in the planet can improve solution stability when using the shooting method. There is a trade off with accuracy so advise testing.
     * The starting radius must be > 0.0, if 0.0 is provided (the default) then TidalPy will use the Martens technique to find a suitable starting radius (function of `degree_l`, planet radius, and the new optional argument `start_radius_tolerance` which defaults to 1.0e-5).
@@ -84,6 +81,7 @@
 * Made use of more TidalPy-specific exceptions.
 * Tweaked the `TidalPy.utilities.graphics -> yplot`.
 * User can now override TidalPy.config using `TidalPy.reinit(<new config toml file path; or dictionary of configs>).
+* Refactored and made improvements to `TidalPy.utilities.graphics.planet_plot`.
 
 #### Dependencies
 * Added support for CyRK v0.12.x
