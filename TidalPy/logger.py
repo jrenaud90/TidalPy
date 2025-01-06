@@ -26,6 +26,18 @@ LOGGING_LEVELS = {
     'DEBUG'   : logging.DEBUG
     }
 
+def is_notebook() -> bool:
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
 def get_header_text() -> str:
     # Build header text
     now = datetime.now()
@@ -52,15 +64,17 @@ class DeltaTimeFormatter(logging.Formatter):
 FORMATTER = DeltaTimeFormatter('%(asctime)s(+%(delta)s) - %(levelname)-9s: %(message)s', "%Y-%m-%d %H:%M:%S")
 
 def get_console_handler(error_stream=False):
+    
+    if (not TidalPy.config['logging']['print_log_notebook']) and is_notebook():
+        return None
+    
     if error_stream:
         console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_error_level']])
     else:
-        if (not TidalPy.config['logging']['print_log_notebook']) and TidalPy._in_jupyter:
-            return None
-        
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_level']])
+    
     console_handler.setFormatter(FORMATTER)
     return console_handler
 
@@ -76,7 +90,7 @@ def get_file_handler() -> logging.FileHandler:
         # User does not want log written to disk.
         return None
     
-    if (not TidalPy.config['logging']['write_log_notebook']) and TidalPy._in_jupyter:
+    if (not TidalPy.config['logging']['write_log_notebook']) and is_notebook():
         # User does not want log written while using Jupyter notebook; which we are in.
         return None
     if TidalPy._test_mode:

@@ -130,7 +130,7 @@ def calculate_mode_response_coupled(
                 is_static_bylayer,
                 is_incompressible_bylayer,
                 upper_radius_bylayer_array,
-                degree_l,
+                degree_l=degree_l,
                 solve_for=solve_for_tuple,
                 core_model=0,
                 use_kamata=use_kamata,

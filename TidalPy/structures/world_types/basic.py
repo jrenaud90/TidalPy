@@ -10,7 +10,7 @@ from TidalPy.paths import get_worlds_dir
 from TidalPy.exceptions import (AttributeNotSetError, ConfigPropertyChangeError, IOException, ImproperPropertyHandling,
                                 IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError, UnknownModelError, UnusualRealValueError)
-from TidalPy.utilities.graphics import geotherm_plot
+from TidalPy.utilities.graphics import planet_plot
 from TidalPy.utilities.conversions import days2rads, rads2days
 from TidalPy.stellar import calc_equilibrium_temperature, equilibrium_insolation_functions
 
@@ -535,7 +535,7 @@ class BaseWorld(PhysicalObjSpherical):
         figure: matplotlib.pyplot.figure
         """
 
-        figure = geotherm_plot(
+        figure = planet_plot(
             self.radii, self.gravity_slices, self.pressure_slices, self.density_slices,
             bulk_density=self.density_bulk, planet_name=self.name,
             planet_radius=self.radius, depth_plot=depth_plot, auto_show=auto_show

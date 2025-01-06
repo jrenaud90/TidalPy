@@ -16,7 +16,7 @@ cnp.import_array()
 from CyRK cimport PreEvalFunc
 
 from TidalPy.logger import get_logger
-from TidalPy.exceptions import UnknownModelError, ArgumentException
+from TidalPy.exceptions import UnknownModelError, ArgumentException, SolutionFailedError
 
 from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN_DBL
 from TidalPy.utilities.math.numerics cimport cf_isclose
@@ -36,7 +36,7 @@ ctypedef EOS_ODEInput* EOS_ODEInputPtr
 log = get_logger("TidalPy")
 
 
-cdef void cf_radial_solver(
+cdef int cf_radial_solver(
         shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
         size_t total_slices,
         double* radius_array_in_ptr,
@@ -75,7 +75,6 @@ cdef void cf_radial_solver(
         int eos_max_iters,
         cpp_bool verbose,
         cpp_bool warnings,
-        cpp_bool raise_on_fail,
         ) noexcept nogil:
 
     cdef size_t layer_i, slice_i
@@ -127,9 +126,9 @@ cdef void cf_radial_solver(
         solution_storage_ptr.error_code = -5
         strcpy(message_ptr, 'RadialSolver:: requires at least one layer, zero provided.\n')
         solution_storage_ptr.set_message(message_ptr)
-        if raise_on_fail:
+        if verbose:
             printf(message_ptr)
-            exit(EXIT_FAILURE)
+        return solution_storage_ptr.error_code
 
     if solution_storage_ptr.error_code == 0:
         top_layer = False
@@ -167,10 +166,9 @@ cdef void cf_radial_solver(
                 solution_storage_ptr.error_code == -5
                 strcpy(message_ptr, 'RadialSolver:: At least five layer slices per layer are required. Try using more slices in the input arrays.\n')
                 solution_storage_ptr.set_message(message_ptr)
-                if verbose or raise_on_fail:
+                if verbose:
                     printf(message_ptr)
-                if raise_on_fail:
-                    exit(EXIT_FAILURE)
+                return solution_storage_ptr.error_code
 
             num_slices_by_layer_vec[layer_i] = layer_slices
 
@@ -284,10 +282,11 @@ cdef void cf_radial_solver(
 
     # Step through the radial steps to find EOS-dependent parameters
     cdef size_t i
+    cdef int sub_process_error_code = 0
     if eos_solution_storage_ptr.success and solution_storage_ptr.error_code == 0:
         # Run requested radial solver method
         if use_prop_matrix:
-            cf_matrix_propagate(
+            sub_process_error_code = cf_matrix_propagate(
                 solution_storage_ptr,           # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
                 frequency_to_use,               # Forcing frequency [double]
                 bulk_density_to_use,            # Planet bulk density [double]
@@ -303,12 +302,11 @@ cdef void cf_radial_solver(
                 degree_l,                       # Harmonic degree [unsigned int]
                 starting_radius_to_use,         # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
                 start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]                
-                core_model,                 # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
+                core_model,                     # Starting condition model int at the inner boundary (usually a core) see TidalPy.RadialSolver.matrix.pyx for options [unsigned char]
                 verbose,                        # Verbose flag [cpp_bool]
-                raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
                 )
         else:
-            cf_shooting_solver(
+            sub_process_error_code = cf_shooting_solver(
                 solution_storage_ptr,           # (Modified) Final radial solution storage struct pointer [RadialSolutionStorageCC*]
                 frequency_to_use,               # Forcing frequency [double]
                 bulk_density_to_use,            # Planet bulk density [double]
@@ -333,7 +331,6 @@ cdef void cf_radial_solver(
                 max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallelized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
                 max_step,                       # Maximum allowed step size per layer [double]
                 verbose,                        # Verbose flag [cpp_bool]
-                raise_on_fail                   # Flag to allow for early crashes when integration fails [cpp_bool]
                 )
 
     # Finalize solution storage
@@ -355,7 +352,8 @@ cdef void cf_radial_solver(
 
     if solution_storage_ptr.success:
         solution_storage_ptr.find_love()
-    # Done
+    
+    return solution_storage_ptr.error_code
 
 
 def radial_solver(
@@ -369,29 +367,33 @@ def radial_solver(
         tuple is_static_bylayer,
         tuple is_incompressible_bylayer,
         double[::1] upper_radius_bylayer_array,
-        double surface_pressure = 0.0,
         int degree_l = 2,
         tuple solve_for = None,
-        int core_model = 0,
-        cpp_bool use_kamata = False,
         double starting_radius = 0.0,
         double start_radius_tolerance = 1.0e-5,
-        str integration_method = 'RK45',
-        double integration_rtol = 1.0e-6,
-        double integration_atol = 1.0e-12,
+        cpp_bool nondimensionalize = True,
+        # Shooting method parameters
+        cpp_bool use_kamata = False,
+        str integration_method = 'DOP853',
+        double integration_rtol = 1.0e-5,
+        double integration_atol = 1.0e-8,
         cpp_bool scale_rtols_bylayer_type = False,
         size_t max_num_steps = 500_000,
-        size_t expected_size = 500,
+        size_t expected_size = 1000,
         size_t max_ram_MB = 500,
         double max_step = 0,
-        cpp_bool nondimensionalize = True,
+        # Propagation matrix method parameters
         cpp_bool use_prop_matrix = False,
+        int core_model = 0,
+        # Equation of State solver parameters
         tuple eos_method_bylayer = None,
-        str eos_integration_method = 'RK45',
+        double surface_pressure = 0.0,
+        str eos_integration_method = 'DOP853',
         double eos_rtol = 1.0e-3,
         double eos_atol = 1.0e-5,
         double eos_pressure_tol = 1.0e-3,
         int eos_max_iters = 40,
+        # Error and log reporting
         cpp_bool verbose = False,
         cpp_bool warnings = True,
         cpp_bool raise_on_fail = False,
@@ -431,9 +433,6 @@ def radial_solver(
     upper_radius_by_layer : tuple[float64, ...] (Size = number of layers)
         Tuple of the upper radius of each layer.
         Used to determine physical structure of planet.
-    surface_pressure: float64, default=0
-        The pressure at the surface of the planet (defined as radius_array[-1]). [Pa]
-        Used for EOS calculations.
     degree_l : uint32, default=2
         Harmonic degree.
     solve_for : tuple[str, ...] (Size = number of requested solutions), default=None
@@ -444,16 +443,6 @@ def radial_solver(
             - "loading": Surface loading boundary conditions.
             - "free": Free surface boundary conditions.
         For example, if you want the tidal and loading solutions then you can set "solve_for=('tidal', 'loading')".
-    core_model : uint32, default=0
-        Only used with `use_prop_matrix=True`. Defines the starting conditions at the inner boundary of the planet.
-            - 0: Henning & Hurford (2014): "At the core, a special seed matrix Bcore is created with only three columns,
-                 equal to the first, second, and third columns of Y for the properties at the base layer."
-            - 1: Roberts & Nimmo (2008): liquid innermost zone.
-            - 2: Solid innermost zone.
-            - 3: Different solid innermost zone.
-    use_kamata : bool, default=False
-        If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
-        Otherwise, starting solution will be based on Takeuchi and Saito (1972)
     starting_radius : float64, default=0.0
         The initial radius at which to start solving the viscoelastic-gravitational equations.
         For stability purposes, the higher your degree l, the higher you want your starting r. 
@@ -465,14 +454,20 @@ def radial_solver(
         Depending on your layer size and the degree_l, this may be in a layer above the innermost core. 
         TidalPy will perform a full planet equation of state calculation, but will skip the viscoelastic calculations
         for layers and radii below the starting value.
-    integration_method : int32, default=1
+    nondimensionalize : bool, default=True
+        If True, then inputs will be non-dimensionalized before integration (either shooting method or prop matrix) is performed.
+        Results will be redimensionalized before being returned.
+    use_kamata : bool, default=False
+        If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
+        Otherwise, starting solution will be based on Takeuchi and Saito (1972)
+    integration_method : int32, default="DOP853"
         Which CyRK integration protocol should be used. Options that are currently available are:
             - 0: Runge-Kutta 2(3)
             - 1: Runge-Kutta 4(5)
             - 2: Runge-Kutta / DOP 8(5/3)
-    integration_rtol : float64, default=1.0e-6
+    integration_rtol : float64, default=1.0e-5
         Relative integration tolerance. Lower tolerance will lead to more precise results at increased computation.
-    integration_atol : float64, default=1.0e-12
+    integration_atol : float64, default=1.0e-8
         Absolute integration tolerance (when solution is near 0).
     scale_rtols_bylayer_type : bool, default=True
         If True, then each layer will be imparted with a different relative tolerance. Liquid layers will have a lower
@@ -481,7 +476,7 @@ def radial_solver(
         Maximum number of integration steps allowed before solver forces a failed result.
         Useful to set to a lower number if running many calls that may be exploring an unstable parameter space for
         example, during a MCMC run.
-    expected_size : uint32, default=500
+    expected_size : uint32, default=1000
         Anticipated number of integration steps that will be required per solution. Tweaking this may have a minor
         impact on performance. It is advised to leave it between 200--1000.
         Setting it too low can lead to bad performance.
@@ -494,30 +489,36 @@ def radial_solver(
     max_step : float64, default=0
         Maximum step size the adaptive step size integrator is allowed to take. 
         Setting to 0 (default) will tell the integrator to determine an ideal max step size.
-    limit_solution_to_radius : bool, default=True
-        If True, then the solution will be limited to the points passed by the radius array.
-    nondimensionalize : bool, default=True
-        If True, then inputs will be non-dimensionalized before integration is performed.
-        Results will be redimensionalized before being returned.
     use_prop_matrix : bool, default=False
         If True, RadialSolver will use a propagation matrix method rather than the default shooting method.
         Note that many of the parameters set by this function are only applicable to the shooting method and
         may not be passed to the propagation matrix solver.
         See more about the prop-matrix method in `TidalPy.RadialSolver.PropMatrix`.
+    core_model : uint32, default=0
+        Only used with `use_prop_matrix=True`. Defines the starting conditions at the inner boundary of the planet.
+            - 0: Henning & Hurford (2014): "At the core, a special seed matrix Bcore is created with only three columns,
+                 equal to the first, second, and third columns of Y for the properties at the base layer."
+            - 1: Roberts & Nimmo (2008): liquid innermost zone.
+            - 2: Solid innermost zone.
+            - 3: Different solid innermost zone.
+            - 4: Sabadini & Veermeerson (2004), More complex interface matrix
     eos_method_by_layer : tuple, default = None
         Tuple of EOS methods for each layer. This is a tuple of strings.
         If `None` then will use default for each layer (interpolation)
         Currently supported methods:
             - "interpolation"
-    eos_integration_method : unsigned int, default = 2
+    surface_pressure: float64, default=0
+        The pressure at the surface of the planet (defined as radius_array[-1]). [Pa]
+        Used for EOS calculations.
+    eos_integration_method : unsigned int, default = "DOP853"
         Integration method used to solve for the planet's equation of state.
-    eos_rtol : double, default = 1.0e-6
+    eos_rtol : double, default = 1.0e-3
         Integration relative tolerance for equation of state solver.
-    eos_atol : double, default = 1.0e-8
+    eos_atol : double, default = 1.0e-5
         Integration absolute tolerance for equation of state solver.
     eos_pressure_tol : double, default = 0.1
         Tolerance used when fitting to the surface pressure in the equation of state solver.
-    eos_max_iters : unsigned int, default = 40
+    eos_max_iters : int, default = 40
         Maximum number of iterations used to converge surface pressure in equation of state solver.
     verbose : bool, default=False
         If True, then additional information will be printed to the terminal during the solution. 
@@ -774,11 +775,14 @@ def radial_solver(
         radius_array,
         degree_l
         )
-    
+
+    # Set the number and type of surface boundary conditions ("tidal", "loading", etc.) that will be solved for 
+    # simultaneously.
     solution.set_model_names(bc_models_ptr)
 
     # Run TidalPy's radial solver function
-    cf_radial_solver(
+    cdef rs_error_code = 0
+    rs_error_code = cf_radial_solver(
         solution.solution_storage_sptr,
         total_slices,
         radius_array_ptr,
@@ -816,43 +820,21 @@ def radial_solver(
         eos_pressure_tol,
         eos_max_iters,
         verbose,
-        warnings,
-        raise_on_fail,
+        warnings
         )
     
     # Finalize radial solver solution storage
     solution.finalize_python_storage()
-
-    if not solution.success:
-        # TODO Make a better faster way to do this check?? Basically need to overhaul all exception handling.
+    
+    if log_info:
+        solution.print_diagnostics(print_diagnostics = False, log_diagnostics = True)
+    
+    if ((not solution.success) or (rs_error_code < 0)) and raise_on_fail:
         if "not implemented" in solution.message:
             raise NotImplementedError(solution.message)
-    
-    cdef str log_message = ''
-    if log_info:
-        log_message += "\n\tEquation of State Solver:"
-        log_message += f"\n\t\tSuccess:           {solution.eos_success}"
-        log_message += f"\n\t\tError code:        {solution.eos_error_code}"
-        log_message += f"\n\t\tMessage:           {solution.eos_message}"
-        if solution.eos_success:
-            log_message += f"\n\t\tIterations:        {solution.eos_iterations}"
-            log_message += f"\n\t\tPressure Error:    {solution.eos_pressure_error:0.3e}"
-            log_message += f"\n\t\tCentral Pressure:  {solution.central_pressure:0.3e}"
-            log_message += f"\n\t\tMass:              {solution.eos_pressure_error:0.3e}"
-            log_message += f"\n\t\tMOI (factor):      {solution.moi:0.3e} ({solution.moi_factor:0.3f})"
-            log_message += f"\n\t\tSurface gravity:   {solution.surface_gravity:0.3e}\n"
-        log_message += "\n\tRadial Solver Results:"
-        log_message += f"\n\t\tSuccess:     {solution.success}"
-        log_message += f"\n\t\tError code:  {solution.error_code}"
-        log_message += f"\n\t\tMessage:     {solution.message}"
-        log_message += f"\n\t\tSteps Taken: {solution.steps_taken}"
-        if solution.success:
-            log_message += f"\n\t\tk_{solution.degree_l} =        {solution.k}"
-            log_message += f"\n\t\th_{solution.degree_l} =        {solution.h}"
-            log_message += f"\n\t\tl_{solution.degree_l} =        {solution.l}"
-        
-        log.info(log_message)
-    
+        else:
+            raise SolutionFailedError(solution.message)
+
     if warnings:
         if np.any(solution.steps_taken > 7_000):
             log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}). Recommend checking for instabilities (a good method is looking at `<solution>.plot_ys()`).")

@@ -16,7 +16,7 @@ def is_notebook() -> bool:
     except NameError:
         return False      # Probably standard Python interpreter
 
-def initialize():
+def initialize(provided_config_file = None):
     """ Initialize (or reinitialize) TidalPy based on information stored in TidalPy.config
 
     Items in TidalPy.config are identical to those in the TidalPy_Config.toml unless the user changed them and called
@@ -31,12 +31,19 @@ def initialize():
     TidalPy._in_jupyter = running_in_jupyter
 
     # Set TidalPy configurations if they are not already set.
+    from TidalPy.configurations import set_config
     if TidalPy.config is None:
         # No configuration dictionary has been set.
         from TidalPy.configurations import set_config
         set_config('default')
-    elif TidalPy.config['configs']['use_cwd_for_config']:
+    
+    # Update default configs with any in the CWD
+    if TidalPy.config['configs']['use_cwd_for_config']:
         set_config(os.path.join(os.getcwd(), 'TidalPy_Configs.toml'))
+    
+    # Update default configs with any provided directly to initialize.
+    if provided_config_file is not None:
+        set_config(provided_config_file)
 
     # Setup pathing
     from TidalPy.paths import timestamped_str

@@ -4,11 +4,16 @@
 from libcpp.memory cimport make_shared
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
+from TidalPy.constants cimport d_PI_DBL
+
 cimport numpy as cnp
 import numpy as np
 cnp.import_array()
 
 from TidalPy.exceptions import ArgumentException
+from TidalPy.logger import get_logger
+
+log = get_logger("TidalPy")
 
 
 cdef class RadialSolverSolution:
@@ -267,6 +272,60 @@ cdef class RadialSolverSolution:
                     raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
         else:
             raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
+        
+    def plot_interior(self):
+        if self.eos_success:
+            from TidalPy.utilities.graphics.planet_plot import planet_plot
+
+            return planet_plot(
+                self.radius_array,
+                self.gravity_array,
+                self.pressure_array,
+                self.density_array,
+                None,
+                self.shear_modulus_array,
+                self.bulk_modulus_array,
+                self.radius,
+                self.density_bulk,
+                planet_name=None,
+                use_scatter=False,
+                depth_plot=False,
+                auto_show=True,
+                annotate=True)
+    
+    def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
+        cdef str log_message = ""
+        log_message += "\n\tEquation of State Solver:"
+        log_message += f"\n\t\tSuccess:           {self.eos_success}"
+        log_message += f"\n\t\tError code:        {self.eos_error_code}"
+        log_message += f"\n\t\tMessage:           {self.eos_message}"
+        if self.eos_success:
+            log_message += f"\n\t\tIterations:        {self.eos_iterations}"
+            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
+            log_message += f"\n\t\tMass:              {self.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tMOI (factor):      {self.moi:0.3e} ({self.moi_factor:0.3f})"
+            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
+        log_message += "\n\tRadial Solver Results:"
+        log_message += f"\n\t\tSuccess:     {self.success}"
+        log_message += f"\n\t\tError code:  {self.error_code}"
+        log_message += f"\n\t\tMessage:     {self.message}"
+        log_message += f"\n\t\tSteps Taken (per sub-solution):"
+        cdef size_t layer_i
+        for layer_i in range(self.num_layers):
+            log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
+        if self.success:
+            log_message += f"\n\t\tk_{self.degree_l} = {self.k}"
+            log_message += f"\n\t\th_{self.degree_l} = {self.h}"
+            log_message += f"\n\t\tl_{self.degree_l} = {self.l}"
+        if print_diagnostics:
+            print(log_message)
+            return None
+        if log_diagnostics:
+            log.info(log_message)
+            return None
+        if not print_diagnostics and not log_diagnostics:
+            return log_message
 
     def __dealloc__(self):
 
@@ -358,6 +417,11 @@ cdef class RadialSolverSolution:
     def radius(self):
         """ Return's the planet's radius, set by user """
         return self.solution_storage_ptr.get_eos_solution_ptr().radius
+    
+    @property
+    def volume(self):
+        """ Return's the planet's volume, calculated by its radius """
+        return (4.0 / 3.0) * d_PI_DBL * self.radius**3
 
     @property
     def mass(self):
@@ -376,6 +440,11 @@ cdef class RadialSolverSolution:
         return self.moi / ideal_moi
     
     @property
+    def density_bulk(self):
+        """ Return's the planet's bulk density """
+        return self.mass / self.volume
+    
+    @property
     def central_pressure(self):
         """ Return's the pressure at the planet's center, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().central_pressure
@@ -389,6 +458,16 @@ cdef class RadialSolverSolution:
     def surface_gravity(self):
         """ Return's the acceleration due to gravity at the planet's surface, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().surface_gravity
+    
+    @property
+    def layer_upper_radius_array(self):
+        """ Return's the upper radius at each layer in the planet. """
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array = np.empty(self.num_layers, dtype=np.float64)
+        cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+        cdef size_t layer_i
+        for layer_i in range(self.num_layers):
+            upper_radius_array[layer_i] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+        return upper_radius_array
 
     # RadialSolver result properties
     @property

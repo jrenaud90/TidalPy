@@ -109,6 +109,7 @@ cdef double d_R = R_
 R = d_R
 cdef double d_Au = au_
 Au = d_Au
+au = d_Au
 cdef double d_sbc = Stefan_Boltzmann
 sbc = d_sbc
 cdef double d_SBC = sbc

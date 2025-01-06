@@ -52,6 +52,7 @@ def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, 
                 scale_rtols_bylayer_type=False,
                 max_num_steps=5_000_000, expected_size=250, max_step=0,
                 verbose=False, nondimensionalize=True, starting_radius=0.1,
+                raise_on_fail=True,
                 log_info=True  # For this test lets also check that logging info kwarg works.
             )
 
@@ -91,6 +92,7 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
                 integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
                 scale_rtols_bylayer_type=False,
                 max_num_steps=5_000_000, expected_size=250, max_step=0, starting_radius=0.1,
+                raise_on_fail=True,
                 verbose=False, nondimensionalize=True)
 
             assert out.success

@@ -218,6 +218,10 @@ class TidalPyIntegrationException(TidalPyException):
     default_message = 'An issue arose during time integration.'
 
 
+class SolutionFailedError(TidalPyIntegrationException):
+    default_message = 'A solution was not able to be found.'
+
+
 class IntegrationTimeOut(TidalPyIntegrationException):
     default_message = 'Integration was stopped due to long integration time'
 

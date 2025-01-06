@@ -216,7 +216,12 @@ def build_rs_input_homogenous_layers(
         for slice_i in range(layer_slices):
             full_index = first_slice_in_layer + slice_i
             # Fill in radius
-            radius_view[full_index] = last_layer_radius + slice_i * dr
+            if slice_i == 0:
+                radius_view[full_index] = last_layer_radius
+            elif slice_i == (layer_slices - 1):
+                radius_view[full_index] = last_layer_radius + layer_thickness
+            else:
+                radius_view[full_index] = last_layer_radius + slice_i * dr
             # Fill in other arrays (This function assumes these properties are constant throughout the layer)
             density_view[full_index]         = layer_density
             shear_viscosity_view[full_index] = layer_shear_visc
@@ -301,7 +306,7 @@ def build_rs_input_from_data(
     cdef double r
     if perform_checks:
         if layer_upper_radius_tuple[num_layers - 1] != planet_radius:
-            raise ArgumentException("Upper radius of last layer must be equal to planet's radius (last element of `radius_array`).")
+            raise ArgumentException(f"Upper radius of last layer must be equal to planet's radius (last element of `radius_array`). Expected: {layer_upper_radius_tuple[num_layers - 1]:0.3e} Actual: {planet_radius:0.3e}.")
         if len(layer_type_tuple) != num_layers:
             raise ArgumentException("Unexpected length found for `layer_type_tuple`. All input tuples must be the same length (equal to the number of layers).")
         if len(layer_is_static_tuple) != num_layers:

@@ -22,6 +22,7 @@ cimport numpy as cnp
 cnp.import_array()
 from scipy.linalg.cython_lapack cimport zgesv
 
+from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.complex cimport cmplx_one, cmplx_zero, cmplx_NAN, cf_build_dblcmplx
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
@@ -32,7 +33,7 @@ from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 ctypedef double complex double_complex_t
 
 
-cdef void cf_matrix_propagate(
+cdef int cf_matrix_propagate(
         RadialSolutionStorageCC* solution_storage_ptr,
         double frequency,
         double planet_bulk_density,
@@ -49,8 +50,7 @@ cdef void cf_matrix_propagate(
         double starting_radius,
         double start_radius_tolerance,
         int core_model,
-        cpp_bool verbose,
-        cpp_bool raise_on_fail
+        cpp_bool verbose
         ) noexcept nogil:
 
     # Setup
@@ -244,6 +244,7 @@ cdef void cf_matrix_propagate(
     #    Found that the core_model=0 approach matches the shooting method the best.
     index_shift_18 = (first_slice_index - 1) * 18
     index_shift_36 = (first_slice_index - 1) * 36
+    cdef double grav_constant
     if core_model == 0:
         # Henning & Hurford (2014): "At the core, a special seed matrix Bcore is created with only three columns,
         # equal to the first, second, and third columns of Y for the properties at the base layer."
@@ -290,13 +291,35 @@ cdef void cf_matrix_propagate(
                     propagation_mtx_ptr[row_shift_index + k] = cmplx_one
                 else:
                     propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
+    elif core_model == 4:
+        # Interface matrix from SVC Eq. 1.150
+        grav_constant = (4. / 3.) * d_PI_DBL * G_to_use * density_array_ptr[first_slice_index - 1]
+        for j in range(6):
+            row_shift_index = index_shift_18 + (j * 3)
+            for k in range(3):
+                if (j == 0) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = -radius_array_ptr[first_slice_index - 1]**(degree_l - 1) / grav_constant
+                elif (j == 0) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one
+                elif (j == 1) and (k == 1):
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_one
+                elif (j == 2) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = density_array_ptr[first_slice_index - 1] * grav_constant * radius_array_ptr[first_slice_index - 1]
+                elif (j == 4) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = radius_array_ptr[first_slice_index - 1]**degree_l
+                elif (j == 5) and (k == 0):
+                    propagation_mtx_ptr[row_shift_index + k] = 2.0 * (degree_l - 1) * radius_array_ptr[first_slice_index - 1]**(degree_l - 1)
+                elif (j == 5) and (k == 2):
+                    propagation_mtx_ptr[row_shift_index + k] = 3.0 * grav_constant
+                else:
+                    propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
     else:
         sprintf(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Unknown starting core conditions encountered in `cf_matrix_propagate`: %d (acceptable values: 0, 1, 2, 3)\n", core_model)
         solution_storage_ptr.error_code = -20
-        if verbose or raise_on_fail:
+        solution_storage_ptr.success = False
+        if verbose:
             printf(solution_storage_ptr.message_ptr)
-        if raise_on_fail:
-            exit(EXIT_FAILURE)
+        return solution_storage_ptr.error_code
 
     # Step through the planet's shells and build the propagation matrix
     cdef double complex[9] surface_matrix
@@ -446,10 +469,10 @@ cdef void cf_matrix_propagate(
         if bc_solution_info_ptr[0] != 0:
             sprintf(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition. ZGESV code: %d \nThe solutions may not be valid at the surface.\n", bc_solution_info)
             solution_storage_ptr.error_code = -21
-            if verbose or raise_on_fail:
+            solution_storage_ptr.success = False
+            if verbose:
                 printf(solution_storage_ptr.message_ptr)
-            if raise_on_fail:
-                exit(EXIT_FAILURE)
+            return solution_storage_ptr.error_code
         
         # Step through each radial step and apply the propagation matrix to the surface solution
         for slice_i in range(total_slices):
@@ -495,3 +518,5 @@ cdef void cf_matrix_propagate(
     else:
         solution_storage_ptr.success = True
         solution_storage_ptr.set_message('RadialSolver.MatrixPropagation: Completed without any noted issues.')
+    
+    return solution_storage_ptr.error_code
