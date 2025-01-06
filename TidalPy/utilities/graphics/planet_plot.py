@@ -236,7 +236,7 @@ def planet_plot(
             if depth_plot:
                 density_pos = (0.05, 0.15)
             else:
-                density_pos = (0.25, 0.15)
+                density_pos = (0.25, 0.90)
             ax_density.text(
                 *density_pos,
                 '$\\bar{\\rho}$' + f' = {bulk_density:0.2f}',

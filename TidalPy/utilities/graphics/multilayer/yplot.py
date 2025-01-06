@@ -24,7 +24,8 @@ def yplot(
     plot_tobie: bool = False,
     plot_roberts: bool = False,
     other_xlimits = None,
-    other_ylimits = None
+    other_ylimits = None,
+    plot_imags = True
     ):
     """ Plot the six tidal y's in a six panel figure
 
@@ -81,6 +82,13 @@ def yplot(
     ax_y6 = axes_tidal_y[1, 2]
     axes_list = [ax_y1, ax_y2, ax_y3, ax_y4, ax_y5, ax_y6]
 
+    ax_y1_I = axes_tidal_y[0, 0].twiny()
+    ax_y2_I = axes_tidal_y[0, 1].twiny()
+    ax_y3_I = axes_tidal_y[0, 2].twiny()
+    ax_y4_I = axes_tidal_y[1, 0].twiny()
+    ax_y5_I = axes_tidal_y[1, 1].twiny()
+    ax_y6_I = axes_tidal_y[1, 2].twiny()
+
     ax_y1.set(ylabel=ylabel, xlabel='$y_{1}$ [s$^{2}$ / m]', title='Radial Disp.')
     ax_y2.set(xlabel='$y_{2}$ [kg / m$^{3}$]', title='Radial Stress')
     ax_y3.set(xlabel='$y_{3}$ [s$^{2}$ / m]', title='Tang. Disp.')
@@ -106,8 +114,10 @@ def yplot(
     if labels is None:
         labels = [f'y-{i}' for i in range(len(tidal_ys))]
     
+    line_styles_i = [':' for i in range(len(tidal_ys))]
     if line_styles is None:
-        line_styles = ['-' for i in range(len(tidal_ys))]
+        line_styles   = ['-' for i in range(len(tidal_ys))]
+        line_styles_i = [':' for i in range(len(tidal_ys))]
 
     num_y = 0
     for array_num, (radius_array, tidal_y_array) in enumerate(zip(radius, tidal_ys)):
@@ -128,6 +138,22 @@ def yplot(
         ax_y4.plot(y4, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles[array_num])
         ax_y5.plot(y5, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles[array_num])
         ax_y6.plot(y6, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles[array_num])
+        
+        if plot_imags:
+            y1_I = np.imag(tidal_y_array[0, :])
+            y2_I = np.imag(tidal_y_array[1, :])
+            y3_I = np.imag(tidal_y_array[2, :])
+            y4_I = np.imag(tidal_y_array[3, :])
+            y5_I = np.imag(tidal_y_array[4, :])
+            y6_I = np.imag(tidal_y_array[5, :])
+            
+            ax_y1_I.plot(y1_I, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles_i[array_num])
+            ax_y2_I.plot(y2_I, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles_i[array_num])
+            ax_y3_I.plot(y3_I, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles_i[array_num])
+            ax_y4_I.plot(y4_I, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles_i[array_num])
+            ax_y5_I.plot(y5_I, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles_i[array_num])
+            ax_y6_I.plot(y6_I, z / 1000., label=labels[array_num], c=colors[array_num], ls=line_styles_i[array_num])
+
         num_y += 1
 
     if other_ylimits is not None:
