@@ -316,13 +316,13 @@ cdef class RadialSolverSolution:
             log_message += f"\n\t\th_{self.degree_l} =        {self.h}"
             log_message += f"\n\t\tl_{self.degree_l} =        {self.l}"
         if print_diagnostics:
-            print(log_diagnostics)
+            print(log_message)
             return None
         if log_diagnostics:
-            log.info(log_diagnostics)
+            log.info(log_message)
             return None
         if not print_diagnostics and not log_diagnostics:
-            return log_diagnostics
+            return log_message
 
     def __dealloc__(self):
 
