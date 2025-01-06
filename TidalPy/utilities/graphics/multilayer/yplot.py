@@ -72,7 +72,10 @@ def yplot(
         multiple_y = True
 
     fig_tidal_y, axes_tidal_y = plt.subplots(ncols=3, nrows=2, figsize=(9.5, 9.5))
-    fig_tidal_y.subplots_adjust(wspace=0.25, hspace=0.3)
+    if plot_imags:
+        fig_tidal_y.subplots_adjust(wspace=0.25, hspace=0.45)
+    else:
+        fig_tidal_y.subplots_adjust(wspace=0.25, hspace=0.3)
 
     ax_y1 = axes_tidal_y[0, 0]
     ax_y2 = axes_tidal_y[0, 1]

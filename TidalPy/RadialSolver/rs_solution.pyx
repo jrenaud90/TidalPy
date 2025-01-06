@@ -310,11 +310,14 @@ cdef class RadialSolverSolution:
         log_message += f"\n\t\tSuccess:     {self.success}"
         log_message += f"\n\t\tError code:  {self.error_code}"
         log_message += f"\n\t\tMessage:     {self.message}"
-        log_message += f"\n\t\tSteps Taken: {self.steps_taken}"
+        log_message += f"\n\t\tSteps Taken (per sub-solution):"
+        cdef size_t layer_i
+        for layer_i in range(self.num_layers):
+            log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
         if self.success:
-            log_message += f"\n\t\tk_{self.degree_l} =        {self.k}"
-            log_message += f"\n\t\th_{self.degree_l} =        {self.h}"
-            log_message += f"\n\t\tl_{self.degree_l} =        {self.l}"
+            log_message += f"\n\t\tk_{self.degree_l} = {self.k}"
+            log_message += f"\n\t\th_{self.degree_l} = {self.h}"
+            log_message += f"\n\t\tl_{self.degree_l} = {self.l}"
         if print_diagnostics:
             print(log_message)
             return None
