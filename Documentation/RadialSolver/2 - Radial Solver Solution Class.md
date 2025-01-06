@@ -39,6 +39,9 @@ rs_solution.density_array
 rs_solution.shear_modulus_array  # Complex-valued
 rs_solution.bulk_modulus_array   # Complex-valued
 
+# Layer specific data
+rs_solution.layer_upper_radius_array
+
 # Scalars (usually defined at surface or core)
 rs_solution.radius
 rs_solution.volume

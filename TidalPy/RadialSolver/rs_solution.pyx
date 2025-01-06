@@ -455,6 +455,16 @@ cdef class RadialSolverSolution:
     def surface_gravity(self):
         """ Return's the acceleration due to gravity at the planet's surface, found by the EOS solver """
         return self.solution_storage_ptr.get_eos_solution_ptr().surface_gravity
+    
+    @property
+    def layer_upper_radius_array(self):
+        """ Return's the upper radius at each layer in the planet. """
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array = np.empty(self.num_layers, dtype=np.float64)
+        cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+        cdef size_t layer_i
+        for layer_i in range(self.num_layers):
+            upper_radius_array[layer_i] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+        return upper_radius_array
 
     # RadialSolver result properties
     @property
