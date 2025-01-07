@@ -34,7 +34,7 @@ PlanetBuildData = namedtuple("PlanetBuildData",
         "upper_radius_bylayer_array"
     ))
 
-def build_rs_input_homogenous_layers(
+def build_rs_input_homogeneous_layers(
         double planet_radius,
         double forcing_frequency,
         tuple density_tuple,

@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.0a22.dev1'
+version = '0.6.0a22.dev2'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -78,7 +78,7 @@ classifiers = [
 dev = [
     "jupyter",
     "pytest",
-    "cmcrameri>=1.4",
+    "cmcrameri>=1.4, <2.0",
     "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
@@ -89,7 +89,7 @@ dev = [
 # Reccomended (sometimes required) graphics packages
 graphics = [
     "jupyter",
-    "cmcrameri>=1.4",
+    "cmcrameri>=1.4, <2.0",
     "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7"

@@ -11,14 +11,14 @@ At that point it would be more efficient to make the inputs correctly from the b
 
 ## Planet with homogeneous layers: `build_planet_constant_layers`
 
-Import with `from TidalPy.RadialSolver import build_rs_input_homogenous_layers`
+Import with `from TidalPy.RadialSolver import build_rs_input_homogeneous_layers`
 
 Creates radial solver inputs based on user provided parameters for a planet with homogeneous layers (each layer has a constant density, viscosity, shear, etc.).
 Checks will be performed to ensure that the inputs are valid.
 
 Arguments and use case:
 ```python
-from TidalPy.RadialSolver import build_rs_input_homogenous_layers
+from TidalPy.RadialSolver import build_rs_input_homogeneous_layers
 
 # Create inputs that define our planet. Let's assume it is a three layer planet with layers: solid-liquid-solid.
 planet_radius = 1.0e6
@@ -58,7 +58,7 @@ slices_tuple = None
 slice_per_layer = 10
 # Note that each layer must have at least 5 slices.
 
-rs_inputs = build_rs_input_homogenous_layers(
+rs_inputs = build_rs_input_homogeneous_layers(
     planet_radius,                    # Radius of planet (float64) [m]
     forcing_frequency,                # Forcing frequency, used to solve for the complex shear / bulk modulus (float64) [rad s-1]
     density_tuple,                    # Tuple of floats for each layer's constant density. (Tuple[float64]; len = num_layers)

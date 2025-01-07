@@ -46,7 +46,7 @@ Notes:
 - At least 5 slices per layer is required (so total size of arrays must be at least 5x num_layers).
 - RadialSolver will solve an equation of state to determine various other required properties (such as gravity)
     - Currently, only an interpolation EOS is implemented, meaning that if properties change with radius (e.g., density(r)) within layers then the arrays must be robust enough to capture those changes.
-    - For example, for a planet with homogenous layers then 5 slices per layer is plenty because density does not change within the layer.
+    - For example, for a planet with homogeneous layers then 5 slices per layer is plenty because density does not change within the layer.
     - On the other hand, if density(r) != constant within the layer then you need to ensure there are enough slices to capture these changes. This is even more important for parameters that change faster, like viscosity.
 - The radius array (and all properties that change with radius) must follow this format:
     - Starts at r=0.0
