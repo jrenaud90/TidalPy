@@ -1,5 +1,5 @@
 {% set name = "TidalPy" %}
-{% set version = "0.5.5" %}
+{% set version = "0.6.0" %}
 
 package:
   name: {{ name|lower }}
@@ -54,6 +54,7 @@ test:
     - pip
 
 about:
+  home: www.tidalpy.info
   summary: Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python
   description: |
     TidalPy provides efficient tools to estimate tidal dissipation within rocky and icy worlds.
