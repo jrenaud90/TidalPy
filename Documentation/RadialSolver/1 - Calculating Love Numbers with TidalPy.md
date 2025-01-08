@@ -40,7 +40,7 @@ The `radial_solver` function, contained in the `TidalPy.RadialSolver` module is 
 functions from Python. There are also cython hooks for faster performance (see "4 - Cython API" documentation).
 
 Notes:
-- All arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays). If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to the rheology methods.
+- All arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays). If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to TidalPy.
 - At least 5 slices per layer is required (so total size of arrays must be at least 5x num_layers).
 - RadialSolver will solve an equation of state to determine various other required properties (such as gravity)
     - Currently, only an interpolation EOS is implemented, meaning that if properties change with radius (e.g., density(r)) within layers then the arrays must be robust enough to capture those changes.
