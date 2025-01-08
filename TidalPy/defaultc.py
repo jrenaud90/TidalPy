@@ -50,8 +50,10 @@ default_config_str = """
 [tides]
     [tides.modes]
         # Set the minimum forcing frequency that is treated as zero: `|w| <= minimum_frequency --> w = 0`
-        # The default value corresponds to a forcing period of around a billion years.
-        minimum_frequency = 1.0e-17
+        # The default value corresponds to a forcing period of around a million years.
+        minimum_frequency = 1.0e-14
+        # Assume max frequency is for a forcing period of 1 micro-second
+        maximum_frequency = 1.0e8
     
     [tides.models]
         [tides.models.base]

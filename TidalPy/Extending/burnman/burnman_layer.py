@@ -22,7 +22,7 @@ from TidalPy.structures.layers.physics import PhysicsLayer
 from TidalPy.Extending.burnman.conversion import burnman_property_name_conversion, burnman_property_value_conversion
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 if TYPE_CHECKING:
     from .burnman_world import BurnManWorld

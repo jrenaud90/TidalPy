@@ -1,16 +1,111 @@
 # TidalPy Major Change Log
 
-### Version 0.6.0 *PLANNED*
-* Other Major Changes
-  * Remove support for the older non-cythonized `radial_solver` module.
+## Version 0.6.0 (2025-01-07)
+#### Removed
+* Removed support for the older non-cythonized `TidalPy.radial_solver` module in favor of `TidalPy.RadialSolver`
 
+#### RadialSolver Changes
+* Moved RadialSolver's Boundary Condition finder to its own function in `TidalPy.RadialSolver.boundaries.surface_bc.pyx` to allow it to be used by both the shooting and propagation matrix techniques.
+* Decoupled radial solver from shooting method.
+  * Moved the shooting method (formerly just called `cf_radial_solver`) to a dedicated file to prep for a different dedicated file for the prop matrix solver. 
+  * Now `TidalPy.RadialSolver.solver` only contains driver functions and output structures.
+* Added Propagation Matrix technique to RadialSolver
+  * This is simplified for now. Only planets with 1 solid, static, incompressible layer are allowed. 
+    * Other assumptions can be approximated, e.g., liquid layers use a small shear modulus.
+    * Multiple layers should also work if you have discontinuities in density, shear, etc. within your "one layer".
+  * A cythonized solid fundamental matrix implementation can be found in `TidalPy.RadialSolver.PropMatrix.solid_matrix`.
+* New radial slicing scheme required:
+  * TidalPy now requires `radial_solver` input arrays to be defined in a precise manner:
+    * `radius_array` must start at 0.
+    * Each layer's upper and lower radius must be in the `radius_array`. That means if there is more than one layer there will be two identical radius values!
+      * E.g., if a planet has a ICB at 1000km and a CMB at 3500km. Then `radius_array` must be setup with 2 values of 1000km and 2 values of 3500km. 
+      * Other parameters should be defined on a "as layer" basis. So shear modulus at the 1st 1000km would be the shear of the inner core, at the 2nd 1000km it would be the shear modulus of the outer core. Likewise shear modulus at the 1st 3500km would be for the outer core and at the 2nd 3500km would be the shear modulus for the mantle. Same goes for density and bulk modulus.
+* Added warning to check for instabilities (based on large number of steps taken; requires `warnings=True`).
+* Changes to `radial_solver` arguments:
+  * Many changes to the order as well as additions and removals of arguments to `radial_solver` highly suggest looking through the updated documentation.
+  * `radial_solver` no longer requires `gravity_array`.
+    * New with this update is a self-consistent equation of state solver (EOSS) that is called from `radial_solver`. This EOSS is used to find gravity(r).
+  * Bulk modulus must now be provided as a complex-valued array
+    * If a non-zero imaginary portion is provided (e.g., found via a rheology) then bulk dissipation is now tracked.
+    * If imaginary portions are zero, then bulk dissipation is ignored as in TidalPy v0.5.x and earlier. (this is actually dependent on your bulk rheology; it could also cause infinities...)
+  * Several arguments have had slight name refactors which will break calls that used keyword arguments. Review the RadialSolver documentation or "TidalPy/RadialSolver/solver.pyx" for the new argument names.
+  * `upper_radius_bylayer_array` must now be provided as a numpy array (previously a tuple of floats was acceptable).
+  * Added new optional argument `surface_pressure` (default=0.0) used with EOSS to find pressure convergence.
+  * Added new optional argument `core_model` (default=0) used to set the lower boundary condition when the propagation matrix technique is used.
+  * Added new optional argument `starting_radius` (default=0.0) to allow the user to set the initial radius for the radial solution.
+    * Setting the solution radius higher in the planet can improve solution stability when using the shooting method. Particularly if looking at higher harmonic `degree_l`s. There is a trade off with accuracy so advise testing.
+    * The starting radius must be >= 0.0, if 0.0 is provided (the default) then TidalPy will use the Martens technique to find a suitable starting radius (function of `degree_l`, planet radius, and the new optional argument `start_radius_tolerance` which defaults to 1.0e-5).
+  * Removed `limit_solution_to_radius` argument.
+  * Added new optional argument `use_prop_matrix` (default=False) to use the propagation matrix technique over the shooting method.
+  * Equation of State Solver arguments:
+    * `eos_method_bylayer` - EOSS method to use for each layer (currently only "interpolate" is supported).
+    * `eos_integration_method` Runge-Kutta method to use for EOSS (default="RK45"). `eos_rtol` and `eos_atol` can also be provided to control integration error.
+    * `eos_pressure_tol` (default=1.0e-3) and `eos_max_iters` (default=40) control the pressure convergence of the EOSS.
+  * Added optional argument `perform_checks` (default=True) that performs many checks on the user input before running the solution (small performance penalty, but highly recommend leaving on until your inputs are tested).
+  * Added optional argument `log_info` (default=False) that will log key physical and diagnostic information to TidalPy's log (which can be set to be consol print, log file, or both via TidalPy's configurations). 
+    * Note there is a performance hit when using this, particularly if logging to file is enabled.
 
+**New RadialSolver Helpers**
+* To assist with the generation of valid inputs to `radial_solver`, TidalPy now provides two helper functions:
+  * For planets with homogeneous layers: `from TidalPy.RadialSolver import build_rs_input_homogeneous_layers` takes in attributes for a planet made of layers with constant physical properties and then provides the arrays and other required `radial_solver` inputs that conform to the new `radius_array` scheme.
+  * For planets with inhomogeneous layers: `from TidalPy.RadialSolver import build_rs_input_from_data` which parses data arrays (loaded from a file or built elsewhere like using a more robust EOS than TidalPy offers) and makes changes to ensure they will work with `radial_solver`.
+
+**Expanded RadialSolverSolution Attributes and Methods**
+* The output of `radial_solver`, an instance of the `RadialSolverSolution`, has been greatly expanded to provide much more data and functionality to the user. Full details can be found in the new RadialSolver documentation. Highlights include:
+  * EOSS results like `<solution>.mass`, `<solution>.moi`, `<solution>.moi_factor`, `<solution>.central_pressure`, `<solution>.surface_gravity`.
+  * Diagnostic data like number of integration steps required per layer to find a solutions `<solution>.steps_taken`, or EOSS diagnostics: `<solution>.eos_iterations`, `<solution>.eos_pressure_error`, `<solution>.eos_success`, `<solution>.eos_message`, `<solution>.eos_steps_taken`.
+    * Much of the new diagnostic data as well as key results can now be quickly printed using `<solution>.print_diagnostics()`.
+  * Method to quickly plot the viscoelastic-gravitational solution y's `<solution>.plot_ys()`.
+  * Method to quickly plot the EOS results `<solution>.plot_interior()`.
+  * In addition to the previously provided attributes like `<solution>.love`, `<solution>.k`, `<solution>.h`, `<solution>.l`, `<solution>.result`.
+
+#### Cython / C Changes
+* Shifted away from `PyMem_Free` to `CyRK.utils.mem_free` to allow for consistency in future development.
+  * Avoiding using these manual heap allocations whenever possible. Many new uses of smart pointers and C++ vectors.
+
+#### Other Changes
+* Updated GitHub actions.
+* Moved to more consistent and robust types (e.g., int for degree_l vs. prior unsigned-char; unsigned-int).
+* Added inverse function `cinv` in `TidalPy.utilities.math.complex`.
+* New "TidalPy/constants.pyx" isolates all TidalPy constants. Available to both Python and Cython. Refactored all files to use the constants in this file.
+* New numerics module `TidalPy.math.numerics` for low-level floating point functions.
+  * New cythonized `isclose` function that matches functionality of python's `math.isclose`
+* Cythonized radial sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.sensitivity` (based on Tobie+2005)
+* Cythonized radial heating functions that use the sensitivity to shear/bulk functions in `TidalPy.tides.multilayer.heating` (based on Tobie+2005)
+* Improved logging so it is less spammy.
+* Logger now logs all exceptions raised.
+* Moved TidalPy's default config and world config dir to user's "Documents" folder (from system appdata folder). 
+  * If upgrading from previous version of TidalPy, you can safely delete the old config directory.
+    * On Windows the old dir was: "'C:\\Users\\<username>\\AppData\\Local\\TidalPy'"; The new dir is "'C:\\Users\\<username>\\Documents\\TidalPy'"
+    * On Mac the old dir was: "'/Users/<username>/Library/Application Support/TidalPy'"; The new dir is "'/Users/<username>/Documents/TidalPy'"
+    * On Linux the old dir was: "'/Users/<username>/.local/share/TidalPy'"; The new dir is "'/home/<username>/Documents/TidalPy'"
+* New switch `TidalPy.log_to_file()` to quickly turn on saving log to file (this can also be adjusted in the TidalPy configurations).
+* TidalPy now looks for an environment variable "TIDALPY_TEST_MODE" to turn on test mode during first initialization (can later be changed using the `TidalPy.test_mode()` command or setting `TidalPy._test_mode = False; TidalPy.reinit()`).
+* Made use of more TidalPy-specific exceptions.
+* Tweaked the `TidalPy.utilities.graphics -> yplot`.
+* User can now override TidalPy.config using `TidalPy.reinit(<new config toml file path; or dictionary of configs>)`.
+* Refactored and made improvements to `TidalPy.utilities.graphics.planet_plot`.
+
+#### Dependencies
+* Added support for CyRK v0.12.x
+* Added support for Burnman v0.2.x
+
+#### Documentation
+* Reworked TidalPy's documentation structure in prep for a shift to Sphinx in the future.
+* Greatly expanded and improved RadialSolver documentation which can be found in "TidalPy/Documentation/RadialSolver"
+
+#### Fixes
+* Fixed issue where `radial_solver` arrays could dealloc while references still pointed to them (hanging pointers).
+* Missing Cython compile arguments in TidalPy's utilities, `nondimensional.pyx`.
+* Fixed incorrect type in dynamic liquid layers that may have been causing some errors to propagate.
+* Fixed issue where `TidalPy._config_path` was not being updated.
+* Fixed issue where log files could not be created.
 
 ### Version 0.5.5 (2024-11-11)
 
 Fixes:
 * Fixed dependency compatibility issues.
-* Fixed incorrect function signature type for scipy's `spherical_jn`. SciPy v.1.14.X uses a new signature which is breaking on MacOS. Limiting to "SciPy<1.14" for now.
+* Fixed incorrect function signature type for scipy's `spherical_jn`. SciPy v.1.14.X uses a new signature which is breaking on MacOS. Limiting to "SciPy<1.14" for now. See GitHub Issue #65
 
 ### Version 0.5.4 (2024-04-30)
 

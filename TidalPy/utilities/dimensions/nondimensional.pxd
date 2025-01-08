@@ -1,40 +1,18 @@
-from TidalPy.utilities.types_x cimport double_numeric
 
-cdef void cf_non_dimensionalize_physicals(
-        size_t num_radius,
-        double frequency,
-        double mean_radius,
-        double bulk_density,
-        double* radius_array_ptr,
-        double* density_array_ptr,
-        double* gravity_array_ptr,
-        double* bulk_array_ptr,
-        double_numeric* shear_array_ptr,
-        double* radius_planet_to_use,
-        double* bulk_density_to_use,
-        double* frequency_to_use,
-        double* G_to_use
-        ) noexcept nogil
+cdef extern from "nondimensional_.hpp" nogil:
+    cdef cppclass NonDimensionalScalesCC:
+        double second2_conversion
+        double second_conversion
+        double length_conversion
+        double length3_conversion
+        double density_conversion
+        double mass_conversion
+        double pascal_conversion
 
-cdef void cf_redimensionalize_physicals(
-        size_t num_radius,
-        double frequency,
-        double mean_radius,
-        double bulk_density,
-        double* radius_array_ptr,
-        double* density_array_ptr,
-        double* gravity_array_ptr,
-        double* bulk_array_ptr,
-        double_numeric* shear_array_ptr,
-        double* radius_planet_to_use,
-        double* bulk_density_to_use,
-        double* frequency_to_use,
-        double* G_to_use
-        ) noexcept nogil
 
-cdef void cf_redimensionalize_radial_functions(
-    double complex* radial_function_ptr,
+cdef void cf_build_nondimensional_scales(
+    NonDimensionalScalesCC* non_dim_scales_ptr,
+    double frequency,
     double mean_radius,
-    double bulk_density,
-    size_t num_slices,
-    size_t num_solutions = *) noexcept nogil
+    double bulk_density
+    ) noexcept nogil

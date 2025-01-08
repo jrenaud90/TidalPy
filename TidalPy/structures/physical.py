@@ -19,7 +19,7 @@ from TidalPy.utilities.classes import ConfigHolder
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatNone
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 class PhysicalObjSpherical(ConfigHolder):
@@ -146,7 +146,6 @@ class PhysicalObjSpherical(ConfigHolder):
         log.debug(f'Set geometry called for {self}')
         if thickness is None:
             # TODO: Why is the below error here?
-            log.error('Base class of PhysicalObjSpherical requires thickness to set geometry.')
             raise MissingArgumentError('Base class of PhysicalObjSpherical requires thickness to set geometry.')
 
         if extensive_checks:
@@ -276,8 +275,7 @@ class PhysicalObjSpherical(ConfigHolder):
             pressure_above = self.pressure_above
 
         if pressure_above is None:
-            log.error(f'Not enough information to build static pressure for {self}.')
-            raise MissingArgumentError
+            raise MissingArgumentError(f'Not enough information to build static pressure for {self}.')
 
         else:
             # Calculate pressures from top down

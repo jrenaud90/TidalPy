@@ -2,6 +2,9 @@ name: Ubuntu Tests
 
 on: [push, pull_request, workflow_dispatch]
 
+env:
+  TIDALPY_TEST_MODE: 1
+
 jobs:
   test-ubuntu:
     name: Test TidalPy on Ubuntu
@@ -25,11 +28,6 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Install burnman (if python != 3.12)
-        # Currently released version of burnman does not support py 3.12; so skip its tests for py3.12
-        if: ${{ matrix.python-version != '3.12' }}
-        run: python -m pip install burnman
-
       - name: Install Other Dependencies
           # For burnman, need GitHub version to enable python 3.12 support.
         run: |
@@ -37,7 +35,7 @@ jobs:
 
       - name: Install package
         run: |
-          python -m pip install . -v
+          python -m pip install -v .[burnman]
 
       - name: Run pytest
         run: pytest -n auto -v Tests/

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ...utilities.types import FloatArray
 
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def calc_inclination_off(inclination: 'FloatArray') -> 'InclinOutput':
     """Calculate F^2_lmp (assuming I=0) for l = 5"""
 
@@ -28,7 +28,7 @@ def calc_inclination_off(inclination: 'FloatArray') -> 'InclinOutput':
     return inclination_results
 
 
-@njit(cacheable=True, parallel=True)
+@njit(cacheable=True)
 def calc_inclination(inclination: 'FloatArray') -> 'InclinOutput':
     """Calculate F^2_lmp for l = 5"""
 

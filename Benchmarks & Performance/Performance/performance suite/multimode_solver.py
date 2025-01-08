@@ -6,7 +6,6 @@ import TidalPy
 TidalPy.config['stream_level'] = 'WARNING'
 TidalPy.reinit()
 from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
-from TidalPy.tides.modes.multilayer_modes_numba import collapse_multilayer_modes as collapse_multilayer_modes_numba
 from TidalPy.rheology.complex_compliance.compliance_models import maxwell
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays

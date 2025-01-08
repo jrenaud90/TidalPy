@@ -1,3 +1,7 @@
+from libcpp cimport bool as cpp_bool
+from libcpp.complex cimport complex as cpp_complex
+
+
 cdef void cf_top_to_bottom_interface_bc(
     double complex* constant_vector_ptr,
     double complex* layer_above_constant_vector_ptr,
@@ -8,10 +12,10 @@ cdef void cf_top_to_bottom_interface_bc(
     double layer_above_lower_density,
     int layer_type,
     int layer_above_type,
-    bint layer_is_static,
-    bint layer_above_is_static,
-    bint layer_is_incomp,
-    bint layer_above_is_incomp,
-    unsigned char num_sols,
-    unsigned char max_num_y
+    cpp_bool layer_is_static,
+    cpp_bool layer_above_is_static,
+    cpp_bool layer_is_incomp,
+    cpp_bool layer_above_is_incomp,
+    size_t num_sols,
+    size_t max_num_y
     ) noexcept nogil

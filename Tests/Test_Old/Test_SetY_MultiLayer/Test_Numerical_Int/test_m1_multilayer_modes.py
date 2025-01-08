@@ -7,25 +7,26 @@ import TidalPy
 
 
 from TidalPy.constants import G, mass_trap1
-from TidalPy.rheology.complex_compliance.compliance_models import maxwell
+from TidalPy.rheology import Maxwell, Elastic
 from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
 from TidalPy.utilities.conversions import orbital_motion2semi_a
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
 
 # Model planet - 2layers
-density_array = 5000. * np.ones(10)
-radius_array = np.linspace(0., 1.e6, 11)
+N = 20
+planet_R = 1.e6
+density_array = 5000. * np.ones(N)
+radius_array = np.linspace(0., planet_R, N)
 R = radius_array[-1]
 volume_array = (4. / 3.) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
-mass_array = volume_array * density_array
+mass_array = volume_array * density_array[1:]
 planet_mass = sum(mass_array)
 host_mass = mass_trap1
-mass_below = np.asarray([np.sum(mass_array[:i + 1]) for i in range(10)])
-gravity_array = G * mass_below / (radius_array[1:]**2)
-shear_array = 5.e10 * np.ones(10, dtype=np.float64)
-viscosity_array = 1.0e19 * np.ones(10, dtype=np.float64)
-bulk_array = 10.e10 * np.ones(10, dtype=np.float64)
-radius_array = radius_array[1:]
+shear_array = 5.e10 * np.ones(N, dtype=np.float64)
+viscosity_array = 1.0e19 * np.ones(N, dtype=np.float64)
+shear_viscosity_array = viscosity_array
+bulk_viscosity_array = viscosity_array
+bulk_array = 10.e10 * np.ones(N, dtype=np.float64)
 orbital_frequency = 2. * np.pi / (86400. * 1.)
 planet_bulk_density = planet_mass / np.sum(volume_array)
 spin_frequency = 1. * orbital_frequency
@@ -33,6 +34,9 @@ semi_major_axis = orbital_motion2semi_a(orbital_frequency, host_mass, planet_mas
 eccentricity = 0.05
 obliquity = None
 layer_i = radius_array > 0.
+
+shear_rheology_inst = Maxwell()
+bulk_rheology_inst = Elastic()
 
 # Build other domains and the final multidimensional arrays
 colatitude = np.radians(np.linspace(0.1, 179.9, 5))
@@ -47,30 +51,46 @@ longitude_matrix, colatitude_matrix, time_matrix = \
 
 tidal_y_int_kwargs = {
     'use_kamata'         : False,
-    'planet_bulk_density': planet_bulk_density,
-    'nondimensionalize'  : False,
-    'integrator'         : 'scipy',
-    'integration_method' : None,
+    'nondimensionalize'  : True,
+    'integration_method' : 'DOP853',
     'integration_rtol'   : 1.0e-6,
     'integration_atol'   : 1.0e-8
     }
 
 input_kwargs = {
-    'orbital_frequency'          : orbital_frequency, 'spin_frequency': spin_frequency,
-    'semi_major_axis'            : semi_major_axis, 'eccentricity': eccentricity, 'host_mass': host_mass,
-    'radius_array'               : radius_array, 'shear_array': shear_array, 'bulk_array': bulk_array,
-    'viscosity_array'            : viscosity_array, 'density_array': density_array, 'gravity_array': gravity_array,
-    'longitude_matrix'           : longitude_matrix, 'colatitude_matrix': colatitude_matrix,
-    'time_matrix'                : time_matrix, 'voxel_volume': voxel_volumes, 'complex_compliance_function': maxwell,
-    'is_solid_by_layer'          : [True], 'is_static_by_layer': [False], 'indices_by_layer': [layer_i],
+    'orbital_frequency'          : orbital_frequency,
+    'spin_frequency'             : spin_frequency,
+    'semi_major_axis'            : semi_major_axis,
+    'eccentricity'               : eccentricity,
+    'host_mass'                  : host_mass,
+    'radius_array'               : radius_array,
+    'bulk_array'                 : bulk_array,
+    'shear_array'                : shear_array,
+    'bulk_viscosity_array'       : bulk_viscosity_array,
+    'shear_viscosity_array'      : shear_viscosity_array,
+    'bulk_rheology_inst'         : bulk_rheology_inst,
+    'shear_rheology_inst'        : shear_rheology_inst,
+    'upper_radius_bylayer_array' : np.asarray((R,), dtype=np.float64),
+    'density_array'              : density_array,
+    'longitude_matrix'           : longitude_matrix,
+    'colatitude_matrix'          : colatitude_matrix,
+    'time_matrix'                : time_matrix,
+    'voxel_volume'               : voxel_volumes,
+    'layer_types'                : ('solid',),
+    'is_static_bylayer'          : (False,),
+    'is_incompressible_bylayer'  : (False,),
     'obliquity'                  : obliquity,
-    'surface_boundary_conditions': None, 'solve_load_numbers': False,
-    'complex_compliance_input'   : None, 'force_mode_calculation': False,
-    'order_l'                    : 2,
-    'use_modes'                  : False, 'use_static_potential': False, 'use_simple_potential': False,
+    'solve_load_numbers'         : False,
+    'force_mode_calculation'     : False,
+    'degree_l'                   : 2,
+    'use_modes'                  : False,
+    'use_static_potential'       : False,
+    'use_simple_potential'       : False,
     'orbit_average_results'      : False,
+    'planet_bulk_density'        : planet_bulk_density,
     **tidal_y_int_kwargs
     }
+
 
 
 def test_collapse_multilayer_modes_homogen_modesoff_noorbitavg():
@@ -517,28 +537,39 @@ def test_collapse_multilayer_modes_liquid_solid():
     # Assume spin-sync
     input_kwargs_to_use['spin_frequency'] = input_kwargs_to_use['orbital_frequency']
     # Create new structure
-    r_core = radius_array[-1] / 2.
-    core_index = radius_array <= r_core
-    mantle_index = radius_array > r_core
+    N_half = int(N/2)
+    r_core = radius_array[N_half]
+    core_index = np.zeros(radius_array.size, dtype=bool)
+    mantle_index = np.zeros(radius_array.size, dtype=bool)
+    core_index[np.arange(0, N_half)] = True
+    mantle_index[np.arange(N_half, N)] = True
     input_kwargs_to_use['shear_array'][core_index] = 0.
-    input_kwargs_to_use['is_solid_by_layer'] = [False, True]
-    input_kwargs_to_use['is_static_by_layer'] = [True, False]
-    input_kwargs_to_use['indices_by_layer'] = [core_index, mantle_index]
+    input_kwargs_to_use['density_array'][core_index] = 7000.
+    input_kwargs_to_use['layer_types'] = ('liquid', 'solid')
+    input_kwargs_to_use['is_static_bylayer'] = (True, False)
+    input_kwargs_to_use['is_incompressible_bylayer'] = (True, False)
+    input_kwargs_to_use['upper_radius_bylayer_array'] = np.asarray((r_core, planet_R), dtype=np.float64)
+
+    radius_array_to_use = np.concatenate((
+        np.linspace(0., r_core, N_half),
+        np.linspace(r_core, planet_R, N_half)
+    ))
+    input_kwargs_to_use['radius_array'] = radius_array_to_use
 
     heating, volumetric_heating, strains, stresses, \
     total_potential, tidal_potential, complex_shears_avg, tidal_y_avg, \
     (love_k_by_mode, love_h_by_mode, love_l_by_mode), tidal_modes, modes_skipped = \
         collapse_multilayer_modes(**input_kwargs_to_use)
 
-    expected_shape = (*radius_array.shape, *longitude_matrix.shape[:2])
+    expected_shape = (*radius_array_to_use.shape, *longitude_matrix.shape[:2])
     assert heating.shape == expected_shape
     assert volumetric_heating.shape == expected_shape
     assert total_potential.shape == expected_shape
     assert tidal_potential.shape == colatitude_matrix.shape[:2]
     assert strains.shape == (6, *expected_shape)
     assert stresses.shape == (6, *expected_shape)
-    assert complex_shears_avg.shape == radius_array.shape
-    assert tidal_y_avg.shape == (6, *radius_array.shape)
+    assert complex_shears_avg.shape == radius_array_to_use.shape
+    assert tidal_y_avg.shape == (6, *radius_array_to_use.shape)
 
     assert heating.dtype in [float, np.float64]
     assert volumetric_heating.dtype in [float, np.float64]

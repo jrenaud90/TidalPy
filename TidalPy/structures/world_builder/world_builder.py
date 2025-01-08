@@ -11,7 +11,7 @@ from TidalPy.structures.world_builder.config_handler import clean_world_config, 
 from TidalPy.structures.world_types import world_types
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
@@ -42,7 +42,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         The initialized TidalPy world object.
     """
 
-    log.info(f'Preparing to build world: {world_name}.')
+    log.debug(f'Preparing to build world: {world_name}.')
 
     # If world_config is a file then load it through toml and get a dict
     if world_config is not None:
@@ -55,7 +55,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         log.debug(f'User provided world configurations for {world_name}.')
 
     if world_config is None:
-        log.info(
+        log.debug(
             f'No manual configuration dictionary was provided for {world_name}, '
             f'attempting to locate saved configuration file.'
             )
@@ -67,12 +67,11 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         elif world_name.lower() in known_worlds:
             world_config = known_worlds[world_name.lower()]
         else:
-            log.error(
+            raise UnknownWorld(
                 f'The user provided world name, {world_name}, can not be found in the directory of pre-built '
                 f'world configs. Please add a new config to this directory or provide a manual world '
                 f'configuration dictionary. Pre-built world configs can be found in:\n{get_worlds_dir()}'
                 )
-            raise UnknownWorld
 
         log.debug(f'World configuration dictionary found for {world_name}.')
 
@@ -91,8 +90,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
         world = BurnManWorld(world_config, burnman_world, burnman_layers, name=world_name)
 
     elif world_type not in world_types:
-        log.error(f'The world type, {world_type}, for {world_name} is unknown or not yet implemented.')
-        raise UnknownWorldType
+        raise UnknownWorldType(f'The world type, {world_type}, for {world_name} is unknown or not yet implemented.')
     
     else:
         # Get the world class
@@ -103,7 +101,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     if world is None:
         raise TidalPyWorldError('World building failed.')
 
-    log.info('World building was successful!')
+    log.debug('World building was successful!')
 
     # TODO: Add back in this killing feature?
     # if configurations['exit_planets']:
@@ -142,7 +140,7 @@ def build_from_world(old_world, new_config: dict, new_name: str = None):
     """
 
     # Make a deep copy of the original planet's config
-    log.info(f'Building a new world based off of {old_world.name}.')
+    log.debug(f'Building a new world based off of {old_world.name}.')
     old_config = old_world.config
 
     # Delete items that are most likely going to change

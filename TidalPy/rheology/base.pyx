@@ -1,13 +1,13 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Common base class for all TidalPy rheology models. """
 
-from libc.math cimport NAN
+from TidalPy.constants cimport d_NAN_DBL
 
-from cython.parallel import prange
+from TidalPy.exceptions import ArgumentException
+from TidalPy.logger import get_logger
 
-import logging
-log = logging.getLogger(__name__)
+log = get_logger("TidalPy")
 
 
 cdef class RheologyModelBase(TidalPyBaseExtensionClass):
@@ -20,6 +20,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             **kwargs):
 
         # Setup base class
+        self.name_prefix = 'RheologyModelBase'
         super().__init__(class_name=class_name, **kwargs)
 
         # Define model specific parameters
@@ -45,8 +46,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         if self.debug_mode:
             log.debug(f'{self}: Additional arguments changed.')
         if num_args != self.expected_num_args:
-            log.error(f'{self}: Unsupported number of arguments provided.')
-            raise AttributeError(f'Unsupported number of arguments provided to {self}.')
+            raise ArgumentException(f'Unsupported number of arguments provided to {self}.')
 
         # Add args to any constant parameter references.
         # Since this is a base class; there are no additional arguments so nothing happens here.
@@ -60,7 +60,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
             ) noexcept nogil:
 
         cdef double complex out
-        out = NAN + 1.0j * NAN
+        out = d_NAN_DBL + 1.0j * d_NAN_DBL
         return out
 
     cdef void _vectorize_frequency(
@@ -74,7 +74,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
 
         cdef Py_ssize_t i
 
-        for i in prange(n):
+        for i in range(n):
             output_ptr[i] = self._implementation(frequency_ptr[i], modulus, viscosity)
 
     cdef void _vectorize_modulus_viscosity(
@@ -88,7 +88,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
 
         cdef Py_ssize_t i
 
-        for i in prange(n):
+        for i in range(n):
             output_ptr[i] = self._implementation(frequency, modulus_ptr[i], viscosity_ptr[i])
 
     def vectorize_frequency(
@@ -104,7 +104,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         n2 = len(output_view)
 
         if (n2 != n) :
-            raise AttributeError('Arrays must all be the same size.')
+            raise ArgumentException('Arrays must all be the same size.')
 
         self._vectorize_frequency(&frequency_view[0], modulus, viscosity, &output_view[0], n)
 
@@ -122,7 +122,7 @@ cdef class RheologyModelBase(TidalPyBaseExtensionClass):
         n3 = len(output_view)
 
         if (n2 != n) or (n3 != n) or (n2 != n3):
-            raise AttributeError('Arrays must all be the same size.')
+            raise ArgumentException('Arrays must all be the same size.')
 
         self._vectorize_modulus_viscosity(frequency, &modulus_view[0], &viscosity_view[0], &output_view[0], n)
 

@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ Functions to calculate the initial conditions for an overlying liquid layer above another liquid layer.
 
@@ -11,12 +11,9 @@ S74   : Saito (1974; J. Phy. Earth; DOI: 10.4294/jpe1952.22.123)
 TS72  : Takeuchi, H., and M. Saito (1972), Seismic surface waves, Methods Comput. Phys., 11, 217–295.
 """
 
-from libc.math cimport pi, NAN
+from TidalPy.constants cimport d_PI_DBL
+from TidalPy.utilities.math.complex cimport cmplx_NAN, cmplx_zero, cf_build_dblcmplx
 
-from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
-
-cdef double complex cmplx_NAN  = cf_build_dblcmplx(NAN, NAN)
-cdef double complex cmplx_zero = cf_build_dblcmplx(0., 0.)
 
 cdef void cf_solve_upper_y_at_interface(
         double complex* lower_layer_y_ptr,
@@ -25,11 +22,11 @@ cdef void cf_solve_upper_y_at_interface(
         size_t num_sols_upper,
         size_t max_num_y,
         int lower_layer_type,
-        bint lower_is_static,
-        bint lower_is_incompressible,
+        cpp_bool lower_is_static,
+        cpp_bool lower_is_incompressible,
         int upper_layer_type,
-        bint upper_is_static,
-        bint upper_is_incompressible,
+        cpp_bool upper_is_static,
+        cpp_bool upper_is_incompressible,
         double interface_gravity,
         double liquid_density,
         double G_to_use
@@ -37,26 +34,26 @@ cdef void cf_solve_upper_y_at_interface(
 
     cdef size_t yi_lower, yi_upper, soli_lower, soli_upper
 
-    cdef bint upper_solid = False
-    cdef bint lower_solid = False
+    cdef cpp_bool upper_solid = False
+    cdef cpp_bool lower_solid = False
     if lower_layer_type == 0:
         lower_solid = True
     if upper_layer_type == 0:
         upper_solid = True
 
-    cdef bint solid_solid, solid_liquid, liquid_solid, liquid_liquid
+    cdef cpp_bool solid_solid, solid_liquid, liquid_solid, liquid_liquid
     solid_solid   = lower_solid and upper_solid
     solid_liquid  = lower_solid and not upper_solid
     liquid_solid  = not lower_solid and upper_solid
     liquid_liquid = not lower_solid and not upper_solid
 
-    cdef bint static_static, static_dynamic, dynamic_static, dynamic_dynamic
+    cdef cpp_bool static_static, static_dynamic, dynamic_static, dynamic_dynamic
     static_static   = lower_is_static and upper_is_static
     static_dynamic  = lower_is_static and not upper_is_static
     dynamic_static  = not lower_is_static and upper_is_static
     dynamic_dynamic = not lower_is_static and not upper_is_static
 
-    cdef bint compress_compress, compress_incompress, incompress_compress, incompress_incompress
+    cdef cpp_bool compress_compress, compress_incompress, incompress_compress, incompress_incompress
     compress_compress     = not lower_is_incompressible and not upper_is_incompressible
     compress_incompress   = not lower_is_incompressible and upper_is_incompressible
     incompress_compress   = lower_is_incompressible and not upper_is_incompressible
@@ -76,7 +73,7 @@ cdef void cf_solve_upper_y_at_interface(
     cdef double complex frac_2   = cmplx_NAN
     cdef double complex const_1  = cmplx_NAN
 
-    cdef double g_const = 4. * pi * G_to_use
+    cdef double g_const = 4. * d_PI_DBL * G_to_use
 
     # Initialize upper y to nan
     for yi_upper in range(18):
@@ -285,11 +282,11 @@ def solve_upper_y_at_interface(
         double complex[:, ::1] lower_layer_y_view,
         double complex[:, ::1] upper_layer_y_view,
         int lower_layer_type,
-        bint lower_is_static,
-        bint lower_is_incompressible,
+        cpp_bool lower_is_static,
+        cpp_bool lower_is_incompressible,
         int upper_layer_type,
-        bint upper_is_static,
-        bint upper_is_incompressible,
+        cpp_bool upper_is_static,
+        cpp_bool upper_is_incompressible,
         double interface_gravity,
         double liquid_density,
         double G_to_use,

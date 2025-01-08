@@ -22,7 +22,7 @@ from TidalPy.exceptions import IncompatibleModelError
 from . import build_from_world
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 
@@ -73,12 +73,8 @@ def world_iterative_builder(
     num_layers = len(base_world.layers)
 
     if num_layers < 2 or num_layers > 3:
-        log.error(
-            f'world_iterative_builder requires at least 2, and at most 3, layers in the '
-            f'base_world, {base_world.name}.'
-            )
         raise IncompatibleModelError(
-            'world_iterative_builder requires at least 2, and at most 3, layers in the base_world.'
+            f'world_iterative_builder requires at least 2, and at most 3, layers in the base_world, {base_world.name}.'
             )
     if num_layers == 2:
         # No ice layer is used
@@ -139,11 +135,7 @@ def world_iterative_builder(
         iteration_step += 1
         log.debug(f'\tIteration Step {iteration_step}')
         if iteration_step > 40:
-            log.error(
-                f'world_iterative_builder could not find convergence working from the '
-                f'base_world, {base_world.name}.'
-                )
-            raise StopIteration('world_iterative_builder could not find convergence.')
+            raise StopIteration(f'world_iterative_builder could not find convergence working from the base_world, {base_world.name}.')
 
         # Pull out information from the burnman build
         mantle_density = iterated_world.layers[1].density_bulk

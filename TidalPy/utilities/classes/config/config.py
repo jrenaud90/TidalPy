@@ -10,7 +10,7 @@ from TidalPy.exceptions import ImproperPropertyHandling, OuterscopePropertySetEr
 from TidalPy.utilities.classes.base import TidalPyClass
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 class ConfigHolder(TidalPyClass):
@@ -387,10 +387,6 @@ class WorldConfigHolder(ConfigHolder):
                 )
 
         if config is None and self.default_config is None:
-            log.error(
-                f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
-                f"{self.__class__.__name__} and no defaults are set."
-                )
             raise ParameterMissingError(
                 f"Config was not provided for [<WorldConfigHolder> in world: {world_name}]'s "
                 f"{self.__class__.__name__} and no defaults are set."

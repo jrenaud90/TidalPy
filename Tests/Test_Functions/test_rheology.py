@@ -1,9 +1,6 @@
 import numpy as np
 from math import isclose, isnan
 
-import TidalPy
-TidalPy.test_mode = True
-
 from TidalPy.rheology import (
     Elastic,
     Newton,

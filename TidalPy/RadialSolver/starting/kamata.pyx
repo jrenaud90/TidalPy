@@ -1,9 +1,8 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """ starting conditions at the center of the planet based off of Kamata et al. (2015). """
-from libc.math cimport pi
 
-# We need to use a custom cf_csqrt function because Windows does not play nice with libc.complex cython library.
+from TidalPy.constants cimport d_PI_DBL
 from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.RadialSolver.starting.common cimport cf_z_calc
 
@@ -16,11 +15,11 @@ cdef void cf_kamata_solid_dynamic_compressible(
         double frequency,
         double radius,
         double density,
-        double bulk_modulus,
+        double complex bulk_modulus,
         double complex shear_modulus,
-        unsigned int degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the starting guess at the bottom of a solid layer using the dynamic assumption.
@@ -44,67 +43,60 @@ cdef void cf_kamata_solid_dynamic_compressible(
         Radius where the radial functions are calculated. [m]
     density : double
         Density at `radius` [kg m-3]
-    bulk_modulus : double
+    bulk_modulus : double complex
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     shear_modulus : double complex
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    degree_l : unsigned int
+    degree_l : unsigned char
         Tidal harmonic order.
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `starting_conditions_ptr`).
-    starting_conditions_ptr <out> : double complex*
-
+        Number of radial solutions for this layer type.
+    starting_conditions_ptr : double complex*, <Output>
+        Desired starting conditions for this layer.
+        Three independent solid guesses (sn1, sn2, sn3)
     """
 
     # Convert compressibility parameters
-    cdef double complex lame
-    lame = bulk_modulus - (2. / 3.) * shear_modulus
+    cdef double complex lame = bulk_modulus - (2. / 3.) * shear_modulus
 
-    # Constants (See Eqs. B13-B16 of KMN15)
-    cdef double dynamic_term, gamma
-    cdef double complex alpha2, beta2
-    dynamic_term = frequency * frequency
-    alpha2       = (lame + 2. * shear_modulus) / density
-    beta2        = shear_modulus / density
-    gamma        = 4. * pi * G_to_use * density / 3.
+    # Constants
+    cdef double gamma          = 4. * d_PI_DBL * G_to_use * density / 3.
+    cdef double dynamic_term   = frequency * frequency
+    cdef double complex alpha2 = (lame + 2. * shear_modulus) / density
+    cdef double complex beta2  = shear_modulus / density
 
     # Optimizations
-    cdef double r_inverse, r2_inverse, r2, degree_l_dbl, lp1, dlp1, llp1
-    r_inverse    = 1. / radius
-    r2_inverse   = r_inverse * r_inverse
-    r2           = radius * radius
-    degree_l_dbl = <double> degree_l
-    lp1          = degree_l_dbl + 1.0
-    dlp1         = 2.0 * degree_l_dbl + 1.0
-    llp1         = degree_l_dbl * lp1
+    cdef double r_inverse    = 1. / radius
+    cdef double r2_inverse   = r_inverse * r_inverse
+    cdef double r2           = radius * radius
+    cdef double degree_l_dbl = <double> degree_l
+    cdef double lp1          = degree_l_dbl + 1.0
+    cdef double dlp1         = 2.0 * degree_l_dbl + 1.0
+    cdef double llp1         = degree_l_dbl * lp1
 
     # Helper functions
-    cdef double complex k2_quad_pos, k2_quad_neg, k2_quad
-    k2_quad_pos = (dynamic_term / beta2) + ((dynamic_term + 4. * gamma) / alpha2)
-    k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4. * gamma) / alpha2)
-    k2_quad = (k2_quad_neg * k2_quad_neg) + ((4. * degree_l * (degree_l + 1) * (gamma * gamma)) / (alpha2 * beta2))
+    cdef double complex k2_quad_pos = (dynamic_term / beta2) + ((dynamic_term + 4. * gamma) / alpha2)
+    cdef double complex k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4. * gamma) / alpha2)
+    cdef double complex k2_quad     = (k2_quad_neg * k2_quad_neg) + \
+        ((4. * degree_l * (degree_l + 1) * (gamma * gamma)) / (alpha2 * beta2))
 
     # QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with  KMN15 for this func.
     cdef size_t neg_index = 1
     cdef size_t pos_index = 0
-    cdef double complex k2_pos, k2_neg, k2_quad_sqrt
-    k2_quad_sqrt = cf_csqrt(k2_quad)
-    k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
-    k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
+    cdef double complex k2_quad_sqrt = cf_csqrt(k2_quad)
+    cdef double complex k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
+    cdef double complex k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
 
-    cdef double complex f_k2_pos, f_k2_neg
-    f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma
-    f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma
+    cdef double complex f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma
+    cdef double complex f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma
 
-    cdef double complex h_k2_pos, h_k2_neg
-    h_k2_pos = f_k2_pos - lp1
-    h_k2_neg = f_k2_neg - lp1
+    cdef double complex h_k2_pos = f_k2_pos - lp1
+    cdef double complex h_k2_neg = f_k2_neg - lp1
 
-    cdef double complex z_k2_pos, z_k2_neg
-    z_k2_pos = cf_z_calc(k2_pos * r2, degree_l=degree_l)
-    z_k2_neg = cf_z_calc(k2_neg * r2, degree_l=degree_l)
+    cdef double complex z_k2_pos = cf_z_calc(k2_pos * r2, degree_l=degree_l)
+    cdef double complex z_k2_neg = cf_z_calc(k2_neg * r2, degree_l=degree_l)
 
     # See Eqs. B1-B12 of KMN15
     
@@ -160,11 +152,11 @@ cdef void cf_kamata_solid_dynamic_compressible(
 cdef void cf_kamata_solid_static_compressible(
         double radius,
         double density,
-        double bulk_modulus,
+        double complex bulk_modulus,
         double complex shear_modulus,
-        unsigned int degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the starting guess at the bottom of a solid layer using the static assumption.
@@ -186,66 +178,58 @@ cdef void cf_kamata_solid_static_compressible(
         Radius where the radial functions are calculated. [m]
     density : double
         Density at `radius` [kg m-3]
-    bulk_modulus : double
+    bulk_modulus : double complex
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
     shear_modulus : double complex
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    degree_l : unsigned int
+    degree_l : unsigned char
         Tidal harmonic order.
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `starting_conditions_ptr`).
-    starting_conditions_ptr <out> : double complex*
-
+        Number of radial solutions for this layer type.
+    starting_conditions_ptr : double complex*, <Output>
+        Desired starting conditions for this layer.
+        Three independent solid guesses (sn1, sn2, sn3)
     """
 
     # Convert compressibility parameters
-    cdef double complex lame
-    lame = bulk_modulus - (2. / 3.) * shear_modulus
+    cdef double complex lame = bulk_modulus - (2. / 3.) * shear_modulus
 
-    # Constants (See Eqs. B13-B16 of KMN15)
-    cdef double complex alpha2, beta2
-    cdef double gamma
-    alpha2 = (lame + 2. * shear_modulus) / density
-    beta2  = shear_modulus / density
-    gamma   = 4. * pi * G_to_use * density / 3.
+    # Constants
+    cdef double gamma          = 4. * d_PI_DBL * G_to_use * density / 3.
+    cdef double complex alpha2 = (lame + 2. * shear_modulus) / density
+    cdef double complex beta2  = shear_modulus / density
 
     # Optimizations
-    cdef double r_inverse, r2_inverse, r2, degree_l_dbl, lp1, dlp1, llp1
-    r_inverse    = 1. / radius
-    r2_inverse   = r_inverse * r_inverse
-    r2           = radius * radius
-    degree_l_dbl = <double>degree_l
-    lp1          = degree_l_dbl + 1.
-    dlp1         = 2.0 * degree_l_dbl + 1.0
-    llp1         = degree_l_dbl * lp1
+    cdef double r_inverse    = 1. / radius
+    cdef double r2_inverse   = r_inverse * r_inverse
+    cdef double r2           = radius * radius
+    cdef double degree_l_dbl = <double>degree_l
+    cdef double lp1          = degree_l_dbl + 1.
+    cdef double dlp1         = 2.0 * degree_l_dbl + 1.0
+    cdef double llp1         = degree_l_dbl * lp1
 
     # Helper functions
-    cdef double complex k2_quad_pos, k2_quad_neg, k2_quad
-    k2_quad_pos = 4. * gamma / alpha2
-    k2_quad_neg = -k2_quad_pos
-    k2_quad = k2_quad_neg**2 + ((4. * degree_l * lp1 * gamma**2) / (alpha2 * beta2))
+    cdef double complex k2_quad_pos = 4. * gamma / alpha2
+    cdef double complex k2_quad_neg = -k2_quad_pos
+    cdef double complex k2_quad = k2_quad_neg**2 + ((4. * degree_l * lp1 * gamma**2) / (alpha2 * beta2))
 
     # QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with  KMN15 for this func.
     cdef size_t neg_index = 1
     cdef size_t pos_index = 0
-    cdef double complex k2_pos, k2_neg, k2_quad_sqrt
-    k2_quad_sqrt = cf_csqrt(k2_quad)
-    k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
-    k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
+    cdef double complex k2_quad_sqrt = cf_csqrt(k2_quad)
+    cdef double complex k2_pos = (1. / 2.) * (k2_quad_pos + k2_quad_sqrt)
+    cdef double complex k2_neg = (1. / 2.) * (k2_quad_pos - k2_quad_sqrt)
     
-    cdef double complex f_k2_pos, f_k2_neg
-    f_k2_pos = beta2 * k2_pos / gamma
-    f_k2_neg = beta2 * k2_neg / gamma
+    cdef double complex f_k2_pos = beta2 * k2_pos / gamma
+    cdef double complex f_k2_neg = beta2 * k2_neg / gamma
 
-    cdef double complex h_k2_pos, h_k2_neg
-    h_k2_pos = f_k2_pos - lp1
-    h_k2_neg = f_k2_neg - lp1
+    cdef double complex h_k2_pos = f_k2_pos - lp1
+    cdef double complex h_k2_neg = f_k2_neg - lp1
 
-    cdef double complex z_k2_pos, z_k2_neg
-    z_k2_pos = cf_z_calc(k2_pos * r2, degree_l=degree_l)
-    z_k2_neg = cf_z_calc(k2_neg * r2, degree_l=degree_l)
+    cdef double complex z_k2_pos = cf_z_calc(k2_pos * r2, degree_l=degree_l)
+    cdef double complex z_k2_neg = cf_z_calc(k2_neg * r2, degree_l=degree_l)
 
     # See Eqs. B1-B12 of KMN15
     
@@ -303,9 +287,9 @@ cdef void cf_kamata_solid_dynamic_incompressible(
         double radius,
         double density,
         double complex shear_modulus,
-        unsigned int degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """ Calculate the starting guess at the bottom of a solid layer using the dynamic and incompressible assumption.
@@ -331,42 +315,40 @@ cdef void cf_kamata_solid_dynamic_incompressible(
         Density at `radius` [kg m-3]
     shear_modulus : double complex
         Shear modulus (can be complex for dissipation) at `radius` [Pa]
-    degree_l : unsigned int
+    degree_l : unsigned char
         Tidal harmonic order.
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `starting_conditions_ptr`).
-    starting_conditions_ptr <out> : double complex*
+        Number of radial solutions for this layer type.
+    starting_conditions_ptr : double complex*, <Output>
+        Desired starting conditions for this layer.
+        Three independent solid guesses (sn1, sn2, sn3)
 
     """
 
-    # Constants (See Eqs. B13-B16 of KMN15)
-    cdef double dynamic_term, gamma
-    cdef double complex beta2
-    dynamic_term = frequency * frequency
-    beta2        = shear_modulus / density
-    gamma        = 4. * pi * G_to_use * density / 3.
+    # Constants
+    cdef double gamma         = 4. * d_PI_DBL * G_to_use * density / 3.
+    cdef double dynamic_term  = frequency * frequency
+    cdef double complex beta2 = shear_modulus / density
 
     # Optimizations
-    cdef double r_inverse, r2_inverse, r2, degree_l_dbl, lp1, dlp1, llp1
-    r_inverse    = 1. / radius
-    r2_inverse   = r_inverse * r_inverse
-    r2           = radius * radius
-    degree_l_dbl = <double>degree_l
-    lp1          = degree_l_dbl + 1.
-    lm1          = degree_l_dbl - 1.
-    dlp1         = 2.0 * degree_l_dbl + 1.0
-    llp1         = degree_l_dbl * lp1
+    cdef double r_inverse    = 1. / radius
+    cdef double r2_inverse   = r_inverse * r_inverse
+    cdef double r2           = radius * radius
+    cdef double degree_l_dbl = <double>degree_l
+    cdef double lp1          = degree_l_dbl + 1.
+    cdef double lm1          = degree_l_dbl - 1.
+    cdef double dlp1         = 2.0 * degree_l_dbl + 1.0
+    cdef double llp1         = degree_l_dbl * lp1
 
     # QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with  KMN15 for this func.
     cdef size_t neg_index = 1
     cdef size_t pos_index = 0
-    cdef double complex k2_pos, f_k2_neg, h_k2_neg, z_k2_pos
-    k2_pos   = dynamic_term / beta2
-    f_k2_neg = -dynamic_term / gamma
-    h_k2_neg = f_k2_neg - lp1
-    z_k2_pos = cf_z_calc(k2_pos * r2, degree_l=degree_l)
+    cdef double complex k2_pos   = dynamic_term / beta2
+    cdef double complex f_k2_neg = -dynamic_term / gamma
+    cdef double complex h_k2_neg = f_k2_neg - lp1
+    cdef double complex z_k2_pos = cf_z_calc(k2_pos * r2, degree_l=degree_l)
 
     # See Eqs. B17-B28 of KMN15
     
@@ -428,10 +410,10 @@ cdef void cf_kamata_liquid_dynamic_compressible(
         double frequency,
         double radius,
         double density,
-        double bulk_modulus,
-        unsigned int degree_l,
+        double complex bulk_modulus,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """  Calculate the starting guess at the bottom of a liquid layer using the dynamic assumption.
@@ -457,36 +439,35 @@ cdef void cf_kamata_liquid_dynamic_compressible(
         Density at `radius` [kg m-3]
     bulk_modulus : double complex
         Bulk modulus (can be complex for dissipation) at `radius` [Pa]
-    degree_l : unsigned int
+    degree_l : unsigned char
         Tidal harmonic order.
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `starting_conditions_ptr`).
-    starting_conditions_ptr <out> : double complex*
+        Number of radial solutions for this layer type.
+    starting_conditions_ptr : double complex*, <Output>
+        Desired starting conditions for this layer.
+        Two independent liquid guesses (sn1, sn2, sn3)
 
     """
 
     # Convert compressibility parameters
     # For the liquid layer the shear modulus is zero so the 1st Lame parameter = bulk modulus
-    cdef double complex lame
-    lame = bulk_modulus
+    cdef double complex lame = bulk_modulus
 
     # Optimizations
-    cdef double dynamic_term, r_inverse, r2, degree_l_dbl
-    dynamic_term = frequency * frequency
-    r_inverse    = 1. / radius
-    r2           = radius * radius
-    degree_l_dbl = <double>degree_l
+    cdef double dynamic_term = frequency * frequency
+    cdef double r_inverse    = 1. / radius
+    cdef double r2           = radius * radius
+    cdef double degree_l_dbl = <double>degree_l
 
     # Helper functions
-    cdef double gamma
-    cdef double complex alpha2, k2, f, h
-    gamma  = (4. * pi * G_to_use * density / 3.)
-    alpha2 = lame / density
-    k2     = (1. / alpha2) * (dynamic_term + 4. * gamma - (degree_l_dbl * (degree_l_dbl + 1) * gamma**2 / dynamic_term))
-    f      = -dynamic_term / gamma
-    h      = f - (degree_l_dbl + 1.)
+    cdef double gamma          = (4. * d_PI_DBL * G_to_use * density / 3.)
+    cdef double f              = -dynamic_term / gamma
+    cdef double h              = f - (degree_l_dbl + 1.)
+    cdef double complex alpha2 = lame / density
+    cdef double complex k2     = (1. / alpha2) * (dynamic_term + 4. * gamma - 
+                                                  (degree_l_dbl * (degree_l_dbl + 1) * gamma**2 / dynamic_term))
 
     # See Eqs. B33--B36 in KMN15
     # y1, solutions 1--2
@@ -519,9 +500,9 @@ cdef void cf_kamata_liquid_dynamic_incompressible(
         double frequency,
         double radius,
         double density,
-        unsigned int degree_l,
+        int degree_l,
         double G_to_use,
-        ssize_t num_ys, 
+        size_t num_ys, 
         double complex* starting_conditions_ptr
         ) noexcept nogil:
     """  Calculate the starting guess at the bottom of a liquid layer using the dynamic and incompressible assumption.
@@ -545,31 +526,29 @@ cdef void cf_kamata_liquid_dynamic_incompressible(
         Radius where the radial functions are calculated. [m]
     density : double
         Density at `radius` [kg m-3]
-    degree_l : unsigned int
+    degree_l : unsigned char
         Tidal harmonic order.
     G_to_use : double
         Gravitational constant. Provide a non-dimensional version if the rest of the inputs are non-dimensional.
     num_ys : ssize_t
-        Number of ys (used for striding on `starting_conditions_ptr`).
-    starting_conditions_ptr <out> : double complex*
-        The three independent solid guesses (sn1, sn2, sn3)
-
+        Number of radial solutions for this layer type.
+    starting_conditions_ptr : double complex*, <Output>
+        Desired starting conditions for this layer.
+        Two independent liquid guesses (sn1, sn2, sn3)
     """
 
     # Optimizations
-    cdef double dynamic_term, r_inverse, degree_l_dbl, lp1, llp1, dlp1
-    dynamic_term = frequency * frequency
-    r_inverse    = 1. / radius
-    degree_l_dbl = <double>degree_l
-    lp1          = degree_l_dbl + 1.
-    llp1         = degree_l_dbl * lp1
-    dlp1         = 2. * degree_l_dbl + 1.
+    cdef double dynamic_term = frequency * frequency
+    cdef double r_inverse    = 1. / radius
+    cdef double degree_l_dbl = <double>degree_l
+    cdef double lp1          = degree_l_dbl + 1.
+    cdef double llp1         = degree_l_dbl * lp1
+    cdef double dlp1         = 2. * degree_l_dbl + 1.
 
     # Helper functions
-    cdef double gamma, f, h
-    gamma = (4. * pi * G_to_use * density / 3.)
-    f     = -dynamic_term / gamma
-    h     = f - lp1
+    cdef double gamma = (4. * d_PI_DBL * G_to_use * density / 3.)
+    cdef double f     = -dynamic_term / gamma
+    cdef double h     = f - lp1
 
     # See Eqs. B33--B36 in KMN15
     

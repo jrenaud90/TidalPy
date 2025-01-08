@@ -6,6 +6,9 @@ on:
     types:
       - published
 
+env:
+  TIDALPY_TEST_MODE: 1
+  
 jobs:
   make_sdist:
     name: Make SDist
@@ -24,7 +27,7 @@ jobs:
         name: artifact_sdist        
 
   build_macos_latest_wheel:
-    name: Build MacOS (latest) wheel for Python ${{ matrix.python }}
+    name: Build MacOS latest (ARM) wheel for Python ${{ matrix.python }}
     runs-on: macos-latest
     strategy:
       # Ensure that a wheel builder finishes even if another fails
@@ -93,7 +96,7 @@ jobs:
       - name: Install Anaconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          activate-environment: tidalpy_macos_13_wheels
+          activate-environment: tidalpy_macos_latest_wheel
           auto-update-conda: true
           python-version: ${{ matrix.python }}
           auto-activate-base: false

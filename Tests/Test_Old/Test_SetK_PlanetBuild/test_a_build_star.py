@@ -1,11 +1,9 @@
 import os
 
 import numpy as np
-from scipy.constants import G
 
 import TidalPy
-
-
+from TidalPy.constants import G
 from TidalPy.paths import get_worlds_dir
 from TidalPy.structures import build_world
 

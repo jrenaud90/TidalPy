@@ -1,7 +1,6 @@
 import numpy as np
-from scipy.constants import Stefan_Boltzmann as sbc
 
-from TidalPy.constants import luminosity_solar, mass_solar
+from TidalPy.constants import luminosity_solar, mass_solar, sbc
 from TidalPy.utilities.performance.numba import njit
 
 

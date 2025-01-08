@@ -1,4 +1,4 @@
-# distutils: language = c
+# distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 cdef void cf_collapse_layer_solution(
@@ -11,25 +11,93 @@ cdef void cf_collapse_layer_solution(
         double frequency_to_use,
         size_t layer_start_index,
         size_t num_layer_slices,
-        unsigned char num_sols,
-        unsigned char max_num_y,
-        unsigned char num_ys,
-        unsigned char num_output_ys,
-        unsigned char ytype_i,
+        size_t num_sols,
+        size_t max_num_y,
+        size_t num_ys,
+        size_t num_output_ys,
+        size_t ytype_i,
         int layer_type,
-        bint layer_is_static,
-        bint layer_is_incomp
+        cpp_bool layer_is_static,
+        cpp_bool layer_is_incomp
         ) noexcept nogil:
+    """
+    cf_collapse_layer_solution
+
+    Compute the full set of radial functions (y-values) for a given layer of a planetary model by collapsing all solutions 
+    across multiple slices and solutions within the layer.
+
+    Parameters
+    ----------
+    solution_ptr : double complex*
+        Pointer to an array where the final computed solutions will be stored. The array must have sufficient space to 
+        accommodate all solutions across all slices and y-values.
+    constant_vector_ptr : double complex*
+        Pointer to an array of constants used to scale the solutions from each independent solution vector.
+    storage_by_solution : double complex**
+        Array of pointers to arrays that store precomputed intermediate solutions for each slice in the layer.
+    layer_radius_ptr : double*
+        Pointer to an array containing the radii for each slice in the layer.
+    layer_density_ptr : double*
+        Pointer to an array containing the density for each slice in the layer.
+    layer_gravity_ptr : double*
+        Pointer to an array containing the gravitational acceleration for each slice in the layer.
+    frequency_to_use : double
+        Frequency parameter used in the calculation of \( y_3 \) for dynamic liquid layers.
+    layer_start_index : size_t
+        Starting index for the layer's slices in the storage arrays.
+    num_layer_slices : size_t
+        Number of slices within the layer.
+    num_sols : size_t
+        Number of independent solutions to be collapsed for each y-value.
+    max_num_y : size_t
+        Maximum number of y-values supported by the solution.
+    num_ys : size_t
+        Number of y-values defined for the current layer type.
+    num_output_ys : size_t
+        Number of y-values in the output array.
+    ytype_i : size_t
+        Index specifying the type of y-value being processed.
+    layer_type : int
+        Type of layer being processed:
+            - 0: Solid layer
+            - 1: Liquid layer
+    layer_is_static : cpp_bool
+        Indicates whether the layer is static.
+    layer_is_incomp : cpp_bool
+        Indicates whether the layer is incompressible.
+        Currently, this parameter is not directly used in this function.
+
+    Returns
+    -------
+    None
+        The function directly modifies `solution_ptr` to store the computed solutions.
+
+    Notes
+    -----
+    - **Solid Layers**:
+        - All \( y \)-values are computed directly from the provided solutions and constants.
+    - **Static Liquid Layers**:
+        - Only \( y_5 \) is defined; all other \( y \)-values are set to `NaN`.
+    - **Dynamic Liquid Layers**:
+        - \( y_1, y_2, y_5, y_6 \) are computed directly.
+        - \( y_3 \) is calculated after the main loop using the layer radius, gravity, and density.
+    - All y-values not defined for a particular layer type are set to `NaN`.
+
+    Raises
+    ------
+    None
+        This function does not explicitly raise exceptions but operates under the assumption that input parameters are valid.
+    """
 
     # Use constant vectors to find the full y from all of the solutions in this layer
-    cdef unsigned char solution_i
-    cdef unsigned char y_i
-    cdef unsigned char y_rhs_i
-    cdef unsigned char lhs_y_index
+    cdef size_t solution_i
+    cdef size_t y_i
+    cdef size_t y_rhs_i
+    cdef size_t lhs_y_index
     cdef size_t slice_i
     cdef size_t slice_i_shifted
     cdef size_t slice_end
-    cdef bint calculate_y3
+    cdef cpp_bool calculate_y3
 
     slice_end = layer_start_index + num_layer_slices
     calculate_y3 = False

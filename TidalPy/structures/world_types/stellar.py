@@ -3,7 +3,7 @@ from TidalPy.exceptions import ConfigPropertyChangeError
 from .tidal import TidalWorld
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 # TODO: Implement a fixed-q tides class/method for stellar and gas planets. Wait it is a tidal world...
@@ -63,7 +63,7 @@ class StarWorld(TidalWorld):
             # If no luminosity provided: Try to convert effective surface temperature
             if self.effective_temperature is None:
                 # if that fails, try to estimate from mass
-                log.info(
+                log.debug(
                     f'Luminosity and effective temperature of {self} was not provided. '
                     'Estimating these values from the stellar mass.'
                     )

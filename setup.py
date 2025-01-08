@@ -4,7 +4,7 @@ import json
 from setuptools import Extension, setup
 
 import numpy as np
-
+import CyRK
 
 install_platform = platform.system()
 
@@ -27,13 +27,22 @@ with open(cython_ext_path, 'r') as cython_ext_file:
 
 tidalpy_cython_extensions = list()
 for cython_ext, ext_data in cython_ext_dict.items():
+
+    if ext_data['is_cpp']:
+        if install_platform.lower() == 'windows':
+            specific_compile_args = extra_compile_args + ext_data['compile_args'] + ["/std:c++20"]
+        else:
+            specific_compile_args = extra_compile_args + ext_data['compile_args'] + ["-std=c++20"]
+    else:
+        specific_compile_args = extra_compile_args + ext_data['compile_args']
+
     tidalpy_cython_extensions.append(
         Extension(
             name=ext_data['name'],
             sources=[os.path.join(*tuple(source_path)) for source_path in ext_data['sources']],
             # Always add numpy to any includes
-            include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()],
-            extra_compile_args=ext_data['compile_args'] + extra_compile_args,
+            include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()] + CyRK.get_include(),
+            extra_compile_args=specific_compile_args,
             define_macros=macro_list,
             extra_link_args=ext_data['link_args'] + extra_link_args,
             )

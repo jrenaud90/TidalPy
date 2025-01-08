@@ -5,10 +5,8 @@ from math import isclose, isinf, isnan, nan, inf
 import pytest
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode = True
 
-from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow
+from TidalPy.utilities.math.complex import hypot, csqrt, cexp, clog, cpow, cipow, cinv, cabs, cabs2
 
 
 def compare_values(value_1, value_2):
@@ -61,6 +59,33 @@ standard_list_float = (
     inf
     )
 
+@pytest.mark.parametrize('z', standard_list_complex)
+def test_cabs(z):
+
+    np_result = np.abs(z)
+    tpy_result = cabs(z)
+
+    compare_values_complex(np_result, tpy_result)
+
+@pytest.mark.parametrize('z', standard_list_complex)
+def test_cabs2(z):
+
+    np_result = np.abs(z)**2
+    tpy_result = cabs2(z)
+
+    compare_values_complex(np_result, tpy_result)
+
+@pytest.mark.parametrize('z', standard_list_complex)
+def test_cinv(z):
+
+    np_result = 1. / np.asarray(z, dtype=np.complex128)
+    np_result = np_result
+    tpy_result = cinv(z)
+
+    try:
+        compare_values_complex(np_result, tpy_result)
+    except:
+        breakpoint()
 
 @pytest.mark.parametrize('a', standard_list_float)
 @pytest.mark.parametrize('b', standard_list_float)

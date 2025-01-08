@@ -1,6 +1,8 @@
-from libc.math cimport NAN, INFINITY
-from libc.float cimport DBL_MAX, DBL_MIN, DBL_MANT_DIG
+from TidalPy.constants cimport d_DBL_MAX, d_DBL_MIN, d_DBL_MANT_DIG, d_NAN_DBL, d_INF_DBL
 
+cdef double complex cmplx_NAN
+cdef double complex cmplx_zero
+cdef double complex cmplx_one
 cdef double SQRT2
 cdef double LOGE2
 cdef double SQRT2_INV
@@ -21,6 +23,10 @@ cdef long double SCALED_CEXP_UPPERL
 cdef double complex cf_build_dblcmplx(double a, double b) noexcept nogil
 
 cdef double cf_cabs(double complex z) noexcept nogil
+
+cdef double cf_cabs2(double complex z) noexcept nogil
+
+cdef double complex cf_cinv(double complex z) noexcept nogil
 
 cdef double cf_hypot(const double x, const double y) noexcept nogil
 

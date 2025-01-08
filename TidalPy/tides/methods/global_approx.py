@@ -10,7 +10,7 @@ from .base import TidesBase
 from ..ctl_funcs import ctl_method_input_getters, known_ctl_methods
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:
@@ -209,8 +209,7 @@ class GlobalApproxTides(TidesBase):
                     break
 
             if ctl_calc_func is None:
-                log.error(f'Unknown CTL function requested for {self}: {ctl_calc_method}.')
-                raise UnknownModelError('Unknown CTL function requested.')
+                raise UnknownModelError(f'Unknown CTL function requested for {self}: {ctl_calc_method}.')
             else:
                 self._ctl_calc_method = ctl_calc_func
 

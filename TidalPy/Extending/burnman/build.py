@@ -10,7 +10,7 @@ from TidalPy.Extending.burnman.defaults import default_burnman_layer_params
 from TidalPy.Extending.burnman.material.helper import find_material
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 def build_layer(layer_name: str, layer_config: dict, burnman_verbose: str = False) -> burnman.Layer:

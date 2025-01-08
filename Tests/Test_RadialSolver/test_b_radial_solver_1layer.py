@@ -1,17 +1,14 @@
 import pytest
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode = True
-
 
 from TidalPy.RadialSolver import radial_solver
 
 frequency = 1.0 / (86400. * 0.2)
 N = 100
-radius_array = np.linspace(0.1, 6000.e3, N)
+radius_array = np.linspace(0.0, 6000.e3, N)
 density_array = 3500. * np.ones_like(radius_array)
-bulk_modulus_array = 1.0e11 * np.ones_like(radius_array)
+bulk_modulus_array = 1.0e11 * np.ones(radius_array.size, dtype=np.complex128, order='C')
 viscosity_array = 1.0e20 * np.ones_like(radius_array)
 shear_array = 5.0e10 * np.ones_like(radius_array)
 
@@ -25,7 +22,7 @@ from TidalPy.utilities.spherical_helper import calculate_mass_gravity_arrays
 volume_array, mass_array, gravity_array = calculate_mass_gravity_arrays(radius_array, density_array)
 
 planet_bulk_density = np.sum(mass_array) / np.sum(volume_array)
-upper_radius_by_layer = (radius_array[-1],)
+upper_radius_by_layer = np.asarray((radius_array[-1],))
 
 @pytest.mark.parametrize('layer_type', ("solid", "liquid"))
 @pytest.mark.parametrize('is_static', (True, False))
@@ -47,14 +44,17 @@ def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, 
     else:
         try:
             out = radial_solver(
-                radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
+                radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,
                 frequency, planet_bulk_density, 
                 layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
                 degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
                 integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
-                scale_rtols_by_layer_type=False,
+                scale_rtols_bylayer_type=False,
                 max_num_steps=5_000_000, expected_size=250, max_step=0,
-                limit_solution_to_radius=True, verbose=False, nondimensionalize=True)
+                verbose=False, nondimensionalize=True, starting_radius=0.1,
+                raise_on_fail=True,
+                log_info=True  # For this test lets also check that logging info kwarg works.
+            )
 
             assert out.success
             assert type(out.message) is str
@@ -85,14 +85,15 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
     else:
         try:
             out = radial_solver(
-                radius_array, density_array, gravity_array, bulk_modulus_array, complex_shear_modulus_array,
+                radius_array, density_array, bulk_modulus_array, complex_shear_modulus_array,
                 frequency, planet_bulk_density, 
                 layer_type_by_layer, is_static_by_layer, is_incompressible_by_layer, upper_radius_by_layer,
                 degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
                 integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
-                scale_rtols_by_layer_type=False,
-                max_num_steps=5_000_000, expected_size=250, max_step=0,
-                limit_solution_to_radius=True, verbose=False, nondimensionalize=True)
+                scale_rtols_bylayer_type=False,
+                max_num_steps=5_000_000, expected_size=250, max_step=0, starting_radius=0.1,
+                raise_on_fail=True,
+                verbose=False, nondimensionalize=True)
 
             assert out.success
             assert type(out.message) is str

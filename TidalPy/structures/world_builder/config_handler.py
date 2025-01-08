@@ -6,7 +6,7 @@ from TidalPy.paths import get_worlds_dir
 from TidalPy.utilities.io.pathing import get_all_files_of_type
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 def clean_world_config(world_config: dict, make_copy: bool = True):
     """ Provides a clean copy of a world's configuration, deleting any items initialized by TidalPy

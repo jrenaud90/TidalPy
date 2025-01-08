@@ -2,11 +2,8 @@ import pytest
 
 import numpy as np
 
-import TidalPy
-TidalPy.test_mode = True
-
 from TidalPy.rheology.models import Maxwell
-from TidalPy.RadialSolver.solutions import find_num_solutions
+from TidalPy.RadialSolver.shooting import find_num_shooting_solutions
 from TidalPy.RadialSolver.starting.driver import find_starting_conditions
 
 frequency    = 0.1
@@ -243,7 +240,7 @@ known_results_tpy0p5 = {
 @pytest.mark.parametrize('degree_l', (2, 3))
 def test_initial_condition_driver(layer_type, is_static, is_incompressible, use_kamata, degree_l):
  
-    num_sols = find_num_solutions(layer_type, is_static, is_incompressible)
+    num_sols = find_num_shooting_solutions(layer_type, is_static, is_incompressible)
     num_ys = num_sols * 2
 
     # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.
@@ -290,7 +287,7 @@ def test_initial_condition_accuracy(layer_type, is_static, is_incompressible, us
         old_tpy_result = known_results[(is_solid, is_static, is_incompressible, use_kamata, degree_l)]
 
         # Get new result
-        num_sols = find_num_solutions(layer_type, is_static, is_incompressible)
+        num_sols = find_num_shooting_solutions(layer_type, is_static, is_incompressible)
         num_ys = num_sols * 2
 
         # Create array full of nans for the "output" array. If things worked okay then they should no longer be nan.

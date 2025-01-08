@@ -5,7 +5,7 @@ from astroquery.ipac.nexsci.nasa_exoplanet_archive import NasaExoplanetArchive
 
 from TidalPy.logger import get_logger
 
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 
 def get_exoplanet_data(
@@ -115,7 +115,7 @@ def get_exoplanet_data(
     else:
         criteria_str = ""
 
-    log.info(f'Getting exoplanet data using the criteria: {criteria}.')
+    log.debug(f'Getting exoplanet data using the criteria: {criteria}.')
 
     t0 = time()
     try:
@@ -127,9 +127,9 @@ def get_exoplanet_data(
     except Exception as QueryError:
         log.exception(QueryError)
         raise QueryError
-    log.info(f'Exoplanet data retrieved in {time() - t0: 0.2f} seconds.')
+    log.debug(f'Exoplanet data retrieved in {time() - t0: 0.2f} seconds.')
     num_exoplanets = len(exoplanet_data)
-    log.info(f'{num_exoplanets} exoplanets were found which met the criteria.')
+    log.debug(f'{num_exoplanets} exoplanets were found which met the criteria.')
 
     return exoplanet_data
 

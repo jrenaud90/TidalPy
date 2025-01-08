@@ -26,6 +26,18 @@ LOGGING_LEVELS = {
     'DEBUG'   : logging.DEBUG
     }
 
+def is_notebook() -> bool:
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
 def get_header_text() -> str:
     # Build header text
     now = datetime.now()
@@ -34,7 +46,7 @@ def get_header_text() -> str:
         f'----------------------------------------------------------------------------------',
         f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
         f'Version: {TidalPy.__version__}',
-        f'Primary Development by Joe Renaud, ca. 2016--2023',
+        f'Primary Development by Joe Renaud, ca. 2016--2025',
         f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
         f'----------------------------------------------------------------------------------',
         f'Run made on {now_str}.',
@@ -52,29 +64,36 @@ class DeltaTimeFormatter(logging.Formatter):
 FORMATTER = DeltaTimeFormatter('%(asctime)s(+%(delta)s) - %(levelname)-9s: %(message)s', "%Y-%m-%d %H:%M:%S")
 
 def get_console_handler(error_stream=False):
+    
+    if (not TidalPy.config['logging']['print_log_notebook']) and is_notebook():
+        return None
+    
     if error_stream:
         console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_error_level']])
     else:
-        if (not TidalPy.config['logging']['print_log_notebook']) and TidalPy._in_jupyter:
-            return None
-        
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(LOGGING_LEVELS[TidalPy.config['logging']['console_level']])
+    
     console_handler.setFormatter(FORMATTER)
     return console_handler
 
 def get_file_handler() -> logging.FileHandler:
     """ Get file handler for TidalPy's logger. """
-    assert TidalPy.config is not None
+    if TidalPy.config is None:
+        return None
+
+    if TidalPy.config['logging'] is None:
+        return None
 
     if not TidalPy.config['logging']['write_log_to_disk']:
         # User does not want log written to disk.
         return None
-    if (not TidalPy.config['logging']['write_log_notebook']) and TidalPy._in_jupyter:
+    
+    if (not TidalPy.config['logging']['write_log_notebook']) and is_notebook():
         # User does not want log written while using Jupyter notebook; which we are in.
         return None
-    if TidalPy.test_mode:
+    if TidalPy._test_mode:
         # TidalPy tests are being run, don't write to disk.
         return None
 
@@ -99,39 +118,42 @@ def get_file_handler() -> logging.FileHandler:
 # Initialize root logger. Its handlers will be used by other modules logger. 
 _root_logger = logging.getLogger('TidalPy')
 
-# Clear any handlers that might be present
-_root_logger.handlers = list()
-
-# Set base logging level to the lowest one (it will be overridden by the tidalpy config via handlers)
-_root_logger.setLevel(1)
-
 # Initialize handlers
-# Log file handler
-if FILE_HANDLER is None:
+def initialize_handlers():
+    global LOG_FILE_INIT
+    global FILE_HANDLER
+    global STREAM_HANDLER
+    global STREAM_ERR_HANDLER
+
+    # Clear any handlers that might be present
+    _root_logger.handlers = list()
+
+    # Set base logging level to the lowest one (it will be overridden by the tidalpy config via handlers)
+    _root_logger.setLevel(1)
+
+    # Log file handler
     FILE_HANDLER = get_file_handler()
 
-if FILE_HANDLER is not None:
-    _root_logger.addHandler(FILE_HANDLER)
-    # Check if log file has been initialized
-    if not LOG_FILE_INIT:
-        # Add header text to log file
-        with open(FILE_HANDLER.baseFilename, 'w') as log_file:
-            log_file.write(get_header_text())
-        LOG_FILE_INIT = True
+    if FILE_HANDLER is not None:
+        _root_logger.addHandler(FILE_HANDLER)
+        # Check if log file has been initialized
+        if not LOG_FILE_INIT:
+            # Add header text to log file
+            with open(FILE_HANDLER.baseFilename, 'w') as log_file:
+                log_file.write(get_header_text())
+            LOG_FILE_INIT = True
 
-# Console handler
-if STREAM_HANDLER is None:
+    # Console handler
     STREAM_HANDLER = get_console_handler(error_stream=False)
 
-if STREAM_HANDLER is not None:
-    _root_logger.addHandler(STREAM_HANDLER)
+    if STREAM_HANDLER is not None:
+        _root_logger.addHandler(STREAM_HANDLER)
 
-# Console Error handler
-if STREAM_ERR_HANDLER is None:
+    # Console Error handler
     STREAM_ERR_HANDLER = get_console_handler(error_stream=True)
 
-if STREAM_ERR_HANDLER is not None:
-    _root_logger.addHandler(STREAM_ERR_HANDLER)
+    if STREAM_ERR_HANDLER is not None:
+        _root_logger.addHandler(STREAM_ERR_HANDLER)
 
 def get_logger(logger_name: str) -> logging.Logger:
     # Get logger class
@@ -141,3 +163,17 @@ def get_logger(logger_name: str) -> logging.Logger:
     # None are currently required
 
     return logger
+
+# Intercept exceptions and log them
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    log = get_logger("TidalPy")
+
+    log.error("Uncaught Exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+    # raise exc_type(exc_value)
+
+sys.excepthook = handle_exception

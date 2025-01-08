@@ -11,47 +11,23 @@
 
 ---
 
-<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.5.5 Alpha-orange" alt="TidalPy Version 0.5.5 Alpha" /></a>
+<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.5.5 Alpha-orange" alt="TidalPy Version 0.6.0 Alpha" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
 TidalPy is an open-source software suite that utilizes a semi-analytic approach to estimate tidal heating,
 orbit-rotation evolution, and thermal changes for rocky and icy worlds. It has been used to simulate the thermal-orbital
 evolution of moons within our Solar System as well as exoplanets beyond. TidalPy's `RadialSolver` package can accurately
-estimate the viscoelastic Love and Shida numbers for a multi-layered world, including the effects of liquid layers,
-compressibility, dynamic tides, and advanced rheological models. This model has been used to study the tidal response
-of Mercury, Venus, Earth, our Moon, and Mars.
+estimate the viscoelastic Love and Shida numbers for a multi-layered, rocky or icy world, including the effects of liquid layers,
+compressibility, dynamic tides, and advanced rheological models. This module has been used to study the tidal response
+of Mercury, Venus, Earth, our Moon, Mars, and much more.
 
 Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send a message to
 [TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
-## Related Software
-
-Below is a non-exhaustive list of publicly available software that perform similar or parallel calculations as TidalPy.
-
-* Are you interested in the habitability of a planet? With considerations of tides, atmospheres, water content, solar
-  interactions? Check out...
-  * [VPLanet](https://github.com/VirtualPlanetaryLaboratory/vplanet)
-* Are you interested in the orbital evolution of multiple planets with each planet influencing one another? Consider an
-  N-body approach like...
-  * [Posidonius (formerly Mercury-T)](https://github.com/marblestation/posidonius)
-  * [ReboundX](https://github.com/dtamayo/reboundx)
-* Don't care about tides or orbital dynamics but are instead interested in interior structure and composition of
-  planets?
-  * [BurnMan](https://github.com/geodynamics/burnman)
-  * [PerpleX](http://www.perplex.ethz.ch/)
-* Are you interested in tides, interiors, *and* the chemical evolution of small worlds but don't care about
-  non-synchronous rotation or compressibility of planets?
-  * [IcyDwarf](https://github.com/MarcNeveu/IcyDwarf)
-
-However, if you want high fidelity tidal, orbital, spin, and interior models --- then you have come to the right place!
-Read below for instructions on how to install and use TidalPy.
-
 # How to Install
 
 ## Compatibility
-
-*As of TidalPy v0.5.0*:
 
 * **Windows-Latest**: *Installation & tests passed.*
 * **MacOS-Latest**: *Installation & tests passed.*
@@ -103,21 +79,6 @@ After GEOS is installed you can pip install the rest,
 
 `pip install pyproj shapely pyshp cartopy`
 
-## DiffEqPy / Julia
-
-TidalPy provides the option to use the [Julia](https://julialang.org/) programming language's differential equation 
-solver for python: [diffeqpy](https://github.com/SciML/diffeqpy). To utilize this package you first need to ensure
-that Julia is installed on your machine and available via the system's environment path.
-
-* Install the Julia language from [https://julialang.org/downloads/](https://julialang.org/downloads/)
-* Add Julia's directory and its `bin` subdirectory to your system's path.
-* Open an elevated ("as administrator") terminal, command prompt, or powershell.
-  * If you are using a virtual Python environment make sure it is active.
-* Install `julia` and `diffeqpy` for python using pip
-  * Run `pip install julia diffeqpy`
-* Open Python on your elevated terminal (the following steps may take a while to compile). 
-  * Run `import julia; julia.install(); import diffeqpy; diffeqpy.install()`
-
 ## Installation Troubleshooting
 
 _If you ran into a problem that is not listed below please [submit an issue](https://github.com/jrenaud90/TidalPy/issues) and we will work on addressing it!_
@@ -130,7 +91,7 @@ _If you ran into a problem that is not listed below please [submit an issue](htt
 
 # How to Use TidalPy
 
-Check out the `Documentation\Getting Started.md` file. This is pretty bare bones at the moment but offers some basic
+Check out the `Documentation\1 - Getting Started.md` file. This is pretty bare bones at the moment but offers some basic
 info about TidalPy. For now the best way to learn how to use TidalPy is by checking out the `Demos` directory. There
 are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
 
@@ -145,9 +106,9 @@ the end of this file.
 
 ## Citing TidalPy
 
-If you use TidalPy for your research please cite its Zenodo [doi: 10.5281/zenodo.7017474](https://zenodo.org/records/7017560).
+If you use TidalPy for your research please cite its Zenodo [doi: 10.5281/zenodo.7017474](https://doi.org/10.5281/zenodo.7017474).
 
-The science used in TidalPy is described in the following papers and software (and references therein):
+The science used in TidalPy is described in the following papers and software (with additional references therein):
 
 * Rheological Modeling Package:
   * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
@@ -196,6 +157,8 @@ TidalPy has been improved by numerous contributors some of which you can find [h
 
 TidalPy has benefited from work and conversations with the following:
 - Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
+- Michael Efroimsky (U.S. Naval Observatory)
 - Sander Goossens (NASA GSFC)
 - Marc Neveu (U. of Maryland, College Park / NASA GSFC)
 - Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
+- Nick Wagner (Brown U.)

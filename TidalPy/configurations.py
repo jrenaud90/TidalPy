@@ -6,6 +6,7 @@ You can check their default values by examining the same file at https://github.
 
 import os
 import warnings
+from typing import Union
 from itertools import islice
 
 import toml
@@ -16,6 +17,18 @@ from TidalPy.exceptions import ConfigurationException, InitializationError
 from TidalPy.paths import get_config_dir, get_worlds_dir, unique_path
 from TidalPy.defaultc import default_config_str
 
+
+def dict_replace_value(d_old: dict, d_new: dict) -> dict:
+    merged_dict = {}
+    for k, v in d_old.items():
+        if isinstance(v, dict):
+            if k in d_new:
+                v = dict_replace_value(v, d_new[k])
+        else:
+            if k in d_new:
+                v = d_new[k]
+        merged_dict[k] = v
+    return merged_dict
 
 def save_dict_to_toml(dict_to_save: dict,
               file_path: str,
@@ -83,7 +96,14 @@ def check_config_version(
                 break
             
         if not config_version_found:
-            raise ValueError(f'Can not find configuration version in {config_file}.')
+            if raise_on_false:
+                raise ConfigurationException(f'Can not find configuration version in {config_file}.')
+            else:
+                if warn_on_false:
+                    message = f'Could not determine version for TidalPy configuration file, {config_path}. ' + \
+                              f'It may not be compatible with this version of TidalPy.\n'
+                    warnings.warn(message)
+                return False
         
         if config_version == version:
             compatible = True
@@ -126,9 +146,12 @@ def get_default_config() -> dict:
     # Load configurations (these may have been changed by the user) to dict
     config_dict = toml.load(config_path)
 
+    # Update path
+    TidalPy._config_path = config_path
+
     return config_dict
 
-def set_config(config_path: str) -> dict:
+def set_config(new_config_path: Union[str, dict]) -> dict:
     """Sets TidalPy's configuration based on a provided configuration file path.
     
     Parameters
@@ -138,19 +161,44 @@ def set_config(config_path: str) -> dict:
         if set to "default" then the default config will be used.
     """
     
-    if config_path.lower() == 'default':
-        # Use default path.
-        TidalPy.config = get_default_config()
-    else:
-        # Check if file exists
-        if not os.path.isfile(config_path):
-            raise InitializationError(f'Provided configuration path is not a file: {config_path}.')
+    new_config_name = 'unknown'
+    if isinstance(new_config_path, dict):
+        new_config = new_config_path
+        new_config_name = 'User-provided dict'
+    elif isinstance(new_config_path, str):
+        new_config_name = f'{new_config_path}'
+        if new_config_path.lower() == 'default':
+            # Use default path.
+            new_config = get_default_config()
+        else:
+            # Check if file exists
+            if not os.path.isfile(new_config_path):
+                raise InitializationError(f'Provided configuration path is not a file: {new_config_path}.')
+        
+            # Check if the provided configuration file is for the correct version of TidalPy.
+            check_config_version(new_config_path, warn_on_false=True, raise_on_false=False)
 
-        # Check if the provided configuration file is for the correct version of TidalPy.
-        check_config_version(config_path)
-    
-        # Load configurations (these may have been changed by the user) to dict
-        TidalPy.config = toml.load(config_path)
+            # Update path
+            TidalPy._config_path = new_config_path
+            
+            # Load configurations (these may have been changed by the user) to dict
+            new_config = toml.load(new_config_path)
+    else:
+        raise TypeError("Unexpected type found for TidalPy config replacement. Expected configuration file filepath (str) or config (dict).")
+
+        TidalPy.config = get_default_config()
+
+    # Set or override configurations with this new config file.
+    if TidalPy.config is None:
+        # No config has been loaded. Use this as the base config.
+        TidalPy.config = new_config
+    else:
+        # A base config has already been loaded, override the base with any items from this new config.
+        TidalPy.config = dict_replace_value(TidalPy.config, new_config)
+        if TidalPy._tidalpy_init:
+            from TidalPy.logger import get_logger
+            log = get_logger('TidalPy')
+            log.debug(f"TidalPy Configs overridden by {new_config_name}.")
 
 def get_default_world_dir() -> str:
     """ Find the directory containing TidalPy's world configuration files.

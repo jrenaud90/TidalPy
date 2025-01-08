@@ -10,7 +10,7 @@ from TidalPy.utilities.dictionary_utils import nested_get, nested_place
 from TidalPy.utilities.classes.config.config import ConfigHolder
 
 from TidalPy.logger import get_logger
-log = get_logger(__name__)
+log = get_logger("TidalPy")
 
 if TYPE_CHECKING:
     from TidalPy.structures.layers import PhysicalLayerType
@@ -146,8 +146,7 @@ class ModelHolder(ConfigHolder):
                 break
 
         if not model_found:
-            log.error(f'Unknown model: "{self.model}" for {self}')
-            raise UnknownModelError(f'Unknown model encountered {self}.')
+            raise UnknownModelError(f'Unknown model: "{self.model}" for {self}')
         elif model_name != self.model:
             log.warning(
                 f'Model "{self.model}" for {self} does not match TidalPy capitalization. '
@@ -301,7 +300,6 @@ class ModelHolder(ConfigHolder):
         if not is_live_args:
             # Constant Arguments
             if parameter_dict is None:
-                log.error(f'Parameter configuration dictionary is required to build constant model arguments.')
                 raise MissingArgumentError(
                     f'Parameter configuration dictionary is required to build constant '
                     f'model arguments.'
@@ -309,7 +307,6 @@ class ModelHolder(ConfigHolder):
 
             for arg_name in arg_names:
                 if arg_name not in parameter_dict:
-                    log.error(f'Parameter: {arg_name} is missing from configuration dictionary.')
                     raise ParameterMissingError(f'Parameter: {arg_name} is missing from configuration dictionary.')
                 args.append(parameter_dict[arg_name])
         else:
@@ -387,7 +384,6 @@ class LayerModelHolder(ModelHolder):
             log.debug(f"User provided no model information for {self}; using defaults instead.")
 
         if config is None and self.default_config is None:
-            log.error(f"Config not provided for {self}; and no defaults are set.")
             raise ParameterMissingError(f"Config not provided for {self}; and no defaults are set.")
 
         # Setup ModelHolder and ConfigHolder methods. Using the layer's config file as the replacement config.
