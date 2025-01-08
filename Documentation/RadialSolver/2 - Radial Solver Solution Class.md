@@ -58,18 +58,23 @@ rs_solution.num_ytypes  # Number of y-solutions solved simultaneously (e.g., 2 f
 rs_solution.num_layers  # Number of layers
 rs_solution.degree_l    # Which harmonic degree was used to perform calculations.
 
-# All radial function results are stored in the `result` array. This is a M x 6 x N where N is the number of radial steps, M is the number of solution types (e.g., "Tidal", "Loading", etc.)
-# The "6" represents the 6 different radial functions. For Solid layers these are the traditional y1, y2, y3 ... (TidalPy uses the Takeuchi & Saito (1972) format of these values).
-# Liquid layers do not define y4 so it will always be nan in these layers. Static liquid layers further do not have a defined y2, y3, y5, y6. TidalPy uses the method of Saito (1974) to define a new "y7" which takes the place of "y6" in this array; all other values should be nan. 
+# All radial function results are stored in the `result` array. This is a M x 6 x N where N is the number of radial steps,
+# M is the number of solution types (e.g., "Tidal", "Loading", etc.)
+# The "6" represents the 6 different radial functions. For Solid layers these are the traditional y1, y2, y3 ...
+# (TidalPy uses the Takeuchi & Saito (1972) format of these values).
+# Liquid layers do not define y4 so it will always be nan in these layers. Static liquid layers further do not
+# have a defined y2, y3, y5, y6. TidalPy uses the method of Saito (1974) to define a new "y7" which takes the place of
+# "y6" in this array; all other values should be nan. 
 rs_solution.result
 
 # There is a helpful way to directly get the radial solution results for a specified solution type, if multiple solutions were requested.
 rs_solution['tidal']    # Tidal gravitational-viscoelastic results
 rs_solution['loading']  # Loading gravitational-viscoelastic results
 
-# Complex Love numbers can be accessed using the `love` attribute which is a np.ndarray (complex) with the shape of [num_solve_for, 3]
-# The first dimension is solution type. If you are only solving for tidal Love numbers then there will only be one solution in the "0" location.
-# tidal will be at 0 and load at 1). The second dimension is used to access the three Love numbers:
+# Complex Love numbers can be accessed using the `love` attribute which is a np.ndarray (complex)
+# with the shape of [num_solve_for, 3]
+# The first dimension is solution type. If you are only solving for tidal Love numbers then there will only be one
+# solution in the "0" location. Tidal will be at 0 and Loading at 1). The second dimension is used to access the three Love numbers:
 # - index 0: k Love number.
 # - index 1: h Love number.
 # - index 2: l Shida number.
@@ -82,10 +87,21 @@ rs_solution.k
 rs_solution.h
 rs_solution.l
 
-# TidalPy's radial solver uses an integration technique which solves ODEs throughout each layer of a planet. The number of integration steps is variable and determined by the local error in the calculations.
-# The larger the number of steps, the lower the error but the larger the computation time. You can control what error level is acceptable by adjusting `radial_solver`s `integration_rtol`, `integration_atol`, and the `integration_method` used. Furthermore, you can force `radial_solver` to automatically fail if too many integration steps are taken by adjusting `max_num_steps` and `max_ram_MB` (useful if running MCMCs that may enter a bad parameter space leading to unstable results). 
-# The solution records the number of steps taken for each solution (up to 3) in each layer. This is a np.ndarray of ints structured as [num_layers, 3]. Note that the second dimension is for the solution number. Solid layers will have 3 solutions, dynamic liquid layers will have 2, and static liquid layers will only have 1; the unused solutions will be set to 0.
-# This parameter is useful to look at to both tweak tolerances to maximize performance and to check for instability (generally speaking, radial solver should not need more than ~100 steps per solution per layer) in complex scenarios this may rise to ~1000 but if you see >10_000 then it is very likely that the solution is unstable. See `rs_solution.plot_ys()` for another way to check for instability.
+# TidalPy's radial solver uses an integration technique which solves ODEs throughout each layer of a planet.
+# The number of integration steps is variable and determined by the local error in the calculations.
+# The larger the number of steps, the lower the error but the larger the computation time.
+# You can control what error level is acceptable by adjusting `radial_solver`s `integration_rtol`, `integration_atol`,
+# and the `integration_method` used. Furthermore, you can force `radial_solver` to automatically fail if too many integration
+# steps are taken by adjusting `max_num_steps` and `max_ram_MB` (useful if running MCMCs that may enter a bad parameter
+# space leading to unstable results).
+# The solution records the number of steps taken for each solution (up to 3) in each layer.
+# This is a np.ndarray of ints structured as [num_layers, 3]. Note that the second dimension is for the solution number.
+# Solid layers will have 3 solutions, dynamic liquid layers will have 2, and static liquid layers will only have 1;
+# the unused solutions will be set to 0.
+# This parameter is useful to look at to both tweak tolerances to maximize performance and to check for instability
+# (generally speaking, radial solver should not need more than ~100 steps per solution per layer) in complex scenarios
+# this may rise to ~1000 but if you see >10_000 then it is very likely that the solution is unstable.
+# See `rs_solution.plot_ys()` for another way to check for instability.
 rs_solution.steps_taken
 
 # The radial functions can be quickly plotted as a function of radius using the following method. This is a useful debugging tool to check for instability.
