@@ -71,8 +71,8 @@ rs_solution = radial_solver(
     complex_shear_modulus_array, 
     # [Pa] (double complex array; size = total_slices)
 
-    # Note that `complex_shear_modulus_array` and `complex_bulk_modulus_array` are complex-valued array.
-    # This is a result of applying It is the result of applying a rheological function to the respective modulus and viscosity.
+    # Note that `complex_shear_modulus_array` and `complex_bulk_modulus_array` are complex-valued arrays.
+    # This is the result of applying a rheological function to the respective modulus and viscosity.
     # The complex part of either array can be set to 0 if you do not care about shear / bulk dissipation.
     
     frequency,
@@ -80,14 +80,15 @@ rs_solution = radial_solver(
     
     planet_bulk_density,
     # Scalar bulk density of planet [kg m-3] (type: double)
-    # The following tuples define the assumptions used for the major layers within a planet.
+    
+    # # The following tuples define the assumptions used for the major layers within a planet.
     
     layer_types,  
     # Tuple of layer types (type: tuple of strings)
     # Options:
     #  - 'solid'
     #  - 'liquid'
-    # Propagation matrix only allows for a single solid layer.
+    # Propagation matrix currently only allows for a single solid layer.
     
     is_static_bylayer,
     # Is each layer using the quasi-static tidal assumption (type: tuple of bools)
@@ -99,7 +100,7 @@ rs_solution = radial_solver(
     # Propagation matrix only allows for a incompressible layer.
     
     upper_radius_bylayer_array,
-    # Upper radius of each layer [m] (type: double array; size = num_layers)
+    # Numpy array of the upper radius of each layer [m] (type: double array; size = num_layers)
     
 
     # # # Below are optional arguments. The default values are shown after the "=". # # #
