@@ -35,8 +35,6 @@ To learn more about TidalPy's underlying methods please review these references.
 - Henning, W. G., & Hurford, T. (2014). TIDAL HEATING IN MULTILAYERED TERRESTRIAL EXOPLANETS. The Astrophysical Journal, 789(1), 30. https://doi.org/10.1088/0004-637X/789/1/30
 - [Sabadini, Vermeersen, & Cambiotti (2016)](https://www.barnesandnoble.com/w/global-dynamics-of-the-earth-roberto-sabadini/1123259823).
 
-## Radial Solver Solution
-
 ## Radial Solver Function `TidalPy.RadialSolver.radial_solver`
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module is the main way to solve the radial 
 functions from Python. There are also cython hooks for faster performance (see "4 - Cython API" documentation).
