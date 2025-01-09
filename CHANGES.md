@@ -1,5 +1,11 @@
 # TidalPy Major Change Log
 
+### Version 0.6.1 (NNN)
+
+#### Benchmarks and Performance
+* Added performance benchmark for `TidalPy.RadialSolver.helpers`.
+
+
 ## Version 0.6.0 (2025-01-07)
 #### Removed
 * Removed support for the older non-cythonized `TidalPy.radial_solver` module in favor of `TidalPy.RadialSolver`
