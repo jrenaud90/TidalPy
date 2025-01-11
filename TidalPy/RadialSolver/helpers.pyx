@@ -156,27 +156,23 @@ def build_rs_input_homogeneous_layers(
         raise ValueError(f"Unexpected value found for total radius fraction, {total_thick_frac} (expected 1.0).")
     
     # Build required arrays
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array     = np.full(num_layers, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] radius_array           = np.full(total_slices, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] density_array          = np.full(total_slices, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] shear_viscosity_array  = np.full(total_slices, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] bulk_viscosity_array   = np.full(total_slices, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] shear_array            = np.full(total_slices, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] bulk_array             = np.full(total_slices, np.nan, dtype=np.float64, order='C')
-    cdef cnp.ndarray[cnp.complex128_t, ndim=1] complex_shear_array = np.full(total_slices, np.nan, dtype=np.complex128, order='C')
-    cdef cnp.ndarray[cnp.complex128_t, ndim=1] complex_bulk_array  = np.full(total_slices, np.nan, dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] upper_radius_array     = np.empty(num_layers, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] radius_array           = np.empty(total_slices, dtype=np.float64, order='C')
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] density_array          = np.empty(total_slices, dtype=np.float64, order='C')
+    cdef vector[double] data_array_vec  = vector[double]()
+    data_array_vec.resize(total_slices * 4)
+    cdef cnp.ndarray[cnp.complex128_t, ndim=1] complex_shear_array = np.empty(total_slices, dtype=np.complex128, order='C')
+    cdef cnp.ndarray[cnp.complex128_t, ndim=1] complex_bulk_array  = np.empty(total_slices, dtype=np.complex128, order='C')
 
-    cdef double* modulus_ptr                 = NULL
-    cdef double* viscosity_ptr               = NULL
     cdef double complex* complex_modulus_ptr = NULL
 
-    cdef double[::1] upper_radius_view    = upper_radius_array
-    cdef double[::1] radius_view          = radius_array
-    cdef double[::1] density_view         = density_array
-    cdef double[::1] shear_viscosity_view = shear_viscosity_array
-    cdef double[::1] bulk_viscosity_view  = bulk_viscosity_array
-    cdef double[::1] shear_view           = shear_array
-    cdef double[::1] bulk_view            = bulk_array
+    cdef double[::1] upper_radius_view = upper_radius_array
+    cdef double[::1] radius_view       = radius_array
+    cdef double[::1] density_view      = density_array
+    cdef double* shear_viscosity_ptr   = &data_array_vec[0]
+    cdef double* bulk_viscosity_ptr    = &data_array_vec[total_slices]
+    cdef double* shear_ptr             = &data_array_vec[2 * total_slices]
+    cdef double* bulk_ptr              = &data_array_vec[3 * total_slices]
     cdef double complex[::1] complex_shear_view = complex_shear_array
     cdef double complex[::1] complex_bulk_view  = complex_bulk_array
 
@@ -189,6 +185,9 @@ def build_rs_input_homogeneous_layers(
 
     cdef size_t first_slice_in_layer = 0
     cdef double last_layer_radius    = 0.0
+    cdef double last_layer_radius3   = 0.0
+    cdef double layer_radius3        = 0.0
+
     for layer_i in range(num_layers):
         if slices_tuple:
             layer_slices = slices_tuple[layer_i]
@@ -212,7 +211,9 @@ def build_rs_input_homogeneous_layers(
 
         # Other calculations
         upper_radius_view[layer_i] = layer_radius
-        planet_bulk_density       += layer_density * (layer_radius**3 - last_layer_radius**3)
+        layer_radius3              = layer_radius**3
+        planet_bulk_density       += layer_density * (layer_radius3 - last_layer_radius3)
+        last_layer_radius3         = layer_radius3
 
         # Populate arrays
         for slice_i in range(layer_slices):
@@ -226,33 +227,29 @@ def build_rs_input_homogeneous_layers(
                 radius_view[full_index] = last_layer_radius + slice_i * dr
             # Fill in other arrays (This function assumes these properties are constant throughout the layer)
             density_view[full_index]         = layer_density
-            shear_viscosity_view[full_index] = layer_shear_visc
-            bulk_viscosity_view[full_index]  = layer_bulk_visc
-            shear_view[full_index]           = layer_static_shear
-            bulk_view[full_index]            = layer_static_bulk
+            shear_viscosity_ptr[full_index]  = layer_shear_visc
+            bulk_viscosity_ptr[full_index]   = layer_bulk_visc
+            shear_ptr[full_index]            = layer_static_shear
+            bulk_ptr[full_index]             = layer_static_bulk
 
         # Call on rheology class instance to find complex moduli.
         # Setup pointers used by rheology class
-        modulus_ptr         = &shear_view[first_slice_in_layer]
-        viscosity_ptr       = &shear_viscosity_view[first_slice_in_layer]
         complex_modulus_ptr = &complex_shear_view[first_slice_in_layer]
         rheo_instance = shear_rheology_model_tuple[layer_i]
         rheo_instance._vectorize_modulus_viscosity(
             forcing_frequency,
-            modulus_ptr,
-            viscosity_ptr,
+            &shear_ptr[first_slice_in_layer],
+            &shear_viscosity_ptr[first_slice_in_layer],
             complex_modulus_ptr,  # Modified variable
             <Py_ssize_t>layer_slices)
         
         # Repeat for bulk
-        modulus_ptr         = &bulk_view[first_slice_in_layer]
-        viscosity_ptr       = &bulk_viscosity_view[first_slice_in_layer]
         complex_modulus_ptr = &complex_bulk_view[first_slice_in_layer]
         rheo_instance = bulk_rheology_model_tuple[layer_i]
         rheo_instance._vectorize_modulus_viscosity(
             forcing_frequency,
-            modulus_ptr,
-            viscosity_ptr,
+            &bulk_ptr[first_slice_in_layer],
+            &bulk_viscosity_ptr[first_slice_in_layer],
             complex_modulus_ptr,  # Modified variable
             <Py_ssize_t>layer_slices)
 

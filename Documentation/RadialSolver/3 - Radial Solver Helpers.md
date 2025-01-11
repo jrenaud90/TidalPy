@@ -5,7 +5,8 @@ TidalPy's radial solver function is particular on the format of its inputs. It c
 The helper functions described here are designed to give users an easy interface to provide data that is then translated into the inputs required by the `radial_solver` function.
 
 These functions are not designed to be particularly efficient. So it is recommended to use them until you get comfortable with the kind of inputs `radial_solver` requires.
-At that point it would be more efficient to make the inputs correctly from the beginning and forego using these functions. 
+At that point it would be more efficient to make the inputs correctly from the beginning and forego using these functions.
+That being said, benchmarking shows that they only add about a 2% -- 10% overhead depending on the layer structure.
 
 [^1]: If a crash does occur, please report it on TidalPy's GitHub issues page. Please include the exact inputs used.
 

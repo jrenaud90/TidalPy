@@ -7,6 +7,7 @@
 
 #### Performance
 * Improved `TidalPy.RadialSolver.helpers.build_rs_input_from_data` performance by factor of 10x to 150x depending on layer structure.
+* Improved `TidalPy.RadialSolver.helpers.build_rs_input_homogeneous_layers` performance by factor of 15% to 3.5x depending on layer structure.
 
 ## Version 0.6.0 (2025-01-07)
 #### Removed
