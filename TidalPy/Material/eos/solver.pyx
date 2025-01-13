@@ -198,18 +198,18 @@ cdef void solve_eos(
             surface_pressure_index   = (last_solution_size * num_y) - (num_y - 2) - 1    # (Total number of slices) - (num_y - location of pressure) - 1
             calculated_surf_pressure = integration_result_ptr.solution[surface_pressure_index]
 
-            # Update the centeral pressure using the error at the surface as the correction factor
+            # Update the central pressure using the error at the surface as the correction factor
             pressure_diff     = surface_pressure - calculated_surf_pressure
-            pressire_diff_abs = pressure_diff
+            pressure_diff_abs = pressure_diff
             if pressure_diff < 0.0:
-                pressire_diff_abs = -pressure_diff
+                pressure_diff_abs = -pressure_diff
 
             # Calculate percent difference to use in convergence check.
             if surface_pressure > d_EPS_DBL_100:
-                pressire_diff_abs /= surface_pressure
+                pressure_diff_abs /= surface_pressure
             
             # Check if we are done next iteration
-            if pressire_diff_abs <= pressure_tol:
+            if pressure_diff_abs <= pressure_tol:
                 final_run = True
             else:
                 y0_ptr[1] += pressure_diff
@@ -242,7 +242,7 @@ cdef void solve_eos(
         eos_solution_ptr.success = True
 
         # Set other final parameters
-        eos_solution_ptr.pressure_error = pressire_diff_abs
+        eos_solution_ptr.pressure_error = pressure_diff_abs
 
         # Tell the eos solution to perform a full planet interpolation and store the results. Including surface results 
         eos_solution_ptr.interpolate_full_planet()
