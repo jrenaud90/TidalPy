@@ -444,9 +444,9 @@ def build_rs_input_from_data(
             # Add values of this slice to our output array
             radius_array_use_ptr[slice_i_outputs]          = radius_slicei
             density_array_use_ptr[slice_i_outputs]         = density_slicei
-            shear_viscosity_array_use_ptr[slice_i_outputs] = shear_slicei
+            shear_viscosity_array_use_ptr[slice_i_outputs] = shear_visc_slicei
             bulk_viscosity_array_use_ptr[slice_i_outputs]  = bulk_visc_slicei
-            shear_array_use_ptr[slice_i_outputs]           = shear_visc_slicei
+            shear_array_use_ptr[slice_i_outputs]           = shear_slicei
             bulk_array_use_ptr[slice_i_outputs]            = bulk_slicei
 
             # Output arrays have now grown by 1 due to insert
@@ -470,12 +470,17 @@ def build_rs_input_from_data(
             if warnings:
                 log.warning(f"Layer {layer_i} does not have its upper radius in the radius array which is required. It will be added; other parameters will be set to their values at the slice just before this upper radius value.")
             # Get other properties at slice just before where the upper radius should be added.
-            # These are already held in our slicei variables since they stopped just shy of the interface.
+            density_slicei    = density_array[slice_i - 1]
+            shear_slicei      = static_shear_modulus_array[slice_i - 1]
+            bulk_slicei       = static_bulk_modulus_array[slice_i - 1]
+            shear_visc_slicei = shear_viscosity_array[slice_i - 1]
+            bulk_visc_slicei  = bulk_viscosity_array[slice_i - 1]
+
             radius_array_use_ptr[slice_i_outputs]          = layer_upper_radius
             density_array_use_ptr[slice_i_outputs]         = density_slicei
-            shear_viscosity_array_use_ptr[slice_i_outputs] = shear_slicei
+            shear_viscosity_array_use_ptr[slice_i_outputs] = shear_visc_slicei
             bulk_viscosity_array_use_ptr[slice_i_outputs]  = bulk_visc_slicei
-            shear_array_use_ptr[slice_i_outputs]           = shear_visc_slicei
+            shear_array_use_ptr[slice_i_outputs]           = shear_slicei
             bulk_array_use_ptr[slice_i_outputs]            = bulk_slicei
 
             # Output arrays have now grown by 1 due to insert
