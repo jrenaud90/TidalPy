@@ -61,6 +61,12 @@ EOSSolutionCC::~EOSSolutionCC( )
     // Reset each shared pointer in the cysolver vector
     for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
     {
+        // TODO: A future version of CyRK should better handle the scenario that the dense outputs are not deallocated so there is a floating reference to the cysolver solution shared pointer. 
+        // Until CyRK gets its act together, we need to manually release those dense outputs
+        this->cysolver_results_sptr_bylayer_vec[i]->dense_vec.clear();
+        this->cysolver_results_sptr_bylayer_vec[i]->solver_uptr->storage_sptr = nullptr;
+
+        // Reset this class reference to the shared pointer.
         this->cysolver_results_sptr_bylayer_vec[i].reset();
     }
     // Clear all vectors
@@ -176,7 +182,17 @@ void EOSSolutionCC::change_radius_array(
         this->density_array_vec.clear();
         this->complex_shear_array_vec.clear();
         this->complex_bulk_array_vec.clear();
+        for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
+        {
+            // TODO: A future version of CyRK should better handle the scenario that the dense outputs are not deallocated so there is a floating reference to the cysolver solution shared pointer. 
+            // Until CyRK gets its act together, we need to manually release those dense outputs
+            this->cysolver_results_sptr_bylayer_vec[i]->dense_vec.clear();
+            this->cysolver_results_sptr_bylayer_vec[i]->solver_uptr->storage_sptr = nullptr;
+
+            this->cysolver_results_sptr_bylayer_vec[i].reset();
+        }
         this->cysolver_results_sptr_bylayer_vec.clear();
+        this->current_layers_saved = 0;
 
         // Indicate that all vectors are cleared.
         this->other_vecs_set = false;

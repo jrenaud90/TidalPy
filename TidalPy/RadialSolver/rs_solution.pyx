@@ -51,6 +51,10 @@ cdef class RadialSolverSolution:
 
         # Finish initialization with provided array
         self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
+    
+    def __dealloc__(self):
+        self.solution_storage_sptr.reset()
+        self.solution_storage_ptr = NULL
 
     cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil:
         # Unfortunately this must be done outside of __init__ because the argument is a pointer and python interpretor

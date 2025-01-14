@@ -316,13 +316,13 @@ def test_build_rs_input_from_data(num_layers, num_slices, r0):
     
     for layer_i in range(num_layers):
         if layer_i == 0:
-            radius_array_new[0] == 0.0
+            assert radius_array_new[0] == 0.0
         elif layer_i == (num_layers - 1):
             # One copy of upper radius at planet surface
-            np.sum(radius_array_new == layer_upper_radius_tuple[layer_i]) == 1
+            assert np.sum(radius_array_new == layer_upper_radius_tuple[layer_i]) == 1
         else:
             # Two copies of radius at interfaces
-            np.sum(radius_array_new == layer_upper_radius_tuple[layer_i]) == 2
+            assert np.sum(radius_array_new == layer_upper_radius_tuple[layer_i]) == 2
 
             # Check that other properties match expectations
             first_index = np.argwhere(radius_array_new == layer_upper_radius_tuple[layer_i])[0]
@@ -332,7 +332,10 @@ def test_build_rs_input_from_data(num_layers, num_slices, r0):
             assert radius_array_new[first_index + 1] == layer_upper_radius_tuple[layer_i]
 
             # Assert that physical properties are the same at this and below
-            assert density_array_new[first_index] == density_array_new[first_index - 1]
+            try:
+                assert density_array_new[first_index] == density_array_new[first_index - 1]
+            except:
+                import pdb; pdb.set_trace()
             assert complex_bulk_array_new[first_index] == complex_bulk_array_new[first_index - 1]
             assert complex_shear_array_new[first_index] == complex_shear_array_new[first_index - 1]
             assert density_array_new[first_index] == density_array_new[first_index - 1]
