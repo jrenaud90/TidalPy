@@ -279,12 +279,12 @@ def build_rs_input_homogeneous_layers(
 
 def build_rs_input_from_data(
         double forcing_frequency,
-        cnp.ndarray[cnp.float64_t, ndim=1] radius_array,
-        cnp.ndarray[cnp.float64_t, ndim=1] density_array,
-        cnp.ndarray[cnp.float64_t, ndim=1] static_bulk_modulus_array,
-        cnp.ndarray[cnp.float64_t, ndim=1] static_shear_modulus_array,
-        cnp.ndarray[cnp.float64_t, ndim=1] bulk_viscosity_array,
-        cnp.ndarray[cnp.float64_t, ndim=1] shear_viscosity_array,
+        double[::1] radius_array,
+        double[::1] density_array,
+        double[::1] static_bulk_modulus_array,
+        double[::1] static_shear_modulus_array,
+        double[::1] bulk_viscosity_array,
+        double[::1] shear_viscosity_array,
         tuple layer_upper_radius_tuple,
         tuple layer_type_tuple,
         tuple layer_is_static_tuple,
@@ -299,6 +299,7 @@ def build_rs_input_from_data(
     cdef double planet_radius = radius_array[num_slices_input - 1]
     
     # Check that the correct number of layers were provided for each input tuple
+    cdef size_t slice_i
     cdef size_t layer_i
     cdef size_t num_layers = len(layer_upper_radius_tuple)
     cdef double r
