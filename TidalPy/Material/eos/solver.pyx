@@ -3,8 +3,9 @@
 
 from libc.stdio cimport sprintf, printf
 from libc.string cimport strcpy
+from libcpp.memory cimport make_shared
 
-from CyRK cimport cysolve_ivp, CySolveOutput, CySolverResult, DiffeqFuncType
+from CyRK cimport CySolverResult, DiffeqFuncType, cysolve_ivp_noreturn
 
 from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL, d_EPS_DBL_100
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES
@@ -90,20 +91,24 @@ cdef void solve_eos(
     
     # Integration solution variables
     cdef size_t last_solution_size = 0
-    cdef CySolveOutput integration_result
+    cdef shared_ptr[CySolverResult] integration_result_sptr
     cdef CySolverResult* integration_result_ptr = NULL
 
     # Loop variables
     cdef size_t y_i
+    cdef size_t num_layers = eos_solution_ptr.num_layers
 
     # Solve the equation of state in a convergence loop based on the surface pressure.
     while True:
         
+        # Reset calculated pressure 
+        calculated_surf_pressure = d_INF_DBL
+
         if not final_run:
             iterations += 1
 
         # Step through each macro layer of the planet and solve the equation of state starting from bottom to top
-        for layer_i in range(eos_solution_ptr.num_layers):
+        for layer_i in range(num_layers):
             # Setup bounds and initial conditions for next layer's integration
             radial_span_ptr[1] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
             if layer_i == 0:
@@ -111,19 +116,6 @@ cdef void solve_eos(
                 # Set y0 for bottom-most layer equal to the global y0
                 for y_i in range(num_y):
                     y0_bylayer_ptr[y_i] = y0_ptr[y_i]
-            else:
-                # Bottom radius value equals top of lower layer's radius
-                radial_span_ptr[0] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i - 1]
-                top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1)
-
-                # y0 for this layer equals the top most result of the lower layer
-                if integration_result_ptr:
-                    for y_i in range(num_y):
-                        y0_bylayer_ptr[y_i] = integration_result_ptr.solution[top_of_last_layer_index + y_i]
-                else:
-                    # Not sure why that would be null but in any case we are in a fail state.
-                    failed = True
-                    break
 
             # Set the maximum step size equal to 1/3 the layer's thickness
             max_step = 0.33 * (radial_span_ptr[1] - radial_span_ptr[0])
@@ -152,40 +144,77 @@ cdef void solve_eos(
             args_ptr = <char*>eos_input_layer_ptr
 
             ###### Radial Integrate the EOS Through the Planet ######
-            integration_result = cysolve_ivp(
-                diffeq,             # Differential equation [DiffeqFuncType]
-                radial_span_ptr,     # Radial span [const double*]
-                y0_bylayer_ptr,        # y0 array [const double*]
-                num_y,               # Number of dependent y values [size_t]
-                integration_method,  # Integration method [int]
-                rtol,                # Relative Tolerance (as scalar) [double]
-                atol,                # Absolute Tolerance (as scalar) [double]
-                args_ptr,            # Extra input args to diffeq [char*]
-                sizeof_args,         # Size of argument structure in bytes [size_t]
-                num_extra,           # Number of extra outputs tracked [size_t]
-                max_num_steps,       # Max number of steps (0 = find good value) [size_t]
-                max_ram_MB,          # Max amount of RAM allowed [size_t]
-                use_dense_output,    # Use dense output [bint]
-                t_eval_ptr,          # Interpolate at radius array [double*]
-                len_t_eval,          # Size of interpolation array [size_t]
-                eos_function_bylayer_ptr_vec[layer_i], # Pre-eval function used in diffeq [PreEvalFunc]
-                rtols_ptr,           # Relative Tolerance (as array) [double*]
-                atols_ptr,           # Absolute Tolerance (as array) [double*]
-                max_step,            # Maximum step size [double]
-                first_step,          # Initial step size (0 = find good value) [double]
-                expected_size        # Expected final integration size (0 = find good value) [size_t]
+            integration_result_sptr = make_shared[CySolverResult](
+                num_y,
+                num_extra,
+                expected_size,
+                radial_span_ptr[1],
+                True,
+                use_dense_output,
+                False)
+
+            cysolve_ivp_noreturn(
+                integration_result_sptr,
+                diffeq,                        # Differential equation [DiffeqFuncType]
+                radial_span_ptr,               # Radial span [const double*]
+                y0_bylayer_ptr,                # y0 array [const double*]
+                num_y,                         # Number of dependent y values [size_t]
+                integration_method,            # Integration method [int]
+                rtol,                          # Relative Tolerance (as scalar) [double]
+                atol,                          # Absolute Tolerance (as scalar) [double]
+                args_ptr,                      # Extra input args to diffeq [char*]
+                sizeof_args,                   # Size of argument structure in bytes [size_t]
+                num_extra,                     # Number of extra outputs tracked [size_t]
+                max_num_steps,                 # Max number of steps (0 = find good value) [size_t]
+                max_ram_MB,                    # Max amount of RAM allowed [size_t]
+                use_dense_output,              # Use dense output [bint]
+                t_eval_ptr,                    # Interpolate at radius array [double*]
+                len_t_eval,                    # Size of interpolation array [size_t]
+                eos_function_bylayer_ptr_vec[layer_i],  # Pre-eval function used in diffeq [PreEvalFunc]
+                rtols_ptr,                     # Relative Tolerance (as array) [double*]
+                atols_ptr,                     # Absolute Tolerance (as array) [double*]
+                max_step,                      # Maximum step size [double]
+                first_step,                    # Initial step size (0 = find good value) [double]
+                expected_size                  # Expected final integration size (0 = find good value) [size_t]
                 )
-            integration_result_ptr = integration_result.get()
+
+            integration_result_ptr = integration_result_sptr.get()
             #########################################################
             last_solution_size = integration_result_ptr.size
             eos_solution_ptr.save_steps_taken(integration_result_ptr.steps_taken)
 
             if not integration_result_ptr.success:
                 failed = True
-                break
             
-            if final_run:
-                eos_solution_ptr.save_cyresult(integration_result)
+            if final_run and (not failed):
+                eos_solution_ptr.save_cyresult(integration_result_sptr)
+                # eos_solution_ptr.cysolver_results_sptr_bylayer_vec.push_back(integration_result)
+                # eos_solution_ptr.current_layers_saved += 1
+            elif (layer_i == num_layers - 1) and (not failed):
+                # Find planet surface pressure for this iteration
+                surface_pressure_index   = (last_solution_size * num_y) - (num_y - 2) - 1    # (Total number of slices) - (num_y - location of pressure) - 1
+                calculated_surf_pressure = integration_result_ptr.solution[surface_pressure_index]
+            
+            # Prepare for next layer
+            if (num_layers > 1) and (not failed):
+                # Bottom radius value equals top of lower layer's radius
+                radial_span_ptr[0] = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+                top_of_last_layer_index = (num_extra + num_y) * (last_solution_size - 1)
+
+                # y0 for this layer equals the top most result of the lower layer
+                if integration_result_ptr:
+                    for y_i in range(num_y):
+                        y0_bylayer_ptr[y_i] = integration_result_ptr.solution[top_of_last_layer_index + y_i]
+                else:
+                    # Not sure why that would be null but in any case we are in a fail state.
+                    failed = True
+
+            # Clear pointers
+            integration_result_ptr = NULL
+            integration_result_sptr.reset()
+
+            if failed:
+                break
 
         if failed:
             break
@@ -194,10 +223,6 @@ cdef void solve_eos(
             # We are done!
             break
         else:
-            # Find planet surface pressure and compare to target.
-            surface_pressure_index   = (last_solution_size * num_y) - (num_y - 2) - 1    # (Total number of slices) - (num_y - location of pressure) - 1
-            calculated_surf_pressure = integration_result_ptr.solution[surface_pressure_index]
-
             # Update the central pressure using the error at the surface as the correction factor
             pressure_diff     = surface_pressure - calculated_surf_pressure
             pressure_diff_abs = pressure_diff
@@ -246,3 +271,9 @@ cdef void solve_eos(
 
         # Tell the eos solution to perform a full planet interpolation and store the results. Including surface results 
         eos_solution_ptr.interpolate_full_planet()
+    
+    if integration_result_sptr:
+        integration_result_sptr.reset()
+    
+    if integration_result_ptr:
+        integration_result_ptr = NULL

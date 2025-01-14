@@ -5,9 +5,13 @@
 #### Benchmarks and Performance
 * Added performance benchmark for `TidalPy.RadialSolver.helpers`.
 
+#### Fixes
+* Fixed memory leak that was occurring in the EOS Solver (therefore also RadialSolver) due to CyRK's CySolverSolution not being dereferenced (this is a problem with CyRK, but hack applied to TidalPy until a fix can be made to CyRK).
+
 #### Performance
 * Improved `TidalPy.RadialSolver.helpers.build_rs_input_from_data` performance by factor of 10x to 150x depending on layer structure.
 * Improved `TidalPy.RadialSolver.helpers.build_rs_input_homogeneous_layers` performance by factor of 15% to 3.5x depending on layer structure.
+* Improved `TidalPy.RadialSolver.radial_solver` performance by around 10% depending on layer structure.
 
 ## Version 0.6.0 (2025-01-07)
 #### Removed

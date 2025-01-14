@@ -58,6 +58,7 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
 
 RadialSolutionStorageCC::~RadialSolutionStorageCC( )
 {
+    this->eos_solution_uptr.reset();
 }
 
 EOSSolutionCC* RadialSolutionStorageCC::get_eos_solution_ptr()
