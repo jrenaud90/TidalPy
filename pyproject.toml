@@ -25,7 +25,7 @@ dependencies = [
     "astroquery",
     # Graphics
     "ipympl>=0.9.6,<0.10.0",
-    "matplotlib>=3.4.2,<4.0.0",
+    "matplotlib>=3.4.2,<5.0.0",
     "cmcrameri"
 ]
 license = {file = "LICENSE.md"}
