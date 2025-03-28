@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.1'
+version = '0.6.2'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -26,7 +26,7 @@ dependencies = [
     # Graphics
     "ipympl>=0.9.6, <0.10.0",
     "matplotlib>=3.4.2, <4.0.0",
-    "cmcrameri>=1.4, <2.0"
+    "cmcrameri"
 ]
 license = {file = "LICENSE.md"}
 readme = "README.md"
