@@ -63,7 +63,7 @@ jobs:
         shell: bash -el {0}
         run: |
           python -m pip install --upgrade build
-          conda install -c conda-forge pytest pytest-xdist nomkl
+          conda install -c conda-forge pytest pytest-xdist nomkl llvm-openmp
           export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
           export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
           export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
@@ -114,7 +114,7 @@ jobs:
         shell: bash -el {0}
         run: |
           python -m pip install --upgrade build
-          conda install -c conda-forge pytest pytest-xdist nomkl
+          conda install -c conda-forge pytest pytest-xdist nomkl llvm-openmp
           export LDFLAGS="-L/usr/local/opt/llvm/lib"
           export CPPFLAGS="-I/usr/local/opt/llvm/include"
           export LDFLAGS="-L/usr/local/opt/libomp/lib"
