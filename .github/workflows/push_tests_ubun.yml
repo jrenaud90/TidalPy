@@ -1,12 +1,21 @@
 name: Ubuntu Tests
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  push:
 
 env:
   TIDALPY_TEST_MODE: 1
 
 jobs:
   test-ubuntu:
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, 'run tests')
+
     name: Test TidalPy on Ubuntu
     runs-on: ubuntu-latest
     strategy:
@@ -17,6 +26,7 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
 
@@ -32,46 +42,18 @@ jobs:
           # For burnman, need GitHub version to enable python 3.12 support.
         run: |
           python -m pip install pytest pytest-xdist
-
-      - name: Install package
+      
+      - name: Install Package with Burnman
+        if: ${{ fromJSON(matrix.python-version) < 3.13 }}
+        shell: bash -el {0}
         run: |
           python -m pip install -v .[burnman]
+      
+      - name: Install Package (No Burnman)
+        if: ${{ fromJSON(matrix.python-version) >= 3.13 }}
+        shell: bash -el {0}
+        run: |
+          python -m pip install -v .
 
       - name: Run pytest
         run: pytest -n auto -v Tests/
-
-# Removing coverage for now. It does not work well with Cython or numba so whats the point when it misses most of the code.
-  # test-39-with-coverage:
-  #   name: Test Python 3.9 and Upload Coverage Report
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Set up Python 3.9
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: 3.9
-      
-  #     - name: Upgrade pip
-  #       run: python -m pip install --upgrade pip
-
-  #     - name: Install Dependencies
-  #       run: |
-  #         python -m pip install pytest matplotlib numba numpy scipy pytest-cov burnman
-
-  #     - name: Install package
-  #       run: |
-  #         python -m pip install -v .
-
-  #     - name: Run pytest
-  #       run: pytest --capture=sys -v --cov=TidalPy Tests/
-
-  #     - name: Upload coverage to Codecov
-  #       uses: codecov/codecov-action@v3
-  #       with:
-  #         env_vars: OS,PYTHON
-  #         fail_ci_if_error: false
-  #         flags: unittests
-  #         verbose: true
-  #         name: coverage
-        

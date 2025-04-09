@@ -1,16 +1,16 @@
 [project]
 name='TidalPy'
-version = '0.6.2'
+version = '0.6.3'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.9,<3.14"
 dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
-    "numpy>=1.22,<2",
-    "scipy>=1.9.3,<1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
+    "numpy>=1.22,<3",
+    "scipy>=1.9.3",
     # Configuration file resources
     "platformdirs>=3.11.0,<4",
     "toml>=0.10.2",
@@ -19,7 +19,7 @@ dependencies = [
     "psutil>=5.8.0",
     "pathos>=0.2.0",
     # Install CyRK requirements
-    "cyrk>=0.12.2,<0.13.0",
+    "cyrk>=0.13.5,<0.14.0",
     # Exoplanet data archive
     "astropy",
     "astroquery",
@@ -28,7 +28,8 @@ dependencies = [
     "matplotlib>=3.4.2,<5.0.0",
     "cmcrameri"
 ]
-license = {file = "LICENSE.md"}
+license = "CC-BY-NC-SA-4.0"
+license-files = ["LICEN[CS]E*"]
 readme = "README.md"
 keywords = [
     "Scientific Computing",
@@ -53,10 +54,10 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Cython",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Natural Language :: English",
     "Intended Audience :: Science/Research",
@@ -66,8 +67,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Astronomy",
     "Topic :: Scientific/Engineering :: Physics",
-    "Natural Language :: English",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
+    "Natural Language :: English"
 ]
 
 [project.urls]
@@ -113,11 +113,11 @@ julia = [
 [build-system]
 requires = [
     'setuptools>=64.0.0',
-    'numpy>=1.22,<2',
-    "scipy>=1.9.3,<1.14", # Issue with scipy==1.14 and MacOS Py_ssize_t vs. long
+    'numpy>=1.22,<3',
+    "scipy>=1.9.3",
     'cython>=3.0.0',
     'wheel>=0.38',
-    "cyrk>=0.12.2,<0.13.0"
+    "cyrk>=0.13.5,<0.14.0"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -125,12 +125,13 @@ build-backend = "setuptools.build_meta"
 py-modules = ["_build_tidalpy"]
 include-package-data = true
 
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["Tests", ".vscode", ".idea", ".github", "Papers", "Demos", "Benchmarks & Performance", "Documentation"]
+
 [tool.setuptools.cmdclass]
 build_py = "_build_tidalpy.build_tidalpy"
 build_ext = "_build_tidalpy.build_ext"
-
-[tool.setuptools.packages]
-find = {}
 
 # TODO: Get rid of the below once the numba-scipy package is updated. See the note in the module's folder.
 [project.entry-points.numba_extensions]

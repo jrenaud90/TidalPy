@@ -1,11 +1,16 @@
 """ Commands to build the cython extensions of TidalPy (a hack to work with pyproject.toml) """
 import os
+import sys
 import platform
 import json
+from pathlib import Path
 from setuptools.extension import Extension
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.build_ext import build_ext as _build_ext
+import importlib.util
 
+import Cython
+from Cython.Build import cythonize
 import numpy as np
 import CyRK
 
@@ -23,7 +28,7 @@ elif install_platform.lower() == 'darwin':
 else:
     extra_compile_args = ['-fopenmp', '-O3']
     extra_link_args = ['-fopenmp', '-O3']
-macro_list = [("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
+macro_list = [("NPY_NO_DEPRECATED_API", "NPY_1_9_API_VERSION")]
 
 # Load TidalPy's cython extensions
 absolute_path = os.path.dirname(__file__)
@@ -71,7 +76,7 @@ class build_tidalpy(_build_py):
     def initialize_options(self):
         super().initialize_options()
         from Cython.Build import cythonize
-        print('!-- Cythonizing TidalPy')
+        print(f'!-- Cythonizing TidalPy (Python v{sys.version}; NumPy v{np.__version__}; Cython v{Cython.__version__}; CyRK v{CyRK.__version__})')
         if self.distribution.ext_modules == None:
             self.distribution.ext_modules = []
 

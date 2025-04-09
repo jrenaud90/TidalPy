@@ -1,5 +1,24 @@
 # TidalPy Major Change Log
 
+
+### Version 0.6.3 (2025-04-09)
+
+Changes:
+* Changes GitHub actions to avoid testing when not needed.
+* Now supports Python 3.13
+
+Fixes:
+* Removed various files that were being included in the manifest
+
+Dependencies:
+* Updated to work with CyRK 0.13.3
+* Updated to work with Numpy 2.x
+
+### Version 0.6.2 (2025-03-28)
+
+* Bumping version to integrate into conda-forge.
+* Fixed some build processes that could cause both numpy 1.X and 2.X to be installed and inconsistent use (only affected MacOS)
+
 ### Version 0.6.1 (2025-01-11)
 
 #### Benchmarks and Performance
