@@ -14,7 +14,7 @@ Fixes:
 Dependencies:
 * Updated to work with CyRK 0.13.3
 * Updated to work with Numpy 2.x
-* Updated to work with Numba 0.62.x
+* Updated to work with Numba 0.61.x
 
 ### Version 0.6.2 (2025-03-28)
 
