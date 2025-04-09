@@ -6,12 +6,12 @@
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
     <!--<a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />-->
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12-blue" alt="Python Version 3.9-3.12" /></a>
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
 </div>
 
 ---
 
-<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.1 Alpha-orange" alt="TidalPy Version 0.6.1 Alpha" /></a>
+<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.3 Alpha-orange" alt="TidalPy Version 0.6.3 Alpha" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
