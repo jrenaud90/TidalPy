@@ -5,10 +5,10 @@ description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Impleme
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.10,<3.14"
 dependencies = [
     # Scientific and computing resources
-    "numba>=0.54.1",
+    "numba>=0.61",
     "numpy>=1.22,<3",
     "scipy>=1.9.3",
     # Configuration file resources
@@ -54,7 +54,6 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Cython",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
