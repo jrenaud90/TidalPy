@@ -6,7 +6,6 @@
 Changes:
 * Changes GitHub actions to avoid testing when not needed.
 * Now supports Python 3.13
-* No longer supports Python 3.10
 
 Fixes:
 * Removed various files that were being included in the manifest
@@ -14,7 +13,6 @@ Fixes:
 Dependencies:
 * Updated to work with CyRK 0.13.3
 * Updated to work with Numpy 2.x
-* Updated to work with Numba 0.61.x
 
 ### Version 0.6.2 (2025-03-28)
 
