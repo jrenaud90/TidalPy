@@ -1,3 +1,7 @@
+# Tooling
+.vscode/
+.idea/
+
 # TidalPy Specific
 TidalPy-Run*
 

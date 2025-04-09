@@ -3,7 +3,12 @@
 
 name: MacOS Tests
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  push:
+
 
 env:
   TIDALPY_TEST_MODE: 1
@@ -11,6 +16,11 @@ env:
 jobs:
 
   test-macos-latest:
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, 'run tests')
+
     defaults:
       run:
         shell: bash -el {0}
@@ -24,6 +34,7 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
@@ -60,6 +71,11 @@ jobs:
         run: pytest -v Tests/
   
   test-macos-13:
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, 'run tests')
+
     defaults:
       run:
         shell: bash -el {0}
@@ -73,6 +89,7 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
