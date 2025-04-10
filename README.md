@@ -40,7 +40,13 @@ system and performing the following in a terminal:
 
 `pip install TidalPy`
 
-_TidalPy can not currently be installed via `conda install`._
+Alternatively you can use conda to install TidalPy:
+
+`conda install -c conda-forge TidalPy`
+
+or 
+
+`mamba install TidalPy`
 
 ## Accessing Jupyter Notebooks
 There are several jupyter notebooks with TidalPy demos found in the /Demos/ folder of this repository.
