@@ -17,7 +17,7 @@ elif install_platform.lower() == 'darwin':
 else:
     extra_compile_args = ['-fopenmp', '-O3']
     extra_link_args = ['-fopenmp', '-O3']
-macro_list = [("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
+macro_list = [("NPY_NO_DEPRECATED_API", "NPY_1_9_API_VERSION")]
 
 # Load TidalPy's cython extensions
 absolute_path = os.path.dirname(__file__)

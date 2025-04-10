@@ -1,5 +1,12 @@
 # MANIFEST.in
 
+# Exclude all c++ and c files; we will manually add back in some custom ones.
+# This avoids shipping already cythonized c files that need to be cythonized locally.
+exclude **/*.c
+exclude **/*.cpp
+exclude **/*.h
+exclude **/*.hpp
+
 # Include data files used for plotting and benchmarking
 include TidalPy/utilities/graphics/multilayer/*.csv
 
@@ -21,3 +28,12 @@ include TidalPy/RadialSolver/rs_solution_.hpp
 include TidalPy/Material/eos/eos_solution_.cpp
 include TidalPy/Material/eos/eos_solution_.hpp
 include TidalPy/utilities/dimensions/nondimensional_.hpp
+
+# Exclude the whole Tests folder
+exclude .vscode/*
+exclude .idea/*
+exclude .github/*
+exclude Tests/*
+exclude Papers/*
+exclude Demos/*
+exclude Documentation/*

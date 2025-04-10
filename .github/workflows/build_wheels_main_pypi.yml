@@ -38,6 +38,7 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - name: Checkout TidalPy
         uses: actions/checkout@v4
@@ -85,10 +86,10 @@ jobs:
       fail-fast: false
       matrix:
         python:
-          - "3.9"
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - name: Checkout TidalPy
         uses: actions/checkout@v4
@@ -137,7 +138,7 @@ jobs:
         platform:
           #              - macos-12  ## macos is not playing nice with cibuildwheel with openmp from cython.
           - windows-latest
-          - ubuntu-20.04
+          - ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -155,7 +156,7 @@ jobs:
   check_dist:
     name: Check sdist
     needs: [make_sdist, build_macos_latest_wheel, build_macos_13_wheel, build_other_wheels]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
