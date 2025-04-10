@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.3'
+version = '0.6.4'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -12,7 +12,7 @@ dependencies = [
     "numpy>=1.22,<3",
     "scipy>=1.9.3",
     # Configuration file resources
-    "platformdirs>=3.11.0,<4",
+    "platformdirs>=3.11.0",
     "toml>=0.10.2",
     # Additional multiprocessing support resources
     "dill>=0.3.2",
