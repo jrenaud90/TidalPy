@@ -4,7 +4,7 @@
 ### Version 0.6.4 (2025-04-10)
 
 Dependencies:
-* Remmoved max version limit for platformdirs pacakge
+* Removed max version limit for platformdirs package
 
 ### Version 0.6.3 (2025-04-09)
 
