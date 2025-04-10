@@ -1,6 +1,11 @@
 # TidalPy Major Change Log
 
 
+### Version 0.6.4 (2025-04-10)
+
+Dependencies:
+* Remmoved max version limit for platformdirs pacakge
+
 ### Version 0.6.3 (2025-04-09)
 
 Changes:
