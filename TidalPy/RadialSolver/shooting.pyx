@@ -413,6 +413,8 @@ cdef int cf_shooting_solver(
 
         # Ensure the starting radius is not too close to the surface of the planet.
         starting_radius = fmin(starting_radius, 0.95 * planet_radius)
+
+    printf("DEBUG: STARTING RADIUS = %e\n", starting_radius)
     
     # Other physical properties at this starting radius (these will be set later)
     cdef double starting_gravity       = d_NAN_DBL
@@ -456,6 +458,9 @@ cdef int cf_shooting_solver(
             break
         else:
             last_radius_check = last_layer_upper_radius
+
+    printf("DEBUG: Last Index Before Start = %zu at radius %e\n", last_index_before_start, last_radius_check)
+    printf("DEBUG: Radius before: %e; Radius after: %e\n", radius_array_ptr[last_index_before_start-1], radius_array_ptr[last_index_before_start+1])
 
     # Step through the solution vector and NAN out data below the starting radius
     for ytype_i in range(num_ytypes):
@@ -740,6 +745,8 @@ cdef int cf_shooting_solver(
                         integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i)],
                         integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i) + 1]
                         )
+                    if slice_i < 15:
+                        printf("DEBUG: Sol %d; y_%zu; slice %zu; == %e %e\n",solution_i, y_i, slice_i, storage_by_y_ptr[num_ys * slice_i + y_i].real, storage_by_y_ptr[num_ys * slice_i + y_i].imag)
 
                 # Store top most result for initial condition for the next layer
                 # slice_i should already be set to the top of this layer after the end of the previous loop.
