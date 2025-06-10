@@ -183,6 +183,8 @@ cdef int cf_shooting_solver(
         num_ytypes,
         planet_radius,
         planet_bulk_density,
+        surface_gravity,
+        G_to_use,
         degree_l_dbl
         )
 

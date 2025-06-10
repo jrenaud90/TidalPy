@@ -4,5 +4,7 @@ cdef int cf_get_surface_bc(
     size_t num_bcs,
     double radius_to_use,
     double bulk_density_to_use,
+    double surface_grav_to_use,
+    double G_to_use,
     double degree_l_dbl,
     ) noexcept nogil

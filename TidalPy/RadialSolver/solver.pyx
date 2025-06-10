@@ -756,6 +756,8 @@ def radial_solver(
                 bc_models_ptr[i] = 1
             elif solve_for_tmp == "loading":
                 bc_models_ptr[i] = 2
+            elif solve_for_tmp == "loading_nonnormal":
+                bc_models_ptr[i] = 3
             else:
                 raise ArgumentException(f"Unsupported value provided for `solve_for`: {solve_for_tmp}.")
     

@@ -6,6 +6,7 @@ cimport numpy as cnp
 
 from libc.stdio cimport printf
 from libc.stdlib cimport exit
+from libc.math cimport M_PI
 
 from TidalPy.exceptions import ArgumentException, UnknownModelError
 from TidalPy.constants cimport d_NAN_DBL
@@ -17,6 +18,8 @@ cdef int cf_get_surface_bc(
         size_t num_bcs,
         double radius_to_use,
         double bulk_density_to_use,
+        double surface_grav_to_use,
+        double G_to_use,
         double degree_l_dbl,
         ) noexcept nogil:
     """
@@ -41,6 +44,10 @@ cdef int cf_get_surface_bc(
         Radius of the planet used for the boundary condition calculations.
     bulk_density_to_use : double
         Bulk density of the planet used for the boundary condition calculations.
+    surface_grav_to_use : double
+        Acceleration due to gravity at the planet's surface.
+    G_to_use : double
+        Gravitational constant.
     degree_l_dbl : double
         Degree of the spherical harmonic for the boundary condition calculations.
 
@@ -95,7 +102,7 @@ cdef int cf_get_surface_bc(
         return -2
     cdef size_t i, j
 
-    # Inititalize all boundary conditions to NaN
+    # Initialize all boundary conditions to NaN
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     for i in range(15):
         boundary_conditions_ptr[i] = d_NAN_DBL
@@ -115,6 +122,12 @@ cdef int cf_get_surface_bc(
             # Loading Potential
             # See Eq. 6 in Beuthe (2015) and Eq. 9 of Saito (1974)
             boundary_conditions_ptr[j * 3 + 0] = (-1. / 3.) * (2. * degree_l_dbl + 1.) * bulk_density_to_use
+            boundary_conditions_ptr[j * 3 + 1] = 0.
+            boundary_conditions_ptr[j * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_to_use
+        elif bc_model_ptr[j] == 3:
+            # Non-normalized Loading Potential
+            # See Eq. 4.418 in Martens (2016; PHD Thesis)
+            boundary_conditions_ptr[j * 3 + 0] = -surface_grav_to_use**2 * (2. * degree_l_dbl + 1.) / (4 * M_PI * G_to_use)
             boundary_conditions_ptr[j * 3 + 1] = 0.
             boundary_conditions_ptr[j * 3 + 2] = (2. * degree_l_dbl + 1.) / radius_to_use
         else:
@@ -159,7 +172,8 @@ def get_surface_bc(
             raise UnknownModelError(f"Unknown boundary condition model. Supported models are:\n"
                 "\t0: Free Surface.\n"
                 "\t1: Tidal Potential.\n"
-                "\t2: Loading Potential.\n")
+                "\t2: Loading Potential.\n"
+                "\t3: Non-normalized Loading Potential.\n")
         else:
             raise RuntimeError("Unknown error encountered.")
 

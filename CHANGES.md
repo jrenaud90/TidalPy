@@ -1,5 +1,9 @@
 # TidalPy Major Change Log
 
+### Version 0.6.5 (2025-06-10)
+
+Changes:
+* Added a non-normalized version of the loading boundary condition. Accessed in the Radial Solver with "loading_nonnormal".
 
 ### Version 0.6.4 (2025-04-10)
 

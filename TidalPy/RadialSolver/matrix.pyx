@@ -79,6 +79,7 @@ cdef int cf_matrix_propagate(
 
     # Pull out constants
     cdef double planet_radius = radius_array_ptr[top_slice_i]
+    cdef double surface_gravity = gravity_array_ptr[top_slice_i]
 
     # Find boundary condition at the top of the planet -- this is dependent on the forcing type.
     #     Tides (default here) follow the (y2, y4, y6) = (0, 0, (2l+1)/R) rule
@@ -97,6 +98,8 @@ cdef int cf_matrix_propagate(
         num_ytypes,
         planet_radius,
         planet_bulk_density,
+        surface_gravity,
+        G_to_use,
         degree_l_dbl
         )
 
