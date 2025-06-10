@@ -12,6 +12,8 @@ def test_get_surface_bc(degree_l):
 
     radius = 1000.
     density = 2000.
+    surface_grav_to_use = 9.81
+    G_to_use = 6.6743e-11
 
     def check_val(array, model_type):
         if model_type == 0:
@@ -37,6 +39,8 @@ def test_get_surface_bc(degree_l):
             bc_models,
             radius,
             density,
+            surface_grav_to_use,
+            G_to_use,
             degree_l,
             )
         assert check_val(boundary_condition_array[:3], model_type=model_type)
@@ -50,6 +54,8 @@ def test_get_surface_bc(degree_l):
             bc_models,
             radius,
             density,
+            surface_grav_to_use,
+            G_to_use,
             degree_l,
             )
         for i, model_type in enumerate(model_pair):
@@ -62,6 +68,8 @@ def test_get_surface_bc(degree_l):
             bc_models,
             radius,
             density,
+            surface_grav_to_use,
+            G_to_use,
             degree_l,
             )
         for i, model_type in enumerate(model_pair):

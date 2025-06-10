@@ -139,7 +139,9 @@ def get_surface_bc(
         int[::1] bc_model_view,
         double radius_to_use,
         double bulk_density_to_use,
-        double degree_l_dbl,
+        double surface_grav_to_use,
+        double G_to_use,
+        double degree_l_dbl
         ):
 
     cdef int* bc_model_ptr = &bc_model_view[0]
@@ -158,6 +160,8 @@ def get_surface_bc(
         num_bcs,
         radius_to_use,
         bulk_density_to_use,
+        surface_grav_to_use,
+        G_to_use,
         degree_l_dbl,
         )
     
