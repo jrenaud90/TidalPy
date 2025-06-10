@@ -71,6 +71,8 @@ cdef class RadialSolverSolution:
                 self.ytypes[ytype_i] = "tidal"
             elif bc_model == 2:
                 self.ytypes[ytype_i] = "loading"
+            elif bc_model == 3:
+                self.ytypes[ytype_i] = "loading_nonnormal"
             else:
                 self.solution_storage_ptr.error_code = -2
                 self.solution_storage_ptr.set_message("ArgumentException:: Unknown boundary condition provided")
