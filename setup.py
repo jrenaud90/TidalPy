@@ -9,8 +9,8 @@ import CyRK
 install_platform = platform.system()
 
 if install_platform.lower() == 'windows':
-    extra_compile_args = ['/openmp']
-    extra_link_args = []
+    extra_compile_args = ['/openmp', "-Ox", "-Zi"]
+    extra_link_args = ["-debug:full"]
 elif install_platform.lower() == 'darwin':
     extra_compile_args = ['-O3', '-Wno-error=incompatible-function-pointer-types', '-fopenmp']
     extra_link_args = ['-lomp']

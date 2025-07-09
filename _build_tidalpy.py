@@ -16,12 +16,13 @@ import CyRK
 
 num_procs = os.cpu_count()
 num_threads = max(1, num_procs - 1)
+num_threads = 1
 
 install_platform = platform.system()
 
 if install_platform.lower() == 'windows':
-    extra_compile_args = ['/openmp']
-    extra_link_args = []
+    extra_compile_args = ['/openmp', "-Ox", "-Zi"]
+    extra_link_args = ["-debug:full"]
 elif install_platform.lower() == 'darwin':
     extra_compile_args = ['-O3', '-Wno-error=incompatible-function-pointer-types', '-fopenmp']
     extra_link_args = ['-lomp']
@@ -91,6 +92,6 @@ class build_tidalpy(_build_py):
                 self.distribution.ext_modules,
                 compiler_directives={'language_level': "3"},
                 include_path=['.', np.get_include()],
-                nthreads=num_threads 
+                nthreads=num_threads, emit_linenums=True
                 )
         print('!-- Finished Cythonizing TidalPy')
