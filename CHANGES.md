@@ -5,19 +5,19 @@ Added debug flag to installation files to help with cython debugging.
 
 ### Version 0.6.4 (2025-04-10)
 
-Dependencies:
+#### Dependencies
 * Removed max version limit for platformdirs package
 
 ### Version 0.6.3 (2025-04-09)
 
-Changes:
+#### Changes
 * Changes GitHub actions to avoid testing when not needed.
 * Now supports Python 3.13
 
-Fixes:
+#### Fixes
 * Removed various files that were being included in the manifest
 
-Dependencies:
+#### Dependencies
 * Updated to work with CyRK 0.13.3
 * Updated to work with Numpy 2.x
 
