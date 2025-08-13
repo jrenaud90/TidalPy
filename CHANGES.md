@@ -1,7 +1,14 @@
 # TidalPy Major Change Log
 
-TBD:: Fixed issue where shooting method was corrupting data when starting radius was too large (which happened for higher orders of l) This fixes GitHub Issue [#72](https://github.com/jrenaud90/TidalPy/issues/72).
-Added debug flag to installation files to help with cython debugging. 
+### Version 0.6.5 (2025-XX)
+
+#### New
+* Added test to check if structure arrays have been changed.
+* Added debug flag to installation files to help with cython debugging. 
+
+#### Fixes
+* Fixed issue where TidalPy structures (layers, planets, etc.) would return editable arrays instead of copies of arrays. This could lead to subsequent functions (like planet paint) changing the arrays. This fixes GitHub Issue [#74](https://github.com/jrenaud90/TidalPy/issues/74).
+* Fixed issue where shooting method was corrupting data when starting radius was too large (which happened for higher orders of l) This fixes GitHub Issue [#72](https://github.com/jrenaud90/TidalPy/issues/72).
 
 ### Version 0.6.4 (2025-04-10)
 
