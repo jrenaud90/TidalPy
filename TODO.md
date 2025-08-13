@@ -1,5 +1,6 @@
 
 Future ToDos:
+- RadialSolver prop matrix does not appear to be working correctly.
 - eos.call can not be called after solver is done because the input has died. Make the input into a pure C++ class that can be subclassed by specific models. Have a vector of shared pointers to that parent class stored in the eos solution. 
 - look at the degree_l=1 surface condition difference in hilary martens load def manual. Use that?
 * Create issue for higher precision. Look around line 548 in RadialSolver.odes.pyx

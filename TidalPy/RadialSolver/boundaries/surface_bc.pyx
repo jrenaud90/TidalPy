@@ -4,9 +4,6 @@
 import numpy as np
 cimport numpy as cnp
 
-from libc.stdio cimport printf
-from libc.stdlib cimport exit
-
 from TidalPy.exceptions import ArgumentException, UnknownModelError
 from TidalPy.constants cimport d_NAN_DBL
 

@@ -222,7 +222,6 @@ cdef int cf_radial_solver(
         starting_radius_to_use  = starting_radius
 
     # Solve the equation of state for the planet
-
     # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
     # either via arguments to this function or a more OOP approach where they are built into the layers.
     # Build arrays of EOS inputs.
@@ -825,10 +824,10 @@ def radial_solver(
     
     # Finalize radial solver solution storage
     solution.finalize_python_storage()
-    
+
     if log_info:
         solution.print_diagnostics(print_diagnostics = False, log_diagnostics = True)
-    
+
     if ((not solution.success) or (rs_error_code < 0)) and raise_on_fail:
         if "not implemented" in solution.message:
             raise NotImplementedError(solution.message)
