@@ -6,11 +6,17 @@ from setuptools import Extension, setup
 import numpy as np
 import CyRK
 
+DEBUG_MODE = False
+
 install_platform = platform.system()
 
 if install_platform.lower() == 'windows':
-    extra_compile_args = ['/openmp', "-Ox", "-Zi"]
-    extra_link_args = ["-debug:full"]
+    extra_compile_args = ['/openmp']
+    extra_link_args = []
+    if DEBUG_MODE:
+        extra_compile_args.append('/Ox')
+        extra_compile_args.append('/Zi')
+        extra_link_args.append("/debug:full")
 elif install_platform.lower() == 'darwin':
     extra_compile_args = ['-O3', '-Wno-error=incompatible-function-pointer-types', '-fopenmp']
     extra_link_args = ['-lomp']
