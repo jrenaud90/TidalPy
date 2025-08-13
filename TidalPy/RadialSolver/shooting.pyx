@@ -520,6 +520,7 @@ cdef int cf_shooting_solver(
             # Even worse, it may not be at any of the slice indices that are stored.
             # To get the most accurate result we need to perform an interpolation to find various properties at
             # this starting radius. 
+            printf("!!DD - Current layer i = %d; start_radius = %e; eos_interp_ptr = %p\n", current_layer_i, starting_radius, eos_interp_array_ptr)
             eos_solution_storage_ptr.call(current_layer_i, starting_radius, eos_interp_array_ptr)
 
             # Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
@@ -1024,5 +1025,5 @@ cdef int cf_shooting_solver(
         solution_storage_ptr.set_message('RadialSolver.ShootingMethod: Completed without any noted issues.')
 
     # Done!
-    printf("\t\tDEBUG S16\n")
+    printf("\t\tDEBUG S16 %p\n")
     return solution_storage_ptr.error_code
