@@ -1,6 +1,6 @@
 # TidalPy Major Change Log
 
-### Version 0.6.5 (2025-XX)
+### Version 0.6.5 (2025-08-13)
 
 #### New
 * Added test to check if structure arrays have been changed.
