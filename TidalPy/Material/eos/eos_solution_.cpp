@@ -56,8 +56,6 @@ EOSSolutionCC::EOSSolutionCC(
     this->change_radius_array(radius_array_ptr, radius_array_size);
 }
 
-#include <cstdio>
-
 EOSSolutionCC::~EOSSolutionCC( )
 {
     // Reset each shared pointer in the cysolver vector
