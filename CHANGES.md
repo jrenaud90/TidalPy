@@ -2,27 +2,29 @@
 
 ### Version 0.6.5 (2025-XX)
 
-New:
+#### New
 * Added test to check if structure arrays have been changed.
+* Added debug flag to installation files to help with cython debugging. 
 
-Fixes:
+#### Fixes
 * Fixed issue where TidalPy structures (layers, planets, etc.) would return editable arrays instead of copies of arrays. This could lead to subsequent functions (like planet paint) changing the arrays. This fixes GitHub Issue [#74](https://github.com/jrenaud90/TidalPy/issues/74).
+* Fixed issue where shooting method was corrupting data when starting radius was too large (which happened for higher orders of l) This fixes GitHub Issue [#72](https://github.com/jrenaud90/TidalPy/issues/72).
 
 ### Version 0.6.4 (2025-04-10)
 
-Dependencies:
+#### Dependencies
 * Removed max version limit for platformdirs package
 
 ### Version 0.6.3 (2025-04-09)
 
-Changes:
+#### Changes
 * Changes GitHub actions to avoid testing when not needed.
 * Now supports Python 3.13
 
-Fixes:
+#### Fixes
 * Removed various files that were being included in the manifest
 
-Dependencies:
+#### Dependencies
 * Updated to work with CyRK 0.13.3
 * Updated to work with Numpy 2.x
 

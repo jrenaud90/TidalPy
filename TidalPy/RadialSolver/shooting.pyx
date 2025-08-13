@@ -123,6 +123,7 @@ cdef int cf_shooting_solver(
         ) noexcept nogil:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
+
     # Feedback
     cdef char[256] message
     cdef char* message_ptr = &message[0]
@@ -458,11 +459,10 @@ cdef int cf_shooting_solver(
             last_radius_check = last_layer_upper_radius
 
     # Step through the solution vector and NAN out data below the starting radius
-    for ytype_i in range(num_ytypes):
-        for y_i in range(MAX_NUM_Y_REAL):
-            for slice_i in range(last_index_before_start + 1):
-                # TODO: Check that this indexing is correct.
-                solution_ptr[slice_i * MAX_NUM_Y_REAL + ytype_i * MAX_NUM_Y_REAL + y_i] = cmplx_NAN
+    for slice_i in range(last_index_before_start + 1):
+        for ytype_i in range(num_ytypes):
+            for y_i in range(MAX_NUM_Y):
+                solution_ptr[slice_i * MAX_NUM_Y * num_ytypes + ytype_i * MAX_NUM_Y + y_i] = cmplx_NAN
 
     for current_layer_i in range(start_layer_i, num_layers):
         # Get layer's index information
@@ -747,7 +747,7 @@ cdef int cf_shooting_solver(
             
             # Decrement the shared pointer for the solution
             integration_solution.reset()
-                
+
         if solution_storage_ptr.error_code != 0:
             # Error was encountered during integration
             solution_storage_ptr.success = False
@@ -834,6 +834,7 @@ cdef int cf_shooting_solver(
                     gravity_lower = layer_gravity_ptr[0]
                     bulk_lower    = layer_bulk_mod_ptr[0]
                     shear_lower   = layer_shear_mod_ptr[0]
+
                 radius_upper  = layer_radius_ptr[layer_slices - 1]
                 density_upper = layer_density_ptr[layer_slices - 1]
                 gravity_upper = layer_gravity_ptr[layer_slices - 1]
@@ -931,7 +932,7 @@ cdef int cf_shooting_solver(
                     layer_above_constant_vector_ptr[0] = constant_vector_ptr[0]
                     layer_above_constant_vector_ptr[1] = constant_vector_ptr[1]
                     layer_above_constant_vector_ptr[2] = constant_vector_ptr[2]
-            
+
             # Ready for next y-type
 
     # Free memory
@@ -948,7 +949,7 @@ cdef int cf_shooting_solver(
                     if not (main_storage_ptr[current_layer_i][solution_i] is NULL):
                         free_mem(main_storage_ptr[current_layer_i][solution_i])
                         main_storage_ptr[current_layer_i][solution_i] = NULL
-                
+
                 free_mem(main_storage_ptr[current_layer_i])
                 main_storage_ptr[current_layer_i] = NULL
         free_mem(main_storage_ptr)
