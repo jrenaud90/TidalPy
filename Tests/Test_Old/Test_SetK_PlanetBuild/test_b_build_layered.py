@@ -156,6 +156,11 @@ def test_planet_array_edit():
     # Current work around; make a copy of any relevant arrays.
     radii_2 = np.copy(io_simple.radii)
 
+    # Make a call to something that could change the underlying array.
     _ = io_simple.paint(auto_show=False) # Comment/uncomment this line to check the result.
     
     assert np.allclose(io_simple.radii, radii_2)
+    
+    # While the values in these arrays should be the same; the arrays themselves should not be.
+    assert  np.allclose(io_simple._radii, io_simple.radii)
+    assert not (io_simple._radii is io_simple.radii)
