@@ -1,5 +1,12 @@
 # TidalPy Major Change Log
 
+### Version 0.6.5 (2025-XX)
+
+New:
+* Added test to check if structure arrays have been changed.
+
+Fixes:
+* Fixed issue where TidalPy structures (layers, planets, etc.) would return editable arrays instead of copies of arrays. This could lead to subsequent functions (like planet paint) changing the arrays. This fixes GitHub Issue [#74](https://github.com/jrenaud90/TidalPy/issues/74).
 
 ### Version 0.6.4 (2025-04-10)
 

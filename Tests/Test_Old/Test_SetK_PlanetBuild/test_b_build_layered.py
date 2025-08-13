@@ -63,7 +63,6 @@ def value_check(world, config_to_compare: dict, check_name: bool = True):
     np.testing.assert_approx_equal(world.mass, layer_mass_combined)
     return True
 
-
 def test_build_layered_from_manual_config():
     """ This will test loading a LayeredWorld from a user-provided configuration dictionary. """
 
@@ -146,3 +145,17 @@ def test_build_complex_layered_world():
 
     # Make sure that there are four layers in the world
     assert len(earth_simple.layers) == 4
+
+def test_planet_array_edit():
+    """ Make sure that planet.paint does not change the underlying arrays. """
+    
+    from TidalPy.structures import build_world
+
+    io_simple = build_world('io_simple')
+
+    # Current work around; make a copy of any relevant arrays.
+    radii_2 = np.copy(io_simple.radii)
+
+    _ = io_simple.paint(auto_show=False) # Comment/uncomment this line to check the result.
+    
+    assert np.allclose(io_simple.radii, radii_2)
