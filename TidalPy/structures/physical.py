@@ -614,6 +614,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def radii(self) -> np.ndarray:
         """ Physical Object's Radius Slices (bottom to top) [m] """
+        if self._radii is None:
+            return None
         return np.copy(self._radii)
 
     @radii.setter
@@ -623,6 +625,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def depths(self) -> np.ndarray:
         """ Physical Object's Depth Slices (bottom to top) [m] """
+        if self._depths is None:
+            return None
         return np.copy(self._depths)
 
     @depths.setter
@@ -632,6 +636,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def volume_slices(self) -> np.ndarray:
         """ Physical Object's Volume Slices (bottom to top) [m3] """
+        if self._volume_slices is None:
+            return None
         return np.copy(self._volume_slices)
 
     @volume_slices.setter
@@ -641,6 +647,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def sa_slices(self) -> np.ndarray:
         """ Physical Object's Surface Area Slices (bottom to top) [m2] """
+        if self._sa_slices is None:
+            return None
         return np.copy(self._sa_slices)
 
     @sa_slices.setter
@@ -650,6 +658,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def mass_slices(self) -> np.ndarray:
         """ Mass of each Slice within the Physical Object [kg] """
+        if self._mass_slices is None:
+            return None
         return np.copy(self._mass_slices)
 
     @mass_slices.setter
@@ -659,6 +669,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def mass_below_slices(self) -> np.ndarray:
         """ Mass Below each Slice of the Physical Object [kg] """
+        if self._mass_below_slices is None:
+            return None
         return np.copy(self._mass_below_slices)
 
     @mass_below_slices.setter
@@ -668,6 +680,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def pressure_slices(self) -> np.ndarray:
         """ Physical Object's Pressure Slices (bottom to top) [Pa] """
+        if self._pressure_slices is None:
+            return None
         return np.copy(self._pressure_slices)
 
     @pressure_slices.setter
@@ -677,6 +691,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def density_slices(self) -> np.ndarray:
         """ Physical Object's Density Slices (bottom to top) [kg m3] """
+        if self._density_slices is None:
+            return None
         return np.copy(self._density_slices)
 
     @density_slices.setter
@@ -686,6 +702,8 @@ class PhysicalObjSpherical(ConfigHolder):
     @property
     def gravity_slices(self) -> np.ndarray:
         """ Physical Object's Acceleration due to Gravity Slices (bottom to top) [m s-2] """
+        if self._gravity_slices is None:
+            return None
         return np.copy(self._gravity_slices)
 
     @gravity_slices.setter
