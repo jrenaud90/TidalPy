@@ -77,7 +77,6 @@ cdef int cf_radial_solver(
         cpp_bool warnings,
         ) noexcept nogil:
 
-    printf("\tDEBUG cRS 1\n")
     cdef size_t layer_i, slice_i
     # Feedback
     cdef char[256] message
@@ -97,7 +96,6 @@ cdef int cf_radial_solver(
     cdef double layer_upper_radius = d_NAN_DBL
 
     # Pull out raw pointers to avoid repeated calls to the getter
-    printf("\tDEBUG cRS 2\n")
     cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
     cdef EOSSolutionCC* eos_solution_storage_ptr       = solution_storage_ptr.get_eos_solution_ptr()
 
@@ -111,7 +109,6 @@ cdef int cf_radial_solver(
     cdef double surface_pressure_to_use = d_NAN_DBL
     
     # Equation of state variables
-    printf("\tDEBUG cRS 3\n")
     cdef size_t bottom_slice_index
     cdef vector[PreEvalFunc] eos_function_bylayer_vec = vector[PreEvalFunc]()
     eos_function_bylayer_vec.resize(num_layers)
@@ -125,7 +122,6 @@ cdef int cf_radial_solver(
     cdef char* specific_eos_char_ptr = NULL
 
     # Ensure there is at least one layer.
-    printf("\tDEBUG cRS 4\n")
     if num_layers <= 0:
         solution_storage_ptr.error_code = -5
         strcpy(message_ptr, 'RadialSolver:: requires at least one layer, zero provided.\n')
@@ -134,7 +130,6 @@ cdef int cf_radial_solver(
             printf(message_ptr)
         return solution_storage_ptr.error_code
 
-    printf("\tDEBUG cRS 5\n")
     if solution_storage_ptr.error_code == 0:
         top_layer = False
         for layer_i in range(num_layers):
@@ -178,7 +173,6 @@ cdef int cf_radial_solver(
             num_slices_by_layer_vec[layer_i] = layer_slices
 
     # Get other needed inputs
-    printf("\tDEBUG cRS 6\n")
     radius_planet = radius_array_in_ptr[total_slices - 1]
 
     cdef NonDimensionalScalesCC non_dim_scales
@@ -228,7 +222,6 @@ cdef int cf_radial_solver(
         starting_radius_to_use  = starting_radius
 
     # Solve the equation of state for the planet
-    printf("\tDEBUG cRS 7\n")
     # TODO: For now there is only one accepted EOS, the interpolated kind. In the future additional EOS will be supplied
     # either via arguments to this function or a more OOP approach where they are built into the layers.
     # Build arrays of EOS inputs.
@@ -270,7 +263,6 @@ cdef int cf_radial_solver(
                 solution_storage_ptr.error_code = -250
                 break
 
-    printf("\tDEBUG cRS 8\n")
     if solution_storage_ptr.error_code == 0:
         solve_eos(
             eos_solution_storage_ptr,   # Equation of state storage C++ class
@@ -290,7 +282,6 @@ cdef int cf_radial_solver(
     # Step through the radial steps to find EOS-dependent parameters
     cdef size_t i
     cdef int sub_process_error_code = 0
-    printf("\tDEBUG cRS 9\n")
     if eos_solution_storage_ptr.success and solution_storage_ptr.error_code == 0:
         # Run requested radial solver method
         if use_prop_matrix:
@@ -346,7 +337,6 @@ cdef int cf_radial_solver(
     cdef size_t bc_stride
     cdef size_t solver_stride
     cdef double complex* full_solution_ptr = NULL
-    printf("\tDEBUG cRS 10\n")
     if nondimensionalize:
         # Redimensionalize user-provided inputs that are provided as pointers so that this function returns to the same state.
         
@@ -359,11 +349,9 @@ cdef int cf_radial_solver(
             complex_bulk_modulus_in_ptr[slice_i]  *= non_dim_scales.pascal_conversion
             complex_shear_modulus_in_ptr[slice_i] *= non_dim_scales.pascal_conversion
 
-    printf("\tDEBUG cRS 11\n")
     if solution_storage_ptr.success:
         solution_storage_ptr.find_love()
     
-    printf("\tDEBUG cRS 12\n")
     return solution_storage_ptr.error_code
 
 
@@ -552,8 +540,6 @@ def radial_solver(
         Also contains the EOS solver solution for the entire planet.
     """
 
-    printf("\n\n--------------------------\nDEBUG PyRS 1; l = %d\n", degree_l)
-
     cdef size_t layer_i, slice_i
     cdef double last_layer_r = 0.
     cdef size_t total_slices = radius_array.size
@@ -565,7 +551,6 @@ def radial_solver(
     cdef double radius_check, last_radius_check
 
     # Perform checks
-    printf("DEBUG PyRS 2\n")
     if perform_checks:
         if density_array.size != total_slices:
             raise ArgumentException("`density_array` array must be the same size as radius array.")
@@ -655,7 +640,6 @@ def radial_solver(
                     raise ArgumentException(f"Radius of layer {layer_i} found {layer_check} times. Expected 2 times (interface layer).")
         
     # Build array of assumptions
-    printf("DEBUG PyRS 3\n")
     # OPT: Perhaps set a maximum number of layers then we can put these on the stack rather than heap allocating them.
     cdef vector[int] layer_types_vec = vector[int]()
     layer_types_vec.resize(num_layers)
@@ -670,7 +654,6 @@ def radial_solver(
     cdef cpp_bool dynamic_liquid = False
 
     # Pull out information for each layer and store in heap memory
-    printf("DEBUG PyRS 4\n")
     for layer_i in range(num_layers):
         layer_type = layer_types[layer_i]
         
@@ -692,7 +675,6 @@ def radial_solver(
             raise UnknownModelError(f"Layer type {layer_type} is not supported. Currently supported types: 'solid', 'liquid'.")
     
     # Check for dynamic liquid layer stability
-    printf("DEBUG PyRS 5\n")
     if perform_checks:
         if dynamic_liquid and fabs(frequency) < 2.5e-5:
             # TODO: check that this frequency is a decent cutoff (based on a 3 day period).
@@ -706,7 +688,6 @@ def radial_solver(
                     )
     
     # Convert integration methods from string to int
-    printf("DEBUG PyRS 6\n")
     cdef str integration_method_lower = integration_method.lower()
     cdef int integration_method_int
     if integration_method_lower == 'rk45':
@@ -730,7 +711,6 @@ def radial_solver(
         raise UnknownModelError(f"Unsupported EOS integration method provided: {eos_integration_method_lower}.")
 
     # Convert EOS methods from string to int
-    printf("DEBUG PyRS 7\n")
     cdef str eos_method_str
     cdef vector[int] eos_integration_method_int_bylayer = vector[int]()
     eos_integration_method_int_bylayer.resize(num_layers)
@@ -750,7 +730,6 @@ def radial_solver(
                 raise NotImplementedError("Unknown EOS method provided.")
     
     # Clean up what values the solver is solving for.
-    printf("DEBUG PyRS 8\n")
     cdef int[5] bc_models
     cdef size_t num_bc_models
     cdef int* bc_models_ptr = &bc_models[0]
@@ -789,7 +768,6 @@ def radial_solver(
     cdef double complex* complex_bulk_modulus_ptr  = <double complex*> &complex_bulk_modulus_array[0]
 
     # Build solution storage
-    printf("DEBUG PyRS 9\n")
     cdef RadialSolverSolution solution = RadialSolverSolution(
         num_bc_models,
         upper_radius_bylayer_array,
@@ -799,12 +777,10 @@ def radial_solver(
 
     # Set the number and type of surface boundary conditions ("tidal", "loading", etc.) that will be solved for 
     # simultaneously.
-    printf("DEBUG PyRS 10\n")
     solution.set_model_names(bc_models_ptr)
 
     # Run TidalPy's radial solver function
     cdef rs_error_code = 0
-    printf("DEBUG PyRS 11\n")
     rs_error_code = cf_radial_solver(
         solution.solution_storage_sptr,
         total_slices,
@@ -847,24 +823,19 @@ def radial_solver(
         )
     
     # Finalize radial solver solution storage
-    printf("DEBUG PyRS 12\n")
     solution.finalize_python_storage()
-    
-    printf("DEBUG PyRS 13\n")
+
     if log_info:
         solution.print_diagnostics(print_diagnostics = False, log_diagnostics = True)
-    
-    printf("DEBUG PyRS 14\n")
+
     if ((not solution.success) or (rs_error_code < 0)) and raise_on_fail:
         if "not implemented" in solution.message:
             raise NotImplementedError(solution.message)
         else:
             raise SolutionFailedError(solution.message)
 
-    printf("DEBUG PyRS 15\n")
     if warnings:
         if np.any(solution.steps_taken > 7_000):
             log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}). Recommend checking for instabilities (a good method is looking at `<solution>.plot_ys()`).")
 
-    printf("DEBUG PyRS 16\n")
     return solution

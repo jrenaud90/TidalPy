@@ -1,10 +1,8 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs, cf_cinv
+from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cinv
 from TidalPy.constants cimport d_EPS_DBL
-from libc.float cimport DBL_DIG
-from libc.stdio cimport printf
 from libc.math cimport fabs
 from libcpp cimport bool as cpp_bool
 from libcpp.cmath cimport ilogb, ldexp

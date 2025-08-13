@@ -25,7 +25,6 @@ cdef void eos_diffeq(
     eos_function(<char*>eos_output_ptr, radius, y_ptr, input_args)
     
     cdef double rho = eos_output_ptr.density
-    
     # Solve for the dependent variables
     # gravity is proportionate to 1 / r so there is a singularity at r=0. Let's set all derivatives equal to zero.
     if (radius < d_EPS_DBL_10) or (radius > eos_input_ptr.planet_radius):

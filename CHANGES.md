@@ -1,5 +1,7 @@
 # TidalPy Major Change Log
 
+TBD:: Fixed issue where shooting method was corrupting data when starting radius was too large (which happened for higher orders of l) This fixes GitHub Issue [#72](https://github.com/jrenaud90/TidalPy/issues/72).
+Added debug flag to installation files to help with cython debugging. 
 
 ### Version 0.6.4 (2025-04-10)
 
