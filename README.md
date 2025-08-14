@@ -35,7 +35,7 @@ Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/T
 
 ## Basic Installation
 
-Installing TidalPy is ass simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
+Installing TidalPy is as simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
 system and performing the following in a terminal:
 
 `pip install TidalPy`
