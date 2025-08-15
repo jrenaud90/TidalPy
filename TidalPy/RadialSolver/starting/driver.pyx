@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libc.string cimport strcpy
+from libcpp.string cimport npos as cpp_npos
 
 from TidalPy.RadialSolver.starting.takeuchi cimport (
     cf_takeuchi_solid_dynamic_compressible,
@@ -21,7 +21,7 @@ from TidalPy.RadialSolver.starting.kamata cimport (
 
 cdef void cf_find_starting_conditions(
         cpp_bool* success_ptr,
-        char* message_ptr,
+        cpp_string& message,
         int layer_type,
         bint is_static,
         bint is_incompressible,
@@ -52,7 +52,7 @@ cdef void cf_find_starting_conditions(
             num_ys_for_assumption   = 2
             if num_ys_for_assumption != num_ys:
                 success_ptr[0] = False
-                strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
         if success_ptr[0]:
             cf_saito_liquid_static_incompressible(
                 radius, degree_l, num_ys, starting_conditions_ptr
@@ -65,14 +65,14 @@ cdef void cf_find_starting_conditions(
             # Solid layer
             if is_static and is_incompressible:
                 success_ptr[0] = False
-                strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for Kamata starting conditions for static-solid layers.\nReccomend using dynamic-incompressible instead.')
+                message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for Kamata starting conditions for static-solid layers.\nRecommend using dynamic-incompressible instead.')
             elif is_static and (not is_incompressible):
                 if run_y_checks:  
                     num_sols_for_assumption = 3
                     num_ys_for_assumption   = 6
                     if num_ys_for_assumption != num_ys:
                         success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                 if success_ptr[0]:
                     cf_kamata_solid_static_compressible(
                         radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
@@ -83,7 +83,7 @@ cdef void cf_find_starting_conditions(
                     num_ys_for_assumption   = 6
                     if num_ys_for_assumption != num_ys:
                         success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                 if success_ptr[0]:
                     cf_kamata_solid_dynamic_incompressible(
                         frequency, radius, density, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
@@ -94,7 +94,7 @@ cdef void cf_find_starting_conditions(
                     num_ys_for_assumption   = 6
                     if num_ys_for_assumption != num_ys:
                         success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                 if success_ptr[0]:
                     cf_kamata_solid_dynamic_compressible(
                         frequency, radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, 
@@ -113,7 +113,7 @@ cdef void cf_find_starting_conditions(
                     num_ys_for_assumption   = 4
                     if num_ys_for_assumption != num_ys:
                         success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                 if success_ptr[0]:
                     cf_kamata_liquid_dynamic_incompressible(
                         frequency, radius, density, degree_l, G_to_use, num_ys, starting_conditions_ptr
@@ -125,7 +125,7 @@ cdef void cf_find_starting_conditions(
                     num_ys_for_assumption   = 4
                     if num_ys_for_assumption != num_ys:
                         success_ptr[0] = False
-                        strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                        message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                 if success_ptr[0]:
                     cf_kamata_liquid_dynamic_compressible(
                         frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
@@ -135,7 +135,7 @@ cdef void cf_find_starting_conditions(
     else:
         if is_incompressible:
             success_ptr[0] = False
-            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.')
+            message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.')
         else:
             if (layer_type == 0):
                 # Solid layer
@@ -145,7 +145,7 @@ cdef void cf_find_starting_conditions(
                         num_ys_for_assumption   = 6
                         if num_ys_for_assumption != num_ys:
                             success_ptr[0] = False
-                            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                            message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                     if success_ptr[0]:
                         cf_takeuchi_solid_static_compressible(
                             radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
@@ -156,7 +156,7 @@ cdef void cf_find_starting_conditions(
                         num_ys_for_assumption   = 6
                         if num_ys_for_assumption != num_ys:
                             success_ptr[0] = False
-                            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions:: Incorrect number of ys for given the starting condition assumptions.')
+                            message = cpp_string('RadialSolver::Shooting::FindStartingConditions:: Incorrect number of ys for given the starting condition assumptions.')
                     if success_ptr[0]:
                         cf_takeuchi_solid_dynamic_compressible(
                             frequency, radius, density, bulk_modulus, shear_modulus,
@@ -172,7 +172,7 @@ cdef void cf_find_starting_conditions(
                         num_ys_for_assumption   = 4
                         if num_ys_for_assumption != num_ys:
                             success_ptr[0] = False
-                            strcpy(message_ptr, 'RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
+                            message = cpp_string('RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.')
                     if success_ptr[0]:
                         cf_takeuchi_liquid_dynamic_compressible(
                             frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
@@ -196,8 +196,7 @@ def find_starting_conditions(
         ):
     
     # Feedback
-    cdef char[256] message
-    cdef char* message_ptr = &message[0]
+    cdef cpp_string message = cpp_string("No message set.")
     cdef cpp_bool success = False
 
     # starting conditions are passed as an array with shape [num_solutions, num_ys]
@@ -206,7 +205,7 @@ def find_starting_conditions(
 
     cf_find_starting_conditions(
         &success,
-        message_ptr,
+        message,
         layer_type,
         is_static,
         is_incompressible,
@@ -222,11 +221,9 @@ def find_starting_conditions(
         starting_conditions_ptr,
         run_y_checks
         )
-    
-    cdef str py_message
+
     if not success:
-        py_message = str(message_ptr, encoding='UTF-8')
-        if 'not implemented' in py_message:
-            raise NotImplementedError(py_message)
+        if message.find(cpp_string('not implemented')) != cpp_npos:
+            raise NotImplementedError(message.decode('utf-8'))
         else:
-            raise Exception(py_message)
+            raise Exception(message.decode('utf-8'))

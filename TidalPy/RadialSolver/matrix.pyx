@@ -11,11 +11,11 @@ ID    : IcyDwarf Code by Marc Neveu (https://github.com/MarcNeveu/IcyDwarf/blob/
 B13   : Beuthe (2013, DOI: 10.1016/j.icarus.2012.11.020)
 """
 
-from libc.stdio cimport printf, sprintf
-from libc.stdlib cimport exit, EXIT_FAILURE
-from libc.string cimport strcpy
+from libc.stdio cimport printf
 from libc.math cimport fmin
 from libcpp cimport bool as cpp_bool
+from libcpp.string cimport to_string
+from libcpp.string cimport string as cpp_string
 
 import numpy as np
 cimport numpy as cnp
@@ -60,7 +60,7 @@ cdef int cf_matrix_propagate(
     # Get raw pointer of radial solver storage and eos storage
     cdef EOSSolutionCC* eos_solution_storage_ptr = solution_storage_ptr.get_eos_solution_ptr()
 
-    strcpy(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n")
+    solution_storage_ptr.message = cpp_string("RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n")
     # Pull out key information
     cdef size_t num_layers     = eos_solution_storage_ptr.num_layers
     cdef size_t total_slices   = eos_solution_storage_ptr.radius_array_size
@@ -314,11 +314,11 @@ cdef int cf_matrix_propagate(
                 else:
                     propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
     else:
-        sprintf(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Unknown starting core conditions encountered in `cf_matrix_propagate`: %d (acceptable values: 0, 1, 2, 3)\n", core_model)
+        solution_storage_ptr.message = cpp_string("RadialSolver.PropMatrixMethod:: Unknown starting core conditions encountered in `cf_matrix_propagate`: ") + to_string(core_model) + cpp_string(" (acceptable values: 0, 1, 2, 3)\n")
         solution_storage_ptr.error_code = -20
         solution_storage_ptr.success = False
         if verbose:
-            printf(solution_storage_ptr.message_ptr)
+            printf(solution_storage_ptr.message.c_str())
         return solution_storage_ptr.error_code
 
     # Step through the planet's shells and build the propagation matrix
@@ -467,11 +467,11 @@ cdef int cf_matrix_propagate(
 
         # Check for errors
         if bc_solution_info_ptr[0] != 0:
-            sprintf(solution_storage_ptr.message_ptr, "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition. ZGESV code: %d \nThe solutions may not be valid at the surface.\n", bc_solution_info)
+            solution_storage_ptr.message = cpp_string("RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition. ZGESV code: ") + to_string(bc_solution_info) + cpp_string("\nThe solutions may not be valid at the surface.\n")
             solution_storage_ptr.error_code = -21
             solution_storage_ptr.success = False
             if verbose:
-                printf(solution_storage_ptr.message_ptr)
+                printf(solution_storage_ptr.message.c_str())
             return solution_storage_ptr.error_code
         
         # Step through each radial step and apply the propagation matrix to the surface solution
@@ -517,6 +517,6 @@ cdef int cf_matrix_propagate(
         solution_storage_ptr.success = False
     else:
         solution_storage_ptr.success = True
-        solution_storage_ptr.set_message('RadialSolver.MatrixPropagation: Completed without any noted issues.')
+        solution_storage_ptr.message = cpp_string('RadialSolver.MatrixPropagation: Completed without any noted issues.')
     
     return solution_storage_ptr.error_code

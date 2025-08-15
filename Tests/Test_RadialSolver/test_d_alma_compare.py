@@ -182,7 +182,6 @@ def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
         perform_checks=True
     )
     solution = radial_solver(*inputs, **kwarg_inputs)
-
     if not solution.success:
         raise AssertionError(solution.message)
 
@@ -206,3 +205,6 @@ def test_radial_solver_alma_compare(degree_l, use_prop_matrix):
             raise AssertionError(f'Failed at degree={degree_l} for Im[{name}]:: {imag_pctdiff} (TidalPy = {tpy_imag}; ALMA = {alma_imag}).')
 
     del solution
+
+if __name__ == "__main__":
+    test_radial_solver_alma_compare(3, False)

@@ -2,9 +2,9 @@ cimport numpy as cnp
 cnp.import_array()
 
 from libcpp cimport bool as cpp_bool
-
+from libcpp.string cimport string as cpp_string
 from libcpp.vector cimport vector
-from libcpp.memory cimport shared_ptr, unique_ptr
+from libcpp.memory cimport unique_ptr
 
 from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
@@ -38,7 +38,7 @@ cdef extern from "rs_solution_.cpp" nogil:
         cpp_bool success
         int error_code
         int degree_l
-        char* message_ptr
+        cpp_string message
         size_t num_ytypes
         size_t num_slices
         size_t num_layers
@@ -53,7 +53,6 @@ cdef extern from "rs_solution_.cpp" nogil:
             double* new_radius_array_ptr,
             size_t new_size_radius_array,
             cpp_bool array_changed)
-        void set_message(const char* new_message)
         void find_love()
         void dimensionalize_data(
             NonDimensionalScalesCC* nondim_scales,
@@ -70,7 +69,7 @@ cdef class RadialSolverSolution:
     cdef char* ytypes[5]
 
     # Main storage container
-    cdef shared_ptr[RadialSolutionStorageCC] solution_storage_sptr
+    cdef unique_ptr[RadialSolutionStorageCC] solution_storage_uptr
     cdef RadialSolutionStorageCC* solution_storage_ptr
 
     # Result pointers and data

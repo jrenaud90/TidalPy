@@ -1,9 +1,10 @@
 from libcpp cimport bool as cpp_bool
+from libcpp.string cimport string as cpp_string
 
 
 cdef void cf_find_starting_conditions(
     cpp_bool* success_ptr,
-    char* message_ptr,
+    cpp_string& message,
     int layer_type,
     bint is_static,
     bint is_incompressible,

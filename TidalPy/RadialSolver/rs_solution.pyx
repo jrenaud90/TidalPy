@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from libcpp.memory cimport make_shared
+from libcpp.memory cimport make_unique
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 from TidalPy.constants cimport d_PI_DBL
@@ -36,14 +36,14 @@ cdef class RadialSolverSolution:
         self.num_ytypes      = num_ytypes
 
         # Create C++ storage instance
-        self.solution_storage_sptr = make_shared[RadialSolutionStorageCC](
+        self.solution_storage_uptr = make_unique[RadialSolutionStorageCC](
             self.num_ytypes,
             upper_radius_bylayer_ptr,
             self.num_layers,
             radius_array_ptr,
             radius_array_size,
             degree_l)
-        self.solution_storage_ptr = self.solution_storage_sptr.get()
+        self.solution_storage_ptr = self.solution_storage_uptr.get()
 
         if not self.solution_storage_ptr:
             # C++ solution storage could not be initialized.
@@ -53,7 +53,7 @@ cdef class RadialSolverSolution:
         self.change_radius_array(radius_array_ptr, radius_array_size, array_changed=False)
     
     def __dealloc__(self):
-        self.solution_storage_sptr.reset()
+        self.solution_storage_uptr.reset()
         self.solution_storage_ptr = NULL
 
     cdef void set_model_names(self, int* bc_models_ptr) noexcept nogil:
@@ -73,7 +73,7 @@ cdef class RadialSolverSolution:
                 self.ytypes[ytype_i] = "loading"
             else:
                 self.solution_storage_ptr.error_code = -2
-                self.solution_storage_ptr.set_message("ArgumentException:: Unknown boundary condition provided")
+                self.solution_storage_ptr.message = cpp_string("ArgumentException:: Unknown boundary condition provided")
         self.ytype_names_set = True
 
     cdef void change_radius_array(
@@ -113,7 +113,7 @@ cdef class RadialSolverSolution:
         cdef cnp.npy_intp* eos_complex_shape_ptr = &eos_complex_shape[0]
         cdef cnp.npy_intp eos_ndim               = 1
 
-        # `solution_storage_sptr.full_solution_vec` is a double vector but it is really storing double complex data
+        # `solution_storage_uptr.full_solution_vec` is a double vector but it is really storing double complex data
         # ordered by y0_real, y0_imag, y1_real, y1_image, ... so we can safely convert it to a complex128 np.ndarray
         cdef EOSSolutionCC* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
 
@@ -126,7 +126,7 @@ cdef class RadialSolverSolution:
                 cnp.NPY_COMPLEX128,
                 <double complex*>self.solution_storage_ptr.full_solution_vec.data())
 
-            # Same note as above, `solution_storage_sptr.complex_love_vec` is a double vector that we are converting to a
+            # Same note as above, `solution_storage_uptr.complex_love_vec` is a double vector that we are converting to a
             # complex128 np.ndarray.
             self.complex_love_arr = cnp.PyArray_SimpleNewFromData(
                 love_shape_ndim,
@@ -331,11 +331,6 @@ cdef class RadialSolverSolution:
         if not print_diagnostics and not log_diagnostics:
             return log_message
 
-    def __dealloc__(self):
-
-        # Release the heap allocated storage
-        self.solution_storage_sptr.reset()
-    
     # Radial solver storage, feedback properties
     @property
     def error_code(self):
@@ -345,11 +340,11 @@ cdef class RadialSolverSolution:
     @property
     def message(self):
         """ Return solver's message """
-        return str(self.solution_storage_ptr.message_ptr, 'UTF-8')
+        return self.solution_storage_ptr.message.decode('utf-8')
     
     @property
     def success(self):
-        """ Return if the solver was successful message """
+        """ Return rather if the solver was successful """
         return self.solution_storage_ptr.success
 
     # EOS class properties
@@ -361,7 +356,7 @@ cdef class RadialSolverSolution:
     @property
     def eos_message(self):
         """ Return solver's equation of state message """
-        return str(self.solution_storage_ptr.get_eos_solution_ptr().message_ptr, 'UTF-8')
+        return self.solution_storage_ptr.get_eos_solution_ptr().message.decode('utf-8')
     
     @property
     def eos_success(self):

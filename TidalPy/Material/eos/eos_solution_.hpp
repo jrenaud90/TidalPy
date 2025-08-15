@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include <memory>
+#include <string>
 
 #include "cysolution.hpp"  // Part of the CyRK python package. Header should be included in setup using CyRK.get_include()
 
@@ -29,7 +30,6 @@ class EOSSolutionCC
 
 // Attributes
 protected:
-    char message[256] = { };
 
 public:
     int iterations             = -1;
@@ -41,7 +41,7 @@ public:
     bool radius_array_set = false;
     bool other_vecs_set   = false;
 
-    char* message_ptr           = &message[0];
+    std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
     size_t num_layers           = 0;
     size_t radius_array_size    = 0;
@@ -64,7 +64,7 @@ public:
     
     // Store results from CyRK's cysolve_ivp.
     std::vector<double> upper_radius_bylayer_vec = std::vector<double>();
-    std::vector<std::shared_ptr<CySolverResult>> cysolver_results_sptr_bylayer_vec = std::vector<std::shared_ptr<CySolverResult>>();
+    std::vector<std::unique_ptr<CySolverResult>> cysolver_results_uptr_bylayer_vec = std::vector<std::unique_ptr<CySolverResult>>();
     std::vector<size_t> steps_taken_vec = std::vector<size_t>();
 
     // Copy of user-provided radius array
@@ -101,7 +101,7 @@ public:
         size_t new_radius_size);
 
     // Save result of cysolve_ivp integration
-    void save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_result_sptr);
+    void save_cyresult(std::unique_ptr<CySolverResult> new_cysolver_result_uptr);
     void save_steps_taken(size_t steps_taken);
     
     // Call a specific layer's interpolate function.

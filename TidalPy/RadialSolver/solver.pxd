@@ -1,12 +1,13 @@
 
 from libcpp cimport bool as cpp_bool
-from libcpp.memory cimport shared_ptr
+
+from CyRK cimport ODEMethod
 
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
 
 cdef int cf_radial_solver(
-    shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
+    RadialSolutionStorageCC* solution_storage_ptr,
     size_t total_slices,
     double* radius_array_in_ptr,
     double* density_array_in_ptr,
@@ -26,7 +27,7 @@ cdef int cf_radial_solver(
     cpp_bool use_kamata,
     double starting_radius,
     double start_radius_tolerance,
-    int integration_method_int,
+    ODEMethod integration_method_int,
     double integration_rtol,
     double integration_atol,
     cpp_bool scale_rtols_bylayer_type,
@@ -37,7 +38,7 @@ cdef int cf_radial_solver(
     cpp_bool nondimensionalize,
     cpp_bool use_prop_matrix,
     int* eos_integration_method_int_bylayer_ptr,
-    int eos_integration_method,
+    ODEMethod eos_integration_method,
     double eos_rtol,
     double eos_atol,
     double eos_pressure_tol,

@@ -190,7 +190,7 @@ RadialSolutionStorageCC* rs_solution_cc = rs_solution.solution_storage_ptr
 cpp_bool success
 int error_code
 int degree_l
-char* message_ptr
+cpp_string message
 size_t num_ytypes
 size_t num_slices
 size_t num_layers
@@ -202,7 +202,6 @@ vector[size_t] shooting_method_steps_taken_vec
 
 EOSSolutionCC* get_eos_solution_ptr()
 void change_radius_array(double* new_radius_array_ptr, size_t new_size_radius_array, cpp_bool array_changed)
-void set_message(const char* new_message)
 void find_love()
 void dimensionalize_data(NonDimensionalScalesCC* nondim_scales, cpp_bool redimensionalize)
 ```

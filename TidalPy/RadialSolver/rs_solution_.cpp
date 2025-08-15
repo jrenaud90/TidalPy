@@ -46,13 +46,13 @@ RadialSolutionStorageCC::RadialSolutionStorageCC(
             false  // We are in initialization, this is not an array change.
             );
         
-        this->set_message("Radial solution storage initialized successfully.");
+        this->message = "Radial solution storage initialized successfully.";
     }
     else
     {
         // Equation of state solution storage could not be initialized.
         this->error_code = -1;
-        this->set_message("RadialSolutionStorageCC:: Could not initialize equation of state storage.");
+        this->message = "RadialSolutionStorageCC:: Could not initialize equation of state storage.";
     }
 }
 
@@ -82,7 +82,7 @@ void RadialSolutionStorageCC::change_radius_array(
                 this->eos_solution_uptr->change_radius_array(new_radius_array_ptr, new_size_radius_array);
             }
 
-            this->set_message("Radius array changed. Radial solution reset.");
+            this->message = "Radius array changed. Radial solution reset.";
             this->success = false;
         }
 
@@ -99,11 +99,6 @@ void RadialSolutionStorageCC::change_radius_array(
         // These are also double vectors storing double complex values, double the storage.
         this->complex_love_vec.resize(2 * 3 * this->num_ytypes);
     }
-}
-
-void RadialSolutionStorageCC::set_message(const char* new_message_ptr)
-{
-    std::strcpy(this->message_ptr, new_message_ptr);
 }
 
 
@@ -138,7 +133,7 @@ void RadialSolutionStorageCC::find_love()
     {
         // Could pass a new message to update the state but it will overwrite any error message that is already there.
         // TODO: Think about doing an append or logging system in the future.
-        // this->set_message("Can not update Love number values when solution is not complete or is unsuccessful.")
+        // this->message = "Can not update Love number values when solution is not complete or is unsuccessful."
     }
 }
 
