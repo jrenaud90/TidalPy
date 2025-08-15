@@ -11,7 +11,7 @@
 
 ---
 
-<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.4 Alpha-orange" alt="TidalPy Version 0.6.5 Alpha" /></a>
+<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.6 Alpha-orange" alt="TidalPy Version 0.6.6 Alpha" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
@@ -35,7 +35,7 @@ Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/T
 
 ## Basic Installation
 
-Installing TidalPy is ass simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
+Installing TidalPy is as simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
 system and performing the following in a terminal:
 
 `pip install TidalPy`
@@ -71,10 +71,12 @@ TidalPy offers the ability to make nice 2D plots using the [cartopy](https://sci
 3d projection map plotting. In turn, cartopy relies on [GEOS](https://trac.osgeo.org/geos/) which is not a python
 package and must be installed outside of pip.
 
-The easiest way to install cartopy is using an Anaconda environment by,
+### Installing Cartopy using `conda`
+The easiest way to install cartopy is using a conda environment by,
 
 `conda install -c conda-forge cartopy`
 
+### Installing Cartopy using `pip`
 If you are not using a conda environment then you will need to find and install the GEOS binaries manually:
 
 **Windows:** [Follow instructions here](https://trac.osgeo.org/osgeo4w/)
@@ -92,8 +94,8 @@ _If you ran into a problem that is not listed below please [submit an issue](htt
 **Known Problems:**
 * The `setuptools` package is required before TidalPy can be installed. Usually it is automatically installed, but if
   you are starting with a clean virtual environment it may not have been.
-  * For Anaconda: `conda install setuptools`
-  * Or for regular Python: `pip install setuptools`
+  * For conda: `conda install setuptools`
+  * Or pip: `pip install setuptools`
 
 # How to Use TidalPy
 
@@ -154,7 +156,7 @@ letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
 # Acknowledgements
 TidalPy was partially developed with support from NASA Goddard Space Flight Center's 
-Sellers Exoplanet Environments Collaboration (SEEC) and Geodesy ISFM. 
+Sellers Exoplanet Environments Collaboration (SEEC) and Geodesy ISFMs. 
 TidalPy is partially based upon work supported by NASA under award number 80GSFC21M0002 and the
 Center for Research and Exploration in Space Science & Technology II (CRESST II) administered at the University of
 Maryland, College Park.

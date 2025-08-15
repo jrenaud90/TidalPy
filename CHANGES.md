@@ -1,10 +1,12 @@
 # TidalPy Major Change Log
 
-### Version 0.6.6 (2025-08-XX)
+### Version 0.6.6 (2025-08-15)
 
 #### Changes
 * Updated to work with CyRK v0.15.1
+  * This change results in about a 18% performance improvement for RadialSolver depending on the problem.
 * Converted RadialSolver and EOSSolver status message to C++ strings.
+* Updated some documentation.
 
 #### Fixes
 * Fixed potential issue where RadialSolver could use a very small or even negative maximum step size.
