@@ -1,6 +1,7 @@
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
-from libcpp.memory cimport shared_ptr
+from libcpp.memory cimport unique_ptr
+from libcpp.string cimport string as cpp_string
 
 cimport numpy as cnp
 cnp.import_array()
@@ -28,7 +29,7 @@ cdef extern from "eos_solution_.cpp" nogil:
             cpp_bool radius_array_set
             cpp_bool other_vecs_set
 
-            char* message_ptr
+            cpp_string message
 
             size_t current_layers_saved
             size_t num_layers
@@ -51,7 +52,7 @@ cdef extern from "eos_solution_.cpp" nogil:
             double redim_pascal_scale
 
             vector[double] upper_radius_bylayer_vec
-            vector[shared_ptr[CySolverResult]] cysolver_results_sptr_bylayer_vec
+            vector[unique_ptr[CySolverResult]] cysolver_results_uptr_bylayer_vec
             vector[size_t] steps_taken_vec
 
             vector[double] radius_array_vec
@@ -73,10 +74,8 @@ cdef extern from "eos_solution_.cpp" nogil:
                     size_t radius_array_size
                 )
             
-            void save_cyresult(
-                shared_ptr[CySolverResult] new_cysolver_result_sptr)
-            void save_steps_taken(
-                size_t steps_taken)
+            void save_cyresult(unique_ptr[CySolverResult] new_cysolver_result_uptr)
+            void save_steps_taken(size_t steps_taken)
             
             void call(
                 const size_t layer_index,

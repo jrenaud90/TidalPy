@@ -8,6 +8,7 @@ from libc.math cimport fabs
 from libc.string cimport strcpy
 from libcpp.memory cimport shared_ptr, unique_ptr
 from libcpp.vector cimport vector
+from libcpp.string cimport string as cpp_string
 
 import numpy as np
 cimport numpy as cnp
@@ -37,7 +38,7 @@ log = get_logger("TidalPy")
 
 
 cdef int cf_radial_solver(
-        shared_ptr[RadialSolutionStorageCC] solution_storage_sptr,
+        RadialSolutionStorageCC* solution_storage_ptr,
         size_t total_slices,
         double* radius_array_in_ptr,
         double* density_array_in_ptr,
@@ -57,7 +58,7 @@ cdef int cf_radial_solver(
         cpp_bool use_kamata,
         double starting_radius,
         double start_radius_tolerance,
-        int integration_method_int,
+        ODEMethod integration_method_int,
         double integration_rtol,
         double integration_atol,
         cpp_bool scale_rtols_bylayer_type,
@@ -68,7 +69,7 @@ cdef int cf_radial_solver(
         cpp_bool nondimensionalize,
         cpp_bool use_prop_matrix,
         int* eos_integration_method_int_bylayer_ptr,
-        int eos_integration_method,
+        ODEMethod eos_integration_method,
         double eos_rtol,
         double eos_atol,
         double eos_pressure_tol,
@@ -78,10 +79,7 @@ cdef int cf_radial_solver(
         ) noexcept nogil:
 
     cdef size_t layer_i, slice_i
-    # Feedback
-    cdef char[256] message
-    cdef char* message_ptr = &message[0]
-    
+
     # Figure out how many slices are in each layer
     cdef vector[size_t] first_slice_index_by_layer_vec = vector[size_t]()
     first_slice_index_by_layer_vec.resize(num_layers)
@@ -96,8 +94,7 @@ cdef int cf_radial_solver(
     cdef double layer_upper_radius = d_NAN_DBL
 
     # Pull out raw pointers to avoid repeated calls to the getter
-    cdef RadialSolutionStorageCC* solution_storage_ptr = solution_storage_sptr.get()
-    cdef EOSSolutionCC* eos_solution_storage_ptr       = solution_storage_ptr.get_eos_solution_ptr()
+    cdef EOSSolutionCC* eos_solution_storage_ptr = solution_storage_ptr.get_eos_solution_ptr()
 
     # Physical parameters
     cdef double radius_planet
@@ -124,10 +121,9 @@ cdef int cf_radial_solver(
     # Ensure there is at least one layer.
     if num_layers <= 0:
         solution_storage_ptr.error_code = -5
-        strcpy(message_ptr, 'RadialSolver:: requires at least one layer, zero provided.\n')
-        solution_storage_ptr.set_message(message_ptr)
+        solution_storage_ptr.message    = cpp_string('RadialSolver:: requires at least one layer, zero provided.\n')
         if verbose:
-            printf(message_ptr)
+            printf(solution_storage_ptr.message.c_str())
         return solution_storage_ptr.error_code
 
     if solution_storage_ptr.error_code == 0:
@@ -164,10 +160,9 @@ cdef int cf_radial_solver(
             
             if layer_slices < 5:
                 solution_storage_ptr.error_code == -5
-                strcpy(message_ptr, 'RadialSolver:: At least five layer slices per layer are required. Try using more slices in the input arrays.\n')
-                solution_storage_ptr.set_message(message_ptr)
+                solution_storage_ptr.message = cpp_string('RadialSolver:: At least five layer slices per layer are required. Try using more slices in the input arrays.\n')
                 if verbose:
-                    printf(message_ptr)
+                    printf(solution_storage_ptr.message.c_str())
                 return solution_storage_ptr.error_code
 
             num_slices_by_layer_vec[layer_i] = layer_slices
@@ -340,7 +335,7 @@ cdef int cf_radial_solver(
     if nondimensionalize:
         # Redimensionalize user-provided inputs that are provided as pointers so that this function returns to the same state.
         
-        solution_storage_sptr.get().dimensionalize_data(&non_dim_scales, True)
+        solution_storage_ptr.dimensionalize_data(&non_dim_scales, True)
 
         # Redimensionalize user-provided inputs that are provided as pointers so that this function returns to the same state.
         for slice_i in range(total_slices):
@@ -689,24 +684,24 @@ def radial_solver(
     
     # Convert integration methods from string to int
     cdef str integration_method_lower = integration_method.lower()
-    cdef int integration_method_int
+    cdef ODEMethod integration_method_int = ODEMethod.NO_METHOD_SET
     if integration_method_lower == 'rk45':
-        integration_method_int = 1
+        integration_method_int = ODEMethod.RK45
     elif integration_method_lower == 'rk23':
-        integration_method_int = 0
+        integration_method_int = ODEMethod.RK23
     elif integration_method_lower == 'dop853':
-        integration_method_int = 2
+        integration_method_int = ODEMethod.DOP853
     else:
         raise UnknownModelError(f"Unsupported integration method provided: {integration_method_lower}.")
     
     cdef str eos_integration_method_lower = eos_integration_method.lower()
-    cdef int eos_integration_method_int
+    cdef ODEMethod eos_integration_method_int = ODEMethod.NO_METHOD_SET
     if eos_integration_method_lower == 'rk45':
-        eos_integration_method_int = 1
+        eos_integration_method_int = ODEMethod.RK45
     elif eos_integration_method_lower == 'rk23':
-        eos_integration_method_int = 0
+        eos_integration_method_int = ODEMethod.RK23
     elif eos_integration_method_lower == 'dop853':
-        eos_integration_method_int = 2
+        eos_integration_method_int = ODEMethod.DOP853
     else:
         raise UnknownModelError(f"Unsupported EOS integration method provided: {eos_integration_method_lower}.")
 
@@ -782,7 +777,7 @@ def radial_solver(
     # Run TidalPy's radial solver function
     cdef rs_error_code = 0
     rs_error_code = cf_radial_solver(
-        solution.solution_storage_sptr,
+        solution.solution_storage_uptr.get(),
         total_slices,
         radius_array_ptr,
         density_array_ptr,

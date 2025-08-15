@@ -4,6 +4,7 @@
 #include <complex>
 #include <vector>
 #include <memory>
+#include <string>
 
 #include "eos_solution_.hpp"
 #include "love_.hpp"
@@ -31,17 +32,16 @@ class RadialSolutionStorageCC
 {
 // Attributes
 protected:
-    char message[256] = { };
 
 public:
-    bool success      = false;
-    int error_code    = -100;
-    int degree_l      = 0;
-    char* message_ptr = &message[0];
-    size_t num_ytypes = 0;
-    size_t num_slices = 0;
-    size_t num_layers = 0;
-    size_t total_size = 0;
+    bool success        = false;
+    int error_code      = -100;
+    int degree_l        = 0;
+    std::string message = "No Message Set.";
+    size_t num_ytypes   = 0;
+    size_t num_slices   = 0;
+    size_t num_layers   = 0;
+    size_t total_size   = 0;
     
     // Equation of state solution
     std::unique_ptr<EOSSolutionCC> eos_solution_uptr = nullptr;
@@ -71,7 +71,6 @@ public:
         double* new_radius_array_ptr,
         size_t new_size_radius_array,
         bool array_changed);
-    void set_message(const char* new_message);
     void find_love();
     void dimensionalize_data(
         NonDimensionalScalesCC* nondim_scales,

@@ -1,7 +1,7 @@
-#include "eos_solution_.hpp"
 #include <exception>
 #include <cmath>
 
+#include "eos_solution_.hpp"
 
 bool isclose(double a, double b)
 {
@@ -46,7 +46,7 @@ EOSSolutionCC::EOSSolutionCC(
             current_layers_saved(0),
             num_layers(num_layers)
 {
-    this->cysolver_results_sptr_bylayer_vec.reserve(num_layers);
+    this->cysolver_results_uptr_bylayer_vec.reserve(num_layers);
     this->upper_radius_bylayer_vec.resize(num_layers);
 
     // Store the upper radius of each layer to make it easier to call interpolators later
@@ -59,14 +59,14 @@ EOSSolutionCC::EOSSolutionCC(
 EOSSolutionCC::~EOSSolutionCC( )
 {
     // Reset each shared pointer in the cysolver vector
-    for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
+    for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
     {
-        this->cysolver_results_sptr_bylayer_vec[i]->dense_vec.clear();
+        this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
         // Reset this class reference to the shared pointer.
-        this->cysolver_results_sptr_bylayer_vec[i].reset();
+        this->cysolver_results_uptr_bylayer_vec[i].reset();
     }
     // Clear all vectors
-    this->cysolver_results_sptr_bylayer_vec.clear();
+    this->cysolver_results_uptr_bylayer_vec.clear();
     this->upper_radius_bylayer_vec.clear();
     this->radius_array_vec.clear();
     this->gravity_array_vec.clear();
@@ -78,11 +78,11 @@ EOSSolutionCC::~EOSSolutionCC( )
     this->complex_bulk_array_vec.clear();
 }
 
-void EOSSolutionCC::save_cyresult(std::shared_ptr<CySolverResult> new_cysolver_result_sptr)
+void EOSSolutionCC::save_cyresult(std::unique_ptr<CySolverResult> new_cysolver_result_uptr)
 {
     // We will save a copy of the shared pointer to ensure that the underlying object does not get deconstructed as long
     // as this object is alive. We will also save the raw pointer for ease of access and performance. 
-    this->cysolver_results_sptr_bylayer_vec.push_back(new_cysolver_result_sptr);
+    this->cysolver_results_uptr_bylayer_vec.push_back(std::move(new_cysolver_result_uptr));
     this->current_layers_saved++;
 }
 
@@ -99,7 +99,7 @@ void EOSSolutionCC::call(
 {
     if (layer_index < this->current_layers_saved) [[likely]]
     {
-        this->cysolver_results_sptr_bylayer_vec[layer_index]->call(radius, y_interp_ptr);
+        this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius, y_interp_ptr);
 
         if (this->nondim_status == 1)
         {
@@ -178,12 +178,12 @@ void EOSSolutionCC::change_radius_array(
         this->density_array_vec.clear();
         this->complex_shear_array_vec.clear();
         this->complex_bulk_array_vec.clear();
-        for (size_t i = 0; i < this->cysolver_results_sptr_bylayer_vec.size(); i++)
+        for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
         {
-            this->cysolver_results_sptr_bylayer_vec[i]->dense_vec.clear();
-            this->cysolver_results_sptr_bylayer_vec[i].reset();
+            this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
+            this->cysolver_results_uptr_bylayer_vec[i].reset();
         }
-        this->cysolver_results_sptr_bylayer_vec.clear();
+        this->cysolver_results_uptr_bylayer_vec.clear();
         this->current_layers_saved = 0;
 
         // Indicate that all vectors are cleared.
@@ -268,7 +268,7 @@ void EOSSolutionCC::interpolate_full_planet()
         }
 
         // Call interpolate using temp array as holder.
-        this->cysolver_results_sptr_bylayer_vec[current_layer_index]->call(radius, y_interp_ptr);
+        this->cysolver_results_uptr_bylayer_vec[current_layer_index]->call(radius, y_interp_ptr);
         
         // Store results
         this->gravity_array_vec.push_back(y_interp_ptr[0]);

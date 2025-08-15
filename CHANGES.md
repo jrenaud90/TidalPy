@@ -1,6 +1,15 @@
 # TidalPy Major Change Log
 
-### Version 0.6.5 (2025-XX)
+### Version 0.6.6 (2025-08-XX)
+
+#### Changes
+* Updated to work with CyRK v0.15.1
+* Converted RadialSolver and EOSSolver status message to C++ strings.
+
+#### Fixes
+* Fixed potential issue where RadialSolver could use a very small or even negative maximum step size.
+
+### Version 0.6.5 (2025-08-12)
 
 #### New
 * Added test to check if structure arrays have been changed.

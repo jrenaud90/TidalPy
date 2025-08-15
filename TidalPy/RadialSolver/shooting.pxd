@@ -2,6 +2,8 @@ from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport shared_ptr
 from libcpp.vector cimport vector
 
+from CyRK cimport ODEMethod
+
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
 
 
@@ -28,7 +30,7 @@ cdef int cf_shooting_solver(
     cpp_bool use_kamata,
     double starting_radius,
     double start_radius_tolerance,
-    int integration_method,
+    ODEMethod integration_method,
     double integration_rtol,
     double integration_atol,
     cpp_bool scale_rtols_by_layer_type,

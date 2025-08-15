@@ -112,7 +112,7 @@ def get_julia_solver(solver_name: str):
         success = message.lower() in ['default', 'success']
 
         if success:
-            # Pull out y values and tranpose so they have the same shape as scipys
+            # Pull out y values and transpose so they have the same shape as Scipy's
             y_results = np.transpose(solution.u)
             time_domain = solution.t
 
