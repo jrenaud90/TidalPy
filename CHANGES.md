@@ -1,5 +1,13 @@
 # TidalPy Major Change Log
 
+### Version 0.6.7 (2025-08-19)
+
+#### Changes
+* `TidalPy.tides.modes.collapse_multilayer_modes` now requires a tuple of rheology instances for both shear and bulk rheology. One for each macro layer. This allows different rheologies to be used for different layers.
+
+#### Fixes
+* Fixed some warnings that were showing up in the multilayer demo notebook.
+
 ### Version 0.6.6 (2025-08-15)
 
 #### Changes

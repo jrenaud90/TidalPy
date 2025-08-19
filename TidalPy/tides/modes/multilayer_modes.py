@@ -38,8 +38,9 @@ def calculate_mode_response_coupled(
         colatitude_domain: np.ndarray,
         time_domain: np.ndarray,
         tidal_potential_tuple: 'TidalPotentialOutput',
-        shear_rheology_inst: 'RheologyModelBase',
-        bulk_rheology_inst: 'RheologyModelBase',
+        shear_rheology_inst_bylayer: Tuple['RheologyModelBase'],
+        bulk_rheology_inst_bylayer: Tuple['RheologyModelBase'],
+        layer_indices: Tuple[float],
         layer_types: Tuple[str],
         is_static_bylayer: Tuple[bool],
         is_incompressible_bylayer: Tuple[bool],
@@ -99,30 +100,37 @@ def calculate_mode_response_coupled(
         mode_skipped = True
 
     else:
-        # Calculate Complex Shear Modulus at this mode's frequency
-        complex_shears_at_mode = np.empty(radius_array.size, dtype=np.complex128)
+        # Calculate Complex Shear and Bulk Modulus at this mode's frequency
+        complex_shears_at_mode_list = list()
+        complex_bulk_at_mode_list = list()
+        for layer_i, layer_index in enumerate(layer_indices):
+            shear_rheology_inst = shear_rheology_inst_bylayer[layer_i]
+            bulk_rheology_inst = bulk_rheology_inst_bylayer[layer_i]
 
-        shear_rheology_inst.vectorize_modulus_viscosity(
-            mode_frequency,
-            shear_array,
-            shear_viscosity_array,
-            complex_shears_at_mode)
+            complex_shears_at_mode_ = np.empty(radius_array[layer_index].size, dtype=np.complex128)
+            shear_rheology_inst.vectorize_modulus_viscosity(
+                mode_frequency,
+                shear_array[layer_index],
+                shear_viscosity_array[layer_index],
+                complex_shears_at_mode_)
+            complex_shears_at_mode_list.append(complex_shears_at_mode_)
 
-        # Calculate Complex Bulk Modulus at this mode's frequency
-        complex_bulk_modulus = np.empty(radius_array.size, dtype=np.complex128)
-
-        bulk_rheology_inst.vectorize_modulus_viscosity(
-            mode_frequency,
-            bulk_array,
-            bulk_viscosity_array,
-            complex_bulk_modulus)
+            complex_bulk_at_mode_ = np.empty(radius_array[layer_index].size, dtype=np.complex128)
+            bulk_rheology_inst.vectorize_modulus_viscosity(
+                mode_frequency,
+                bulk_array[layer_index],
+                bulk_viscosity_array[layer_index],
+                complex_bulk_at_mode_)
+            complex_bulk_at_mode_list.append(complex_bulk_at_mode_)
+        complex_shears_at_mode = np.concatenate(complex_shears_at_mode_list)
+        complex_bulk_at_mode = np.concatenate(complex_bulk_at_mode_list)
         
         # Calculate the radial functions using a shooting integration method.
         radial_solution_at_mode = \
             radial_solver(
                 radius_array,
                 density_array,
-                complex_bulk_modulus,
+                complex_bulk_at_mode,
                 complex_shears_at_mode,
                 mode_frequency,
                 planet_bulk_density,
@@ -169,7 +177,7 @@ def calculate_mode_response_coupled(
         strains_at_mode, stresses_at_mode = calculate_strain_stress(
             *tidal_potential_tuple,
             tidal_y_at_mode,
-            longitude_domain, colatitude_domain, time_domain, radius_array, complex_shears_at_mode, complex_bulk_modulus,
+            longitude_domain, colatitude_domain, time_domain, radius_array, complex_shears_at_mode, complex_bulk_at_mode,
             frequency=mode_frequency, degree_l=degree_l
             )
 
@@ -189,8 +197,8 @@ def collapse_multilayer_modes(
     shear_array: np.ndarray,
     bulk_viscosity_array: np.ndarray,
     shear_viscosity_array: np.ndarray,
-    shear_rheology_inst: 'RheologyModelBase',
-    bulk_rheology_inst: 'RheologyModelBase',
+    shear_rheology_inst_bylayer: Tuple['RheologyModelBase'],
+    bulk_rheology_inst_bylayer: Tuple['RheologyModelBase'],
     upper_radius_bylayer_array: np.ndarray,
     longitude_matrix: np.ndarray,
     colatitude_matrix: np.ndarray,
@@ -266,6 +274,7 @@ def collapse_multilayer_modes(
     layer_types               = tuple(layer_types)
     is_static_bylayer         = tuple(is_static_bylayer)
     is_incompressible_bylayer = tuple(is_incompressible_bylayer)
+    num_layers                = len(layer_types)
 
     # The shear array may have zero values for liquid layers. This will cause an issue with complex compliance calc.
     #     make it small instead
@@ -299,6 +308,24 @@ def collapse_multilayer_modes(
             'Multilayer tides (specifically the tidal potential) only works for '
             'l=2 at the moment.'
             )
+    
+    # Find layer indices
+    layer_indices = list()
+    last_upper_r = 0.0
+    for layer_i in range(num_layers):
+        upper_r = upper_radius_bylayer_array[layer_i]
+        layer_index = np.logical_and(radius_array <= upper_r, radius_array >= last_upper_r)
+        # The above will over count at layer interfaces. Fix lower one:
+        if last_upper_r != 0.0:
+            loc = np.where(radius_array==last_upper_r)[0][0]
+            layer_index[loc] = False
+        # Fix upper one
+        if upper_r != radius_array[-1]:
+            loc = np.where(radius_array==upper_r)[0][0]
+            layer_index[loc] = False
+        layer_indices.append(layer_index)
+        last_upper_r = upper_r
+    layer_indices = tuple(layer_indices)
 
     # Setup tidal potential functions
     # Check if obliquity is being used.
@@ -394,8 +421,9 @@ def collapse_multilayer_modes(
                 colatitude_domain,
                 time_domain,
                 tidal_potential_tuple,
-                shear_rheology_inst,
-                bulk_rheology_inst,
+                shear_rheology_inst_bylayer,
+                bulk_rheology_inst_bylayer,
+                layer_indices,
                 layer_types,
                 is_static_bylayer,
                 is_incompressible_bylayer,

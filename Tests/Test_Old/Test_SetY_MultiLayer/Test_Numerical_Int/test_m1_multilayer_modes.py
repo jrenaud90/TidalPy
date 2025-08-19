@@ -7,7 +7,7 @@ import TidalPy
 
 
 from TidalPy.constants import G, mass_trap1
-from TidalPy.rheology import Maxwell, Elastic
+from TidalPy.rheology import Maxwell, Elastic, Newton
 from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
 from TidalPy.utilities.conversions import orbital_motion2semi_a
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
@@ -68,8 +68,8 @@ input_kwargs = {
     'shear_array'                : shear_array,
     'bulk_viscosity_array'       : bulk_viscosity_array,
     'shear_viscosity_array'      : shear_viscosity_array,
-    'bulk_rheology_inst'         : bulk_rheology_inst,
-    'shear_rheology_inst'        : shear_rheology_inst,
+    'bulk_rheology_inst_bylayer' : tuple([bulk_rheology_inst]),
+    'shear_rheology_inst_bylayer': tuple([shear_rheology_inst]),
     'upper_radius_bylayer_array' : np.asarray((R,), dtype=np.float64),
     'density_array'              : density_array,
     'longitude_matrix'           : longitude_matrix,
@@ -548,6 +548,8 @@ def test_collapse_multilayer_modes_liquid_solid():
     input_kwargs_to_use['layer_types'] = ('liquid', 'solid')
     input_kwargs_to_use['is_static_bylayer'] = (True, False)
     input_kwargs_to_use['is_incompressible_bylayer'] = (True, False)
+    input_kwargs_to_use['bulk_rheology_inst_bylayer'] = (Elastic(), Elastic())
+    input_kwargs_to_use['shear_rheology_inst_bylayer'] = (Newton(), Maxwell())
     input_kwargs_to_use['upper_radius_bylayer_array'] = np.asarray((r_core, planet_R), dtype=np.float64)
 
     radius_array_to_use = np.concatenate((
