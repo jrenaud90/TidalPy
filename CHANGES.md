@@ -5,6 +5,7 @@
 
 #### Changes
 * `TidalPy.tides.modes.collapse_multilayer_modes` now checks for ill-formed `radius_arrays` and will raise an error if it detects a problem.
+* Improved how `projection_map` displays colorbar numbers.
 
 #### Fixes
 * Fixed issue where `TidalPy.tides.modes.collapse_multilayer_modes` was not treating macro-layer boundaries correctly.
