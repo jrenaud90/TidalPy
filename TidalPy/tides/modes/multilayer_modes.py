@@ -276,6 +276,18 @@ def collapse_multilayer_modes(
     is_incompressible_bylayer = tuple(is_incompressible_bylayer)
     num_layers                = len(layer_types)
 
+    # Check radius array for issues
+    if radius_array[0] != 0.0:
+        raise AttributeError("ERROR: `collapse_multilayer_modes` - radius_array must start at 0.")
+
+    for layer_i in range(num_layers):
+        if layer_i != (num_layers - 1):
+            # Check that there are two interface values
+            upper_r = upper_radius_bylayer_array[layer_i]
+            locs = np.where(radius_array==upper_r)[0]
+            if len(locs) != 2:
+                raise AttributeError("ERROR: `collapse_multilayer_modes` - radius_array must have exactly 2 radius values for each inner interface.")
+
     # The shear array may have zero values for liquid layers. This will cause an issue with complex compliance calc.
     #     make it small instead
     shear_array[shear_array < 0.] = 0.0
@@ -321,7 +333,7 @@ def collapse_multilayer_modes(
             layer_index[loc] = False
         # Fix upper one
         if upper_r != radius_array[-1]:
-            loc = np.where(radius_array==upper_r)[0][0]
+            loc = np.where(radius_array==upper_r)[0][1]
             layer_index[loc] = False
         layer_indices.append(layer_index)
         last_upper_r = upper_r
