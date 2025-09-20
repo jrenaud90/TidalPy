@@ -807,7 +807,7 @@ cdef int cf_shooting_solver(
                     first_slice_index = last_index_before_start + 1
 
                     # When we loop through slices we only want to loop between the starting slice and the top of the layer
-                    layer_slices -= (last_index_before_start + 1)
+                    layer_slices -= start_index_in_layer
                 else:
                     first_slice_index = first_slice_index_by_layer_vec[layer_i_reversed]
 
