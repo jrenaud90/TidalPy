@@ -57,9 +57,10 @@ layer_types = ("solid", "liquid", "solid")
 @pytest.mark.parametrize('degree_l', (2,))
 @pytest.mark.parametrize('use_kamata', (True,))
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
+@pytest.mark.parametrize('starting_radius', (0.1, 0.0, icb_r + (cmb_r - icb_r) / 2.0))
 def test_radial_solver_3layer(solid_is_static, liquid_is_static,
                               solid_is_incompressible, liquid_is_incompressible,
-                              method, degree_l, use_kamata, solve_for):
+                              method, degree_l, use_kamata, solve_for, starting_radius):
 
     is_static_by_layer = (solid_is_static, liquid_is_static, solid_is_static)
     is_incompressible_by_layer = (solid_is_incompressible, liquid_is_incompressible, solid_is_incompressible)
@@ -72,7 +73,7 @@ def test_radial_solver_3layer(solid_is_static, liquid_is_static,
             degree_l=degree_l, solve_for=solve_for, use_kamata=use_kamata,
             integration_method=method, integration_rtol=1.0e-7, integration_atol=1.0e-10,
             scale_rtols_bylayer_type=False,
-            max_num_steps=5_000_000, expected_size=250, max_step=0, starting_radius=0.1,
+            max_num_steps=5_000_000, expected_size=250, max_step=0, starting_radius=starting_radius,
             raise_on_fail=True,
             verbose=False, nondimensionalize=True)
 
