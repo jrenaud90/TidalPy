@@ -6,6 +6,9 @@
 ### Fixes
 * Fixed issue where `TidalPy.RadialSolver.shooting` would pick the incorrect starting index. If the starting layer (set by the starting radius) was not the first layer it could cause a int overflow and lead to access violation crashes. 
 
+### Dependencies
+* Updates some GitHub action dependencies.
+
 ### Tests
 * Added more tests to check `RadialSolver` starting radius conditions to try to catch bugs like this patch fixed!
 
