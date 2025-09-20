@@ -54,16 +54,19 @@ layer_types = ("solid", "liquid", "solid")
 @pytest.mark.parametrize('solid_is_incompressible', (True, False))
 @pytest.mark.parametrize('liquid_is_incompressible', (True, False))
 @pytest.mark.parametrize('method', ("rk23", "rk45", "dop853"))
-@pytest.mark.parametrize('degree_l', (2,))
+@pytest.mark.parametrize('degree_l', (2,3,10))
 @pytest.mark.parametrize('use_kamata', (True,))
 @pytest.mark.parametrize('solve_for', (('free',), ('tidal',), ('loading',)))
-@pytest.mark.parametrize('starting_radius', (0.1, 0.0, icb_r + (cmb_r - icb_r) / 2.0))
+@pytest.mark.parametrize('starting_radius', (0.1, 0.0, icb_r + (cmb_r - icb_r) / 2.0, cmb_r + (planet_r - cmb_r) / 2.0))
 def test_radial_solver_3layer(solid_is_static, liquid_is_static,
                               solid_is_incompressible, liquid_is_incompressible,
                               method, degree_l, use_kamata, solve_for, starting_radius):
 
     is_static_by_layer = (solid_is_static, liquid_is_static, solid_is_static)
     is_incompressible_by_layer = (solid_is_incompressible, liquid_is_incompressible, solid_is_incompressible)
+
+    if starting_radius == 0.1 and degree_l > 3:
+        pytest.skip("Skipping small starting radius at large degree l because its slow!")
 
     try:
         out = radial_solver(
