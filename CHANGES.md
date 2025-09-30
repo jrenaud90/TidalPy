@@ -1,5 +1,10 @@
 # TidalPy Major Change Log
 
+### Version 0.7.0 (2025-xx-xx)
+
+#### New
+- Added `TidalPy.utilities.math.optimize` module and associated tests.
+  - `optimize.bracket` mimics the root finding algorithm of BurnMan's `bm.utils.math.bracket`.
 
 ### Version 0.6.9 (2025-09-19)
 

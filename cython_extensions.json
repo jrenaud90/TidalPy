@@ -58,6 +58,14 @@
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
+  },  
+  "utilities.math.optimize": {
+    "name": "TidalPy.utilities.math.optimize",
+    "sources": [["TidalPy", "utilities", "math", "optimize.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "math"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
   },
 
   "utilities.classes.base": {
