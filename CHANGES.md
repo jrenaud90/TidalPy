@@ -1,6 +1,11 @@
 # TidalPy Major Change Log
 
 
+### Version 0.6.10 (2025-11-05)
+
+#### Fixes
+* Fixed issue where RadialSolver would incorrectly say a result was successful when the application of surface boundary conditions failed.
+
 ### Version 0.6.9 (2025-09-19)
 
 #### Fixes
