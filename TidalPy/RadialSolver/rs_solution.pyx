@@ -503,7 +503,11 @@ cdef class RadialSolverSolution:
                 # 2D Slice skipping other Love Numbers.
                 return np.copy(self.complex_love_arr[0::3])
         else:
-            return None
+            if self.num_ytypes == 1:
+                # 1D Love
+                return None
+            else:
+                return [None for _ in range(self.num_ytypes)]
 
     @property
     def h(self):
@@ -516,7 +520,11 @@ cdef class RadialSolverSolution:
                 # 2D Slice skipping other Love Numbers.
                 return np.copy(self.complex_love_arr[1::3])
         else:
-            return None
+            if self.num_ytypes == 1:
+                # 1D Love
+                return None
+            else:
+                return [None for _ in range(self.num_ytypes)]
     
     @property
     def l(self):
@@ -529,7 +537,11 @@ cdef class RadialSolverSolution:
                 # 2D Slice skipping other Love Numbers.
                 return np.copy(self.complex_love_arr[2::3])
         else:
-            return None
+            if self.num_ytypes == 1:
+                # 1D Love
+                return None
+            else:
+                return [None for _ in range(self.num_ytypes)]
     
     @property
     def steps_taken(self):

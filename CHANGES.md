@@ -7,6 +7,9 @@
 * Fixed issue where RadialSolver would incorrectly say a result was successful when the application of surface boundary conditions failed.
 * Fixed issue where RadialSolver solution's diagnostics would print the incorrect parameter for a planet's mass.
 
+#### Changes
+* RadialSolver solution Love number attributes now return lists of None if the user requested multiple solution types (e.g., "tidal, loading") and the solution failed. This allows the user to still subscript `rs_solution.k[0], rs_solution.k[1]` even if the solution was not successful.
+
 ### Version 0.6.9 (2025-09-19)
 
 #### Fixes
