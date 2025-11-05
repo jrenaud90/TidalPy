@@ -135,8 +135,8 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
             assert type(out.result) is np.ndarray
             assert type(out['tidal']) is np.ndarray
             assert type(out['loading']) is np.ndarray
-            assert type(out['love']) is np.ndarray
-            assert out['love'].shape == (len(solve_for), 3)
+            assert type(out.love) is np.ndarray
+            assert out.love.shape == (len(solve_for), 3)
             assert type(out.k) is np.ndarray
             assert out.k.shape == (len(solve_for),)
             assert type(out.h) is np.ndarray
