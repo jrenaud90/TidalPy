@@ -876,6 +876,7 @@ cdef int cf_shooting_solver(
                     # Check that the boundary condition was successfully applied.
                     if bc_solution_info != 0:
                         solution_storage_ptr.error_code = -12
+                        solution_storage_ptr.success = False
                         solution_storage_ptr.message = cpp_string('RadialSolver.ShootingMethod:: Error encountered while applying surface boundary condition. ZGESV code: ') + to_string(bc_solution_info) + cpp_string('\nThe solutions may not be valid at the surface.\n')
                         if verbose:
                             printf(solution_storage_ptr.message.c_str())

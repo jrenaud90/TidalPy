@@ -99,5 +99,64 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
             assert type(out.message) is str
             assert type(out.result) is np.ndarray
             assert out.result.shape == (len(solve_for) * 6, N)
+            
+            # Check other attributes of out
+            assert type(out.error_code) is int
+            assert out.error_code == 0
+            assert type(out.eos_error_code) is int
+            assert out.eos_error_code == 0
+            assert type(out.eos_message) is str
+            assert out.eos_success == True
+            assert type(out.eos_pressure_error) in (float, )
+            assert type(out.eos_iterations) is int
+            assert out.eos_iterations >= 1
+            assert type(out.eos_steps_taken) is np.ndarray
+            assert type(out.radius_array) is np.ndarray
+            assert type(out.gravity_array) is np.ndarray
+            assert type(out.pressure_array) is np.ndarray
+            assert type(out.mass_array) is np.ndarray
+            assert type(out.moi_array) is np.ndarray
+            assert type(out.density_array) is np.ndarray
+            assert type(out.shear_modulus_array) is np.ndarray
+            assert type(out.bulk_modulus_array) is np.ndarray
+            assert type(out.layer_upper_radius_array) is np.ndarray
+            assert type(out.radius) in (float, )
+            assert type(out.volume) in (float, )
+            assert type(out.mass) in (float, )
+            assert type(out.moi) in (float, )
+            assert type(out.moi_factor) in (float, )
+            assert type(out.density_bulk) in (float, )
+            assert type(out.central_pressure) in (float, )
+            assert type(out.surface_pressure) in (float, )
+            assert type(out.surface_gravity) in (float, )
+            assert type(out.num_ytypes) is int
+            assert type(out.num_layers) is int
+            assert type(out.degree_l) is int
+            assert type(out.result) is np.ndarray
+            assert type(out['tidal']) is np.ndarray
+            assert type(out['loading']) is np.ndarray
+            assert type(out.love) is np.ndarray
+            assert out.love.shape == (len(solve_for), 3)
+            assert type(out.k) is np.ndarray
+            assert out.k.shape == (len(solve_for),)
+            assert type(out.h) is np.ndarray
+            assert out.h.shape == (len(solve_for),)
+            assert type(out.l) is np.ndarray
+            assert out.l.shape == (len(solve_for),)
+            assert type(out.Q) is np.ndarray
+            assert out.Q.shape == (len(solve_for),)
+            assert type(out.lag) is np.ndarray
+            assert out.lag.shape == (len(solve_for),)
+            assert type(out.steps_taken) is np.ndarray
+            
+            # Try to plot. Removed from testing due to high resource requirements of plotting in testing environments.
+            # out.plot_ys()
+            # out.plot_interior()
+            out.print_diagnostics(print_diagnostics = False, log_diagnostics = False)
+
+            # Attempt to call the EOS solver
+            eos_result_array = out.eos_call(radius=1.5e6)
+            assert type(eos_result_array) is np.ndarray
+            
         except NotImplementedError as e:
             pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')

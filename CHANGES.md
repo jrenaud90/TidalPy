@@ -1,6 +1,22 @@
 # TidalPy Major Change Log
 
 
+### Version 0.6.10 (2025-11-05)
+
+#### New
+* RadialSolver solution can now provide quality factors `rs_solution.Q` and phase lag angles (in radians) `rs_solution.lag`.
+
+#### Fixes
+* Fixed issue where RadialSolver would incorrectly say a result was successful when the application of surface boundary conditions failed.
+* Fixed issue where RadialSolver solution's diagnostics would print the incorrect parameter for a planet's mass.
+
+#### Changes
+* RadialSolver solution returns nan's instead of None for Love numbers when a solution fails.
+* RadialSolver solution Love number attributes now return lists of np.nan if the user requested multiple solution types (e.g., "tidal, loading") and the solution failed. This allows the user to still subscript `rs_solution.k[0], rs_solution.k[1]` even if the solution was not successful.
+
+#### Tests
+* Added more tests to check RadialSolver Solution attributes.
+
 ### Version 0.6.9 (2025-09-19)
 
 #### Fixes
