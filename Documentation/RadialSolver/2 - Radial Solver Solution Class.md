@@ -87,6 +87,12 @@ rs_solution.k
 rs_solution.h
 rs_solution.l
 
+# Effective dissipation quality factors (defined as |Re[k]| / -Im[k]) are provided (for each solution type, so could be a scalar or an array) by:
+rs_solution.Q
+
+# Phase lag angle in radians (defined as arctan(-Im[k]/Re[k]) ) is provided by:
+rs_solution.lag
+
 # TidalPy's radial solver uses an integration technique which solves ODEs throughout each layer of a planet.
 # The number of integration steps is variable and determined by the local error in the calculations.
 # The larger the number of steps, the lower the error but the larger the computation time.

@@ -490,7 +490,7 @@ cdef class RadialSolverSolution:
         if self.success and (self.error_code == 0):
             return np.copy(self.complex_love_arr).reshape(self.num_ytypes, 3)
         else:
-            return None
+            return np.nan * np.ones((self.num_ytypes, 3), dtype=np.complex128)
 
     @property
     def k(self):
@@ -504,10 +504,9 @@ cdef class RadialSolverSolution:
                 return np.copy(self.complex_love_arr[0::3])
         else:
             if self.num_ytypes == 1:
-                # 1D Love
-                return None
+                return np.nan
             else:
-                return [None for _ in range(self.num_ytypes)]
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
 
     @property
     def h(self):
@@ -521,10 +520,9 @@ cdef class RadialSolverSolution:
                 return np.copy(self.complex_love_arr[1::3])
         else:
             if self.num_ytypes == 1:
-                # 1D Love
-                return None
+                return np.nan
             else:
-                return [None for _ in range(self.num_ytypes)]
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
     
     @property
     def l(self):
@@ -538,10 +536,31 @@ cdef class RadialSolverSolution:
                 return np.copy(self.complex_love_arr[2::3])
         else:
             if self.num_ytypes == 1:
-                # 1D Love
-                return None
+                return np.nan
             else:
-                return [None for _ in range(self.num_ytypes)]
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+    
+    @property
+    def Q(self):
+        """ Return quality factors. """
+        if self.success and (self.error_code == 0):
+            return np.abs(self.k) / -np.imag(self.k)
+        else:
+            if self.num_ytypes == 1:
+                return np.nan
+            else:
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+    
+    @property
+    def lag(self):
+        """ Return the dissapative lag angle (in radians). """
+        if self.success and (self.error_code == 0):
+            return np.arctan(-np.imag(self.k) / np.real(self.k))
+        else:
+            if self.num_ytypes == 1:
+                return np.nan
+            else:
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
     
     @property
     def steps_taken(self):
