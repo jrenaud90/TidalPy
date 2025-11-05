@@ -5,6 +5,7 @@
 
 #### Fixes
 * Fixed issue where RadialSolver would incorrectly say a result was successful when the application of surface boundary conditions failed.
+* Fixed issue where RadialSolver solution's diagnostics would print the incorrect parameter for a planet's mass.
 
 ### Version 0.6.9 (2025-09-19)
 

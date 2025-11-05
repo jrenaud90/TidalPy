@@ -307,7 +307,7 @@ cdef class RadialSolverSolution:
             log_message += f"\n\t\tIterations:        {self.eos_iterations}"
             log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
             log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
-            log_message += f"\n\t\tMass:              {self.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tMass:              {self.mass:0.3e}"
             log_message += f"\n\t\tMOI (factor):      {self.moi:0.3e} ({self.moi_factor:0.3f})"
             log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
         log_message += "\n\tRadial Solver Results:"
