@@ -1,6 +1,11 @@
 # TidalPy Major Change Log
 
 
+### Version 0.6.11 (2025-11-06)
+
+#### Dependencies
+* Added more restrictive pinning for numpy's max version to work with latest CyRK.
+
 ### Version 0.6.10 (2025-11-05)
 
 #### New
