@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.6.10'
+version = '0.6.11'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -9,7 +9,7 @@ requires-python = ">=3.9,<3.14"
 dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
-    "numpy>=1.22,<3",
+    'numpy >= 1.22, <2.3',  # Numpy max pinned due to numba
     "scipy>=1.9.3",
     # Configuration file resources
     "platformdirs>=3.11.0",
@@ -113,7 +113,7 @@ julia = [
 [build-system]
 requires = [
     'setuptools>=64.0.0',
-    'numpy>=1.22,<3',
+    'numpy >= 1.22, <2.3',  # Numpy max pinned due to numba
     "scipy>=1.9.3",
     'cython>=3.0.0',
     'wheel>=0.38',
