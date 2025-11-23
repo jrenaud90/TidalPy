@@ -1,5 +1,9 @@
 # TidalPy Major Change Log
 
+### Version 0.7.0 (2025-XX)
+
+#### New
+* Added Sphinx ReadTheDocs.
 
 ### Version 0.6.11 (2025-11-06)
 

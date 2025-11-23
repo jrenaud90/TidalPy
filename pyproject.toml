@@ -73,6 +73,7 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/jrenaud90/TidalPy"
 "Bug Tracker" = "https://github.com/jrenaud90/TidalPy/issues"
+"Documentation" = "https://tidalpy.readthedocs.io/en/latest/"
 
 [project.optional-dependencies]
 dev = [
