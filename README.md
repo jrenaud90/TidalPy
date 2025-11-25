@@ -160,9 +160,10 @@ Maryland, College Park.
 TidalPy has been improved by numerous contributors some of which you can find [here](https://github.com/jrenaud90/TidalPy/graphs/contributors).
 
 TidalPy has benefited from work and conversations with the following:
-- Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
-- Michael Efroimsky (U.S. Naval Observatory)
-- Sander Goossens (NASA GSFC)
-- Marc Neveu (U. of Maryland, College Park / NASA GSFC)
-- Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
-- Nick Wagner (Brown U.)
+* Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
+* Michaela Walterová (Charles University)
+* Michael Efroimsky (U.S. Naval Observatory)
+* Sander Goossens (NASA GSFC)
+* Marc Neveu (U. of Maryland, College Park / NASA GSFC)
+* Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
+* Nick Wagner (Brown University)
