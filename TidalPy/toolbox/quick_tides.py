@@ -118,7 +118,6 @@ def quick_tidal_dissipation(
 
     # Flag that tracks if array version of TidalPy's functions should be used or not.
     use_array = False
-    shape = None
 
     # Get orbital frequency
     if orbital_frequency is None:
@@ -127,7 +126,7 @@ def quick_tidal_dissipation(
         else:
             orbital_frequency = days2rads(orbital_period)
     semi_major_axis = orbital_motion2semi_a(orbital_frequency, host_mass, target_mass)
-    if type(orbital_frequency) == np.ndarray:
+    if type(orbital_frequency) is np.ndarray:
         use_array = True
 
     # Get spin frequency
@@ -137,12 +136,12 @@ def quick_tidal_dissipation(
             spin_frequency = orbital_frequency
         else:
             spin_frequency = days2rads(spin_period)
-    if type(spin_frequency) == np.ndarray:
+    if type(spin_frequency) is np.ndarray:
         use_array = True
-        if type(orbital_frequency) != np.ndarray:
+        if type(orbital_frequency) is not np.ndarray:
             orbital_frequency = orbital_frequency * np.ones_like(spin_frequency)
             semi_major_axis = semi_major_axis * np.ones_like(spin_frequency)
-    elif type(orbital_frequency) == np.ndarray:
+    elif type(orbital_frequency) is np.ndarray:
         spin_frequency = spin_frequency * np.ones_like(orbital_frequency)
 
     # Determine eccentricity and obliquity types
@@ -151,17 +150,17 @@ def quick_tidal_dissipation(
         use_obliquity = False
 
     if eccentricity is not None:
-        if type(eccentricity) == np.ndarray:
+        if type(eccentricity) is np.ndarray:
             use_array = True
             if obliquity is not None:
-                if type(obliquity) != np.ndarray:
+                if type(obliquity) is not np.ndarray:
                     obliquity = obliquity * np.ones_like(eccentricity)
             else:
                 obliquity = np.zeros_like(eccentricity)
     else:
         eccentricity = 0.
         if obliquity is not None:
-            if type(obliquity) == np.ndarray:
+            if type(obliquity) is np.ndarray:
                 use_array = True
                 eccentricity = np.zeros_like(obliquity)
 
@@ -184,13 +183,13 @@ def quick_tidal_dissipation(
         # Determine strength types
         if viscosity is None or shear_modulus is None:
             raise MissingArgumentError('Viscosity and shear modulus are required for non-CPL/CTL calculations.')
-        if type(viscosity) == np.ndarray:
+        if type(viscosity) is np.ndarray:
             use_array = True
-            if type(shear_modulus) != np.ndarray:
+            if type(shear_modulus) is not np.ndarray:
                 shear_modulus = shear_modulus * np.ones_like(viscosity)
-        if type(shear_modulus) == np.ndarray:
+        if type(shear_modulus) is np.ndarray:
             use_array = True
-            if type(viscosity) != np.ndarray:
+            if type(viscosity) is not np.ndarray:
                 viscosity = viscosity * np.ones_like(viscosity)
 
         # Find complex compliance functions
@@ -355,7 +354,7 @@ def quick_dual_body_tidal_dissipation(
     # Clean up inputs
     if eccentricity is None:
         eccentricity = 0.
-    elif type(eccentricity) == np.ndarray:
+    elif type(eccentricity) is np.ndarray:
         use_array = True
 
     # Since we use the eccentricity now, outside the world calculators, we need to make sure that the obliquity and
@@ -429,7 +428,7 @@ def quick_dual_body_tidal_dissipation(
         else:
             orbital_frequency = days2rads(orbital_period)
     semi_major_axis = orbital_motion2semi_a(orbital_frequency, masses[0], masses[1])
-    if type(orbital_frequency) == np.ndarray:
+    if type(orbital_frequency) is np.ndarray:
         use_array = True
 
     # Determine what calculators to use (these will be the same for both the Host & Target worlds).
@@ -490,7 +489,7 @@ def quick_dual_body_tidal_dissipation(
         dissipation_results[world_name] = dissipation_results_for_world
 
         # Confirm if arrays should be used or not
-        if type(dissipation_results_for_world['dUdM']) == np.ndarray:
+        if type(dissipation_results_for_world['dUdM']) is np.ndarray:
             use_array = True
 
     # Now that both world's dissipation is calculated we can find the dual-body evolution derivatives
@@ -564,7 +563,7 @@ def single_dissipation_from_dict_or_world_instance(
     """
 
     # If the user provided a world instance, convert it to a dict.
-    if type(host) == dict:
+    if type(host) is dict:
         host_dict = host
     else:
         host_dict = copy.deepcopy(host.config)
@@ -576,7 +575,7 @@ def single_dissipation_from_dict_or_world_instance(
                 raise MissingAttributeError
     host_mass = host_dict['mass']
 
-    if type(secondary) == dict:
+    if type(secondary) is dict:
         secondary_dict = secondary
     else:
         secondary_dict = copy.deepcopy(secondary.config)
@@ -593,16 +592,16 @@ def single_dissipation_from_dict_or_world_instance(
         use_obliquity = False
 
     if eccentricity is not None:
-        if type(eccentricity) == np.ndarray:
+        if type(eccentricity) is np.ndarray:
             if obliquity is not None:
-                if type(obliquity) != np.ndarray:
+                if type(obliquity) is not np.ndarray:
                     obliquity = obliquity * np.ones_like(eccentricity)
             else:
                 obliquity = np.zeros_like(eccentricity)
     else:
         eccentricity = 0.
         if obliquity is not None:
-            if type(obliquity) == np.ndarray:
+            if type(obliquity) is np.ndarray:
                 eccentricity = np.zeros_like(obliquity)
 
     # Calculate single body response
@@ -683,7 +682,7 @@ def dual_dissipation_from_dict_or_world_instance(
     """
 
     # If the user provided a world instance, convert it to a dict.
-    if type(host) == dict:
+    if type(host) is dict:
         host_dict = host
     else:
         host_dict = copy.deepcopy(host.config)
@@ -694,7 +693,7 @@ def dual_dissipation_from_dict_or_world_instance(
             else:
                 raise MissingAttributeError
 
-    if type(secondary) == dict:
+    if type(secondary) is dict:
         secondary_dict = secondary
     else:
         secondary_dict = copy.deepcopy(secondary.config)

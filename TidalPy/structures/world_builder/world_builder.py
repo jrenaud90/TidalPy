@@ -46,7 +46,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
 
     # If world_config is a file then load it through toml and get a dict
     if world_config is not None:
-        if type(world_config) != dict:
+        if type(world_config) is not dict:
             log.debug(f'Converting user provided planet configuration file to dictionary for {world_name}.')
             world_config = toml.load(world_config)
 

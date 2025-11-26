@@ -335,7 +335,9 @@ def multiprocessing_run(
                 print('Using Pathos for Multiprocessing.')
             try:
                 with pathos_mp.ProcessingPool(nodes=procs_to_use) as pool:
-                    patho_func = lambda x: func_to_use(*x)
+                    def patho_func(x):
+                        return func_to_use(*x)
+
                     mp_results = pool.map(patho_func, cases, chunksize=chunksize)
             except Exception as study_error_:
                 study_error = study_error_

@@ -252,7 +252,7 @@ class PartialMelt(LayerModelHolder):
         """
 
         if self.use_partial_melt:
-            if type(self.temperature) == np.ndarray:
+            if type(self.temperature) is np.ndarray:
                 melt_fraction = calculate_melt_fraction_array(self.temperature, self.solidus, self.liquidus)
                 postmelt_viscosity, postmelt_shear_modulus = \
                     self.func_array(melt_fraction, *self.live_inputs, *self.inputs)

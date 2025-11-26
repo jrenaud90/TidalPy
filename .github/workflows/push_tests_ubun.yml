@@ -10,6 +10,30 @@ env:
   TIDALPY_TEST_MODE: 1
 
 jobs:
+  lint-with-ruff:
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, 'run tests')
+
+    name: Lint TidalPy with ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff linting
+        run: ruff check TidalPy/ --show-source --statistics --ignore F401,E402,E501 --select E,F
   test-ubuntu:
     if: |
       github.event_name == 'pull_request' ||

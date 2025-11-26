@@ -777,7 +777,7 @@ class PhysicalObjSpherical(ConfigHolder):
     @pressure_above.setter
     def pressure_above(self, value):
         if extensive_checks:
-            assert type(value) == float
+            assert type(value) is float
 
         self._pressure_above = value
         self.set_static_pressure()
@@ -790,7 +790,7 @@ class PhysicalObjSpherical(ConfigHolder):
     @mass_below.setter
     def mass_below(self, value):
         if extensive_checks:
-            assert type(value) == float
+            assert type(value) is float
 
         self._mass_below = value
         self.set_static_pressure()

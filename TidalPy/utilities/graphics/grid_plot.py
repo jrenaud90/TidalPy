@@ -315,10 +315,10 @@ class GridPlot(TidalPyClass):
 
             # If input is a dict then assume it is already in the correct format, but perform some sanity checks.
             key_0 = list(inputs.keys())[0]
-            assert type(key_0) == tuple
-            assert type(key_0[0]) == int
-            assert type(key_0[1]) == int
-            assert type(inputs[key_0]) == output_type
+            assert type(key_0) is tuple
+            assert type(key_0[0]) is int
+            assert type(key_0[1]) is int
+            assert type(inputs[key_0]) is output_type
             cleaned_input = inputs
         elif type(inputs) in [list, tuple]:
 

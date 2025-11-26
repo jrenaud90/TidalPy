@@ -67,7 +67,7 @@ def build_layer(layer_name: str, layer_config: dict, burnman_verbose: str = Fals
         if len(material) != len(material_fractions):
             raise ParameterValueError('Number of composite materials is not the same as number of material fractions.')
 
-        if type(material_fractions) == tuple:
+        if type(material_fractions) is tuple:
             # Burnman only supports lists for this
             material_fractions = list(material_fractions)
 

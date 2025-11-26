@@ -39,10 +39,10 @@ def reshape_help(
 
     new_shape = False
 
-    if type(value) != np.ndarray:
+    if type(value) is not np.ndarray:
         scalar = value
     else:
-        if value.shape == tuple():
+        if len(value.shape) == 0:
             # 0-D array
             scalar = value
         elif value.shape == (1,):
@@ -74,7 +74,7 @@ def reshape_help(
             dtype = np.float64
 
     if comparison_shape is not None:
-        if comparison_shape == tuple():
+        if len(comparison_shape) == 0:
             new_array = np.asarray(scalar, dtype=dtype)
         else:
             if force_into_new_shape:

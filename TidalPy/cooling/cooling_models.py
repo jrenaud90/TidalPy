@@ -5,7 +5,7 @@ from TidalPy.utilities.performance.numba import njit
 
 
 if TYPE_CHECKING:
-    from TidalPy.utilities.types import float_eps
+    from TidalPy.utilities.types import float_eps, FloatArray
 
 CoolingOutputType = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
 

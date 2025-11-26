@@ -89,11 +89,16 @@ class LayeredTides(TidesBase):
         # Pull out tidal inputs
         for layer in self.world:
             if layer.is_tidal:
-                get_tidal_scale = lambda: layer.tidal_scale
+                def get_tidal_scale():
+                    return layer.tidal_scale
+                
                 # This system assumes that density, radius, and gravity will not change after initialization
-                get_radius = lambda: layer.radius
-                get_bulk_density = lambda: layer.density_bulk
-                get_surf_gravity = lambda: layer.gravity_surface
+                def get_radius():
+                    return layer.radius
+                def get_bulk_density():
+                    return layer.density_bulk
+                def get_surf_gravity():
+                    return layer.gravity_surface
 
                 for param in [get_tidal_scale, get_radius, get_bulk_density, get_surf_gravity]:
                     if param is None:
@@ -111,9 +116,13 @@ class LayeredTides(TidesBase):
             # TODO: These are used to calculate the effective rigidity. Should these be for the layer or for the planet
             #    as a whole?
             # TODO: Tidal scale for world? -> planet_tidal_scale = lambda: self.world.tidal
-            get_world_radius = lambda: self.world.radius
-            get_world_density = lambda: self.world.density_bulk
-            get_world_gravity = lambda: self.world.gravity_surface
+            def get_world_radius():
+                return self.world.radius
+            def get_world_density():
+                return self.world.density_bulk
+            def get_world_gravity():
+                return self.world.gravity_surface
+
             self._world_tidal_input_getters = (get_world_radius, get_world_density, get_world_gravity)
 
     def complex_compliances_changed(self, collapse_tidal_modes: bool = True):
