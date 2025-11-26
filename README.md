@@ -147,16 +147,6 @@ check out the information in `Documentation\Contribute.md`.
   * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
     other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
-# License Information
-You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
-* Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
-* Any software derived from TidalPy must remain open-source and non-commercial.
-
-This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. To view
-a copy of this license,
-visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons.org/licenses/by-nc-sa/4.0/) or send a
-letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
 # Acknowledgements
 TidalPy was partially developed with support from NASA Goddard Space Flight Center's 
 Sellers Exoplanet Environments Collaboration (SEEC) and Geodesy ISFMs. 
@@ -174,5 +164,15 @@ TidalPy has benefited from work and conversations with the following:
 - Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
 - Nick Wagner (Brown U.)
 
+
+# License Information
+You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
+* Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
+* Any software derived from TidalPy must remain open-source and non-commercial.
+
+This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. To view
+a copy of this license,
+visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons.org/licenses/by-nc-sa/4.0/) or send a
+letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
 <a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;">
