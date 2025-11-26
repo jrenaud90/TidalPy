@@ -2,8 +2,6 @@ name: Sync Version Numbers
 
 on:
   push:
-    branches:
-      - main
     paths:
       - 'pyproject.toml'
   workflow_dispatch:
