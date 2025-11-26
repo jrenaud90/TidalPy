@@ -49,8 +49,8 @@ keywords:
 - Pluto
 - Rheology
 license: CC-BY-SA-4.0
-commit: d182181
-version: 0.7.0a0.dev6
+commit: 0796678
+version: 0.7.0a0.dev7
 date-released: '2025-11-26'
 preferred-citation:
   type: article
