@@ -1,0 +1,89 @@
+name: Sync Version Numbers
+
+on:
+  push:
+    paths:
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Fetch full history to get commit hash
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install toml parser
+        run: pip install toml pyyaml
+
+      - name: Update version in files
+        run: |
+          python - <<'EOF'
+          import toml
+          import yaml
+          import re
+          from datetime import date
+
+          # Read version from pyproject.toml
+          with open('pyproject.toml', 'r') as f:
+              pyproject = toml.load(f)
+          version = pyproject['project']['version']
+          print(f"Version from pyproject.toml: {version}")
+
+          # Get current date and commit hash from environment
+          import os
+          current_date = date.today().strftime('%Y-%m-%d')
+          commit_hash = os.environ.get('GITHUB_SHA', 'unknown')[:7]  # Short hash
+          
+          print(f"Date: {current_date}")
+          print(f"Commit: {commit_hash}")
+
+          # Update citation.cff
+          try:
+              with open('citation.cff', 'r') as f:
+                  citation = yaml.safe_load(f)
+              
+              citation['version'] = version
+              citation['date-released'] = current_date
+              citation['commit'] = commit_hash
+              
+              with open('citation.cff', 'w') as f:
+                  yaml.dump(citation, f, sort_keys=False, default_flow_style=False)
+              print("Updated citation.cff")
+          except FileNotFoundError:
+              print("citation.cff not found, skipping")
+
+          # Update meta.yaml
+          try:
+              with open('meta.yaml', 'r') as f:
+                  content = f.read()
+              # Replace version in meta.yaml (handles both {% set version = "x.x.x" %} and version: x.x.x formats)
+              content = re.sub(r'(version\s*[=:]\s*["\']?)[^"\'}\n]+(["\']?)', rf'\g<1>{version}\g<2>', content)
+              with open('meta.yaml', 'w') as f:
+                  f.write(content)
+              print("Updated meta.yaml")
+          except FileNotFoundError:
+              print("meta.yaml not found, skipping")
+          EOF
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git diff --quiet citation.cff meta.yaml || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add citation.cff meta.yaml
+          git commit -m "chore: sync version numbers from pyproject.toml"
+          git push
