@@ -16,6 +16,7 @@
 * Added and updated readme badges.
 * Removed unused code, tests, and documentations.
 * TidalPy now uses `ruff` to check for code issues.
+  * Added ruff lint check to ubuntu tests.
 * Fixed many code issues found with ruff (these are not bug fixes, just syntax compliance and best practices).
 
 ### Version 0.6.11 (2025-11-06)
