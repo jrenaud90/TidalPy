@@ -1,5 +1,9 @@
 # TidalPy Major Change Log
 
+### Version 0.7.0 (2025-11-X)
+
+#### Other
+* Added JOSS paper draft to Papers/2025-JOSS.
 
 ### Version 0.6.11 (2025-11-06)
 
