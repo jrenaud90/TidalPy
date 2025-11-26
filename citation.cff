@@ -1,6 +1,7 @@
 abstract: TidalPy is an open-source software suite that utilizes a semi-analytic approach
-  to estimate tidal heating, orbit-rotation evolution, and thermal changes for rocky and icy worlds. It
-  has been used to simulate the thermal-orbital evolution of moons within our Solar System as well as exoplanets beyond.
+  to estimate tidal heating, orbit-rotation evolution, and thermal changes for rocky
+  and icy worlds. It has been used to simulate the thermal-orbital evolution of moons
+  within our Solar System as well as exoplanets beyond.
 authors:
 - affiliation: University of Maryland, College Park; NASA Goddard
   family-names: Renaud
@@ -30,4 +31,4 @@ license:
 - cc-by-4.0
 title: TidalPy
 type: software
-version: v0.6.3
+version: 0.7.0a2.dev1
