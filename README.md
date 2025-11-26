@@ -14,7 +14,7 @@
 
 ---
 
-<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.11 Alpha-orange" alt="TidalPy Version 0.6.11 Alpha" /></a>
+<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.11-orange" alt="TidalPy Version 0.6.11" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
