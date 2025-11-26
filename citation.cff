@@ -1,73 +1,62 @@
-# This CITATION.cff file was generated with cffinit.
-# Visit https://bit.ly/cffinit to generate yours today!
-
 cff-version: 1.2.0
 title: TidalPy
-message: >-
-  If you use this software, please cite it using the
-  metadata from this file.
+message: If you use this software, please cite it using the metadata from this file.
 type: software
 authors:
-  - given-names: Joe
-    family-names: Renaud
-    email: joe.p.renaud@gmail.com
-    affiliation: University of Maryland College Park; NASA Goddard
-    orcid: 'https://orcid.org/0000-0002-8619-8542'
+- given-names: Joe
+  family-names: Renaud
+  email: joe.p.renaud@gmail.com
+  affiliation: University of Maryland College Park; NASA Goddard
+  orcid: https://orcid.org/0000-0002-8619-8542
 identifiers:
-  - type: doi
-    value: 10.5281/zenodo.7017475
-    description: Zenodo Record
-  - type: url
-    value: 'https://pypi.org/project/TidalPy/'
-    description: PyPI Repository
-  - type: url
-    value: 'https://anaconda.org/conda-forge/tidalpy'
-    description: Conda-Forge Repository
-repository-code: 'https://github.com/jrenaud90/TidalPy'
-url: 'https://TidalPy.info'
-abstract: >-
-  TidalPy is an open-source Python package for modeling
-  tidal deformation, internal dissipation, and
-  rotational-orbital evolution in planetary systems. The
-  software combines a user-friendly Python interface with
-  performance-critical routines implemented in C++ and
-  Cython. Key capabilities include dynamic Love number
-  computation, advanced rheological models, and coupled
-  spin-orbit evolution. TidalPy addresses a gap in existing
-  tools by providing these capabilities within a single
-  accessible framework that easily interfaces with other
-  popular Python packages used in the field. It has been
-  extensively tested in a variety of studies examining tidal
-  dissipation in Solar System planets and moons, as well as
-  exoplanets.
+- type: doi
+  value: 10.5281/zenodo.7017475
+  description: Zenodo Record
+- type: url
+  value: https://pypi.org/project/TidalPy/
+  description: PyPI Repository
+- type: url
+  value: https://anaconda.org/conda-forge/tidalpy
+  description: Conda-Forge Repository
+repository-code: https://github.com/jrenaud90/TidalPy
+url: https://TidalPy.info
+abstract: TidalPy is an open-source Python package for modeling tidal deformation,
+  internal dissipation, and rotational-orbital evolution in planetary systems. The
+  software combines a user-friendly Python interface with performance-critical routines
+  implemented in C++ and Cython. Key capabilities include dynamic Love number computation,
+  advanced rheological models, and coupled spin-orbit evolution. TidalPy addresses
+  a gap in existing tools by providing these capabilities within a single accessible
+  framework that easily interfaces with other popular Python packages used in the
+  field. It has been extensively tested in a variety of studies examining tidal dissipation
+  in Solar System planets and moons, as well as exoplanets.
 keywords:
-  - Tides
-  - Tidal Dynamics
-  - Planetary Science
-  - Thermal-Orbital Evolution
-  - Tidal Heating
-  - Exoplanets
-  - Moons
-  - Solar System
-  - Mercury
-  - Venus
-  - Earth
-  - Moon
-  - Mars
-  - Europa
-  - Io
-  - Triton
-  - Pluto
-  - Rheology
+- Tides
+- Tidal Dynamics
+- Planetary Science
+- Thermal-Orbital Evolution
+- Tidal Heating
+- Exoplanets
+- Moons
+- Solar System
+- Mercury
+- Venus
+- Earth
+- Moon
+- Mars
+- Europa
+- Io
+- Triton
+- Pluto
+- Rheology
 license: CC-BY-SA-4.0
-commit: test
-version: 0.7.0a2.dev1
-date-released: '2024-02-14'
+commit: dd435f4
+version: 0.7.0a0.dev1
+date-released: '2025-11-26'
 preferred-citation:
   type: article
   authors:
-    - family-names: Renaud
-      given-names: Joe P.
+  - family-names: Renaud
+    given-names: Joe P.
   title: 'TidalPy: Software Suite for Solving Problems in Tidal Dynamics'
   journal: Zenodo
   year: 2022
