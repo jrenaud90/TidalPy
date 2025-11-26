@@ -8,7 +8,7 @@
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
     <a href="https://pypi.org/project/TidalPy/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/TidalPy?label=PyPI%20Downloads" /></a>
-    <a href="https://anaconda.org/conda-forge/tidalpy"> <img alt="Conda Downloads" src="https://img.shields.io/conda/d/conda-forge/tidalpy" /> </a>
+    <a href="https://anaconda.org/conda-forge/tidalpy"> <img alt="Conda Downloads" src="https://img.shields.io/conda/d/conda-forge/tidalpy" /></a>
     <a href="https://emac.gsfc.nasa.gov?cid=2207-034"><img src="https://img.shields.io/badge/EMAC-2207--034-blue" alt="EMAC 2207-034"></a>
 </div>
 
