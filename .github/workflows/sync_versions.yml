@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install toml parser
+      - name: Install dependencies
         run: pip install toml pyyaml
 
       - name: Update version in files
@@ -29,6 +29,7 @@ jobs:
           python - <<'EOF'
           import toml
           import yaml
+          import json
           import re
           from datetime import date
 
@@ -61,6 +62,22 @@ jobs:
           except FileNotFoundError:
               print("citation.cff not found, skipping")
 
+          # Update codemeta.json
+          try:
+              with open('codemeta.json', 'r') as f:
+                  codemeta = json.load(f)
+              
+              codemeta['version'] = version
+              codemeta['datePublished'] = current_date
+              codemeta['dateModified'] = current_date
+              
+              with open('codemeta.json', 'w') as f:
+                  json.dump(codemeta, f, indent=2, ensure_ascii=False)
+                  f.write('\n')  # Add trailing newline
+              print("Updated codemeta.json")
+          except FileNotFoundError:
+              print("codemeta.json not found, skipping")
+
           # Update meta.yaml
           try:
               with open('meta.yaml', 'r') as f:
@@ -77,13 +94,13 @@ jobs:
       - name: Check for changes
         id: check_changes
         run: |
-          git diff --quiet citation.cff meta.yaml || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --quiet citation.cff codemeta.json meta.yaml || echo "changed=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push changes
         if: steps.check_changes.outputs.changed == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add citation.cff meta.yaml
+          git add citation.cff codemeta.json meta.yaml
           git commit -m "chore: sync version numbers from pyproject.toml"
           git push
