@@ -90,13 +90,28 @@ jobs:
           except FileNotFoundError:
               print("meta.yaml not found, skipping")
           # Update README.md badge
+          # Update README.md badge
           try:
               with open('README.md', 'r') as f:
                   content = f.read()
-                  # Replace version in README badge
-              content = re.sub(r'(TidalPy-)([0-9a-zA-Z\.\-]+)(["\'])', rf'\g<1>{version}\g<3>', content)
+
+              # Update shield image URL version
+              content = re.sub(
+                r'(TidalPy-)([\d\.]+)(-orange)',
+                rf'\g<1>{version}\g<3>',
+                content
+              )
+
+              # Update alt text version
+              content = re.sub(
+                r'(alt="TidalPy Version )([\d\.]+)(")',
+                rf'\g<1>{version}\g<3>',
+                content
+              )
+
               with open('README.md', 'w') as f:
                   f.write(content)
+              
               print("Updated README.md")
           except FileNotFoundError:
               print("README.md not found, skipping")
