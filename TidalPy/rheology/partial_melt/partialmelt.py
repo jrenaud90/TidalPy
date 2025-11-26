@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 
-import TidalPy
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import (BadValueError, IncorrectMethodToSetStateProperty, InitiatedPropertyChangeError,
                                 OuterscopePropertySetError)

@@ -83,7 +83,7 @@ def find_geometry_from_config(
                 else:
                     thickness = radius - layer_below_radius
     if geo_fail:
-        raise ParameterMissingError(f'Not enough information provided to determine geometry for layer.')
+        raise ParameterMissingError('Not enough information provided to determine geometry for layer.')
     volume = (4. / 3.) * np.pi * (radius**3 - (radius - thickness)**3)
 
     # Try to determine the layer's mass
@@ -101,6 +101,6 @@ def find_geometry_from_config(
         else:
             mass = density * volume
     if mass_fail:
-        raise ParameterMissingError(f'Not enough information provided to calculate mass for layer.')
+        raise ParameterMissingError('Not enough information provided to calculate mass for layer.')
 
     return radius, thickness, volume, mass, density

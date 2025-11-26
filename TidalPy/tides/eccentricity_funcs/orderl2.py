@@ -1,7 +1,7 @@
 """ Eccentricity functions (squared) for various truncations of e at tidal order-l = 2
 """
 
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from . import EccenOutput
 from ...utilities.performance.numba import njit

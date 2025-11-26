@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 
-import numpy as np
 
 from TidalPy.constants import G
 from TidalPy.utilities.performance import njit

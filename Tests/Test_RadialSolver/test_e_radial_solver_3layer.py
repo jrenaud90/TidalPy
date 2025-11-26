@@ -4,7 +4,6 @@ import numpy as np
 
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver import radial_solver
-from TidalPy.utilities.spherical_helper import calculate_mass_gravity_arrays
 
 frequency = 1.0 / (86400. * 0.2)
 N = 20
@@ -93,7 +92,7 @@ def test_radial_solver_3layer(solid_is_static, liquid_is_static,
         assert out.result.shape == (6, radius_array.size)
     except NotImplementedError as e:
         pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
-    except SolutionFailedError as e:
+    except SolutionFailedError:
         if (not liquid_is_incompressible) and solid_is_incompressible:
             # TODO: Look into this.
             # v0.6.0 update: It looks like it is happening because the incompressible solid underneath is not coupling with the compressible liquid. 
@@ -141,7 +140,7 @@ def test_radial_solver_3layer_solve_for_both(solid_is_static, liquid_is_static,
         assert out.result.shape == (len(solve_for) * 6, radius_array.size)
     except NotImplementedError as e:
          pytest.skip(f'function does not currently support requested inputs. Skipping Test. Details: {e}')
-    except SolutionFailedError as e:
+    except SolutionFailedError:
         if (not liquid_is_incompressible) and solid_is_incompressible:
             # TODO: Look into this.
             # v0.6.0 update: It looks like it is happening because the incompressible solid underneath is not coupling with the compressible liquid. 

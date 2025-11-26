@@ -4,7 +4,6 @@
 import pytest
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.constants import G

@@ -322,7 +322,7 @@ def multiprocessing_run(
                 mp_file.write(success_text)
 
             # Save key data to disk
-            np.savez(os.path.join(this_run_dir, f'mp_results.npz'), **result)
+            np.savez(os.path.join(this_run_dir, 'mp_results.npz'), **result)
 
         return MultiprocessingOutput(case_number=run_num, input_index=run_indicies, result=result)
 
@@ -437,7 +437,7 @@ def multiprocessing_run(
                         )
 
         with open(mp_log_path, 'a') as mp_file:
-            mp_file.write(f'\n\nStudy successfully completed.\n')
+            mp_file.write('\n\nStudy successfully completed.\n')
 
         if verbose:
             print('Multiprocessing Study Completed.')

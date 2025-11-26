@@ -79,12 +79,12 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     world_type = world_config['type'].lower()
 
     if world_type == 'burnman':
-        log.debug(f'BurnMan world type detected.')
+        log.debug('BurnMan world type detected.')
         from TidalPy.Extending.burnman import build_burnman_world, BurnManWorld
         
         log.debug('Attempting to build the BurnMan class for the world.')
         burnman_world, burnman_layers = build_burnman_world(world_config)
-        log.debug(f'Burnman world building completed!')
+        log.debug('Burnman world building completed!')
 
         log.debug('Installing Burnman world into TidalPy world class.')
         world = BurnManWorld(world_config, burnman_world, burnman_layers, name=world_name)

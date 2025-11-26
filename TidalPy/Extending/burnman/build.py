@@ -2,7 +2,6 @@ from typing import Tuple
 
 import numpy as np
 
-from TidalPy import configurations
 from TidalPy.exceptions import BadValueError, ParameterMissingError, ParameterValueError
 from TidalPy.utilities.types import float_eps
 from TidalPy.Extending.burnman.package import burnman, burnman_installed
@@ -34,7 +33,7 @@ def build_layer(layer_name: str, layer_config: dict, burnman_verbose: str = Fals
     # Record information
     log.debug(f'Burnman layer {layer_name} being built.')
     if not burnman_installed:
-        log.debug(f"Burnman install not found.")
+        log.debug("Burnman install not found.")
         raise ImportError('Burnman package not found.')
 
     # Load in defaults
@@ -58,7 +57,7 @@ def build_layer(layer_name: str, layer_config: dict, burnman_verbose: str = Fals
         try:
             material_fractions = layer_config['material_fractions']
         except KeyError:
-            raise ParameterMissingError(f"Multiple materials provided but no material_fraction's were given.")
+            raise ParameterMissingError("Multiple materials provided but no material_fraction's were given.")
         if type(material_fractions) not in [list, tuple]:
             raise ParameterValueError('Material fractions must be provided as a list or tuple.')
         if type(material_source) not in [list, tuple]:
@@ -131,7 +130,7 @@ def build_burnman_world(planet_config: dict, verbose: bool = False) -> Tuple[bur
     log.debug(f"Building BurnMan world: {planet_config['name']}")
 
     if not burnman_installed:
-        log.debug(f"Burnman install not found.")
+        log.debug("Burnman install not found.")
         raise ImportError('Burnman package not found.')
 
     # Store Layer information
@@ -179,7 +178,7 @@ def build_burnman_world(planet_config: dict, verbose: bool = False) -> Tuple[bur
         layers[layer_name] = layer_config
 
     # Build BurnMan layers
-    log.debug(f"Building BurnMan Layers")
+    log.debug("Building BurnMan Layers")
     burnman_layers_byname = {layer_name: build_layer(layer_name, layer_data) for layer_name, layer_data in
                              layers.items()}
     burnman_layers = [burnman_layers_byname[layer_name] for layer_name in layers]

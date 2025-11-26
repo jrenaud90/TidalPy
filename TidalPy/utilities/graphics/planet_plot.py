@@ -1,5 +1,5 @@
 import numpy as np
-from matplotlib import gridspec as gspec, pyplot as plt
+from matplotlib import pyplot as plt
 
 from TidalPy.exceptions import ParameterMissingError
 

@@ -1,4 +1,3 @@
-import TidalPy
 
 
 import numpy as np

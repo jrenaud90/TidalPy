@@ -2,10 +2,10 @@ from typing import Tuple
 
 import numpy as np
 
-from numba import cfunc, njit
+from numba import cfunc
 import numba as nb
 
-from . import lsoda_sig, lsoda, ns_dop853
+from . import lsoda_sig, lsoda
 
 
 def numbalsoda_solver(

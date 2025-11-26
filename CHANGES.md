@@ -13,7 +13,10 @@
 * Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
 
 #### Other
-* Added and updated readme badges
+* Added and updated readme badges.
+* Removed unused code, tests, and documentations.
+* TidalPy now uses `ruff` to check for code issues.
+* Fixed many code issues found with ruff (these are not bug fixes, just syntax compliance and best practices).
 
 ### Version 0.6.11 (2025-11-06)
 

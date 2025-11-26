@@ -3,9 +3,8 @@
 
 from typing import Dict, List, TYPE_CHECKING
 
-import numpy as np
 
-from TidalPy.exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty, MissingAttributeError)
+from TidalPy.exceptions import (BadAttributeValueError, IncorrectMethodToSetStateProperty)
 
 from .base import TidesBase
 

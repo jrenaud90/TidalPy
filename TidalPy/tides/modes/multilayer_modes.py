@@ -6,11 +6,10 @@ This module contains functions to assist with calculating the response at each o
     the findings into a final value.
 
 """
-from typing import Dict, List, Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy.utilities.performance import nbList
 from TidalPy.rheology.base import RheologyModelBase
 from TidalPy.RadialSolver import radial_solver
 

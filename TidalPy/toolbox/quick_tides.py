@@ -33,7 +33,7 @@ from TidalPy.tides.methods.global_approx import cpl_neg_imk_helper_func, ctl_neg
 from TidalPy.tides.modes.mode_manipulation import find_mode_manipulators
 
 if TYPE_CHECKING:
-    from TidalPy.utilities.types import ComplexArray, FloatArray, NoneType, ArrayNone
+    from TidalPy.utilities.types import ComplexArray, FloatArray, NoneType
     from TidalPy.structures.world_types import all_tidal_world_types
 
 NoneFloatArray = Union['NoneType', 'FloatArray']

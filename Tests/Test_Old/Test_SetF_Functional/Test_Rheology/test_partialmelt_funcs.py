@@ -1,6 +1,5 @@
 import numpy as np
 
-import TidalPy
 
 
 solidus = 1600.

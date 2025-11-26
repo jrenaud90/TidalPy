@@ -10,7 +10,7 @@ from . import MIN_SPIN_ORBITAL_DIFF
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
 
-    from . import TidalPotentialModeOutput, PotentialTupleModeOutput
+    from . import TidalPotentialModeOutput
 
 
 @njit(cacheable=True)
