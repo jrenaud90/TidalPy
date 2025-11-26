@@ -28,7 +28,7 @@ of Mercury, Venus, Earth, our Moon, Mars, and much more.
 Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send a message to
 [TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
-<a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
+<a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;">
 
 # How to Install
 
