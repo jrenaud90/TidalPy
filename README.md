@@ -28,8 +28,6 @@ of Mercury, Venus, Earth, our Moon, Mars, and much more.
 Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send a message to
 [TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
-<a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;">
-
 # How to Install
 
 ## Compatibility
@@ -175,3 +173,6 @@ TidalPy has benefited from work and conversations with the following:
 - Marc Neveu (U. of Maryland, College Park / NASA GSFC)
 - Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
 - Nick Wagner (Brown U.)
+
+
+<a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;">
