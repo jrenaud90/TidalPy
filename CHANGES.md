@@ -1,6 +1,17 @@
 # TidalPy Major Change Log
 
 
+### Version 0.7.0 (2025-11-X)
+
+#### Repository Changes
+* Added `CODE_OF_CONDUCT.md` with TidalPy's code of conduct.
+* Added `CONTRIBUTING.md` with information on how others can contribute to TidalPy.
+* Updated `citation.cff` with latest information.
+* Added `codemeta.json` with citation and metadata.
+
+#### GitHub Actions
+* Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
+
 ### Version 0.6.11 (2025-11-06)
 
 #### Dependencies
