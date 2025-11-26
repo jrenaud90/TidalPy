@@ -12,6 +12,9 @@
 #### GitHub Actions
 * Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
 
+#### Other
+* Added and updated readme badges
+
 ### Version 0.6.11 (2025-11-06)
 
 #### Dependencies
