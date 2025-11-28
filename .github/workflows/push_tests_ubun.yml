@@ -33,7 +33,7 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff linting
-        run: ruff check TidalPy/ --statistics --show-files --ignore F401,E402,E501 --select E,F
+        run: ruff check TidalPy/ --ignore F401,E402,E501 --select E,F
   test-ubuntu:
     if: |
       github.event_name == 'pull_request' ||
