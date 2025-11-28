@@ -32,7 +32,7 @@ except ImportError:
 else:
     log.debug(f'BurnMan version {burnman.__version__} was found!')
     from burnman.classes.material import Material as Material
-    from bunrman.classes.material import material_property as material_property
+    from burnman.classes.material import material_property as material_property
     from burnman.classes.mineral import Mineral as Mineral
     from burnman.tools.chemistry import dictionarize_formula as dictionarize_formula
     from burnman.tools.chemistry import formula_mass as formula_mass
