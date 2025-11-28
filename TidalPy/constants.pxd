@@ -7,7 +7,11 @@ cdef double d_MAX_FREQUENCY
 cdef double d_MIN_SPIN_ORBITAL_DIFF
 
 # Shear/Bulk Modulus Extremes
+cdef double d_MIN_VISCOSITY
 cdef double d_MIN_MODULUS
+
+# Thickness
+cdef double d_MIN_THICKNESS
 
 # Mathematics
 cdef double d_ppm

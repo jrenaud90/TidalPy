@@ -1,24 +1,66 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
+import TidalPy
 from TidalPy.exceptions import ParameterMissingError
 
-SCATTER_SIZE = 35
-SCATTER_SHAPE_1 = "."
-SCATTER_SHAPE_2 = "x"
-LS_1 = '-'
-LS_2 = ':'
-SCALE = 4
+try:
+    SCATTER_SIZE = int(TidalPy.config['graphics']['planet_plot']['scatter_size'])
+except (KeyError, ValueError, TypeError):
+    SCATTER_SIZE = 35
+try:
+    SCATTER_SHAPE_1 = TidalPy.config['graphics']['planet_plot']['scatter_shape_1']
+except (KeyError, TypeError):
+    SCATTER_SHAPE_1 = "."
+try:
+    SCATTER_SHAPE_2 = TidalPy.config['graphics']['planet_plot']['scatter_shape_2']
+except (KeyError, TypeError):
+    SCATTER_SHAPE_2 = "x"
+try:
+    LS_1 = TidalPy.config['graphics']['planet_plot']['line_style_1']
+except (KeyError, TypeError):
+    LS_1 = '-'
+try:
+    LS_2 = TidalPy.config['graphics']['planet_plot']['line_style_2']
+except (KeyError, TypeError):
+    LS_2 = ':'
+try:
+    SCALE = int(TidalPy.config['graphics']['planet_plot']['scale'])
+except (KeyError, ValueError, TypeError):
+    SCALE = 4
+try:
+    GRAVITY_COLOR = TidalPy.config['graphics']['planet_plot']['gravity_color']
+except (KeyError, TypeError):
+    GRAVITY_COLOR = 'g'
+try:
+    DENSITY_COLOR = TidalPy.config['graphics']['planet_plot']['density_color']
+except (KeyError, TypeError):
+    DENSITY_COLOR = 'k'
+try:
+    PRESSURE_COLOR = TidalPy.config['graphics']['planet_plot']['pressure_color']
+except (KeyError, TypeError):
+    PRESSURE_COLOR = 'b'
+try:
+    TEMPERATURE_COLOR = TidalPy.config['graphics']['planet_plot']['temperature_color']
+except (KeyError, TypeError):
+    TEMPERATURE_COLOR = 'orange'
+try:
+    SHEAR_COLOR = TidalPy.config['graphics']['planet_plot']['shear_color']
+except (KeyError, TypeError):
+    SHEAR_COLOR = 'm'
+try:
+    BULK_COLOR = TidalPy.config['graphics']['planet_plot']['bulk_color']
+except (KeyError, TypeError):
+    BULK_COLOR = 'r'
+try:
+    FONTSIZE_1 = int(TidalPy.config['graphics']['planet_plot']['fontsize_1'])
+except (KeyError, ValueError, TypeError):
+    FONTSIZE_1 = 12
+try:
+    FONTSIZE_2 = int(TidalPy.config['graphics']['planet_plot']['fontsize_2'])
+except (KeyError, ValueError, TypeError):
+    FONTSIZE_2 = 14
 
-GRAVITY_COLOR     = 'g'
-DENSITY_COLOR     = 'k'
-PRESSURE_COLOR    = 'b'
-TEMPERATURE_COLOR = 'orange'
-SHEAR_COLOR       = 'm'
-BULK_COLOR        = 'r'
-
-FONTSIZE_1 = 12
-FONTSIZE_2 = 14
 
 def planet_plot(
     radii: np.ndarray,
