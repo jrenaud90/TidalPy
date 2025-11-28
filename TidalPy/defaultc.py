@@ -54,6 +54,8 @@ default_config_str = """
         minimum_frequency = 1.0e-14
         # Assume max frequency is for a forcing period of 1 micro-second
         maximum_frequency = 1.0e8
+        # Minimum difference between spin and orbital frequency before it is treated as zero.
+        min_spin_orbital_diff = 1.0e-10
     
     [tides.models]
         [tides.models.base]

@@ -16,6 +16,3 @@ if TYPE_CHECKING:
 TidalPotentialOutput = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
 PotentialTupleModeOutput = Dict[str, Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']]
 TidalPotentialModeOutput = Tuple[Dict[str, 'FloatArray'], Dict[str, 'FloatArray'], PotentialTupleModeOutput]
-
-# Minimum difference between spin and orbital frequency before it is treated as zero.
-MIN_SPIN_ORBITAL_DIFF = 1.0e-10
