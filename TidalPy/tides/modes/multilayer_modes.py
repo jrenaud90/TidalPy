@@ -9,6 +9,7 @@ This module contains functions to assist with calculating the response at each o
 from typing import Tuple, TYPE_CHECKING
 
 import numpy as np
+from scipy.integrate import trapezoid
 
 from TidalPy.rheology.base import RheologyModelBase
 from TidalPy.RadialSolver import radial_solver
@@ -511,11 +512,11 @@ def collapse_multilayer_modes(
 
     # Perform orbital averaging
     if orbit_average_results:
-        strains            = np.trapezoid(strains, time_domain, axis=-1)
-        stresses           = np.trapezoid(stresses, time_domain, axis=-1)
-        tidal_potential    = np.trapezoid(tidal_potential, time_domain, axis=-1)
-        total_potential    = np.trapezoid(total_potential, time_domain, axis=-1)
-        volumetric_heating = np.trapezoid(volumetric_heating, time_domain, axis=-1)
+        strains            = trapezoid(strains, time_domain, axis=-1)
+        stresses           = trapezoid(stresses, time_domain, axis=-1)
+        tidal_potential    = trapezoid(tidal_potential, time_domain, axis=-1)
+        total_potential    = trapezoid(total_potential, time_domain, axis=-1)
+        volumetric_heating = trapezoid(volumetric_heating, time_domain, axis=-1)
 
     # To find the total heating (rather than volumetric) we need to multiply by the volume in each voxel.
     # The voxel_volume has a shape of (r_N, long_N, colat_N).

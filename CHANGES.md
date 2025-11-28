@@ -5,7 +5,7 @@
 
 #### Fixes
 * Fixed top-level directories and files being mistakenly installed.
-* Updated `np.trapz` to `np.trapezoid` due to deprecation of the former.
+* Updated `np.trapz` to `scipy.integrate.trapezoid` due to deprecation of the former.
 
 #### Repository Changes
 * Added `CODE_OF_CONDUCT.md` with TidalPy's code of conduct.
