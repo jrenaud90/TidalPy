@@ -3,11 +3,16 @@
 
 ### Version 0.7.0 (2025-11-X)
 
+#### Fixes
+* Fixed top-level directories and files being mistakenly installed.
+* Updated `np.trapz` to `np.trapezoid` due to deprecation of the former.
+
 #### Repository Changes
 * Added `CODE_OF_CONDUCT.md` with TidalPy's code of conduct.
 * Added `CONTRIBUTING.md` with information on how others can contribute to TidalPy.
 * Updated `citation.cff` with latest information.
 * Added `codemeta.json` with citation and metadata.
+* Removed MacOS-13 tests.
 
 #### GitHub Actions
 * Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.

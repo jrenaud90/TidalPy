@@ -3,10 +3,10 @@
 
 from typing import TYPE_CHECKING
 
-from . import EccenOutput
 from ...utilities.performance.numba import njit
 
 if TYPE_CHECKING:
+    from . import EccenOutput
     from ...utilities.types import FloatArray
 
 

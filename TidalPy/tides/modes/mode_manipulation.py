@@ -351,8 +351,8 @@ def collapse_modes(
                 k_abs = np.abs(complex_love)
                 try:
                     effective_q = k_abs / neg_imk
-                except ZeroDivisionError:
-                    # Assume a divide by zero error due to neg_imk = 0.
+                except:
+                    # Numba does not support the proper exception; assume a divide by zero error due to neg_imk = 0.
                     bad_q = True
                     bad_qs += 1
                     effective_q = neg_imk

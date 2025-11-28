@@ -511,11 +511,11 @@ def collapse_multilayer_modes(
 
     # Perform orbital averaging
     if orbit_average_results:
-        strains            = np.trapz(strains, time_domain, axis=-1)
-        stresses           = np.trapz(stresses, time_domain, axis=-1)
-        tidal_potential    = np.trapz(tidal_potential, time_domain, axis=-1)
-        total_potential    = np.trapz(total_potential, time_domain, axis=-1)
-        volumetric_heating = np.trapz(volumetric_heating, time_domain, axis=-1)
+        strains            = np.trapezoid(strains, time_domain, axis=-1)
+        stresses           = np.trapezoid(stresses, time_domain, axis=-1)
+        tidal_potential    = np.trapezoid(tidal_potential, time_domain, axis=-1)
+        total_potential    = np.trapezoid(total_potential, time_domain, axis=-1)
+        volumetric_heating = np.trapezoid(volumetric_heating, time_domain, axis=-1)
 
     # To find the total heating (rather than volumetric) we need to multiply by the volume in each voxel.
     # The voxel_volume has a shape of (r_N, long_N, colat_N).

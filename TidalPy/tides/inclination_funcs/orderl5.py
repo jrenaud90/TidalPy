@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from . import InclinOutput
 from ...utilities.performance.numba import njit
 
 if TYPE_CHECKING:
+    from . import InclinOutput
     from ...utilities.types import FloatArray
 
 

@@ -35,8 +35,8 @@ def test_orbit_average():
         assert type(averaged_array) == type(expected_average)
         assert np.allclose(averaged_array, expected_average)
 
-        # Check results match np.trapz
-        trapz = np.trapz(test_array, time_domain) / time_domain[-1]
+        # Check results match np.trapezoid
+        trapz = np.trapezoid(test_array, time_domain) / time_domain[-1]
         assert np.allclose(trapz, averaged_array)
 
 
@@ -77,7 +77,7 @@ def test_orbit_average_3d():
         assert np.allclose(averaged_array, expected_average)
 
         # Check results match np.trapz
-        trapz = np.trapz(test_array, time_domain, axis=-1) / time_domain[-1]
+        trapz = np.trapezoid(test_array, time_domain, axis=-1) / time_domain[-1]
         assert np.allclose(trapz, averaged_array)
 
 def test_orbit_average_3d_multiarray_allfloats():
@@ -123,9 +123,9 @@ def test_orbit_average_3d_multiarray_allfloats():
     assert np.allclose(averaged_arrays[2], 0.)
 
     # Check results match np.trapz
-    trapz1 = np.trapz(test_array_1, time_domain, axis=-1) / time_domain[-1]
-    trapz2 = np.trapz(test_array_2, time_domain, axis=-1) / time_domain[-1]
-    trapz3 = np.trapz(test_array_3, time_domain, axis=-1) / time_domain[-1]
+    trapz1 = np.trapezoid(test_array_1, time_domain, axis=-1) / time_domain[-1]
+    trapz2 = np.trapezoid(test_array_2, time_domain, axis=-1) / time_domain[-1]
+    trapz3 = np.trapezoid(test_array_3, time_domain, axis=-1) / time_domain[-1]
     assert np.allclose(trapz1, averaged_arrays[0])
     assert np.allclose(trapz2, averaged_arrays[1])
     assert np.allclose(trapz3, averaged_arrays[2])
@@ -176,9 +176,9 @@ def test_orbit_average_3d_multiarray_allcomplex():
     assert np.allclose(averaged_arrays[2], 0. + 0.j)
 
     # Check results match np.trapz
-    trapz1 = np.trapz(test_array_1, time_domain, axis=-1) / time_domain[-1]
-    trapz2 = np.trapz(test_array_2, time_domain, axis=-1) / time_domain[-1]
-    trapz3 = np.trapz(test_array_3, time_domain, axis=-1) / time_domain[-1]
+    trapz1 = np.trapezoid(test_array_1, time_domain, axis=-1) / time_domain[-1]
+    trapz2 = np.trapezoid(test_array_2, time_domain, axis=-1) / time_domain[-1]
+    trapz3 = np.trapezoid(test_array_3, time_domain, axis=-1) / time_domain[-1]
     assert np.allclose(trapz1, averaged_arrays[0])
     assert np.allclose(trapz2, averaged_arrays[1])
     assert np.allclose(trapz3, averaged_arrays[2])
