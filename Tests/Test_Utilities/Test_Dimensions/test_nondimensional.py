@@ -1,8 +1,7 @@
-import pytest
 
 import numpy as np
 
-from math import isnan, isclose, sqrt
+from math import isnan, isclose
 
 from TidalPy.constants import G, PI_DBL
 from TidalPy.utilities.dimensions.nondimensional import NonDimensionalScalesClass, build_nondimensional_scales

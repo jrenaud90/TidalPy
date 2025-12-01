@@ -64,7 +64,7 @@ class BurnmanLayer(PhysicsLayer):
         """
 
         if not burnman_installed:
-            log.warn('Burnman package not found. BurnmanLayer will have limited functionality.')
+            log.warning('Burnman package not found. BurnmanLayer will have limited functionality.')
 
         super().__init__(layer_name, layer_index, world, layer_config, is_top_layer, initialize=False)
 
@@ -140,9 +140,9 @@ class BurnmanLayer(PhysicsLayer):
 
         # Check if the pressure or temperature of the layer has changed.
         temperature_change = temperature is not None
-        pressure_change = pressure is not None
 
         # TODO: pressure_change is currently unused (see TODO below).
+        # pressure_change = pressure is not None
 
         if temperature_change:
             # Update material properties interpolated by burnman.

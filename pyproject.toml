@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.7.0a0.dev7'
+version = '0.7.0a1.dev4'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -25,7 +25,7 @@ dependencies = [
     "astroquery",
     # Graphics
     "ipympl>=0.9.6,<0.10.0",
-    "matplotlib>=3.4.2,<5.0.0",
+    "matplotlib>=3.4.2,<4.0.0",
     "cmcrameri"
 ]
 license = "CC-BY-SA-4.0"
@@ -86,23 +86,20 @@ dev = [
     "diffeqpy>=1.2.0"
 ]
 
-# Reccomended (sometimes required) graphics packages
+# Recommended (sometimes required) graphics packages
 graphics = [
     "jupyter",
     "cmcrameri>=1.4,<2.0",
     "matplotlib>=3.4.2",
     "palettable>=3.3.0",
-    "ipympl>=0.8.7"
+    "ipympl>=0.8.7",
+    "cartopy>=0.22.0"
 ]
 
 # Extending installs
 burnman = [
     "autograd",
     "burnman>=2.1.0, <3"
-]
-
-cartopy = [
-    "cartopy>=0.22.0"
 ]
 
 julia = [
@@ -122,12 +119,24 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["_build_tidalpy"]
+# py-modules = ["_build_tidalpy"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["Tests", ".vscode", ".idea", ".github", "Papers", "Demos", "Benchmarks & Performance", "Documentation"]
+include = ["TidalPy*"]
+exclude = [
+    "Tests*",
+    "Docs*",
+    "Other*",
+    ".vscode",
+    ".idea",
+    ".github",
+    "Papers*",
+    "Demos*",
+    "Benchmarks*",
+    "Documentation*"
+]
 
 [tool.setuptools.cmdclass]
 build_py = "_build_tidalpy.build_tidalpy"

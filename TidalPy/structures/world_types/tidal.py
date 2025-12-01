@@ -11,7 +11,6 @@ log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:
-    from TidalPy.tides import GlobalApproxTides
     from TidalPy.utilities.types import FloatArray, NoneType
 
 

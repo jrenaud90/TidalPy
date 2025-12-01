@@ -1,7 +1,6 @@
 """ Tests for TidalPy.dynamics.dual_dissipation """
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.dynamics.dual_dissipation import (eccentricity_derivative, semi_major_axis_derivative,

@@ -103,7 +103,7 @@ class Radiogenics(LayerModelHolder):
             # Isotopes may be given as a dictionary of individual isotopes or as a string pointing to one of the
             #  pre-built TidalPy isotope lists.
             isotopes = self.config['isotopes']
-            if type(isotopes) == str:
+            if type(isotopes) is str:
                 if isotopes.lower() not in TidalPy.config['physics']['radiogenics']['known_isotope_data']:
                     raise UnknownModelError
                 iso_datas = TidalPy.config['physics']['radiogenics']['known_isotope_data'][isotopes]
@@ -185,9 +185,9 @@ class Radiogenics(LayerModelHolder):
             raise AttributeNotSetError
         if self.mass is None:
             raise AttributeNotSetError
-        if type(self.time) != np.ndarray:
+        if type(self.time) is not np.ndarray:
             raise IncorrectAttributeType
-        if type(self.mass) != float:
+        if type(self.mass) is not float:
             raise IncorrectAttributeType
 
         # Value checks

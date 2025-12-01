@@ -45,7 +45,7 @@ def nested_get(
             # Items in nested_key can not be lists or Tuples
             raise TypeError
 
-        if type(internal_dict_value) != dict:
+        if type(internal_dict_value) is not dict:
             raise KeyError('There are more nested keys than there are nested dicts.')
 
         if key not in internal_dict_value:
@@ -179,9 +179,9 @@ def nested_merge(old_dict: dict, new_dict: dict, make_copies: bool = True) -> di
             combo_dict[key] = value
         else:
             # Replacement required. Check if the value is itself a dict which would require further parsing.
-            if type(value) == dict:
+            if type(value) is dict:
                 old_value_dict = old_dict[key]
-                if type(old_value_dict) != dict:
+                if type(old_value_dict) is not dict:
                     raise Exception('How did that happen? Old value was not a dict.')
                 combo_dict[key] = nested_merge(old_dict=old_value_dict, new_dict=value, make_copies=True)
             else:

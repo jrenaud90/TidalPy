@@ -40,7 +40,7 @@ def test_radial_solver_1layer(layer_type, is_static, is_incompressible, method, 
 
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
     if layer_type != 'solid':
-        pytest.skip(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
+        pytest.skip('Planets with 1-layer liquid are not currently very stable. Skipping tests.')
     else:
         try:
             out = radial_solver(
@@ -81,7 +81,7 @@ def test_radial_solver_1layer_solve_for_both(layer_type, is_static, is_incompres
 
     # TODO: Currently very unstable for 1-layer planets that are all liquid. For now, skip.
     if layer_type != 'solid':
-        pytest.skip(f'Planets with 1-layer liquid are not currently very stable. Skipping tests.')
+        pytest.skip('Planets with 1-layer liquid are not currently very stable. Skipping tests.')
     else:
         try:
             out = radial_solver(

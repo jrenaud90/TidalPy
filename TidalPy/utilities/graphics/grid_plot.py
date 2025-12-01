@@ -167,7 +167,7 @@ class GridPlot(TidalPyClass):
 
             if type(projections) is str:
                 # One projection provided. Assume it is the same for all subplots
-                if not projections.lower() in KNOWN_PROJECTIONS:
+                if projections.lower() not in KNOWN_PROJECTIONS:
                     raise KeyError(f'Unknown projection provided for GridPlot: {projections}.')
                 projections = [projections] * self.nsubplots
             elif type(projections) is list:
@@ -315,10 +315,10 @@ class GridPlot(TidalPyClass):
 
             # If input is a dict then assume it is already in the correct format, but perform some sanity checks.
             key_0 = list(inputs.keys())[0]
-            assert type(key_0) == tuple
-            assert type(key_0[0]) == int
-            assert type(key_0[1]) == int
-            assert type(inputs[key_0]) == output_type
+            assert type(key_0) is tuple
+            assert type(key_0[0]) is int
+            assert type(key_0[1]) is int
+            assert type(inputs[key_0]) is output_type
             cleaned_input = inputs
         elif type(inputs) in [list, tuple]:
 
@@ -395,7 +395,7 @@ class GridPlot(TidalPyClass):
 
             # Check that the reference is okay. It can not be something already in the GridPlot instance's attributes
             if new_reference in dir(self):
-                raise AttributeError(f'New axis reference can not be named after an attribute in GridPlot instance.')
+                raise AttributeError('New axis reference can not be named after an attribute in GridPlot instance.')
 
             # Get desired axis
             ax = self.axes_by_rowcol[axis_index]

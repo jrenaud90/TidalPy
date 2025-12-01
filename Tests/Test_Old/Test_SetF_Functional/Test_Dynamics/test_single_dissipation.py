@@ -1,7 +1,6 @@
 """ Tests for TidalPy.dynamics.single_dissipation """
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.dynamics.single_dissipation import (spin_rate_derivative, eccentricity_derivative,

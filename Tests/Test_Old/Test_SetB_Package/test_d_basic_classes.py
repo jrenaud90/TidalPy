@@ -1,6 +1,5 @@
 import pytest
 
-import TidalPy
 from TidalPy import version
 from TidalPy.exceptions import ParameterMissingError
 from TidalPy.utilities.classes import ConfigHolder, TidalPyClass

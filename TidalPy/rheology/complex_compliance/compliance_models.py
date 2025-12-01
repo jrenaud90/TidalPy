@@ -42,7 +42,7 @@ import warnings
 import numpy as np
 
 from ...utilities.performance import find_factorial, njit
-from ...utilities.types import ComplexArray, FloatArray, float_eps, float_lognat_max
+from ...utilities.types import ComplexArray, FloatArray, float_eps
 
 warnings.warn('Deprecation Warning: the non-cythonized TidalPy.rheology.complex_compliance.compliance_models will be removed in a future release of TidalPy. Please use TidalPy.rheology.models instead. Please report any differences noted so that they can be addressed before the future release of TidalPy.', DeprecationWarning)
 

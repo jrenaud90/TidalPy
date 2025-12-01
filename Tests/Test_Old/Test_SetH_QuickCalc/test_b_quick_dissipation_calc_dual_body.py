@@ -1,7 +1,6 @@
 import numpy as np
 from numba.typed.typeddict import Dict
 
-import TidalPy
 
 
 from TidalPy.toolbox.quick_tides import (dual_dissipation_from_dict_or_world_instance,
