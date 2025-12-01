@@ -22,16 +22,17 @@ Arguments and use case:
 from TidalPy.RadialSolver import build_rs_input_homogeneous_layers
 
 # Create inputs that define our planet. Let's assume it is a three layer planet with layers: solid-liquid-solid.
-planet_radius = 1.0e6
-forcing_frequency = 2.0 * 3.14 / (86400.0 * 2.0)
-density_tuple                 = (8000.0, 6000.0, 3400.0)
-static_bulk_modulus_tuple     = (500.0e9, 100.0e9, 200.0e9)
-static_shear_modulus_tuple    = (200.0e9, 0.0, 50.0e9)  # Note that liquid layers have 0 shear.
-bulk_viscosity_tuple          = (1.0e30, 1.0e30, 1.0e30)  # Since we are using Elastic bulk rheology in every layer, these values are unused.
-shear_viscosity_tuple         = (1.0e28, 1.0e3, 1.0e20)
-layer_type_tuple              = ('solid', 'liquid', 'solid')
-layer_is_static_tuple         = (False, True, False)
-layer_is_incompressible_tuple = (False, False, False)
+# TidalPy expects MKS units.
+planet_radius                 = 1.0e6                         # [m]
+forcing_frequency             = 2.0 * 3.14 / (86400.0 * 2.0)  # [rad s-1]
+density_tuple                 = (8000.0, 6000.0, 3400.0)      # [kg m-3]
+static_bulk_modulus_tuple     = (500.0e9, 100.0e9, 200.0e9)   # [Pa]
+static_shear_modulus_tuple    = (200.0e9, 0.0, 50.0e9)        # [Pa] Note that liquid layers defining feature is having 0 shear.
+bulk_viscosity_tuple          = (1.0e30, 1.0e30, 1.0e30)      # [Pa s] Since we are using Elastic bulk rheology in every layer, these values are unused.
+shear_viscosity_tuple         = (1.0e28, 1.0e3, 1.0e20)       # [Pa s]
+layer_type_tuple              = ('solid', 'liquid', 'solid')  # Is a layer solid or liquid (can it support shear waves)
+layer_is_static_tuple         = (False, True, False)          # Does a layer use the static assumption (vs. dynamic tides)
+layer_is_incompressible_tuple = (False, False, False)         # Does a layer use the incompressible assumption (bulk compressibility)
 
 # The inputs to this method are pretty self explanatory except for the rheology model inputs.
 # These are provided as _instantiated_ rheology classes like so:

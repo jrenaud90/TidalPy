@@ -2,7 +2,7 @@
 
 <div style="text-align: center;">
     <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
-    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a><br />
+    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI: 10.5281/zenodo.7017475"></a><br />
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
@@ -28,15 +28,15 @@ of Mercury, Venus, Earth, our Moon, Mars, and much more.
 Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send a message to
 [TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
-# How to Install
+## How to Install
 
-## Compatibility
+### Compatibility
 
 * **Windows-Latest**: *Installation & tests passed.*
 * **MacOS-Latest**: *Installation & tests passed.*
 * **Ubuntu-Latest**: *Installation & tests passed.*
 
-## Basic Installation
+### Basic Installation
 
 Installing TidalPy is as simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
 system and performing the following in a terminal:
@@ -51,7 +51,7 @@ or
 
 `mamba install TidalPy`
 
-## Accessing Jupyter Notebooks
+### Accessing Jupyter Notebooks
 There are several jupyter notebooks with TidalPy demos found in the /Demos/ folder of this repository.
 In order to access these you will need to make sure you install Jupyter and a few related packages:
 
@@ -68,18 +68,18 @@ You can then clone this GitHub repository,
 to a local directory. Navigate to this directory and the `Demos` sub-directory then access the notebooks by using the command,
 `jupyter notebook`.
 
-## Cartopy
+### Cartopy
 
 TidalPy offers the ability to make nice 2D plots using the [cartopy](https://scitools.org.uk/cartopy/docs/latest/index.html) package for some of 
 3d projection map plotting. In turn, cartopy relies on [GEOS](https://trac.osgeo.org/geos/) which is not a python
 package and must be installed outside of pip.
 
-### Installing Cartopy using `conda`
+#### Installing Cartopy using `conda`
 The easiest way to install cartopy is using a conda environment by,
 
 `conda install -c conda-forge cartopy`
 
-### Installing Cartopy using `pip`
+#### Installing Cartopy using `pip`
 If you are not using a conda environment then you will need to find and install the GEOS binaries manually:
 
 **Windows:** [Follow instructions here](https://trac.osgeo.org/osgeo4w/)
@@ -90,7 +90,7 @@ After GEOS is installed you can pip install the rest,
 
 `pip install pyproj shapely pyshp cartopy`
 
-## Installation Troubleshooting
+### Installation Troubleshooting
 
 _If you ran into a problem that is not listed below please [submit an issue](https://github.com/jrenaud90/TidalPy/issues) and we will work on addressing it!_
 
@@ -100,22 +100,18 @@ _If you ran into a problem that is not listed below please [submit an issue](htt
   * For conda: `conda install setuptools`
   * Or pip: `pip install setuptools`
 
-# How to Use TidalPy
+## Using TidalPy
 
-Check out the `Documentation\1 - Getting Started.md` file. This is pretty bare bones at the moment but offers some basic
-info about TidalPy. For now the best way to learn how to use TidalPy is by checking out the `Demos` directory. There
-are "beginner" [Jupyter notebooks](https://jupyter.org/) that are a great starting point.
+Check out the [Getting Started](https://tidalpy.readthedocs.io/en/latest/1_Getting_Started.html) guide to learn about TidalPy's features. The `Demos` directory is another good resource to learn by looking at [Jupyter notebooks](https://jupyter.org/) that can teach you how to use TidalPy's features.
 
-## Using TidalPy for Science
+### Doing Science with TidalPy
 
 TidalPy has been used in several studies already, and we encourage you to use it in yours. We would appreciate you
-include a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers discussed in 
-the next section. We also would love to see where TidalPy is being used! Please feel free to send us an
+including a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers mentioned [here](https://tidalpy.readthedocs.io/en/latest/Readme.html#citing-tidalpy). We also would love to hear where TidalPy is being used! Please feel free to send us an
 email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy. Anyone is welcome to
-make forks or copies of TidalPy as long as their work references back to this page. License information can be found at
-the end of this file.
+create forks or copies of TidalPy as long as their work references back to this page. License information can be found [here](https://tidalpy.readthedocs.io/en/latest/License.html).
 
-## Citing TidalPy
+### Citing TidalPy
 
 If you use TidalPy for your research please cite its Zenodo [doi: 10.5281/zenodo.7017474](https://doi.org/10.5281/zenodo.7017474).
 
@@ -163,7 +159,7 @@ TidalPy has benefited from work and conversations with the following:
 - Sander Goossens (NASA GSFC)
 - Marc Neveu (U. of Maryland, College Park / NASA GSFC)
 - Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
-- Nick Wagner (Brown U.)
+- Nick Wagner (Brown University)
 
 # License and Copyright
 Copyright 2025 by [Joe P. Renaud](https://github.com/jrenaud90).
