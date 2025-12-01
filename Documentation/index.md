@@ -15,9 +15,10 @@ Overview <Readme.md>
 Getting Started <1_Getting_Started.md>
 Configurations <2_TidalPy_Configurations.md>
 Contribute <3_Contribute.md>
+Rheology Module <Rheology/index.md>
 Love Number Solver <RadialSolver/index.md>
 Exoplanets <4_Exoplanets.md>
-Rheology <5_Rheology.md>
+Dynamics Module <Dynamics/index.md>
 Changes.md
 License.md
 Notice.md
