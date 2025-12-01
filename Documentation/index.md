@@ -20,4 +20,5 @@ Exoplanets <4_Exoplanets.md>
 Rheology <5_Rheology.md>
 Changes.md
 License.md
+Notice.md
 ```
