@@ -4,10 +4,10 @@
     /* Other good ones: #655A7C; #1f2a44 */
 }
 
-.version-switch {
+.version-switch select {
     color: white;
 }
 
 .caption-text {
-    color: #1f2a44;
+    color: #8ee2f2;
 }
