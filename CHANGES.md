@@ -4,6 +4,7 @@
 
 #### Other
 * Added JOSS paper draft to Papers/2025-JOSS.
+* Added fontsize kwarg to projection plotter in utilities.graphics
 
 ### Version 0.6.11 (2025-11-06)
 
