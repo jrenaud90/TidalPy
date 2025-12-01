@@ -19,15 +19,19 @@ dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Changes.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "README.md"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Readme.md"))
+dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Readme.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "LICENSE.md"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "License.md"))
+dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "License.md"))
+shutil.copyfile(src, dst)
+
+src = os.path.abspath(os.path.join("..", "CONTRIBUTING.md"))
+dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Contributing.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "NOTICE"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Notice.md"))
+dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
 extensions = [

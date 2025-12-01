@@ -10,5 +10,5 @@ found below.
 :maxdepth: 2
 :caption: Contents
 
-Dynamics <1_Rheology.md>
+Rheology <1_Rheology.md>
 ```

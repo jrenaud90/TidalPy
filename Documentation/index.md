@@ -11,15 +11,10 @@ Also check out the GitHub page to see the code.
 :maxdepth: 2
 :caption: Contents
 
-Overview <Readme.md>
-Getting Started <1_Getting_Started.md>
-Configurations <2_TidalPy_Configurations.md>
-Contribute <3_Contribute.md>
+Overview <Overview/index.md>
 Rheology Module <Rheology/index.md>
 Love Number Solver <RadialSolver/index.md>
 Exoplanets <4_Exoplanets.md>
 Dynamics Module <Dynamics/index.md>
-Changes.md
-License.md
-Notice.md
+Change Log <Changes.md>
 ```
