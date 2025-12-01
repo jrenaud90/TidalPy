@@ -1,0 +1,13 @@
+/* Change background behind logo/search area */
+.wy-side-nav-search {
+    background-color: #1f2a44;
+    /* Other good ones: #655A7C; #1f2a44 */
+}
+
+.version-switch {
+    color: white;
+}
+
+.caption-text {
+    color: #1f2a44;
+}
