@@ -25,11 +25,14 @@ def stack(*img_names: tuple[str], top_bottom=True):
     total_width = 0
     max_height = 0
     total_height = 0
+    bg_color = None
     for img_name in img_names:
         images.append(trim(Image.open(img_name)))
         max_width = max(max_width, images[-1].width)
         max_height = max(max_height, images[-1].height)
     for img in images:
+        
+        bg_color = img.getpixel((0,0))
         if top_bottom:
             img.resize((max_width, img.height))
         else:
@@ -41,7 +44,7 @@ def stack(*img_names: tuple[str], top_bottom=True):
         # Create a new blank image with combined height
         buffer_size = int(max_height * buffer)
         total_buffer = buffer_size * (len(images) - 1)
-        combined = Image.new("RGB", (max_width, total_height + total_buffer))
+        combined = Image.new("RGB", (max_width, total_height + total_buffer), bg_color)
 
         current_y = 0
         for i, img in enumerate(images):
@@ -51,7 +54,7 @@ def stack(*img_names: tuple[str], top_bottom=True):
         # Create a new blank image with combined height
         buffer_size = int(max_width * buffer)
         total_buffer = buffer_size * (len(images) - 1)
-        combined = Image.new("RGB", (total_width + total_buffer, max_height))
+        combined = Image.new("RGB", (total_width + total_buffer, max_height), bg_color)
 
         current_x = 0
         for i, img in enumerate(images):
