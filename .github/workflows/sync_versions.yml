@@ -83,7 +83,7 @@ jobs:
               with open('meta.yaml', 'r') as f:
                   content = f.read()
               # Replace version in meta.yaml (handles both {% set version = "x.x.x" %} and version: x.x.x formats)
-              content = re.sub(r'(version\s*[=:]\s*["\']?)[^"\'}\n]+(["\']?)', rf'\g<1>{version}\g<2>', content)
+              content = re.sub(r'(version\s*[=]\s*["\']?)[^"\'}\n]+(["\']?)', rf'\g<1>{version}\g<2>', content)
               with open('meta.yaml', 'w') as f:
                   f.write(content)
               print("Updated meta.yaml")

@@ -1,5 +1,10 @@
 # TidalPy Major Change Log
 
+### Version 0.7.0 (2025-11-X)
+
+#### Other
+* Added JOSS paper draft to Papers/2025-JOSS.
+* Added fontsize kwarg to projection plotter in utilities.graphics
 
 ### Version 0.7.0 (2025-11-X)
 
