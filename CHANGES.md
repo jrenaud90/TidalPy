@@ -28,6 +28,7 @@
   * Added ruff lint check to ubuntu tests.
 * Fixed many code issues found with ruff (these are not bug fixes, just syntax compliance and best practices).
 * Moved more module/file level constants into TidalPy.constants and in the configuration file.
+* Added TidalPy logo.
 
 ### Version 0.6.11 (2025-11-06)
 
