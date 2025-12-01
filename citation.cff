@@ -48,8 +48,8 @@ keywords:
 - Triton
 - Pluto
 - Rheology
-license: CC-BY-SA-4.0
-commit: e7e6d07
+license: Apache-2.0
+commit: 66ce328
 version: 0.7.0a5.dev0
 date-released: '2025-12-01'
 preferred-citation:
