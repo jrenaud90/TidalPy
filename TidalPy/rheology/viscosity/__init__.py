@@ -18,4 +18,5 @@ def get_liquid_viscosity_model_default_inputs(layer_type: str):
                                       inner_keys=(layer_type, 'liquid_viscosity'))
 
 
-from .viscosity import LiquidViscosity, SolidViscosity
+from .viscosity import LiquidViscosity as LiquidViscosity
+from .viscosity import SolidViscosity as SolidViscosity

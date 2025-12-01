@@ -301,8 +301,8 @@ class ModelHolder(ConfigHolder):
             # Constant Arguments
             if parameter_dict is None:
                 raise MissingArgumentError(
-                    f'Parameter configuration dictionary is required to build constant '
-                    f'model arguments.'
+                    'Parameter configuration dictionary is required to build constant '
+                    'model arguments.'
                     )
 
             for arg_name in arg_names:

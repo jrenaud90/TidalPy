@@ -5,7 +5,7 @@ from scipy import special
 from numba import njit
 
 
-@njit(cache=True)
+@njit(cache=False)
 def find_factorial(number: float) -> float:
     """ Find's the factorial of a number based on SciPy's Gamma function.
 

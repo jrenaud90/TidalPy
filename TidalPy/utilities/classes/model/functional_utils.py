@@ -1,5 +1,5 @@
 from inspect import isfunction
-from typing import Callable, List, Tuple
+from typing import Callable, Tuple
 
 from numba import njit as real_njit
 from numba.parfors.array_analysis import MAP_TYPES

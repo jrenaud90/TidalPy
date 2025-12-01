@@ -3,11 +3,9 @@
 
 import numpy as np
 
-import TidalPy
 
 
 
-from TidalPy.constants import G
 from TidalPy.tides.multilayer import calculate_displacements, calculate_strain_stress
 from TidalPy.RadialSolver import radial_solver
 from TidalPy.tides.potential import tidal_potential_nsr, tidal_potential_simple

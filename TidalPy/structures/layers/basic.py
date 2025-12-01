@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING, Union
 
 import TidalPy
 from TidalPy.exceptions import (ConfigPropertyChangeError, IncorrectMethodToSetStateProperty,
-                                InitiatedPropertyChangeError, MissingArgumentError, OuterscopePropertySetError,
-                                ParameterMissingError)
+                                InitiatedPropertyChangeError, MissingArgumentError, OuterscopePropertySetError)
 from .helper import find_geometry_from_config
 from ..physical import PhysicalObjSpherical
 

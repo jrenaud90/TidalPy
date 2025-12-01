@@ -1,11 +1,9 @@
-import TidalPy
 
 import numpy as np
 from TidalPy.tides.modes.collapse_modes import collapse_modes
 from numba.core import types
 from numba.typed import Dict
 from numba.typed.typeddict import Dict as TypedDict
-from numba.typed import List
 
 
 def test_collapse_mode():

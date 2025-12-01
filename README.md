@@ -1,17 +1,20 @@
 # TidalPy
 
 <div style="text-align: center;">
+    <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
+    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a><br />
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
-    <!--<a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />-->
-    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
+    <a href="https://pypi.org/project/TidalPy/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/TidalPy?label=PyPI%20Downloads" /></a>
+    <a href="https://anaconda.org/conda-forge/tidalpy"> <img alt="Conda Downloads" src="https://img.shields.io/conda/d/conda-forge/tidalpy" /></a>
+    <a href="https://emac.gsfc.nasa.gov?cid=2207-034"><img src="https://img.shields.io/badge/EMAC-2207--034-blue" alt="EMAC 2207-034"></a>
 </div>
 
 ---
 
-<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.11 Alpha-orange" alt="TidalPy Version 0.6.11 Alpha" /></a>
+<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.7.0a0.dev7-orange" alt="TidalPy Version 0.7.0a0.dev7" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
@@ -144,16 +147,6 @@ check out the information in `Documentation\Contribute.md`.
   * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
     other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
-# License Information
-You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
-* Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
-* Any software derived from TidalPy must remain open-source and non-commercial.
-
-This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. To view
-a copy of this license,
-visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons.org/licenses/by-nc-sa/4.0/) or send a
-letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
 # Acknowledgements
 TidalPy was partially developed with support from NASA Goddard Space Flight Center's 
 Sellers Exoplanet Environments Collaboration (SEEC) and Geodesy ISFMs. 
@@ -170,3 +163,16 @@ TidalPy has benefited from work and conversations with the following:
 - Marc Neveu (U. of Maryland, College Park / NASA GSFC)
 - Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
 - Nick Wagner (Brown U.)
+
+
+# License Information
+You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
+* Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
+* Any software derived from TidalPy must remain open-source and non-commercial.
+
+This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. To view
+a copy of this license,
+visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons.org/licenses/by-nc-sa/4.0/) or send a
+letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+<a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;">

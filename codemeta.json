@@ -1,0 +1,102 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "TidalPy",
+  "description": "TidalPy is an open-source Python package for modeling tidal deformation, internal dissipation, and rotational-orbital evolution in planetary systems. The software combines a user-friendly Python interface with performance-critical routines implemented in C++ and Cython. Key capabilities include dynamic Love number computation, advanced rheological models, and coupled spin-orbit evolution. TidalPy addresses a gap in existing tools by providing these capabilities within a single accessible framework that easily interfaces with other popular Python packages used in the field. It has been extensively tested in a variety of studies examining tidal dissipation in Solar System planets and moons, as well as exoplanets.",
+  "identifier": "https://doi.org/10.5281/zenodo.7017475",
+  "version": "0.7.0a1.dev4",
+  "datePublished": "2025-12-01",
+  "dateModified": "2025-12-01",
+  "codeRepository": "https://github.com/jrenaud90/TidalPy",
+  "issueTracker": "https://github.com/jrenaud90/TidalPy/issues",
+  "license": "https://spdx.org/licenses/CC-BY-SA-4.0",
+  "url": "https://TidalPy.info",
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Joe",
+      "familyName": "Renaud",
+      "email": "joe.p.renaud@gmail.com",
+      "@id": "https://orcid.org/0000-0002-8619-8542",
+      "affiliation": {
+        "@type": "Organization",
+        "name": "University of Maryland College Park"
+      }
+    },
+    {
+      "@type": "Person",
+      "givenName": "Joe",
+      "familyName": "Renaud",
+      "email": "joe.p.renaud@gmail.com",
+      "@id": "https://orcid.org/0000-0002-8619-8542",
+      "affiliation": {
+        "@type": "Organization",
+        "name": "NASA Goddard Space Flight Center"
+      }
+    }
+  ],
+  "maintainer": [
+    {
+      "@type": "Person",
+      "givenName": "Joe",
+      "familyName": "Renaud",
+      "email": "joe.p.renaud@gmail.com",
+      "@id": "https://orcid.org/0000-0002-8619-8542"
+    }
+  ],
+  "programmingLanguage": [
+    "Python",
+    "C++",
+    "Cython"
+  ],
+  "operatingSystem": [
+    "Linux",
+    "macOS",
+    "Windows"
+  ],
+  "applicationCategory": "Scientific Software",
+  "keywords": [
+    "Tides",
+    "Tidal Dynamics",
+    "Planetary Science",
+    "Thermal-Orbital Evolution",
+    "Tidal Heating",
+    "Exoplanets",
+    "Moons",
+    "Solar System",
+    "Mercury",
+    "Venus",
+    "Earth",
+    "Moon",
+    "Mars",
+    "Europa",
+    "Io",
+    "Triton",
+    "Pluto",
+    "Rheology"
+  ],
+  "referencePublication": {
+    "@type": "ScholarlyArticle",
+    "name": "TidalPy: Software Suite for Solving Problems in Tidal Dynamics",
+    "author": [
+      {
+        "@type": "Person",
+        "givenName": "Joe P.",
+        "familyName": "Renaud"
+      }
+    ],
+    "datePublished": "2022",
+    "identifier": "https://doi.org/10.5281/zenodo.7017475"
+  },
+  "softwareRequirements": [
+    "Python >= 3.8"
+  ],
+  "downloadUrl": [
+    "https://pypi.org/project/TidalPy/",
+    "https://anaconda.org/conda-forge/tidalpy"
+  ],
+  "relatedLink": [
+    "https://pypi.org/project/TidalPy/",
+    "https://anaconda.org/conda-forge/tidalpy"
+  ]
+}

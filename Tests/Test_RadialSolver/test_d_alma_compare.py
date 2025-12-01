@@ -6,11 +6,8 @@ Please see `alma_benchmark.txt` for information on how the benchmark results wer
 import numpy as np
 import pytest
 
-import TidalPy
 
 
-from TidalPy.constants import G
-from TidalPy.utilities.spherical_helper.mass import calculate_mass_gravity_arrays
 from TidalPy.rheology import Newton, Maxwell
 from TidalPy.RadialSolver import radial_solver
 

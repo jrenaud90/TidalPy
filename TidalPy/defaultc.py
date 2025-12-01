@@ -47,6 +47,25 @@ default_config_str = """
     use_numba = true
     cache_numba = true
 
+[graphics]
+    # Graphics settings
+    [graphics.planet_plots]
+        # Settings for planet profile plotter
+        scatter_size = 35
+        scatter_shape_1 = "."
+        scatter_shape_2 = "x"
+        line_style_1 = '-'
+        line_style_2 = ':'
+        scale = 4
+        gravity_color     = 'g'
+        density_color     = 'k'
+        pressure_color    = 'b'
+        temperature_color = 'orange'
+        shear_color       = 'm'
+        bulk_color        = 'r'
+        fontsize_1 = 12
+        fontsize_2 = 14
+
 [tides]
     [tides.modes]
         # Set the minimum forcing frequency that is treated as zero: `|w| <= minimum_frequency --> w = 0`
@@ -54,6 +73,8 @@ default_config_str = """
         minimum_frequency = 1.0e-14
         # Assume max frequency is for a forcing period of 1 micro-second
         maximum_frequency = 1.0e8
+        # Minimum difference between spin and orbital frequency before it is treated as zero.
+        min_spin_orbital_diff = 1.0e-10
     
     [tides.models]
         [tides.models.base]

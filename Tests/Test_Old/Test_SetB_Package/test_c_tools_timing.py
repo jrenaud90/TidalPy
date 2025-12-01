@@ -1,6 +1,5 @@
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.utilities.conversions.timing import convert_to_hms

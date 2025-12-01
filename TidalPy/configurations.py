@@ -101,7 +101,7 @@ def check_config_version(
             else:
                 if warn_on_false:
                     message = f'Could not determine version for TidalPy configuration file, {config_path}. ' + \
-                              f'It may not be compatible with this version of TidalPy.\n'
+                              'It may not be compatible with this version of TidalPy.\n'
                     warnings.warn(message)
                 return False
         
@@ -135,9 +135,9 @@ def get_default_config() -> dict:
     if not os.path.isfile(config_path):
         # Create toml file with default configurations.
         with open(config_path, 'w') as config_file:
-            config_file.write(f'#===========================================================#\n')
+            config_file.write('#===========================================================#\n')
             config_file.write(f'#    TidalPy Default Configurations for Version: {version}\n')
-            config_file.write(f'#===========================================================#\n\n')
+            config_file.write('#===========================================================#\n\n')
             config_file.write(default_config_str)
     else:
         # Check if configuration file is for the correct version of TidalPy.

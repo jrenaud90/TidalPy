@@ -45,7 +45,7 @@ def orbit_average(orbital_period: float, time_domain: np.ndarray, array: np.ndar
     elif n_time <= 3:
         raise ValueError('Very few points in the time domain found within orbital period.')
 
-    # The following uses a method similar to `np.trapz`
+    # The following uses a method similar to `np.trapezoid`
     diff = np.diff(time_domain_sliced)
     if scale_by_period:
         diff = diff / orbital_period
@@ -113,7 +113,7 @@ def orbit_average_3d(orbital_period: float, time_domain: np.ndarray, array: np.n
     elif n_time <= 3:
         raise ValueError('Very few points in the time domain found within orbital period.')
     
-    # The following uses a method similar to `np.trapz`
+    # The following uses a method similar to `np.trapezoid`
     n_time = len(time_domain_sliced)
     diff = np.diff(time_domain_sliced)
     if scale_by_period:
@@ -191,7 +191,7 @@ def orbit_average_3d_multiarray(orbital_period: float, time_domain: np.ndarray, 
     elif n_time <= 3:
         raise ValueError('Very few points in the time domain found within orbital period.')
     
-    # The following uses a method similar to `np.trapz`
+    # The following uses a method similar to `np.trapezoid`
     n_time = len(time_domain_sliced)
     diff = np.diff(time_domain_sliced)
     if scale_by_period:
@@ -203,9 +203,9 @@ def orbit_average_3d_multiarray(orbital_period: float, time_domain: np.ndarray, 
     for array in array_list:
         dtype = array.dtype
         shape = array.shape
-        if not dtype is dtype_old:
+        if dtype is not dtype_old:
             raise TypeError('Arrays must have the same dtype.')
-        if not shape is shape_old:
+        if shape is not shape_old:
             raise TypeError('Arrays must have the same shape.')
         arrays_averaged.append(np.zeros((n_radius, n_longitude, n_colatitude), dtype=dtype))
         
@@ -279,7 +279,7 @@ def orbit_average_4d_multiarray(orbital_period: float, time_domain: np.ndarray, 
     elif n_time <= 3:
         raise ValueError('Very few points in the time domain found within orbital period.')
     
-    # The following uses a method similar to `np.trapz`
+    # The following uses a method similar to `np.trapezoid`
     n_time = len(time_domain_sliced)
     diff = np.diff(time_domain_sliced)
     if scale_by_period:
@@ -291,9 +291,9 @@ def orbit_average_4d_multiarray(orbital_period: float, time_domain: np.ndarray, 
     for array in array_list:
         dtype = array.dtype
         shape = array.shape
-        if not dtype is dtype_old:
+        if dtype is not dtype_old:
             raise TypeError('Arrays must have the same dtype.')
-        if not shape is shape_old:
+        if shape is not shape_old:
             raise TypeError('Arrays must have the same shape.')
         arrays_averaged.append(np.zeros((n_outer, n_radius, n_longitude, n_colatitude), dtype=dtype))
         

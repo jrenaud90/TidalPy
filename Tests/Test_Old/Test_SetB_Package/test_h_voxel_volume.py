@@ -2,7 +2,6 @@
 
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes, calculate_voxel_volumes_npy

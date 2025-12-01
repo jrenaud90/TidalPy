@@ -1,16 +1,15 @@
 from typing import Tuple, TYPE_CHECKING
 
+from TidalPy.constants import MIN_THICKNESS, MIN_VISCOSITY
 from TidalPy.utilities.types import float_eps
 from TidalPy.utilities.performance.numba import njit
 
 
 if TYPE_CHECKING:
-    from TidalPy.utilities.types import float_eps
+    from TidalPy.utilities.types import float_eps, FloatArray
 
 CoolingOutputType = Tuple['FloatArray', 'FloatArray', 'FloatArray', 'FloatArray']
 
-MIN_VISCOSITY = 1.
-MIN_THICKNESS = 50.
 
 
 @njit(cacheable=True)

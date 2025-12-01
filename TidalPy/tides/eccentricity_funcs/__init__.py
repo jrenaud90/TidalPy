@@ -1,10 +1,5 @@
 from typing import Dict, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from ...utilities.types import FloatArray
-
-EccenOutput = Dict[int, Dict[int, 'FloatArray']]
-
 from .orderl2 import eccentricity_funcs_trunc2 as eccentricity_funcs_l2_trunc2
 from .orderl2 import eccentricity_funcs_trunc4 as eccentricity_funcs_l2_trunc4
 from .orderl2 import eccentricity_funcs_trunc6 as eccentricity_funcs_l2_trunc6
@@ -71,6 +66,11 @@ from .orderl7 import eccentricity_funcs_trunc14 as eccentricity_funcs_l7_trunc14
 from .orderl7 import eccentricity_funcs_trunc16 as eccentricity_funcs_l7_trunc16
 from .orderl7 import eccentricity_funcs_trunc18 as eccentricity_funcs_l7_trunc18
 from .orderl7 import eccentricity_funcs_trunc20 as eccentricity_funcs_l7_trunc20
+
+if TYPE_CHECKING:
+    from ...utilities.types import FloatArray
+
+EccenOutput = Dict[int, Dict[int, 'FloatArray']]
 
 eccentricity_truncations = {
     2 :  # Truncation Level 2

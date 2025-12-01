@@ -66,8 +66,8 @@ def yplot(
         ylabel = 'Depth [km]'
 
     multiple_y = False
-    if type(tidal_ys) == list:
-        if type(radius) != list:
+    if type(tidal_ys) is list:
+        if type(radius) is not list:
             IncorrectArgumentType('Radius must be provided as the same type as tidal_ys.')
         multiple_y = True
 

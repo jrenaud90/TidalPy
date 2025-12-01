@@ -1,9 +1,9 @@
 {% set name = "TidalPy" %}
-{% set version = "0.7.0a3.dev2" %}
+{% set version = "0.7.0a5.dev0" %}
 
 package:
   name: {{ name|lower }}
-  version: 0.7.0a3.dev2}}
+  version: {{ version }}
 
 source:
   url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/tidalpy-{{ version }}.tar.gz

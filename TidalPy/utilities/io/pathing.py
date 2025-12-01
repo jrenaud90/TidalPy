@@ -18,7 +18,7 @@ def get_all_files_of_type(directory_to_search: str, file_extensions: Union[List[
         Dictionary of files stored as file_name: file_path
     """
 
-    if type(file_extensions) == str:
+    if type(file_extensions) is str:
         file_extensions = list(file_extensions)
     # splitext retains the first period, the user may not have expected that
     for e_i, extension in enumerate(file_extensions):

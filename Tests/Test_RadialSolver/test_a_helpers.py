@@ -1,5 +1,5 @@
 import pytest
-from math import isnan, isclose
+from math import isclose
 from copy import copy
 
 import numpy as np

@@ -30,10 +30,11 @@ include TidalPy/Material/eos/eos_solution_.hpp
 include TidalPy/utilities/dimensions/nondimensional_.hpp
 
 # Exclude the whole Tests folder
-exclude .vscode/*
-exclude .idea/*
-exclude .github/*
-exclude Tests/*
-exclude Papers/*
-exclude Demos/*
-exclude Documentation/*
+prune .vscode
+prune .idea
+prune .github
+prune Tests
+prune Papers
+prune Demos
+prune Documentation
+prune Benchmarks

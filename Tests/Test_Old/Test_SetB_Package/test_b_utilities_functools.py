@@ -1,6 +1,5 @@
 import pytest
 
-import TidalPy
 
 
 from TidalPy.exceptions import ModelException
