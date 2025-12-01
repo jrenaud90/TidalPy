@@ -159,20 +159,22 @@ TidalPy has been improved by numerous contributors some of which you can find [h
 TidalPy has benefited from work and conversations with the following:
 - Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
 - Michael Efroimsky (U.S. Naval Observatory)
+- Michaela Walterová (Charles University)
 - Sander Goossens (NASA GSFC)
 - Marc Neveu (U. of Maryland, College Park / NASA GSFC)
 - Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
 - Nick Wagner (Brown U.)
 
+# License and Copyright
+Copyright 2025 by [Joe P. Renaud](https://github.com/jrenaud90).
+TidalPy is licensed under the Apache License, Version 2.0 (the "License"); you may not use this code except in
+compliance with the License. You may obtain a copy of the License at
+[www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0) or in this repository's LICENSE.md
+file. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+on an "AS IS" basis, without warranties or conditions of any kind, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-# License Information
 You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
-* Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
-* Any software derived from TidalPy must remain open-source and non-commercial.
-
-This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. To view
-a copy of this license,
-visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons.org/licenses/by-nc-sa/4.0/) or send a
-letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
-<a href="https://github.com/jrenaud90/TidalPy">TidalPy</a> © 2022 by <a href="https://github.com/jrenaud90">Joe P. Renaud</a> is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 0.5em;max-height:0.5em;margin-left: .2em;">
+* Code repositories link back to TidalPy's original [repository](https://github.com/jrenaud90/TidalPy).
+* Any published research cites this code using the preferred citation found in the
+  [citation.cff file](https://github.com/jrenaud90/TidalPy/blob/main/citation.cff).

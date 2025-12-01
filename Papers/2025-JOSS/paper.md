@@ -161,10 +161,11 @@ used to make these figures can be found on TidalPy's [GitHub repository](https:/
 
 ## License
 
-TidalPy is licensed under Creative Commons Attribution-ShareAlike (CC BY-SA). This allows any user to share and reproduce
-TidalPy in whole or in part, as long as attribution is made back to the original repository and cites this paper.
-All adapted versions must carry a similar license (share alike). Full details about the license can be found in the
-[repository's license file](https://github.com/jrenaud90/TidalPy/blob/main/LICENSE.md).
+TidalPy is licensed under the [Apache 2.0 License (Apache-2.0)](https://www.apache.org/licenses/LICENSE-2.0).
+This allows any user to share and reproduce TidalPy in whole or in part, as long as attribution is made back to the
+original repository and cites this paper. Full details about the license can be found in the repository's
+[license](https://github.com/jrenaud90/TidalPy/blob/main/LICENSE.md) and
+[notice](https://github.com/jrenaud90/TidalPy/blob/main/NOTICE) files.
 
 # Acknowledgements
 

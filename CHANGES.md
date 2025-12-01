@@ -2,28 +2,27 @@
 
 ### Version 0.7.0 (2025-11-X)
 
-#### Other
-* Added JOSS paper draft to Papers/2025-JOSS.
-* Added fontsize kwarg to projection plotter in utilities.graphics
-
-### Version 0.7.0 (2025-11-X)
-
 #### Fixes
 * Fixed top-level directories and files being mistakenly installed.
 * Updated `np.trapz` to `scipy.integrate.trapezoid` due to deprecation of the former.
 
-#### Repository Changes
+#### GitHub Actions
+* Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
+
+#### Utilities
+* Added `fontsize` kwarg to projection plotter in utilities.graphics.
+
+#### Documentation
+* Added JOSS paper draft to Papers/2025-JOSS.
+* Added and updated readme badges.
+
+#### Other
+* Change TidalPy's license to Apache 2.0.
 * Added `CODE_OF_CONDUCT.md` with TidalPy's code of conduct.
 * Added `CONTRIBUTING.md` with information on how others can contribute to TidalPy.
 * Updated `citation.cff` with latest information.
 * Added `codemeta.json` with citation and metadata.
 * Removed MacOS-13 tests.
-
-#### GitHub Actions
-* Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
-
-#### Other
-* Added and updated readme badges.
 * Removed unused code, tests, and documentations.
 * TidalPy now uses `ruff` to check for code issues.
   * Added ruff lint check to ubuntu tests.
