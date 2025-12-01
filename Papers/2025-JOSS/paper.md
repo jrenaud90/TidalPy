@@ -46,24 +46,28 @@ as well as exoplanets.
 
 # Statement of need
 
-`TidalPy` is a open-source Python package developed at NASA Goddard Space Flight
-Center and University of Maryland College Park to support tidal research in Planetary Science.
-The package provides a flexible, accessible, and performant toolkit for solving problems in
-tides and tidal dynamics. The same tides that cause Earth's ocean to rise twice each day
-can churn the interiors of other planets and moons to the point that significant fractions
-of their bulk can melt, greatly altering the long-term thermal evolution of these worlds.
-The energy that drives this heat originates in the orbits and rotations of the planet and
-its hosts. TidalPy provides functions and frameworks to apply the latest tidal modeling
-theories and methods to a wide variety of Solar System and exoplanetary worlds.
+`TidalPy` provides a flexible, accessible, and performant toolkit for solving problems in tides and tidal dynamics.
+The same tides that cause Earth's ocean to rise twice each day can churn the interiors of other planets and moons to
+the point that significant fractions of their bulk can melt, greatly altering the long-term thermal evolution of these
+worlds. The energy that drives this heat originates in the orbits and rotations of the world and its host, which are
+also altered on geologic timescales. TidalPy provides functions and frameworks to apply the latest tidal modeling
+theories and methods to a wide variety of Solar System and exoplanetary worlds. By being written for the Python
+ecosystem, TidalPy can easily interface with other popular packages used in planetary science and astronomy. This 
+enables fast production of advanced simulations which can be used directly or as a benchmark against other models and 
+tools.
 
 # Overview
 
-TidalPy is written primarily in Python, with performance-critical components implemented
-in C++ and Cython [REF]. Its API is designed to be intuitive and consistent with modern
-conventions, enabling both early career and experienced researchers to quickly learn its
-syntax and incorporate it in their scientific projects. TidalPy joins a robust community
-of other packages that perform similar calculations [REF] and expands on this prior
-work in three major areas described in this section.
+TidalPy is written primarily in Python, with performance-critical components implemented in C++ and Cython [REF]. Its
+API is designed to be intuitive and consistent with modern conventions, enabling both early career and experienced
+researchers to quickly learn its syntax and incorporate it in their scientific projects. TidalPy joins a robust
+community of other packages that perform similar calculations [REF] and expands on this prior work in three major areas
+described in the following sections.
+
+TidalPy has been vetted and become a powerful tool in investigating tides within the Solar System
+[REFs] and beyond [REFs]. Future releases will focus on increasing performance, improving usability, and
+incorporating more physics. Get started using TidalPy by installing the package and checking out the documentation
+at [https://tidalpy.info](https://tidalpy.info).
 
 ## Love Number Solver (RadialSolver Module)
 
@@ -123,10 +127,6 @@ resonance capture and other long-term dynamics [REF; REF].
 
 ![Spin-Orbit Resonance "ledges" calculated with TidalPy. A planet can become trapped on a ledge (stuck at a certain spin rate) for millions of years depending on its interior structure. [adapted from REF].\label{fig:sor}](SOR.png){ width=20% }
 
-TidalPy has proven to be a powerful tool in investigating tides within the Solar
-System [REFs] and beyond [REFs]. Future releases will focus on increasing performance,
-improving usability, and incorporating more physics. Get started using TidalPy by installing
-the package and checking out the documentation over at [https://tidalpy.info](https://tidalpy.info)
 
 # Citations
 
@@ -146,7 +146,7 @@ For a quick reference, the following citation commands can be used:
 
 TidalPy's source code is available and kept up to date on its [GitHub Repository](https://github.com/jrenaud90/TidalPy).
 All versions are released on GitHub as well as [PyPI](https://pypi.org/project/TidalPy/) and [Conda-Forge](https://anaconda.org/channels/conda-forge/packages/tidalpy).
-Major versions are also released with dedicated DOI's on TidalPy's [Zenodo page](https://zenodo.org/records/10656488).
+Major versions are also released with dedicated DOI on TidalPy's [Zenodo page](https://zenodo.org/records/10656488).
 Anyone is welcome to open pull requests, create forks, or issue bug reports, suggestions, and questions. The latter can be made on the [GitHub issue tracker](https://github.com/jrenaud90/TidalPy/issues).
 TidalPy can also be found on NASA's [Exoplanet Modeling and Analysis Center](https://emac.gsfc.nasa.gov/?cid=2207-034) [@emac].
 
