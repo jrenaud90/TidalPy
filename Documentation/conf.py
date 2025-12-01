@@ -43,6 +43,15 @@ source_suffix = {
     '.md': 'markdown',
 }
 
+# Add the Github icon
+html_theme_options = {
+    "display_github": True,
+    "github_user": "jrenaud90",
+    "github_repo": "TidalPy",
+    "github_version": "main",
+    "conf_py_path": "/Documentation/",
+}
+
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'sphinx_rtd_theme'
