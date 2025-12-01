@@ -34,9 +34,15 @@ Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/T
 
 ### Compatibility
 
-* **Windows-Latest**: *Installation & tests passed.*
-* **MacOS-Latest**: *Installation & tests passed.*
-* **Ubuntu-Latest**: *Installation & tests passed.*
+TidalPy has been developed to work on most modern operating systems. We specifically test it on the latest versions of
+Ubuntu, Windows, and MacOS. We also pre-build binaries for these operating systems and provide them via
+[PyPI](https://pypi.org/project/TidalPy/) or [Conda-Forge](https://anaconda.org/conda-forge/tidalpy). If a pre-built
+binary is not available for your operating system version then see details about
+[building TidalPy from source]()
+
+* **Windows-Latest**: [![Windows Tests](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main)](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml)
+* **MacOS-Latest**: [![MacOS Tests](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main)](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml)
+* **Ubuntu-Latest**: [![Ubuntu Tests](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main)](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml)
 
 ### Basic Installation
 
@@ -102,9 +108,69 @@ _If you ran into a problem that is not listed below please [submit an issue](htt
   * For conda: `conda install setuptools`
   * Or pip: `pip install setuptools`
 
+### Building TidalPy from Source
+We automatically provide pre-built binaries for the latest version of MacOS, Ubuntu, and Windows via 
+[PyPI](https://pypi.org/project/TidalPy/) or [Conda-Forge](https://anaconda.org/conda-forge/tidalpy). If your OS
+version does not have pre-built binaries or if you are running into problems with the pre-builds, then you can build
+from TidalPy's source code.
+
+In order to build TidalPy you need to make sure that your environment has access to a C and C++ compiler, a recent
+version of Python and has Cython 3.0+ installed. 
+
+**PyPI Build from Source**
+Using the source code uploaded to PyPI by running,
+
+```bash
+python -m pip install TidalPy -v --no-binary TidalPy
+```
+
+**GitHub Repo**
+Alternatively you can clone the latest version of the GitHub repo and build locally,
+```bash
+git clone https://www.GitHub.com/jrenaud90/TidalPy.git
+python -m pip install . -v --no-binary TidalPy  # The . assumes you have navigated to the directory with `pyproject.toml`
+```
+
+#### Special consideration for MacOS
+On MacOS, If you run into problems installing TidalPy then reinstall using the verbose flag (`pip install -v .`) to
+look at the installation log. If you see an error that looks like "clang: error: unsupported option '-fopenmp'" then
+you are likely using the default compiler or other compiler that does not support OpenMP. Read more about this issue
+[here](https://github.com/facebookresearch/xformers/issues/157) and the steps taken
+[here](https://github.com/jrenaud90/CyRK/blob/main/.github/workflows/push_tests_mac.yml). A fix for this issue is to
+use `llvm`'s clang compiler. This can be done by doing the following in your terminal before installing TidalPy.
+
+_Note this error can also occur when installing "CyRK" a critical dependency of TidalPy. The fix is the same as below,
+just swap out "TidalPy" for "CyRK"._
+
+```bash
+brew install llvm
+brew install libomp
+
+# If on ARM64 (Apple Silicon) then do:
+export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+export CC=/opt/homebrew/opt/llvm/bin/clang
+export CXX=/opt/homebrew/opt/llvm/bin/clang++
+
+# Otherwise change these directories to:
+export LDFLAGS="-L/usr/local/opt/llvm/lib"
+export CPPFLAGS="-I/usr/local/opt/llvm/include"
+export LDFLAGS="-L/usr/local/opt/libomp/lib"
+export CPPFLAGS="-I/usr/local/opt/libomp/include"
+export CC=/usr/local/opt/llvm/bin/clang
+export CXX=/usr/local/opt/llvm/bin/clang++
+
+pip install CyRK --no-binary="CyRK"
+```
+
+
 ## Using TidalPy
 
-Check out the [Getting Started](https://tidalpy.readthedocs.io/en/latest/1_Getting_Started.html) guide to learn about TidalPy's features. The `Demos` directory is another good resource to learn by looking at [Jupyter notebooks](https://jupyter.org/) that can teach you how to use TidalPy's features.
+Check out the [Getting Started](https://tidalpy.readthedocs.io/en/latest/Overview/1_Getting_Started.html) guide to
+learn about TidalPy's features. The `Demos` directory is another good resource to learn by looking at
+[Jupyter notebooks](https://jupyter.org/) that can teach you how to use TidalPy's features.
 
 ### Doing Science with TidalPy
 
@@ -115,22 +181,45 @@ create forks or copies of TidalPy as long as their work references back to this 
 
 ### Citing TidalPy
 
-If you use TidalPy for your research please cite its Zenodo [doi: 10.5281/zenodo.7017474](https://doi.org/10.5281/zenodo.7017474).
+If you use TidalPy for your research please cite the package by using the preferred citation found in the
+[citation.cff](https://github.com/jrenaud90/TidalPy/blob/main/citation.cff). Currently, that is its Zenodo
+[doi: 10.5281/zenodo.7017474](https://doi.org/10.5281/zenodo.7017474).
+
+```bibtex
+@software{2022zndo...7017475R,
+       author = {{Renaud}, Joe P.},
+        title = "{TidalPy}",
+         year = 2022,
+        month = jan,
+          eid = {10.5281/zenodo.7017474},
+          doi = {10.5281/zenodo.7017474},
+    publisher = {Zenodo},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2022zndo...7017475R},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+```
+
+It is good practice to cite the specific version of TidalPy you are using. Major versions have their own DOI on
+[Zenodo](https://zenodo.org/records/16883555).
 
 The science used in TidalPy is described in the following papers and software (with additional references therein):
 
-* Rheological Modeling Package:
+* Rheology Module:
   * [Tidally Heated Terrestrial Exoplanets: Viscoelastic Response Models](https://ui.adsabs.harvard.edu/abs/2009ApJ...707.1000H/abstract)
   * [Increased Tidal Dissipation Using Advanced Rheological Models](https://ui.adsabs.harvard.edu/abs/2018ApJ...857...98R/abstract)
-* Non-synchronous Rotation Evolution and High Eccentricity Truncation Packages:
+* Dynamics and Tides Module:
   * [Tidal Dissipation in Dual-Body, Highly Eccentric, and Non-synchronously Rotating System](https://ui.adsabs.harvard.edu/abs/2021PSJ.....2....4R/abstract)
   * [Tidal Evolution of the Keplerian Elements](https://ui.adsabs.harvard.edu/abs/2019CeMDA.131...30B/abstract)
+* RadialSolver (Love Number Calculator) Module:
+  * [Constraining the Venus Interior Structure](https://ui.adsabs.harvard.edu/abs/2023PSJ.....4...65C).
+  * [Seismic Surface Waves](https://www.doi.org/10.1016/B978-0-12-460811-5.50010-6)
 * Third Party Software:
   * *Interior Model*: [BurnMan](https://github.com/geodynamics/burnman)
   * *Integration Routines*: [CyRK](https://zenodo.org/records/8329446)
-  * *CVD Conscious Color Maps*: [Geodynamic Color Maps](http://doi.org/10.5281/zenodo.5501399)
-  * *Projection Maps*: [Cartopy](https://scitools.org.uk/cartopy/docs/latest/)
+  * *Graphics*: [Scientific Color Maps](https://doi.org/10.5281/zenodo.1243862), [Cartopy](https://scitools.org.uk/cartopy/docs/latest/), [Matplotlib](https://www.doi.org/10.1109/MCSE.2007.55)
   * *Exoplanet data*: [Astroquery](https://github.com/astropy/astroquery/blob/main/astroquery/CITATION), [AstroPy](https://www.astropy.org/acknowledging.html)
+  * *Scientific Python*: [NumPy](https://doi.org/10.1038/s41586-020-2649-2), [SciPy](https://doi.org/10.1038/s41592-019-0686-2)
+  * *Performance*: [Numba](https://doi.org/10.1145/2833157.2833162), [Cython](https://www.doi.org/10.1109/MCSE.2010.118)
 
 ## Contribute to TidalPy
 
