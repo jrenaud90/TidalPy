@@ -1,5 +1,7 @@
 # TidalPy
-
+<p align="center">
+  <img src="Documentation/_static/images/2025-11-28_Logo_2-4.svg" width="350" alt="TidalPy Logo">
+</p>
 <div style="text-align: center;">
     <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI: 10.5281/zenodo.7017475"></a><br />
@@ -174,3 +176,5 @@ You are welcome to copy/fork TidalPy and make modifications assuming the followi
 * Code repositories link back to TidalPy's original [repository](https://github.com/jrenaud90/TidalPy).
 * Any published research cites this code using the preferred citation found in the
   [citation.cff file](https://github.com/jrenaud90/TidalPy/blob/main/citation.cff).
+
+TidalPy's logo was originally designed by Ruhul Amin and modified by Joe P. Renaud.
