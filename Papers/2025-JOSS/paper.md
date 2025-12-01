@@ -87,7 +87,7 @@ find these values. A user can turn on or off a variety of assumptions to determi
 be used in other modules to, for example, determine the effect of long-term heating on a world's tidal dissipation or
 in 3rd party packages such as @emcee's Markov Chain Monte-Carlo code to predict a statistically likely interior. 
 
-![The percent difference between Love number using the dynamic and static assumption is shown for a icy moon with a significant ocean layer as a function of tidal forcing period. Several reference periods are shown to give a sense of when dynamic tides may be important to consider. \label{fig:dynamic}](figures/wbg/dynamic_vs_static_tides.png){ width=50% }
+![The percent difference between Love number using the dynamic and static assumption is shown for a icy moon with a significant ocean layer as a function of tidal forcing period. Several reference periods are shown to give a sense of when dynamic tides may be important to consider. \label{fig:dynamic}](figures/wbg/dynamic_vs_static_tides.png){ width=65% }
 
 TidalPy's solver uses a shooting method [@TakeuchiSaito1972] to find tidal and loading Love numbers. This approach is
 advantageous as it enables more advanced physics, providing a more accurate description of a world. Specifically,
@@ -98,7 +98,7 @@ provide some of the same functionality including `ALMA3` [@alma3; @pyalma] and `
 Other tools exist that, unlike the current version of TidalPy, can calculate multidimensional Love numbers
 [@Qin+2014nov; @Rovira-Navarro+2024maya; @Berne+2023nov].
 
-![Bulk dissipation can lead to significant differences in both the Tidal (left) and Loading (right) Love numbers in this simplified Venus model. \label{fig:compressibility}](figures/wbg/compressibility_effects_venus.png){ width=50% }
+![Bulk dissipation can lead to significant differences in both the Tidal (left) and Loading (right) Love numbers in this simplified Venus model. \label{fig:compressibility}](figures/wbg/compressibility_effects_venus.png){ width=100% }
 
 ## Advanced Rheological Modeling (Rheology Module)
 
@@ -113,7 +113,7 @@ larger solid crystalline chunks. Likewise, rock that has experienced significant
 more opportunity to create frictional heat then it would otherwise. The choice of **Rheology** determines which
 dissipation mechanism is dominant within a world. 
 
-![Tidal heating is shown for four different rheology models for a model of Jupiter's moon Io. Heating in certain viscoelastic phase spaces can be orders of magnitude different depending on your choice in rheology.\label{fig:rheology}](figures/wbg/io_rheology_comparison.png){ width=50% }
+![Tidal heating is shown for four different rheology models for a model of Jupiter's moon Io. Heating in certain viscoelastic phase spaces can be orders of magnitude different depending on your choice in rheology.\label{fig:rheology}](figures/wbg/io_rheology_comparison.png){ width=80% }
 
 TidalPy provides several different rheological models in its Rheology Module (See a subset in \autoref{fig:rheology}).
 Most rheologies have empirical parameters which are relatively unknown for rocks and ices at planetary temperatures
