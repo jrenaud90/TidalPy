@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -14,8 +14,10 @@ log = get_logger("TidalPy")
 
 
 if TYPE_CHECKING:
-    from TidalPy.utilities.types import FloatArray, NoneType
-
+    from TidalPy.utilities.types import FloatArray
+    from TidalPy.cooling import CoolingModel
+    from TidalPy.radiogenics import Radiogenics
+    from TidalPy.rheology import Rheology
     from ..world_types import TidalWorldType
 
 
@@ -390,7 +392,7 @@ class PhysicsLayer(LayerBase):
         """
 
         if avg_temperature is None:
-            if type(self.temperature) == np.ndarray:
+            if type(self.temperature) is np.ndarray:
                 avg_temperature = np.mean(self.temperature)
             else:
                 avg_temperature = self.temperature

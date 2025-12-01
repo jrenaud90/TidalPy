@@ -87,7 +87,7 @@ def initialize(provided_config_file = None):
             Path(TidalPy._output_dir).mkdir(parents=True, exist_ok=True)
 
             # Save TidalPy configurations to that directory.
-            config_file_name = f'TidalPy_Configs.toml'
+            config_file_name = 'TidalPy_Configs.toml'
             config_file_path = os.path.join(TidalPy._output_dir, config_file_name)
             with open(config_file_path, 'w') as config_file:
                 toml.dump(TidalPy.config, config_file)

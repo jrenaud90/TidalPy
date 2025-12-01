@@ -85,7 +85,7 @@ def get_exoplanet_data(
         criteria.append(f'pl_orbper<={orbital_period_cutoff}')
 
     if ensure_eccentricity:
-        criteria.append(f'pl_orbeccen>0')
+        criteria.append('pl_orbeccen>0')
     
     if eccentricity_threshold:
         criteria.append(f'pl_orbeccen>={eccentricity_threshold}')

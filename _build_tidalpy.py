@@ -3,11 +3,9 @@ import os
 import sys
 import platform
 import json
-from pathlib import Path
 from setuptools.extension import Extension
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.build_ext import build_ext as _build_ext
-import importlib.util
 
 import Cython
 from Cython.Build import cythonize
@@ -83,7 +81,6 @@ class build_tidalpy(_build_py):
 
     def initialize_options(self):
         super().initialize_options()
-        from Cython.Build import cythonize
         print(f'!-- Cythonizing TidalPy (Python v{sys.version}; NumPy v{np.__version__}; Cython v{Cython.__version__}; CyRK v{CyRK.__version__})')
         if self.distribution.ext_modules == None:
             self.distribution.ext_modules = []

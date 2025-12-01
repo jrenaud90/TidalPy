@@ -1,18 +1,20 @@
 # TidalPy
 
 <div style="text-align: center;">
+    <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
+    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI: 10.5281/zenodo.7017475"></a><br />
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
-    <!--<a href="https://codecov.io/github/jrenaud90/TidalPy" ><img src="https://codecov.io/github/jrenaud90/TidalPy/branch/main/graph/badge.svg?token=35OY4ZLOA5"/></a><br />-->
-    <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentations" /></a>
-    <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI"></a>
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
+    <a href="https://pypi.org/project/TidalPy/"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/TidalPy?label=PyPI%20Downloads" /></a>
+    <a href="https://anaconda.org/conda-forge/tidalpy"> <img alt="Conda Downloads" src="https://img.shields.io/conda/d/conda-forge/tidalpy" /></a>
+    <a href="https://emac.gsfc.nasa.gov?cid=2207-034"><img src="https://img.shields.io/badge/EMAC-2207--034-blue" alt="EMAC 2207-034"></a>
 </div>
 
 ---
 
-<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.6.11 Alpha-orange" alt="TidalPy Version 0.6.11 Alpha" /></a>
+<a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.7.0a0.dev7-orange" alt="TidalPy Version 0.7.0a0.dev7" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
 
@@ -141,17 +143,7 @@ check out the information in `Documentation\Contribute.md`.
   * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
     other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
-## License Information
-You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
-* Links are included that point back to this [page](https://github.com/jrenaud90/TidalPy).
-* Any software derived from TidalPy must remain open-source and non-commercial.
-
-This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. To view
-a copy of this license,
-visit [http://creativecommons.org/licenses/by-nc-sa/4.0/](http://creativecommons.org/licenses/by-nc-sa/4.0/) or send a
-letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
-
-## Acknowledgements
+# Acknowledgements
 TidalPy was partially developed with support from NASA Goddard Space Flight Center's 
 Sellers Exoplanet Environments Collaboration (SEEC) and Geodesy ISFMs. 
 TidalPy is partially based upon work supported by NASA under award number 80GSFC21M0002 and the
@@ -161,10 +153,24 @@ Maryland, College Park.
 TidalPy has been improved by numerous contributors some of which you can find [here](https://github.com/jrenaud90/TidalPy/graphs/contributors).
 
 TidalPy has benefited from work and conversations with the following:
-* Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
-* Michaela Walterová (Charles University)
-* Michael Efroimsky (U.S. Naval Observatory)
-* Sander Goossens (NASA GSFC)
-* Marc Neveu (U. of Maryland, College Park / NASA GSFC)
-* Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
-* Nick Wagner (Brown University)
+- Wade G. Henning (U. of Maryland, College Park / NASA GSFC)
+- Michael Efroimsky (U.S. Naval Observatory)
+- Michaela Walterová (Charles University)
+- Sander Goossens (NASA GSFC)
+- Marc Neveu (U. of Maryland, College Park / NASA GSFC)
+- Gael Cascioli (U. of Maryland, Baltimore County / NASA GSFC)
+- Nick Wagner (Brown University)
+
+# License and Copyright
+Copyright 2025 by [Joe P. Renaud](https://github.com/jrenaud90).
+TidalPy is licensed under the Apache License, Version 2.0 (the "License"); you may not use this code except in
+compliance with the License. You may obtain a copy of the License at
+[www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0) or in this repository's LICENSE.md
+file. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+on an "AS IS" basis, without warranties or conditions of any kind, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+You are welcome to copy/fork TidalPy and make modifications assuming the following conditions are met:
+* Code repositories link back to TidalPy's original [repository](https://github.com/jrenaud90/TidalPy).
+* Any published research cites this code using the preferred citation found in the
+  [citation.cff file](https://github.com/jrenaud90/TidalPy/blob/main/citation.cff).

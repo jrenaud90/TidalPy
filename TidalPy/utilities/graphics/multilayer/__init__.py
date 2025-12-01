@@ -1,1 +1,1 @@
-from .yplot import yplot
+from .yplot import yplot as yplot

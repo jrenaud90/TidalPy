@@ -3,7 +3,6 @@ import math
 import numpy as np
 import pytest
 
-import TidalPy
 from TidalPy.constants import G
 from TidalPy.exceptions import BadValueError
 from TidalPy.utilities.conversions import (Au2m, days2rads, m2Au, myr2sec, orbital_motion2semi_a, rads2days, sec2myr,

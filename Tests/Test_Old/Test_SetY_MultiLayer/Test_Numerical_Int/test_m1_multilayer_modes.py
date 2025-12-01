@@ -3,10 +3,9 @@
 """
 import numpy as np
 
-import TidalPy
 
 
-from TidalPy.constants import G, mass_trap1
+from TidalPy.constants import mass_trap1
 from TidalPy.rheology import Maxwell, Elastic, Newton
 from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
 from TidalPy.utilities.conversions import orbital_motion2semi_a

@@ -2,7 +2,6 @@
 
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.utilities.math.numba_special import sqrt_neg

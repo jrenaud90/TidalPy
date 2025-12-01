@@ -21,9 +21,21 @@ if TidalPy.config:
     d_MAX_FREQUENCY = TidalPy.config['tides']['modes']['maximum_frequency']
 MAX_FREQUENCY = d_MAX_FREQUENCY
 
+cdef double d_MIN_SPIN_ORBITAL_DIFF = 1.0e-10
+if TidalPy.config:
+    d_MIN_SPIN_ORBITAL_DIFF = TidalPy.config['tides']['modes']['min_spin_orbital_diff']
+MIN_SPIN_ORBITAL_DIFF = d_MIN_SPIN_ORBITAL_DIFF
+
 # Shear/Bulk Modulus Extremes
+cdef double d_MIN_VISCOSITY = 1000.0
+MIN_VISCOSITY = d_MIN_VISCOSITY
+
 cdef double d_MIN_MODULUS = 1.0e-3
 MIN_MODULUS = d_MIN_MODULUS
+
+# Thickness
+cdef double d_MIN_THICKNESS = 1.0
+MIN_THICKNESS = d_MIN_THICKNESS
 
 # Mathematics
 cdef double d_ppm = 1.e-6

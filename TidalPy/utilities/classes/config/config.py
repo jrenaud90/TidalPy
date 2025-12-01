@@ -78,7 +78,7 @@ class ConfigHolder(TidalPyClass):
         """
 
         if extensive_checks:
-            assert type(replacement_config) == dict
+            assert type(replacement_config) is dict
 
         self._replacement_config = copy.deepcopy(replacement_config)
         self.update_config(force_default_merge=force_default_merge)

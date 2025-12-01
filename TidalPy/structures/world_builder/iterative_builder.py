@@ -64,8 +64,8 @@ def world_iterative_builder(
 
     log.debug(f'Building a planet based on an iteration on planet: {base_world.name}')
     log.warning(
-        f'The world_iterative_builder is very much a work in progress. '
-        f'Double check that results match expectations.'
+        'The world_iterative_builder is very much a work in progress. '
+        'Double check that results match expectations.'
         )
 
     # This is a two-layer iterator so a ice_mass_fraction is required. If none is provided then we will use whatever

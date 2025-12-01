@@ -1,7 +1,6 @@
 
 from typing import Dict, List, Tuple
 
-import numpy as np
 
 from TidalPy import config
 from ...utilities.performance import njit, nbDict, nbList

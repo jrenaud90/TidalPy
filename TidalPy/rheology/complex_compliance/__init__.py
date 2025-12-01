@@ -14,4 +14,4 @@ def get_complex_comp_model_default_inputs(layer_type: str):
                                       inner_keys=(layer_type, 'rheology'))
 
 
-from .complex_compliance import ComplexCompliance
+from .complex_compliance import ComplexCompliance as ComplexCompliance

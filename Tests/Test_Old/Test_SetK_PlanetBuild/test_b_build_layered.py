@@ -1,6 +1,5 @@
 import numpy as np
 
-import TidalPy
 
 
 
@@ -163,4 +162,4 @@ def test_planet_array_edit():
     
     # While the values in these arrays should be the same; the arrays themselves should not be.
     assert np.allclose(io_simple._radii, io_simple.radii)
-    assert not (io_simple._radii is io_simple.radii)
+    assert io_simple._radii is not io_simple.radii
