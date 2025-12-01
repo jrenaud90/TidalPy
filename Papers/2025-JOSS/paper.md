@@ -46,9 +46,9 @@ examples, and has already been applied in multiple planetary science studies.
 # Statement of need
 
 `TidalPy` provides a flexible, accessible, and performant toolkit for solving problems in tides and tidal dynamics.
-The same tides that cause Earth's ocean to rise twice each day can churn the interiors of other planets and moons to
-the point that significant fractions of their bulk can melt, greatly altering the long-term thermal evolution of these
-worlds. The energy that drives this heat originates in the orbits and rotations of the world and its host, which are
+The same tides that cause Earth's oceans to rise twice each day can churn the interiors of other planets and moons to
+the point that significant fractions of their bulk can melt, greatly altering their long-term thermal evolution.
+The energy that drives this heat originates in the orbits and rotations of the world and its host, which are
 also altered on geologic timescales. TidalPy provides functions and frameworks to apply the latest tidal modeling
 theories and methods to a wide variety of Solar System and exoplanetary worlds. Written for the Python ecosystem,
 TidalPy can easily interface with other popular packages used in planetary science and astronomy. This 
@@ -59,17 +59,17 @@ tools.
 
 TidalPy is written primarily in Python, with performance-critical components implemented in C++ and Cython [@cython].
 Its API is designed to be intuitive and consistent with modern conventions, enabling both early career and experienced
-researchers to quickly learn its syntax and incorporate it in their scientific projects. TidalPy joins a robust
+researchers to quickly learn its syntax and incorporate it in their scientific projects. TidalPy complements a robust
 community of other packages that perform similar or parallel calculations
 [@alma3; @pyalma; @loaddef; Qin+2014nov; @icydwarf; @VPLanet; @reboundx_tides; @Rovira-Navarro+2024maya]
 and expands on this prior work in three major areas described in the following sections.
 
 TidalPy has been vetted and become a powerful tool in investigating tides on Earth [@Vidal2025] in our Solar System
 [@Cascioli2023; @Goossens2024; @Wagner2025] and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025].
-Documentation and Jupyter Notebook [@jupyter] demonstrations can be found at its
-[repository](https://github.com/jrenaud90/TidalPy), these are continuous added to and updated as TidalPy evolves.
-Future releases will focus on increasing performance, improving usability, and incorporating more physics. Get started
-using TidalPy by visiting [https://tidalpy.info](https://tidalpy.info).
+Documentation and Jupyter Notebook [@jupyter] demonstrations are available on the
+[GitHub repository](https://github.com/jrenaud90/TidalPy), these are continuously added to and updated as TidalPy
+evolves. Future releases will focus on increasing performance, improving usability, and incorporating more physics.
+Get started using TidalPy by visiting [https://tidalpy.info](https://tidalpy.info).
 
 ## Love Number Solver (RadialSolver Module)
 
@@ -78,9 +78,9 @@ _Learn more about TidalPy's RadialSolver Module [here](REF)_
 **Love Numbers** quantify a planet or moon's ability to respond to tidal or loading forces [@love1911; @shida1912].
 They are dynamic and depend on many physical factors such as a world's thermal state, physical structures (e.g.,
 a presence of a solid or liquid core), past stress events, and orbit/spin state. These numbers can be measured, albeit
-with difficulty (particularly challenging if we are unable to send a fly-by or orbiting satellite). Therefore, it is
-useful to perform forward modeling utilizing our best estimates of a world's structure and composition to provide a
-range of values to constrain a world's response efficiency.
+with difficulty particularly if no spacecraft flyby or orbiter is available. Therefore, it is useful to perform
+forward modeling utilizing our best estimates of a world's structure and composition to provide a range of values to
+constrain a world's response efficiency.
 
 TidalPy provides a Love number solver that uses information about a world's interior structure and thermal state to
 find these values. A user can turn on or off a variety of assumptions to determine their impact. This solver can
@@ -95,7 +95,7 @@ TidalPy's solver allows for: liquid layers and oceans, dynamic tides (See \autor
 compressibility (See \autoref{fig:compressibility}). This additional physics has been shown to be important for
 certain worlds during certain epochs. TidalPy's Love number solver has been benchmarked against others tools that
 provide some of the same functionality including `ALMA3` [@alma3; @pyalma] and `LoadDef` [@loaddef].
-Other tools exist that, unlike the current version of TidalPy, can calculate multi-dimensional Love numbers
+Other tools exist that, unlike the current version of TidalPy, can calculate multidimensional Love numbers
 [@Qin+2014nov; @Rovira-Navarro+2024maya; @Berne+2023nov].
 
 ![Bulk dissipation can lead to significant differences in both the Tidal (left) and Loading (right) Love numbers in this simplified Venus model. \label{fig:compressibility}](figures\wbg\compressibility_effects_venus.png){ width=50% }
@@ -106,9 +106,9 @@ _Learn more about TidalPy's Rheology Module [here](REF)_
 
 The calculation of tidal Love numbers requires knowing the viscoelastic state of a planet. This can be described
 through the shear and bulk modulus as well as the shear and bulk viscosity. The former describe how sound waves travel
-through a planet's bulk, the later describe how material flows on long timescales. Linking these properties to tides
+through a planet's bulk; the latter describe how material flows on long timescales. Linking these properties to tides
 requires making assumptions about the dominant mechanism driving dissipation in the rocks and ices
-[@RenaudHenning2018apr; @Bagheri+2022aug]. For example, microscopic grains of ice will tend to move more freely then
+[@RenaudHenning2018apr; @Bagheri+2022aug]. For example, microscopic grains of ice will tend to move more freely than
 larger solid crystalline chunks. Likewise, rock that has experienced significant fracturing or is porous tends to have
 more opportunity to create frictional heat then it would otherwise. The choice of **Rheology** determines which
 dissipation mechanism is dominant within a world. 
@@ -127,7 +127,7 @@ _Learn more about TidalPy's Dynamics Module [here](REF)_
 
 The energy released as heat in a tidally active world originates in its orbit or in the rotation of it or its tidal
 host (which could be Jupiter in the case of Io, or a star in the case of a short-period exoplanet). Energy can be
-exchanged between adjacent planets and moons further increasing the complexity of the
+exchanged between adjacent planets and moons, further increasing the complexity of the
 problem [_e.g._, @HussmannSpohn2004oct]. Different orbit and spin configurations will have a variety of forcing
 frequencies which can act like a tuning fork, dramatically increasing dissipation in narrow frequency bands
 [@RenaudHenning2018apr; @Bagheri+2022aug]. Likewise, troughs in dissipation can slow or stop the evolution of a world
@@ -160,13 +160,13 @@ used to make these figures can be found on TidalPy's [GitHub repository](https:/
 ## License
 
 TidalPy is licensed under Creative Commons Attribution-ShareAlike (CC BY-SA). This allows any user to share and reproduce
-TidalPy in whole or in part as long as attribution is made back to the original repository and cites this paper.
+TidalPy in whole or in part, as long as attribution is made back to the original repository and cites this paper.
 All adapted versions must carry a similar license (share alike). Full details about the license can be found in the
 [repository's license file](https://github.com/jrenaud90/TidalPy/blob/main/LICENSE.md).
 
 # Acknowledgements
 
-TidalPy was greatly improved by conversations, code contributions, and testing performed by many in the community.
+TidalPy benefited greatly from conversations, code contributions, and testing performed by many in the community.
 We would like to specifically thank Wade G. Henning, Michael Efroimsky, Michaela Walterová, Sander Goossens,
 Marc Neveu, Nick Wagner, and Gael Cascioli. The development of TidalPy was supported by NASA Sellers' Exoplanet
 Environments Collaboration and Planetary Geodesy ISFMs. J. Renaud was additionally supported during its development
