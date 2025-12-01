@@ -61,11 +61,11 @@ TidalPy is written primarily in Python, with performance-critical components imp
 Its API is designed to be intuitive and consistent with modern conventions, enabling both early career and experienced
 researchers to quickly learn its syntax and incorporate it in their scientific projects. TidalPy complements a robust
 community of other packages that perform similar or parallel calculations
-[@alma3; @pyalma; @loaddef; Qin+2014nov; @icydwarf; @VPLanet; @reboundx_tides; @Rovira-Navarro+2024maya]
+[@alma3; @pyalma; @loaddef; @Qin+2014nov; @icydwarf; @VPLanet; @reboundx_tides; @Rovira-Navarro+2024maya]
 and expands on this prior work in three major areas described in the following sections.
 
-TidalPy has been vetted and become a powerful tool in investigating tides on Earth [@Vidal2025] in our Solar System
-[@Cascioli2023; @Goossens2024; @Wagner2025] and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025].
+TidalPy has been vetted and used in investigations of tides on Earth [@Vidal2025], in our Solar System
+[@Cascioli2023; @Goossens2024; @Wagner2025], and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025].
 Documentation and Jupyter Notebook [@jupyter] demonstrations are available on the
 [GitHub repository](https://github.com/jrenaud90/TidalPy), these are continuously added to and updated as TidalPy
 evolves. Future releases will focus on increasing performance, improving usability, and incorporating more physics.
@@ -73,7 +73,7 @@ Get started using TidalPy by visiting [https://tidalpy.info](https://tidalpy.inf
 
 ## Love Number Solver (RadialSolver Module)
 
-_Learn more about TidalPy's RadialSolver Module [here](REF)_
+_Learn more about TidalPy's RadialSolver Module [here](REF)._
 
 **Love Numbers** quantify a planet or moon's ability to respond to tidal or loading forces [@love1911; @shida1912].
 They are dynamic and depend on many physical factors such as a world's thermal state, physical structures (e.g.,
@@ -87,7 +87,7 @@ find these values. A user can turn on or off a variety of assumptions to determi
 be used in other modules to, for example, determine the effect of long-term heating on a world's tidal dissipation or
 in 3rd party packages such as @emcee's Markov Chain Monte-Carlo code to predict a statistically likely interior. 
 
-![The percent difference between Love number using the dynamic and static assumption is shown for a icy moon with a significant ocean layer as a function of tidal forcing period. Several reference periods are shown to give a sense of when dynamic tides may be important to consider. \label{fig:dynamic}](figures\wbg\dynamic_vs_static_tides.png){ width=50% }
+![The percent difference between Love number using the dynamic and static assumption is shown for a icy moon with a significant ocean layer as a function of tidal forcing period. Several reference periods are shown to give a sense of when dynamic tides may be important to consider. \label{fig:dynamic}](figures/wbg/dynamic_vs_static_tides.png){ width=50% }
 
 TidalPy's solver uses a shooting method [@TakeuchiSaito1972] to find tidal and loading Love numbers. This approach is
 advantageous as it enables more advanced physics, providing a more accurate description of a world. Specifically,
@@ -98,11 +98,11 @@ provide some of the same functionality including `ALMA3` [@alma3; @pyalma] and `
 Other tools exist that, unlike the current version of TidalPy, can calculate multidimensional Love numbers
 [@Qin+2014nov; @Rovira-Navarro+2024maya; @Berne+2023nov].
 
-![Bulk dissipation can lead to significant differences in both the Tidal (left) and Loading (right) Love numbers in this simplified Venus model. \label{fig:compressibility}](figures\wbg\compressibility_effects_venus.png){ width=50% }
+![Bulk dissipation can lead to significant differences in both the Tidal (left) and Loading (right) Love numbers in this simplified Venus model. \label{fig:compressibility}](figures/wbg/compressibility_effects_venus.png){ width=50% }
 
 ## Advanced Rheological Modeling (Rheology Module)
 
-_Learn more about TidalPy's Rheology Module [here](REF)_
+_Learn more about TidalPy's Rheology Module [here](REF)._
 
 The calculation of tidal Love numbers requires knowing the viscoelastic state of a planet. This can be described
 through the shear and bulk modulus as well as the shear and bulk viscosity. The former describe how sound waves travel
@@ -113,7 +113,7 @@ larger solid crystalline chunks. Likewise, rock that has experienced significant
 more opportunity to create frictional heat then it would otherwise. The choice of **Rheology** determines which
 dissipation mechanism is dominant within a world. 
 
-![Tidal heating is shown for four different rheology models for a model of Jupiter's moon Io. Heating in certain viscoelastic phase spaces can be orders of magnitude different depending on your choice in rheology.\label{fig:rheology}](figures\wbg\io_rheology_comparison.png){ width=50% }
+![Tidal heating is shown for four different rheology models for a model of Jupiter's moon Io. Heating in certain viscoelastic phase spaces can be orders of magnitude different depending on your choice in rheology.\label{fig:rheology}](figures/wbg/io_rheology_comparison.png){ width=50% }
 
 TidalPy provides several different rheological models in its Rheology Module (See a subset in \autoref{fig:rheology}).
 Most rheologies have empirical parameters which are relatively unknown for rocks and ices at planetary temperatures
@@ -123,7 +123,7 @@ alongside other tools.
 
 ## Spin and Orbital Evolution (Dynamics Module)
 
-_Learn more about TidalPy's Dynamics Module [here](REF)_
+_Learn more about TidalPy's Dynamics Module [here](REF)._
 
 The energy released as heat in a tidally active world originates in its orbit or in the rotation of it or its tidal
 host (which could be Jupiter in the case of Io, or a star in the case of a short-period exoplanet). Energy can be
@@ -134,25 +134,27 @@ frequencies which can act like a tuning fork, dramatically increasing dissipatio
 for millions of years. These "Spin-Orbit Resonances" are what drive Mercury's 3:2 Spin to Orbit ratio and what leads to
 systems like Pluto-Charon which are in a "dual-synchronous" configuration, the ultimate end state of tidal evolution.
 
-![Spin-Orbit Resonance "ledges" calculated with TidalPy. A planet can become trapped on a ledge (stuck at a certain spin rate) for millions of years depending on its interior structure and thermal state. \label{fig:sor}](figures\wbg\spin_orbit_resonance_ledges.png){ width=50% }
+![Spin-Orbit Resonance "ledges" calculated with TidalPy. A planet can become trapped on a ledge (stuck at a certain spin rate) for millions of years depending on its interior structure and thermal state. \label{fig:sor}](figures/wbg/spin_orbit_resonance_ledges.png){ width=50% }
 
 To calculate these effects, TidalPy uses a semi-analytical Fourier decomposition model that has a long history of use
 in the field [_e.g._, @Kaula1964] and recently expanded by [@BoueEfroimsky2019jul]. In this framework, TidalPy can track
 dissipation within both the target planet and host (dual body dissipation) and can be integrated with semi-analytical
 models to capture multi-body systems, like the Laplace Resonance found in the Galilean moons [@HussmannSpohn2004oct].
 The rotation rate of all targets is tracked such that spin-orbit resonance capture potential can be determined (See
-\autoref{fig:sor}). 3 dimensional stress and heating maps can be used to determine locations where tidal heating is
-maximum (See \autoref{fig:}
+\autoref{fig:sor}). TidalPy can also generate 3-dimensional stress and heating maps which can be used to determine
+locations where tidal heating is maximum (See \autoref{fig:3dmaps}).
 
-![Tidal heating for a short-period exoplanet in three different spin configurations. Non-synchronous spin and a non-zero obliquity can lead to large differences in the magnitude and location of maximum heating. \label{fig:3dmaps}](figures\wbg\spin_orbit_resonance_ledges.png){ width=50% }
+![Tidal heating for a short-period exoplanet in three different spin configurations. Non-synchronous spin and a non-zero obliquity can lead to large differences in the magnitude and location of maximum heating. \label{fig:3dmaps}](figures/wbg/stacked_images_set_0.png){ width=50% }
 
 # Availability
 
 TidalPy's source code is available and kept up to date on its [GitHub Repository](https://github.com/jrenaud90/TidalPy).
-All versions are released on GitHub as well as [PyPI](https://pypi.org/project/TidalPy/) and [Conda-Forge](https://anaconda.org/channels/conda-forge/packages/tidalpy).
-Major versions are also released with dedicated DOI on TidalPy's [Zenodo page](https://zenodo.org/records/10656488).
-Anyone is welcome to open pull requests, create forks, or issue bug reports, suggestions, and questions. The latter can be made on the [GitHub issue tracker](https://github.com/jrenaud90/TidalPy/issues).
-TidalPy can also be found on NASA's [Exoplanet Modeling and Analysis Center](https://emac.gsfc.nasa.gov/?cid=2207-034) [@emac].
+All versions are released on GitHub as well as on [PyPI](https://pypi.org/project/TidalPy/) and
+[Conda-Forge](https://anaconda.org/channels/conda-forge/packages/tidalpy). Major versions are also released with
+dedicated DOIs on TidalPy's [Zenodo page](https://zenodo.org/records/10656488). Anyone is welcome to open pull requests,
+create forks, or issue bug reports, suggestions, and questions. The latter can be made on the
+[GitHub issue tracker](https://github.com/jrenaud90/TidalPy/issues). TidalPy can also be found on NASA's 
+[Exoplanet Modeling and Analysis Center](https://emac.gsfc.nasa.gov/?cid=2207-034) [@emac].
 
 All figures made for this paper were done using TidalPy and other packages listed in the acknowledgements. The scripts
 used to make these figures can be found on TidalPy's [GitHub repository](https://github.com/jrenaud90/TidalPy/tree/main/Papers/2025-JOSS).
