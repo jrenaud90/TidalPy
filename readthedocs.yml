@@ -4,6 +4,10 @@ build:
   os: "ubuntu-lts-latest"
   tools:
     python: "latest"
+  
+  jobs:
+    pre_build:
+      - doxygen Doxyfile   # generate XML before Sphinx runs
 
 sphinx:
   configuration: Documentation/conf.py

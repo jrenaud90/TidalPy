@@ -1,10 +1,18 @@
 import sys
 import os
 import shutil
-sys.path.insert(0, os.path.abspath('../TidalPy'))
 import toml
+import subprocess
 
+# Auto generate API documentation
+subprocess.call(["python", "build_api_docs.py"],
+                cwd=os.path.join("API", os.path.dirname(__file__)))
+
+# Basic configurations
+sys.path.insert(0, os.path.abspath('../TidalPy'))
 html_static_path = ["_static"]
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
 pyproject_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml'))
 with open(pyproject_path, 'r') as f:
     pyproject = toml.load(f)
@@ -34,28 +42,69 @@ src = os.path.abspath(os.path.join("..", "NOTICE"))
 dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
-extensions = [
-    'myst_parser',
-]
+extensions = []
 
+# Use Markdown files rather than rst (or in addition to)
+extensions.append('myst_parser')
 source_suffix = {
     '.rst': 'restructuredtext',
     '.md': 'markdown',
 }
+myst_enable_extensions = [
+    "colon_fence",      # ::: fenced directives
+    "deflist",          # definition lists
+    "linkify",          # auto-detect URLs
+    "smartquotes",      # nicer quotes
+]
 
-# Add the Github icon
+# Autodoc settings
+extensions.append('sphinx.ext.autodoc')
+extensions.append('sphinx.ext.viewcode')
+extensions.append('sphinx.ext.autosummary')
+autosummary_generate = True
+autosummary_imported_members = True
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": False,
+    "private-members": False,
+    "show-inheritance": True,
+}
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+# Support C++ autodocs
+extensions.append('breathe')
+breathe_default_project = "TidalPy"
+
+# Jupyter notebook rendering
+extensions.append('nbsphinx')
+extensions.append('sphinx.ext.napoleon')
+nbsphinx_allow_errors = True  # set True if you want docs to build even if notebooks fail
+nbsphinx_execute = "auto"  # or "always"
+
+# Copy code QOL button
+extensions.append('sphinx-copybutton')
+copybutton_prompt_text = r">>> |\$ "
+copybutton_prompt_is_regexp = True
+
+# ReadTheDocs Themeing
+html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
     "display_github": True,
     "github_user": "jrenaud90",
     "github_repo": "TidalPy",
     "github_version": "main",
     "conf_py_path": "/Documentation/",
+    'analytics_anonymize_ip': False,
 }
 
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+# Looks like this has been deprecated. TODO: new analytics solution. 
+# google_analytics_id = os.getenv("GOOGLE_ANALYTICS_ID", False)
+# if google_analytics_id:
+#     html_theme_options['analytics_id'] = google_analytics_id
+#     html_theme_options['analytics_anonymize_ip'] = False
 
-html_theme = 'sphinx_rtd_theme'
-html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
 
+
+# Add custom CSS
 def setup(app):
     app.add_css_file("custom.css")

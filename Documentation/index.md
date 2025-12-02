@@ -9,12 +9,25 @@ Also check out the GitHub page to see the code.
 
 ```{toctree}
 :maxdepth: 2
-:caption: Contents
+:caption: TidalPy
 
 Overview <Overview/index.md>
+Change Log <Changes.md>
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Modules
+
 Rheology Module <Rheology/index.md>
 Love Number Solver <RadialSolver/index.md>
 Exoplanets <4_Exoplanets.md>
 Dynamics Module <Dynamics/index.md>
-Change Log <Changes.md>
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: API
+
+TidalPy API <API/index.md>
 ```

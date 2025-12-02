@@ -2,3 +2,11 @@ sphinx
 myst-parser
 sphinx_rtd_theme
 toml
+sphinx-copybutton
+nbsphinx
+ipykernel
+nbconvert
+jupyter
+sphinx-autodoc-typehints
+sphinx-autosummary
+breathe
