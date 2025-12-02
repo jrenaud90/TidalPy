@@ -52,6 +52,10 @@ src = os.path.abspath(os.path.join("..", "CONTRIBUTING.md"))
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Contributing.md"))
 shutil.copyfile(src, dst)
 
+src = os.path.abspath(os.path.join("..", "CODE_OF_CONDUCT.md"))
+dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "CoC.md"))
+shutil.copyfile(src, dst)
+
 src = os.path.abspath(os.path.join("..", "NOTICE"))
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
