@@ -3,17 +3,31 @@ import os
 import shutil
 import toml
 import subprocess
+from pathlib import Path
+
+FILE_PATH = os.path.dirname(__file__)
 
 # Auto generate API documentation
-subprocess.call(["python", os.path.join("API", "build_api_docs.py")],
-                cwd=os.path.join("API", os.path.dirname(__file__)))
+def generate_api_docs():
+    src_path = os.path.join(FILE_PATH, os.pardir, "TidalPy")
+    out_path = os.path.join('API', 'generated')
+    Path(out_path).mkdir(parents=True, exist_ok=True)
+
+    subprocess.call([
+        "sphinx-apidoc",
+        "-o", str(out_path),
+        str(src_path),
+        "--force",
+        "--no-toc"
+    ])
+generate_api_docs()
 
 # Basic configurations
 sys.path.insert(0, os.path.abspath('../TidalPy'))
 html_static_path = ["_static"]
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_logo = "_static/images/2025-11-28_Logo_2-4.svg"
-pyproject_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml'))
+pyproject_path = os.path.abspath(os.path.join(FILE_PATH, '..', 'pyproject.toml'))
 with open(pyproject_path, 'r') as f:
     pyproject = toml.load(f)
 
@@ -23,23 +37,23 @@ author = 'Joe P. Renaud'
 
 # Make a copy of the current change log and move it into docs so it can be included in the documentation.
 src = os.path.abspath(os.path.join("..", "CHANGES.md"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Changes.md"))
+dst = os.path.abspath(os.path.join(FILE_PATH, "Changes.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "README.md"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Readme.md"))
+dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "LICENSE.md"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "License.md"))
+dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "License.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "CONTRIBUTING.md"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Contributing.md"))
+dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Contributing.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "NOTICE"))
-dst = os.path.abspath(os.path.join(os.path.dirname(__file__), "Overview", "Notice.md"))
+dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
 extensions = []

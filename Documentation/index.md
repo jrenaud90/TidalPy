@@ -12,7 +12,6 @@ Also check out the GitHub page to see the code.
 :caption: TidalPy
 
 Overview <Overview/index.md>
-Change Log <Changes.md>
 ```
 
 ```{toctree}
@@ -30,4 +29,12 @@ Dynamics Module <Dynamics/index.md>
 :caption: API
 
 TidalPy API <API/index.md>
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: TidalPy
+:hidden:
+
+Change Log <Changes.md>
 ```

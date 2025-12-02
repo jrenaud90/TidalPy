@@ -1,4 +1,4 @@
-# Rheology Functions and Classes
+# Tidal Rheology Module
 TidalPy provides an efficient suite of tools to calculate the complex shear modulus from a user-provided static shear, 
 static viscosity, and static frequency. Note that "static" here does not mean "constant", instead it refers to the
 purely real-valued versions of these parameters. All of them can change with time or radius.
