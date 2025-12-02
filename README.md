@@ -30,6 +30,8 @@ This module has been used to study the tidal response of Mercury, Venus, Earth, 
 Have any questions or suggestions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send
 a message to [TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
+# Overview
+
 ## How to Install
 
 ### Compatibility
@@ -189,20 +191,17 @@ Check out the [Getting Started](https://tidalpy.readthedocs.io/en/latest/Overvie
 learn about TidalPy's features. The `Demos` directory is another good resource to learn by looking at
 [Jupyter notebooks](https://jupyter.org/) that can teach you how to use TidalPy's features.
 
-### Doing Science with TidalPy
+## Citing TidalPy
 
-TidalPy has been used in several studies already, and we encourage you to use it in yours. We would appreciate you
-including a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers mentioned
-[here](https://tidalpy.readthedocs.io/en/latest/Readme.html#citing-tidalpy). We also would love to hear where TidalPy
-is being used! Please feel free to send us an email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or
-presentation utilized TidalPy. Anyone is welcome to create forks or copies of TidalPy as long as their work references
-back to this page. License information can be found [here](https://tidalpy.readthedocs.io/en/latest/License.html).
-
-### Citing TidalPy
-
-If you use TidalPy for your research please cite the package by using the preferred citation found in the
+TidalPy has been used in several studies already, and we encourage you to use it in yours. If you do, please cite the
+package by using the preferred citation found in the
 [citation.cff](https://github.com/jrenaud90/TidalPy/blob/main/citation.cff). Currently, that is its Zenodo
 [doi: 10.5281/zenodo.7017474](https://doi.org/10.5281/zenodo.7017474).
+
+We also would love to hear where TidalPy is being used! Please feel free to send us an email:
+[TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy. Anyone is welcome to
+create forks or copies of TidalPy as long as their work references back to this page. License information can be
+found [here](https://tidalpy.readthedocs.io/en/latest/License.html).
 
 ```bibtex
 @software{2022zndo...7017475R,

@@ -1,5 +1,7 @@
 # TidalPy and Exoplanet Data
-TidalPy has built in functionality to download data from NASA's exoplanet archive (using the `astroquery` package). You must be connected to the internet and may run into issues if you have a firewall or strict permissions on your computer / network.
+TidalPy has built in functionality to download data from NASA's exoplanet archive (using the `astroquery` package).
+You must be connected to the internet and may run into issues if you have a firewall or strict permissions on your
+computer or network.
 
 ## Downloading Exoplanet Data
 
@@ -62,7 +64,7 @@ def get_exoplanet_data(
     """
 ```
 
-Below is how to run the function.
+Example using this function,
 
 ```python
 from TidalPy.utilities.exoplanets import get_exoplanet_data

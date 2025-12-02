@@ -1,6 +1,9 @@
 # TidalPy Documentation
 
-**Welcome to the TidalPy documentation!**
+```{include} Overview/Readme.md
+:start-after: TidalPy
+:end-before: Overview
+```
 
 Please click on a page below to learn more about the package. 
 
@@ -20,7 +23,7 @@ Overview <Overview/index.md>
 
 Rheology Module <Rheology/index.md>
 Love Number Solver <RadialSolver/index.md>
-Exoplanets <4_Exoplanets.md>
+Exoplanets <Exoplanets.md>
 Dynamics Module <Dynamics/index.md>
 ```
 

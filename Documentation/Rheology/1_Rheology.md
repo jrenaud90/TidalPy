@@ -1,11 +1,14 @@
-# Tidal Rheology Module
-TidalPy provides an efficient suite of tools to calculate the complex shear modulus from a user-provided static shear, 
+# Rheology Module
+TidalPy provides an efficient suite of tools to calculate the complex moduli from a user-provided static moduli, 
 static viscosity, and static frequency. Note that "static" here does not mean "constant", instead it refers to the
-purely real-valued versions of these parameters. All of them can change with time or radius.
+purely real-valued versions of these parameters. All of these properties can vary with radius or time.
+
+"Moduli" in this context could refer to either shear or bulk modulus. Be sure to use the correct corresponding
+viscosity.
 
 ## Using TidalPy's Rheology Class
-TidalPy defines efficient compiled cython classes for rheology functionality. These can be imported using either cython
-or python - maximizing flexibility.
+TidalPy provides efficient compiled Cython classes for rheology functionality. These can be imported using either Cython
+or Python.
 
 ### Import and Basic Use
 Example:
@@ -26,7 +29,7 @@ complex_shear = rheology_instance(frequency, shear_mod, viscosity)
 print(complex_shear)
 ```
 
-If you are looking for a more programatic way to import a rheology, consider using the `find_rheology` function:
+If you are looking for a more programmatic way to import a rheology, consider using the `find_rheology` function:
 
 ```python
 
@@ -50,8 +53,10 @@ print(complex_shear)
 TidalPy provides helper methods to efficiently parse over arrays. These functions use multithreading when possible to 
 quickly calculate results over large arrays.
 
-Note that all arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
-If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to the rheology methods.
+Note that all arrays must be
+[C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays).
+If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)`
+to ensure that they are before being passed to the rheology methods.
 
 ```python
 from TidalPy.models import Andrade
@@ -70,7 +75,8 @@ freq_arr  = np.logspace(-6, -4, 10)
 complex_shear_arr = rheology_instance.vectorize_frequency(freq_arr, shear_mod, viscosity)
 
 # Radius Arrays. These are when _both_ shear modulus and viscosity are vectorized (e.g, 1D slice of a planet), while
-# frequency remains a scalar:
+# frequency remains a scalar. Note you must provide both shear and viscosity as an array of equal size, even if one
+# remains constant while the other varies.
 frequency = 1.0e-5
 shear_arr = np.linspace(40.0e9, 80.0e9, 10)
 visco_arr = np.logspace(1.0e18, 1.0e22, 10) 1.0e18  # Viscosity and Shear must have the same shape
