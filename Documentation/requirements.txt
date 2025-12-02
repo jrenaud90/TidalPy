@@ -8,5 +8,4 @@ ipykernel
 nbconvert
 jupyter
 sphinx-autodoc-typehints
-sphinx-autosummary
 breathe
