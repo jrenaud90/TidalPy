@@ -85,6 +85,27 @@ dev = [
     "ipympl>=0.8.7",
 ]
 
+docs = [
+    "sphinx",
+    "myst-parser",
+    "linkify-it-py",
+    "sphinx_rtd_theme",
+    "toml",
+    "sphinx-copybutton",
+    "nbsphinx",
+    "ipykernel",
+    "nbconvert",
+    "jupyter",
+    "sphinx-autodoc-typehints",
+    "breathe",
+    "jupyter",
+    "pytest",
+    "cmcrameri>=1.4, <2.0",
+    "matplotlib>=3.4.2",
+    "palettable>=3.3.0",
+    "ipympl>=0.8.7",
+]
+
 # Recommended (sometimes required) graphics packages
 graphics = [
     "jupyter",
