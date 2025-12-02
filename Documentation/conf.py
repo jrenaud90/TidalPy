@@ -3,6 +3,7 @@ import os
 import shutil
 import toml
 import subprocess
+import re
 from pathlib import Path
 
 FILE_PATH = os.path.dirname(__file__)
@@ -43,8 +44,31 @@ dst = os.path.abspath(os.path.join(FILE_PATH, "Changes.md"))
 shutil.copyfile(src, dst)
 
 src = os.path.abspath(os.path.join("..", "README.md"))
-dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme.md"))
-shutil.copyfile(src, dst)
+readme_file = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Readme.md"))
+shutil.copyfile(src, readme_file)
+
+# For the readme we wan to decrement all headers by 1 so that they are loaded into the doctree correctly.
+# Doing this here, rather than in the original readme.md file allows it to still serve as a stand alone document on 
+# the repo's github and other locations.
+# Read the copied file
+with open(readme_file, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Convert headers (remove one # from each header level)
+# This pattern matches lines starting with 2+ hashes followed by a space
+def reduce_header_level(match):
+    hashes = match.group(1)
+    rest = match.group(2)
+    # Remove one hash (but keep at least one)
+    new_hashes = hashes[1:] if len(hashes) > 1 else '#'
+    return f"{new_hashes}{rest}"
+
+# Apply the conversion
+content = re.sub(r'^(#{2,})( .*)$', reduce_header_level, content, flags=re.MULTILINE)
+
+# Write back to the file
+with open(readme_file, 'w', encoding='utf-8') as f:
+    f.write(content)
 
 src = os.path.abspath(os.path.join("..", "LICENSE.md"))
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "License.md"))

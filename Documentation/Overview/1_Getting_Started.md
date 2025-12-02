@@ -1,16 +1,19 @@
 # Getting Started with TidalPy
 
 ## Installation
-Up to date installation instructions can be found
-[here](https://tidalpy.readthedocs.io/en/adding-docs/Readme.html#how-to-install) section.
+
+```{include} Readme.md
+:start-after: How to Install
+:end-before: Using TidalPy
+```
 
 ## After Installation
 We are deferring the development of a comprehensive "getting started guide" for `TidalPy` until it is closer to a 1.0
-version. Until then we recommend looking through the rest of the documentation and the example scripts found in the
+release. Until then we recommend looking through the rest of the documentation and the example scripts found in the
 `Demos` [folder](https://github.com/jrenaud90/TidalPy/tree/main/Demos).
 
 If you find any issues, have a question, or want to share an idea about a new feature then feel free to leave a new
-github issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and
+GitHub issue [here](https://github.com/jrenaud90/TidalPy/issues). TidalPy also has a slack channel for developers and
 users. Please contact us at [TidalPy@gmail.com](mailto:TidalPy@gmail.com) if you would like to be invited.
 
 ### Package Structure

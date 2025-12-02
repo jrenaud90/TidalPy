@@ -1,6 +1,6 @@
 # TidalPy Configurations
 TidalPy has many settings and parameters that are set when its first imported. These settings can be found in TidalPy's
-configuration file which can be found:
+configuration file which can be found in the user's documents settings which vary on operating system.
 
 **Windows**
 
