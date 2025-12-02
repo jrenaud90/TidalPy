@@ -191,6 +191,19 @@ Check out the [Getting Started](https://tidalpy.readthedocs.io/en/latest/Overvie
 learn about TidalPy's features. The `Demos` directory is another good resource to learn by looking at
 [Jupyter notebooks](https://jupyter.org/) that can teach you how to use TidalPy's features.
 
+### Contribute to TidalPy
+
+TidalPy is in early alpha and there are lots of areas where it can improve! If you are interested in helping out, please
+check out the information in `Documentation\Contribute.md`.
+
+**Found a bug or have an idea for a new feature?**
+
+* Go to TidalPy's [Github page](https://github.com/jrenaud90/TidalPy) and click the "Issues" tab then make a new report.
+  * If you ran into a bug please include a code snippet (in markdown: code is designated by Grave accents surrounding
+    the text) that reproduces the error (please keep this snippet as concise as possible).
+  * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
+    other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
+
 ## Citing TidalPy
 
 TidalPy has been used in several studies already, and we encourage you to use it in yours. If you do, please cite the
@@ -238,19 +251,6 @@ The science used in TidalPy is described in the following papers and software (w
   * *Exoplanet data*: [Astroquery](https://github.com/astropy/astroquery/blob/main/astroquery/CITATION), [AstroPy](https://www.astropy.org/acknowledging.html)
   * *Scientific Python*: [NumPy](https://doi.org/10.1038/s41586-020-2649-2), [SciPy](https://doi.org/10.1038/s41592-019-0686-2)
   * *Performance*: [Numba](https://doi.org/10.1145/2833157.2833162), [Cython](https://www.doi.org/10.1109/MCSE.2010.118)
-
-## Contribute to TidalPy
-
-TidalPy is in early alpha and there are lots of areas where it can improve! If you are interested in helping out, please
-check out the information in `Documentation\Contribute.md`.
-
-**Found a bug or have an idea for a new feature?**
-
-* Go to TidalPy's [Github page](https://github.com/jrenaud90/TidalPy) and click the "Issues" tab then make a new report.
-  * If you ran into a bug please include a code snippet (in markdown: code is designated by Grave accents surrounding
-    the text) that reproduces the error (please keep this snippet as concise as possible).
-  * It is helpful to triage issues when they are made. If you think you know the severity of a bug or can provide any
-    other *at-a-glance* context, consider adding a "label" (right-hand side of the github issue form) to the issue.
 
 # Acknowledgements
 TidalPy was partially developed with support from NASA Goddard Space Flight Center's 

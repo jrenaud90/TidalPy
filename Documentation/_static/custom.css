@@ -25,6 +25,7 @@
 .rst-content h5,
 .rst-content h6 {
     margin-bottom: 0 !important;
+    margin-bottom: 10px !important;
 }
 
 .rst-content .toctree-wrapper > p.caption {

@@ -21,10 +21,10 @@ Overview <Overview/index.md>
 :maxdepth: 2
 :caption: Modules
 
-Rheology Module <Rheology/index.md>
-Love Number Solver <RadialSolver/index.md>
+Rheology <Rheology/index.md>
+RadialSolver (Love Number Calculator) <RadialSolver/index.md>
 Exoplanets <Exoplanets.md>
-Dynamics Module <Dynamics/index.md>
+Dynamics <Dynamics/index.md>
 ```
 
 ```{toctree}
@@ -38,7 +38,7 @@ Demos/4 - Eccentricity Truncations <Demos/4_-_Eccentricity_Truncations.ipynb>
 Demos/5 - Rheology Exploration <Demos/5_-_Rheology_Exploration.ipynb>
 Demos/6 - Multilayer Heating <Demos/6_-_Multilayer_Heating.ipynb>
 Demos/7 - Comparison of Tidal Modes <Demos/7_-_Comparison_of_Tidal_Modes.ipynb>
-Demos/8 - Love Number Sensitivity <Demos/8_-_Love Number_Sensitivity.ipynb>
+Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
 ```
 
 ```{toctree}

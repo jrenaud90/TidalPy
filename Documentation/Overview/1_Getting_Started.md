@@ -2,7 +2,7 @@
 
 ## Installation
 
-```{include} Readme.md
+```{include} Readme_raw.md
 :start-after: How to Install
 :end-before: Using TidalPy
 ```
