@@ -38,6 +38,7 @@ project = pyproject['project']['name']
 release = pyproject['project']['version']
 author = 'Joe P. Renaud'
 
+
 # Make a copy of the current change log and move it into docs so it can be included in the documentation.
 src = os.path.abspath(os.path.join("..", "CHANGES.md"))
 dst = os.path.abspath(os.path.join(FILE_PATH, "Changes.md"))
