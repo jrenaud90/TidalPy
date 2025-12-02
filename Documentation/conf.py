@@ -113,8 +113,6 @@ extensions.append('nbsphinx')
 extensions.append('sphinx.ext.napoleon')
 nbsphinx_allow_errors = True  # set True if you want docs to build even if notebooks fail
 nbsphinx_execute = "auto"  # or "always"
-# Add top level directory so sphinx can find demos
-sys.path.insert(0, os.path.abspath('../..'))
 
 # Copy code QOL button
 extensions.append('sphinx_copybutton')
