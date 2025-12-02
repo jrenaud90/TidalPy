@@ -18,6 +18,8 @@ def generate_api_docs():
         "-o", str(out_path),
         str(src_path),
         "--force",
+        "--implicit-namespaces",
+        "--module-first",
         "--no-toc"
     ])
 generate_api_docs()
@@ -81,6 +83,8 @@ extensions.append('sphinx.ext.viewcode')
 extensions.append('sphinx.ext.autosummary')
 autosummary_generate = True
 autosummary_imported_members = True
+autosummary_generate_recursive = True
+autosummary_ignore_top = False
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,
