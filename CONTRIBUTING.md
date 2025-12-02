@@ -172,11 +172,15 @@ with `pytest -n auto Tests/`
 
 ```bash
 # Run all tests
-pytest Tests/
+pytest Tests/  # Or with the added `-n auto` flag.
 
 # Run specific test file
 pytest Tests/test_rheology.py
 ```
+
+_Note that multiple warnings may show while you are running tests. These are likely normal warnings and are 
+expected. TidalPy will try to raise an `Exception` (which `pytest` should catch automatically) when there is
+a serious problem._
 
 ### Writing Tests
 
@@ -224,12 +228,24 @@ Documentation is built using Sphinx and hosted at [https://tidalpy.readthedocs.i
 - [ ] Commit messages are clear and descriptive
 - [ ] Branch is up-to-date with main
 
+### Marking Issues or ToDos Inside the Source Code
+Ideally you will not have to leave todos or mark issues in the code. But if you do please follow the format below:
+
+- "TODO: message" - For items that should be done in the future, perhaps there is a question about implementation
+  details.
+- "FIXME: message" - Critical issues that should be fixed immediately. These should only be used during PR drafting
+  and should never make it into a release.
+- "OPT: message" - Areas of code you think can be optimized but are deferring it for the future.
+
+**All of these should be turned into GitHub issues! Marking them in the code should only serve as an additional marker.**
+
 ## Questions?
 
 If you have questions about contributing, feel free to:
 
 - Open an issue with the `question` label
-- Email the maintainer: joe.p.renaud@gmail.com
+- Email the team: [TidalPy@gmail.com](mailto:TidalPy@gmail.com)
+    - Also feel free to ask us to invite you to TidalPy's Slack account for faster communications.
 - Check the documentation at [TidalPy.info](https://TidalPy.info)
 
 ## License
