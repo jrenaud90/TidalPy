@@ -28,7 +28,6 @@ affiliations:
     ror: 0171mag52
 date: 22 November 2025
 bibliography: paper.bib
-
 ---
 
 
