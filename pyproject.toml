@@ -83,8 +83,6 @@ dev = [
     "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
-    "julia>=0.5.7",
-    "diffeqpy>=1.2.0"
 ]
 
 # Recommended (sometimes required) graphics packages
