@@ -47,7 +47,7 @@ TidalPy API <API/index.md>
 
 ```{toctree}
 :maxdepth: 2
-:caption: TidalPy
+:caption: Additional Info
 :hidden:
 
 Change Log <Changes.md>

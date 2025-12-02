@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.7.0a6.dev0'
+version = '0.7.0a6.dev1'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -98,6 +98,7 @@ docs = [
     "jupyter",
     "sphinx-autodoc-typehints",
     "breathe",
+    # We also need to install TidalPy and its deps so that auto-doc's works.
     "jupyter",
     "pytest",
     "cmcrameri>=1.4, <2.0",
@@ -139,7 +140,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-# py-modules = ["_build_tidalpy"]
+py-modules = ["_build_tidalpy"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
