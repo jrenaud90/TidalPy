@@ -1,5 +1,6 @@
 sphinx
 myst-parser
+linkify-it-py
 sphinx_rtd_theme
 toml
 sphinx-copybutton
