@@ -8,6 +8,8 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
   push:
+    paths:
+      - TidalPy/**
 
 env:
   TIDALPY_TEST_MODE: 1
