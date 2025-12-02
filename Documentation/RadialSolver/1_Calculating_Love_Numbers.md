@@ -1,9 +1,10 @@
-# Calculating Love Numbers using TidalPy's RadialSolver module and functions
+# Calculating Love Numbers using TidalPy's RadialSolver
 _In addition to the documentation in this file, there is a demo notebook "3 - Calculate Love Numbers.ipynb" in the Demos folder. As well as notebooks in "Benchmarks / Radial Solver" folder that may be helpful._
 
-TidalPy's `RadialSolver` package allows a user to estimate a planet's global, viscoelastic
-[Love numbers](https://en.wikipedia.org/wiki/Love_number). These numbers can then be used to determine the magnitude of tidal
-dissipation, speed of rotational/orbital changes, and provide predictions for gravity or distance measurements. 
+TidalPy's `RadialSolver` package allows users to estimate a planet's global, viscoelastic
+[Love numbers](https://en.wikipedia.org/wiki/Love_number). These numbers can then be used to determine the magnitude of
+tidal dissipation, speed of rotational/orbital changes, and provide predictions for gravity or displacement
+measurements. 
 
 TidalPy allows for both the use of a numerical shooting method and a propagation matrix technique. However, the 
 shooting method is much further developed within TidalPy, has more options and control, and is the default method.
@@ -37,7 +38,7 @@ To learn more about TidalPy's underlying methods please review these references.
 
 ## Radial Solver Function `TidalPy.RadialSolver.radial_solver`
 The `radial_solver` function, contained in the `TidalPy.RadialSolver` module is the main way to solve the radial 
-functions from Python. There are also cython hooks for faster performance (see "4 - Cython API" documentation).
+functions from Python. There are also cython hooks for faster performance (See [Cython API](https://tidalpy.readthedocs.io/en/latest/RadialSolver/4_RadialSolver_Cython_API.html)).
 
 Notes:
 - All arrays must be [C-contiguous](https://stackoverflow.com/questions/26998223/what-is-the-difference-between-contiguous-and-non-contiguous-arrays). If you suspect that an array may not be C-contiguous you can use the numpy function `arr = np.ascontiguousarray(arr)` to ensure that they are before being passed to TidalPy.

@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.7.0a5.dev0'
+version = '0.7.0a6.dev1'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -83,8 +83,28 @@ dev = [
     "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
-    "julia>=0.5.7",
-    "diffeqpy>=1.2.0"
+]
+
+docs = [
+    "sphinx",
+    "myst-parser",
+    "linkify-it-py",
+    "sphinx_rtd_theme",
+    "toml",
+    "sphinx-copybutton",
+    "nbsphinx",
+    "ipykernel",
+    "nbconvert",
+    "jupyter",
+    "sphinx-autodoc-typehints",
+    "breathe",
+    # We also need to install TidalPy and its deps so that auto-doc's works.
+    "jupyter",
+    "pytest",
+    "cmcrameri>=1.4, <2.0",
+    "matplotlib>=3.4.2",
+    "palettable>=3.3.0",
+    "ipympl>=0.8.7",
 ]
 
 # Recommended (sometimes required) graphics packages
@@ -120,7 +140,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-# py-modules = ["_build_tidalpy"]
+py-modules = ["_build_tidalpy"]
 include-package-data = true
 
 [tool.setuptools.packages.find]

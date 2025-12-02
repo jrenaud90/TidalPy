@@ -1,5 +1,5 @@
 
-# Radial Solver Helper Functions
+# RadialSolver Helper Functions
 
 TidalPy's radial solver function is particular on the format of its inputs. It can be easy to make a mistake which leads to solution failures, exceptions, or crashes[^1].
 The helper functions described here are designed to give users an easy interface to provide data that is then translated into the inputs required by the `radial_solver` function.

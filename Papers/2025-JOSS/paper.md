@@ -73,7 +73,7 @@ Get started using TidalPy by visiting [https://tidalpy.info](https://tidalpy.inf
 
 ## Love Number Solver (RadialSolver Module)
 
-_Learn more about TidalPy's RadialSolver Module [here](REF)._
+_Learn more about TidalPy's RadialSolver Module [here](https://tidalpy.readthedocs.io/en/latest/RadialSolver/index.html)._
 
 **Love Numbers** quantify a planet or moon's ability to respond to tidal or loading forces [@love1911; @shida1912].
 They are dynamic and depend on many physical factors such as a world's thermal state, physical structures (e.g.,
@@ -102,7 +102,7 @@ Other tools exist that, unlike the current version of TidalPy, can calculate mul
 
 ## Advanced Rheological Modeling (Rheology Module)
 
-_Learn more about TidalPy's Rheology Module [here](REF)._
+_Learn more about TidalPy's Rheology Module [here](https://tidalpy.readthedocs.io/en/latest/Rheology/index.html)._
 
 The calculation of tidal Love numbers requires knowing the viscoelastic state of a planet. This can be described
 through the shear and bulk modulus as well as the shear and bulk viscosity. The former describe how sound waves travel
@@ -123,7 +123,7 @@ alongside other tools.
 
 ## Spin and Orbital Evolution (Dynamics Module)
 
-_Learn more about TidalPy's Dynamics Module [here](REF)._
+_Learn more about TidalPy's Dynamics Module [here](https://tidalpy.readthedocs.io/en/latest/Dynamics/index.html)._
 
 The energy released as heat in a tidally active world originates in its orbit or in the rotation of it or its tidal
 host (which could be Jupiter in the case of Io, or a star in the case of a short-period exoplanet). Energy can be

@@ -1,5 +1,5 @@
 
-# Radial Solver Solution: `RadialSolverSolution` Class
+# RadialSolver Solution: `RadialSolverSolution` Class
 `TidalPy.RadialSolver.radial_solver` functions stores the viscoelastic-gravitational solution, results of solving a 
 planet's equation of state, and other parameters and meta data in a cythonized python class `TidalPy.RadialSolver.rs_solution.RadialSolverSolution`. This document details how to access this API from both Python and Cython.
 
