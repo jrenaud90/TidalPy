@@ -82,8 +82,8 @@ nbsphinx_allow_errors = True  # set True if you want docs to build even if noteb
 nbsphinx_execute = "auto"  # or "always"
 
 # Copy code QOL button
-extensions.append('sphinx-copybutton')
-copybutton_prompt_text = r">>> |\$ "
+extensions.append('sphinx_copybutton')
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
 copybutton_prompt_is_regexp = True
 
 # ReadTheDocs Themeing
