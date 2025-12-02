@@ -191,7 +191,7 @@ def henning(
             premelt_shear_modulus * np.exp((hn_shear_param_1 / break_down_temp) - hn_shear_param_2) * \
             np.exp(-hn_shear_falloff_slope * (melt_fraction - crit_melt_frac)) + \
         (melt_fraction_shape > crit_melt_frac_plus_width) * \
-            liquid_viscosity
+            liquid_shear
 
     # Perform sanity checks
     postmelt_viscosity = (postmelt_viscosity + shape <= liquid_viscosity) * liquid_viscosity + \

@@ -5,6 +5,7 @@
 ### Fixes
 * Fixed top-level directories and files being mistakenly installed.
 * Updated `np.trapz` to `scipy.integrate.trapezoid` due to deprecation of the former.
+* Fixed bug in the henning melting model where shear modulus may not have had the correct value when fully melted.
 
 ### GitHub Actions
 * Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
