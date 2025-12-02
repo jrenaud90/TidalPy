@@ -1,10 +1,10 @@
-# TidalPy
+# Overview
 
 ```{toctree}
 :maxdepth: 2
 :caption: Contents
 
-General <Readme.md>
+General <0_Readme.md>
 Getting Started <1_Getting_Started.md>
 Configurations <2_TidalPy_Configurations.md>
 Contributing <Contributing.md>

@@ -18,17 +18,17 @@
 
 <a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.7.0a0.dev7-orange" alt="TidalPy Version 0.7.0a0.dev7" /></a>
 
-**Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python**
+**Tidal Dynamics and Thermal-Orbital Evolution Toolkit Implemented in Cython and Python**
 
-TidalPy is an open-source software suite that utilizes a semi-analytic approach to estimate tidal heating,
-orbit-rotation evolution, and thermal changes for rocky and icy worlds. It has been used to simulate the thermal-orbital
-evolution of moons within our Solar System as well as exoplanets beyond. TidalPy's `RadialSolver` package can accurately
-estimate the viscoelastic Love and Shida numbers for a multi-layered, rocky or icy world, including the effects of liquid layers,
-compressibility, dynamic tides, and advanced rheological models. This module has been used to study the tidal response
-of Mercury, Venus, Earth, our Moon, Mars, and much more.
+TidalPy is an open source software suite that utilizes a semi-analytic approach to estimate tidal heating,
+spin-orbit resonances, tidal & loading Love numbers, and thermal evolution for rocky and icy worlds. It has been used
+to simulate the thermal-orbital evolution of moons within our Solar System as well as exoplanets beyond. TidalPy's
+`RadialSolver` package can accurately estimate the viscoelastic Love and Shida numbers for a multi-layered, rocky or
+icy world, including the effects of liquid layers, compressibility, dynamic tides, and advanced rheological models.
+This module has been used to study the tidal response of Mercury, Venus, Earth, our Moon, Mars, and much more.
 
-Have any questions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send a message to
-[TidalPy@gmail.com](mailto:tidalpy@gmail.com).
+Have any questions or suggestions? Feel free to leave an [issue](https://github.com/jrenaud90/TidalPy/issues) or send
+a message to [TidalPy@gmail.com](mailto:tidalpy@gmail.com).
 
 ## How to Install
 
@@ -38,7 +38,7 @@ TidalPy has been developed to work on most modern operating systems. We specific
 Ubuntu, Windows, and MacOS. We also pre-build binaries for these operating systems and provide them via
 [PyPI](https://pypi.org/project/TidalPy/) or [Conda-Forge](https://anaconda.org/conda-forge/tidalpy). If a pre-built
 binary is not available for your operating system version then see details about
-[building TidalPy from source]()
+[building TidalPy from source](https://tidalpy.readthedocs.io/en/latest/Overview/Readme.html#building-tidalpy-from-source).
 
 * **Windows-Latest**: [![Windows Tests](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main)](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml)
 * **MacOS-Latest**: [![MacOS Tests](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main)](https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml)
@@ -47,7 +47,7 @@ binary is not available for your operating system version then see details about
 ### Basic Installation
 
 Installing TidalPy is as simple as ensuring 64-bit [Python 3.9+](https://www.python.org/) is installed on your 
-system and performing the following in a terminal:
+system and running from a terminal:
 
 `pip install TidalPy`
 
@@ -59,9 +59,13 @@ or
 
 `mamba install TidalPy`
 
+We recommend using a virtual environments (via a manager like [uv](https://docs.astral.sh/uv/pip/environments/) or
+[miniforge](https://conda-forge.org/download/)) when installing TidalPy.
+
 ### Accessing Jupyter Notebooks
-There are several jupyter notebooks with TidalPy demos found in the /Demos/ folder of this repository.
-In order to access these you will need to make sure you install Jupyter and a few related packages:
+There are several demos provided with TidalPy that make use of [Jupyter notebooks](https://jupyter.org/) found in
+the /Demos/ folder of TidalPy's [repository](https://github.com/jrenaud90/TidalPy). In order to access these you
+will need to make sure you install Jupyter and a few related packages:
 
 `pip install ipympl ipython ipywidgets jupyter`
 
@@ -69,18 +73,18 @@ or
 
 `conda install ipympl ipython ipywidgets jupyter`
 
-You can then clone this GitHub repository,
+You can then clone TidalPy's GitHub repository,
 
 `git clone https://github.com/jrenaud90/TidalPy`
 
-to a local directory. Navigate to this directory and the `Demos` sub-directory then access the notebooks by using the command,
-`jupyter notebook`.
+to a local directory. Navigate to this directory and the `Demos` sub-directory then access the notebooks by using the
+command, `jupyter notebook`.
 
 ### Cartopy
 
-TidalPy offers the ability to make nice 2D plots using the [cartopy](https://scitools.org.uk/cartopy/docs/latest/index.html) package for some of 
-3d projection map plotting. In turn, cartopy relies on [GEOS](https://trac.osgeo.org/geos/) which is not a python
-package and must be installed outside of pip.
+TidalPy offers the ability to make 2D surface projection plots using the
+[cartopy](https://scitools.org.uk/cartopy/docs/latest/index.html) package. In turn, cartopy relies on 
+[GEOS](https://trac.osgeo.org/geos/) which is not a python package and must be installed outside of pip.
 
 #### Installing Cartopy using `conda`
 The easiest way to install cartopy is using a conda environment by,
@@ -112,24 +116,27 @@ _If you ran into a problem that is not listed below please [submit an issue](htt
 We automatically provide pre-built binaries for the latest version of MacOS, Ubuntu, and Windows via 
 [PyPI](https://pypi.org/project/TidalPy/) or [Conda-Forge](https://anaconda.org/conda-forge/tidalpy). If your OS
 version does not have pre-built binaries or if you are running into problems with the pre-builds, then you can build
-from TidalPy's source code.
+TidalPy from its source code.
 
-In order to build TidalPy you need to make sure that your environment has access to a C and C++ compiler, a recent
-version of Python and has Cython 3.0+ installed. 
+To do so, you will need to make sure that your environment has access to a C and C++ compiler that supports
+C++20 standards, a recent version of Python, and has Cython 3.0+ installed. 
 
-**PyPI Build from Source**
+#### PyPI Build from Source
 Using the source code uploaded to PyPI by running,
 
 ```bash
 python -m pip install TidalPy -v --no-binary TidalPy
 ```
 
-**GitHub Repo**
+#### GitHub Repo
 Alternatively you can clone the latest version of the GitHub repo and build locally,
 ```bash
 git clone https://www.GitHub.com/jrenaud90/TidalPy.git
 python -m pip install . -v --no-binary TidalPy  # The . assumes you have navigated to the directory with `pyproject.toml`
 ```
+
+This is also the approach you would take to build TidalPy if you plan to edit its code. See more details about 
+developing TidalPy [here](https://tidalpy.readthedocs.io/en/latest/Overview/Contributing.html).
 
 #### Special consideration for MacOS
 On MacOS, If you run into problems installing TidalPy then reinstall using the verbose flag (`pip install -v .`) to
