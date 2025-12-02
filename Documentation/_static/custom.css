@@ -27,6 +27,11 @@
     margin-bottom: 0 !important;
 }
 
+.rst-content .toctree-wrapper > p.caption {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
 /* Remove space before/after ul lists */
 .rst-content ul {
     margin-top: 0 !important;
