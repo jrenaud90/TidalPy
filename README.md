@@ -192,9 +192,11 @@ learn about TidalPy's features. The `Demos` directory is another good resource t
 ### Doing Science with TidalPy
 
 TidalPy has been used in several studies already, and we encourage you to use it in yours. We would appreciate you
-including a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers mentioned [here](https://tidalpy.readthedocs.io/en/latest/Readme.html#citing-tidalpy). We also would love to hear where TidalPy is being used! Please feel free to send us an
-email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy. Anyone is welcome to
-create forks or copies of TidalPy as long as their work references back to this page. License information can be found [here](https://tidalpy.readthedocs.io/en/latest/License.html).
+including a link back to this [page](https://github.com/jrenaud90/TidalPy) and cite one of the papers mentioned
+[here](https://tidalpy.readthedocs.io/en/latest/Readme.html#citing-tidalpy). We also would love to hear where TidalPy
+is being used! Please feel free to send us an email: [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or
+presentation utilized TidalPy. Anyone is welcome to create forks or copies of TidalPy as long as their work references
+back to this page. License information can be found [here](https://tidalpy.readthedocs.io/en/latest/License.html).
 
 ### Citing TidalPy
 

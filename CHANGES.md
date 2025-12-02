@@ -19,6 +19,7 @@
 * Added documentation interface with Sphinx and ReadTheDocs.
 * Added and updated readme badges.
 * Extensive changes to all documentation files and structure.
+* Changed how CHANGES.md (main change log) is structured. Major versions will appear as top level headers.
 
 #### Other
 * Change TidalPy's license to Apache 2.0.

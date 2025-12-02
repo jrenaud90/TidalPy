@@ -17,7 +17,30 @@
 }
 
 /* Fix spacing in directory listing on main page body. */
-.rst-content section ul li > * {
-    margin-bottom: 0 !important; 
-    margin-top: 0 !important; 
+/* Remove space after headers */
+.rst-content h1,
+.rst-content h2,
+.rst-content h3,
+.rst-content h4,
+.rst-content h5,
+.rst-content h6 {
+    margin-bottom: 0 !important;
+}
+
+/* Remove space before/after ul lists */
+.rst-content ul {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* If you also want to adjust ol lists */
+.rst-content ol {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Adjust list item spacing if needed */
+.rst-content ul li,
+.rst-content ol li {
+    margin-bottom: 0 !important;
 }
