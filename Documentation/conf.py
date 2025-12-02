@@ -62,6 +62,17 @@ src = os.path.abspath(os.path.join("..", "NOTICE"))
 dst = os.path.abspath(os.path.join(FILE_PATH, "Overview", "Notice.md"))
 shutil.copyfile(src, dst)
 
+# Copy all demos over
+demo_src_dir = Path(os.path.join(FILE_PATH, os.pardir, "Demos"))
+demo_dst_dir = Path(os.path.join(FILE_PATH, "Demos"))
+demo_dst_dir.mkdir(exist_ok=True)
+for notebook in demo_src_dir.glob("*.ipynb"):
+    # New filename with underscores instead of spaces
+    new_name = notebook.name.replace(" ", "_")
+    dest_file = demo_dst_dir / new_name
+    shutil.copy2(notebook, dest_file)
+
+# Prep other theme and extension settings.
 extensions = []
 
 # Use Markdown files rather than rst (or in addition to)

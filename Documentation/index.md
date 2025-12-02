@@ -28,8 +28,8 @@ Dynamics Module <Dynamics/index.md>
 :maxdepth: 2
 :caption: Demos
 
-"../../Demos/1 - Build Planets.ipynb"
-"../../Demos/2 - Thermal Exploration.ipynb"
+"Demos/1 - Build Planets.ipynb"
+"Demos/2 - Thermal Exploration.ipynb"
 ```
 
 ```{toctree}
