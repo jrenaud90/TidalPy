@@ -172,6 +172,16 @@ export CXX=/usr/local/opt/llvm/bin/clang++
 pip install CyRK --no-binary="CyRK"
 ```
 
+### TidalPy Versioning
+TidalPy uses the major.minor.bugfix versioning scheme. In TidalPy's current state, we only promise to provide support
+for the latest version (as found on the [GitHub release page](https://github.com/jrenaud90/TidalPy/releases)).
+Therefore, older minor versions may not get critical patches (_e.g._, TidalPy 0.7.x will get patches where 0.6.x will
+not even if the patches are applicable to that earlier version). If you would like to see a bug fix back ported to an
+older version please open a [issue](https://github.com/jrenaud90/TidalPy/issues). 
+
+In the future we hope to support multiple minor versions of TidalPy. At that time, all supported versions will be
+listed in this section.
+
 
 ## Using TidalPy
 
