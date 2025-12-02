@@ -5,7 +5,7 @@ import toml
 import subprocess
 
 # Auto generate API documentation
-subprocess.call(["python", "build_api_docs.py"],
+subprocess.call(["python", os.path.join("API", "build_api_docs.py")],
                 cwd=os.path.join("API", os.path.dirname(__file__)))
 
 # Basic configurations
