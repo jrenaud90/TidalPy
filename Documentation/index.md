@@ -26,6 +26,14 @@ Dynamics Module <Dynamics/index.md>
 
 ```{toctree}
 :maxdepth: 2
+:caption: Demos
+
+"../../Demos/1 - Build Planets.ipynb"
+"../../Demos/2 - Thermal Exploration.ipynb"
+```
+
+```{toctree}
+:maxdepth: 2
 :caption: API
 
 TidalPy API <API/index.md>

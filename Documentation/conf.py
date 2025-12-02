@@ -102,6 +102,8 @@ extensions.append('nbsphinx')
 extensions.append('sphinx.ext.napoleon')
 nbsphinx_allow_errors = True  # set True if you want docs to build even if notebooks fail
 nbsphinx_execute = "auto"  # or "always"
+# Add top level directory so sphinx can find demos
+sys.path.insert(0, os.path.abspath('../..'))
 
 # Copy code QOL button
 extensions.append('sphinx_copybutton')
@@ -111,12 +113,6 @@ copybutton_prompt_is_regexp = True
 # ReadTheDocs Themeing
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
-    "display_github": True,
-    "github_user": "jrenaud90",
-    "github_repo": "TidalPy",
-    "github_version": "main",
-    "conf_py_path": "/Documentation/",
-    'analytics_anonymize_ip': False,
 }
 
 # Looks like this has been deprecated. TODO: new analytics solution. 
