@@ -16,6 +16,7 @@
 * Added JOSS paper draft to Papers/2025-JOSS.
 * Added documentation interface with Sphinx and ReadTheDocs.
 * Added and updated readme badges.
+* Extensive changes to all documentation files and structure.
 
 ### Other
 * Change TidalPy's license to Apache 2.0.

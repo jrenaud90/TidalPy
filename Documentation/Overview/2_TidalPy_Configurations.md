@@ -4,15 +4,15 @@ configuration file which can be found:
 
 **Windows**
 
-'C:\\Users\\<username>\\Documents\\TidalPy\\<TidalPy Version>\\Config\\TidalPy_Configs.toml'
+"C:\\Users\\<username>\\Documents\\TidalPy\\\<TidalPy Version\>\\Config\\TidalPy_Configs.toml"
 
 **MacOS**
 
-'/Users/<username>/Documents/TidalPy/<TidalPy Version>/Config/TidalPy_Configs.toml'
+"/Users/<username>/Documents/TidalPy/\<TidalPy Version\>/Config/TidalPy_Configs.toml"
 
 **Linux**
 
-'/home/<username>/Documents/TidalPy/<TidalPy Version>/Config/TidalPy_Configs.toml'
+"/home/<username>/Documents/TidalPy/\<TidalPy Version\>/Config/TidalPy_Configs.toml"
 
 The `toml` file contains all of TidalPy's settings. Changes you make to this file will be propagated to TidalPy next
 time it is imported (you will likely need to restart your kernel to see these changes). We have tried to add comments
