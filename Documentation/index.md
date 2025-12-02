@@ -40,7 +40,7 @@ Demos/8 - Love Number Sensitivity <Demos/8_-_Love Number_Sensitivity.ipynb>
 
 ```{toctree}
 :maxdepth: 2
-:caption: API
+:caption: Auto Generated API
 
 TidalPy API <API/index.md>
 ```
