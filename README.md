@@ -15,7 +15,7 @@
 </div>
 
 ---
-
+<p align="center"><a href="https://tidalpy.readthedocs.io/en/latest/">TidalPy Documentation</a></p>
 <a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.7.0a0.dev7-orange" alt="TidalPy Version 0.7.0a0.dev7" /></a>
 
 **Tidal Dynamics and Thermal-Orbital Evolution Toolkit Implemented in Cython and Python**
