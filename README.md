@@ -1,6 +1,6 @@
 # TidalPy
 <p align="center">
-  <img src="https://github.com/jrenaud90/TidalPy/tree/main/Documentation/_static/images/2025-11-28_Logo_2-4.svg" width="350" alt="TidalPy Logo">
+  <img src="https://raw.githubusercontent.com/jrenaud90/TidalPy/87436336932860441e377dc24d606164e855ddf0/Documentation/_static/images/2025-11-28_Logo_2-4.svg" width="350" alt="TidalPy Logo">
 </p>
 <div style="text-align: center;">
     <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
