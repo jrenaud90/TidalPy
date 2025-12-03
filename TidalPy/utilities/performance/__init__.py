@@ -1,4 +1,19 @@
-from .numba import njit, use_numba, bool_, float64, int64, int32, int16, int8, uint64, uint32, uint16, uint8,\
-    complex128, nbDict, nbList, nbUnicode, prange
+from .numba import njit as njit
+from .numba import use_numba as use_numba
+from .numba import bool_ as bool_
+from .numba import float64 as float64
+from .numba import int64 as int64
+from .numba import int32 as int32
+from .numba import int16 as int16
+from .numba import int8 as int8
+from .numba import uint64 as uint64
+from .numba import uint32 as uint32
+from .numba import uint16 as uint16
+from .numba import uint8 as uint8
+from .numba import complex128 as complex128
+from .numba import nbDict as nbDict
+from .numba import nbList as nbList
+from .numba import nbUnicode as nbUnicode
+from .numba import prange as prange
 
-from .special import find_factorial
+from .special import find_factorial as find_factorial

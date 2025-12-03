@@ -15,5 +15,5 @@ def get_cooling_model_default_inputs(layer_type: str):
                                       inner_keys=(layer_type, 'cooling'))
 
 
-from .cooling import CoolingModel
-from .cooling_models import CoolingOutputType
+from .cooling import CoolingModel as CoolingModel
+from .cooling_models import CoolingOutputType as CoolingOutputType

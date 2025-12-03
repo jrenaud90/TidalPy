@@ -1,0 +1,52 @@
+/* Change background behind logo/search area */
+.wy-side-nav-search {
+    background-color: #1f2a44;
+    /* Other good ones: #655A7C; #1f2a44 */
+}
+
+.version-switch select {
+    color: white !important;
+}
+
+.wy-menu .caption-text {
+    color: #8ee2f2;
+}
+
+.document .caption-text {
+    color: #1f2a44;
+}
+
+/* Fix spacing in directory listing on main page body. */
+/* Remove space after headers */
+.rst-content h1,
+.rst-content h2,
+.rst-content h3,
+.rst-content h4,
+.rst-content h5,
+.rst-content h6 {
+    margin-bottom: 0 !important;
+    margin-bottom: 10px !important;
+}
+
+.rst-content .toctree-wrapper > p.caption {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Remove space before/after ul lists */
+.rst-content ul {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* If you also want to adjust ol lists */
+.rst-content ol {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Adjust list item spacing if needed */
+.rst-content ul li,
+.rst-content ol li {
+    margin-bottom: 0 !important;
+}

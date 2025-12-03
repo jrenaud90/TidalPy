@@ -12,6 +12,8 @@ def get_partial_melt_model_default_inputs(layer_type: str):
                                       inner_keys=(layer_type, 'partial_melting'))
 
 
-from .partialmelt import PartialMelt
-from .partialmelt import calculate_melt_fraction, calculate_temperature_frommelt, \
-    calculate_temperature_frommelt_array, calculate_melt_fraction_array
+from .partialmelt import PartialMelt as PartialMelt
+from .partialmelt import calculate_melt_fraction as calculate_melt_fraction
+from .partialmelt import calculate_temperature_frommelt as calculate_temperature_frommelt
+from .partialmelt import calculate_temperature_frommelt_array as calculate_temperature_frommelt_array
+from .partialmelt import calculate_melt_fraction_array as calculate_melt_fraction_array

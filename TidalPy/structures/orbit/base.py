@@ -1283,7 +1283,7 @@ class OrbitBase(TidalPyClass):
         return_host_tide_raiser = False
 
         # Check if it is an integer and if it makes sense given the number of objects stored in this orbit
-        if type(world_signature) == int:
+        if type(world_signature) is int:
             if world_signature >= len(self.tidal_objects):
                 raise BadWorldSignature(f'World signature provided as int, {world_signature}, but does not make sense with number of tidal objects within orbit: {len(self.tidal_objects)}.')
             elif world_signature == 0:
@@ -1292,7 +1292,7 @@ class OrbitBase(TidalPyClass):
             else:
                 world_orbit_index = world_signature
                 return world_orbit_index
-        elif type(world_signature) == str:
+        elif type(world_signature) is str:
             # Check if the world signature is a string if it is, assume it is the world's name
             if world_signature in self.all_tidal_world_orbit_index_by_name:
                 # Name is fine.

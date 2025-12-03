@@ -46,7 +46,7 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
 
     # If world_config is a file then load it through toml and get a dict
     if world_config is not None:
-        if type(world_config) != dict:
+        if type(world_config) is not dict:
             log.debug(f'Converting user provided planet configuration file to dictionary for {world_name}.')
             world_config = toml.load(world_config)
 
@@ -79,12 +79,12 @@ def build_world(world_name: str, world_config: Union[dict, TextIO] = None):
     world_type = world_config['type'].lower()
 
     if world_type == 'burnman':
-        log.debug(f'BurnMan world type detected.')
+        log.debug('BurnMan world type detected.')
         from TidalPy.Extending.burnman import build_burnman_world, BurnManWorld
         
         log.debug('Attempting to build the BurnMan class for the world.')
         burnman_world, burnman_layers = build_burnman_world(world_config)
-        log.debug(f'Burnman world building completed!')
+        log.debug('Burnman world building completed!')
 
         log.debug('Installing Burnman world into TidalPy world class.')
         world = BurnManWorld(world_config, burnman_world, burnman_layers, name=world_name)

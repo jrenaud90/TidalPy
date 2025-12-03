@@ -476,14 +476,16 @@ class PhysicsOrbit(OrbitBase):
         if self.tidal_host.tides_on and self.tidal_host.tides is not None:
             if self.tidal_host.dUdM is not None:
                 tidal_host_active = True
-                if type(self.tidal_host.dUdM) == np.ndarray:
+                if type(self.tidal_host.dUdM) is np.ndarray:
                     use_array = True
         if world_instance.tides_on and world_instance.tides is not None:
             if world_instance.dUdM is not None:
                 tidal_body_active = True
-                if type(world_instance.dUdM) == np.ndarray:
+                if type(world_instance.dUdM) is np.ndarray:
                     use_array = True
-
+        if use_array:
+            pass  # Currently both functions support array inputs.
+        
         # Check if this world is actually the one raising tides on the tidal host.
         if tidal_host_active:
             if world_instance is not self.host_tide_raiser:

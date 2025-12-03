@@ -1,7 +1,6 @@
 import numba
 import numpy as np
 
-import TidalPy
 from TidalPy.utilities.performance.numba import use_numba
 
 

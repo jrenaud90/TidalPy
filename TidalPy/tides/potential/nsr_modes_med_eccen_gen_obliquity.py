@@ -2,15 +2,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from TidalPy.constants import G
+from TidalPy.constants import G, MIN_SPIN_ORBITAL_DIFF
 from TidalPy.utilities.performance import bool_, njit
-
-from . import MIN_SPIN_ORBITAL_DIFF
 
 if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray
 
-    from . import TidalPotentialModeOutput, PotentialTupleModeOutput
+    from . import TidalPotentialModeOutput
 
 
 @njit(cacheable=True)

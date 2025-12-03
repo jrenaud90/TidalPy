@@ -1,1 +1,2 @@
-from .quick_tides import quick_dual_body_tidal_dissipation, quick_tidal_dissipation
+from .quick_tides import quick_dual_body_tidal_dissipation as quick_dual_body_tidal_dissipation
+from .quick_tides import quick_tidal_dissipation as quick_tidal_dissipation

@@ -81,7 +81,7 @@ def projection_map(
     projection: str = 'Mollweide', original_data_projection: str = 'PlateCarree',
     show_earth_coast: bool = False, show_grid_lines: bool = True,
     ax: plt.Axes = None, cbax: plt.Axes = None,
-    auto_save: bool = False, auto_show: bool = True, save_png: bool = False,
+    auto_save: bool = False, auto_show: bool = True, save_png: bool = False, base_line_fontsize=12,
     png_dpi: int = 300, filename: str = 'unknown_projection_plot', rotated_pole_input: dict = None,
     central_longitude: float = 0., dark_mode: bool = False
     ):
@@ -174,6 +174,8 @@ def projection_map(
         If True, the figure will be shown using `plt.show()`.
     save_png : bool = False
         If True, then a .png image will be saved alongside the standard pdf.
+    base_line_fontsize : int = 12
+        Base font size for the figure.
     png_dpi : int = 300
         PNG dots per inch.
     filename : str = 'unknown_projection_plot'
@@ -279,14 +281,16 @@ def projection_map(
         colorbar.set_ticks(zticks)
     if ztick_labels is not None:
         colorbar.ax.set_yticklabels(ztick_labels)
-    
-    colorbar.formatter.set_powerlimits((0, 0)) 
-    # Optionally, use MathText for a more aesthetic representation of exponents
-    colorbar.formatter.set_useMathText(True) 
+    else:
+        colorbar.formatter.set_powerlimits((0, 0)) 
+        # Optionally, use MathText for a more aesthetic representation of exponents
+        colorbar.formatter.set_useMathText(True)
 
     # Set labels
-    ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
-    colorbar.set_label(zlabel)
+    ax.set_xlabel(xlabel, fontsize=base_line_fontsize)
+    ax.set_ylabel(ylabel, fontsize=base_line_fontsize)
+    ax.set_title(title, fontsize=base_line_fontsize + 2)
+    colorbar.set_label(zlabel, fontsize=base_line_fontsize)
 
     # Plot lat and long gridlines
     if show_grid_lines:
@@ -303,6 +307,8 @@ def projection_map(
         gl.right_labels = False
         gl.top_labels = False
         gl.bottom_labels = False
+        gl.ylabel_style = {'size': base_line_fontsize-2}
+        gl.xlabel_style = {'size': base_line_fontsize-2}
 
 
     # Save figure

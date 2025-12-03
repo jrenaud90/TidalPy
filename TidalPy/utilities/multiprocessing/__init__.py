@@ -1,6 +1,6 @@
 psutil_installed = False
 try:
-    import psutil
+    import psutil as psutil
     psutil_installed = True
 except ImportError:
 
@@ -19,4 +19,6 @@ except ImportError:
     # Pathos is not installed. Use Python's multiprocessing instead.
     pathos_mp = None
 
-from .multiprocessing import multiprocessing_run, MultiprocessingInput, MultiprocessingOutput
+from .multiprocessing import multiprocessing_run as multiprocessing_run
+from .multiprocessing import MultiprocessingInput as MultiprocessingInput
+from .multiprocessing import MultiprocessingOutput as MultiprocessingOutput

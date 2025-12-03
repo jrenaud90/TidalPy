@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from TidalPy.utilities.types import FloatArray, NoneType
 
     from . import AllWorldType
-    from ..orbit import Orbit
 
 
 class BaseWorld(PhysicalObjSpherical):
@@ -922,7 +921,7 @@ class BaseWorld(PhysicalObjSpherical):
 
         name = self.name
         if name is None:
-            name = f'Unknown World'
+            name = 'Unknown World'
 
         str_ = f'{name} ({self.__class__.__name__})'
 

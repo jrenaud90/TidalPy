@@ -109,11 +109,11 @@ class CoolingModel(LayerModelHolder):
         # OPT: Put this check in the setter for the live args / freqs?
         use_float = True
         for input_ in self.live_inputs:
-            if type(input_) == np.ndarray:
+            if type(input_) is np.ndarray:
                 use_float = False
                 break
         if use_float:
-            if type(delta_temp) == np.ndarray:
+            if type(delta_temp) is np.ndarray:
                 use_float = False
         if use_float:
             cooling_func = self.func

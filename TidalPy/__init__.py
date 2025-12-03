@@ -39,7 +39,8 @@ from TidalPy.initialize import initialize as reinit
 reinit()
 
 # Import module functions
-from .cache import clear_cache, clear_data
+from .cache import clear_cache as clear_cache
+from .cache import clear_data as clear_data
 
 def test_mode():
     """ Turn on test mode and reinitialize TidalPy """

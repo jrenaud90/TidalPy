@@ -43,12 +43,12 @@ def get_header_text() -> str:
     now = datetime.now()
     now_str = now.strftime('%x at %X')
     header = (
-        f'----------------------------------------------------------------------------------',
-        f'TidalPy - Tidal Heating Calculator and Orbital Evolver',
+        '----------------------------------------------------------------------------------',
+        'TidalPy - Tidal Heating Calculator and Orbital Evolver',
         f'Version: {TidalPy.__version__}',
-        f'Primary Development by Joe Renaud, ca. 2016--2025',
-        f'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
-        f'----------------------------------------------------------------------------------',
+        'Primary Development by Joe Renaud, ca. 2016--2025',
+        'Found a bug or have a suggestion? Open a new issue at github.com/jrenaud90/TidalPy',
+        '----------------------------------------------------------------------------------',
         f'Run made on {now_str}.',
         f'Using Python {sys.version} on {sys.platform}.\n##\n'
         )

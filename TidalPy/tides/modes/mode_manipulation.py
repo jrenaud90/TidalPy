@@ -351,8 +351,8 @@ def collapse_modes(
                 k_abs = np.abs(complex_love)
                 try:
                     effective_q = k_abs / neg_imk
-                except:
-                    # Assume a divide by zero error due to neg_imk = 0.
+                except Exception:
+                    # Numba does not support the proper exception; assume a divide by zero error due to neg_imk = 0.
                     bad_q = True
                     bad_qs += 1
                     effective_q = neg_imk
@@ -384,7 +384,6 @@ def collapse_modes(
         # TODO: These are stored as averages for tidal frequency. Tested just adding them but the effective Q is the
         #    same (for cpl) or large for each mode so the sum becomes quite large.
         N = len(love_number_at_orderl)
-        ignored_eff_qs = 0
         for love, n_k in zip(love_number_at_orderl, negative_imk_at_orderl):
             if tidal_order_l in love_number_by_orderl:
                 love_number_by_orderl[tidal_order_l] += love

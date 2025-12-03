@@ -1,5 +1,45 @@
 # TidalPy Major Change Log
 
+## Version 0.7.X
+
+### Version 0.7.0 (2025-12-02)
+
+#### Fixes
+* Fixed top-level directories and files being mistakenly installed.
+* Updated `np.trapz` to `scipy.integrate.trapezoid` due to deprecation of the former.
+* Fixed bug in the henning melting model where shear modulus may not have had the correct value when fully melted.
+* Fixed issues in some of the demo notebooks.
+* Fixed notebooks to work with changes to Matplotlib.
+
+#### GitHub Actions
+* Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
+
+#### Utilities
+* Added `fontsize` kwarg to projection plotter in utilities.graphics.
+* Changed the default of `yplot` so plotting imaginary parts of radial solution is by default off.
+
+#### Documentation
+* Added JOSS paper draft to Papers/2025-JOSS.
+* Added documentation interface with Sphinx and ReadTheDocs.
+* Added and updated readme badges.
+* Extensive changes to all documentation files and structure.
+* Changed how CHANGES.md (main change log) is structured. Major versions will appear as top level headers.
+
+#### Other
+* Change TidalPy's license to Apache 2.0.
+* Added `CODE_OF_CONDUCT.md` with TidalPy's code of conduct.
+* Added `CONTRIBUTING.md` with information on how others can contribute to TidalPy.
+* Updated `citation.cff` with latest information.
+* Added `codemeta.json` with citation and metadata.
+* Removed MacOS-13 tests.
+* Removed unused code, tests, and documentations.
+* TidalPy now uses `ruff` to check for code issues.
+  * Added ruff lint check to ubuntu tests.
+* Fixed many code issues found with ruff (these are not bug fixes, just syntax compliance and best practices).
+* Moved more module/file level constants into TidalPy.constants and in the configuration file.
+* Added TidalPy logo.
+
+## Version 0.6.X
 
 ### Version 0.6.11 (2025-11-06)
 
@@ -108,7 +148,7 @@
 * Improved `TidalPy.RadialSolver.helpers.build_rs_input_homogeneous_layers` performance by factor of 15% to 3.5x depending on layer structure.
 * Improved `TidalPy.RadialSolver.radial_solver` performance by around 10% depending on layer structure.
 
-## Version 0.6.0 (2025-01-07)
+### Version 0.6.0 (2025-01-07)
 #### Removed
 * Removed support for the older non-cythonized `TidalPy.radial_solver` module in favor of `TidalPy.RadialSolver`
 
@@ -209,58 +249,59 @@
 * Fixed issue where `TidalPy._config_path` was not being updated.
 * Fixed issue where log files could not be created.
 
+## Version 0.5.X
+
 ### Version 0.5.5 (2024-11-11)
 
-Fixes:
+#### Fixes:
 * Fixed dependency compatibility issues.
 * Fixed incorrect function signature type for scipy's `spherical_jn`. SciPy v.1.14.X uses a new signature which is breaking on MacOS. Limiting to "SciPy<1.14" for now. See GitHub Issue #65
 
 ### Version 0.5.4 (2024-04-30)
 
-Fixes:
+#### Fixes:
 * Fixed RadialSolver frequency warning message for dynamic liquid layers not displaying for correct layer types.
 
-Additions:
+#### Additions:
 * Added way to suppress warning messages in RadialSolver.
   * To turn this suppression on, pass `warnings=False` to `RadialSolver.radial_solver`.
 
 ### Version 0.5.3 (2024-04-26)
 
-Fixes:
+#### Fixes:
 * RadialSolver: Fixed bug where solutions between liquid and solid layers were not propagating correctly.
 
-Additions:
+#### Additions:
 * New Love number benchmarks for Earth provided by [Nick Wagner](https://github.com/nlwagner) in `Benchmarks & Performance\RadialSolver\Earth Love Numbers.ipynb` (Jupyter Notebook).
 
-Changes:
+#### Changes:
 * Pre-allocated several cythonized arrays to nans to help with debugging.
 * Provided more error messages to improve user experience.
 * Cythonized non-dim function now takes in the planet's density and radius as variables to change.
 * Improved the Tobie and Roberts benchmarks for radial solver.
 
-Other:
+#### Other:
 * Updated to work with CyRK 0.8.7
 
 ### Version 0.5.2 (2024-02-22)
 
-Documentation
+#### Documentation
 * Improved RadialSolver documentation regarding higher degree-l.
 * Added info about issues that can arise from using non C-continguous arrays in cythonized functions.
 
-Fixes:
+#### Fixes:
 * Added error message to `RadialSolver.radial_solver` if length of provided assumption tuples is not the same.
 * Fixed issue where non C-continguous arrays were allowed in cythonized functions that required them.
 
 ### Version 0.5.1 (2024-02-14)
+
 * Removed Python 3.8 support due to issues with building SciPy.
 
 ### Version 0.5.0 (2024-02-14)
 _This version is likely to break code based on TidalPy v0.4.X and earlier_
 
-Cythonizing TidalPy
-* A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and
-extension classes. The reasons for doing this are numerous. This transition will be completed in stages
-with minor versions (v0.X.0) each bringing a new set of cythonized updates until all njited functions are retired.
+#### Cythonizing TidalPy
+* A major change starting with v0.5.0 is the switch from numba.njited functions to cython precompiled functions and extension classes. The reasons for doing this are numerous. This transition will be completed in stages with minor versions (v0.X.0) each bringing a new set of cythonized updates until all njited functions are retired.
 * For this version: 
   * Converted `TidalPy.radial_solver.radial_solver` to cythonized `TidalPy.RadialSolver.radial_solver`.
     * The old radial solver method will be removed in TidalPy version 0.6.0.
@@ -270,7 +311,7 @@ with minor versions (v0.X.0) each bringing a new set of cythonized updates until
     * The old rheology solvers will be removed in a future release of python.
   * Added several new cython-based helper functions in the utilities package.
 
-Other Major Changes
+#### Other Major Changes
 * Added support for Python 3.11 and 3.12. TidalPy now runs on Python 3.8--3.12.
   * Note that currently the Burnman package does not support 3.12 so that functionality is limited to python 3.8-3.11.
 * Removed support for `solver_numba` in the `radial_solver` module.
@@ -294,7 +335,7 @@ Other Major Changes
 * Moved `BurnMan` 3rd party dependence to a more dedicated `Extending` folder for future development.
 * To make TidalPy lighter weight we are starting to remove a lot of 3rd party packages.
 
-Minor Changes and New Features
+#### Minor Changes and New Features
 * `complex_compliance` configurations are now stored in the top level `rheology` in all configs.
   * For example, in prior TidalPy versions you would need to change the complex compliance model by editing `config['layers']['mantle']['rheology']['complex_compliance']['model'] = 'andrade'`. Now this would be: `config['layers']['mantle']['rheology']['model'] = 'andrade'`.
 * Added unique frequency finder functions to the `modes` module.
@@ -315,35 +356,37 @@ Minor Changes and New Features
   * Future proofing to allow for a greater variety of layer types.
 * Added exoplanet archive download functionality in `TidalPy.utilities.exoplanets`.
   
-Bug Fixes
+#### Bug Fixes
 * Fixed floating point comparison bug in `multilayer_modes` solver.
 * Fixed obliquity not being used issue in quick tides calculator.
 * Fixed issue in incorrect TidalPy version being loaded into the package.
 
-Performance Improvements
+#### Performance Improvements
 * Improved the performance of the stress and strain calculator by ~20%.
 * Cythonize Performance Increases:
   * New `RadialSolver.radial_solver` leads to a ~50x performance boost.
   * New cythonized rheology models are 500% faster for arrays; 40,000% faster for scalars (not a typo!)
 
-#### Version 0.4.1 Alpha (Spring 2023)
-Major Changes
+## Version 0.4.X
+
+### Version 0.4.1 Alpha (Spring 2023)
+#### Major Changes
 * Moved `radial_solver` to a top-level module of TidalPy.
   * Added `find_love` function to the `radial_solver` module for the calculation of Love and Shida numbers.
   * Added `sensitivity_to_shear` function to the `radial_solver` module based on Tobie et al. (2005).
   * Added `sensitivity_to_bulk` function to the `radial_solver` module based on Tobie et al. (2005).
 * Added `newton` and `elastic` complex compliances to rheology module for ALMA comparisons.
 
-Minor Changes
+#### Minor Changes
 * Updated and added to `radial_solver` test suite.
 * Changed `radial_solver.interfaces` functions to only require the top most value of the radial solutions rather than the whole array.
 
-Bug Fixes
+#### Bug Fixes
 * Fixed bug in `radial_solver` where interfaces between a dynamic and static liquid were not correctly handled.
 
 ### Version 0.4.0 Alpha (Winter 2022/2023)
 
-Major Changes 
+#### Major Changes 
 * Added a multilayer tidal potential that allows for arbitrary obliquity.
 * Added in load Love number calculations to the multilayer code.
 * Removed a lot of 3rd-party dependencies to make TidalPy's install more lean.
@@ -377,10 +420,10 @@ Major Changes
   * Removed the pre-calculated factorial method. Using scipy's gamma now.
   * TODO: Note the numba-scipy package on github is not updated to the newest version of scipy. Packaging numba-scipy with TidalPy for now.
 
-Performance Improvements
+#### Performance Improvements
 * Improved the performance of the pure-numba radial solve by ~10%
 
-Minor Changes
+#### Minor Changes
 * Added newer functions to the performance recording suite.
 * Improved performance of eccentricity and inclination functions for non-multilayer tidal calculations.
 * Added TidalPy to Zenodo. DOI added to readme.
@@ -400,7 +443,7 @@ Minor Changes
 * Updated the pure-numba version of the radial solver's argument signature to better match the python implementation.
 * Updated Github Actions
 
-Bug Fixes
+#### Bug Fixes
 * Fixed bug in GridPlot related to number of subplots.
 * Fixed bug in global variable for world config loader.
 * Fixed type hint bug in the numba-based tidal y solver.
@@ -408,17 +451,18 @@ Bug Fixes
 * Fixed bug that was causing full TidalPy log to print while in a Jupyter Notebook environment.
   * If you would like the log to print in a notebook then use `TidalPy.toggle_log_print_in_jupyter()` or set the
 `print_log_in_jupyter` to `True` in the "configurations.py" file.
-* Fixed an error in the multimode volumetric heating calculation where "_rr", "_thth", "_phiphi" were being double
-counted
+* Fixed an error in the multimode volumetric heating calculation where "_rr", "_thth", "_phiphi" were being double counted
 * Fixed an error in the stress/strain calculations where the static, instead of complex, shear was being used.
+
+## Version 0.3.X
 
 ### Version 0.3.5 Alpha (Spring 2022)
 
-Minor Changes
+#### Minor Changes
 * Removed the soon-to-be deprecated np.float, np.complex, np.int references.
 * Added a check to see if cartopy is installed before functions that depend on it are imported. 
 
-Bug Fixes
+#### Bug Fixes
 * Fixed coverage problem with github actions.
 * Fixed issue importing nbTuple.
 * Fixed issues with GitHub actions and coverage.
@@ -427,7 +471,7 @@ Bug Fixes
 
 *Multilayer scripts based on 0.3.3 or earlier will likely break with this version!*
 
-Major Changes
+#### Major Changes
 * Added `TidalPy.modes.multilayer_modes.py` module to offer simplified calculation of multilayer tidal
   heating.
 * Added `GridPlot` class to quickly make grid-like matplotlib figures.
@@ -448,7 +492,7 @@ Major Changes
       calculations.
 * Added numba-safe version of multilayer calc
 
-Minor Changes
+#### Minor Changes
 * Added a helper function to quickly calculate masses, volumes, and gravity for spherical shells provided a radius
   and density array: `TidalPy.utilities.spherical_helper.calculate_mass_gravity_arrays`.
 * Added more colormaps, updated how reserved versions are constructed, updated old maps.
@@ -466,42 +510,42 @@ Minor Changes
   modules
 * Reworked numba-safe RK integrator. Does not reproduce scipy exactly for chaotic functions when numba is on.
 
-Bug Fixes
+#### Bug Fixes
 * Fixed issue that was causing some multilayer boundary calculations to be 10x slower.
 * Fixed issue where 2D arrays would not work on njited `neg_array_for_log_plot` function.
 * Fixed issue where there could be negative love numbers with frequency is zero in multi-mode calculator
 
 ### Version 0.3.3 Alpha (Fall 2021)
 
-Major Changes
+#### Major Changes
 * Updated to work with BurnMan v1.0 release.
 * Updated the NSR tidal potential for multilayer code to a multi-modal version
 * Improvements to the multilayer module
 
-Minor Changes
+#### Minor Changes
 * Added more tests
 * Removed the remaining `_array` functions
 
 ### Version 0.3.2 Alpha (Summer 2021)
 
-Major Changes
+#### Major Changes
 * Changes to setup to use released version of BurnMan.
 
 ### Version 0.3.1 Alpha (Summer 2021)
 
-Major Changes
+#### Major Changes
 * Added a simplistic (not modal version) NSR tidal potential for use in the multilayer code.
 * Added multiprocessor toolkit to `TidalPy.utilities.multiprocessing`
 
-Minor Changes
+#### Minor Changes
 * Did large scale code reformatting (just style, no refactoring) on nearly all files.
 * Cleaned up some doc strings.
 
-## Version 0.3.0 Alpha (Spring 2021)
+### Version 0.3.0 Alpha (Spring 2021)
 
 *Scripts based on 0.2.x will likely break with this version!*
 
-Major Changes:
+#### Major Changes:
 * Added the first iteration of a multilayer tidal calculator module in `TidalPy.tides.multilayer` this module
   provides basic functionality to calculate tidal dissipation in a semi-homogeneous, shell-based approach. This is
   more accurate than the pure homogeneous model used throughout the rest of TidalPy. The downside with the current
@@ -518,7 +562,7 @@ Major Changes:
     * This also allows the integration function to be used from within another njit'd function(s).
     * This is still very experimental so please use caution and testing when using it.
 
-Minor Changes
+#### Minor Changes
 * Numerous bug fixes.
 * Removed the array versions of the dynamic functions.
     * `use_array` is still tracked in OOP and some quick calculation functions. These may all be not necessary now.
@@ -533,13 +577,15 @@ Minor Changes
 * conversions.semi_a2orbital_motion and orbital_motion2semi_a now always return np.nan where they used to return
   complex numbers.
 
-## Version 0.2.1 Alpha (Fall 2020)
+## Version 0.2.X
+
+### Version 0.2.1 Alpha (Fall 2020)
 
 *Will break studies based on previous versions*
 
 Note: TidalPy version of "0.2.0" was never made publicly available. This is the next version after 0.1.0.
 
-Major Changes
+#### Major Changes
 * Major refactoring all over.
 * Replaced the custom logging system with one based on Python's logging package.
     * Logger will not print to console if using a Jupyter notebook.
@@ -564,12 +610,12 @@ Major Changes
 * Other
     * Various functions and classes have been reworked or removed to simplify the code base.
 
-Minor Changes
+#### Minor Changes
 * Removed ".pyname" from classes.
 * Utilities package has been reorganized.
 * Changed the setup pipeline to only require one command.
 
-QOL Improvements
+#### QOL Improvements
 * Many new docstrings, type hints, and overall clean up of functions and classes. All docstrings should now follow
   the numpy format.
 * Many new tests for both the functional and OOP versions of TidalPy.
@@ -579,13 +625,15 @@ QOL Improvements
   utilities.graphics module
 * More log.debug() calls all over. This should hopefully help bugfixes in the future (especially OOP bugs).
 
-Bug Fixes:
+#### Bug Fixes:
 * Fixed bug in world_builder.py : build_from_world where nested dicts were not being overwritten as expected.
 * Fixed bug in melt fraction checks for the float version of the Henning model.
 * Fixed bug in the Henning melting model where viscosity and shear was not being calculated correctly during the
   breakdown band (critical melt fraction + ~5%). This only affected a phase space that was rarely important for
   tidal calculations (planets would pass through it *very* quickly).
 
-## Version 0.1.0 Alpha (July 2019)
+## Version 0.1.X
+
+### Version 0.1.0 Alpha (July 2019)
 
 *Initial Release - Changes not tracked*

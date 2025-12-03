@@ -1,4 +1,3 @@
-import TidalPy
 
 
 from TidalPy.structures import build_world

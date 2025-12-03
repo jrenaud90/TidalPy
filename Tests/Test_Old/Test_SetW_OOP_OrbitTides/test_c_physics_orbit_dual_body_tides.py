@@ -1,6 +1,5 @@
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.structures import build_from_world, build_world

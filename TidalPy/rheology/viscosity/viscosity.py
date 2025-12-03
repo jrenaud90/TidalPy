@@ -77,7 +77,7 @@ class ViscosityParentClass(LayerModelHolder):
             Viscosity of the layer [Pa s]
         """
 
-        if type(self.temperature) == np.ndarray:
+        if type(self.temperature) is np.ndarray:
             viscosity = self.func_array(*self.live_inputs, *self.inputs)
         else:
             viscosity = self.func(*self.live_inputs, *self.inputs)

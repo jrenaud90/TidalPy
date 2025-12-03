@@ -322,7 +322,7 @@ def multiprocessing_run(
                 mp_file.write(success_text)
 
             # Save key data to disk
-            np.savez(os.path.join(this_run_dir, f'mp_results.npz'), **result)
+            np.savez(os.path.join(this_run_dir, 'mp_results.npz'), **result)
 
         return MultiprocessingOutput(case_number=run_num, input_index=run_indicies, result=result)
 
@@ -335,7 +335,9 @@ def multiprocessing_run(
                 print('Using Pathos for Multiprocessing.')
             try:
                 with pathos_mp.ProcessingPool(nodes=procs_to_use) as pool:
-                    patho_func = lambda x: func_to_use(*x)
+                    def patho_func(x):
+                        return func_to_use(*x)
+
                     mp_results = pool.map(patho_func, cases, chunksize=chunksize)
             except Exception as study_error_:
                 study_error = study_error_
@@ -437,7 +439,7 @@ def multiprocessing_run(
                         )
 
         with open(mp_log_path, 'a') as mp_file:
-            mp_file.write(f'\n\nStudy successfully completed.\n')
+            mp_file.write('\n\nStudy successfully completed.\n')
 
         if verbose:
             print('Multiprocessing Study Completed.')

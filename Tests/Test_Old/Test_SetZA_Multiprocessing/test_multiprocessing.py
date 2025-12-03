@@ -4,7 +4,6 @@ import pathlib
 
 import numpy as np
 
-import TidalPy
 
 
 from TidalPy.utilities.multiprocessing import MultiprocessingInput, MultiprocessingOutput, multiprocessing_run
