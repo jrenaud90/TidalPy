@@ -2,19 +2,21 @@
 
 ## Version 0.7.X
 
-### Version 0.7.0 (2025-12-X)
+### Version 0.7.0 (2025-12-02)
 
 #### Fixes
 * Fixed top-level directories and files being mistakenly installed.
 * Updated `np.trapz` to `scipy.integrate.trapezoid` due to deprecation of the former.
 * Fixed bug in the henning melting model where shear modulus may not have had the correct value when fully melted.
 * Fixed issues in some of the demo notebooks.
+* Fixed notebooks to work with changes to Matplotlib.
 
 #### GitHub Actions
 * Added action to automatically update version numbers, dates, and commit hashs in `citation.cff`, `codemeta.json`, and `meta.yaml`.
 
 #### Utilities
 * Added `fontsize` kwarg to projection plotter in utilities.graphics.
+* Changed the default of `yplot` so plotting imaginary parts of radial solution is by default off.
 
 #### Documentation
 * Added JOSS paper draft to Papers/2025-JOSS.
