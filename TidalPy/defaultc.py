@@ -27,7 +27,7 @@ default_config_str = """
     console_level = "INFO"
     console_error_level = "WARNING"
 
-    # Determine if log should be printed to consol or written to disk when run in a jupyter notebook.
+    # Determine if log should be printed to console or written to disk when run in a jupyter notebook.
     print_log_notebook = false
     write_log_notebook = false
 

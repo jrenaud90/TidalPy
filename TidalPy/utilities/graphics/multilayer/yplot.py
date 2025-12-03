@@ -25,7 +25,7 @@ def yplot(
     plot_roberts: bool = False,
     other_xlimits = None,
     other_ylimits = None,
-    plot_imags = True
+    plot_imags = False
     ):
     """ Plot the six tidal y's in a six panel figure
 
@@ -53,6 +53,8 @@ def yplot(
         If True, then data from Tobie+ (2005) will be plotted alongside input data (good for benchmarking)
     plot_roberts: bool = False
         If True, then data from Roberts & Nimmo (2008) will be plotted alongside input data (good for benchmarking)
+    plot_imags: bool = False
+        If True, imaginary portions of radial solutions will also be plotted (default is just real)
 
     Returns
     -------

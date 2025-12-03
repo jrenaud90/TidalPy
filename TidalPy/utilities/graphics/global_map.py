@@ -281,10 +281,10 @@ def projection_map(
         colorbar.set_ticks(zticks)
     if ztick_labels is not None:
         colorbar.ax.set_yticklabels(ztick_labels)
-    
-    colorbar.formatter.set_powerlimits((0, 0)) 
-    # Optionally, use MathText for a more aesthetic representation of exponents
-    colorbar.formatter.set_useMathText(True) 
+    else:
+        colorbar.formatter.set_powerlimits((0, 0)) 
+        # Optionally, use MathText for a more aesthetic representation of exponents
+        colorbar.formatter.set_useMathText(True)
 
     # Set labels
     ax.set_xlabel(xlabel, fontsize=base_line_fontsize)
