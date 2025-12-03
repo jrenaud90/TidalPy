@@ -214,7 +214,7 @@ package by using the preferred citation found in the
 We also would love to hear where TidalPy is being used! Please feel free to send us an email:
 [TidalPy@gmail.com](mailto:TidalPy@gmail.com) when a paper or presentation utilized TidalPy. Anyone is welcome to
 create forks or copies of TidalPy as long as their work references back to this page. License information can be
-found [here](https://tidalpy.readthedocs.io/en/latest/License.html).
+found [here](https://tidalpy.readthedocs.io/en/latest/Overview/License.html).
 
 ```bibtex
 @software{2022zndo...7017475R,
