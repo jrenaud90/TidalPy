@@ -9,7 +9,7 @@
   "dateModified": "2025-12-03",
   "codeRepository": "https://github.com/jrenaud90/TidalPy",
   "issueTracker": "https://github.com/jrenaud90/TidalPy/issues",
-  "license": "https://spdx.org/licenses/CC-BY-SA-4.0",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
   "url": "https://TidalPy.info",
   "author": [
     {

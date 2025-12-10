@@ -2,6 +2,11 @@
 
 ## Version 0.7.X
 
+### Version 0.7.1 (NNN)
+
+#### Repository
+* Fixes incorrect license url in codemeta.json.
+
 ### Version 0.7.0 (2025-12-02)
 
 #### Fixes
