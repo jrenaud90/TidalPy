@@ -69,6 +69,15 @@
     "is_cpp": true
   },
 
+  "utilities.lookups.intmap3": {
+    "name": "TidalPy.utilities.lookups.intmap3",
+    "sources": [["TidalPy", "utilities", "lookups", "intmap3.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "lookups", "intmap3"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "rheology.common": {
     "name": "TidalPy.rheology.base",
     "sources": [["TidalPy", "rheology", "base.pyx"]],
