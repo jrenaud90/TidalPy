@@ -23,6 +23,8 @@ TidalPy-Run*
 !TidalPy/utilities/dimensions/nondimensional_.hpp
 !TidalPy/utilities/lookups/intmap3_.cpp
 !TidalPy/utilities/lookups/intmap3_.hpp
+!TidalPy/utilities/lookups/intmap4_.cpp
+!TidalPy/utilities/lookups/intmap4_.hpp
 
 # End TidalPy
 

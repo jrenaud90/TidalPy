@@ -1,34 +1,35 @@
-#include "intmap3_.hpp"
+#include "intmap4_.hpp"
 
 // CONSTANTS FOR PACKING
-// Support signed 16-bit integers: -32,768 to +32,767
+// We support signed 16-bit integers: -32,768 to +32,767
 const int32_t OFFSET = 32768;
 
-inline KeyType3 convet_3key(int16_t l, int16_t m, int16_t p)
+inline KeyType4 convet_4key(int16_t l, int16_t m, int16_t p, int16_t q)
 {
     // Helper to pack the key
-    return (static_cast<KeyType3>(l + OFFSET) << 32) | 
-           (static_cast<KeyType3>(m + OFFSET) << 16) | 
-           static_cast<KeyType3>(p + OFFSET);
+    return (static_cast<KeyType4>(l + OFFSET) << 48) | 
+           (static_cast<KeyType4>(m + OFFSET) << 32) | 
+           (static_cast<KeyType4>(p + OFFSET) << 16) | 
+           static_cast<KeyType4>(q + OFFSET);
 }
 
-c_IntMap3::c_IntMap3()
+c_IntMap4::c_IntMap4()
 {
     // Reserve capacity
     data.reserve(35);
 }
 
-void c_IntMap3::reserve(size_t n)
+void c_IntMap4::reserve(size_t n)
 {
     // Reserve memory if you know the rough size (prevents reallocation)
     this->data.reserve(n);
 }
 
-void c_IntMap3::set(int16_t l, int16_t m, int16_t p, double value)
+void c_IntMap4::set(int16_t l, int16_t m, int16_t p, int16_t q, double value)
 {
     // Insert or Update
     // O(N) worst case, but O(1) if you insert in order (append).
-    KeyType3 key = convet_3key(l, m, p);
+    KeyType4 key = convet_4key(l, m, p, q);
 
     // Optimization: If inserting in strict order, just push_back
     if (this->data.empty() || key > this->data.back().first) {
@@ -38,7 +39,7 @@ void c_IntMap3::set(int16_t l, int16_t m, int16_t p, double value)
 
     // Otherwise, find position to keep it sorted
     auto it = std::lower_bound(this->data.begin(), this->data.end(), key, 
-        [](const auto& entry, KeyType3 k) { return entry.first < k; });
+        [](const auto& entry, KeyType4 k) { return entry.first < k; });
 
     if (it != this->data.end() && it->first == key) {
         it->second = value; // Update existing
@@ -47,20 +48,20 @@ void c_IntMap3::set(int16_t l, int16_t m, int16_t p, double value)
     }
 }
 
-size_t c_IntMap3::size() const
+size_t c_IntMap4::size() const
 {
     return this->data.size();
 }
 
-double c_IntMap3::get(bool& o_found, int16_t l, int16_t m, int16_t p) const
+double c_IntMap4::get(bool& o_found, int16_t l, int16_t m, int16_t p, int16_t q) const
 {
     // Lookup
     // O(log N) - Binary Search. For N=200, this is ~8 comparisons
-    KeyType3 key = convet_3key(l, m, p);
+    KeyType4 key = convet_4key(l, m, p, q);
     o_found = true;
     
     auto it = std::lower_bound(this->data.begin(), this->data.end(), key, 
-        [](const auto& entry, KeyType3 k) { return entry.first < k; });
+        [](const auto& entry, KeyType4 k) { return entry.first < k; });
         
     if (it != this->data.end() && it->first == key) {
         return it->second;
@@ -71,15 +72,15 @@ double c_IntMap3::get(bool& o_found, int16_t l, int16_t m, int16_t p) const
     return 0.0;
 }
 
-const std::vector<std::pair<KeyType3, double>>& c_IntMap3::get_raw_data() const
+const std::vector<std::pair<KeyType4, double>>& c_IntMap4::get_raw_data() const
 {
-    // Since we are usually iterating iterate in order (2,0,0), (2,0,1)...
+    // Since we are usually iterating iterate in order (2,0,0,0), (2,0,1,0)...
     // Expose the raw vector for iteration. 
     // This is faster than calling get() in a loop.
     return this->data;
 }
 
-void c_IntMap3::clear()
+void c_IntMap4::clear()
 {
     this->data.clear();
 }

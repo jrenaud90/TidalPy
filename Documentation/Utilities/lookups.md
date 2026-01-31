@@ -6,9 +6,9 @@ Cython so they can also be accessed in Cython or Python.
 
 ## `IntMap3`
 `IntMap3` is a lookup array (based off C++ vectors) that takes in 3 integers (`l,m,p`) and stores a double. This is not
-a hash table. Instead it converts the 3 integers (which are assumed to be less than 1023) into a single 32-bit integer.
-This is then used as a key that is mapped to the provided double precision floating point number.
-- The key layout is: [ 2 bits unused | 10 bits l | 10 bits m | 10 bits p ].
+a hash table. Instead it converts the 3 integers (which are assumed to fit in 16-bits: -32768 to +32767) into a single
+64-bit integer. This is then used as a key that is mapped to the provided double precision floating point number.
+- The key layout is: [16 bits unused | 16 bits l | 16 bits m | 16 bits p].
 - Data is stored contiguously as a C++ `pair`: `pair.first` = Packed Key, `pair.second` = Value.
 
 Example usage in Python:
@@ -21,8 +21,12 @@ my_map = IntMap3()
 # Try setting
 my_map[(1,2,3)] = 70.0
 
+# They can be negative
+my_map[(1,-2,3)] = 170.0
+
 # Try getting
 print(my_map[(1,2,3)])
+print(my_map[(1,-2,3)])
 
 # Check other methods
 my_map.clear()
@@ -35,3 +39,8 @@ print(test_map.get())
 ```
 
 Please take a look at the .pyx, .cpp, and .hpp to see how to use these structures in C++ or Cython.
+
+## `IntMap4`
+`IntMap4` works the same as the aforementioned `IntMap3` except that it uses a key made up of 4 16-bit integers.
+- The key layout is: [ 16 bits l | 16 bits m | 16 bits p | 16 bits q ].
+- All of the methods like getters and setters are expanded to 4-tuples or 4 integer inputs.

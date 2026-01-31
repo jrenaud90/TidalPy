@@ -8,13 +8,13 @@
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
 
 #### Utilities
-* Added a new lookup structure `TidalPy.utilities.lookups.IntMap3` that stores a double floating point number by unique 3 integer key.
+* Added a new lookup structure `TidalPy.utilities.lookups.IntMap3` and `IntMap4` that stores a double floating point number by unique 3 (or 4 in the case of `IntMap4`) integer key.
 
 #### Tests
 * Added tests for `TidalPy.get_include`
 
 #### Documentation
-* Added documentation for `IntMap3` in the Utilities module section.
+* Added documentation for `IntMap3` and `IntMap4` in the Utilities module section.
 * Added a note about `TidalPy.get_include` in the readme.
 
 ### Version 0.7.0 (2025-12-02)
