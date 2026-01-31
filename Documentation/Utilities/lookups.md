@@ -40,7 +40,11 @@ print(test_map.get())
 
 Please take a look at the .pyx, .cpp, and .hpp to see how to use these structures in C++ or Cython.
 
+**A complex valued version is available: `from TidalPy.utilities.lookups.intmap3 import Intmap3Complex`.**
+
 ## `IntMap4`
 `IntMap4` works the same as the aforementioned `IntMap3` except that it uses a key made up of 4 16-bit integers.
 - The key layout is: [ 16 bits l | 16 bits m | 16 bits p | 16 bits q ].
 - All of the methods like getters and setters are expanded to 4-tuples or 4 integer inputs.
+
+**A complex valued version is available: `from TidalPy.utilities.lookups.intmap4 import Intmap4Complex`.**

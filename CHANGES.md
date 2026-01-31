@@ -9,6 +9,7 @@
 
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMap3` and `IntMap4` that stores a double floating point number by unique 3 (or 4 in the case of `IntMap4`) integer key.
+  * Complex versions are also available as `IntMap3Complex` and `IntMap4Complex`.
 
 #### Tests
 * Added tests for `TidalPy.get_include`

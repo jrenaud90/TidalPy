@@ -1,44 +1,80 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
 #include <algorithm>
 #include <cstdint>
+#include <utility>
+#include <complex> // Required for complex support
 
+// Define KeyType
 typedef uint64_t KeyType3;
 
-// Helper to pack the key
-inline KeyType3 convet_3key(int16_t l, int16_t m, int16_t p);
+// Correct OFFSET (int32_t) to prevent overflow
+const int32_t OFFSET = 32768;
 
+// Helper to pack key
+inline KeyType3 convet_3key(int16_t l, int16_t m, int16_t p) {
+    return (static_cast<KeyType3>(l + OFFSET) << 32) | 
+           (static_cast<KeyType3>(m + OFFSET) << 16) | 
+           static_cast<KeyType3>(p + OFFSET);
+}
+
+
+template <typename T>
 class c_IntMap3 {
 private:
-    // We pack (l, m, p) into a single 32-bit integer.
-    // Assuming l, m, p < 65,535. We allocate 16 bits per number (up to 65,535).
-    // Layout: [16 bits Unused | 16 bits m | 16 bits p | 16 bits q]
-    
-    // Store data contiguously.
-    // pair.first = Packed Key, pair.second = Value
-    std::vector<std::pair<KeyType3, double>> data;
+    std::vector<std::pair<KeyType3, T>> data;
+
 public:
-    c_IntMap3();
+    c_IntMap3() {
+        data.reserve(35);
+    }
 
-    // Reserve memory if you know the rough size (prevents reallocation)
-    void reserve(size_t n);
+    void reserve(size_t n) {
+        data.reserve(n);
+    }
 
-    // Insert or Update
-    // O(N) worst case, but O(1) if you insert in order (append).
-    void set(int16_t l, int16_t m, int16_t p, double value);
-
-    // Lookup
-    // O(log N) - Binary Search. For N=200, this is ~8 comparisons.
-    double get(bool& o_found, int16_t l, int16_t m, int16_t p) const;
-    size_t size() const;
-
-    // Since we are usually iterating iterate in order (2,0,0), (2,0,1)...
-    // Expose the raw vector for iteration. 
-    // This is faster than calling get() in a loop.
-    const std::vector<std::pair<KeyType3, double>>& get_raw_data() const;
+    void clear() {
+        data.clear();
+    }
     
-    // Clear the vector
-    void clear();
+    size_t size() const {
+        return data.size();
+    }
+
+    // Changed 'double' to 'T'
+    void set(int16_t l, int16_t m, int16_t p, T value) {
+        KeyType3 key = convet_3key(l, m, p);
+
+        if (data.empty() || key > data.back().first) {
+            data.emplace_back(key, value);
+            return;
+        }
+
+        auto it = std::lower_bound(data.begin(), data.end(), key, 
+            [](const auto& entry, KeyType3 k) { return entry.first < k; });
+
+        if (it != data.end() && it->first == key) {
+            it->second = value;
+        } else {
+            data.insert(it, {key, value});
+        }
+    }
+
+    // Changed 'double' to 'T'
+    // Note: We return T by value here for simplicity, or we can use reference param
+    T get(bool& o_found, int16_t l, int16_t m, int16_t p) const {
+        KeyType3 key = convet_3key(l, m, p);
+        o_found = true;
+        
+        auto it = std::lower_bound(data.begin(), data.end(), key, 
+            [](const auto& entry, KeyType3 k) { return entry.first < k; });
+            
+        if (it != data.end() && it->first == key) {
+            return it->second;
+        }
+
+        o_found = false;
+        return T(); // Default construct (0.0 or 0j)
+    }
 };
