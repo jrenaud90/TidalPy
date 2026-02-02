@@ -1,152 +1,99 @@
 import pytest
 from math import isclose
 
-from TidalPy.utilities.lookups import IntMap3, IntMap4, IntMap3Complex, IntMap4Complex
+from TidalPy.utilities.lookups import (
+    IntMap1, IntMap2, IntMap3, IntMap4,
+    IntMap1Complex, IntMap2Complex, IntMap3Complex, IntMap4Complex,
+)
+
+class_dict = {
+    'IntMap1': IntMap1,
+    'IntMap2': IntMap2,
+    'IntMap3': IntMap3,
+    'IntMap4': IntMap4,
+    'IntMap1Complex': IntMap1Complex,
+    'IntMap2Complex': IntMap2Complex,
+    'IntMap3Complex': IntMap3Complex,
+    'IntMap4Complex': IntMap4Complex,
+}
 
 
 @pytest.mark.parametrize('use_complex', (True, False))
-def test_intmap3(use_complex):
+@pytest.mark.parametrize('key_size', (1, 2, 3, 4))
+def test_intmap3(use_complex, key_size):
     if use_complex:
-        test_map = IntMap3Complex()
+        test_map = class_dict[f'IntMap{key_size}Complex']()
     else:
-        test_map = IntMap3()
+        test_map = class_dict[f'IntMap{key_size}']()
+
+    test_key = [i + 2 for i in range(key_size)]
+
 
     # Try setting
     if use_complex:
-        test_map[(1,2,3)] = 70.0 - 4.0j
+        test_map[tuple(test_key)] = 70.0 - 4.0j
     else:
-        test_map[(1,2,3)] = 70.0
+        test_map[tuple(test_key)] = 70.0
     assert test_map.size() == 1
 
     # Try getting
     if use_complex:
-        assert isclose(test_map[(1,2,3)].real, 70.0)
-        assert isclose(test_map[(1,2,3)].imag, -4.0)
+        assert isclose(test_map[tuple(test_key)].real, 70.0)
+        assert isclose(test_map[tuple(test_key)].imag, -4.0)
     else:
-        assert isclose(test_map[(1,2,3)], 70.0)
+        assert isclose(test_map[tuple(test_key)], 70.0)
 
     # Try using negatives
-    if use_complex:
-        test_map[(1,-2,3)] = 167.8 + 78j
+    if key_size == 1:
+        test_key[0] = -2
     else:
-        test_map[(1,-2,3)] = 167.8
+        test_key[1] = -2
+    
     if use_complex:
-        assert isclose(test_map[(1,-2,3)].real, 167.8)
-        assert isclose(test_map[(1,-2,3)].imag, 78.0)
+        test_map[tuple(test_key)] = 167.8 + 78j
     else:
-        assert isclose(test_map[(1,-2,3)], 167.8)
+        test_map[tuple(test_key)] = 167.8
+    if use_complex:
+        assert isclose(test_map[tuple(test_key)].real, 167.8)
+        assert isclose(test_map[tuple(test_key)].imag, 78.0)
+    else:
+        assert isclose(test_map[tuple(test_key)], 167.8)
 
     # More tests
     for i in range(10):
-        test_map[(1,i,3)] = 25.2
+        if key_size == 1:
+            test_key[0] = i
+        else:
+            test_key[1] = i
+        test_map[tuple(test_key)] = 25.2
+
+        if use_complex:
+            assert isclose(test_map[tuple(test_key)].real, 25.2)
+            assert isclose(test_map[tuple(test_key)].imag, 0.0)
     
     assert test_map.size() == 11
-    if use_complex:
-        assert isclose(test_map[(1,0,3)].real, 25.2)
-        assert isclose(test_map[(1,2,3)].real, 25.2)
-        assert isclose(test_map[(1,9,3)].real, 25.2)
-        assert isclose(test_map[(1,0,3)].imag, 0.0)
-        assert isclose(test_map[(1,2,3)].imag, 0.0)
-        assert isclose(test_map[(1,9,3)].imag, 0.0)
-    else:
-        assert isclose(test_map[(1,0,3)], 25.2)
-        assert isclose(test_map[(1,2,3)], 25.2)
-        assert isclose(test_map[(1,9,3)], 25.2)
 
     # Check unset value
     with pytest.raises(KeyError):
-        result = test_map[(2,2,3)]
+        test_key[0] = 1999
+        result = test_map[tuple(test_key)]
 
     # Check other methods
     test_map.clear()
     assert test_map.size() == 0
     test_map.reserve(10)
     assert test_map.size() == 0
+    test_key = [i + 2 for i in range(key_size)]
     with pytest.raises(KeyError):
-        result = test_map[(1,2,3)]
+        result = test_map[tuple(test_key)]
 
     if use_complex:
-        test_map.set(1, 1, 2, 45.4 - 9.4j)
-        assert isclose(test_map[(1,1,2)].real, 45.4)
-        assert isclose(test_map.get(1,1,2).real, 45.4)
-        assert isclose(test_map[(1,1,2)].imag, -9.4)
-        assert isclose(test_map.get(1,1,2).imag, -9.4)
+        test_map.set(tuple(test_key), 45.4 - 9.4j)
+        assert isclose(test_map[tuple(test_key)].real, 45.4)
+        assert isclose(test_map.get(tuple(test_key)).real, 45.4)
+        assert isclose(test_map[tuple(test_key)].imag, -9.4)
+        assert isclose(test_map.get(tuple(test_key)).imag, -9.4)
     else:
-        test_map.set(1, 1, 2, 45.4)
-        assert isclose(test_map[(1,1,2)], 45.4)
-        assert isclose(test_map.get(1,1,2), 45.4)
-
-
-@pytest.mark.parametrize('use_complex', (True, False))
-def test_intmap4(use_complex):
-    if use_complex:
-        test_map = IntMap4Complex()
-    else:
-        test_map = IntMap4()
-
-    # Try setting
-    if use_complex:
-        test_map[(1,2,3,5)] = 70.0 - 4.0j
-    else:
-        test_map[(1,2,3,5)] = 70.0
-    assert test_map.size() == 1
-
-    # Try getting
-    if use_complex:
-        assert isclose(test_map[(1,2,3,5)].real, 70.0)
-        assert isclose(test_map[(1,2,3,5)].imag, -4.0)
-    else:
-        assert isclose(test_map[(1,2,3,5)], 70.0)
-
-    # Try using negatives
-    if use_complex:
-        test_map[(1,-2,3,-5)] = 167.8 + 78j
-    else:
-        test_map[(1,-2,3,-5)] = 167.8
-    if use_complex:
-        assert isclose(test_map[(1,-2,3,-5)].real, 167.8)
-        assert isclose(test_map[(1,-2,3,-5)].imag, 78.0)
-    else:
-        assert isclose(test_map[(1,-2,3,-5)], 167.8)
-
-    # More tests
-    for i in range(10):
-        test_map[(1,i,3,5)] = 25.2
-    
-    assert test_map.size() == 11
-    if use_complex:
-        assert isclose(test_map[(1,0,3,5)].real, 25.2)
-        assert isclose(test_map[(1,2,3,5)].real, 25.2)
-        assert isclose(test_map[(1,9,3,5)].real, 25.2)
-        assert isclose(test_map[(1,0,3,5)].imag, 0.0)
-        assert isclose(test_map[(1,2,3,5)].imag, 0.0)
-        assert isclose(test_map[(1,9,3,5)].imag, 0.0)
-    else:
-        assert isclose(test_map[(1,0,3,5)], 25.2)
-        assert isclose(test_map[(1,2,3,5)], 25.2)
-        assert isclose(test_map[(1,9,3,5)], 25.2)
-
-    # Check unset value
-    with pytest.raises(KeyError):
-        result = test_map[(2,2,3,5)]
-
-    # Check other methods
-    test_map.clear()
-    assert test_map.size() == 0
-    test_map.reserve(10)
-    assert test_map.size() == 0
-    with pytest.raises(KeyError):
-        result = test_map[(1,2,3,5)]
-
-    if use_complex:
-        test_map.set(1, 1, 2, 5, 45.4 - 9.4j)
-        assert isclose(test_map[(1,1,2,5)].real, 45.4)
-        assert isclose(test_map.get(1,1,2,5).real, 45.4)
-        assert isclose(test_map[(1,1,2,5)].imag, -9.4)
-        assert isclose(test_map.get(1,1,2,5).imag, -9.4)
-    else:
-        test_map.set(1, 1, 2, 5, 45.4)
-        assert isclose(test_map[(1,1,2,5)], 45.4)
-        assert isclose(test_map.get(1,1,2,5), 45.4)
-
-    assert test_map.size() == 1
+        test_map.set(tuple(test_key), 45.4)
+        assert isclose(test_map[tuple(test_key)], 45.4)
+        assert isclose(test_map.get(tuple(test_key)), 45.4)

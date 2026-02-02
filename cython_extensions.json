@@ -69,18 +69,10 @@
     "is_cpp": true
   },
 
-  "utilities.lookups.intmap3": {
-    "name": "TidalPy.utilities.lookups.intmap3",
-    "sources": [["TidalPy", "utilities", "lookups", "intmap3.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "lookups", "intmap3"]],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "utilities.lookups.intmap4": {
-    "name": "TidalPy.utilities.lookups.intmap4",
-    "sources": [["TidalPy", "utilities", "lookups", "intmap4.pyx"]],
-    "include_dirs": [["TidalPy", "utilities", "lookups", "intmap4"]],
+  "utilities.lookups.intmap": {
+    "name": "TidalPy.utilities.lookups.intmap",
+    "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],
+    "include_dirs": [["TidalPy", "utilities", "lookups"]],
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
