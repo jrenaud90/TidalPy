@@ -46,4 +46,9 @@ print(my_complex_map[(1, 2, 3)])
 
 ```
 
+`IntMapN` is meant to behave similar to a Python dictionary. The following are supported:
+- Setting/getting with `my_map[...]`
+- Finding number of items with `len(my_map)`
+- Iterators (like `iter` or just `for x in my_map`) with the signature of `key_tuple, value in my_map`
+
 Please take a look at the .pyx, .cpp, and .hpp to see how to use these structures in C++ or Cython.

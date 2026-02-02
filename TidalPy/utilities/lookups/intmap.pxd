@@ -47,12 +47,12 @@ cdef extern from "intmap_.hpp" nogil:
 
     cdef cppclass c_IntMap[KeyType, ValueType]:
         vector[pair[KeyType, ValueType]] data
-        c_IntMap() except +
+        c_IntMap() except +  # For simplicity, only define the regular no-argument constructor.
         void reserve(size_t n)
         void clear()
         size_t size() const
-        void set(KeyType key, ValueType value)
-        ValueType get(cpp_bool& o_found, KeyType key) const
+        void set(const KeyType& key, const ValueType& value)
+        ValueType get(cpp_bool& o_found, const KeyType& key) const
 
 cdef class IntMap4:
     cdef c_IntMap[c_Key4, double] intmap_cinst

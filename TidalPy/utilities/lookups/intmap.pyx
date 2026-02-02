@@ -62,6 +62,24 @@ cdef class IntMap4:
     def __getitem__(self, tuple key):
         return self.get(key)
 
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b, c, d), value).
+        """
+
+        cdef size_t i
+        cdef c_Key4 key
+        cdef double value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a, key.b, key.c, key.d), value)
+
 
 cdef class IntMap3:
     cdef void c_reserve(self, size_t n) noexcept nogil:
@@ -121,6 +139,24 @@ cdef class IntMap3:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b, c), value).
+        """
+
+        cdef size_t i
+        cdef c_Key3 key
+        cdef double value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a, key.b, key.c), value)
 
 
 cdef class IntMap2:
@@ -179,6 +215,24 @@ cdef class IntMap2:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b), value).
+        """
+
+        cdef size_t i
+        cdef c_Key2 key
+        cdef double value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a, key.b), value)
 
 
 cdef class IntMap1:
@@ -235,6 +289,24 @@ cdef class IntMap1:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a,), value).
+        """
+
+        cdef size_t i
+        cdef c_Key1 key
+        cdef double value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a,), value)
 
 
 cdef class IntMap4Complex:
@@ -297,6 +369,24 @@ cdef class IntMap4Complex:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b, c, d), value).
+        """
+
+        cdef size_t i
+        cdef c_Key4 key
+        cdef double complex value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a, key.b, key.c, key.d), value)
 
 
 cdef class IntMap3Complex:
@@ -357,6 +447,24 @@ cdef class IntMap3Complex:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b, c), value).
+        """
+
+        cdef size_t i
+        cdef c_Key3 key
+        cdef double complex value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a, key.b, key.c), value)
 
 
 cdef class IntMap2Complex:
@@ -415,6 +523,24 @@ cdef class IntMap2Complex:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b), value).
+        """
+
+        cdef size_t i
+        cdef c_Key2 key
+        cdef double complex value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a, key.b), value)
 
 
 cdef class IntMap1Complex:
@@ -471,3 +597,21 @@ cdef class IntMap1Complex:
 
     def __getitem__(self, tuple key):
         return self.get(key)
+    
+    def __len__(self):
+        return self.intmap_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a,), value).
+        """
+
+        cdef size_t i
+        cdef c_Key1 key
+        cdef double complex value
+
+        for i in range(self.intmap_cinst.size()):
+            key = self.intmap_cinst.data[i].first
+            value = self.intmap_cinst.data[i].second
+
+            yield ((key.a,), value)

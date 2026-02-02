@@ -16,28 +16,45 @@ class c_IntMap {
 public:
     std::vector<std::pair<KeyType, ValueType>> data;
 
-    c_IntMap() {
-        data.reserve(35);
+    c_IntMap(size_t n) :
+        data(n)  // Allow user to preallocate the space
+    {
+        if (n != 0)
+        {
+            this->data.clear();
+        }
     }
 
-    void reserve(size_t n) {
+    c_IntMap() :
+        data(30)  // Otherwise reserve a good chunk. 
+    {
+        // Need to clear the pre-allocated data
+        this->data.clear();
+    }
+
+    void reserve(size_t n)
+    {
         data.reserve(n);
     }
 
-    void clear() {
+    void clear()
+    {
         data.clear();
     }
     
-    size_t size() const {
+    size_t size() const
+    {
         return data.size();
     }
 
-    void set(KeyType& key, ValueType value) {
+    void set(const KeyType& key, const ValueType& value)
+    {
 
         // Get 64-bit integer that stores a signature of this key.
         RefKeyType key_ref = key.reference;
 
-        if (data.empty() || key_ref > data.back().first.reference) {
+        if (data.empty() || key_ref > data.back().first.reference)
+        {
             data.emplace_back(key, value);
             return;
         }
@@ -46,16 +63,19 @@ public:
             [](const auto& entry, RefKeyType k) { return entry.first.reference < k; }); // lambda function that finds the first element that does not compare less than key
 
 
-        if (it != data.end() && it->first.reference == key_ref) {
+        if (it != data.end() && it->first.reference == key_ref)
+        {
             // Update existing entry.
             it->second = value;
-        } else {
+        } else
+        {
             data.insert(it, {key, value});
         }
     }
 
     // Note: We return T by value here for simplicity, or we can use reference param
-    ValueType get(bool& o_found, KeyType& key) const {
+    ValueType get(bool& o_found, const KeyType& key) const
+    {
         o_found = true;
 
         // Get 64-bit integer that stores a signature of this key.
@@ -64,7 +84,8 @@ public:
         auto it = std::lower_bound(data.begin(), data.end(), key_ref, 
             [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
             
-        if (it != data.end() && it->first.reference == key_ref) {
+        if (it != data.end() && it->first.reference == key_ref)
+        {
             return it->second;
         }
 

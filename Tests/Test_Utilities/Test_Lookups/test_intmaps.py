@@ -20,7 +20,7 @@ class_dict = {
 
 @pytest.mark.parametrize('use_complex', (True, False))
 @pytest.mark.parametrize('key_size', (1, 2, 3, 4))
-def test_intmap3(use_complex, key_size):
+def test_intmap(use_complex, key_size):
     if use_complex:
         test_map = class_dict[f'IntMap{key_size}Complex']()
     else:
@@ -97,3 +97,15 @@ def test_intmap3(use_complex, key_size):
         test_map.set(tuple(test_key), 45.4)
         assert isclose(test_map[tuple(test_key)], 45.4)
         assert isclose(test_map.get(tuple(test_key)), 45.4)
+    
+    # Check that __len__ is working
+    assert len(test_map) == test_map.size()
+
+    # Check that the iterator is working
+    for key_tuple, result in test_map:
+        assert isinstance(key_tuple, tuple)
+        assert len(key_tuple) == key_size
+        if use_complex:
+            assert isinstance(result, complex)
+        else:
+            assert isinstance(result, float)

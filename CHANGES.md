@@ -7,16 +7,24 @@
 #### Package
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
 
+#### Tides (Tides_x for now)
+* Created a new module called "Tides_x" where cythonized C++ code related to tide functions will be stored.
+  * In a future release we will remove the old `TidalPy.tides` module in favor of this one (refactoring it to `Tides` to follow the same capitalization scheme as `RadialSolver`).
+* Created C++ obliquity functions in `TidalPy.Tides_x.obliquity` a helper function is available in Python to call these `TidalPy.Tides_x.obliquity.obliquity_func`. See documentation for more details.
+
 #### Utilities
-* Added a new lookup structure `TidalPy.utilities.lookups.IntMap3` and `IntMap4` that stores a double floating point number by unique 3 (or 4 in the case of `IntMap4`) integer key.
-  * Complex versions are also available as `IntMap3Complex` and `IntMap4Complex`.
+* Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
+  * Complex versions are also available as `IntMapNComplex`.
 
 #### Tests
-* Added tests for `TidalPy.get_include`
+* Added tests for `TidalPy.get_include`.
+* Added tests for the new `IntMap`.
+* Added tests for the new `obliquity` functions.
 
 #### Documentation
-* Added documentation for `IntMap3` and `IntMap4` in the Utilities module section.
+* Added documentation for `IntMap` in the Utilities module section.
 * Added a note about `TidalPy.get_include` in the readme.
+* Added documentation for `obliquity` functions in the Tides module section.
 
 ### Version 0.7.0 (2025-12-02)
 

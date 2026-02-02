@@ -282,6 +282,31 @@
     "is_cpp": true
   },
 
+  
+  "Tides_x.obliquity.obliquity_common" : {
+    "name": "TidalPy.Tides_x.obliquity.obliquity_common",
+    "sources": [["TidalPy", "Tides_x", "obliquity", "obliquity_common.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "obliquity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.obliquity.obliquity_func_l2" : {
+    "name": "TidalPy.Tides_x.obliquity.obliquity_func_l2",
+    "sources": [["TidalPy", "Tides_x", "obliquity", "obliquity_func_l2.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "obliquity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.obliquity.obliquity_driver" : {
+    "name": "TidalPy.Tides_x.obliquity.obliquity_driver",
+    "sources": [["TidalPy", "Tides_x", "obliquity", "obliquity_driver.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "obliquity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
 
   "tides.multilayer.sensitivity": {
     "name": "TidalPy.tides.multilayer.sensitivity",
