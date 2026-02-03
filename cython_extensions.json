@@ -372,6 +372,95 @@
     "is_cpp": true
   },
 
+  "Tides_x.eccentricity.eccentricity_common" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_common",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_common.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l2" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l2",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l2.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l3" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l3",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l3.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l4" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l4",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l4.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l5" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l5",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l5.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l6" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l6",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l6.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l7" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l7",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l7.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l8" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l8",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l8.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l9" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l9",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l9.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_func_l10" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_func_l10",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_func_l10.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.eccentricity.eccentricity_driver" : {
+    "name": "TidalPy.Tides_x.eccentricity.eccentricity_driver",
+    "sources": [["TidalPy", "Tides_x", "eccentricity", "eccentricity_driver.pyx"]],
+    "include_dirs": [["TidalPy", "Tides_x", "eccentricity"], ["TidalPy", "utilities", "lookups"]],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "tides.multilayer.sensitivity": {
     "name": "TidalPy.tides.multilayer.sensitivity",
     "sources": [["TidalPy", "tides", "multilayer", "sensitivity.pyx"]],

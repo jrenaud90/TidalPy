@@ -21,4 +21,5 @@ still under development.**
 :caption: Contents
 
 Obliquity Functions <Obliquity.md>
+Eccentricity Functions <Eccentricity.md>
 ```

@@ -88,14 +88,3 @@ def test_obliquity_funcs(degree_l, truncation):
                 assert len(ob_results_by_lm[(2, 2)]) == 3
                 assert isclose(ob_results_by_lm[(2, 2)][(0,)], 3.0*np.cos(obliquity/2)**4)
                 assert isclose(ob_results_by_lm[(2, 2)][(2,)], 3.0*np.sin(obliquity/2)**4)
-
-
-
-
-
-
-
-
-
-
-

@@ -33,7 +33,7 @@ the lowest truncation level for your problem. The options currently available in
 Details about how to use the obliquity functions are below followed by a discussion of how they are analytically
 determined.
 
-## Using TidalPy's Obliquity Calculator
+## Using TidalPy's Obliquity Functions
 TidalPy provides obliquity function calculators for C++, Cython, and Python. Below we will go into how to use the
 functions from Python. For users who would like to use them in C++ or Cython, we recommend looking into the files found
 in `TidalPy.Tides_x.obliquity`. The "obliquity_common" files contain basic type information. "obliquity_driver" defines
@@ -76,7 +76,7 @@ for (l, m), l2_results_by_p in l2_results_by_lm.items():
 # non-zero modes and the result of the function.
 ```
 
-## Determining Obliquity Functions Formulae
+## Analytical Formulation of the Obliquity Functions
 TidalPy using the following model for finding the obliquity functions. Note there is some debate on the nuances of some
 steps in the process. We try to highlight those where applicable. If you see an error or have any questions please
 leave a issue on TidalPy's GitHub repository.
