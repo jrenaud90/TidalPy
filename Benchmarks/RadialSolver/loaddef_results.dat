@@ -1,0 +1,13 @@
+case_name, sub_case_name, tidal_k_l2_real, tidal_k_l2_imag, tidal_h_l2_real, tidal_h_l2_imag, tidal_l_l2_real, tidal_l_l2_imag, loading_k_l2_real, loading_k_l2_imag, loading_h_l2_real, loading_h_l2_imag, loading_l_l2_real, loading_l_l2_imag
+homogeneous, comp____static, 1.3085e-01, nan, 2.2137e-01, nan, 6.4031e-02, nan, -9.0522e-02, nan, -1.9673e-01, nan, -2.5974e-02, nan
+homogeneous, comp___dynamic, 1.3085e-01, nan, 2.2137e-01, nan, 6.4031e-02, nan, -9.0522e-02, nan, -1.9673e-01, nan, -2.5974e-02, nan
+homogeneous, incomp_dynamic, 1.3085e-01, nan, 2.2137e-01, nan, 6.4031e-02, nan, -9.0522e-02, nan, -1.9673e-01, nan, -2.5974e-02, nan
+large_homogeneous, comp____static, 1.3085e-01, nan, 2.2137e-01, nan, 6.4031e-02, nan, -9.0522e-02, nan, -1.9673e-01, nan, -2.5974e-02, nan
+large_homogeneous, comp___dynamic, 1.3085e-01, nan, 2.2137e-01, nan, 6.4031e-02, nan, -9.0522e-02, nan, -1.9673e-01, nan, -2.5974e-02, nan
+large_homogeneous, incomp_dynamic, 1.3085e-01, nan, 2.2137e-01, nan, 6.4031e-02, nan, -9.0522e-02, nan, -1.9673e-01, nan, -2.5974e-02, nan
+unstable_homogeneous, comp____static, 1.4483e-01, nan, 2.5100e-01, nan, 6.8330e-02, nan, -1.0616e-01, nan, -3.0846e-01, nan, 2.5595e-03, nan
+unstable_homogeneous, comp___dynamic, 1.4483e-01, nan, 2.5100e-01, nan, 6.8330e-02, nan, -1.0616e-01, nan, -3.0846e-01, nan, 2.5595e-03, nan
+unstable_homogeneous, incomp_dynamic, 1.4483e-01, nan, 2.5100e-01, nan, 6.8330e-02, nan, -1.0616e-01, nan, -3.0846e-01, nan, 2.5595e-03, nan
+icy_ocean, comp____static, 2.4290e-01, nan, 9.9243e-01, nan, 2.1489e-01, nan, -7.4953e-01, nan, -3.2359e+00, nan, -6.0028e-01, nan
+icy_ocean, comp___dynamic, 2.4290e-01, nan, 9.9243e-01, nan, 2.1489e-01, nan, -7.4953e-01, nan, -3.2359e+00, nan, -6.0028e-01, nan
+icy_ocean, incomp_dynamic, 2.4290e-01, nan, 9.9243e-01, nan, 2.1489e-01, nan, -7.4953e-01, nan, -3.2359e+00, nan, -6.0028e-01, nan
