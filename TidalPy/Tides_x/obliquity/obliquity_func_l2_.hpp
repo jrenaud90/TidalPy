@@ -1,5 +1,6 @@
 #pragma once
 
+#include "obliquity_common_.hpp"
 
 ObliquityFuncOutput c_obliquity_function_l2_gen(double obliquity)
 {
@@ -12,15 +13,16 @@ ObliquityFuncOutput c_obliquity_function_l2_gen(double obliquity)
     c_IntMap<c_Key2, c_IntMap<c_Key1, double>> result_by_lm(3);
     // Optimizations
     double sin_i = std::sin(obliquity);
-    double sin_i_2 = std::pow(sin_i, 2);
+    double sin_i_2 = sin_i * sin_i;
     double sin_i_half = std::sin((1.0/2.0)*obliquity);
-    double sin_i_half_2 = std::pow(sin_i_half, 2);
-    double sin_i_half_4 = std::pow(sin_i_half, 4);
+    double sin_i_half_2 = sin_i_half * sin_i_half;
+    double sin_i_half_4 = sin_i_half_2 * sin_i_half_2;
     double cos_i_half = std::cos((1.0/2.0)*obliquity);
-    double cos_i_half_3 = std::pow(cos_i_half, 3);
+    double cos_i_half_2 = cos_i_half * cos_i_half;
+    double cos_i_half_3 = cos_i_half_2 * cos_i_half;
     double sin_i_double = std::sin(2*obliquity);
-    double sin_i_half_3 = std::pow(sin_i_half, 3);
-    double cos_i_half_4 = std::pow(cos_i_half, 4);
+    double sin_i_half_3 = sin_i_half_2 * sin_i_half;
+    double cos_i_half_4 = cos_i_half_2 * cos_i_half_2;
 
     c_IntMap<c_Key1, double> result_by_p(2);  // We don't know what size the inner loop will be but it should not be larger than l_
     double tmp_double;

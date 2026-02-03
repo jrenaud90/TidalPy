@@ -26,7 +26,7 @@ def obliquity_func(
     else:
         raise TypeError("Unexpected type found for `truncation`.")
     
-    if degree_l not in (2,):
+    if degree_l not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
         raise NotImplementedError(f"Degree l = {degree_l} is not currently supported for obliquity function calculations. Options are l = 2")
     
     # Call c function to get result.

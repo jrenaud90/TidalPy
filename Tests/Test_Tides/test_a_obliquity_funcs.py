@@ -7,7 +7,7 @@ from TidalPy.Tides_x.obliquity import obliquity_func
 from TidalPy.utilities.lookups import IntMap3
 
 
-@pytest.mark.parametrize('degree_l', (1, 2,))
+@pytest.mark.parametrize('degree_l', (1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
 @pytest.mark.parametrize('truncation', ('gen', 2, 4, 'off', 5))
 def test_obliquity_funcs(degree_l, truncation):
     """Tests TidalPy's obliquity functions for various degree_ls and various truncation levels."""

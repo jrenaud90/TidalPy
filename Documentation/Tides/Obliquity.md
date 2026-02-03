@@ -51,6 +51,7 @@ results_l2 = obliquity_func(
     truncation='gen'  # Let's say for l=2 we want the most accurate picture of the important modes.
 )
 
+# As of TidalPy v0.7.x - degrees l = 2, ..., 10 are supported.
 results_l3 = obliquity_func(
     obliquity,
     degree_l=3      # Now for l=3
