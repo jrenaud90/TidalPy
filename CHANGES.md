@@ -2,6 +2,11 @@
 
 ## Version 0.7.X
 
+### Version 0.7.1 (2026-02-05)
+
+#### Fixes
+* Fixed surface boundary condition bug where dynamic liquid layers were using too small of a struct and could cause crashes (and wrong results).
+
 ### Version 0.7.0 (2025-12-02)
 
 #### Fixes
