@@ -78,57 +78,6 @@ jobs:
           path: ./wheelhouse/*.whl
           name: artifact_MacosLatest_${{ matrix.python }}_whl
   
-  build_macos_13_wheel:
-    name: Build MacOS-13 (x64-86) wheel for Python ${{ matrix.python }}
-    runs-on: macos-13
-    strategy:
-      # Ensure that a wheel builder finishes even if another fails
-      fail-fast: false
-      matrix:
-        python:
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
-    steps:
-      - name: Checkout TidalPy
-        uses: actions/checkout@v4
-
-      - name: Install Anaconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          activate-environment: tidalpy_macos_latest_wheel
-          auto-update-conda: true
-          python-version: ${{ matrix.python }}
-          auto-activate-base: false
-
-      - name: Conda info
-        shell: bash -el {0}
-        run: conda info
-
-      - name: install llvm # openMP does not play nice with clang on MacOS; also some versions of macos use older gcc so there is a need to install latest.
-        shell: bash -el {0}
-        run: |
-          brew install llvm libomp
-
-      - name: Install package
-        shell: bash -el {0}
-        run: |
-          python -m pip install --upgrade build
-          conda install -c conda-forge pytest pytest-xdist nomkl llvm-openmp
-          export LDFLAGS="-L/usr/local/opt/llvm/lib"
-          export CPPFLAGS="-I/usr/local/opt/llvm/include"
-          export LDFLAGS="-L/usr/local/opt/libomp/lib"
-          export CPPFLAGS="-I/usr/local/opt/libomp/include"
-          export CC=/usr/local/opt/llvm/bin/clang
-          export CXX=/usr/local/opt/llvm/bin/clang++
-          python -m build --wheel --outdir ./wheelhouse/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          path: ./wheelhouse/*.whl
-          name: artifact_Macos13_${{ matrix.python }}_whl
-
   build_other_wheels:
     name: Build ${{ matrix.platform }} wheels
     runs-on: ${{ matrix.platform }}
