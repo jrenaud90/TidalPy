@@ -58,3 +58,29 @@ def log_to_file():
     if not config['logging']['write_log_to_disk']:
         config['logging']['write_log_to_disk'] = True
         reinit()
+
+# Helper function that provides directories to CyRK c++ headers
+def get_include():
+    import os
+    # Since we depend on CyRK to build TidalPy; we likely want to include its headers as well.
+    import CyRK
+    tidalpy_dirs = CyRK.get_include()
+
+    import TidalPy
+    tidalpy_dir = os.path.dirname(TidalPy.__file__)
+
+    # Utilities
+    tidalpy_dirs += [
+        # Utilities
+        os.path.join(tidalpy_dir, 'utilities', 'lookups'),
+        os.path.join(tidalpy_dir, 'utilities', 'arrays'),
+        os.path.join(tidalpy_dir, 'utilities', 'dimensions'),
+
+        # RadialSolver
+        os.path.join(tidalpy_dir, 'RadialSolver'),
+
+        # Material
+        os.path.join(tidalpy_dir, 'Material', 'eos')
+    ]
+
+    return tidalpy_dirs

@@ -174,6 +174,22 @@ export CXX=/usr/local/opt/llvm/bin/clang++
 pip install CyRK --no-binary="CyRK"
 ```
 
+#### Including TidalPy C++ Files
+TidalPy includes several C++ source files (.cpp/.hpp). You may find some of the code in them useful and want to 
+include the source files to build a separate C++ or Cython-based project. To help with this, TidalPy offers a 
+helper function to provide all source file directories so they can be quickly and accurately included.
+
+After installing TidalPy you can access a Python list of strings for each include directory with:
+```python
+import TidalPy
+tidalpy_includes = TidalPy.get_include()
+```
+
+This functions similarly to NumPy's `numpy.get_include` which can be used during cythonization:
+```python
+include_dirs=[[np.get_include()] + TidalPy.get_include()]
+```
+
 ### TidalPy Versioning
 TidalPy uses the major.minor.bugfix versioning scheme. In TidalPy's current state, we only promise to provide support
 for the latest version (as found on the [GitHub release page](https://github.com/jrenaud90/TidalPy/releases)).
