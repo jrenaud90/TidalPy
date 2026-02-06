@@ -19,6 +19,6 @@ def test_math_isclose(a, b, rtol, atol):
 
 def test_math_isclose_nans():
 
-    assert isclose(nan, 10.0) == False
-    assert isclose(10.0, nan) == False
+    assert not isclose(nan, 10.0)
+    assert not isclose(10.0, nan)
 

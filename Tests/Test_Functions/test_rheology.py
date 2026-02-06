@@ -77,7 +77,7 @@ def test_rheology_zero_frequency():
         rheology_instance = rheology_class()
         expected_real, expected_imag = expected_results[rheology_name]
         result = rheology_instance(frequency, shear, viscosity)
-        assert type(result) == complex
+        assert type(result) is complex
         assert not isnan(np.real(result))
         assert not isnan(np.imag(result))
 

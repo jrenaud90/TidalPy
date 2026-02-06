@@ -11,5 +11,6 @@ items that are put into this module were done so because they may have applicabi
 :maxdepth: 2
 :caption: Contents
 
+Constants and Runtime Parameters <constants.md>
 Lookup Structures <lookups.md>
 ```

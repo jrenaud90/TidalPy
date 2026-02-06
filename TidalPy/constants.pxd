@@ -1,74 +1,56 @@
-# Extremes
-# Forcing Frequency Extremes
-cdef double d_MIN_FREQUENCY
-cdef double d_MAX_FREQUENCY
+cdef extern from "constants_.hpp" namespace "TidalPyConstants" nogil:
+    # --- Compile-time Constants (Read-Only) ---
+    const double d_ppm
+    const double d_ppb
+    const double d_INF
+    const double d_PI
+    const double d_NAN
+    
+    const double d_DBL_MAX
+    const double d_DBL_MIN
+    const double d_DBL_MANT_DIGITS
+    const double d_EPS
+    const double d_EPS_10
+    const double d_EPS_100
 
-# Minimum difference between spin and orbital frequency before it is treated as zero.
-cdef double d_MIN_SPIN_ORBITAL_DIFF
+    const double d_MASS_SOLAR
+    const double d_RADIUS_SOLAR
+    const double d_LUMINOSITY_SOLAR
 
-# Shear/Bulk Modulus Extremes
-cdef double d_MIN_VISCOSITY
-cdef double d_MIN_MODULUS
+    const double d_MASS_TRAP1
+    const double d_RADIUS_TRAP1
+    const double d_LUMINOSITY_TRAP1
 
-# Thickness
-cdef double d_MIN_THICKNESS
+    const double d_MASS_EARTH
+    const double d_RADIUS_EARTH
 
-# Mathematics
-cdef double d_ppm
-cdef double d_ppb
+    const double d_MASS_JUPITER
+    const double d_RADIUS_JUPITER
 
-cdef double d_PI_DBL
-cdef double d_DBL_MAX
-cdef double d_DBL_MIN
-cdef double d_DBL_MANT_DIG
-cdef double d_INF_DBL
-cdef double d_EPS_DBL_10
-cdef double d_EPS_DBL_100
-cdef double d_EPS_DBL
-cdef double d_NAN_DBL
+    const double d_MASS_PLUTO
+    const double d_RADIUS_PLUTO
 
-# Sun
-cdef double d_mass_solar
-cdef double d_radius_solar
-cdef double d_luminosity_solar
+    const double d_MASS_IO
+    const double d_RADIUS_IO
 
-# TRAPPIST-1
-cdef double d_mass_trap1
-cdef double d_radius_trap1
-cdef double d_luminosity_trap1
 
-# Earth
-cdef double d_mass_earth
-cdef double d_radius_earth
+cdef extern from "constants_.hpp" nogil:
 
-# Jupiter
-cdef double d_mass_jupiter
-cdef double d_radius_jupiter
+    cdef cppclass TidalPyConfig:
+        double d_MIN_FREQUENCY
+        double d_MAX_FREQUENCY
+        double d_MIN_SPIN_ORBIT_DIFF
+        double d_MIN_VISCOSITY
+        double d_MIN_MODULUS
+        double d_MIN_THICKNESS
+        double d_G
+        double d_AU
+        double d_SBC
+        double d_R
+        double d_K_BOLTZMAN
+        double d_TEST_CONST
+    
+    cdef TidalPyConfig* tidalpy_config_ptr
 
-# Pluto
-cdef double d_mass_pluto
-cdef double d_radius_pluto
-
-# Io
-cdef double d_mass_io
-cdef double d_radius_io
-
-# Alias Names
-cdef double d_G
-cdef double d_R
-cdef double d_Au
-cdef double d_sbc
-cdef double d_SBC
-cdef double d_newtons_constant
-
-cdef double d_M_sol
-cdef double d_M_earth
-cdef double d_M_jup
-cdef double d_M_pluto
-
-cdef double d_R_sol
-cdef double d_R_earth
-cdef double d_R_jup
-cdef double d_R_pluto
-
-cdef double d_L_sol
+# Expose the API function
+cdef TidalPyConfig* get_shared_config_address()

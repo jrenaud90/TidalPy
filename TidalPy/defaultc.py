@@ -13,6 +13,9 @@ default_config_str = """
     extensive_logging = true
     # Additional numerical sanity checks will be performed. There could be a performance penalty in using this.
     extensive_checks = false
+    # The constant below is used to check if tidalpy's constant manager is properly loading and reinitializing constants
+    #  We use this separate parameter so that the tests do not interfere with actual TidalPy functionality.
+    test_constant = 42.0
 
 [logging]
     # Are TidalPy logs are stored to the current working directory or the default TidalPy data path.
@@ -74,7 +77,7 @@ default_config_str = """
         # Assume max frequency is for a forcing period of 1 micro-second
         maximum_frequency = 1.0e8
         # Minimum difference between spin and orbital frequency before it is treated as zero.
-        min_spin_orbital_diff = 1.0e-10
+        min_spin_orbit_diff = 1.0e-10
     
     [tides.models]
         [tides.models.base]
@@ -110,6 +113,9 @@ default_config_str = """
             multiply_modes_by_sign = true
 
 [layers]
+    # General parameters
+    # Minimum layer thickness before layer is removed or assumed to not contribute to any problem.
+    minimum_layer_thickness = 0.1
 
     # Known layer types
     [layers.ice]
@@ -398,6 +404,12 @@ default_config_str = """
             slices = 40
 
 [physics]
+    [physics.materials]
+        # Minimum allowed viscosity
+        minimum_viscosity = 100.0
+        # Minimum modulus (shear or bulk) before set to zero.
+        minimum_modulus = 1.0e-3
+
     [physics.radiogenics]
         [physics.radiogenics.known_isotope_data]
             [physics.radiogenics.known_isotope_data.modern_day_chondritic]

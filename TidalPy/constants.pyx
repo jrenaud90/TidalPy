@@ -1,151 +1,138 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-# In order for both cython and python to see these variables we have to declare two. the "d_" prefix are pure C
-# These are then read into python objects which share the same name except without the "d_" prefix
-
-# Extremes
-# Forcing Frequency Extremes
-# Assume that any forcing period larger than a Myr leads to a zero in frequency.
-# Converting to frequency is roughly 1.0e-14 rads s-1
 import TidalPy
+import scipy
 
-cdef double d_MIN_FREQUENCY = 1.0e-14
-if TidalPy.config:
-    d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
-MIN_FREQUENCY = d_MIN_FREQUENCY
+# Even though these are defined in this file's .pxd; we need to cimport them so that Cython creates the correct
+# namespace signature like: `TidalPyConstants::d_ppb`.
+from TidalPy.constants cimport (
+    # Consts
+    d_ppm, d_ppb, d_INF, d_PI, d_NAN, d_DBL_MAX, d_DBL_MIN, d_DBL_MANT_DIGITS, d_EPS, d_EPS_10, d_EPS_100,
+    d_MASS_SOLAR, d_RADIUS_SOLAR, d_LUMINOSITY_SOLAR, d_MASS_TRAP1, d_RADIUS_TRAP1, d_LUMINOSITY_TRAP1, d_MASS_EARTH,
+    d_RADIUS_EARTH, d_MASS_JUPITER, d_RADIUS_JUPITER, d_MASS_PLUTO, d_RADIUS_PLUTO, d_MASS_IO, d_RADIUS_IO, 
+    # Runtime config struct
+    TidalPyConfig
+    )
 
-# Assume max frequency is for a forcing period of 1 micro-second
-cdef double d_MAX_FREQUENCY = 1.0e8
-if TidalPy.config:
-    d_MAX_FREQUENCY = TidalPy.config['tides']['modes']['maximum_frequency']
-MAX_FREQUENCY = d_MAX_FREQUENCY
+# Allocate the config storage on the heap. We are going to use a naked "new" (no delete) because we want this memory to stay until the program is terminated.
+# We use 'new' so it persists in memory.
+cdef TidalPyConfig* _owner_storage = new TidalPyConfig()
 
-cdef double d_MIN_SPIN_ORBITAL_DIFF = 1.0e-10
-if TidalPy.config:
-    d_MIN_SPIN_ORBITAL_DIFF = TidalPy.config['tides']['modes']['min_spin_orbital_diff']
-MIN_SPIN_ORBITAL_DIFF = d_MIN_SPIN_ORBITAL_DIFF
+# Point the global C++ pointer to this storage
+# This ensures that any C++ code linked to this module sees the data.
+tidalpy_config_ptr = _owner_storage
 
-# Shear/Bulk Modulus Extremes
-cdef double d_MIN_VISCOSITY = 1000.0
-MIN_VISCOSITY = d_MIN_VISCOSITY
+# TODO: I feel like this api cdef is not needed but I am too tired to play around with changing it seeing how things appear to be working now. 
+# Expose the address to other Cython modules via API
+# 'cdef api' generates the hooks for other modules to import this function.
+cdef api TidalPyConfig* get_shared_config_address():
+    return _owner_storage
 
-cdef double d_MIN_MODULUS = 1.0e-3
-MIN_MODULUS = d_MIN_MODULUS
-
-# Thickness
-cdef double d_MIN_THICKNESS = 1.0
-MIN_THICKNESS = d_MIN_THICKNESS
-
-# Mathematics
-cdef double d_ppm = 1.e-6
+# Convert C Types to Python Types
+# Pure constants that should never change after compile.
 ppm = d_ppm
-cdef double d_ppb = 1.e-9
 ppb = d_ppb
+inf = d_INF
+pi  = d_PI
+nan = d_NAN
+dbl_max = d_DBL_MAX
+dbl_min = d_DBL_MIN
+dbl_mant_digits = d_DBL_MANT_DIGITS
+eps = d_EPS
+eps_10 = d_EPS_10
+eps_100 = d_EPS_100
+mass_solar = d_MASS_SOLAR
+radius_solar = d_RADIUS_SOLAR
+luminosity_solar = d_LUMINOSITY_SOLAR
+mass_trap1 = d_MASS_TRAP1
+radius_trap1 = d_RADIUS_TRAP1
+luminosity_trap1 = d_LUMINOSITY_TRAP1
+mass_earth = d_MASS_EARTH
+radius_earth = d_RADIUS_EARTH
+mass_jupiter = d_MASS_JUPITER
+radius_jupiter = d_RADIUS_JUPITER
+mass_pluto = d_MASS_PLUTO
+radius_pluto = d_RADIUS_PLUTO
+mass_io = d_MASS_IO
+radius_io = d_RADIUS_IO
 
-from libc.float cimport DBL_MAX as _DBL_MAX
-from libc.float cimport DBL_MIN as _DBL_MIN
-from libc.float cimport DBL_MANT_DIG as _DBL_MANT_DIG
-from libc.math cimport M_PI as _M_PI
-cdef double d_DBL_MAX      = _DBL_MAX
-cdef double d_DBL_MIN      = _DBL_MIN
-cdef double d_DBL_MANT_DIG = _DBL_MANT_DIG
-cdef double d_PI_DBL       = _M_PI
-DBL_MAX      = d_DBL_MAX
-DBL_MIN      = d_DBL_MIN
-DBL_MANT_DIG = d_DBL_MANT_DIG
-PI_DBL       = d_PI_DBL
+# Constant Aliases
+M_sol = mass_solar
+R_sol = radius_solar
+L_sol = luminosity_solar
+M_earth = mass_earth
+R_earth = radius_earth
+M_jup = mass_jupiter
+R_jup = radius_jupiter
+M_pluto = mass_pluto
+R_pluto = radius_pluto
 
-from libcpp.limits cimport numeric_limits
-cdef double d_INF_DBL = numeric_limits[double].infinity()
-INF_DBL = d_INF_DBL
-cdef double d_EPS_DBL = numeric_limits[double].epsilon()
-EPS_DBL = d_EPS_DBL
-cdef double d_EPS_DBL_10  = 10 * d_EPS_DBL
-EPS_DBL_10  = d_EPS_DBL_10
-cdef double d_EPS_DBL_100 = 100 * d_EPS_DBL
-EPS_DBL_100 = d_EPS_DBL_100
-cdef double d_NAN_DBL = numeric_limits[double].quiet_NaN()
-NAN_DBL = d_NAN_DBL
+# ---
+# Dynamic parameters -- From TidalPy Configs
+min_frequency = d_NAN
+max_frequency =  d_NAN
+min_spin_orbit_diff = d_NAN
+min_viscosity = d_NAN
+min_modulus = d_NAN
+min_thickness = d_NAN
 
-# Astrophysical Constants
-from scipy.constants import G as G_
-from scipy.constants import au as au_
-from scipy.constants import Stefan_Boltzmann
-from scipy.constants import R as R_
+test_constant = d_NAN
 
-# Sun
-cdef double d_mass_solar       = 1.988435e30  # [kg]
-mass_solar = d_mass_solar
-cdef double d_radius_solar     = 6.957e8  # [m]
-radius_solar = d_radius_solar
-cdef double d_luminosity_solar = 3.848e26  # [Watts]
-luminosity_solar = d_luminosity_solar
+# Dynamic parameters -- From 3rd Party Packages
+G = d_NAN
+au = d_NAN
+sbc = d_NAN
+R = d_NAN
+k_boltzman = d_NAN
 
-# TRAPPIST-1
-cdef double d_mass_trap1       = 0.0898 * d_mass_solar  # [kg]
-mass_trap1 = d_mass_trap1
-cdef double d_radius_trap1     = 0.1192 * d_radius_solar  # [m]
-radius_trap1 = d_radius_trap1
-cdef double d_luminosity_trap1 = 0.000553 * d_luminosity_solar # [Watts]
-luminosity_trap1 = d_luminosity_trap1
+# Dynamic Aliases
+SBC = sbc
+Au = au
+k = k_boltzman
+newtons_constant = G
 
-# Earth
-cdef double d_mass_earth   = 5.9721986e24  # [kg]
-mass_earth = d_mass_earth
-cdef double d_radius_earth = 6.371008e6  # [m]
-radius_earth = d_radius_earth
 
-# Jupiter
-cdef double d_mass_jupiter   = 1.89813e27  # [kg]
-mass_jupiter = d_mass_jupiter
-cdef double d_radius_jupiter = 6.9911e7  # [m]
-radius_jupiter = d_radius_jupiter
+def update_constants():
+    """Use the current TidalPy configurations to load in certain parameters/constants that are not Read-Only."""
+    global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness, test_constant
+    global G, au, sbc, R, k_boltzman, SBC, Au, k, newtons_constant
 
-# Pluto
-cdef double d_mass_pluto   = 1.309e22  # [kg]
-mass_pluto = d_mass_pluto
-cdef double d_radius_pluto = 1.1899e6  # [m]
-radius_pluto = d_radius_pluto
+    # Update dynamic properties from TidalPy
+    tidalpy_config_ptr.d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
+    tidalpy_config_ptr.d_MAX_FREQUENCY = TidalPy.config['tides']['modes']['maximum_frequency']
+    tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF = TidalPy.config['tides']['modes']['min_spin_orbit_diff']
+    tidalpy_config_ptr.d_MIN_VISCOSITY = TidalPy.config['physics']['materials']['minimum_viscosity']
+    tidalpy_config_ptr.d_MIN_MODULUS = TidalPy.config['physics']['materials']['minimum_modulus']
+    tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
 
-# Io
-cdef double d_mass_io   = 8.9298e22  # [kg]
-mass_io = d_mass_io
-cdef double d_radius_io = 1.82149e6  # [m]
-radius_io = d_radius_io
+    tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
+    tidalpy_config_ptr.d_TEST_CONST = TidalPy.config['debug']['test_constant']
 
-# Alias Names
-cdef double d_G = G_
-G = d_G
-cdef double d_R = R_
-R = d_R
-cdef double d_Au = au_
-Au = d_Au
-au = d_Au
-cdef double d_sbc = Stefan_Boltzmann
-sbc = d_sbc
-cdef double d_SBC = sbc
-SBC = d_SBC
-cdef double d_newtons_constant = G
-newtons_constant = d_newtons_constant
+    # Update globals/aliases for the dynamic TidalPy parameters
+    min_frequency = tidalpy_config_ptr.d_MIN_FREQUENCY
+    max_frequency =  tidalpy_config_ptr.d_MAX_FREQUENCY
+    min_spin_orbit_diff = tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF
+    min_viscosity = tidalpy_config_ptr.d_MIN_VISCOSITY
+    min_modulus = tidalpy_config_ptr.d_MIN_MODULUS
+    min_thickness = tidalpy_config_ptr.d_MIN_THICKNESS
 
-cdef double d_M_sol   = mass_solar
-M_sol = d_M_sol
-cdef double d_M_earth = mass_earth
-M_earth = d_M_earth
-cdef double d_M_jup   = mass_jupiter
-M_jup = d_M_jup
-cdef double d_M_pluto = mass_pluto
-M_pluto = d_M_pluto
+    test_constant = tidalpy_config_ptr.d_TEST_CONST
 
-cdef double d_R_sol   = radius_solar
-R_sol = d_R_sol
-cdef double d_R_earth = radius_earth
-R_earth = d_R_earth
-cdef double d_R_jup   = radius_jupiter
-R_jup = d_R_jup
-cdef double d_R_pluto = radius_pluto
-R_pluto = d_R_pluto
+    # Update dynamic properties from 3rd party packages
+    tidalpy_config_ptr.d_G = scipy.constants.G
+    tidalpy_config_ptr.d_AU = scipy.constants.au
+    tidalpy_config_ptr.d_SBC = scipy.constants.Stefan_Boltzmann
+    tidalpy_config_ptr.d_R = scipy.constants.R
+    tidalpy_config_ptr.d_K_BOLTZMAN = scipy.constants.k
 
-cdef double d_L_sol = luminosity_solar
-L_sol = d_L_sol
+    # Update globals/aliases for the dynamic TidalPy parameters
+    G = tidalpy_config_ptr.d_G
+    au = tidalpy_config_ptr.d_AU
+    sbc = tidalpy_config_ptr.d_SBC
+    R = tidalpy_config_ptr.d_R
+    k_boltzman = tidalpy_config_ptr.d_K_BOLTZMAN
+    SBC = sbc
+    Au = au
+    k = k_boltzman
+    newtons_constant = G

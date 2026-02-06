@@ -1,8 +1,8 @@
 from libcpp cimport bool as cpp_bool
 
-cdef cpp_bool cf_isclose(
-    double a,
-    double b,
-    double rtol = *,
-    double atol = *
-    ) noexcept nogil
+cdef extern from "numerics_.hpp" nogil:
+    cpp_bool c_isclose(
+        double a,
+        double b,
+        double rtol,
+        double atol)

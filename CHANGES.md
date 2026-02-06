@@ -2,7 +2,7 @@
 
 ## Version 0.7.X
 
-### Version 0.7.1 (2026-NNN)
+### Version 0.7.2 (2026-NNN)
 
 #### Package
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
@@ -16,6 +16,11 @@
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
   * Complex versions are also available as `IntMapNComplex`.
+* Converted `math.numerics` to c++.
+* Implemented a new constant/parameter backend that can be accessed in C++ but modified in Python/cython.
+  * Refactored `constants.d_DBL_MANT_DIG` to `constants.d_DBL_MANT_DIGITS` for readability.
+  * Refactored `constants.d_PI_DBL` to `constants.d_PI`
+  * Refactored `constants.d_NAN_DBL` to `constants.d_NAN`
 
 #### Tests
 * Added tests for `TidalPy.get_include`.
@@ -31,6 +36,9 @@
 
 #### Repository
 * Fixes incorrect license url in codemeta.json.
+
+#### Dependencies
+* Bumped version of `ipympl` to `<=0.11.0`.
 
 ### Version 0.7.0 (2025-12-02)
 

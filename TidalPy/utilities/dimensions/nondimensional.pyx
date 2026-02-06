@@ -12,7 +12,11 @@ Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 from libc.math cimport sqrt
 
-from TidalPy.constants cimport d_G, d_PI_DBL, d_NAN_DBL
+from TidalPy.constants cimport TidalPyConfig, d_PI, d_NAN, get_shared_config_address, tidalpy_config_ptr
+
+# Wire up the pointer at import time
+if tidalpy_config_ptr == NULL:
+    tidalpy_config_ptr = get_shared_config_address()
 
 
 cdef class NonDimensionalScalesClass:
@@ -22,13 +26,13 @@ cdef class NonDimensionalScalesClass:
 
     def __init__(self):
         # Initialize everything to nan
-        self.nondim_scales.second2_conversion = d_NAN_DBL
-        self.nondim_scales.second_conversion  = d_NAN_DBL
-        self.nondim_scales.length_conversion  = d_NAN_DBL
-        self.nondim_scales.length3_conversion = d_NAN_DBL
-        self.nondim_scales.density_conversion = d_NAN_DBL
-        self.nondim_scales.mass_conversion    = d_NAN_DBL
-        self.nondim_scales.pascal_conversion  = d_NAN_DBL
+        self.nondim_scales.second2_conversion = d_NAN
+        self.nondim_scales.second_conversion  = d_NAN
+        self.nondim_scales.length_conversion  = d_NAN
+        self.nondim_scales.length3_conversion = d_NAN
+        self.nondim_scales.density_conversion = d_NAN
+        self.nondim_scales.mass_conversion    = d_NAN
+        self.nondim_scales.pascal_conversion  = d_NAN
     
     @property
     def second2_conversion(self):
@@ -66,7 +70,7 @@ cdef void cf_build_nondimensional_scales(
         double bulk_density
         ) noexcept nogil:
 
-    non_dim_scales_ptr.second2_conversion = 1. / (d_PI_DBL * d_G * bulk_density)
+    non_dim_scales_ptr.second2_conversion = 1. / (d_PI * tidalpy_config_ptr.d_G * bulk_density)
     non_dim_scales_ptr.second_conversion  = sqrt(non_dim_scales_ptr.second2_conversion)
     non_dim_scales_ptr.length_conversion  = mean_radius
     non_dim_scales_ptr.length3_conversion = mean_radius * mean_radius * mean_radius

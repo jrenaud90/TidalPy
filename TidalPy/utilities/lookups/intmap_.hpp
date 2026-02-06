@@ -92,4 +92,12 @@ public:
         o_found = false;
         return ValueType(); // Default construct (0.0 or 0j)
     }
+
+    // Iterator support
+    auto begin() { return data.begin(); }
+    auto end() { return data.end(); }
+
+    // Const iterator support
+    auto begin() const { return data.begin(); }
+    auto end() const { return data.end(); }
 };

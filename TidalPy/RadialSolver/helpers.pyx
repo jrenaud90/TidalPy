@@ -11,11 +11,11 @@ cnp.import_array()
 
 from collections import namedtuple
 
-from TidalPy.constants cimport d_PI_DBL
-from TidalPy.utilities.math.numerics cimport cf_isclose
+from TidalPy.constants cimport d_PI
+from TidalPy.utilities.math.numerics cimport c_isclose
 from TidalPy.rheology.base cimport RheologyModelBase
 
-cdef double PI_4_3 = (4.0 / 3.0) * d_PI_DBL 
+cdef double PI_4_3 = (4.0 / 3.0) * d_PI 
 
 from TidalPy.exceptions import ArgumentException
 from TidalPy.logger import get_logger
@@ -109,7 +109,7 @@ def build_rs_input_homogeneous_layers(
                     last_layer_frac = radius_fraction_tuple[layer_i]
                 if perform_checks:
                     # Check that the last layer is at the planet surface
-                    if not cf_isclose(last_layer_frac, 1.0):
+                    if not c_isclose(last_layer_frac, 1.0, 1.0e-9, 0.0):
                         raise ArgumentException(f"The last entry in `radius_fraction_tuple` must be equal to 1 for the top of planet (found {last_layer_frac}).")
         else:
             if perform_checks:
@@ -152,7 +152,7 @@ def build_rs_input_homogeneous_layers(
             if not isinstance(bulk_rheology_model_tuple[layer_i], RheologyModelBase):
                 raise ArgumentException(f"Layer {layer_i} shear rheology class is not an instance of `RheologyModelBase`.")
     
-    if not cf_isclose(total_thick_frac, 1.0):
+    if not c_isclose(total_thick_frac, 1.0, 1.0e-9, 0.0):
         raise ValueError(f"Unexpected value found for total radius fraction, {total_thick_frac} (expected 1.0).")
     
     # Build required arrays
@@ -395,7 +395,7 @@ def build_rs_input_from_data(
         # Fix array's bottom-most values
         # Check that the last layer's upper radius is provided _again_ for the base of this layer.
         # When layer_i == 0 then last_layer_upper_radius == 0.0 which we want to check for anyways
-        if not cf_isclose(radius_slicei, last_layer_upper_radius):
+        if not c_isclose(radius_slicei, last_layer_upper_radius, 1.0e-9, 0.0):
             # The base radius of this layer must be equal to the last layer's upper radius (for interfaces between layers there will be _two_ duplicate radius values)
             if warnings:
                 if layer_i == 0:
@@ -432,7 +432,7 @@ def build_rs_input_from_data(
             shear_visc_slicei = shear_viscosity_array[slice_i]
             bulk_visc_slicei  = bulk_viscosity_array[slice_i]
 
-            if cf_isclose(radius_slicei, layer_upper_radius):
+            if c_isclose(radius_slicei, layer_upper_radius, 1.0e-9, 0.0):
                 # This upper r is in the radius array, we are good!
                 r_present = True
             elif radius_slicei > layer_upper_radius:

@@ -66,6 +66,10 @@ public:
     {
     }
 
+    void rebuild_reference()
+    {
+        this->reference = convert_4key(this->a, this->b, this->c, this->d);
+    }
 };
 
 class c_Key3
@@ -92,6 +96,10 @@ public:
     {
     }
 
+    void rebuild_reference()
+    {
+        this->reference = convert_3key(this->a, this->b, this->c);
+    }
 };
 
 class c_Key2
@@ -114,7 +122,11 @@ public:
         reference(convert_2key(a_, b_))
     {
     }
-
+    
+    void rebuild_reference()
+    {
+        this->reference = convert_2key(this->a, this->b);
+    }
 };
 
 class c_Key1
@@ -135,4 +147,8 @@ public:
     {
     }
 
+    void rebuild_reference()
+    {
+        this->reference = convert_1key(this->a);
+    }
 };

@@ -2,7 +2,6 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cinv
-from TidalPy.constants cimport d_EPS_DBL
 from libc.math cimport fabs
 from libcpp cimport bool as cpp_bool
 from libcpp.cmath cimport ilogb, ldexp
@@ -10,7 +9,6 @@ from libcpp.limits cimport numeric_limits
 
 from libc.float cimport DBL_MIN_EXP
 
-cdef double d_EPS_DBL_10 = 10.0 * d_EPS_DBL
 
 cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,

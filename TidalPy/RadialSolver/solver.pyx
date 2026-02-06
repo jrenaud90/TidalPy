@@ -19,8 +19,12 @@ from CyRK cimport PreEvalFunc
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError, ArgumentException, SolutionFailedError
 
-from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN_DBL
-from TidalPy.utilities.math.numerics cimport cf_isclose
+from TidalPy.constants cimport d_NAN, TidalPyConfig, get_shared_config_address, tidalpy_config_ptr
+
+# Wire up the pointer at import time
+if tidalpy_config_ptr == NULL:
+    tidalpy_config_ptr = get_shared_config_address()
+from TidalPy.utilities.math.numerics cimport c_isclose
 from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
@@ -90,20 +94,20 @@ cdef int cf_radial_solver(
     cdef size_t layer_slices       = 0
     cdef size_t interface_check    = 0
     cdef cpp_bool top_layer        = False
-    cdef double radius_check       = d_NAN_DBL
-    cdef double layer_upper_radius = d_NAN_DBL
+    cdef double radius_check       = d_NAN
+    cdef double layer_upper_radius = d_NAN
 
     # Pull out raw pointers to avoid repeated calls to the getter
     cdef EOSSolutionCC* eos_solution_storage_ptr = solution_storage_ptr.get_eos_solution_ptr()
 
     # Physical parameters
     cdef double radius_planet
-    cdef double G_to_use                = d_NAN_DBL
-    cdef double radius_planet_to_use    = d_NAN_DBL
-    cdef double bulk_density_to_use     = d_NAN_DBL
-    cdef double frequency_to_use        = d_NAN_DBL
-    cdef double starting_radius_to_use  = d_NAN_DBL
-    cdef double surface_pressure_to_use = d_NAN_DBL
+    cdef double G_to_use                = d_NAN
+    cdef double radius_planet_to_use    = d_NAN
+    cdef double bulk_density_to_use     = d_NAN
+    cdef double frequency_to_use        = d_NAN
+    cdef double starting_radius_to_use  = d_NAN
+    cdef double surface_pressure_to_use = d_NAN
     
     # Equation of state variables
     cdef size_t bottom_slice_index
@@ -147,7 +151,7 @@ cdef int cf_radial_solver(
                 radius_check = radius_array_in_ptr[slice_i]
                 
                 # TidalPy requires that each layer's upper radius be provided twice for interface layers and once for top-most layers. 
-                if cf_isclose(radius_check, layer_upper_radius):
+                if c_isclose(radius_check, layer_upper_radius, 1.0e-9, 0.0):
                     # Found slice that matches this layer's upper radius. We want to grab one for sure.
                     interface_check += 1
                     # We do not want to grab a second (there would be two for interface layers)
@@ -192,7 +196,7 @@ cdef int cf_radial_solver(
             eos_solution_storage_ptr.upper_radius_bylayer_vec[layer_i] /= non_dim_scales.length_conversion
             
         # Convert non-array constants
-        G_to_use                = d_G / (non_dim_scales.length3_conversion / (non_dim_scales.mass_conversion * non_dim_scales.second2_conversion))
+        G_to_use                = tidalpy_config_ptr.d_G / (non_dim_scales.length3_conversion / (non_dim_scales.mass_conversion * non_dim_scales.second2_conversion))
         radius_planet_to_use    = radius_planet / non_dim_scales.length_conversion
         bulk_density_to_use     = planet_bulk_density / non_dim_scales.density_conversion
         frequency_to_use        = frequency / (1. / non_dim_scales.second_conversion)
@@ -209,7 +213,7 @@ cdef int cf_radial_solver(
         solution_storage_ptr.change_radius_array(radius_array_in_ptr, total_slices, True)
 
     else:
-        G_to_use                = d_G
+        G_to_use                = tidalpy_config_ptr.d_G
         radius_planet_to_use    = radius_planet
         bulk_density_to_use     = planet_bulk_density
         frequency_to_use        = frequency
@@ -568,9 +572,9 @@ def radial_solver(
                 raise ArgumentException("`upper_radius_bylayer_array` must be in ascending order.")
             last_layer_r = upper_radius_bylayer_array[layer_i]
 
-        if fabs(frequency) < d_MIN_FREQUENCY:
+        if fabs(frequency) < tidalpy_config_ptr.d_MIN_FREQUENCY:
             raise ValueError('Forcing frequency is too small (are you sure you are in rad s-1?).')
-        elif fabs(frequency) > d_MAX_FREQUENCY:
+        elif fabs(frequency) > tidalpy_config_ptr.d_MAX_FREQUENCY:
             raise ValueError('Forcing frequency is too large (are you sure you are in rad s-1?).')
         
         if use_prop_matrix:
@@ -615,7 +619,7 @@ def radial_solver(
                     # Array must be ascending order. Duplicates are required at interfaces but nothing should be less than previous.
                     raise ArgumentException("Radius array must be in ascending order.")
 
-                if cf_isclose(radius_check, layer_radius):
+                if c_isclose(radius_check, layer_radius, 1.0e-9, 0.0):
                     layer_check += 1
                 if last_layer_radius <= radius_check <= layer_radius:
                     # Inside the layer.

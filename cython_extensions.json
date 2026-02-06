@@ -461,6 +461,20 @@
     "is_cpp": true
   },
 
+  "Tides_x.potential.potential_common" : {
+    "name": "TidalPy.Tides_x.potential.potential_common",
+    "sources": [["TidalPy", "Tides_x", "potential", "potential_common.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Tides_x", "potential"],
+      ["TidalPy", "utilities", "lookups"],
+      ["TidalPy", "utilities", "math"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "tides.multilayer.sensitivity": {
     "name": "TidalPy.tides.multilayer.sensitivity",
     "sources": [["TidalPy", "tides", "multilayer", "sensitivity.pyx"]],

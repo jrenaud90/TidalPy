@@ -26,8 +26,7 @@ def test_intmap(use_complex, key_size):
     else:
         test_map = class_dict[f'IntMap{key_size}']()
 
-    test_key = [i + 2 for i in range(key_size)]
-
+    test_key = [i + 2 for i in range(key_size)]    
 
     # Try setting
     if use_complex:

@@ -25,6 +25,7 @@ def initialize(provided_config_file = None):
     See more information about TidalPy_Config.toml in TidalPy.configurations.py
     """
     import TidalPy
+    from TidalPy.constants import update_constants
 
     # Are we in a Jupyter Notebook?
     running_in_jupyter = is_notebook()
@@ -99,6 +100,9 @@ def initialize(provided_config_file = None):
     else:
         TidalPy.extensive_logging = False
         TidalPy.extensive_checks  = False
+
+    # Update constant values
+    update_constants()
 
     # Finish initialization
     TidalPy._tidalpy_init = True

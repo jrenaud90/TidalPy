@@ -21,6 +21,7 @@ cdef extern from "keys_.hpp" nogil:
         RefKeyType reference
         c_Key4() except +
         c_Key4(int16_t a, int16_t b, int16_t c, int16_t d) except +
+        void rebuild_reference()
     
     cdef cppclass c_Key3:
         int16_t a
@@ -29,6 +30,7 @@ cdef extern from "keys_.hpp" nogil:
         RefKeyType reference
         c_Key3() except +
         c_Key3(int16_t a, int16_t b, int16_t c) except +
+        void rebuild_reference()
     
     cdef cppclass c_Key2:
         int16_t a
@@ -36,12 +38,14 @@ cdef extern from "keys_.hpp" nogil:
         RefKeyType reference
         c_Key2() except +
         c_Key2(int16_t a, int16_t b) except +
+        void rebuild_reference()
     
     cdef cppclass c_Key1:
         int16_t a
         RefKeyType reference
         c_Key1() except +
         c_Key1(int16_t a) except +
+        void rebuild_reference()
 
 cdef extern from "intmap_.hpp" nogil:
 
