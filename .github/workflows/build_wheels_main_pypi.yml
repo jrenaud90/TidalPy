@@ -104,7 +104,7 @@ jobs:
 
   check_dist:
     name: Check sdist
-    needs: [make_sdist, build_macos_latest_wheel, build_macos_13_wheel, build_other_wheels]
+    needs: [make_sdist, build_macos_latest_wheel, build_other_wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -116,7 +116,7 @@ jobs:
 
   upload_all:
     name: Upload wheels to PyPI
-    needs: [build_macos_latest_wheel, build_macos_13_wheel, build_other_wheels, make_sdist, check_dist]
+    needs: [build_macos_latest_wheel, build_other_wheels, make_sdist, check_dist]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
