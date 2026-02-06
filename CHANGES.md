@@ -7,6 +7,9 @@
 #### Fixes
 * Fixed surface boundary condition bug where dynamic liquid layers were using too small of a struct and could cause crashes (and wrong results).
 
+#### Package
+* Removes support for MacOS 13 builds.
+
 ### Version 0.7.0 (2025-12-02)
 
 #### Fixes
