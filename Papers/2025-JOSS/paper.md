@@ -64,7 +64,7 @@ community of other packages that perform similar or parallel calculations
 and expands on this prior work in three major areas described in the following sections.
 
 TidalPy has been vetted and used in investigations of tides on Earth [@Vidal2025], in our Solar System
-[@Cascioli2023; @Goossens2024; @Wagner2025], and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025].
+[@Cascioli2023; @Goossens2024; @Wagner2024], and beyond [@RenaudHenning2018apr; @Renaud2021; @Fauchez2025].
 Documentation and Jupyter Notebook [@jupyter] demonstrations are available on the
 [GitHub repository](https://github.com/jrenaud90/TidalPy), these are continuously added to and updated as TidalPy
 evolves. Future releases will focus on increasing performance, improving usability, and incorporating more physics.

@@ -29,6 +29,9 @@
 * Added documentation for `obliquity` functions in the Tides module section.
 * Added documentation for `eccentricity` functions in the Tides module section.
 
+#### Repository
+* Fixes incorrect license url in codemeta.json.
+
 ### Version 0.7.0 (2025-12-02)
 
 #### Fixes
