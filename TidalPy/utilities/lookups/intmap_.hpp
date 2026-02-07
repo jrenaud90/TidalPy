@@ -17,34 +17,29 @@ public:
     std::vector<std::pair<KeyType, ValueType>> data;
 
     c_IntMap(size_t n) :
-        data(n)  // Allow user to preallocate the space
     {
-        if (n != 0)
-        {
-            this->data.clear();
-        }
+        this->data.reserve(n);
     }
 
-    c_IntMap() :
-        data(30)  // Otherwise reserve a good chunk. 
+    c_IntMap()
     {
-        // Need to clear the pre-allocated data
-        this->data.clear();
+        // Otherwise reserve a good chunk. 
+        this->data.reserve(30);
     }
 
     void reserve(size_t n)
     {
-        data.reserve(n);
+        this->data.reserve(n);
     }
 
     void clear()
     {
-        data.clear();
+        this->data.clear();
     }
     
     size_t size() const
     {
-        return data.size();
+        return this->data.size();
     }
 
     void set(const KeyType& key, const ValueType& value)
@@ -91,6 +86,23 @@ public:
 
         o_found = false;
         return ValueType(); // Default construct (0.0 or 0j)
+    }
+
+    const ValueType* get_ptr(bool& o_found, const KeyType& key) const
+    {
+        o_found = true;
+
+        RefKeyType key_ref = key.reference;
+        
+        auto it = std::lower_bound(data.begin(), data.end(), key_ref, 
+            [](const auto& entry, RefKeyType k) { return entry.first.reference < k; });
+            
+        if (it != data.end() && it->first.reference == key_ref)
+        {
+            return &(it->second); // Return address of the value inside the vector
+        }
+
+        return nullptr;
     }
 
     // Iterator support
