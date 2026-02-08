@@ -27,6 +27,14 @@ struct c_ModeStorage
     int n_coeff;
     int o_coeff;
 
+    c_ModeStorage(double mode_, double mode_strength_, int n_coeff_, int o_coeff_) :
+        mode(mode_),
+        mode_strength(mode_strength_),
+        n_coeff(n_coeff_),
+        o_coeff(o_coeff_)
+    {
+    }
+
     c_ModeStorage(int n_coeff_, int o_coeff_) :
         n_coeff(n_coeff_),
         o_coeff(o_coeff_)
