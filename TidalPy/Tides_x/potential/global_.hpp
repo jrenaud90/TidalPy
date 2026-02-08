@@ -28,18 +28,18 @@ struct PotentialResultAtMode
 };
 
 
-struct GlobalPotentialResult
+struct c_GlobalPotentialResult
 {
-    ModeMap mode_map;
-    UniqueFreqIndexMap unique_freq_index_map;
-    UniqueFreqMap unique_freq_map;
+    c_ModeMap mode_map;
+    c_UniqueFreqIndexMap unique_freq_index_map;
+    c_UniqueFreqMap unique_freq_map;
     c_IntMap<c_Key4, PotentialResultAtMode> potential_map;
     int error_code = 0;
     int working_on_l = -1;
 };
 
 
-GlobalPotentialResult global_potential(
+c_GlobalPotentialResult c_global_potential(
         double planet_radius,
         double semi_major_axis,
         double orbital_frequency,
@@ -55,7 +55,7 @@ GlobalPotentialResult global_potential(
     )
 {
     // Setup output
-    GlobalPotentialResult result;
+    c_GlobalPotentialResult result;
     result.error_code = 0;
 
     // We can determine an upper bound on the size of our arrays. This will be overkill because some modes will be 
@@ -85,7 +85,7 @@ GlobalPotentialResult global_potential(
     // Optimizations
     c_Key2 lm_key   = c_Key2();
     c_Key4 lmpq_key = c_Key4();
-    auto& lm_coeff_map = get_lm_coeff_map();
+    auto& lm_coeff_map = c_get_lm_coeff_map();
 
     // Setup R/a coeff
     double R_a = planet_radius / semi_major_axis;
@@ -208,7 +208,7 @@ GlobalPotentialResult global_potential(
                     // If we assume node_dot ~ 0 and periastron_dot ~ 0; this reduces to the following.
                     // TODO: Perhaps put a function here to switch between cases. But then we'd need to track these other
                     // parameters. Perhaps better to make whole new potential functions.
-                    ModeStorage mode_storage = ModeStorage(
+                    c_ModeStorage mode_storage = c_ModeStorage(
                         lmpq_key.a - 2 * lmpq_key.c + lmpq_key.d,
                         -lmpq_key.b
                     );

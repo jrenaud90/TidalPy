@@ -8,26 +8,26 @@
 #include "numerics_.hpp"
 #include "constants_.hpp"
 
-struct FrequencyStorage
+struct c_FrequencyStorage
 {
     size_t num_instances;
     double frequency;
 
-    FrequencyStorage(double freq) :
+    c_FrequencyStorage(double freq) :
         num_instances(1),
         frequency(freq)
     {
     }
 };
 
-struct ModeStorage
+struct c_ModeStorage
 {
     double mode;
     double mode_strength;
     int n_coeff;
     int o_coeff;
 
-    ModeStorage(int n_coeff_, int o_coeff_) :
+    c_ModeStorage(int n_coeff_, int o_coeff_) :
         n_coeff(n_coeff_),
         o_coeff(o_coeff_)
     {
@@ -35,16 +35,16 @@ struct ModeStorage
 
 };
 
-typedef c_IntMap<c_Key4, ModeStorage> ModeMap;
-typedef c_IntMap<c_Key4, size_t> UniqueFreqIndexMap;
-typedef std::vector<FrequencyStorage> UniqueFreqMap;
+typedef c_IntMap<c_Key4, c_ModeStorage> c_ModeMap;
+typedef c_IntMap<c_Key4, size_t> c_UniqueFreqIndexMap;
+typedef std::vector<c_FrequencyStorage> c_UniqueFreqMap;
 
 
 bool record_unique_frequencies(
         c_Key4& lmpq_key,
         double frequency,
-        UniqueFreqIndexMap& frequency_index_map,
-        UniqueFreqMap& frequency_map)
+        c_UniqueFreqIndexMap& frequency_index_map,
+        c_UniqueFreqMap& frequency_map)
 {
     bool nonzero_freq = not c_isclose(frequency, 0.0, 1.0e-9, tidalpy_config_ptr->d_MIN_FREQUENCY);
 
@@ -53,7 +53,7 @@ bool record_unique_frequencies(
     {    
         // Checks if this frequency has been recorded yet. If not then it adds it to the frequency map. 
         bool found = false;
-        FrequencyStorage* frequency_storage_ptr = nullptr;
+        c_FrequencyStorage* frequency_storage_ptr = nullptr;
         for (size_t i = 0; i < frequency_map.size(); i++)
         {
             frequency_storage_ptr = &frequency_map[i];
@@ -80,7 +80,7 @@ bool record_unique_frequencies(
     return nonzero_freq;
 }
 
-inline c_IntMap<c_Key2, double>& get_lm_coeff_map() {
+inline c_IntMap<c_Key2, double>& c_get_lm_coeff_map() {
     static c_IntMap<c_Key2, double> lm_coeff_map;
     static bool initialized = false;
 
