@@ -1,7 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-def convert_from_mode_storage(c_ModeStorage mode_storage_inst):
+from TidalPy.constants cimport d_NAN
+
+
+cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
     """Converts C++ struct `c_ModeStorage` to Python type."""
     cdef double mode = mode_storage_inst.mode
     cdef double mode_strength = mode_storage_inst.mode_strength
@@ -30,11 +33,6 @@ cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple):
 
 
 cdef class ModeMap:
-
-    def __cinit__(self, c_ModeMap mode_map_cinst_):
-
-        # Store the C++ mode map instance
-        self.mode_map_cinst = mode_map_cinst_
     
     cdef void c_reserve(self, size_t n) noexcept nogil:
         self.mode_map_cinst.reserve(n)
@@ -81,7 +79,7 @@ cdef class ModeMap:
         cdef int16_t l = key[0]
         cdef int16_t m = key[1]
         cdef int16_t p = key[2]
-        cdef int16_t q = key[4]
+        cdef int16_t q = key[3]
         cdef c_Key4 c_key = c_Key4(l, m, p, q)
 
         # Build value
@@ -105,7 +103,7 @@ cdef class ModeMap:
             raise KeyError(f"Can not find entry for key: ({key}).")
         
         # Convert result to python readable.
-        return convert_from_mode_storage(result_cinst)
+        return c_convert_from_mode_storage(result_cinst)
 
     def __setitem__(self, tuple key, tuple value):
         self.set(key, value)
@@ -129,7 +127,7 @@ cdef class ModeMap:
             key = self.mode_map_cinst.data[i].first
             value = self.mode_map_cinst.data[i].second
 
-            yield ((key.a, key.b, key.c, key.d), convert_from_mode_storage(value))
+            yield ((key.a, key.b, key.c, key.d), c_convert_from_mode_storage(value))
 
 
 def test_mode_map():
@@ -139,8 +137,8 @@ def test_mode_map():
     # Fill with test data
     cdef size_t l, m, p, q
     cdef size_t total_size = 0
-    cdef c_Key4 key
-    cdef c_ModeStorage storage
+    cdef c_Key4 key = c_Key4(0, 0, 0, 0)
+    cdef c_ModeStorage storage = c_ModeStorage(d_NAN, d_NAN, 0, 0)
     for l in range(2, 4):
         key.a = l
         for m in range(0, l + 1):
@@ -159,6 +157,7 @@ def test_mode_map():
                     mode_map_cinst.set(key, storage)
                     total_size += 1
 
-    cdef ModeMap mode_map = ModeMap(mode_map_cinst)
+    cdef ModeMap mode_map = ModeMap()
+    mode_map.mode_map_cinst = mode_map_cinst
 
     return mode_map, total_size

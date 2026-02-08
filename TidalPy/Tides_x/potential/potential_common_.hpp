@@ -12,7 +12,11 @@ struct c_FrequencyStorage
 {
     size_t num_instances;
     double frequency;
-
+    c_FrequencyStorage() : 
+        num_instances(0),
+        frequency(TidalPyConstants::d_NAN)
+    {
+    }
     c_FrequencyStorage(double freq) :
         num_instances(1),
         frequency(freq)
@@ -26,6 +30,20 @@ struct c_ModeStorage
     double mode_strength;
     int n_coeff;
     int o_coeff;
+    c_ModeStorage() : 
+        mode(TidalPyConstants::d_NAN),
+        mode_strength(TidalPyConstants::d_NAN),
+        n_coeff(0),
+        o_coeff(0)
+    {
+    }
+    c_ModeStorage(double mode_, double mode_strength_, int n_coeff_, int o_coeff_) :
+        mode(mode_),
+        mode_strength(mode_strength_),
+        n_coeff(n_coeff_),
+        o_coeff(o_coeff_)
+    {
+    }
 
     c_ModeStorage(double mode_, double mode_strength_, int n_coeff_, int o_coeff_) :
         mode(mode_),

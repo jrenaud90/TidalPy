@@ -16,15 +16,15 @@ class c_IntMap {
 public:
     std::vector<std::pair<KeyType, ValueType>> data;
 
-    c_IntMap(size_t n) :
-    {
-        this->data.reserve(n);
-    }
-
     c_IntMap()
     {
         // Otherwise reserve a good chunk. 
         this->data.reserve(30);
+    }
+    
+    c_IntMap(size_t n)
+    {
+        this->data.reserve(n);
     }
 
     void reserve(size_t n)
