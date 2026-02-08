@@ -94,7 +94,7 @@ cdef class ModeMap:
         cdef int16_t l = key[0]
         cdef int16_t m = key[1]
         cdef int16_t p = key[2]
-        cdef int16_t q = key[4]
+        cdef int16_t q = key[3]
         cdef c_Key4 c_key = c_Key4(l, m, p, q)
 
         cdef c_ModeStorage result_cinst
@@ -135,7 +135,7 @@ def test_mode_map():
     cdef c_ModeMap mode_map_cinst
 
     # Fill with test data
-    cdef size_t l, m, p, q
+    cdef int l, m, p, q
     cdef size_t total_size = 0
     cdef c_Key4 key = c_Key4(0, 0, 0, 0)
     cdef c_ModeStorage storage = c_ModeStorage(d_NAN, d_NAN, 0, 0)
@@ -149,8 +149,8 @@ def test_mode_map():
                     key.d = q
                     key.rebuild_reference()
 
-                    storage.mode = (l - 2 * p + q) * 10.0 - m * 5.0
-                    storage.mode_strength = l + p + q + m - 4.5
+                    storage.mode = <double>(l - 2 * p + q) * 10.0 - <double>(m) * 5.0
+                    storage.mode_strength = <double>(l + p + q + m) - 4.5
                     storage.n_coeff = (l - 2 * p + q)
                     storage.o_coeff = -m
 
