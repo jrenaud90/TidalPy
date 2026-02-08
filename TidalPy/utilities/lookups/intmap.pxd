@@ -57,7 +57,7 @@ cdef extern from "intmap_.hpp" nogil:
         size_t size() const
         void set(const KeyType& key, const ValueType& value)
         ValueType get(cpp_bool& o_found, const KeyType& key) const
-        const ValueType* get_ptr(bool& o_found, const KeyType& key) const
+        const ValueType* get_ptr(cpp_bool& o_found, const KeyType& key) const
 
 cdef class IntMap4:
     cdef c_IntMap[c_Key4, double] intmap_cinst
