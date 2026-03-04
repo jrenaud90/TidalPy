@@ -64,16 +64,6 @@ cdef class ModeMap:
     def set(self, tuple key, tuple mode_storage_tuple):
         if len(key) != 4:
             raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
-        if len(mode_storage_tuple) != 4:
-            raise ValueError("`mode_storage_tuple` must be a tuple of 4 values: (double, double, int, int).")
-        if not isinstance(mode_storage_tuple[0], float):
-            raise TypeError("`mode_storage_tuple[0] must be a floating point value (the 'mode').")
-        if not isinstance(mode_storage_tuple[1], float):
-            raise TypeError("`mode_storage_tuple[1] must be a floating point value (the 'mode strength').")
-        if not isinstance(mode_storage_tuple[2], int):
-            raise TypeError("`mode_storage_tuple[2] must be a integer value (the 'n coefficient').")
-        if not isinstance(mode_storage_tuple[3], int):
-            raise TypeError("`mode_storage_tuple[3] must be a integer value (the 'O coefficient').")
 
         # Build Key
         cdef int16_t l = key[0]
@@ -126,6 +116,91 @@ cdef class ModeMap:
         for i in range(self.mode_map_cinst.size()):
             key = self.mode_map_cinst.data[i].first
             value = self.mode_map_cinst.data[i].second
+
+            yield ((key.a, key.b, key.c, key.d), c_convert_from_mode_storage(value))
+
+
+cdef class UniqueFrequencyMap:
+    
+    cdef void c_reserve(self, size_t n) noexcept nogil:
+        self.freq_map_cinst.reserve(n)
+
+    cdef void c_clear(self) noexcept nogil:
+        self.freq_map_cinst.clear()
+
+    cdef void c_set(self, c_Key4& key, size_t& value) noexcept nogil:
+        self.freq_map_cinst.set(key, value)
+
+    cdef size_t c_size(self) noexcept nogil:
+        return self.freq_map_cinst.size()
+    
+    cdef cpp_bool c_get(self, size_t& result, c_Key4& key) noexcept nogil:
+        cdef cpp_bool found = False
+        result = self.freq_map_cinst.get(found, key)
+        return found
+    
+    ## Python wrappers
+    def reserve(self, size_t n):
+        self.c_reserve(n)
+    
+    def clear(self):
+        self.c_clear()
+    
+    def size(self):
+        return self.c_size()
+    
+    def set(self, tuple key, size_t value):
+        if len(key) != 4:
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
+
+        # Build Key
+        cdef int16_t l = key[0]
+        cdef int16_t m = key[1]
+        cdef int16_t p = key[2]
+        cdef int16_t q = key[3]
+        cdef c_Key4 c_key = c_Key4(l, m, p, q)
+
+        self.c_set(c_key, value)
+    
+    def get(self, tuple key):
+        if len(key) != 4:
+            raise ValueError("Key must be a tuple of 4 integers (l, m, p, q)")
+
+        cdef int16_t l = key[0]
+        cdef int16_t m = key[1]
+        cdef int16_t p = key[2]
+        cdef int16_t q = key[3]
+        cdef c_Key4 c_key = c_Key4(l, m, p, q)
+
+        cdef size_t result
+        cdef cpp_bool found = self.c_get(result, c_key)
+        if not found:
+            raise KeyError(f"Can not find entry for key: ({key}).")
+        
+        # Convert result to python readable.
+        return result
+
+    def __setitem__(self, tuple key, size_t value):
+        self.set(key, value)
+
+    def __getitem__(self, tuple key):
+        return self.get(key)
+    
+    def __len__(self):
+        return self.freq_map_cinst.size()
+
+    def __iter__(self):
+        """
+        Yields pairs of ((a, b, c), value).
+        """
+
+        cdef size_t i
+        cdef c_Key4 key
+        cdef c_ModeStorage value
+
+        for i in range(self.freq_map_cinst.size()):
+            key = self.freq_map_cinst.data[i].first
+            value = self.freq_map_cinst.data[i].second
 
             yield ((key.a, key.b, key.c, key.d), c_convert_from_mode_storage(value))
 

@@ -42,3 +42,10 @@ cdef class ModeMap:
 
 cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst)
 cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple)
+
+
+cdef class UniqueFrequencyMap:
+
+    cdef c_UniqueFreqIndexMap freq_map_cinst
+
+    
