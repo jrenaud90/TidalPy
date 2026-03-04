@@ -486,6 +486,22 @@
     "is_cpp": true
   },
 
+  "Tides_x.potential.global" : {
+    "name": "TidalPy.Tides_x.potential.global",
+    "sources": [["TidalPy", "Tides_x", "potential", "global.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Tides_x", "potential"],
+      ["TidalPy", "Tides_x", "obliquity"],
+      ["TidalPy", "Tides_x", "eccentricity"],
+      ["TidalPy", "utilities", "lookups"],
+      ["TidalPy", "utilities", "math"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "tides.multilayer.sensitivity": {
     "name": "TidalPy.tides.multilayer.sensitivity",
     "sources": [["TidalPy", "tides", "multilayer", "sensitivity.pyx"]],

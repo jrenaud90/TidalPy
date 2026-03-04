@@ -103,6 +103,7 @@ c_GlobalPotentialStorage c_global_potential(
     {
     case 1:
         ra_l_coeff = R_a_2 * R_a;
+        break;
     case 2:
         ra_l_coeff = R_a_2 * R_a_2 * R_a;  // 2(l=2) + 1 == 5
         break;
@@ -110,7 +111,7 @@ c_GlobalPotentialStorage c_global_potential(
         ra_l_coeff = R_a_2 * R_a_2 * R_a_2 * R_a;  // 2(l=3) + 1 == 7
         break;
     default:
-        ra_l_coeff *= std::pow(R_a, 2.0 * static_cast<double>(min_degree_l) + 1);
+        ra_l_coeff = std::pow(R_a, 2.0 * static_cast<double>(min_degree_l) + 1);
         break;
     }
     // Multiple the ra_l coeff by the outer most coefficient now. Slightly inefficient doing it now but it will 
@@ -170,6 +171,13 @@ c_GlobalPotentialStorage c_global_potential(
 
         // Step through the outer lmp loop defined by the obliquity function.
         for (const auto& [lmp_key, F_lmp] : obliquity_funcs.first) {
+
+            if (F_lmp == 0.0)
+            {
+                // If F_lmp is zero then this lmp has no impact on the result.
+                continue;
+            }
+            
             bool found = false;
             if (lmp_key.b != lm_key.b)
             {
@@ -207,6 +215,12 @@ c_GlobalPotentialStorage c_global_potential(
             {
                 for (const auto& [q_key, G_lpq] : *eccentricity_by_q_ptr)
                 {
+                    if (G_lpq == 0.0)
+                    {
+                        // If G_lpq is zero then this lpq has no impact on the result.
+                        continue;
+                    }
+
                     // Build key for this unique lmpq
                     lmpq_key.d = q_key.a;
                     lmpq_key.rebuild_reference();
@@ -266,9 +280,9 @@ c_GlobalPotentialStorage c_global_potential(
                                 // dU_dM (mean anomaly)
                                 d_n_coeff * mode_sign * common_coeff,
                                 // dU_dw (periapsis)
-                                d_n_coeff * mode_sign * common_coeff,
+                                (d_n_coeff - static_cast<double>(lmpq_key.d)) * mode_sign * common_coeff,
                                 // dU_dSig (node)
-                                d_o_coeff * mode_sign * common_coeff,
+                                -d_o_coeff * mode_sign * common_coeff,
                                 // Heating 
                                 std::abs(mode_storage.mode) * host_mass * common_coeff
                             )

@@ -1,7 +1,9 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.utilities.lookups import IntMap2, IntMap4
+from TidalPy.constants cimport tidalpy_config_ptr, get_shared_config_address
+from TidalPy.Tides_x.potential.potential_common cimport ModeMap, UniqueFrequencyMap
+from TidalPy.Tides_x.potential.potential_common import ModeMap, UniqueFrequencyMap
 
 def global_potential(
         double planet_radius,
@@ -17,6 +19,11 @@ def global_potential(
         object obliquity_truncation='gen',
         int eccentricity_truncation=6
     ):
+
+    # Ensure the global config pointer is initialized before calling C++ code.
+    global tidalpy_config_ptr
+    if tidalpy_config_ptr == NULL:
+        tidalpy_config_ptr = get_shared_config_address()
 
     # Clean up non-C inputs
     cdef int i_obliquity_truncation = 0
@@ -36,7 +43,7 @@ def global_potential(
         raise NotImplementedError("Unsupported obliquity truncation encountered.")
 
     # Run C++ code
-    cdef c_GlobalPotentialResult c_result = c_global_potential(
+    cdef c_GlobalPotentialStorage c_result = c_global_potential(
         planet_radius,
         semi_major_axis,
         orbital_frequency,
@@ -51,22 +58,52 @@ def global_potential(
         eccentricity_truncation
     )
 
-        struct PotentialResultAtMode:
-        double dU_dM
-        double dU_dw
-        double dU_dO
-        double E_dot
-        PotentialResultAtMode(
-            double dU_dM_,
-            double dU_dw_,
-            double dU_dO_,
-            double E_dot_)
+    # Check for errors
+    if c_result.error_code != 0:
+        if c_result.error_code == -20:
+            raise NotImplementedError(
+                f"Global potential error code -20: Could not find l,m coefficient "
+                f"(working on degree l={c_result.working_on_l}). Perhaps unsupported degree l.")
+        elif c_result.error_code == -1:
+            raise NotImplementedError(
+                f"Global potential error code -1: Unsupported obliquity truncation "
+                f"(working on degree l={c_result.working_on_l}).")
+        elif c_result.error_code == -2:
+            raise NotImplementedError(
+                f"Global potential error code -2: Unsupported degree l={c_result.working_on_l} "
+                f"for obliquity functions.")
+        else:
+            raise RuntimeError(
+                f"Unknown global potential error code: {c_result.error_code} "
+                f"(working on degree l={c_result.working_on_l}).")
 
+    # Convert C++ results to Python-accessible objects.
+    # Mode map
+    cdef ModeMap mode_map = ModeMap()
+    mode_map._cinst = c_result.mode_map
 
-    struct c_GlobalPotentialResult:
-        ModeMap mode_map
-        cUniqueFreqIndexMap unique_freq_index_map
-        c_UniqueFreqMap unique_freq_map
-        c_IntMap[c_Key4, PotentialResultAtMode] potential_map
-        int error_code
-        int working_on_l
+    # Unique frequency index map
+    cdef UniqueFrequencyMap unique_freq_index_map = UniqueFrequencyMap()
+    unique_freq_index_map._cinst = c_result.unique_freq_index_map
+
+    # Unique frequency map (vector of c_FrequencyStorage -> list of (frequency, num_instances))
+    cdef list unique_freq_list = []
+    cdef size_t i
+    for i in range(c_result.unique_freq_map.size()):
+        unique_freq_list.append(
+            (c_result.unique_freq_map[i].frequency, c_result.unique_freq_map[i].num_instances)
+        )
+
+    # Potential map (c_IntMap<c_Key4, c_GlobalPotentialResultAtMode> -> dict)
+    cdef dict potential_dict = dict()
+    cdef c_Key4 pkey
+    for i in range(c_result.potential_map.size()):
+        pkey = c_result.potential_map.data[i].first
+        potential_dict[(pkey.a, pkey.b, pkey.c, pkey.d)] = (
+            c_result.potential_map.data[i].second.dU_dM,
+            c_result.potential_map.data[i].second.dU_dw,
+            c_result.potential_map.data[i].second.dU_dO,
+            c_result.potential_map.data[i].second.E_dot
+        )
+
+    return mode_map, unique_freq_index_map, unique_freq_list, potential_dict

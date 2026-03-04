@@ -3,7 +3,7 @@
 from libc.stdint cimport int16_t
 
 from TidalPy.utilities.lookups cimport c_IntMap, c_Key2, c_Key4
-from TidalPy.tides.potential.potential_common cimport c_ModeMap, c_UniqueFreqIndexMap, c_UniqueFreqMap
+from TidalPy.Tides_x.potential.potential_common cimport c_ModeMap, c_UniqueFreqIndexMap, c_UniqueFreqMap
 
 
 cdef extern from "global_.hpp" nogil:
@@ -19,7 +19,7 @@ cdef extern from "global_.hpp" nogil:
             double E_dot_)
 
 
-    struct c_GlobalPotentialResult:
+    struct c_GlobalPotentialStorage:
         c_ModeMap mode_map
         c_UniqueFreqIndexMap unique_freq_index_map
         c_UniqueFreqMap unique_freq_map
