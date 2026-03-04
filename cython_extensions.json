@@ -128,6 +128,17 @@
     "is_cpp": true
   },
 
+  "RadialSolver_x.love": {
+    "name": "TidalPy.RadialSolver_x.love",
+    "sources": [["TidalPy", "RadialSolver_x", "love.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "RadialSolver_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
 
   "RadialSolver.constants": {
     "name": "TidalPy.RadialSolver.constants",

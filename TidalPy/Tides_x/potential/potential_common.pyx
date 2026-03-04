@@ -3,7 +3,6 @@
 
 from TidalPy.constants cimport d_NAN
 
-
 cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
     """Converts C++ struct `c_ModeStorage` to Python type."""
     cdef double mode = mode_storage_inst.mode
@@ -35,20 +34,20 @@ cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple):
 cdef class ModeMap:
     
     cdef void c_reserve(self, size_t n) noexcept nogil:
-        self.mode_map_cinst.reserve(n)
+        self._cinst.reserve(n)
 
     cdef void c_clear(self) noexcept nogil:
-        self.mode_map_cinst.clear()
+        self._cinst.clear()
 
     cdef void c_set(self, c_Key4& key, c_ModeStorage& value) noexcept nogil:
-        self.mode_map_cinst.set(key, value)
+        self._cinst.set(key, value)
 
     cdef size_t c_size(self) noexcept nogil:
-        return self.mode_map_cinst.size()
+        return self._cinst.size()
     
     cdef cpp_bool c_get(self, c_ModeStorage& result, c_Key4& key) noexcept nogil:
         cdef cpp_bool found = False
-        result = self.mode_map_cinst.get(found, key)
+        result = self._cinst.get(found, key)
         return found
     
     ## Python wrappers
@@ -102,7 +101,7 @@ cdef class ModeMap:
         return self.get(key)
     
     def __len__(self):
-        return self.mode_map_cinst.size()
+        return self._cinst.size()
 
     def __iter__(self):
         """
@@ -113,9 +112,9 @@ cdef class ModeMap:
         cdef c_Key4 key
         cdef c_ModeStorage value
 
-        for i in range(self.mode_map_cinst.size()):
-            key = self.mode_map_cinst.data[i].first
-            value = self.mode_map_cinst.data[i].second
+        for i in range(self._cinst.size()):
+            key = self._cinst.data[i].first
+            value = self._cinst.data[i].second
 
             yield ((key.a, key.b, key.c, key.d), c_convert_from_mode_storage(value))
 
@@ -123,20 +122,20 @@ cdef class ModeMap:
 cdef class UniqueFrequencyMap:
     
     cdef void c_reserve(self, size_t n) noexcept nogil:
-        self.freq_map_cinst.reserve(n)
+        self._cinst.reserve(n)
 
     cdef void c_clear(self) noexcept nogil:
-        self.freq_map_cinst.clear()
+        self._cinst.clear()
 
     cdef void c_set(self, c_Key4& key, size_t& value) noexcept nogil:
-        self.freq_map_cinst.set(key, value)
+        self._cinst.set(key, value)
 
     cdef size_t c_size(self) noexcept nogil:
-        return self.freq_map_cinst.size()
+        return self._cinst.size()
     
     cdef cpp_bool c_get(self, size_t& result, c_Key4& key) noexcept nogil:
         cdef cpp_bool found = False
-        result = self.freq_map_cinst.get(found, key)
+        result = self._cinst.get(found, key)
         return found
     
     ## Python wrappers
@@ -187,7 +186,7 @@ cdef class UniqueFrequencyMap:
         return self.get(key)
     
     def __len__(self):
-        return self.freq_map_cinst.size()
+        return self._cinst.size()
 
     def __iter__(self):
         """
@@ -196,18 +195,18 @@ cdef class UniqueFrequencyMap:
 
         cdef size_t i
         cdef c_Key4 key
-        cdef c_ModeStorage value
+        cdef size_t value
 
-        for i in range(self.freq_map_cinst.size()):
-            key = self.freq_map_cinst.data[i].first
-            value = self.freq_map_cinst.data[i].second
+        for i in range(self._cinst.size()):
+            key = self._cinst.data[i].first
+            value = self._cinst.data[i].second
 
-            yield ((key.a, key.b, key.c, key.d), c_convert_from_mode_storage(value))
+            yield ((key.a, key.b, key.c, key.d), value)
 
 
 def test_mode_map():
 
-    cdef c_ModeMap mode_map_cinst
+    cdef c_ModeMap _cinst
 
     # Fill with test data
     cdef int l, m, p, q
@@ -229,10 +228,10 @@ def test_mode_map():
                     storage.n_coeff = (l - 2 * p + q)
                     storage.o_coeff = -m
 
-                    mode_map_cinst.set(key, storage)
+                    _cinst.set(key, storage)
                     total_size += 1
 
     cdef ModeMap mode_map = ModeMap()
-    mode_map.mode_map_cinst = mode_map_cinst
+    mode_map._cinst = _cinst
 
     return mode_map, total_size

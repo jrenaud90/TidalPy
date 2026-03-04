@@ -8,13 +8,13 @@
 #include "constants_.hpp"
 
 
-struct PotentialResultAtMode
+struct c_GlobalPotentialResultAtMode
 {
     double dU_dM;
     double dU_dw;
     double dU_dO;
     double E_dot;
-    PotentialResultAtMode(
+    c_GlobalPotentialResultAtMode(
             double dU_dM_,
             double dU_dw_,
             double dU_dO_,
@@ -28,18 +28,26 @@ struct PotentialResultAtMode
 };
 
 
+struct c_GlobalPotentialStorage
+{
+    c_ModeMap mode_map;
+    c_UniqueFreqIndexMap unique_freq_index_map;
+    c_UniqueFreqMap unique_freq_map;
+    c_IntMap<c_Key4, c_GlobalPotentialResultAtMode> potential_map;
+    int error_code = 0;
+    int working_on_l = -1;
+};
+
 struct c_GlobalPotentialResult
 {
     c_ModeMap mode_map;
     c_UniqueFreqIndexMap unique_freq_index_map;
     c_UniqueFreqMap unique_freq_map;
-    c_IntMap<c_Key4, PotentialResultAtMode> potential_map;
+    c_IntMap<c_Key4, c_GlobalPotentialResultAtMode> potential_map;
     int error_code = 0;
-    int working_on_l = -1;
 };
 
-
-c_GlobalPotentialResult c_global_potential(
+c_GlobalPotentialStorage c_global_potential(
         double planet_radius,
         double semi_major_axis,
         double orbital_frequency,
@@ -55,7 +63,7 @@ c_GlobalPotentialResult c_global_potential(
     )
 {
     // Setup output
-    c_GlobalPotentialResult result;
+    c_GlobalPotentialStorage result;
     result.error_code = 0;
 
     // We can determine an upper bound on the size of our arrays. This will be overkill because some modes will be 
@@ -77,7 +85,7 @@ c_GlobalPotentialResult c_global_potential(
     // + unique_freq_map = 3*8 + 8 * size
     // + potential_map = 3*8 + (8 + 8 * 4) * size
     // So stack memory is going to be around 96 bytes
-    // Heap memory for l=2 at eccentricity truncation of 6: > 11.23 KB; l=3 > 31.2 KB; l=4 > 62.4 KB
+    // Heap memory for l=2 at eccentricity truncation of 6: > 11.23 kB; l=3 > 31.2 kB; l=4 > 62.4 kB
 
     // For later calculation of the maximum relative mode.
     double max_mode_strength = 0;
@@ -209,14 +217,16 @@ c_GlobalPotentialResult c_global_potential(
                     // TODO: Perhaps put a function here to switch between cases. But then we'd need to track these other
                     // parameters. Perhaps better to make whole new potential functions.
                     c_ModeStorage mode_storage = c_ModeStorage(
-                        lmpq_key.a - 2 * lmpq_key.c + lmpq_key.d,
-                        -lmpq_key.b
+                        lmpq_key.a - 2 * lmpq_key.c + lmpq_key.d,  // n coeff 
+                        -lmpq_key.b                                // o coeff
                     );
+                    const double d_n_coeff = static_cast<double>(mode_storage.n_coeff);
+                    const double d_o_coeff = static_cast<double>(mode_storage.o_coeff);
                     mode_storage.mode = 
-                        static_cast<double>(mode_storage.n_coeff) * orbital_frequency + 
-                        static_cast<double>(mode_storage.o_coeff) * spin_frequency;
+                        d_n_coeff * orbital_frequency + 
+                        d_o_coeff * spin_frequency;
                     double mode_sign = 1.0;
-                    if (mode_storage.mode < 0)
+                    if (mode_storage.mode < 0.0)
                     {
                         mode_sign = -1.0;
                     }
@@ -236,20 +246,31 @@ c_GlobalPotentialResult c_global_potential(
                         // We want to track which modes are actually important so the user can adjust truncation levels
                         //  if they are too high for the problem at hand.
                         // Instead of creating its own parameter, just use mode strength as our common coefficient.
-                        // Like the obliquity function, we will need G^2 and lets take this opportunity to multiple by F^2
+                        // Like the obliquity function, we will need G^2 and lets take this opportunity to multiple by
+                        //  the current lmp coeff which include F^2.
                         double common_coeff = G_lpq * G_lpq * lmp_coeff;
+
+                        // For individual mode strength let's retain the sign so we don't lose that information.
+                        // It is easy enough to abs away later if not needed.
                         mode_storage.mode_strength = mode_sign * common_coeff;
-                        max_mode_strength = std::max(max_mode_strength, std::abs(mode_storage.mode_strength));
                         result.mode_map.set(lmpq_key, mode_storage);
+                        
+                        // The running maximum mode strength should be abs'd though.
+                        max_mode_strength = std::max(max_mode_strength, std::abs(mode_storage.mode_strength));
 
                         // Each potential component has a different coefficient but all share the common one.
                         // See Eq. 7 in Renaud+ (2021; PSJ).
-                        result.potential_map.set(lmpq_key,
-                            PotentialResultAtMode(
-                                static_cast<double>(mode_storage.n_coeff) * mode_sign * common_coeff, // dU_dM (mean anomaly)
-                                static_cast<double>(mode_storage.n_coeff - lmpq_key.d) * mode_sign * common_coeff,  // dU_dw (periapsis)
-                                -static_cast<double>(mode_storage.o_coeff) * mode_sign * common_coeff, // dU_dSig (node)
-                                std::abs(mode_storage.mode) * host_mass * common_coeff  // Heating 
+                        result.potential_map.set(
+                            lmpq_key,
+                            c_GlobalPotentialResultAtMode(
+                                // dU_dM (mean anomaly)
+                                d_n_coeff * mode_sign * common_coeff,
+                                // dU_dw (periapsis)
+                                d_n_coeff * mode_sign * common_coeff,
+                                // dU_dSig (node)
+                                d_o_coeff * mode_sign * common_coeff,
+                                // Heating 
+                                std::abs(mode_storage.mode) * host_mass * common_coeff
                             )
                         );
                     }

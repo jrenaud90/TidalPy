@@ -6,13 +6,13 @@ from TidalPy.utilities.lookups cimport c_IntMap, c_Key2, c_Key4
 from TidalPy.tides.potential.potential_common cimport c_ModeMap, c_UniqueFreqIndexMap, c_UniqueFreqMap
 
 
-cdef extern from "potential_common_.hpp" nogil:
-    struct PotentialResultAtMode:
+cdef extern from "global_.hpp" nogil:
+    struct c_GlobalPotentialResultAtMode:
         double dU_dM
         double dU_dw
         double dU_dO
         double E_dot
-        PotentialResultAtMode(
+        c_GlobalPotentialResultAtMode(
             double dU_dM_,
             double dU_dw_,
             double dU_dO_,
@@ -23,11 +23,11 @@ cdef extern from "potential_common_.hpp" nogil:
         c_ModeMap mode_map
         c_UniqueFreqIndexMap unique_freq_index_map
         c_UniqueFreqMap unique_freq_map
-        c_IntMap[c_Key4, PotentialResultAtMode] potential_map
+        c_IntMap[c_Key4, c_GlobalPotentialResultAtMode] potential_map
         int error_code
         int working_on_l
 
-    c_GlobalPotentialResult c_global_potential(
+    c_GlobalPotentialStorage c_global_potential(
         double planet_radius,
         double semi_major_axis,
         double orbital_frequency,

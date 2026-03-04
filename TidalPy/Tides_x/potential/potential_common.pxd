@@ -29,9 +29,10 @@ cdef extern from "potential_common_.hpp" nogil:
 
     inline c_IntMap[c_Key2, double]& c_get_lm_coeff_map()
 
+
 cdef class ModeMap:
 
-    cdef c_ModeMap mode_map_cinst
+    cdef c_ModeMap _cinst
 
     cdef void c_reserve(self, size_t n) noexcept nogil
     cdef void c_clear(self) noexcept nogil
@@ -46,6 +47,12 @@ cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple)
 
 cdef class UniqueFrequencyMap:
 
-    cdef c_UniqueFreqIndexMap freq_map_cinst
+    cdef c_UniqueFreqIndexMap _cinst
+
+    cdef void c_reserve(self, size_t n) noexcept nogil
+    cdef void c_clear(self) noexcept nogil
+    cdef void c_set(self, c_Key4& key, size_t& value) noexcept nogil
+    cdef size_t c_size(self) noexcept nogil
+    cdef cpp_bool c_get(self, size_t& result, c_Key4& key) noexcept nogil
 
     
