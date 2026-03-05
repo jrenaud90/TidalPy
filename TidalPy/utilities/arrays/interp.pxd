@@ -1,4 +1,4 @@
-cdef extern from "interp_.cpp" nogil:
+cdef extern from "interp_.hpp" nogil:
     size_t cf_binary_search_with_guess(
         double key,
         double* array,

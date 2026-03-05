@@ -1,2 +1,4 @@
 * Need to implement a package wide C++ error code system. For example unsupported eccentricity OR obliquity truncations both return error -1. It should be a enum class instead with a message builder built off of it. Probably in the top level directory of TidalPy.
 * Look back at our derivations repo and see how eccentricity functions are being truncated for e^1 truncation there should still be a non-zero tidal result but the current implementation if obliquity is off is to produce 0 active modes. Its almost like we need to square the G functions; taylor expand to desired trunc^2; then sqrt the result and return it? That does not really make sense though. need to do some research.
+* Inconsistent call pattern in TidalPy/utilities/arrays/interp_.hpp -- cf_interp_complex has double desired_x; cf_interp has double* desired_x_ptr -- why a pointer for the regular interp?
+* Convert TidalPy.utilities.math.numerics over to C++ header

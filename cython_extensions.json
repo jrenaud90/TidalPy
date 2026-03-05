@@ -128,6 +128,57 @@
     "is_cpp": true
   },
 
+  "Material_x.eos.eos_solution": {
+    "name": "TidalPy.Material_x.eos.eos_solution",
+    "sources": [["TidalPy", "Material_x", "eos", "eos_solution.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "utilities", "dimensions"],
+      ["TidalPy", "utilities", "arrays"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material_x.eos.ode": {
+    "name": "TidalPy.Material_x.eos.ode",
+    "sources": [["TidalPy", "Material_x", "eos", "ode.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "utilities", "arrays"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material_x.eos.solver": {
+    "name": "TidalPy.Material_x.eos.solver",
+    "sources": [["TidalPy", "Material_x", "eos", "solver.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "utilities", "arrays"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Material_x.eos.methods.interpolate": {
+    "name": "TidalPy.Material_x.eos.methods.interpolate",
+    "sources": [["TidalPy", "Material_x", "eos", "methods", "interpolate.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Material_x", "eos", "methods"],
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "utilities", "arrays"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "RadialSolver_x.love": {
     "name": "TidalPy.RadialSolver_x.love",
     "sources": [["TidalPy", "RadialSolver_x", "love.pyx"]],

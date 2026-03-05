@@ -10,7 +10,7 @@ from libcpp.string cimport to_string
 from libcpp.string cimport string as cpp_string
 from libcpp.memory cimport unique_ptr, make_unique
 
-from CyRK cimport CySolverResult, CySolveOutput, DiffeqFuncType, PreEvalFunc
+from CyRK cimport CySolverResult, CySolveOutput, DiffeqFuncType, PreEvalFunc, Event
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 from CyRK.utils.utils cimport allocate_mem, free_mem
 from CyRK.utils.vector cimport vector
@@ -423,6 +423,10 @@ cdef int cf_shooting_solver(
     cdef size_t start_layer_i           = 0
     cdef size_t last_index_before_start = 0
     cdef size_t start_index_in_layer    = 0
+
+    # Events (empty — not used by RadialSolver)
+    cdef vector[Event] events_vec = vector[Event]()
+
     last_radius_check = 0.0
     for current_layer_i in range(num_layers):
         # Check if the radius is in this layer
@@ -712,10 +716,12 @@ cdef int cf_shooting_solver(
                 capture_dense_output,      # Use dense output [bool]
                 layer_radius_vec,          # Interpolate at this layer's radius array vector[double]
                 diffeq_preeval_ptr,        # Pre-eval function used in diffeq [PreEvalFunc]
+                events_vec,                # Events vector[Event]
                 rtols_vec,                 # Relative Tolerance (as array) vector[double]
                 atols_vec,                 # Absolute Tolerance (as array) vector[double]
                 max_step_to_use,           # Maximum step size [double]
-                first_step_size            # Initial step size (0 = find good value) [double]
+                first_step_size,           # Initial step size (0 = find good value) [double]
+                True                       # Force retain solver
                 )
             #########################
 

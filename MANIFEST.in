@@ -4,8 +4,6 @@
 # This avoids shipping already cythonized c files that need to be cythonized locally.
 exclude **/*.c
 exclude **/*.cpp
-exclude **/*.h
-exclude **/*.hpp
 
 # Include data files used for plotting and benchmarking
 include TidalPy/utilities/graphics/multilayer/*.csv
@@ -19,6 +17,7 @@ global-include *.pyx
 include cython_extensions.json
 
 # Include required hpp and cpp files
+global-include *.hpp
 include TidalPy/utilities/arrays/interp_.cpp
 include TidalPy/utilities/arrays/interp_.hpp
 include TidalPy/RadialSolver/love_.cpp

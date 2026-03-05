@@ -16,6 +16,9 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### `TidalPy.RadialSolver_x`
 
+#### `TidalPy.Material_x`
+* Created a Cython-wrapped C++ module that duplicates the functionality of `TidalPy.Material` (TidalPy's EOS solver).
+
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
   * Complex versions are also available as `IntMapNComplex`.
@@ -42,6 +45,7 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### Dependencies
 * Bumped version of `ipympl` to `<=0.11.0`.
+* Bumped version of `CyRK` to `>=0.17.1, <0.18.1`
 
 ### Version 0.7.0 (2025-12-02)
 
