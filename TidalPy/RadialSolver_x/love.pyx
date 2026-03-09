@@ -71,13 +71,12 @@ def find_love(
     love : LoveNumbers
         Object containing k, h, l Love/Shida numbers with Q and lag properties.
     """
-    cdef cpp_complex[double][3] love_out
     cdef cpp_complex[double]* surface_ptr = <cpp_complex[double]*>&surface_solutions[0]
 
-    c_find_love(&love_out[0], surface_ptr, surface_gravity)
+    cdef c_LoveNumbers love = c_find_love(surface_ptr, surface_gravity)
 
     return LoveNumbers(
-        <double complex>love_out[0],
-        <double complex>love_out[1],
-        <double complex>love_out[2],
+        love.k,
+        love.h,
+        love.l,
     )

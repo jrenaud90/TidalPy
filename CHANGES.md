@@ -5,6 +5,9 @@
 ### Version 0.7.2 (2026-NNN)
 _The `_x` in module and function names indicates experimental versions. This suffix will be dropped in future releases._
 
+#### Fixes
+* `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting conditions were not affected.
+
 #### Package
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
 

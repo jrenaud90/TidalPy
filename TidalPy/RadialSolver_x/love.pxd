@@ -8,8 +8,14 @@ cdef extern from "love_.hpp" nogil:
         cpp_complex[double] h
         cpp_complex[double] l
         c_LoveNumbers() except +
-        c_LoveNumbers(cpp_complex[double]& k_, cpp_complex[double]& h_, cpp_complex[double]& l_) except +
-        c_LoveNumbers(double k_, double h_, double l_) except +
+        c_LoveNumbers(
+            const cpp_complex[double]& k_,
+            const cpp_complex[double]& h_,
+            const cpp_complex[double]& l_) except +
+        c_LoveNumbers(
+            const double k_,
+            const double h_,
+            const double l_) except +
         double get_Q_k() const
         double get_Q_h() const
         double get_Q_l() const
@@ -17,8 +23,7 @@ cdef extern from "love_.hpp" nogil:
         double get_lag_h() const
         double get_lag_l() const
 
-    cdef void c_find_love(
-        cpp_complex[double]* complex_love_numbers_ptr,
+    cdef c_LoveNumbers c_find_love(
         cpp_complex[double]* surface_solutions_ptr,
         double surface_gravity
     ) noexcept nogil
