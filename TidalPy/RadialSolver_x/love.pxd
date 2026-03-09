@@ -3,7 +3,6 @@ from libcpp.complex cimport complex as cpp_complex
 
 cdef extern from "love_.hpp" nogil:
 
-    # TODO: Move this stuff into radial solver eventually
     cdef cppclass c_LoveNumbers:
         cpp_complex[double] k
         cpp_complex[double] h
@@ -17,6 +16,12 @@ cdef extern from "love_.hpp" nogil:
         double get_lag_k() const
         double get_lag_h() const
         double get_lag_l() const
+
+    cdef void c_find_love(
+        cpp_complex[double]* complex_love_numbers_ptr,
+        cpp_complex[double]* surface_solutions_ptr,
+        double surface_gravity
+    ) noexcept nogil
 
 
 cdef class LoveNumbers:

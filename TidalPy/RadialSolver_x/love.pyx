@@ -1,6 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
+
 
 cdef class LoveNumbers:
     
@@ -46,3 +50,34 @@ cdef class LoveNumbers:
     @property
     def lag_l(self):
         return self._cinst.get_lag_l()
+
+
+def find_love(
+        double complex[::1] surface_solutions,
+        double surface_gravity
+        ):
+    """
+    Compute Love and Shida numbers from radial solution y-values at the planet surface.
+
+    Parameters
+    ----------
+    surface_solutions : ndarray[complex128]
+        y-values at the surface: [y1, y2, y3, y4, y5, y6].
+    surface_gravity : double
+        Gravitational acceleration at the surface [m s-2].
+
+    Returns
+    -------
+    love : LoveNumbers
+        Object containing k, h, l Love/Shida numbers with Q and lag properties.
+    """
+    cdef cpp_complex[double][3] love_out
+    cdef cpp_complex[double]* surface_ptr = <cpp_complex[double]*>&surface_solutions[0]
+
+    c_find_love(&love_out[0], surface_ptr, surface_gravity)
+
+    return LoveNumbers(
+        <double complex>love_out[0],
+        <double complex>love_out[1],
+        <double complex>love_out[2],
+    )

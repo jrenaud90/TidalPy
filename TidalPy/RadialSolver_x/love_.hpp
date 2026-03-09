@@ -1,5 +1,8 @@
+#pragma once
+
 #include <complex>
-#include "constants_.hpp"
+#include "constants_.hpp"       // RadialSolver_x: C_MAX_NUM_Y, etc.
+#include "../constants_.hpp"    // TidalPy: TidalPyConstants (d_INF, d_PI)
 
 
 struct c_LoveNumbers
@@ -134,3 +137,45 @@ struct c_LoveNumbers
         }
     }
 };
+
+
+/// Compute Love and Shida numbers from the radial solution at the planet surface.
+///
+/// Uses the convention of Tobie et al. (2005) for y5 sign:
+///   k = y5 - 1
+///   h = y1 * surface_gravity
+///   l = y3 * surface_gravity
+///
+/// References
+/// ----------
+/// HH14: Henning & Hurford (2014), Eq. A9
+/// RN08: Roberts & Nimmo (2008), Eq. A8
+/// T05:  Tobie et al. (2005), Eqs. 9 & 36
+///
+/// Parameters
+/// ----------
+/// complex_love_numbers_ptr : std::complex<double>*
+///     Output array of size >= 3. On return: [k, h, l].
+/// surface_solutions_ptr : std::complex<double>*
+///     y-values at the planet surface: [y1, y2, y3, y4, y5, y6].
+/// surface_gravity : double
+///     Gravitational acceleration at the surface [m s-2].
+inline void c_find_love(
+        std::complex<double>* complex_love_numbers_ptr,
+        std::complex<double>* surface_solutions_ptr,
+        double surface_gravity
+        ) noexcept
+{
+    const std::complex<double> y1 = surface_solutions_ptr[0];
+    const std::complex<double> y3 = surface_solutions_ptr[2];
+    const std::complex<double> y5 = surface_solutions_ptr[4];
+
+    // Love k
+    complex_love_numbers_ptr[0] = y5 - 1.0;
+
+    // Love h
+    complex_love_numbers_ptr[1] = y1 * surface_gravity;
+
+    // Shida l
+    complex_love_numbers_ptr[2] = y3 * surface_gravity;
+}
