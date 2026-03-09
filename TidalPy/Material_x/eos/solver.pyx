@@ -166,8 +166,8 @@ def solve_eos(
         interp_inputs_vec[layer_i].num_slices              = r_view.shape[0]
         interp_inputs_vec[layer_i].radius_array_ptr        = &r_view[0]
         interp_inputs_vec[layer_i].density_array_ptr       = &d_view[0]
-        interp_inputs_vec[layer_i].bulk_modulus_array_ptr  = &b_view[0]
-        interp_inputs_vec[layer_i].shear_modulus_array_ptr = &s_view[0]
+        interp_inputs_vec[layer_i].bulk_modulus_array_ptr  = <cpp_complex[double]*>&b_view[0]
+        interp_inputs_vec[layer_i].shear_modulus_array_ptr = <cpp_complex[double]*>&s_view[0]
 
         # Link the ODE input to this specific layer's struct memory
         eos_ode_input.eos_input_ptr = <char*>(&interp_inputs_vec[layer_i])
@@ -212,8 +212,8 @@ def solve_eos(
             mass_out[i]     = eos_solution_ptr.mass_array_vec[i]
             moi_out[i]      = eos_solution_ptr.moi_array_vec[i]
             density_out[i]  = eos_solution_ptr.density_array_vec[i]
-            shear_out[i]    = eos_solution_ptr.complex_shear_array_vec[i]
-            bulk_out[i]     = eos_solution_ptr.complex_bulk_array_vec[i]
+            shear_out[i]    = <double complex>eos_solution_ptr.complex_shear_array_vec[i]
+            bulk_out[i]     = <double complex>eos_solution_ptr.complex_bulk_array_vec[i]
 
     return {
         'success'          : eos_solution_ptr.success,
