@@ -3,6 +3,10 @@
 
 from libc.math cimport tgamma
 
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
+
 from TidalPy.constants cimport d_NAN
 
 
@@ -80,3 +84,291 @@ def double_factorial(int n):
         raise ValueError('C function `tgamma` experiences overflow for l > 170.')
 
     return cf_double_factorial(n)
+
+# ======================================================================================================================
+# XSF - Spherical Bessel Functions
+# ======================================================================================================================
+# Python-visible scalar wrappers
+def _spherical_jn_scalar(long n, double x):
+    """Compute j_n(x) for scalar real x."""
+    return sph_bessel_j(n, x)
+
+def _spherical_jn_scalar_complex(long n, double complex z):
+    """Compute j_n(z) for scalar complex z."""
+    return sph_bessel_j(n, z)
+
+def _spherical_jn_d_scalar(long n, double x):
+    """Compute j_n'(x) for scalar real x."""
+    return sph_bessel_j_jac(n, x)
+
+
+def _spherical_yn_scalar(long n, double x):
+    """Compute y_n(x) for scalar real x."""
+    return sph_bessel_y(n, x)
+
+def _spherical_yn_scalar_complex(long n, double complex z):
+    """Compute y_n(z) for scalar complex z."""
+    return sph_bessel_y(n, z)
+
+def _spherical_yn_d_scalar(long n, double x):
+    """Compute y_n'(x) for scalar real x."""
+    return sph_bessel_y_jac(n, x)
+
+
+def _spherical_in_scalar(long n, double x):
+    """Compute i_n(x) for scalar real x."""
+    return sph_bessel_i(n, x)
+
+def _spherical_in_scalar_complex(long n, double complex z):
+    """Compute i_n(z) for scalar complex z."""
+    return sph_bessel_i(n, z)
+
+def _spherical_in_d_scalar(long n, double x):
+    """Compute i_n'(x) for scalar real x."""
+    return sph_bessel_i_jac(n, x)
+
+
+def _spherical_kn_scalar(long n, double x):
+    """Compute k_n(x) for scalar real x."""
+    return sph_bessel_k(n, x)
+
+def _spherical_kn_scalar_complex(long n, double complex z):
+    """Compute k_n(z) for scalar complex z."""
+    return sph_bessel_k(n, z)
+
+def _spherical_kn_d_scalar(long n, double x):
+    """Compute k_n'(x) for scalar real x."""
+    return sph_bessel_k_jac(n, x)
+
+
+# Vectorized (numpy array) wrappers
+def spherical_jn_array(long n, double[::1] x not None, bint derivative=False):
+    """
+    Compute spherical Bessel function j_n(x) over an array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    x : 1D array of float64
+        Arguments.
+    derivative : bool
+        If True, compute the derivative j_n'(x).
+
+    Returns
+    -------
+    out : ndarray, shape (len(x),)
+    """
+    cdef Py_ssize_t N = x.shape[0]
+    cdef cnp.ndarray[double, ndim=1] out = np.empty(N, dtype=np.float64)
+    cdef double[::1] out_view = out
+    cdef Py_ssize_t i
+
+    if derivative:
+        for i in range(N):
+            out_view[i] = sph_bessel_j_jac(n, x[i])
+    else:
+        for i in range(N):
+            out_view[i] = sph_bessel_j(n, x[i])
+
+    return out
+
+
+def spherical_yn_array(long n, double[::1] x not None, bint derivative=False):
+    """
+    Compute spherical Bessel function y_n(x) over an array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    x : 1D array of float64
+        Arguments.
+    derivative : bool
+        If True, compute the derivative y_n'(x).
+
+    Returns
+    -------
+    out : ndarray, shape (len(x),)
+    """
+    cdef Py_ssize_t N = x.shape[0]
+    cdef cnp.ndarray[double, ndim=1] out = np.empty(N, dtype=np.float64)
+    cdef double[::1] out_view = out
+    cdef Py_ssize_t i
+
+    if derivative:
+        for i in range(N):
+            out_view[i] = sph_bessel_y_jac(n, x[i])
+    else:
+        for i in range(N):
+            out_view[i] = sph_bessel_y(n, x[i])
+
+    return out
+
+
+def spherical_in_array(long n, double[::1] x not None, bint derivative=False):
+    """
+    Compute modified spherical Bessel function i_n(x) over an array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    x : 1D array of float64
+        Arguments.
+    derivative : bool
+        If True, compute the derivative i_n'(x).
+
+    Returns
+    -------
+    out : ndarray, shape (len(x),)
+    """
+    cdef Py_ssize_t N = x.shape[0]
+    cdef cnp.ndarray[double, ndim=1] out = np.empty(N, dtype=np.float64)
+    cdef double[::1] out_view = out
+    cdef Py_ssize_t i
+
+    if derivative:
+        for i in range(N):
+            out_view[i] = sph_bessel_i_jac(n, x[i])
+    else:
+        for i in range(N):
+            out_view[i] = sph_bessel_i(n, x[i])
+
+    return out
+
+
+def spherical_kn_array(long n, double[::1] x not None, bint derivative=False):
+    """
+    Compute modified spherical Bessel function k_n(x) over an array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    x : 1D array of float64
+        Arguments.
+    derivative : bool
+        If True, compute the derivative k_n'(x).
+
+    Returns
+    -------
+    out : ndarray, shape (len(x),)
+    """
+    cdef Py_ssize_t N = x.shape[0]
+    cdef cnp.ndarray[double, ndim=1] out = np.empty(N, dtype=np.float64)
+    cdef double[::1] out_view = out
+    cdef Py_ssize_t i
+
+    if derivative:
+        for i in range(N):
+            out_view[i] = sph_bessel_k_jac(n, x[i])
+    else:
+        for i in range(N):
+            out_view[i] = sph_bessel_k(n, x[i])
+
+    return out
+
+
+def spherical_jn_complex_array(long n, double complex[::1] z not None):
+    """
+    Compute spherical Bessel function j_n(z) over a complex array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    z : 1D array of complex128
+        Arguments.
+
+    Returns
+    -------
+    out : ndarray of complex128, shape (len(z),)
+    """
+    cdef Py_ssize_t N = z.shape[0]
+    cdef cnp.ndarray[double complex, ndim=1] out = np.empty(N, dtype=np.complex128)
+    cdef double complex[::1] out_view = out
+    cdef Py_ssize_t i
+
+    for i in range(N):
+        out_view[i] = sph_bessel_j(n, z[i])
+
+    return out
+
+
+def spherical_yn_complex_array(long n, double complex[::1] z not None):
+    """
+    Compute spherical Bessel function y_n(z) over a complex array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    z : 1D array of complex128
+        Arguments.
+
+    Returns
+    -------
+    out : ndarray of complex128, shape (len(z),)
+    """
+    cdef Py_ssize_t N = z.shape[0]
+    cdef cnp.ndarray[double complex, ndim=1] out = np.empty(N, dtype=np.complex128)
+    cdef double complex[::1] out_view = out
+    cdef Py_ssize_t i
+
+    for i in range(N):
+        out_view[i] = sph_bessel_y(n, z[i])
+
+    return out
+
+
+def spherical_in_complex_array(long n, double complex[::1] z not None):
+    """
+    Compute modified spherical Bessel function i_n(z) over a complex array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    z : 1D array of complex128
+        Arguments.
+
+    Returns
+    -------
+    out : ndarray of complex128, shape (len(z),)
+    """
+    cdef Py_ssize_t N = z.shape[0]
+    cdef cnp.ndarray[double complex, ndim=1] out = np.empty(N, dtype=np.complex128)
+    cdef double complex[::1] out_view = out
+    cdef Py_ssize_t i
+
+    for i in range(N):
+        out_view[i] = sph_bessel_i(n, z[i])
+
+    return out
+
+
+def spherical_kn_complex_array(long n, double complex[::1] z not None):
+    """
+    Compute modified spherical Bessel function k_n(z) over a complex array.
+
+    Parameters
+    ----------
+    n : int
+        Order (non-negative).
+    z : 1D array of complex128
+        Arguments.
+
+    Returns
+    -------
+    out : ndarray of complex128, shape (len(z),)
+    """
+    cdef Py_ssize_t N = z.shape[0]
+    cdef cnp.ndarray[double complex, ndim=1] out = np.empty(N, dtype=np.complex128)
+    cdef double complex[::1] out_view = out
+    cdef Py_ssize_t i
+
+    for i in range(N):
+        out_view[i] = sph_bessel_k(n, z[i])
+
+    return out

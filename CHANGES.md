@@ -50,6 +50,7 @@ _The `_x` in module and function names indicates experimental versions. This suf
 ##### `XSF` Submodule
 * Adds [xsf]() package as a submodule to TidalPy. We use the spherical bessel function headers in various RadialSolver
   calculations.
+  * Adds cython wrappers for spherical bessel functions to `TidalPy.utilities.math.special`.
 
 ### Version 0.7.0 (2025-12-02)
 
