@@ -2,3 +2,5 @@
 * Look back at our derivations repo and see how eccentricity functions are being truncated for e^1 truncation there should still be a non-zero tidal result but the current implementation if obliquity is off is to produce 0 active modes. Its almost like we need to square the G functions; taylor expand to desired trunc^2; then sqrt the result and return it? That does not really make sense though. need to do some research.
 * Inconsistent call pattern in TidalPy/utilities/arrays/interp_.hpp -- cf_interp_complex has double desired_x; cf_interp has double* desired_x_ptr -- why a pointer for the regular interp?
 * Convert TidalPy.utilities.math.numerics over to C++ header
+* Replace the spherical_jn in RadialSolver_x with something more robust and efficient.
+* LEFT OFF Review at starting conditions

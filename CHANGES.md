@@ -47,6 +47,10 @@ _The `_x` in module and function names indicates experimental versions. This suf
 * Bumped version of `ipympl` to `<=0.11.0`.
 * Bumped version of `CyRK` to `>=0.17.1, <0.18.1`
 
+##### `XSF` Submodule
+* Adds [xsf]() package as a submodule to TidalPy. We use the spherical bessel function headers in various RadialSolver
+  calculations.
+
 ### Version 0.7.0 (2025-12-02)
 
 #### Fixes

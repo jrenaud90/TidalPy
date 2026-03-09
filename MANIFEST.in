@@ -28,7 +28,10 @@ include TidalPy/Material/eos/eos_solution_.cpp
 include TidalPy/Material/eos/eos_solution_.hpp
 include TidalPy/utilities/dimensions/nondimensional_.hpp
 
-# Exclude the whole Tests folder
+# Include submodules
+recursive-include Dependencies/xsf/include/xsf *.h
+
+# Exclude the whole Tests / Docs folder
 prune .vscode
 prune .idea
 prune .github
