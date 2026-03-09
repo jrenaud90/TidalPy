@@ -176,10 +176,10 @@ void cf_interp(
             result_ptr[0] = slope * (desired_x_ptr[0] - xp_at_j) + fp_at_j;
 
             // If we get nan in one direction, try the other
-            if (std::isnan<double>(result_ptr[0]))
+            if (std::isnan(result_ptr[0]))
             {
                 result_ptr[0] = slope * (desired_x_ptr[0] - xp_at_jp1) + fp_at_jp1;
-                if (std::isnan<double>(result_ptr[0]) && (fp_at_jp1 == fp_at_j))
+                if (std::isnan(result_ptr[0]) && (fp_at_jp1 == fp_at_j))
                 {
                     result_ptr[0] = fp_at_j;
                 }
@@ -300,10 +300,10 @@ void cf_interp_complex(
             // If we get nan in one direction try the other
             // Real Part
             result_ptr[0] = slope_real * (desired_x - xp_at_j) + fp_at_j_real;
-            if (std::isnan<double>(result_ptr[0]))
+            if (std::isnan(result_ptr[0]))
             {
                 result_ptr[0] = slope_real * (desired_x - xp_at_jp1) + fp_at_jp1_real;
-                if (std::isnan<double>(result_ptr[0]) && (fp_at_jp1_real == fp_at_j_real))
+                if (std::isnan(result_ptr[0]) && (fp_at_jp1_real == fp_at_j_real))
                 {
                     result_ptr[0] = fp_at_j_real;
                 }
@@ -311,10 +311,10 @@ void cf_interp_complex(
 
             // Imaginary Part
             result_ptr[1] = slope_imag * (desired_x - xp_at_j) + fp_at_j_imag;
-            if (std::isnan<double>(result_ptr[1]))
+            if (std::isnan(result_ptr[1]))
             {
                 result_ptr[1] = slope_imag * (desired_x - xp_at_jp1) + fp_at_jp1_imag;
-                if (std::isnan<double>(result_ptr[1]) && (fp_at_jp1_imag == fp_at_j_imag))
+                if (std::isnan(result_ptr[1]) && (fp_at_jp1_imag == fp_at_j_imag))
                 {
                     result_ptr[1] = fp_at_j_imag;
                 }
