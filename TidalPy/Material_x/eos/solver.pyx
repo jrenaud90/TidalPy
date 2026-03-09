@@ -214,8 +214,8 @@ def solve_eos(
             moi_out[i]      = eos_solution_ptr.moi_array_vec[i]
             density_out[i]  = eos_solution_ptr.density_array_vec[i]
             
-            shear_out[i]    = cpp_complex[double](eos_solution_ptr.complex_shear_array_vec[i].real, eos_solution_ptr.complex_shear_array_vec[i].imag)
-            bulk_out[i]     = cpp_complex[double](eos_solution_ptr.complex_bulk_array_vec[i].real, eos_solution_ptr.complex_bulk_array_vec[i].imag)
+            shear_out[i]    = cpp_complex[double](eos_solution_ptr.complex_shear_array_vec[i].real(), eos_solution_ptr.complex_shear_array_vec[i].imag())
+            bulk_out[i]     = cpp_complex[double](eos_solution_ptr.complex_bulk_array_vec[i].real(), eos_solution_ptr.complex_bulk_array_vec[i].imag())
 
     return {
         'success'          : eos_solution_ptr.success,
