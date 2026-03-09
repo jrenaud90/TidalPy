@@ -8,6 +8,7 @@ import numpy as np
 
 from libcpp.vector cimport vector
 from libcpp.memory cimport unique_ptr, make_unique
+from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 
 from CyRK cimport PreEvalFunc, ODEMethod
