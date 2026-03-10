@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.7.2a3.dev0'
+version = '0.7.2a3.dev2'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -54,6 +54,8 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Cython",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -181,3 +183,4 @@ build = "*"
 skip = ["pp*", "*musl*"]
 # Having issues with SciPy install during wheel build on 32-bit systems.
 archs = ["auto64"]
+

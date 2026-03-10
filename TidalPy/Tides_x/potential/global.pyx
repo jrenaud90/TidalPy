@@ -1,7 +1,8 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.Tides_x.potential.potential_common cimport ModeMap, UniqueFrequencyMap
 from TidalPy.Tides_x.potential.potential_common import ModeMap, UniqueFrequencyMap
 
@@ -19,11 +20,6 @@ def global_potential(
         object obliquity_truncation='gen',
         int eccentricity_truncation=6
     ):
-
-    # Ensure the global config pointer is initialized before calling C++ code.
-    global tidalpy_config_ptr
-    if tidalpy_config_ptr == NULL:
-        tidalpy_config_ptr = get_shared_config_address()
 
     # Clean up non-C inputs
     cdef int i_obliquity_truncation = 0

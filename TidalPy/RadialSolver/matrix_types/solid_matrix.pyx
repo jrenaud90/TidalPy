@@ -21,11 +21,9 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
-from TidalPy.constants cimport TidalPyConfig, d_PI, get_shared_config_address, tidalpy_config_ptr
+from TidalPy.constants cimport TidalPyConfig, d_PI, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 

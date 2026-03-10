@@ -19,11 +19,9 @@ from CyRK cimport PreEvalFunc
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError, ArgumentException, SolutionFailedError
 
-from TidalPy.constants cimport d_NAN, TidalPyConfig, get_shared_config_address, tidalpy_config_ptr
+from TidalPy.constants cimport d_NAN, TidalPyConfig, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
 from TidalPy.utilities.math.numerics cimport c_isclose
 from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution

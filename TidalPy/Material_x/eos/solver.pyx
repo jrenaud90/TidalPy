@@ -13,11 +13,8 @@ from libcpp cimport bool as cpp_bool
 
 from CyRK cimport PreEvalFunc, ODEMethod
 
-from TidalPy.constants cimport tidalpy_config_ptr, get_shared_config_address
-
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
+from TidalPy.constants cimport tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.Material_x.eos.ode cimport c_EOS_ODEInput, C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution

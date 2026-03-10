@@ -67,11 +67,13 @@ for cython_ext, ext_data in cython_ext_dict.items():
     else:
         specific_compile_args = extra_compile_args + ext_data['compile_args']
 
+    # Make sure all files get the TidalPy constants cpp as a source.
+    sources = [os.path.join(*tuple(source_path)) for source_path in ext_data['sources']]
 
     tidalpy_cython_extensions.append(
         Extension(
             name=ext_data['name'],
-            sources=[os.path.join(*tuple(source_path)) for source_path in ext_data['sources']],
+            sources=sources,
             # Always add numpy to any includes
             include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()] + CyRK.get_include() + submod_includes,
             extra_compile_args=specific_compile_args,

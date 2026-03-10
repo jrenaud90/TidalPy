@@ -1,6 +1,6 @@
 import pytest
 
-from TidalPy.RadialSolver_x.constants import get_constants
+from TidalPy.RadialSolver_x.rs_constants import get_constants
 
 
 def test_constants_values():

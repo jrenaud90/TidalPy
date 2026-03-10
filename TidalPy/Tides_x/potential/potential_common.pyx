@@ -1,10 +1,12 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport d_NAN
+from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
+set_tidalpy_config_ptr(get_shared_config_address())
 
 cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
     """Converts C++ struct `c_ModeStorage` to Python type."""
+
     cdef double mode = mode_storage_inst.mode
     cdef double mode_strength = mode_storage_inst.mode_strength
     cdef int n_coeff = mode_storage_inst.n_coeff
@@ -14,6 +16,7 @@ cdef tuple c_convert_from_mode_storage(c_ModeStorage mode_storage_inst):
 
 cdef c_ModeStorage c_convert_to_mode_storage(tuple mode_storage_tuple):
     """Converts Python tuple to C++ struct `c_ModeStorage`."""
+
     if len(mode_storage_tuple) != 4:
         raise ValueError("`mode_storage_tuple` must be a tuple of 4 values: (double, double, int, int).")
     if not isinstance(mode_storage_tuple[0], float):

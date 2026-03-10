@@ -2,6 +2,7 @@
 
 #include <limits>
 #include <numbers>
+#include <stdexcept>
 
 
 // TidalPy constants and runtime parameter struct
@@ -95,4 +96,11 @@ struct TidalPyConfig
     }
 };
 
-inline TidalPyConfig* tidalpy_config_ptr;
+// C++17 inline variable guarantees only one instance per extension/DLL
+inline TidalPyConfig* tidalpy_config_ptr = nullptr;
+
+// Cython will call this to inject the correct memory address
+inline void set_tidalpy_config_ptr(TidalPyConfig* ptr)
+{
+    tidalpy_config_ptr = ptr;
+}

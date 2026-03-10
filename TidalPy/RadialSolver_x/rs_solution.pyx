@@ -158,6 +158,125 @@ cdef class RadialSolverSolution:
             cnp.NPY_UINT64,
             self.solution_storage_ptr.shooting_method_steps_taken_vec.data())
 
+    def eos_call(self, double radius):
+        cdef c_EOSSolution* eos_solution_ptr = self.solution_storage_ptr.get_eos_solution_ptr()
+
+        cdef int layer_index = -1
+        cdef size_t layer_i
+        cdef double layer_r = 0.0
+        cdef double last_layer_r = 0.0
+
+        for layer_i in range(eos_solution_ptr.upper_radius_bylayer_vec.size()):
+            layer_r = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
+            if last_layer_r <= radius < layer_r:
+                layer_index = <int>layer_i
+                break
+            last_layer_r = layer_r
+            
+        if layer_index < 0:
+            raise ValueError("Could not find correct layer for provided radius.")
+
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(9, dtype=np.float64, order='C')
+        cdef double[::1] eos_interp_view = eos_interp
+        cdef double* eos_interp_ptr      = &eos_interp_view[0]
+
+        eos_solution_ptr.call(<size_t>layer_index, radius, eos_interp_ptr)
+        return eos_interp
+
+    def plot_ys(self):
+        cdef list result_list
+        cdef list radius_list
+        cdef list labels
+        cdef size_t ytype_i
+        cdef size_t stored_ytypes = 0
+        cdef str ytype_name
+
+        if self.success:
+            from TidalPy.utilities.graphics.multilayer import yplot
+            if self.num_ytypes <= 0:
+                raise AttributeError("`RadialSolverSolution` can not plot ys because number of ytypes is less than 1.")
+            elif self.num_ytypes == 1:
+                if self.result is not None:
+                    return yplot(self.result, self.radius_array)
+                else:
+                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+            else:
+                result_list = list()
+                radius_list = list()
+                labels      = list()
+                for ytype_i in range(self.num_ytypes):
+                    ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
+                    if self.get_result_by_ytype_name(ytype_name) is not None:
+                        result_list.append(self.get_result_by_ytype_name(ytype_name))
+                        radius_list.append(self.radius_array)
+                        labels.append(ytype_name.title())
+                        stored_ytypes += 1
+                if stored_ytypes > 1:
+                    return yplot(result_list, radius_list, labels=labels)
+                else:
+                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+        else:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
+        
+    def plot_interior(self):
+        if self.eos_success:
+            from TidalPy.utilities.graphics.planet_plot import planet_plot
+
+            return planet_plot(
+                self.radius_array,
+                self.gravity_array,
+                self.pressure_array,
+                self.density_array,
+                None,
+                self.shear_modulus_array,
+                self.bulk_modulus_array,
+                self.radius,
+                self.density_bulk,
+                planet_name=None,
+                use_scatter=False,
+                depth_plot=False,
+                auto_show=True,
+                annotate=True)
+    
+    def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
+        cdef str log_message = ""
+        log_message += "\n\tEquation of State Solver:"
+        log_message += f"\n\t\tSuccess:           {self.eos_success}"
+        log_message += f"\n\t\tError code:        {self.eos_error_code}"
+        log_message += f"\n\t\tMessage:           {self.eos_message}"
+        if self.eos_success:
+            log_message += f"\n\t\tIterations:        {self.eos_iterations}"
+            log_message += f"\n\t\tPressure Error:    {self.eos_pressure_error:0.3e}"
+            log_message += f"\n\t\tCentral Pressure:  {self.central_pressure:0.3e}"
+            log_message += f"\n\t\tMass:              {self.mass:0.3e}"
+            log_message += f"\n\t\tMOI (factor):      {self.moi:0.3e} ({self.moi_factor:0.3f})"
+            log_message += f"\n\t\tSurface gravity:   {self.surface_gravity:0.3e}\n"
+        log_message += "\n\tRadial Solver Results:"
+        log_message += f"\n\t\tSuccess:     {self.success}"
+        log_message += f"\n\t\tError code:  {self.error_code}"
+        log_message += f"\n\t\tMessage:     {self.message}"
+        log_message += f"\n\t\tSteps Taken (per sub-solution):"
+        cdef size_t layer_i
+        for layer_i in range(self.num_layers):
+            log_message += f"\n\t\t\tLayer {layer_i} = {self.steps_taken[layer_i]}"
+        if self.success:
+            log_message += f"\n\t\tk_{self.degree_l} = {self.k}"
+            log_message += f"\n\t\th_{self.degree_l} = {self.h}"
+            log_message += f"\n\t\tl_{self.degree_l} = {self.l}"
+        
+        if print_diagnostics:
+            print(log_message)
+            return None
+        
+        if log_diagnostics:
+            from TidalPy.logger import get_logger
+            log = get_logger("TidalPy")
+            log.info(log_message)
+            return None
+            
+        if not print_diagnostics and not log_diagnostics:
+            return log_message
+
     # Properties
     @property
     def error_code(self):

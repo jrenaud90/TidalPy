@@ -10,11 +10,9 @@ from libcpp.memory cimport make_unique
 from CyRK cimport CySolverResult, DiffeqFuncType, Event
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 
-from TidalPy.constants cimport d_PI, d_INF, d_EPS_100, TidalPyConfig, get_shared_config_address, tidalpy_config_ptr
+from TidalPy.constants cimport d_PI, d_INF, d_EPS_100, TidalPyConfig, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 

@@ -1013,8 +1013,8 @@ int c_shooting_solver(
                         solution_storage_ptr->success    = false;
                         solution_storage_ptr->message    = 
                             std::string(
-                                "RadialSolver.ShootingMethod:: Error encountered while applying surface"
-                                "boundary condition. ZGESV code: ") + 
+                                "RadialSolver.ShootingMethod:: Error encountered while applying surface "
+                                "boundary condition. Eigen LU decomp code: ") + 
                                 std::to_string(bc_solution_info) + 
                                 std::string("\nThe solutions may not be valid at the surface.\n");
                         

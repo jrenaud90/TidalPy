@@ -16,6 +16,10 @@ cnp.import_array()
 from CyRK cimport ODEMethod
 
 from TidalPy.logger import get_logger
+from TidalPy.constants cimport get_shared_config_address, set_tidalpy_config_ptr
+# Make sure TidalPy Config Pointer is set.
+set_tidalpy_config_ptr(get_shared_config_address())
+
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
 
@@ -289,10 +293,10 @@ def radial_solver(
         solution.print_diagnostics(print_diagnostics=False, log_diagnostics=True)
 
     if ((not solution.success) or (rs_error_code < 0)) and raise_on_fail:
-        if b"not implemented" in solution.message.lower():
-            raise NotImplementedError(solution.message.decode('utf-8'))
+        if "not implemented" in solution.message.lower():
+            raise NotImplementedError(solution.message)
         else:
-            raise SolutionFailedError(solution.message.decode('utf-8'))
+            raise SolutionFailedError(solution.message)
 
     if warnings:
         if np.any(solution.steps_taken > 7_000):

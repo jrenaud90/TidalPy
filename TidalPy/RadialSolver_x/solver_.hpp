@@ -44,6 +44,7 @@
 #include <stdexcept>
 #include <cctype>
 
+
 constexpr int C_EOS_INTERPOLATE_METHOD_INT = 0;
 
 int c_radial_solver(
@@ -87,6 +88,21 @@ int c_radial_solver(
     bool warnings
 ) noexcept
 {
+    // Check if we have configs.
+    if (tidalpy_config_ptr == nullptr)
+    {
+        solution_storage_ptr->error_code = -999;
+        solution_storage_ptr->message = std::string(
+            "RadialSolver_x:: Fatal Error. TidalPyConfig pointer is uninitialized. "
+            "initialize_tidalpy_config() must be called before the solver runs.\n"
+        );
+        if (verbose)
+        {
+            printf("%s", solution_storage_ptr->message.c_str());
+        }
+        return solution_storage_ptr->error_code;
+    }
+
     // Figure out how many slices are in each layer
     std::vector<size_t> first_slice_index_by_layer_vec(num_layers);
     std::vector<size_t> num_slices_by_layer_vec(num_layers);

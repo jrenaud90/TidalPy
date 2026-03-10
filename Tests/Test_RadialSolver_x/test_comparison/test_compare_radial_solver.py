@@ -79,8 +79,11 @@ def test_compare_radial_solver_1layer_solid(is_static, is_incompressible, degree
 
     # Compare result arrays (radial solutions).
     assert old_out.result.shape == new_out.result.shape
-    np.testing.assert_allclose(new_out.result, old_out.result, rtol=1e-5, atol=1e-20,
+    try:
+        np.testing.assert_allclose(new_out.result, old_out.result, rtol=1e-5, atol=1e-20,
                                err_msg="Radial solution arrays differ.")
+    except:
+        import pdb; pdb.set_trace()
 
     # Compare Love numbers (both return ndarray of shape (num_solve_for, 3)).
     assert old_out.love.shape == new_out.love.shape

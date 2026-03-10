@@ -4,11 +4,9 @@
 from libc.math cimport fabs, cos, sin, tgamma, isinf
 
 from TidalPy.exceptions import UnknownModelError
-from TidalPy.constants cimport TidalPyConfig, d_PI, d_INF, get_shared_config_address, tidalpy_config_ptr
+from TidalPy.constants cimport TidalPyConfig, d_PI, d_INF, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
 

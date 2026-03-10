@@ -24,7 +24,16 @@ public:
         double bulk_density
     )
     {
-        this->second2_conversion = 1. / (TidalPyConstants::d_PI * tidalpy_config_ptr->d_G * bulk_density);
+        if (tidalpy_config_ptr != nullptr)
+        {
+            this->second2_conversion = 1. / (TidalPyConstants::d_PI * tidalpy_config_ptr->d_G * bulk_density);    
+        }
+        else
+        {
+            // Config is not initialized. Default to standard value.
+            const double d_G = 6.674300000000e-11;
+            this->second2_conversion = 1. / (TidalPyConstants::d_PI * d_G * bulk_density);
+        }
         this->second_conversion  = std::sqrt(this->second2_conversion);
         this->length_conversion  = mean_radius;
         this->length3_conversion = mean_radius * mean_radius * mean_radius;

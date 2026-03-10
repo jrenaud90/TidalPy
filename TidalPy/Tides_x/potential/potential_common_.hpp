@@ -65,8 +65,17 @@ bool record_unique_frequencies(
         c_UniqueFreqIndexMap& frequency_index_map,
         c_UniqueFreqMap& frequency_map)
 {
-    bool nonzero_freq = not c_isclose(frequency, 0.0, 1.0e-9, tidalpy_config_ptr->d_MIN_FREQUENCY);
-
+    bool nonzero_freq;
+    if (tidalpy_config_ptr != nullptr)
+    {
+        nonzero_freq = not c_isclose(frequency, 0.0, 1.0e-9, tidalpy_config_ptr->d_MIN_FREQUENCY);
+    }
+    else
+    {
+        // TidalPy config is not initialized. Just default to zero.
+        nonzero_freq = not c_isclose(frequency, 0.0, 1.0e-9, 0.0);
+    }
+    
     // TODO: Do we want to keep zero frequencies? I don't think so...
     if (nonzero_freq)
     {    

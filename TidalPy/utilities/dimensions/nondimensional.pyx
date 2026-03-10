@@ -12,11 +12,8 @@ Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 from libc.math cimport sqrt
 
-from TidalPy.constants cimport TidalPyConfig, d_PI, d_NAN, get_shared_config_address, tidalpy_config_ptr
-
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
+from TidalPy.constants cimport TidalPyConfig, d_PI, d_NAN, get_shared_config_address, tidalpy_config_ptr, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
 
 cdef class NonDimensionalScalesClass:
@@ -25,6 +22,7 @@ cdef class NonDimensionalScalesClass:
     cdef c_NonDimensionalScales nondim_scales
 
     def __init__(self):
+
         # Initialize everything to nan
         self.nondim_scales.second2_conversion = d_NAN
         self.nondim_scales.second_conversion  = d_NAN

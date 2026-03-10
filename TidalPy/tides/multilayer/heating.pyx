@@ -19,11 +19,9 @@ cimport numpy as cnp
 cnp.import_array()
 
 from TidalPy.exceptions import ArgumentException
-from TidalPy.constants cimport d_NAN, TidalPyConfig, get_shared_config_address, tidalpy_config_ptr
+from TidalPy.constants cimport d_NAN, TidalPyConfig, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+set_tidalpy_config_ptr(get_shared_config_address())
 
-# Wire up the pointer at import time
-if tidalpy_config_ptr == NULL:
-    tidalpy_config_ptr = get_shared_config_address()
 from TidalPy.RadialSolver cimport RadialSolverSolution
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.tides.multilayer.sensitivity cimport cf_calc_sensitivity_to_shear, cf_calc_sensitivity_to_bulk
