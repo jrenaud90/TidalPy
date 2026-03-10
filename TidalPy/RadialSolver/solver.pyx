@@ -25,7 +25,7 @@ from TidalPy.constants cimport d_NAN, TidalPyConfig, get_shared_config_address, 
 if tidalpy_config_ptr == NULL:
     tidalpy_config_ptr = get_shared_config_address()
 from TidalPy.utilities.math.numerics cimport c_isclose
-from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC, cf_build_nondimensional_scales
+from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
@@ -174,7 +174,7 @@ cdef int cf_radial_solver(
     # Get other needed inputs
     radius_planet = radius_array_in_ptr[total_slices - 1]
 
-    cdef NonDimensionalScalesCC non_dim_scales
+    cdef c_NonDimensionalScales non_dim_scales
     if nondimensionalize and solution_storage_ptr.error_code == 0:
 
         # Create scales used to non-dimensionalize various properties

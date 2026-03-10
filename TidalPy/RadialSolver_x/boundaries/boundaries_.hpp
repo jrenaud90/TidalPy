@@ -1,4 +1,4 @@
-// boundaries_.hpp - Apply surface boundary conditions using LAPACK zgesv
+// boundaries_.hpp - Apply surface boundary conditions using Eigen
 // Ported from TidalPy/RadialSolver/boundaries/boundaries.pyx
 //
 // References
@@ -10,9 +10,9 @@
 
 #include <complex>
 #include <limits>
+#include <Eigen/Dense> // Replaced lapack_.hpp with Eigen
 
 #include "../../constants_.hpp"
-#include "../lapack_.hpp"
 
 
 // Apply boundary conditions at the planet's surface by solving a linear system.
@@ -22,7 +22,7 @@
 // constant_vector_ptr : complex*, output
 //     Constant vector (overwritten with solution).
 // bc_solution_info_ptr : int*, output
-//     LAPACK solver status.
+//     Solver status (0 = success, >0 = error/singular).
 // bc_pointer : double*
 //     Boundary condition values.
 // uppermost_y_per_solution_ptr : complex*
@@ -51,78 +51,96 @@ inline void c_apply_surface_bc(
         bool layer_is_incomp) noexcept
 {
     const double nan_val = std::numeric_limits<double>::quiet_NaN();
+    *bc_solution_info_ptr = 0; // Default to success
 
-    // LAPACK parameters
-    int lapack_nrhs = 1;
-    int lapack_ipiv[10];
-    int num_sols_int = static_cast<int>(num_sols);
-
-    // Allocate surface matrices on stack
-    std::complex<double> surface_matrix_solid[3][3];
-    std::complex<double> surface_matrix_liquid_dynamic[2][2];
-    std::complex<double> surface_matrix_liquid_static[1][1];
-    std::complex<double>* surface_matrix_ptr;
-
-    if (layer_type == 0) {
-        // Solid layer
-        surface_matrix_ptr = &surface_matrix_solid[0][0];
+    if (layer_type == 0)
+    {
+        // Solid layer (3x3 system)
+        Eigen::Matrix3cd A;
+        Eigen::Vector3cd B;
 
         // At the surface: y_2 = S_1; y_4 = S_4; y_6 = S_6 [See: B.37 in KTC21; 16 in KMN15]
-        constant_vector_ptr[0] = bc_pointer[ytype_i * 3 + 0];
-        constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 1];
-        constant_vector_ptr[2] = bc_pointer[ytype_i * 3 + 2];
+        B(0) = bc_pointer[ytype_i * 3 + 0];
+        B(1) = bc_pointer[ytype_i * 3 + 1];
+        B(2) = bc_pointer[ytype_i * 3 + 2];
 
-        // Transposed for FORTRAN-ordered zgesv
-        surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
-        surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * max_num_y + 3];
-        surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[0 * max_num_y + 5];
-        surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
-        surface_matrix_ptr[4] = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
-        surface_matrix_ptr[5] = uppermost_y_per_solution_ptr[1 * max_num_y + 5];
-        surface_matrix_ptr[6] = uppermost_y_per_solution_ptr[2 * max_num_y + 1];
-        surface_matrix_ptr[7] = uppermost_y_per_solution_ptr[2 * max_num_y + 3];
-        surface_matrix_ptr[8] = uppermost_y_per_solution_ptr[2 * max_num_y + 5];
-    } else {
-        if (layer_is_static) {
-            // Static liquid layer: 1 solution, 1 BC
-            surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0];
+        // Fill A matrix (Eigen is column-major by default, just like Fortran/LAPACK)
+        // We assign directly to (row, col) indices for clarity.
+        A(0, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
+        A(1, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 3];
+        A(2, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 5];
 
+        A(0, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
+        A(1, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
+        A(2, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 5];
+
+        A(0, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 1];
+        A(1, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 3];
+        A(2, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 5];
+
+        // Solve A * X = B
+        Eigen::FullPivLU<Eigen::Matrix3cd> lu(A);
+        if (!lu.isInvertible()) {
+            *bc_solution_info_ptr = 1; // Singular
+            return;
+        }
+        
+        Eigen::Vector3cd X = lu.solve(B);
+        constant_vector_ptr[0] = X(0);
+        constant_vector_ptr[1] = X(1);
+        constant_vector_ptr[2] = X(2);
+
+    } else
+    {
+        if (layer_is_static)
+        {
+            // Static liquid layer: 1 solution, 1 BC (1x1 system)
+            
             // y_7 = y_6 + (4 pi G / g) y_2
-            constant_vector_ptr[0] =
+            std::complex<double> B_val = 
                 bc_pointer[ytype_i * 3 + 2] +
                 bc_pointer[ytype_i * 3 + 0] * (4.0 * TidalPyConstants::d_PI * G_to_use / surface_gravity);
 
-            constant_vector_ptr[1] = nan_val;
-            constant_vector_ptr[2] = nan_val;
-
             // y_7 held in index 1 (index 0 is y_5)
-            surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
-        } else {
-            // Dynamic liquid layer: 2 solutions, 2 BCs
-            surface_matrix_ptr = &surface_matrix_liquid_static[0][0];
+            std::complex<double> A_val = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
 
-            constant_vector_ptr[0] = bc_pointer[ytype_i * 3 + 0];
-            constant_vector_ptr[1] = bc_pointer[ytype_i * 3 + 2];
+            // 1D solve is just division
+            if (std::abs(A_val) == 0.0) {
+                *bc_solution_info_ptr = 1; // Singular
+                return;
+            }
 
-            constant_vector_ptr[2] = nan_val;
+            constant_vector_ptr[0] = B_val / A_val;
+            constant_vector_ptr[1] = std::complex<double>(nan_val, nan_val);
+            constant_vector_ptr[2] = std::complex<double>(nan_val, nan_val);
+
+        } else
+        {
+            // Dynamic liquid layer: 2 solutions, 2 BCs (2x2 system)
+            Eigen::Matrix2cd A;
+            Eigen::Vector2cd B;
+
+            B(0) = bc_pointer[ytype_i * 3 + 0];
+            B(1) = bc_pointer[ytype_i * 3 + 2];
 
             // y_2 and y_6 at indices 1 and 3
-            surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
-            surface_matrix_ptr[1] = uppermost_y_per_solution_ptr[0 * max_num_y + 3];
-            surface_matrix_ptr[2] = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
-            surface_matrix_ptr[3] = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
+            A(0, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 1];
+            A(1, 0) = uppermost_y_per_solution_ptr[0 * max_num_y + 3];
+            
+            A(0, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
+            A(1, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
+
+            // Solve A * X = B
+            Eigen::FullPivLU<Eigen::Matrix2cd> lu(A);
+            if (!lu.isInvertible()) {
+                *bc_solution_info_ptr = 1; // Singular
+                return;
+            }
+
+            Eigen::Vector2cd X = lu.solve(B);
+            constant_vector_ptr[0] = X(0);
+            constant_vector_ptr[1] = X(1);
+            constant_vector_ptr[2] = std::complex<double>(nan_val, nan_val);
         }
     }
-
-    // Solve A * X = B using LAPACK zgesv
-    zgesv_(
-        &num_sols_int,         // N
-        &lapack_nrhs,          // NRHS
-        surface_matrix_ptr,    // A (overwritten)
-        &num_sols_int,         // LDA
-        lapack_ipiv,           // IPIV (output)
-        constant_vector_ptr,   // B -> X (overwritten)
-        &num_sols_int,         // LDB
-        bc_solution_info_ptr   // INFO (output)
-        );
 }

@@ -22,57 +22,57 @@
 // TS72 Eqs. 95-102.
 // Three independent solutions (sn1, sn2, sn3).
 inline void c_takeuchi_solid_dynamic_compressible(
-        double frequency,
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        std::complex<double> shear_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double>& bulk_modulus,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // Convert compressibility parameters
-    std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
+    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
 
     // Constants
-    double gamma           = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
-    double dynamic_term    = frequency * frequency;
-    std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
-    std::complex<double> beta2  = shear_modulus / density;
+    const double gamma           = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const double dynamic_term    = frequency * frequency;
+    const std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
+    const std::complex<double> beta2  = shear_modulus / density;
 
     // Optimizations
-    double r_inverse    = 1.0 / radius;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double lm1          = degree_l_dbl - 1.0;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
-    double dlp3         = 2.0 * degree_l_dbl + 3.0;
-    double llp1         = degree_l_dbl * lp1;
+    const double r_inverse    = 1.0 / radius;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double lm1          = degree_l_dbl - 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double dlp3         = 2.0 * degree_l_dbl + 3.0;
+    const double llp1         = degree_l_dbl * lp1;
 
     // Helper functions - See Eq. 99 of TS72
-    std::complex<double> k2_quad_pos  = (dynamic_term / beta2) + ((dynamic_term + 4.0 * gamma) / alpha2);
-    std::complex<double> k2_quad_neg  = (dynamic_term / beta2) - ((dynamic_term + 4.0 * gamma) / alpha2);
-    std::complex<double> k2_quad      = (k2_quad_neg * k2_quad_neg) + ((4.0 * llp1 * gamma * gamma) / (alpha2 * beta2));
-    std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
+    const std::complex<double> k2_quad_pos  = (dynamic_term / beta2) + ((dynamic_term + 4.0 * gamma) / alpha2);
+    const std::complex<double> k2_quad_neg  = (dynamic_term / beta2) - ((dynamic_term + 4.0 * gamma) / alpha2);
+    const std::complex<double> k2_quad      = (k2_quad_neg * k2_quad_neg) + ((4.0 * llp1 * gamma * gamma) / (alpha2 * beta2));
+    const std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
 
     // QUESTION: (Issue #43) TS74 has these flipped compared to KMN15. Going with TS74 for this func.
     // See the -/+ order in TS72 EQ. 99
-    size_t neg_index = 0;
-    size_t pos_index = 1;
-    std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
-    std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
+    const size_t neg_index = 0;
+    const size_t pos_index = 1;
+    const std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
+    const std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
 
-    std::complex<double> f_pos = (beta2 * k2_pos - dynamic_term) / gamma;
-    std::complex<double> f_neg = (beta2 * k2_neg - dynamic_term) / gamma;
+    const std::complex<double> f_pos = (beta2 * k2_pos - dynamic_term) / gamma;
+    const std::complex<double> f_neg = (beta2 * k2_neg - dynamic_term) / gamma;
 
-    std::complex<double> h_pos = f_pos - lp1;
-    std::complex<double> h_neg = f_neg - lp1;
+    const std::complex<double> h_pos = f_pos - lp1;
+    const std::complex<double> h_neg = f_neg - lp1;
 
     // Calculate Takeuchi and Saito functions
-    std::complex<double> z2_pos = k2_pos * r2;
-    std::complex<double> z2_neg = k2_neg * r2;
+    const std::complex<double> z2_pos = k2_pos * r2;
+    const std::complex<double> z2_neg = k2_neg * r2;
 
     std::complex<double> phi_pos, phi_lp1_pos, psi_pos;
     std::complex<double> phi_neg, phi_lp1_neg, psi_neg;
@@ -136,10 +136,10 @@ inline void c_takeuchi_solid_dynamic_compressible(
 
     // y6, solutions 1--3
     starting_conditions_ptr[pos_index * num_ys + 5] =
-        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] +
+        dlp1 * r_inverse * starting_conditions_ptr[pos_index * num_ys + 4] +
         (3.0 * degree_l_dbl * gamma * h_pos * std::pow(radius, lp1) / (2.0 * dlp3)) * psi_pos;
     starting_conditions_ptr[neg_index * num_ys + 5] =
-        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] +
+        dlp1 * r_inverse * starting_conditions_ptr[neg_index * num_ys + 4] +
         (3.0 * degree_l_dbl * gamma * h_neg * std::pow(radius, lp1) / (2.0 * dlp3)) * psi_neg;
     starting_conditions_ptr[2 * num_ys + 5] =
         dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] -
@@ -151,53 +151,53 @@ inline void c_takeuchi_solid_dynamic_compressible(
 // TS72 Eqs. 95-102 (with w=0).
 // Three independent solutions (sn1, sn2, sn3).
 inline void c_takeuchi_solid_static_compressible(
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        std::complex<double> shear_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double radius,
+        const double density,
+        const std::complex<double>& bulk_modulus,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // Convert compressibility parameters
-    std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
+    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
 
     // Constants
-    double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
-    std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
-    std::complex<double> beta2  = shear_modulus / density;
+    const double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
+    const std::complex<double> beta2  = shear_modulus / density;
 
     // Optimizations
-    double r_inverse    = 1.0 / radius;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double lm1          = degree_l_dbl - 1.0;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
-    double dlp3         = 2.0 * degree_l_dbl + 3.0;
-    double llp1         = degree_l_dbl * lp1;
+    const double r_inverse    = 1.0 / radius;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double lm1          = degree_l_dbl - 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double dlp3         = 2.0 * degree_l_dbl + 3.0;
+    const double llp1         = degree_l_dbl * lp1;
 
     // Helper functions - See Eq. 99 of TS72
-    std::complex<double> k2_quad_pos  = (4.0 * gamma / alpha2);
-    std::complex<double> k2_quad      = k2_quad_pos * k2_quad_pos + ((4.0 * llp1 * gamma * gamma) / (alpha2 * beta2));
-    std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
+    const std::complex<double> k2_quad_pos  = (4.0 * gamma / alpha2);
+    const std::complex<double> k2_quad      = k2_quad_pos * k2_quad_pos + ((4.0 * llp1 * gamma * gamma) / (alpha2 * beta2));
+    const std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
 
     // QUESTION: (Issue #43) TS74 has these flipped compared to KMN15. Going with TS74 for this func.
-    size_t neg_index = 0;
-    size_t pos_index = 1;
-    std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
-    std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
+    const size_t neg_index = 0;
+    const size_t pos_index = 1;
+    const std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
+    const std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
 
-    std::complex<double> f_pos = (beta2 * k2_pos) / gamma;
-    std::complex<double> f_neg = (beta2 * k2_neg) / gamma;
+    const std::complex<double> f_pos = (beta2 * k2_pos) / gamma;
+    const std::complex<double> f_neg = (beta2 * k2_neg) / gamma;
 
-    std::complex<double> h_pos = f_pos - lp1;
-    std::complex<double> h_neg = f_neg - lp1;
+    const std::complex<double> h_pos = f_pos - lp1;
+    const std::complex<double> h_neg = f_neg - lp1;
 
     // Calculate Takeuchi and Saito functions
-    std::complex<double> z2_pos = k2_pos * r2;
-    std::complex<double> z2_neg = k2_neg * r2;
+    const std::complex<double> z2_pos = k2_pos * r2;
+    const std::complex<double> z2_neg = k2_neg * r2;
 
     std::complex<double> phi_pos, phi_lp1_pos, psi_pos;
     std::complex<double> phi_neg, phi_lp1_neg, psi_neg;
@@ -257,10 +257,10 @@ inline void c_takeuchi_solid_static_compressible(
 
     // y6, solutions 1--3
     starting_conditions_ptr[pos_index * num_ys + 5] =
-        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] +
+        dlp1 * r_inverse * starting_conditions_ptr[pos_index * num_ys + 4] +
         (3.0 * degree_l_dbl * gamma * h_pos * std::pow(radius, lp1) / (2.0 * dlp3)) * psi_pos;
     starting_conditions_ptr[neg_index * num_ys + 5] =
-        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] +
+        dlp1 * r_inverse * starting_conditions_ptr[neg_index * num_ys + 4] +
         (3.0 * degree_l_dbl * gamma * h_neg * std::pow(radius, lp1) / (2.0 * dlp3)) * psi_neg;
     starting_conditions_ptr[2 * num_ys + 5] =
         dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] -
@@ -277,40 +277,40 @@ inline void c_takeuchi_solid_static_compressible(
 // TS72 Eqs. 95-102 (mu=0).
 // Two independent solutions (sn1, sn2).
 inline void c_takeuchi_liquid_dynamic_compressible(
-        double frequency,
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double>& bulk_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // For liquid, shear modulus = 0 so lame = bulk_modulus
-    std::complex<double> lame = bulk_modulus;
+    const std::complex<double> lame = bulk_modulus;
 
     // Constants
-    double dynamic_term   = frequency * frequency;
-    double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
-    std::complex<double> alpha2 = lame / density;
+    const double dynamic_term   = frequency * frequency;
+    const double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const std::complex<double> alpha2 = lame / density;
 
     // Optimizations
-    double r_inverse    = 1.0 / radius;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double lm1          = degree_l_dbl - 1.0;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
-    double dlp3         = 2.0 * degree_l_dbl + 3.0;
-    double llp1         = degree_l_dbl * lp1;
+    const double r_inverse    = 1.0 / radius;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double lm1          = degree_l_dbl - 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double dlp3         = 2.0 * degree_l_dbl + 3.0;
+    const double llp1         = degree_l_dbl * lp1;
 
     // k2, h, and f no longer depend on k2. See Eq. 101 of TS72
-    double f  = -dynamic_term / gamma;
-    double h  = f - lp1;
-    std::complex<double> k2 = (1.0 / alpha2) * (dynamic_term + 4.0 * gamma - llp1 * gamma * gamma / dynamic_term);
+    const double f  = -dynamic_term / gamma;
+    const double h  = f - lp1;
+    const std::complex<double> k2 = (1.0 / alpha2) * (dynamic_term + 4.0 * gamma - llp1 * gamma * gamma / dynamic_term);
 
     // Calculate Takeuchi and Saito functions
-    std::complex<double> z = k2 * r2;
+    const std::complex<double> z = k2 * r2;
     std::complex<double> phi, phi_lp1, psi;
     c_takeuchi_phi_psi(z, degree_l, &phi, &phi_lp1, &psi);
 

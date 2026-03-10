@@ -15,12 +15,12 @@
 #include <vector>
 #include <string>
 #include <limits>
+#include <Eigen/Dense> // Replaced lapack_.hpp with Eigen
 
 #include "../constants_.hpp"
 #include "../Material_x/eos/eos_solution_.hpp"
+#include "../constants_.hpp"
 #include "rs_solution_.hpp"
-#include "constants_.hpp"
-#include "lapack_.hpp"
 #include "boundaries/surface_bc_.hpp"
 #include "matrix_types/solid_matrix_.hpp"
 
@@ -357,12 +357,13 @@ inline int c_matrix_propagate(
     }
 
     // Step through the planet's shells and build the propagation matrix
-    std::complex<double> surface_matrix[9];
-    std::complex<double> surface_matrix_copy[9];
+    Eigen::Matrix3cd surface_matrix;
+    surface_matrix.setConstant(cmplx_NAN); // Initialize to NaN for debugging safety
+
     std::complex<double> temp_cmplx;
     std::complex<double> temp_matrix[18];
 
-    // Create the ZGESV "X" variable and BC copy
+    // Create the downstream solution arrays
     std::complex<double> surface_solution[3];
     std::complex<double> bc_copy[3];
 
@@ -373,11 +374,6 @@ inline int c_matrix_propagate(
         {
             surface_solution[j] = cmplx_NAN;
             bc_copy[j] = cmplx_NAN;
-        }
-        if (j < 9)
-        {
-            surface_matrix[j] = cmplx_NAN;
-            surface_matrix_copy[j] = cmplx_NAN;
         }
         temp_matrix[j] = cmplx_NAN;
     }
@@ -424,23 +420,17 @@ inline int c_matrix_propagate(
             }
         }
 
-        // At the surface, extract the surface condition matrix (3x3 from rows [3, 4, 6])
+        // At the surface, extract the surface condition matrix into the Eigen Matrix (3x3 from rows [3, 4, 6])
         if (slice_i == (total_slices - 1))
         {
             for (size_t i = 0; i < 3; ++i)
             {
-                surface_matrix[0 + i] = propagation_mtx_ptr[index_shift_18 + (2 * 3) + i];
-                surface_matrix[3 + i] = propagation_mtx_ptr[index_shift_18 + (3 * 3) + i];
-                surface_matrix[6 + i] = propagation_mtx_ptr[index_shift_18 + (5 * 3) + i];
+                surface_matrix(0, i) = propagation_mtx_ptr[index_shift_18 + (2 * 3) + i];
+                surface_matrix(1, i) = propagation_mtx_ptr[index_shift_18 + (3 * 3) + i];
+                surface_matrix(2, i) = propagation_mtx_ptr[index_shift_18 + (5 * 3) + i];
             }
         }
     }
-
-    // Solve the linear equation U = S^-1 @ B using ZGESV
-    int mat_size = 3;
-    int bc_columns = 1;
-    int lapack_ipiv[10];
-    int bc_solution_info = -999;
 
     // Used to convert from SVC radial solutions to T&S format
     std::complex<double> ts_conversion[6];
@@ -457,44 +447,35 @@ inline int c_matrix_propagate(
         if (ytype_i == num_bc_models)
             break;
 
-        // Reset linear solver flag
-        bc_solution_info = -999;
-
-        // Set / reset the RHS and LHS. Take transpose of surface matrix for Fortran order.
+        // Set up the RHS vector B using Eigen
+        Eigen::Vector3cd B_vec;
         for (size_t i = 0; i < 3; ++i)
         {
-            bc_copy[i] = std::complex<double>(bc_pointer[ytype_i * 3 + i], 0.0);
-            for (size_t j = 0; j < 3; ++j)
-            {
-                // Make a copy of transpose
-                surface_matrix_copy[3 * j + i] = surface_matrix[3 * i + j];
-            }
+            B_vec(i) = std::complex<double>(bc_pointer[ytype_i * 3 + i], 0.0);
         }
 
-        // Solve the linear equation
-        zgesv_(
-            &mat_size,             // (Input)
-            &bc_columns,           // (Input)
-            surface_matrix_copy,   // A; (Input & Output)
-            &mat_size,             // (Input)
-            lapack_ipiv,           // (Output)
-            bc_copy,               // B -> X (Input & Output)
-            &mat_size,             // (Input)
-            &bc_solution_info      // (Output)
-        );
+        // Solve the linear equation U = S^-1 @ B using Eigen's FullPivLU
+        Eigen::FullPivLU<Eigen::Matrix3cd> lu(surface_matrix);
 
-        // Check for errors
-        if (bc_solution_info != 0)
+        // Check for singularity/errors
+        if (!lu.isInvertible())
         {
             solution_storage_ptr->message =
-                "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition. ZGESV code: " +
-                std::to_string(bc_solution_info) +
-                "\nThe solutions may not be valid at the surface.\n";
+                "RadialSolver.PropMatrixMethod:: Error encountered while applying surface boundary condition.\n"
+                "Eigen FullPivLU: Surface matrix is singular or poorly conditioned.\n"
+                "The solutions may not be valid at the surface.\n";
             solution_storage_ptr->error_code = -21;
             solution_storage_ptr->success = false;
             if (verbose)
                 std::printf("%s", solution_storage_ptr->message.c_str());
             return solution_storage_ptr->error_code;
+        }
+
+        // Extract the solution and push back to bc_copy for downstream loop
+        Eigen::Vector3cd X = lu.solve(B_vec);
+        for (size_t i = 0; i < 3; ++i)
+        {
+            bc_copy[i] = X(i);
         }
 
         // Step through each radial step and apply the propagation matrix to the surface solution

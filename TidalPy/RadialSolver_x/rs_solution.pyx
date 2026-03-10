@@ -4,7 +4,7 @@
 from libcpp.memory cimport make_unique
 from libcpp.string cimport string as cpp_string
 
-from TidalPy.RadialSolver_x.constants cimport C_MAX_NUM_Y
+from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_Y
 from TidalPy.constants cimport d_PI
 
 cimport numpy as cnp
@@ -102,12 +102,6 @@ cdef class RadialSolverSolution:
                 full_solution_shape_ptr,
                 cnp.NPY_COMPLEX128,
                 <double complex*>self.solution_storage_ptr.full_solution_vec.data())
-
-            self.complex_love_arr = cnp.PyArray_SimpleNewFromData(
-                love_shape_ndim,
-                love_shape_ptr,
-                cnp.NPY_COMPLEX128,
-                <double complex*>self.solution_storage_ptr.complex_love_vec.data())
 
             if not eos_solution_ptr:
                 raise RuntimeError("RadialSolverSolution:: c_EOSSolution is not initialized.")
@@ -292,44 +286,91 @@ cdef class RadialSolverSolution:
 
     @property
     def love(self):
+        cdef list love_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
         if self.success and (self.error_code == 0):
-            return np.copy(self.complex_love_arr).reshape(self.num_ytypes, 3)
+            for sol_i in range(self.num_ytypes):
+                complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                love_list.append([complex_love.k, complex_love.h, complex_love.l])
+            return np.asarray(love_list, dtype=np.complex128, order='C').reshape(self.num_ytypes, 3)
         else:
             return np.nan * np.ones((self.num_ytypes, 3), dtype=np.complex128)
 
     @property
     def k(self):
+        cdef list love_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+    
         if self.success and (self.error_code == 0):
             if self.num_ytypes == 1:
-                return self.complex_love_arr[0]
+                return self.solution_storage_uptr.get().complex_love_vec[0].k
             else:
-                return np.copy(self.complex_love_arr[0::3])
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    love_list.append(complex_love.k)
+                return np.asarray(love_list, dtype=np.complex128)
         else:
             if self.num_ytypes == 1:
                 return np.nan
             else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+                return np.nan * np.ones(self.num_ytypes, dtype=np.complex128)
 
     @property
     def h(self):
+        cdef list love_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+    
         if self.success and (self.error_code == 0):
             if self.num_ytypes == 1:
-                return self.complex_love_arr[1]
+                return self.solution_storage_uptr.get().complex_love_vec[0].h
             else:
-                return np.copy(self.complex_love_arr[1::3])
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    love_list.append(complex_love.h)
+                return np.asarray(love_list, dtype=np.complex128)
         else:
             if self.num_ytypes == 1:
                 return np.nan
             else:
-                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+                return np.nan * np.ones(self.num_ytypes, dtype=np.complex128)
 
     @property
     def l(self):
+        cdef list love_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+    
         if self.success and (self.error_code == 0):
             if self.num_ytypes == 1:
-                return self.complex_love_arr[2]
+                return self.solution_storage_uptr.get().complex_love_vec[0].l
             else:
-                return np.copy(self.complex_love_arr[2::3])
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    love_list.append(complex_love.l)
+                return np.asarray(love_list, dtype=np.complex128)
+        else:
+            if self.num_ytypes == 1:
+                return np.nan
+            else:
+                return np.nan * np.ones(self.num_ytypes, dtype=np.complex128)
+
+    @property
+    def Q_k(self):
+        cdef list Q_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+
+        if self.success and (self.error_code == 0):
+            if self.num_ytypes == 1:
+                return self.solution_storage_uptr.get().complex_love_vec[0].get_Q_k()
+            else:
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    Q_list.append(complex_love.get_Q_k())
+                return np.asarray(Q_list, dtype=np.float64)
         else:
             if self.num_ytypes == 1:
                 return np.nan
@@ -337,9 +378,39 @@ cdef class RadialSolverSolution:
                 return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
 
     @property
-    def Q(self):
+    def Q_h(self):
+        cdef list Q_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+
         if self.success and (self.error_code == 0):
-            return np.abs(self.k) / -np.imag(self.k)
+            if self.num_ytypes == 1:
+                return self.solution_storage_uptr.get().complex_love_vec[0].get_Q_h()
+            else:
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    Q_list.append(complex_love.get_Q_h())
+                return np.asarray(Q_list, dtype=np.float64)
+        else:
+            if self.num_ytypes == 1:
+                return np.nan
+            else:
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+    
+    @property
+    def Q_l(self):
+        cdef list Q_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+
+        if self.success and (self.error_code == 0):
+            if self.num_ytypes == 1:
+                return self.solution_storage_uptr.get().complex_love_vec[0].get_Q_l()
+            else:
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    Q_list.append(complex_love.get_Q_l())
+                return np.asarray(Q_list, dtype=np.float64)
         else:
             if self.num_ytypes == 1:
                 return np.nan
@@ -347,9 +418,59 @@ cdef class RadialSolverSolution:
                 return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
 
     @property
-    def lag(self):
+    def lag_k(self):
+        cdef list lag_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+
         if self.success and (self.error_code == 0):
-            return np.arctan(-np.imag(self.k) / np.real(self.k))
+            if self.num_ytypes == 1:
+                return self.solution_storage_uptr.get().complex_love_vec[0].get_lag_k()
+            else:
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    lag_list.append(complex_love.get_lag_k())
+                return np.asarray(lag_list, dtype=np.float64)
+        else:
+            if self.num_ytypes == 1:
+                return np.nan
+            else:
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+    
+    @property
+    def lag_h(self):
+        cdef list lag_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+
+        if self.success and (self.error_code == 0):
+            if self.num_ytypes == 1:
+                return self.solution_storage_uptr.get().complex_love_vec[0].get_lag_h()
+            else:
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    lag_list.append(complex_love.get_lag_h())
+                return np.asarray(lag_list, dtype=np.float64)
+        else:
+            if self.num_ytypes == 1:
+                return np.nan
+            else:
+                return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+    
+    @property
+    def lag_l(self):
+        cdef list lag_list = []
+        cdef size_t sol_i
+        cdef c_LoveNumbers complex_love
+
+        if self.success and (self.error_code == 0):
+            if self.num_ytypes == 1:
+                return self.solution_storage_uptr.get().complex_love_vec[0].get_lag_l()
+            else:
+                for sol_i in range(self.num_ytypes):
+                    complex_love = self.solution_storage_uptr.get().complex_love_vec[sol_i]
+                    lag_list.append(complex_love.get_lag_l())
+                return np.asarray(lag_list, dtype=np.float64)
         else:
             if self.num_ytypes == 1:
                 return np.nan

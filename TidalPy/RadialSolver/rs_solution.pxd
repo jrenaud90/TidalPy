@@ -6,7 +6,7 @@ from libcpp.string cimport string as cpp_string
 from libcpp.vector cimport vector
 from libcpp.memory cimport unique_ptr
 
-from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC
+from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 
 # Need to include love_.cpp and eos_solution_.cpp in order to get solutions.cpp to see it and use it to link
@@ -55,7 +55,7 @@ cdef extern from "rs_solution_.cpp" nogil:
             cpp_bool array_changed)
         void find_love()
         void dimensionalize_data(
-            NonDimensionalScalesCC* nondim_scales,
+            c_NonDimensionalScales* nondim_scales,
             cpp_bool redimensionalize)
 
 

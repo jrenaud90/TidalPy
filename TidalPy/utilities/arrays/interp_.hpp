@@ -254,8 +254,6 @@ void cf_interp_complex(
     double slope_imag;
     double x_slope_inverse;
 
-    double result_real;
-    double result_imag;
     double fp_at_j_real;
     double fp_at_j_imag;
     double xp_at_j;

@@ -6,9 +6,9 @@ from libcpp.string cimport string as cpp_string
 from libcpp.vector cimport vector
 from libcpp.memory cimport unique_ptr
 
-from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC
+from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
-
+from TidalPy.RadialSolver_x.love cimport c_LoveNumbers
 
 cdef extern from "rs_solution_.hpp" nogil:
 
@@ -33,7 +33,7 @@ cdef extern from "rs_solution_.hpp" nogil:
         size_t total_size
         unique_ptr[c_EOSSolution] eos_solution_uptr
         vector[double] full_solution_vec
-        vector[double] complex_love_vec
+        vector[c_LoveNumbers] complex_love_vec
         vector[size_t] shooting_method_steps_taken_vec
 
         c_EOSSolution* get_eos_solution_ptr()
@@ -43,7 +43,7 @@ cdef extern from "rs_solution_.hpp" nogil:
             cpp_bool array_changed)
         void find_love()
         void dimensionalize_data(
-            NonDimensionalScalesCC* nondim_scales,
+            c_NonDimensionalScales* nondim_scales,
             cpp_bool redimensionalize)
 
 
@@ -62,9 +62,6 @@ cdef class RadialSolverSolution:
 
     # Result pointers and data
     cdef cnp.ndarray full_solution_arr
-
-    # Love number information
-    cdef cnp.ndarray complex_love_arr
 
     # EOS solution arrays
     cdef cnp.ndarray radius_array_cnp

@@ -16,6 +16,7 @@ TidalPy-Run*
 !TidalPy/RadialSolver/love_.cpp
 !TidalPy/RadialSolver/rs_solution_.cpp
 !TidalPy/Material/eos/eos_solution_.cpp
+!TidalPy/RadialSolver_x/lapack_.cpp
 
 # End TidalPy
 

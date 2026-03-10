@@ -8,9 +8,10 @@
 #include <memory>
 #include <string>
 
-#include "../Material_x/eos/eos_solution_.hpp"
 #include "love_.hpp"
-#include "constants_.hpp"
+#include "rs_constants_.hpp"
+#include "../Material_x/eos/eos_solution_.hpp"
+#include "../../constants_.hpp"
 #include "../utilities/dimensions/nondimensional_.hpp"
 
 
@@ -47,7 +48,7 @@ public:
     std::vector<double> full_solution_vec = std::vector<double>();
 
     // Love number attributes (stores double-pairs for complex values)
-    std::vector<double> complex_love_vec = std::vector<double>();
+    std::vector<c_LoveNumbers> complex_love_vec = std::vector<c_LoveNumbers>();
 
     // Diagnostic data
     std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
@@ -138,8 +139,8 @@ public:
 
             this->full_solution_vec.resize(this->total_size);
 
-            // Three Love numbers stored for each y-type. Double-pair storage.
-            this->complex_love_vec.resize(2 * 3 * this->num_ytypes);
+            // Love number structure for each ytype
+            this->complex_love_vec.resize(this->num_ytypes);
         }
     }
 
@@ -167,24 +168,16 @@ public:
                     surface_solutions[y_i] = std::complex<double>(real_part, imag_part);
                 }
 
-                c_find_love(
-                    love_numbers,
+                this->complex_love_vec[ytype_i] = c_find_love(
                     surface_solutions,
-                    this->eos_solution_uptr->surface_gravity);
-
-                // Store back as double pairs
-                double* love_ptr = &this->complex_love_vec[2 * 3 * ytype_i];
-                for (size_t i = 0; i < 3; ++i)
-                {
-                    love_ptr[2 * i]     = love_numbers[i].real();
-                    love_ptr[2 * i + 1] = love_numbers[i].imag();
-                }
+                    this->eos_solution_uptr->surface_gravity
+                );
             }
         }
     }
 
     void dimensionalize_data(
-        NonDimensionalScalesCC* nondim_scales,
+        c_NonDimensionalScales* nondim_scales,
         bool redimensionalize)
     {
         // Perform dimensionalization on the EOS solution first.

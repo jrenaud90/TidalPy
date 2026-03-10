@@ -118,6 +118,6 @@ public:
     // Run full planet interpolation through each layer.
     void interpolate_full_planet();
     void dimensionalize_data(
-        NonDimensionalScalesCC* nondim_scales,
+        c_NonDimensionalScales* nondim_scales,
         bool redimensionalize);
 };

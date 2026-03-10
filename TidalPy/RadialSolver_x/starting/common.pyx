@@ -53,23 +53,3 @@ def takeuchi_phi_psi(double complex z2, int degree_l):
         complex(phi_lp1.real(), phi_lp1.imag()),
         complex(psi.real(), psi.imag()),
     )
-
-
-def spherical_jn(int n, double complex z):
-    """
-    Compute spherical Bessel function of the first kind j_n(z).
-
-    Parameters
-    ----------
-    n : int
-        Order of the Bessel function.
-    z : complex
-        Argument.
-
-    Returns
-    -------
-    result : complex
-    """
-    cdef cpp_complex[double] z_cpp = cpp_complex[double](z.real, z.imag)
-    cdef cpp_complex[double] result = c_spherical_jn(n, z_cpp)
-    return complex(result.real(), result.imag())

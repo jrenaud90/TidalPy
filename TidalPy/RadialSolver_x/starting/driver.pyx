@@ -12,8 +12,8 @@ from libcpp.string cimport string as cpp_string, npos as cpp_npos
 
 def find_starting_conditions(
         int layer_type,
-        bint is_static,
-        bint is_incompressible,
+        cpp_bool is_static,
+        cpp_bool is_incompressible,
         cpp_bool use_kamata,
         double frequency,
         double radius,

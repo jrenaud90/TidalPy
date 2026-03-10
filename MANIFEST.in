@@ -18,7 +18,6 @@ include cython_extensions.json
 
 # Include required hpp and cpp files
 global-include *.hpp
-include TidalPy/utilities/arrays/interp_.cpp
 include TidalPy/utilities/arrays/interp_.hpp
 include TidalPy/RadialSolver/love_.cpp
 include TidalPy/RadialSolver/love_.hpp
@@ -30,6 +29,8 @@ include TidalPy/utilities/dimensions/nondimensional_.hpp
 
 # Include submodules
 recursive-include Dependencies/xsf/include/xsf *.h
+recursive-include Dependencies/eigen/Eigen *
+recursive-include Dependencies/eigen/unsupported *
 
 # Exclude the whole Tests / Docs folder
 prune .vscode

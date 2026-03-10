@@ -163,10 +163,10 @@ cdef void cf_takeuchi_solid_dynamic_compressible(
     
     # y6, solutions 1--3
     starting_conditions_ptr[pos_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[pos_index * num_ys + 4] + \
         (3. * degree_l_dbl * gamma * h_pos * radius**lp1 / (2. * dlp3)) * psi_pos
     starting_conditions_ptr[neg_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[neg_index * num_ys + 4] + \
         (3. * degree_l_dbl * gamma * h_neg * radius**lp1 / (2. * dlp3)) * psi_neg
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - \
@@ -316,10 +316,10 @@ cdef void cf_takeuchi_solid_static_compressible(
 
     # y6, solutions 1--3
     starting_conditions_ptr[pos_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[pos_index * num_ys + 4] + \
         (3. * degree_l * gamma * h_pos * radius**lp1 / (2. * dlp3)) * psi_pos
     starting_conditions_ptr[neg_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[neg_index * num_ys + 4] + \
         (3. * degree_l * gamma * h_neg * radius**lp1 / (2. * dlp3)) * psi_neg
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - \

@@ -377,7 +377,7 @@ public:
 
     /// Handle dimensionalization/redimensionalization of solution data.
     void dimensionalize_data(
-        NonDimensionalScalesCC* nondim_scales,
+        c_NonDimensionalScales* nondim_scales,
         bool redimensionalize)
     {
         // Save scalers

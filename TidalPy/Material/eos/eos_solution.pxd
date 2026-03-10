@@ -8,7 +8,7 @@ cnp.import_array()
 
 from CyRK cimport CySolverResult
 
-from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC
+from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales
 
 cdef extern from "nondimensional_.hpp" nogil:
     pass
@@ -89,5 +89,5 @@ cdef extern from "eos_solution_.cpp" nogil:
             void interpolate_full_planet()
 
             void dimensionalize_data(
-                NonDimensionalScalesCC* nondim_scales,
+                c_NonDimensionalScales* nondim_scales,
                 cpp_bool redimensionalize)

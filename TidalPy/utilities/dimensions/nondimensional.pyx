@@ -22,7 +22,7 @@ if tidalpy_config_ptr == NULL:
 cdef class NonDimensionalScalesClass:
     """ Python wrapper for the `NonDimensionalScales` struct. """
 
-    cdef NonDimensionalScalesCC nondim_scales
+    cdef c_NonDimensionalScales nondim_scales
 
     def __init__(self):
         # Initialize everything to nan
@@ -64,7 +64,7 @@ cdef class NonDimensionalScalesClass:
 
 
 cdef void cf_build_nondimensional_scales(
-        NonDimensionalScalesCC* non_dim_scales_ptr,
+        c_NonDimensionalScales* non_dim_scales_ptr,
         double frequency,
         double mean_radius,
         double bulk_density

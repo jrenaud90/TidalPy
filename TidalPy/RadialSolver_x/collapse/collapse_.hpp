@@ -2,6 +2,7 @@
 // Ported from TidalPy/RadialSolver/collapse/collapse.pyx
 #pragma once
 
+#include <vector>
 #include <complex>
 
 
@@ -13,8 +14,8 @@
 //     Output array for final computed solutions.
 // constant_vector_ptr : complex*
 //     Constants used to scale each independent solution.
-// storage_by_solution : complex**
-//     Array of pointers to precomputed intermediate solutions for each slice.
+// storage_by_solution : std::vector<std::vector<std::complex<double>>>&
+//     Array of vectors to precomputed intermediate solutions for each slice.
 // layer_radius_ptr : double*
 //     Radii for each slice.
 // layer_density_ptr : double*
@@ -44,7 +45,7 @@
 inline void c_collapse_layer_solution(
         std::complex<double>* solution_ptr,
         std::complex<double>* constant_vector_ptr,
-        std::complex<double>** storage_by_solution,
+        std::vector<std::vector<std::complex<double>>>& storage_by_solution,
         double* layer_radius_ptr,
         double* layer_density_ptr,
         double* layer_gravity_ptr,

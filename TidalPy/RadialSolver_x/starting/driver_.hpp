@@ -50,117 +50,145 @@
 inline void c_find_starting_conditions(
         bool* success_ptr,
         std::string& message,
-        int layer_type,
-        int is_static,
-        int is_incompressible,
-        bool use_kamata,
-        double frequency,
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        std::complex<double> shear_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const int layer_type,
+        const bool is_static,
+        const bool is_incompressible,
+        const bool use_kamata,
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double> bulk_modulus,
+        const std::complex<double> shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr,
-        bool run_y_checks = true) noexcept
+        const bool run_y_checks = true) noexcept
 {
     size_t num_ys_for_assumption;
 
     // Assume success and adjust if not
-    success_ptr[0] = true;
+    *success_ptr = true;
 
     // For static liquid layers, no matter the other assumptions, we use Saito's method.
-    if ((layer_type != 0) && is_static) {
+    if ((layer_type != 0) && is_static)
+    {
         // Liquid Static Layer
-        if (run_y_checks) {
+        if (run_y_checks)
+        {
             num_ys_for_assumption = 2;
-            if (num_ys_for_assumption != num_ys) {
-                success_ptr[0] = false;
+            if (num_ys_for_assumption != num_ys)
+            {
+                *success_ptr = false;
                 message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
             }
         }
-        if (success_ptr[0]) {
+        if (*success_ptr)
+        {
             c_saito_liquid_static_incompressible(
                 radius, degree_l, num_ys, starting_conditions_ptr
                 );
         }
 
     // Work through the Kamata models
-    } else if (use_kamata) {
+    } else if (use_kamata)
+    {
         // Kamata solid layer
         if (layer_type == 0) {
             // Solid layer
-            if (is_static && is_incompressible) {
-                success_ptr[0] = false;
+            if (is_static && is_incompressible)
+            {
+                *success_ptr = false;
                 message = "RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for Kamata starting conditions for static-solid layers.\nRecommend using dynamic-incompressible instead.";
-            } else if (is_static && (!is_incompressible)) {
-                if (run_y_checks) {
+            } else if (is_static && (!is_incompressible))
+            {
+                if (run_y_checks)
+                {
                     num_ys_for_assumption = 6;
-                    if (num_ys_for_assumption != num_ys) {
-                        success_ptr[0] = false;
+                    if (num_ys_for_assumption != num_ys)
+                    {
+                        *success_ptr = false;
                         message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                     }
                 }
-                if (success_ptr[0]) {
+                if (*success_ptr)
+                {
                     c_kamata_solid_static_compressible(
                         radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
                     );
                 }
-            } else if ((!is_static) && is_incompressible) {
-                if (run_y_checks) {
+            } else if ((!is_static) && is_incompressible)
+            {
+                if (run_y_checks)
+                {
                     num_ys_for_assumption = 6;
-                    if (num_ys_for_assumption != num_ys) {
-                        success_ptr[0] = false;
+                    if (num_ys_for_assumption != num_ys)
+                    {
+                        *success_ptr = false;
                         message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                     }
                 }
-                if (success_ptr[0]) {
+                if (*success_ptr)
+                {
                     c_kamata_solid_dynamic_incompressible(
                         frequency, radius, density, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
                         );
                 }
-            } else {
-                if (run_y_checks) {
+            } else
+            {
+                if (run_y_checks)
+                {
                     num_ys_for_assumption = 6;
-                    if (num_ys_for_assumption != num_ys) {
-                        success_ptr[0] = false;
+                    if (num_ys_for_assumption != num_ys)
+                    {
+                        *success_ptr = false;
                         message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                     }
                 }
-                if (success_ptr[0]) {
+                if (*success_ptr)
+                {
                     c_kamata_solid_dynamic_compressible(
                         frequency, radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys,
                         starting_conditions_ptr
                         );
                 }
             }
-        } else {
+        } else
+        {
             // Kamata liquid layer
-            if (is_static) {
+            if (is_static)
+            {
                 // Covered by Saito method above
-            } else if ((!is_static) && is_incompressible) {
-                if (run_y_checks) {
+            } else if ((!is_static) && is_incompressible)
+            {
+                if (run_y_checks)
+                {
                     num_ys_for_assumption = 4;
-                    if (num_ys_for_assumption != num_ys) {
-                        success_ptr[0] = false;
+                    if (num_ys_for_assumption != num_ys)
+                    {
+                        *success_ptr = false;
                         message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                     }
                 }
-                if (success_ptr[0]) {
+                if (*success_ptr)
+                {
                     c_kamata_liquid_dynamic_incompressible(
                         frequency, radius, density, degree_l, G_to_use, num_ys, starting_conditions_ptr
                         );
                 }
-            } else {
-                if (run_y_checks) {
+            } else
+            {
+                if (run_y_checks)
+                {
                     num_ys_for_assumption = 4;
-                    if (num_ys_for_assumption != num_ys) {
-                        success_ptr[0] = false;
+                    if (num_ys_for_assumption != num_ys)
+                    {
+                        *success_ptr = false;
                         message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                     }
                 }
-                if (success_ptr[0]) {
+                if (*success_ptr)
+                {
                     c_kamata_liquid_dynamic_compressible(
                         frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
                         );
@@ -169,54 +197,69 @@ inline void c_find_starting_conditions(
         }
 
     // Work through the Takeuchi models
-    } else {
-        if (is_incompressible) {
-            success_ptr[0] = false;
+    } else
+    {
+        if (is_incompressible)
+        {
+            *success_ptr = false;
             message = "RadialSolver::Shooting::FindStartingConditions: Incompressibility is not implemented for most of the Takeuchi starting conditions. \nRecommend using Kamata (set use_kamata=True) instead.";
         } else {
-            if (layer_type == 0) {
+            if (layer_type == 0)
+            {
                 // Solid layer
                 if (is_static) {
                     if (run_y_checks) {
                         num_ys_for_assumption = 6;
-                        if (num_ys_for_assumption != num_ys) {
-                            success_ptr[0] = false;
+                        if (num_ys_for_assumption != num_ys)
+                        {
+                            *success_ptr = false;
                             message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                         }
                     }
-                    if (success_ptr[0]) {
+                    if (*success_ptr)
+                    {
                         c_takeuchi_solid_static_compressible(
                             radius, density, bulk_modulus, shear_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
                         );
                     }
-                } else {
-                    if (run_y_checks) {
+                } else
+                {
+                    if (run_y_checks)
+                    {
                         num_ys_for_assumption = 6;
-                        if (num_ys_for_assumption != num_ys) {
-                            success_ptr[0] = false;
+                        if (num_ys_for_assumption != num_ys)
+                        {
+                            *success_ptr = false;
                             message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                         }
                     }
-                    if (success_ptr[0]) {
+                    if (*success_ptr)
+                    {
                         c_takeuchi_solid_dynamic_compressible(
                             frequency, radius, density, bulk_modulus, shear_modulus,
                             degree_l, G_to_use, num_ys, starting_conditions_ptr
                             );
                     }
                 }
-            } else {
+            } else
+            {
                 // Liquid layer
-                if (is_static) {
+                if (is_static)
+                {
                     // Handled by Saito above
-                } else {
-                    if (run_y_checks) {
+                } else
+                {
+                    if (run_y_checks)
+                    {
                         num_ys_for_assumption = 4;
-                        if (num_ys_for_assumption != num_ys) {
-                            success_ptr[0] = false;
+                        if (num_ys_for_assumption != num_ys)
+                        {
+                            *success_ptr = false;
                             message = "RadialSolver::Shooting::FindStartingConditions: Incorrect number of ys for given the starting condition assumptions.";
                         }
                     }
-                    if (success_ptr[0]) {
+                    if (*success_ptr)
+                    {
                         c_takeuchi_liquid_dynamic_compressible(
                             frequency, radius, density, bulk_modulus, degree_l, G_to_use, num_ys, starting_conditions_ptr
                             );

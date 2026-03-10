@@ -209,5 +209,5 @@ vector[size_t] shooting_method_steps_taken_vec
 EOSSolutionCC* get_eos_solution_ptr()
 void change_radius_array(double* new_radius_array_ptr, size_t new_size_radius_array, cpp_bool array_changed)
 void find_love()
-void dimensionalize_data(NonDimensionalScalesCC* nondim_scales, cpp_bool redimensionalize)
+void dimensionalize_data(c_NonDimensionalScales* nondim_scales, cpp_bool redimensionalize)
 ```

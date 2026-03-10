@@ -15,7 +15,8 @@ from TidalPy.constants cimport (
     TidalPyConfig
     )
 
-# Allocate the config storage on the heap. We are going to use a naked "new" (no delete) because we want this memory to stay until the program is terminated.
+# Allocate the config storage on the heap. We are going to use a naked "new" (no delete) because we want this memory to
+# stay until the program is terminated.
 # We use 'new' so it persists in memory.
 cdef TidalPyConfig* _owner_storage = new TidalPyConfig()
 

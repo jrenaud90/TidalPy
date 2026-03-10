@@ -3,9 +3,10 @@
 #include <complex>
 #include <limits>
 #include <utility>
-#include "interp_.hpp"
-#include "ode_.hpp"
-#include "constants_.hpp"
+
+#include "../ode_.hpp"
+#include "../../../constants_.hpp"
+#include "../../../utilities/arrays/interp_.hpp"
 
 
 /// Input data needed for interpolation-based EOS evaluation.

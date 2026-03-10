@@ -73,6 +73,6 @@ public:
         bool array_changed);
     void find_love();
     void dimensionalize_data(
-        NonDimensionalScalesCC* nondim_scales,
+        c_NonDimensionalScales* nondim_scales,
         bool redimensionalize);
 };

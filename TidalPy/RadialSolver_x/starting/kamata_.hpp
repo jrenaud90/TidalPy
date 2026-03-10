@@ -22,55 +22,55 @@
 // KMN15 Eqs. B1-B16.
 // Three independent solutions (sn1, sn2, sn3).
 inline void c_kamata_solid_dynamic_compressible(
-        double frequency,
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        std::complex<double> shear_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double>& bulk_modulus,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // Convert compressibility parameters
-    std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
+    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
 
     // Constants
-    double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
-    double dynamic_term   = frequency * frequency;
-    std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
-    std::complex<double> beta2  = shear_modulus / density;
+    const double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const double dynamic_term   = frequency * frequency;
+    const std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
+    const std::complex<double> beta2  = shear_modulus / density;
 
     // Optimizations
-    double r_inverse    = 1.0 / radius;
-    double r2_inverse   = r_inverse * r_inverse;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
-    double llp1         = degree_l_dbl * lp1;
+    const double r_inverse    = 1.0 / radius;
+    const double r2_inverse   = r_inverse * r_inverse;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double llp1         = degree_l_dbl * lp1;
 
     // Helper functions
-    std::complex<double> k2_quad_pos = (dynamic_term / beta2) + ((dynamic_term + 4.0 * gamma) / alpha2);
-    std::complex<double> k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4.0 * gamma) / alpha2);
-    std::complex<double> k2_quad     = (k2_quad_neg * k2_quad_neg) +
+    const std::complex<double> k2_quad_pos =(dynamic_term / beta2) + ((dynamic_term + 4.0 * gamma) / alpha2);
+    const std::complex<double> k2_quad_neg = (dynamic_term / beta2) - ((dynamic_term + 4.0 * gamma) / alpha2);
+    const std::complex<double> k2_quad     = (k2_quad_neg * k2_quad_neg) +
         ((4.0 * degree_l_dbl * (degree_l_dbl + 1.0) * (gamma * gamma)) / (alpha2 * beta2));
 
     // QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with KMN15 for this func.
-    size_t neg_index = 1;
-    size_t pos_index = 0;
-    std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
-    std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
-    std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
+    const size_t neg_index = 1;
+    const size_t pos_index = 0;
+    const std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
+    const std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
+    const std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
 
-    std::complex<double> f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma;
-    std::complex<double> f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma;
+    const std::complex<double> f_k2_pos = (beta2 * k2_pos - dynamic_term) / gamma;
+    const std::complex<double> f_k2_neg = (beta2 * k2_neg - dynamic_term) / gamma;
 
-    std::complex<double> h_k2_pos = f_k2_pos - lp1;
-    std::complex<double> h_k2_neg = f_k2_neg - lp1;
+    const std::complex<double> h_k2_pos = f_k2_pos - lp1;
+    const std::complex<double> h_k2_neg = f_k2_neg - lp1;
 
-    std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
-    std::complex<double> z_k2_neg = c_z_calc(k2_neg * r2, degree_l);
+    const std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
+    const std::complex<double> z_k2_neg = c_z_calc(k2_neg * r2, degree_l);
 
     // See Eqs. B1-B12 of KMN15
 
@@ -128,52 +128,52 @@ inline void c_kamata_solid_dynamic_compressible(
 // KMN15 Eqs. B1-B16 (with w=0).
 // Three independent solutions (sn1, sn2, sn3).
 inline void c_kamata_solid_static_compressible(
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        std::complex<double> shear_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double radius,
+        const double density,
+        const std::complex<double>& bulk_modulus,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // Convert compressibility parameters
-    std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
+    const std::complex<double> lame = bulk_modulus - (2.0 / 3.0) * shear_modulus;
 
     // Constants
-    double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
-    std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
-    std::complex<double> beta2  = shear_modulus / density;
+    const double gamma          = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const std::complex<double> alpha2 = (lame + 2.0 * shear_modulus) / density;
+    const std::complex<double> beta2  = shear_modulus / density;
 
     // Optimizations
-    double r_inverse    = 1.0 / radius;
-    double r2_inverse   = r_inverse * r_inverse;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
-    double llp1         = degree_l_dbl * lp1;
+    const double r_inverse    = 1.0 / radius;
+    const double r2_inverse   = r_inverse * r_inverse;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double llp1         = degree_l_dbl * lp1;
 
     // Helper functions
-    std::complex<double> k2_quad_pos = 4.0 * gamma / alpha2;
-    std::complex<double> k2_quad_neg = -k2_quad_pos;
-    std::complex<double> k2_quad = k2_quad_neg * k2_quad_neg + ((4.0 * degree_l_dbl * lp1 * gamma * gamma) / (alpha2 * beta2));
+    const std::complex<double> k2_quad_pos = 4.0 * gamma / alpha2;
+    const std::complex<double> k2_quad_neg = -k2_quad_pos;
+    const std::complex<double> k2_quad = k2_quad_neg * k2_quad_neg + ((4.0 * degree_l_dbl * lp1 * gamma * gamma) / (alpha2 * beta2));
 
     // QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with KMN15 for this func.
-    size_t neg_index = 1;
-    size_t pos_index = 0;
-    std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
-    std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
-    std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
+    const size_t neg_index = 1;
+    const size_t pos_index = 0;
+    const std::complex<double> k2_quad_sqrt = std::sqrt(k2_quad);
+    const std::complex<double> k2_pos = (1.0 / 2.0) * (k2_quad_pos + k2_quad_sqrt);
+    const std::complex<double> k2_neg = (1.0 / 2.0) * (k2_quad_pos - k2_quad_sqrt);
 
-    std::complex<double> f_k2_pos = beta2 * k2_pos / gamma;
-    std::complex<double> f_k2_neg = beta2 * k2_neg / gamma;
+    const std::complex<double> f_k2_pos = beta2 * k2_pos / gamma;
+    const std::complex<double> f_k2_neg = beta2 * k2_neg / gamma;
 
-    std::complex<double> h_k2_pos = f_k2_pos - lp1;
-    std::complex<double> h_k2_neg = f_k2_neg - lp1;
+    const std::complex<double> h_k2_pos = f_k2_pos - lp1;
+    const std::complex<double> h_k2_neg = f_k2_neg - lp1;
 
-    std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
-    std::complex<double> z_k2_neg = c_z_calc(k2_neg * r2, degree_l);
+    const std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
+    const std::complex<double> z_k2_neg = c_z_calc(k2_neg * r2, degree_l);
 
     // See Eqs. B1-B12 of KMN15
 
@@ -231,37 +231,37 @@ inline void c_kamata_solid_static_compressible(
 // KMN15 Eqs. B17-B28.
 // Three independent solutions (sn1, sn2, sn3).
 inline void c_kamata_solid_dynamic_incompressible(
-        double frequency,
-        double radius,
-        double density,
-        std::complex<double> shear_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double>& shear_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // Constants
-    double gamma         = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
-    double dynamic_term  = frequency * frequency;
-    std::complex<double> beta2 = shear_modulus / density;
+    const double gamma         = 4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0;
+    const double dynamic_term  = frequency * frequency;
+    const std::complex<double> beta2 = shear_modulus / density;
 
     // Optimizations
-    double r_inverse    = 1.0 / radius;
-    double r2_inverse   = r_inverse * r_inverse;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double lm1          = degree_l_dbl - 1.0;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
-    double llp1         = degree_l_dbl * lp1;
+    const double r_inverse    = 1.0 / radius;
+    const double r2_inverse   = r_inverse * r_inverse;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double lm1          = degree_l_dbl - 1.0;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double llp1         = degree_l_dbl * lp1;
 
     // QUESTION: (Issue #43) KMN15 has these flipped compared to TS72. Going with KMN15 for this func.
-    size_t neg_index = 1;
-    size_t pos_index = 0;
-    std::complex<double> k2_pos   = dynamic_term / beta2;
-    std::complex<double> f_k2_neg = -dynamic_term / gamma;
-    std::complex<double> h_k2_neg = f_k2_neg - lp1;
-    std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
+    const size_t neg_index = 1;
+    const size_t pos_index = 0;
+    const std::complex<double> k2_pos   = dynamic_term / beta2;
+    const std::complex<double> f_k2_neg = -dynamic_term / gamma;
+    const std::complex<double> h_k2_neg = f_k2_neg - lp1;
+    const std::complex<double> z_k2_pos = c_z_calc(k2_pos * r2, degree_l);
 
     // See Eqs. B17-B28 of KMN15
 
@@ -324,31 +324,31 @@ inline void c_kamata_solid_dynamic_incompressible(
 // KMN15 Eqs. B29-B37.
 // Two independent solutions (sn1, sn2).
 inline void c_kamata_liquid_dynamic_compressible(
-        double frequency,
-        double radius,
-        double density,
-        std::complex<double> bulk_modulus,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double frequency,
+        const double radius,
+        const double density,
+        const std::complex<double>& bulk_modulus,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // For liquid layer, shear modulus is zero so 1st Lame parameter = bulk modulus
-    std::complex<double> lame = bulk_modulus;
+    const std::complex<double> lame = bulk_modulus;
 
     // Optimizations
-    double dynamic_term = frequency * frequency;
-    double r_inverse    = 1.0 / radius;
-    double r2           = radius * radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
+    const double dynamic_term = frequency * frequency;
+    const double r_inverse    = 1.0 / radius;
+    const double r2           = radius * radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
 
     // Helper functions
-    double gamma          = (4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0);
-    double f              = -dynamic_term / gamma;
-    double h              = f - (degree_l_dbl + 1.0);
-    std::complex<double> alpha2 = lame / density;
-    std::complex<double> k2     = (1.0 / alpha2) * (dynamic_term + 4.0 * gamma -
-                                                    (degree_l_dbl * (degree_l_dbl + 1.0) * gamma * gamma / dynamic_term));
+    const double gamma          = (4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0);
+    const double f              = -dynamic_term / gamma;
+    const double h              = f - (degree_l_dbl + 1.0);
+    const std::complex<double> alpha2 = lame / density;
+    const std::complex<double> k2     = (1.0 / alpha2) * (dynamic_term + 4.0 * gamma -
+        (degree_l_dbl * (degree_l_dbl + 1.0) * gamma * gamma / dynamic_term));
 
     // See Eqs. B33--B36 in KMN15
     // y1, solutions 1--2
@@ -382,26 +382,26 @@ inline void c_kamata_liquid_dynamic_compressible(
 // KMN15 Eqs. B29-B37 (incompressible limit).
 // Two independent solutions (sn1, sn2).
 inline void c_kamata_liquid_dynamic_incompressible(
-        double frequency,
-        double radius,
-        double density,
-        int degree_l,
-        double G_to_use,
-        size_t num_ys,
+        const double frequency,
+        const double radius,
+        const double density,
+        const int degree_l,
+        const double G_to_use,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
     // Optimizations
-    double dynamic_term = frequency * frequency;
-    double r_inverse    = 1.0 / radius;
-    double degree_l_dbl = static_cast<double>(degree_l);
-    double lp1          = degree_l_dbl + 1.0;
-    double llp1         = degree_l_dbl * lp1;
-    double dlp1         = 2.0 * degree_l_dbl + 1.0;
+    const double dynamic_term = frequency * frequency;
+    const double r_inverse    = 1.0 / radius;
+    const double degree_l_dbl = static_cast<double>(degree_l);
+    const double lp1          = degree_l_dbl + 1.0;
+    const double llp1         = degree_l_dbl * lp1;
+    const double dlp1         = 2.0 * degree_l_dbl + 1.0;
 
     // Helper functions
-    double gamma = (4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0);
-    double f     = -dynamic_term / gamma;
-    double h     = f - lp1;
+    const double gamma = (4.0 * TidalPyConstants::d_PI * G_to_use * density / 3.0);
+    const double f     = -dynamic_term / gamma;
+    const double h     = f - lp1;
 
     // See Eqs. B33--B36 in KMN15
 

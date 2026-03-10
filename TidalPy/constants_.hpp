@@ -52,7 +52,7 @@ struct TidalPyConstants
     static constexpr double d_RADIUS_IO = 1.82149e6;
 };
 
-// 2. Runtime Configurable Parameters (Mutable Shared State)
+// Runtime Configurable Parameters (Mutable Shared State)
 struct TidalPyConfig
 {
     // Forcing Frequency Extremes

@@ -23,12 +23,12 @@
 // Allows for a general tidal harmonic l, for static tides (w = 0).
 // Compressibility and all dissipation dependence is lost due to no dependence on bulk or shear moduli.
 inline void c_saito_liquid_static_incompressible(
-        double radius,
-        int degree_l,
-        size_t num_ys,
+        const double radius,
+        const int degree_l,
+        const size_t num_ys,
         std::complex<double>* starting_conditions_ptr) noexcept
 {
-    double degree_l_dbl = static_cast<double>(degree_l);
+    const double degree_l_dbl = static_cast<double>(degree_l);
 
     // See Eq. 19 in Saito 1974
     // y5 solution 0
