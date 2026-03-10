@@ -279,12 +279,12 @@ void cf_interp_complex(
         if (j == (len_x - 1))
         {
             result_ptr[0] = fp_at_j_real;
-            result_ptr[0] = fp_at_j_imag;
+            result_ptr[1] = fp_at_j_imag;
         }
         else if (xp_at_j == desired_x)
         {
             result_ptr[0] = fp_at_j_real;
-            result_ptr[0] = fp_at_j_imag;
+            result_ptr[1] = fp_at_j_imag;
         }
         else
         {
