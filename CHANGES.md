@@ -47,13 +47,20 @@ _The `_x` in module and function names indicates experimental versions. This suf
 * Fixes incorrect license url in codemeta.json.
 
 #### Dependencies
+* TidalPy now works on Python 3.14.
 * Bumped version of `ipympl` to `<=0.11.0`.
-* Bumped version of `CyRK` to `>=0.17.1, <0.18.1`
+* Bumped version of `CyRK` to `>=0.17.1, <0.18.1`.
+* Increased numpy's max pinnings to `<2.5`.
 
 ##### `XSF` Submodule
 * Adds [xsf]() package as a submodule to TidalPy. We use the spherical bessel function headers in various RadialSolver
   calculations.
   * Adds cython wrappers for spherical bessel functions to `TidalPy.utilities.math.special`.
+
+##### `Eigen` Submodule
+* Adds [Eigen]](https://gitlab.com/libeigen/eigen) package as a submodule to TidalPy.
+  This provides much of the functionality of LAPACK without us having to compile it or find its symbols. Specifically
+  we use it to do a LU-Decomp in `RadialSolver_x` module.
 
 ### Version 0.7.0 (2025-12-02)
 
