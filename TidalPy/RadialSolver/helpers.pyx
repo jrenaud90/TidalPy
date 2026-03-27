@@ -11,11 +11,11 @@ cnp.import_array()
 
 from collections import namedtuple
 
-from TidalPy.constants cimport d_PI_DBL
+from TidalPy.constants cimport d_PI
 from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.rheology.base cimport RheologyModelBase
 
-cdef double PI_4_3 = (4.0 / 3.0) * d_PI_DBL 
+cdef double PI_4_3 = (4.0 / 3.0) * d_PI 
 
 from TidalPy.exceptions import ArgumentException
 from TidalPy.logger import get_logger

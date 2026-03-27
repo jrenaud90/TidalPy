@@ -1,8 +1,8 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-from TidalPy.constants cimport d_PI_DBL, d_EPS_DBL_10
+from TidalPy.constants cimport d_PI, d_EPS_DBL_10
 
-cdef double FOUR_PI = 4.0 * d_PI_DBL
+cdef double FOUR_PI = 4.0 * d_PI
 
 
 cdef void eos_diffeq(

@@ -13,6 +13,9 @@
 * Bumped version of `CyRK` to `>=0.17.1, <0.18.1`.
 * Increased numpy's max pinnings to `<2.5`.
 
+#### Other
+* Changed `TidalPy.constants.d_PI_DBL` to `TidalPy.constants.d_PI` since the "DBL" is redundant with the "d_".
+
 ### Version 0.7.1 (2026-02-05)
 
 #### Fixes

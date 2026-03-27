@@ -50,11 +50,11 @@ from libc.math cimport M_PI as _M_PI
 cdef double d_DBL_MAX      = _DBL_MAX
 cdef double d_DBL_MIN      = _DBL_MIN
 cdef double d_DBL_MANT_DIG = _DBL_MANT_DIG
-cdef double d_PI_DBL       = _M_PI
+cdef double d_PI       = _M_PI
 DBL_MAX      = d_DBL_MAX
 DBL_MIN      = d_DBL_MIN
 DBL_MANT_DIG = d_DBL_MANT_DIG
-PI_DBL       = d_PI_DBL
+PI_DBL       = d_PI
 
 from libcpp.limits cimport numeric_limits
 cdef double d_INF_DBL = numeric_limits[double].infinity()

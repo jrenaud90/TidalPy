@@ -17,7 +17,7 @@ cdef double d_MIN_THICKNESS
 cdef double d_ppm
 cdef double d_ppb
 
-cdef double d_PI_DBL
+cdef double d_PI
 cdef double d_DBL_MAX
 cdef double d_DBL_MIN
 cdef double d_DBL_MANT_DIG

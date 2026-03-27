@@ -3,7 +3,7 @@
 
 from scipy.linalg.cython_lapack cimport zgesv
 
-from TidalPy.constants cimport d_PI_DBL, d_NAN_DBL
+from TidalPy.constants cimport d_PI, d_NAN_DBL
 
 cdef void cf_apply_surface_bc(
         double complex* constant_vector_ptr,
@@ -139,7 +139,7 @@ cdef void cf_apply_surface_bc(
             # y_7 = y_6 + (4 pi G / g) y_2
             constant_vector_ptr[0] = \
                 bc_pointer[ytype_i * 3 + 2] + \
-                bc_pointer[ytype_i * 3 + 0] * (4. * d_PI_DBL * G_to_use / surface_gravity)
+                bc_pointer[ytype_i * 3 + 0] * (4. * d_PI * G_to_use / surface_gravity)
 
             # These are unused. Set to NAN so if they do get used we might be able to catch it.
             constant_vector_ptr[1] = d_NAN_DBL

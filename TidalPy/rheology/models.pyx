@@ -4,7 +4,7 @@
 from libc.math cimport fabs, cos, sin, tgamma, isinf
 
 from TidalPy.exceptions import UnknownModelError
-from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS, d_PI_DBL, d_INF_DBL
+from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS, d_PI, d_INF_DBL
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
 
@@ -202,7 +202,7 @@ cdef class Andrade(RheologyModelBase):
         self.alpha           = new_args[0]
         self.zeta            = new_args[1]
         self.alpha_factorial = tgamma(self.alpha + 1.)
-        self.sine_term       = cos(d_PI_DBL * self.alpha / 2.) - 1.0j * sin(d_PI_DBL * self.alpha / 2.)
+        self.sine_term       = cos(d_PI * self.alpha / 2.) - 1.0j * sin(d_PI * self.alpha / 2.)
 
     cdef double complex _implementation(
             self,
@@ -246,7 +246,7 @@ cdef class SundbergCooper(RheologyModelBase):
         self.alpha                 = new_args[2]
         self.zeta                  = new_args[3]
         self.alpha_factorial       = tgamma(self.alpha + 1.)
-        self.sine_term             = cos(d_PI_DBL * self.alpha / 2.) - 1.0j * sin(d_PI_DBL * self.alpha / 2.)
+        self.sine_term             = cos(d_PI * self.alpha / 2.) - 1.0j * sin(d_PI * self.alpha / 2.)
 
     cdef double complex _implementation(
             self,

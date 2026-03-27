@@ -10,7 +10,7 @@ from libcpp.memory cimport make_unique
 from CyRK cimport CySolverResult, DiffeqFuncType
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 
-from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL, d_EPS_DBL_100
+from TidalPy.constants cimport d_G, d_PI, d_INF_DBL, d_EPS_DBL_100
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
@@ -44,7 +44,7 @@ cdef void solve_eos(
     cdef size_t len_radius_array  = eos_solution_ptr.radius_array_vec.size()
     cdef double planet_radius     = eos_solution_ptr.radius_array_vec.back()
     cdef double r0_gravity        = 0.0
-    cdef double r0_pressure_guess = (2. / 3.) * d_PI_DBL * G_to_use * planet_radius**2 * planet_bulk_density**2
+    cdef double r0_pressure_guess = (2. / 3.) * d_PI * G_to_use * planet_radius**2 * planet_bulk_density**2
     r0_pressure_guess += surface_pressure
     
     cdef double r0_mass = 0.0

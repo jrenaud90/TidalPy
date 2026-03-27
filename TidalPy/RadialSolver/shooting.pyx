@@ -16,7 +16,7 @@ from CyRK.utils.utils cimport allocate_mem, free_mem
 from CyRK.utils.vector cimport vector
 
 from TidalPy.utilities.math.complex cimport cmplx_NAN, cf_build_dblcmplx
-from TidalPy.constants cimport d_PI_DBL, d_EPS_DBL, d_NAN_DBL
+from TidalPy.constants cimport d_PI, d_EPS_DBL, d_NAN_DBL
 
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y, MAX_NUM_Y_REAL, MAX_NUM_SOL
@@ -376,7 +376,7 @@ cdef int cf_shooting_solver(
     diffeq_args_ptr.lm1              = degree_l_dbl - 1.0
     diffeq_args_ptr.llp1             = degree_l_dbl * (degree_l_dbl + 1.0)
     diffeq_args_ptr.G                = G_to_use
-    diffeq_args_ptr.grav_coeff       = 4.0 * d_PI_DBL * G_to_use
+    diffeq_args_ptr.grav_coeff       = 4.0 * d_PI * G_to_use
     diffeq_args_ptr.frequency        = frequency
     diffeq_args_ptr.layer_index      = 0
     diffeq_args_ptr.eos_solution_ptr = eos_solution_storage_ptr
