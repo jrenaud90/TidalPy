@@ -19,7 +19,7 @@ from CyRK cimport PreEvalFunc
 from TidalPy.logger import get_logger
 from TidalPy.exceptions import UnknownModelError, ArgumentException, SolutionFailedError
 
-from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN_DBL
+from TidalPy.constants cimport d_G, d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_NAN
 from TidalPy.utilities.math.numerics cimport cf_isclose
 from TidalPy.utilities.dimensions.nondimensional cimport NonDimensionalScalesCC, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
@@ -90,20 +90,20 @@ cdef int cf_radial_solver(
     cdef size_t layer_slices       = 0
     cdef size_t interface_check    = 0
     cdef cpp_bool top_layer        = False
-    cdef double radius_check       = d_NAN_DBL
-    cdef double layer_upper_radius = d_NAN_DBL
+    cdef double radius_check       = d_NAN
+    cdef double layer_upper_radius = d_NAN
 
     # Pull out raw pointers to avoid repeated calls to the getter
     cdef EOSSolutionCC* eos_solution_storage_ptr = solution_storage_ptr.get_eos_solution_ptr()
 
     # Physical parameters
     cdef double radius_planet
-    cdef double G_to_use                = d_NAN_DBL
-    cdef double radius_planet_to_use    = d_NAN_DBL
-    cdef double bulk_density_to_use     = d_NAN_DBL
-    cdef double frequency_to_use        = d_NAN_DBL
-    cdef double starting_radius_to_use  = d_NAN_DBL
-    cdef double surface_pressure_to_use = d_NAN_DBL
+    cdef double G_to_use                = d_NAN
+    cdef double radius_planet_to_use    = d_NAN
+    cdef double bulk_density_to_use     = d_NAN
+    cdef double frequency_to_use        = d_NAN
+    cdef double starting_radius_to_use  = d_NAN
+    cdef double surface_pressure_to_use = d_NAN
     
     # Equation of state variables
     cdef size_t bottom_slice_index

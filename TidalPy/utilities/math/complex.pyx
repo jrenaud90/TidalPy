@@ -73,7 +73,7 @@ cdef double complex cf_cinv(double complex z) noexcept nogil:
     # Check for extreme values
     if denom == 0.:
         # This is to match python's behavior, it is not strictly accurate depending on your definition.
-        inv = cf_build_dblcmplx(d_INF_DBL, d_NAN_DBL)
+        inv = cf_build_dblcmplx(d_INF, d_NAN)
     else:
         inv = cf_build_dblcmplx(z_real / denom, -z_imag / denom)
 
@@ -86,10 +86,10 @@ cdef double cf_hypot(const double x, const double y) noexcept nogil:
     cdef double x_abs, y_abs
 
     if isinf(x) or isinf(y):
-        return d_INF_DBL
+        return d_INF
     
     if isnan(x) or isnan(y):
-        return d_NAN_DBL
+        return d_NAN
 
     x_abs = fabs(x)
     y_abs = fabs(y)
@@ -122,31 +122,31 @@ cdef double complex cf_csqrt(const double complex z) noexcept nogil:
 
     if isinf(z_imag):
         # Return inf +- inf (where sign is the same as input)
-        return cf_build_dblcmplx(d_INF_DBL, z_imag)
+        return cf_build_dblcmplx(d_INF, z_imag)
 
     if isnan(z_real):
-        # Return d_NAN_DBL + d_NAN_DBL i
-        return cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+        # Return d_NAN + d_NAN i
+        return cf_build_dblcmplx(d_NAN, d_NAN)
 
     if isinf(z_real):
-        # csqrt(-inf + d_NAN_DBL i) = d_NAN_DBL +- inf i
+        # csqrt(-inf + d_NAN i) = d_NAN +- inf i
         # csqrt(-inf + y i)   = 0   +  inf i
-        # csqrt(inf + d_NAN_DBL i)  = inf +  d_NAN_DBL i
+        # csqrt(inf + d_NAN i)  = inf +  d_NAN i
         # csqrt(inf + y i)    = inf +  0 i
         
         if signbit(z_real):
             # Negative z_real
             if isnan(z_imag):
-                return cf_build_dblcmplx(d_NAN_DBL, d_INF_DBL)
+                return cf_build_dblcmplx(d_NAN, d_INF)
             else:
-                return cf_build_dblcmplx(0., d_INF_DBL)
+                return cf_build_dblcmplx(0., d_INF)
         else:
             if isnan(z_imag):
-                return cf_build_dblcmplx(d_INF_DBL, d_NAN_DBL)
+                return cf_build_dblcmplx(d_INF, d_NAN)
             else:
-                return cf_build_dblcmplx(d_INF_DBL, 0.)
+                return cf_build_dblcmplx(d_INF, 0.)
 
-    # The remaining special case (b is d_NAN_DBL) is handled just fine by the normal code path below.
+    # The remaining special case (b is d_NAN) is handled just fine by the normal code path below.
     # Scale to avoid overflow.
     if (fabs(z_real) >= THRESH) or (fabs(z_imag) >= THRESH):
         z_real *= 0.25
@@ -201,13 +201,13 @@ cdef double complex cf_cexp(const double complex z) noexcept nogil:
             if isfinite(z_imag):
                 ret = cf_build_dblcmplx((x * c), (x * s))
             else:
-                ret = cf_build_dblcmplx(d_NAN_DBL, copysign(d_NAN_DBL, z_imag))
+                ret = cf_build_dblcmplx(d_NAN, copysign(d_NAN, z_imag))
     elif isnan(z_real):
-        # z_real is d_NAN_DBL
+        # z_real is d_NAN
         if z_imag == 0:
             ret = z
         else:
-            ret = cf_build_dblcmplx(z_real, copysign(d_NAN_DBL, z_imag))
+            ret = cf_build_dblcmplx(z_real, copysign(d_NAN, z_imag))
     else:
         # z_real is +- inf
         if z_real > 0:
@@ -219,8 +219,8 @@ cdef double complex cf_cexp(const double complex z) noexcept nogil:
 
                 ret = cf_build_dblcmplx((z_real * c), (z_real * s))
             else:
-                # x = +inf, y = +-inf | d_NAN_DBL
-                ret = cf_build_dblcmplx(z_real, d_NAN_DBL)
+                # x = +inf, y = +-inf | d_NAN
+                ret = cf_build_dblcmplx(z_real, d_NAN)
         else:
             if isfinite(z_imag):
                 x = exp(z_real)
@@ -229,7 +229,7 @@ cdef double complex cf_cexp(const double complex z) noexcept nogil:
 
                 ret = cf_build_dblcmplx((x * c), (x * s))
             else:
-                # x = -inf, y = d_NAN_DBL | +i inf
+                # x = -inf, y = d_NAN | +i inf
                 ret = cf_build_dblcmplx(0.0, 0.0)
     return ret
 
@@ -258,7 +258,7 @@ cdef double complex cf_clog(const double complex z) noexcept nogil:
     #  
     # (4) z = 0.  The simplest thing to do here is to call the
     #  floating-point log with an argument of 0, and let its behaviour
-    #  (returning -d_INF_DBL, signaling a floating-point exception, setting
+    #  (returning -d_INF, signaling a floating-point exception, setting
     #  errno, or whatever) determine that of c_log.  So the usual formula
     #  is fine here.
 
@@ -334,9 +334,9 @@ cdef double complex cf_cpow(const double complex a, const double complex b) noex
         else:
             # else we are in the case where the
             # real part of b is negative (br<0).
-            # Here we should return a complex d_NAN_DBL
+            # Here we should return a complex d_NAN
             # and raise FloatingPointError: invalid value...
-            return cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+            return cf_build_dblcmplx(d_NAN, d_NAN)
     if (b_imag == 0.0) and (b_real > -100) and (b_real < 100) and (ceil(b_real) == b_real) \
             and isfinite(b_real) and isfinite(b_imag):
         # b_real can be cast as an integer that is between -100 and 100.
@@ -413,9 +413,9 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
         else:
             # else we are in the case where the
             # real part of b is negative (br<0).
-            # Here we should return a complex d_NAN_DBL
+            # Here we should return a complex d_NAN
             # and raise FloatingPointError: invalid value...
-            return cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+            return cf_build_dblcmplx(d_NAN, d_NAN)
 
     if (b_abs < 100):
         # b is between -100 and 100.
@@ -458,7 +458,7 @@ cdef double complex cf_cipow(const double complex a, const int b) noexcept nogil
 ########################################################################################################################
 # Constants
 ########################################################################################################################
-cdef double complex cmplx_NAN  = cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+cdef double complex cmplx_NAN  = cf_build_dblcmplx(d_NAN, d_NAN)
 cdef double complex cmplx_zero = cf_build_dblcmplx(0.0, 0.0)
 cdef double complex cmplx_one  = cf_build_dblcmplx(1.0, 0.0)
 

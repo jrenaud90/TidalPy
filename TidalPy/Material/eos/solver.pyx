@@ -7,10 +7,10 @@ from libcpp.string cimport string as cpp_string
 from libcpp.utility cimport move
 from libcpp.memory cimport make_unique
 
-from CyRK cimport CySolverResult, DiffeqFuncType
+from CyRK cimport CySolverResult, DiffeqFuncType, Event
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 
-from TidalPy.constants cimport d_G, d_PI_DBL, d_INF_DBL, d_EPS_DBL_100
+from TidalPy.constants cimport d_G, d_PI, d_INF, d_EPS_100
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
@@ -44,7 +44,7 @@ cdef void solve_eos(
     cdef size_t len_radius_array  = eos_solution_ptr.radius_array_vec.size()
     cdef double planet_radius     = eos_solution_ptr.radius_array_vec.back()
     cdef double r0_gravity        = 0.0
-    cdef double r0_pressure_guess = (2. / 3.) * d_PI_DBL * G_to_use * planet_radius**2 * planet_bulk_density**2
+    cdef double r0_pressure_guess = (2. / 3.) * d_PI * G_to_use * planet_radius**2 * planet_bulk_density**2
     r0_pressure_guess += surface_pressure
     
     cdef double r0_mass = 0.0
@@ -84,8 +84,8 @@ cdef void solve_eos(
     
     # Pressure convergence variables
     cdef size_t surface_pressure_index   = 0
-    cdef double calculated_surf_pressure = d_INF_DBL
-    cdef double pressure_diff            = d_INF_DBL
+    cdef double calculated_surf_pressure = d_INF
+    cdef double pressure_diff            = d_INF
     cdef int iterations                  = 0
     cdef cpp_bool failed                 = False
     cdef cpp_bool max_iters_hit          = False
@@ -96,6 +96,9 @@ cdef void solve_eos(
     cdef unique_ptr[CySolverResult] integration_result_uptr = make_unique[CySolverResult](integration_method)
     cdef CySolverResult* integration_result_ptr = NULL
 
+    # Events
+    cdef vector[Event] events = vector[Event]()
+
     # Loop variables
     cdef size_t y_i
     cdef size_t num_layers = eos_solution_ptr.num_layers
@@ -103,7 +106,7 @@ cdef void solve_eos(
     # Solve the equation of state in a convergence loop based on the surface pressure.
     while True:
         # Reset calculated pressure 
-        calculated_surf_pressure = d_INF_DBL
+        calculated_surf_pressure = d_INF
 
         if not final_run:
             iterations += 1
@@ -166,10 +169,12 @@ cdef void solve_eos(
                 use_dense_output,  # Use dense output [bint]
                 t_eval_vec,        # Interpolate at radius array vector[double]
                 layer_eos_func,    # Pre-eval function used in diffeq [PreEvalFunc]
+                events,            # Event vector[Event]
                 rtols_vec,         # Relative Tolerance vector[double]
                 atols_vec,         # Absolute Tolerance vector[double]
                 max_step,          # Maximum step size [double]
-                first_step         # Initial step size (0 = find good value) [double]
+                first_step,        # Initial step size (0 = find good value) [double]
+                True               # Force retain solver
                 )
             #########################################################
             last_solution_size = integration_result_ptr.size
@@ -224,7 +229,7 @@ cdef void solve_eos(
                 pressure_diff_abs = -pressure_diff
 
             # Calculate percent difference to use in convergence check.
-            if surface_pressure > d_EPS_DBL_100:
+            if surface_pressure > d_EPS_100:
                 pressure_diff_abs /= surface_pressure
             
             # Check if we are done next iteration

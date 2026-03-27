@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cinv
-from TidalPy.constants cimport d_EPS_DBL
+from TidalPy.constants cimport d_EPS
 from libc.math cimport fabs
 from libcpp cimport bool as cpp_bool
 from libcpp.cmath cimport ilogb, ldexp
@@ -10,7 +10,7 @@ from libcpp.limits cimport numeric_limits
 
 from libc.float cimport DBL_MIN_EXP
 
-cdef double d_EPS_DBL_10 = 10.0 * d_EPS_DBL
+cdef double d_EPS_10 = 10.0 * d_EPS
 
 cdef void cf_solid_dynamic_compressible(
         double* dy_ptr,
@@ -549,7 +549,7 @@ cdef void cf_liquid_dynamic_compressible(
     # cdef double complex y3_sum = (y2 + density * y5)
     # y3_sum -= density_gravity * y1
 
-    # if cf_cabs(y3_sum) < d_EPS_DBL:
+    # if cf_cabs(y3_sum) < d_EPS:
     #     y3 = cf_build_dblcmplx(0.0, 0.0)
     #     y1_y3_term = 2. * y1
     # else:

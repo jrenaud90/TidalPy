@@ -4,7 +4,7 @@ from TidalPy.exceptions import BadValueError
 
 from libc.math cimport sqrt, cbrt
 
-from TidalPy.constants cimport d_G, d_PI_DBL
+from TidalPy.constants cimport d_G, d_PI
 
 
 cdef inline double cf_m2Au(double meters) noexcept nogil:
@@ -17,11 +17,11 @@ cdef inline double cf_Au2m(double astronomical_units) noexcept nogil:
 
 cdef inline double cf_rads2days(double radians_per_second) noexcept nogil:
 
-    return (2. * d_PI_DBL / radians_per_second) / 86400.
+    return (2. * d_PI / radians_per_second) / 86400.
 
 cdef inline double cf_days2rads(double days) noexcept nogil:
 
-    return 2. * d_PI_DBL / (days * 86400.)
+    return 2. * d_PI / (days * 86400.)
 
 cdef inline double cf_sec2myr(double seconds) noexcept nogil:
 

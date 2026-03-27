@@ -50,23 +50,23 @@ from libc.math cimport M_PI as _M_PI
 cdef double d_DBL_MAX      = _DBL_MAX
 cdef double d_DBL_MIN      = _DBL_MIN
 cdef double d_DBL_MANT_DIG = _DBL_MANT_DIG
-cdef double d_PI_DBL       = _M_PI
+cdef double d_PI       = _M_PI
 DBL_MAX      = d_DBL_MAX
 DBL_MIN      = d_DBL_MIN
 DBL_MANT_DIG = d_DBL_MANT_DIG
-PI_DBL       = d_PI_DBL
+PI_DBL       = d_PI
 
 from libcpp.limits cimport numeric_limits
-cdef double d_INF_DBL = numeric_limits[double].infinity()
-INF_DBL = d_INF_DBL
-cdef double d_EPS_DBL = numeric_limits[double].epsilon()
-EPS_DBL = d_EPS_DBL
-cdef double d_EPS_DBL_10  = 10 * d_EPS_DBL
-EPS_DBL_10  = d_EPS_DBL_10
-cdef double d_EPS_DBL_100 = 100 * d_EPS_DBL
-EPS_DBL_100 = d_EPS_DBL_100
-cdef double d_NAN_DBL = numeric_limits[double].quiet_NaN()
-NAN_DBL = d_NAN_DBL
+cdef double d_INF = numeric_limits[double].infinity()
+INF_DBL = d_INF
+cdef double d_EPS = numeric_limits[double].epsilon()
+EPS_DBL = d_EPS
+cdef double d_EPS_10  = 10 * d_EPS
+EPS_DBL_10  = d_EPS_10
+cdef double d_EPS_100 = 100 * d_EPS
+EPS_DBL_100 = d_EPS_100
+cdef double d_NAN = numeric_limits[double].quiet_NaN()
+NAN_DBL = d_NAN
 
 # Astrophysical Constants
 from scipy.constants import G as G_

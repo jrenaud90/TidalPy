@@ -21,7 +21,7 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
-from TidalPy.constants cimport d_G, d_PI_DBL
+from TidalPy.constants cimport d_G, d_PI
 from TidalPy.utilities.math.complex cimport cf_cinv
 
 
@@ -122,7 +122,7 @@ cdef void cf_fundamental_matrix(
         rgp_s  = rgp * mu_inv
         r_s    = radius * mu_inv
         pr_s   = density * r_s
-        piGp   = d_PI_DBL * G_to_use * density
+        piGp   = d_PI * G_to_use * density
         
         # D Coefficients
         coeff = (1. / dlp1)

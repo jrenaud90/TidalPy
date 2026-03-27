@@ -1,10 +1,10 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport d_NAN_DBL
+from TidalPy.constants cimport d_NAN
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
-cdef double complex cmplx_NAN = cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+cdef double complex cmplx_NAN = cf_build_dblcmplx(d_NAN, d_NAN)
 
 cdef void cf_top_to_bottom_interface_bc(
         double complex* constant_vector_ptr,
@@ -31,7 +31,7 @@ cdef void cf_top_to_bottom_interface_bc(
     #  the transition at the top of each layer as it works its way down.
     #  So, for interface values, we actually need the ones of the layer above us.
     cdef double interface_gravity = 0.5 * (gravity_upper + layer_above_lower_gravity)
-    cdef double liquid_density_at_interface = d_NAN_DBL
+    cdef double liquid_density_at_interface = d_NAN
 
     cdef cpp_bool layer_is_solid = False
     cdef cpp_bool layer_above_is_solid = False

@@ -17,15 +17,15 @@ cdef double d_MIN_THICKNESS
 cdef double d_ppm
 cdef double d_ppb
 
-cdef double d_PI_DBL
+cdef double d_PI
 cdef double d_DBL_MAX
 cdef double d_DBL_MIN
 cdef double d_DBL_MANT_DIG
-cdef double d_INF_DBL
-cdef double d_EPS_DBL_10
-cdef double d_EPS_DBL_100
-cdef double d_EPS_DBL
-cdef double d_NAN_DBL
+cdef double d_INF
+cdef double d_EPS_10
+cdef double d_EPS_100
+cdef double d_EPS
+cdef double d_NAN
 
 # Sun
 cdef double d_mass_solar

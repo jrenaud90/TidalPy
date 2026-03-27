@@ -4,7 +4,7 @@
 from libcpp.memory cimport make_unique
 
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
-from TidalPy.constants cimport d_PI_DBL
+from TidalPy.constants cimport d_PI
 
 cimport numpy as cnp
 import numpy as np
@@ -420,7 +420,7 @@ cdef class RadialSolverSolution:
     @property
     def volume(self):
         """ Return's the planet's volume, calculated by its radius """
-        return (4.0 / 3.0) * d_PI_DBL * self.radius**3
+        return (4.0 / 3.0) * d_PI * self.radius**3
 
     @property
     def mass(self):

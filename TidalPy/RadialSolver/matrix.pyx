@@ -22,7 +22,7 @@ cimport numpy as cnp
 cnp.import_array()
 from scipy.linalg.cython_lapack cimport zgesv
 
-from TidalPy.constants cimport d_PI_DBL
+from TidalPy.constants cimport d_PI
 from TidalPy.utilities.math.complex cimport cmplx_one, cmplx_zero, cmplx_NAN, cf_build_dblcmplx
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.RadialSolver.rs_solution cimport RadialSolutionStorageCC
@@ -293,7 +293,7 @@ cdef int cf_matrix_propagate(
                     propagation_mtx_ptr[row_shift_index + k] = cmplx_zero
     elif core_model == 4:
         # Interface matrix from SVC Eq. 1.150
-        grav_constant = (4. / 3.) * d_PI_DBL * G_to_use * density_array_ptr[first_slice_index - 1]
+        grav_constant = (4. / 3.) * d_PI * G_to_use * density_array_ptr[first_slice_index - 1]
         for j in range(6):
             row_shift_index = index_shift_18 + (j * 3)
             for k in range(3):
