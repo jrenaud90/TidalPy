@@ -21,6 +21,8 @@ TidalPy-Run*
 !TidalPy/Material/eos/eos_solution_.cpp
 !TidalPy/Material/eos/eos_solution_.hpp
 !TidalPy/utilities/dimensions/nondimensional_.hpp
+!TidalPy/utilities/lookups/intmap_.hpp
+!TidalPy/utilities/lookups/keys_.hpp
 
 # End TidalPy
 

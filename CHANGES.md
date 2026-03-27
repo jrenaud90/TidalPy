@@ -2,6 +2,36 @@
 
 ## Version 0.7.X
 
+### Version 0.7.3 (2026-NNN)
+
+#### Package
+* Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
+
+#### Tides (Tides_x for now)
+* Created a new module called "Tides_x" where cythonized C++ code related to tide functions will be stored.
+  * In a future release we will remove the old `TidalPy.tides` module in favor of this one (refactoring it to `Tides` to follow the same capitalization scheme as `RadialSolver`).
+* Created C++ obliquity functions in `TidalPy.Tides_x.obliquity` a helper function is available in Python to call these `TidalPy.Tides_x.obliquity.obliquity_func`. See documentation for more details.
+* Created C++ eccentricity functions in `TidalPy.Tides_x.eccentricity` a helper function is available in Python to call these `TidalPy.Tides_x.eccentricity.eccentricity_func`. See documentation for more details.
+
+#### Utilities
+* Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
+  * Complex versions are also available as `IntMapNComplex`.
+
+#### Tests
+* Added tests for `TidalPy.get_include`.
+* Added tests for the new `IntMap`.
+* Added tests for the new `obliquity` functions.
+* Added tests for the new `eccentricity` functions.
+
+#### Documentation
+* Added documentation for `IntMap` in the Utilities module section.
+* Added a note about `TidalPy.get_include` in the readme.
+* Added documentation for `obliquity` functions in the Tides module section.
+* Added documentation for `eccentricity` functions in the Tides module section.
+
+#### Repository
+* Fixes incorrect license url in codemeta.json.
+
 ### Version 0.7.1 (2026-02-05)
 
 #### Fixes

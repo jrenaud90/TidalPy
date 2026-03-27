@@ -21,8 +21,10 @@ Overview <Overview/index.md>
 :maxdepth: 2
 :caption: Modules
 
+Utilities <Utilities/index.md>
 Rheology <Rheology/index.md>
 RadialSolver (Love Number Calculator) <RadialSolver/index.md>
+Tides <Tides/index.md>
 Exoplanets <Exoplanets.md>
 Dynamics <Dynamics/index.md>
 ```
