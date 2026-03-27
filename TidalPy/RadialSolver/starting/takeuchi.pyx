@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.constants cimport d_PI_DBL
+from TidalPy.constants cimport d_PI
 from TidalPy.utilities.math.complex cimport cf_csqrt
 from TidalPy.RadialSolver.starting.common cimport cf_takeuchi_phi_psi
 
@@ -62,7 +62,7 @@ cdef void cf_takeuchi_solid_dynamic_compressible(
     cdef double complex lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants
-    cdef double gamma           = 4. * d_PI_DBL * G_to_use * density / 3.
+    cdef double gamma           = 4. * d_PI * G_to_use * density / 3.
     cdef double dynamic_term    = frequency * frequency
     cdef double complex alpha2  = (lame + 2. * shear_modulus) / density
     cdef double complex beta2   = shear_modulus / density
@@ -163,10 +163,10 @@ cdef void cf_takeuchi_solid_dynamic_compressible(
     
     # y6, solutions 1--3
     starting_conditions_ptr[pos_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[pos_index * num_ys + 4] + \
         (3. * degree_l_dbl * gamma * h_pos * radius**lp1 / (2. * dlp3)) * psi_pos
     starting_conditions_ptr[neg_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[neg_index * num_ys + 4] + \
         (3. * degree_l_dbl * gamma * h_neg * radius**lp1 / (2. * dlp3)) * psi_neg
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - \
@@ -221,7 +221,7 @@ cdef void cf_takeuchi_solid_static_compressible(
     cdef double complex lame = bulk_modulus - (2. / 3.) * shear_modulus
 
     # Constants
-    cdef double gamma          = 4. * d_PI_DBL * G_to_use * density / 3.
+    cdef double gamma          = 4. * d_PI * G_to_use * density / 3.
     cdef double complex alpha2 = (lame + 2. * shear_modulus) / density
     cdef double complex beta2  = shear_modulus / density
 
@@ -316,10 +316,10 @@ cdef void cf_takeuchi_solid_static_compressible(
 
     # y6, solutions 1--3
     starting_conditions_ptr[pos_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[0 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[pos_index * num_ys + 4] + \
         (3. * degree_l * gamma * h_pos * radius**lp1 / (2. * dlp3)) * psi_pos
     starting_conditions_ptr[neg_index * num_ys + 5] = \
-        dlp1 * r_inverse * starting_conditions_ptr[1 * num_ys + 4] + \
+        dlp1 * r_inverse * starting_conditions_ptr[neg_index * num_ys + 4] + \
         (3. * degree_l * gamma * h_neg * radius**lp1 / (2. * dlp3)) * psi_neg
     starting_conditions_ptr[2 * num_ys + 5] = \
         dlp1 * r_inverse * starting_conditions_ptr[2 * num_ys + 4] - \
@@ -380,7 +380,7 @@ cdef void cf_takeuchi_liquid_dynamic_compressible(
 
     # Constants
     cdef double dynamic_term   = frequency * frequency
-    cdef double gamma          = 4. * d_PI_DBL * G_to_use * density / 3.
+    cdef double gamma          = 4. * d_PI * G_to_use * density / 3.
     cdef double complex alpha2 = lame / density
 
     # Optimizations
