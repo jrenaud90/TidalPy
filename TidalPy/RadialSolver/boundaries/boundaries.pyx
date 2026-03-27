@@ -128,7 +128,7 @@ cdef void cf_apply_surface_bc(
     else:
         if layer_is_static:
             # Set pointer to correct matrix
-            surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0]
+            surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
 
             # Unlike the dynamic liquid layer, a static liquid layer's y_2 is undefined. That leads to one less boundary condition
             #  and one less solution (1 total).
@@ -149,7 +149,7 @@ cdef void cf_apply_surface_bc(
             surface_matrix_ptr[0] = uppermost_y_per_solution_ptr[0 * max_num_y + 1]
         else:
             # Set pointer to correct matrix
-            surface_matrix_ptr = &surface_matrix_liquid_static[0][0]
+            surface_matrix_ptr = &surface_matrix_liquid_dynamic[0][0]
 
             # Unlike the solid layer, a liquid layer's y_4 is undefined. That leads to one less boundary condition and one
             #  less solution (2 total).

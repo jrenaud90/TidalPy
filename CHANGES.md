@@ -2,7 +2,7 @@
 
 ## Version 0.7.X
 
-### Version 0.7.1 (2026-NNN)
+### Version 0.7.3 (2026-NNN)
 
 #### Package
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
@@ -31,6 +31,14 @@
 
 #### Repository
 * Fixes incorrect license url in codemeta.json.
+
+### Version 0.7.1 (2026-02-05)
+
+#### Fixes
+* Fixed surface boundary condition bug where dynamic liquid layers were using too small of a struct and could cause crashes (and wrong results).
+
+#### Package
+* Removes support for MacOS 13 builds.
 
 ### Version 0.7.0 (2025-12-02)
 
