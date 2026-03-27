@@ -15,6 +15,7 @@
 
 #### Other
 * Changed `TidalPy.constants.d_PI_DBL` to `TidalPy.constants.d_PI` since the "DBL" is redundant with the "d_".
+  * Same for `d_INF`, `d_EPS_10`, `d_EPS_100`, `d_EPS`, `d_NAN`
 
 ### Version 0.7.1 (2026-02-05)
 

@@ -4,7 +4,7 @@
 from libc.math cimport fabs, cos, sin, tgamma, isinf
 
 from TidalPy.exceptions import UnknownModelError
-from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS, d_PI, d_INF_DBL
+from TidalPy.constants cimport d_MIN_FREQUENCY, d_MAX_FREQUENCY, d_MIN_MODULUS, d_PI, d_INF
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx
 
 
@@ -75,7 +75,7 @@ cdef class Newton(RheologyModelBase):
         if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(0.0, 0.0)
         elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
-            return cf_build_dblcmplx(0.0, d_INF_DBL)
+            return cf_build_dblcmplx(0.0, d_INF)
         if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, frequency_abs * viscosity)
 
@@ -137,7 +137,7 @@ cdef class Voigt(RheologyModelBase):
         if frequency_abs < d_MIN_FREQUENCY:
             return cf_build_dblcmplx(voigt_modulus, 0.0)
         elif frequency_abs > d_MAX_FREQUENCY or isinf(frequency_abs):
-            return cf_build_dblcmplx(0.0, d_INF_DBL)
+            return cf_build_dblcmplx(0.0, d_INF)
         if modulus < d_MIN_MODULUS:
             return cf_build_dblcmplx(0.0, voigt_visosity * frequency_abs)
 

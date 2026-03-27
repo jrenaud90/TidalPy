@@ -10,7 +10,7 @@ from libcpp.memory cimport make_unique
 from CyRK cimport CySolverResult, DiffeqFuncType
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 
-from TidalPy.constants cimport d_G, d_PI, d_INF_DBL, d_EPS_DBL_100
+from TidalPy.constants cimport d_G, d_PI, d_INF, d_EPS_100
 from TidalPy.Material.eos.eos_solution cimport EOS_Y_VALUES, EOS_EXTRA_VALUES
 from TidalPy.Material.eos.ode cimport eos_diffeq
 
@@ -84,8 +84,8 @@ cdef void solve_eos(
     
     # Pressure convergence variables
     cdef size_t surface_pressure_index   = 0
-    cdef double calculated_surf_pressure = d_INF_DBL
-    cdef double pressure_diff            = d_INF_DBL
+    cdef double calculated_surf_pressure = d_INF
+    cdef double pressure_diff            = d_INF
     cdef int iterations                  = 0
     cdef cpp_bool failed                 = False
     cdef cpp_bool max_iters_hit          = False
@@ -103,7 +103,7 @@ cdef void solve_eos(
     # Solve the equation of state in a convergence loop based on the surface pressure.
     while True:
         # Reset calculated pressure 
-        calculated_surf_pressure = d_INF_DBL
+        calculated_surf_pressure = d_INF
 
         if not final_run:
             iterations += 1
@@ -224,7 +224,7 @@ cdef void solve_eos(
                 pressure_diff_abs = -pressure_diff
 
             # Calculate percent difference to use in convergence check.
-            if surface_pressure > d_EPS_DBL_100:
+            if surface_pressure > d_EPS_100:
                 pressure_diff_abs /= surface_pressure
             
             # Check if we are done next iteration

@@ -12,7 +12,7 @@ Martens16 : H. Martens, PhD Thesis (CalTech), 2016, DOI: 10.7907/Z9N29TX7
 
 from libc.math cimport sqrt
 
-from TidalPy.constants cimport d_G, d_PI, d_NAN_DBL
+from TidalPy.constants cimport d_G, d_PI, d_NAN
 
 
 cdef class NonDimensionalScalesClass:
@@ -22,13 +22,13 @@ cdef class NonDimensionalScalesClass:
 
     def __init__(self):
         # Initialize everything to nan
-        self.nondim_scales.second2_conversion = d_NAN_DBL
-        self.nondim_scales.second_conversion  = d_NAN_DBL
-        self.nondim_scales.length_conversion  = d_NAN_DBL
-        self.nondim_scales.length3_conversion = d_NAN_DBL
-        self.nondim_scales.density_conversion = d_NAN_DBL
-        self.nondim_scales.mass_conversion    = d_NAN_DBL
-        self.nondim_scales.pascal_conversion  = d_NAN_DBL
+        self.nondim_scales.second2_conversion = d_NAN
+        self.nondim_scales.second_conversion  = d_NAN
+        self.nondim_scales.length_conversion  = d_NAN
+        self.nondim_scales.length3_conversion = d_NAN
+        self.nondim_scales.density_conversion = d_NAN
+        self.nondim_scales.mass_conversion    = d_NAN
+        self.nondim_scales.pascal_conversion  = d_NAN
     
     @property
     def second2_conversion(self):

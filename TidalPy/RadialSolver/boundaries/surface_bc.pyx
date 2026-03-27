@@ -5,7 +5,7 @@ import numpy as np
 cimport numpy as cnp
 
 from TidalPy.exceptions import ArgumentException, UnknownModelError
-from TidalPy.constants cimport d_NAN_DBL
+from TidalPy.constants cimport d_NAN
 
 
 cdef int cf_get_surface_bc(
@@ -95,7 +95,7 @@ cdef int cf_get_surface_bc(
     # Inititalize all boundary conditions to NaN
     # 15 = 5 (max_num_solutions) * 3 (number of surface conditions)
     for i in range(15):
-        boundary_conditions_ptr[i] = d_NAN_DBL
+        boundary_conditions_ptr[i] = d_NAN
     
     for j in range(num_bcs):
         if bc_model_ptr[j] == 0:

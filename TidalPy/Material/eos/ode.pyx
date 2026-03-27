@@ -1,6 +1,6 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
-from TidalPy.constants cimport d_PI, d_EPS_DBL_10
+from TidalPy.constants cimport d_PI, d_EPS_10
 
 cdef double FOUR_PI = 4.0 * d_PI
 
@@ -27,7 +27,7 @@ cdef void eos_diffeq(
     cdef double rho = eos_output_ptr.density
     # Solve for the dependent variables
     # gravity is proportionate to 1 / r so there is a singularity at r=0. Let's set all derivatives equal to zero.
-    if (radius < d_EPS_DBL_10) or (radius > eos_input_ptr.planet_radius):
+    if (radius < d_EPS_10) or (radius > eos_input_ptr.planet_radius):
         # Acceleration due to Gravity
         dy_ptr[0] = 0.0
 

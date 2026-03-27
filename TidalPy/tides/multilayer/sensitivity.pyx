@@ -15,7 +15,7 @@ cimport numpy as cnp
 cnp.import_array()
 
 from TidalPy.exceptions import ArgumentException
-from TidalPy.constants cimport d_NAN_DBL
+from TidalPy.constants cimport d_NAN
 from TidalPy.utilities.math.complex cimport cf_build_dblcmplx, cf_cabs, cf_cabs2
 from TidalPy.RadialSolver.constants cimport MAX_NUM_Y
 
@@ -68,12 +68,12 @@ cdef void cf_calc_sensitivity_to_shear(
             # Get y1 below and above this slice, used to find the derivative
             if r_i == 0:
                 # Lower is undefined at center
-                y1_lower = cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+                y1_lower = cf_build_dblcmplx(d_NAN, d_NAN)
                 y1_upper = radial_solutions_ptr[(r_i+1) * num_output_ys + ytype_i * MAX_NUM_Y + 0]
             elif r_i == (total_slices - 1):
                 # Upper is undefined at surface
                 y1_lower = radial_solutions_ptr[(r_i-1) * num_output_ys + ytype_i * MAX_NUM_Y + 0]
-                y1_upper = cf_build_dblcmplx(d_NAN_DBL, d_NAN_DBL)
+                y1_upper = cf_build_dblcmplx(d_NAN, d_NAN)
             else:
                 y1_lower = radial_solutions_ptr[(r_i-1) * num_output_ys + ytype_i * MAX_NUM_Y + 0]
                 y1_upper = radial_solutions_ptr[(r_i+1) * num_output_ys + ytype_i * MAX_NUM_Y + 0]
@@ -130,7 +130,7 @@ cdef void cf_calc_sensitivity_to_shear(
             # Find shear sensitivity
             if r == 0.:
                 # The shear sensitivity is not defined at r=0
-                radial_sensitivity_to_shear_ptr[r_i] = d_NAN_DBL
+                radial_sensitivity_to_shear_ptr[r_i] = d_NAN
             else:
                 radial_sensitivity_to_shear_ptr[r_i] = \
                     ((4. / 3.) * r2 / (cf_cabs2(bulk + (4. / 3.) * shear)) *
@@ -238,7 +238,7 @@ cdef void cf_calc_sensitivity_to_bulk(
             # Find bulk sensitivity
             if r == 0.:
                 # The bulk sensitivity is not defined at r=0
-                radial_sensitivity_to_bulk_ptr[out_index + r_i] = d_NAN_DBL
+                radial_sensitivity_to_bulk_ptr[out_index + r_i] = d_NAN
             else:
                 radial_sensitivity_to_bulk_ptr[out_index + r_i] = \
                     (r2 / cf_cabs2(bulk + (4. / 3.) * shear)) * cf_cabs2(y2 - ((bulk - (2. / 3.) * shear) / r) * y1y3_term) + \

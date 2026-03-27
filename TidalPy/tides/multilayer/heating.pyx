@@ -19,7 +19,7 @@ cimport numpy as cnp
 cnp.import_array()
 
 from TidalPy.exceptions import ArgumentException
-from TidalPy.constants cimport d_G, d_NAN_DBL
+from TidalPy.constants cimport d_G, d_NAN
 from TidalPy.RadialSolver cimport RadialSolverSolution
 from TidalPy.Material.eos.eos_solution cimport EOSSolutionCC
 from TidalPy.tides.multilayer.sensitivity cimport cf_calc_sensitivity_to_shear, cf_calc_sensitivity_to_bulk
