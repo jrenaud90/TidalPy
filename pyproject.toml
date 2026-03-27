@@ -1,6 +1,6 @@
 [project]
 name='TidalPy'
-version = '0.7.3'
+version = '0.7.4'
 description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Implemented in Cython and Python'
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
@@ -22,11 +22,7 @@ dependencies = [
     "cyrk>=0.17.1,<0.18.0",
     # Exoplanet data archive
     "astropy",
-    "astroquery",
-    # Graphics
-    "ipympl>=0.9.6,<0.10.0",
-    "matplotlib>=3.4.2,<4.0.0",
-    "cmcrameri"
+    "astroquery"
 ]
 license = "Apache-2.0"
 license-files = ["LICEN[CS]E*"]
@@ -97,14 +93,7 @@ docs = [
     "nbconvert",
     "jupyter",
     "sphinx-autodoc-typehints",
-    "breathe",
-    # We also need to install TidalPy and its deps so that auto-doc's works.
-    "jupyter",
-    "pytest",
-    "cmcrameri>=1.4, <2.0",
-    "matplotlib>=3.4.2",
-    "palettable>=3.3.0",
-    "ipympl>=0.8.7",
+    "breathe"
 ]
 
 # Recommended (sometimes required) graphics packages

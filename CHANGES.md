@@ -2,7 +2,12 @@
 
 ## Version 0.7.X
 
-### Version 0.7.2 (2026-03-27)
+### Version 0.7.4 (2026-03-27)
+
+#### Dependencies
+* Moved non-critical dependencies out of main requirements.
+
+### Version 0.7.3 (2026-03-27)
 
 #### Fixes
 * `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting conditions were not affected.
@@ -19,6 +24,11 @@
 #### Other
 * Changed `TidalPy.constants.d_PI_DBL` to `TidalPy.constants.d_PI` since the "DBL" is redundant with the "d_".
   * Same for `d_INF`, `d_EPS_10`, `d_EPS_100`, `d_EPS`, `d_NAN`
+
+
+### Version 0.7.2 (2026-03-27)
+
+**Version 0.7.2 was skipped! It was never released!**
 
 ### Version 0.7.1 (2026-02-05)
 
