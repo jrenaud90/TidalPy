@@ -2,6 +2,17 @@
 
 ## Version 0.7.X
 
+### Version 0.7.3 (2026-03-27)
+
+#### Fixes
+* `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting conditions were not affected.
+
+#### Dependencies
+* TidalPy now works on Python 3.14.
+* Bumped version of `ipympl` to `<=0.11.0`.
+* Bumped version of `CyRK` to `>=0.17.1, <0.18.1`.
+* Increased numpy's max pinnings to `<2.5`.
+
 ### Version 0.7.1 (2026-02-05)
 
 #### Fixes
