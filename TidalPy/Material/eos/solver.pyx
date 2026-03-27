@@ -7,7 +7,7 @@ from libcpp.string cimport string as cpp_string
 from libcpp.utility cimport move
 from libcpp.memory cimport make_unique
 
-from CyRK cimport CySolverResult, DiffeqFuncType
+from CyRK cimport CySolverResult, DiffeqFuncType, Event
 from CyRK.cy.cysolver_api cimport baseline_cysolve_ivp_noreturn
 
 from TidalPy.constants cimport d_G, d_PI, d_INF, d_EPS_100
@@ -96,6 +96,9 @@ cdef void solve_eos(
     cdef unique_ptr[CySolverResult] integration_result_uptr = make_unique[CySolverResult](integration_method)
     cdef CySolverResult* integration_result_ptr = NULL
 
+    # Events
+    cdef vector[Event] events = vector[Event]()
+
     # Loop variables
     cdef size_t y_i
     cdef size_t num_layers = eos_solution_ptr.num_layers
@@ -166,10 +169,12 @@ cdef void solve_eos(
                 use_dense_output,  # Use dense output [bint]
                 t_eval_vec,        # Interpolate at radius array vector[double]
                 layer_eos_func,    # Pre-eval function used in diffeq [PreEvalFunc]
+                events,            # Event vector[Event]
                 rtols_vec,         # Relative Tolerance vector[double]
                 atols_vec,         # Absolute Tolerance vector[double]
                 max_step,          # Maximum step size [double]
-                first_step         # Initial step size (0 = find good value) [double]
+                first_step,        # Initial step size (0 = find good value) [double]
+                True               # Force retain solver
                 )
             #########################################################
             last_solution_size = integration_result_ptr.size

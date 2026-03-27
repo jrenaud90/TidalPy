@@ -2,10 +2,13 @@
 
 ## Version 0.7.X
 
-### Version 0.7.3 (2026-03-27)
+### Version 0.7.2 (2026-03-27)
 
 #### Fixes
 * `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting conditions were not affected.
+
+#### Performance
+* The changes introduced in this release led to around 25% improvement in TidalPy's RadialSolver Love Number Calculator speed.
 
 #### Dependencies
 * TidalPy now works on Python 3.14.
