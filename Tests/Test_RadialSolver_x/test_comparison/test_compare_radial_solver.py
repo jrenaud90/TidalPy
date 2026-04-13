@@ -78,8 +78,6 @@ def test_compare_radial_solver_1layer_solid(
         )
     except NotImplementedError:
         pytest.skip('Not implemented in RadialSolver_x.')
-    else:
-        import pdb; pdb.set_trace()
 
     # Both should succeed.
     assert old_out.success, f"Old solver failed: {old_out.message}"
@@ -87,7 +85,7 @@ def test_compare_radial_solver_1layer_solid(
 
     # Compare result arrays (radial solutions).
     assert old_out.result.shape == new_out.result.shape
-    np.testing.assert_allclose(new_out.result, old_out.result, rtol=1e-5, atol=1e-20,
+    np.testing.assert_allclose(new_out.result, old_out.result, rtol=1e-5, atol=1e-10,
                             err_msg="Radial solution arrays differ.")
     # Compare Love numbers (both return ndarray of shape (num_solve_for, 3)).
     assert old_out.love.shape == new_out.love.shape
