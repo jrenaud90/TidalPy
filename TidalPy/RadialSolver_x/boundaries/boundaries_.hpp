@@ -78,14 +78,15 @@ inline void c_apply_surface_bc(
         A(1, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 3];
         A(2, 2) = uppermost_y_per_solution_ptr[2 * max_num_y + 5];
 
-        // Solve A * X = B
-        Eigen::FullPivLU<Eigen::Matrix3cd> lu(A);
-        if (!lu.isInvertible()) {
+        // Solve A * X = B using partial-pivot LU (mirrors LAPACK zgesv).
+        // Only fail if the solution is non-finite (truly singular).
+        Eigen::PartialPivLU<Eigen::Matrix3cd> lu(A);
+        Eigen::Vector3cd X = lu.solve(B);
+        if (!X.allFinite()) {
             *bc_solution_info_ptr = 1; // Singular
             return;
         }
-        
-        Eigen::Vector3cd X = lu.solve(B);
+
         constant_vector_ptr[0] = X(0);
         constant_vector_ptr[1] = X(1);
         constant_vector_ptr[2] = X(2);
@@ -130,14 +131,14 @@ inline void c_apply_surface_bc(
             A(0, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 1];
             A(1, 1) = uppermost_y_per_solution_ptr[1 * max_num_y + 3];
 
-            // Solve A * X = B
-            Eigen::FullPivLU<Eigen::Matrix2cd> lu(A);
-            if (!lu.isInvertible()) {
+            // Solve A * X = B using partial-pivot LU (mirrors LAPACK zgesv).
+            Eigen::PartialPivLU<Eigen::Matrix2cd> lu(A);
+            Eigen::Vector2cd X = lu.solve(B);
+            if (!X.allFinite()) {
                 *bc_solution_info_ptr = 1; // Singular
                 return;
             }
 
-            Eigen::Vector2cd X = lu.solve(B);
             constant_vector_ptr[0] = X(0);
             constant_vector_ptr[1] = X(1);
             constant_vector_ptr[2] = std::complex<double>(nan_val, nan_val);

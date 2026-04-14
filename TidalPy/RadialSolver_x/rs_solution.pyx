@@ -537,6 +537,11 @@ cdef class RadialSolverSolution:
                 return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
 
     @property
+    def Q(self):
+        """Backward-compatible quality factor alias using k Love numbers."""
+        return self.Q_k
+
+    @property
     def lag_k(self):
         cdef list lag_list = []
         cdef size_t sol_i
@@ -595,6 +600,11 @@ cdef class RadialSolverSolution:
                 return np.nan
             else:
                 return np.nan * np.ones(self.num_ytypes, dtype=np.float64)
+
+    @property
+    def lag(self):
+        """Backward-compatible lag alias using k Love numbers."""
+        return self.lag_k
 
     @property
     def steps_taken(self):

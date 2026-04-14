@@ -332,10 +332,7 @@ def test_build_rs_input_from_data(num_layers, num_slices, r0):
             assert radius_array_new[first_index + 1] == layer_upper_radius_tuple[layer_i]
 
             # Assert that physical properties are the same at this and below
-            try:
-                assert density_array_new[first_index] == density_array_new[first_index - 1]
-            except:
-                import pdb; pdb.set_trace()
+            assert density_array_new[first_index] == density_array_new[first_index - 1]
             assert complex_bulk_array_new[first_index] == complex_bulk_array_new[first_index - 1]
             assert complex_shear_array_new[first_index] == complex_shear_array_new[first_index - 1]
             assert density_array_new[first_index] == density_array_new[first_index - 1]

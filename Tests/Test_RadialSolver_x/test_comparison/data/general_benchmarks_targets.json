@@ -1,0 +1,34 @@
+{
+  "source_notebook": "Benchmarks/RadialSolver/RadialSolver - General Benchmarks and Performance.ipynb",
+  "description": "Targets copied from saved notebook stdout output: final love numbers and steps required.",
+  "targets": [
+    {
+      "case": "1layer",
+      "steps_required": [[14, 11, 12]],
+      "love": [
+        [[0.65847662, -0.03056423], [1.29915312, -0.06226474], [0.20796842, -0.00491239]]
+      ]
+    },
+    {
+      "case": "2layer",
+      "steps_required": [[33, 56, 0], [6, 6, 8]],
+      "love": [
+        [[0.38779873, -0.00738557], [0.77780085, -0.01432472], [0.14384976, -0.00323325]]
+      ]
+    },
+    {
+      "case": "3layer",
+      "steps_required": [[10, 8, 7], [6, 6, 0], [6, 6, 7]],
+      "love": [
+        [[0.55142468, -0.00932479], [1.09673823, -0.01797273], [0.1608642, -0.00285865]]
+      ]
+    },
+    {
+      "case": "4layer",
+      "steps_required": [[472, 324, 340], [6324, 6762, 6430], [57, 58, 0], [78, 87, 822]],
+      "love": [
+        [[0.54100729, -0.01835852], [1.51465373, -0.04112376], [0.59686856, -0.29632698]]
+      ]
+    }
+  ]
+}
