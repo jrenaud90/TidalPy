@@ -4,8 +4,6 @@
 name: Windows Tests
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
   push:
     paths:
@@ -17,7 +15,6 @@ env:
 jobs:
   test-win:
     if: |
-      github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
       contains(github.event.head_commit.message, 'run tests')
 
