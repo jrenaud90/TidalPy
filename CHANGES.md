@@ -1,8 +1,8 @@
 # TidalPy Major Change Log
 
-## Version 0.7.X
+## Version 0.8.X
 
-### Version 0.7.2 (2026-NNN)
+### Version 0.8.0 (2026-NNN)
 _The `_x` in module and function names indicates experimental versions. This suffix will be dropped in future releases._
 
 #### Fixes
