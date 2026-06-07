@@ -30,6 +30,10 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * `init_logger(config)`, `set_log_level(level)`, `shutdown_logger()` are available from Python.
   * C++ code uses `TIDALPY_LOG_DEBUG/INFO/WARN/ERROR/CRITICAL(...)` macros from `logger_.hpp`.
   * Added `spdlog` as a git submodule at `Dependencies/spdlog` (header-only, cross-platform).
+* Added `TidalPy.Utilities_x.binary_x` — custom TidalPy binary file format with a fixed 20-byte header.
+  * `check_binary_file(path)` and `get_current_schema_version()` available from Python.
+  * C++ utilities in `binary_.hpp`: `write_binary_header`, `read_binary_header`, `check_binary_schema_version`, and `BinaryClassID` enum.
+  * Schema version `0.2.0` (separate from package version); same `major.minor` required for compatibility.
 
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.

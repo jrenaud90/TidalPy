@@ -19,7 +19,9 @@ def _import_logger():
         from TidalPy.Utilities_x.logging_x import logger as _logger_mod
         return _logger_mod
     except ImportError:
-        pytest.skip("TidalPy.Utilities_x.logging_x.logger not compiled — run uv pip install first.")
+        raise ImportError(
+            "TidalPy.Utilities_x.logging_x.logger not compiled — run uv pip install first."
+        )
 
 
 # =====================================================================================================================

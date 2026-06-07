@@ -83,6 +83,18 @@
     "is_cpp": true
   },
 
+  "Utilities_x.binary_x.binary": {
+    "name": "TidalPy.Utilities_x.binary_x.binary",
+    "sources": [["TidalPy", "Utilities_x", "binary_x", "binary.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],
