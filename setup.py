@@ -12,7 +12,8 @@ DEBUG_MODE = False
 install_platform = platform.system()
 
 if install_platform.lower() == 'windows':
-    extra_compile_args = ['/openmp']
+    # /utf-8: required by spdlog's bundled fmtlib Unicode support
+    extra_compile_args = ['/openmp', '/utf-8']
     extra_link_args = []
     if DEBUG_MODE:
         extra_compile_args.append('/Ox')

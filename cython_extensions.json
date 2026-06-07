@@ -72,6 +72,17 @@
     "is_cpp": true
   },
 
+  "Utilities_x.logging_x.logger": {
+    "name": "TidalPy.Utilities_x.logging_x.logger",
+    "sources": [["TidalPy", "Utilities_x", "logging_x", "logger.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Utilities_x", "logging_x"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],
