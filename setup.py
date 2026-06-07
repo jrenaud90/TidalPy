@@ -12,7 +12,8 @@ DEBUG_MODE = False
 install_platform = platform.system()
 
 if install_platform.lower() == 'windows':
-    extra_compile_args = ['/openmp']
+    # /utf-8: required by spdlog's bundled fmtlib Unicode support
+    extra_compile_args = ['/openmp', '/utf-8']
     extra_link_args = []
     if DEBUG_MODE:
         extra_compile_args.append('/Ox')
@@ -45,6 +46,12 @@ if not os.path.isdir(os.path.join(eigen_include, 'Eigen', 'src')):
     sys.exit("Eigen submodule not initialized. Run:\n"
              "  git submodule update --init\n")
 submod_includes.append(eigen_include)
+
+spdlog_include = os.path.join(absolute_path, 'Dependencies', 'spdlog', 'include')
+if not os.path.isdir(os.path.join(spdlog_include, 'spdlog')):
+    sys.exit("spdlog submodule not initialized. Run:\n"
+             "  git submodule update --init\n")
+submod_includes.append(spdlog_include)
 
 tidalpy_cython_extensions = list()
 for cython_ext, ext_data in cython_ext_dict.items():

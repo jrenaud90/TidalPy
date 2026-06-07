@@ -22,6 +22,23 @@ _The `_x` in module and function names indicates experimental versions. This suf
 #### `TidalPy.Material_x`
 * Created a Cython-wrapped C++ module that duplicates the functionality of `TidalPy.Material` (TidalPy's EOS solver).
 
+#### New Features
+
+##### `TidalPy.Utilities_x` Module (new)
+* Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
+* Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
+  * `init_logger(config)`, `set_log_level(level)`, `shutdown_logger()` are available from Python.
+  * C++ code uses `TIDALPY_LOG_DEBUG/INFO/WARN/ERROR/CRITICAL(...)` macros from `logger_.hpp`.
+  * Added `spdlog` as a git submodule at `Dependencies/spdlog` (header-only, cross-platform).
+* Added `TidalPy.Utilities_x.binary_x` — custom TidalPy binary file format with a fixed 20-byte header.
+  * `check_binary_file(path)` and `get_current_schema_version()` available from Python.
+  * C++ utilities in `binary_.hpp`: `write_binary_header`, `read_binary_header`, `check_binary_schema_version`, and `BinaryClassID` enum.
+  * Schema version `0.2.0` (separate from package version); same `major.minor` required for compatibility.
+* Added `TidalPy.Utilities_x.classes_x` — C++ base class hierarchy with Cython/Python wrappers.
+  * `TidalPyBaseClass`: abstract base; provides `save_binary`, `load_binary`, `get_schema_version_str`, `get_config_dict`, `save_config`.
+  * `StructureBase(radius_m, mass_kg)`: spherical geometry base with `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity` (all MKS).
+  * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization.
+
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
   * Complex versions are also available as `IntMapNComplex`.
