@@ -26,6 +26,12 @@ class c_TidalPyBaseClass {
 public:
     virtual ~c_TidalPyBaseClass() = default;
 
+    // const schema-version members delete the implicit copy/move assignment;
+    // provide them explicitly — those fields are compile-time constants with the
+    // same value for every instance, so assignment is always a no-op for them.
+    c_TidalPyBaseClass& operator=(const c_TidalPyBaseClass&) noexcept { return *this; }
+    c_TidalPyBaseClass& operator=(c_TidalPyBaseClass&&) noexcept { return *this; }
+
     // -----------------------------------------------------------------------
     // Schema version
     // -----------------------------------------------------------------------

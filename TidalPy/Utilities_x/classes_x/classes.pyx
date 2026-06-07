@@ -137,7 +137,7 @@ cdef class StructureBase(TidalPyBaseClass):
 
     def __cinit__(self, double radius_m, double mass_kg):
         self._struct = c_StructureBase(radius_m, mass_kg)
-        self._ptr = &self._struct_ptr
+        self._ptr = &self._struct
 
     def __dealloc__(self):
         self._ptr = NULL

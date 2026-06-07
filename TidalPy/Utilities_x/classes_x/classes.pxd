@@ -34,6 +34,7 @@ cdef extern from "tidalpy_base_.hpp" namespace "tidalpy" nogil:
 
 cdef extern from "structure_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_StructureBase(c_TidalPyBaseClass):
+        c_StructureBase()
         c_StructureBase(double radius_m, double mass_kg) except +
         double get_radius() const
         double get_mass() const
