@@ -109,6 +109,21 @@
     "is_cpp": true
   },
 
+  "structures_x.layers.base": {
+    "name": "TidalPy.structures_x.layers.base",
+    "sources": [["TidalPy", "structures_x", "layers", "base.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],

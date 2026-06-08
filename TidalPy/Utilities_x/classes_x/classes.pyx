@@ -135,9 +135,13 @@ cdef class StructureBase(TidalPyBaseClass):
         Mass in kilograms (MKS).
     """
 
-    def __cinit__(self, double radius_m, double mass_kg):
-        self._struct = c_StructureBase(radius_m, mass_kg)
+    def __cinit__(self, *args, **kwargs):
+        # Set _ptr now; address of _struct is stable for the lifetime of this object.
+        # Subclasses override _ptr in their own __init__ after constructing a deeper object.
         self._ptr = &self._struct
+
+    def __init__(self, double radius_m, double mass_kg):
+        self._struct = c_StructureBase(radius_m, mass_kg)
 
     def __dealloc__(self):
         self._ptr = NULL

@@ -24,6 +24,15 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### New Features
 
+##### `TidalPy.structures_x` Module (new)
+* Created `TidalPy/structures_x/` as the new C++/Cython module for world, layer, and system classes.
+* Added `TidalPy.structures_x.layers.BaseLayer` — C++ geometry-only layer class (`c_BaseLayer`, inherits `c_StructureBase`).
+  * Constructor: `BaseLayer(name, layer_index, radius_inner_m, radius_outer_m, mass_kg, material_name, is_tidal, tidal_scale)`.
+  * Read-only geometry properties: `radius_inner`, `radius_outer`, `thickness`, `volume`, `surface_area_inner`, `surface_area_outer`.
+  * EOS profile: `eos_data_populated`, `update_eos_data(r, rho, g, p)`, `get_density(r)`, `get_gravity(r)`, `get_pressure(r)`.
+  * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
+  * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
+
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
