@@ -20,7 +20,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport StructureBase
+from TidalPy.Utilities_x.classes_x.classes cimport StructureBase, c_TidalPyBaseClass
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -70,9 +70,7 @@ cdef class BaseLayer(StructureBase):
     """
 
     def __cinit__(self, *args, **kwargs):
-        # StructureBase.__cinit__ already ran and set _ptr = &_struct.
-        # We override _ptr in __init__ once _layer is constructed.
-        pass
+        pass  # unique_ptr<c_BaseLayer> auto-inits to nullptr; _ptr set in __init__
 
     def __init__(
             self,
@@ -93,25 +91,26 @@ cdef class BaseLayer(StructureBase):
         config.material_name  = material_name.encode("utf-8")
         config.is_tidal       = is_tidal
         config.tidal_scale    = tidal_scale
-        self._layer = c_BaseLayer(config)
-        self._ptr   = &self._layer
+        self._layer_ptr.reset(new c_BaseLayer(config))
+        self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
+        self._layer_ptr.reset()
         self._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Base class property overrides
-    # (StructureBase._struct is default-constructed only; use _layer for stored state)
+    # (_layer_ptr always points to the actual most-derived C++ layer; safe for subclasses)
     # ------------------------------------------------------------------------------------------------------------------
     @property
     def radius(self) -> float:
         """Outer radius [m]."""
-        return self._layer.get_radius_outer()
+        return self._layer_ptr.get().get_radius_outer()
 
     @property
     def mass(self) -> float:
         """Total layer mass [kg]."""
-        return self._layer.get_mass()
+        return self._layer_ptr.get().get_mass()
 
     # ------------------------------------------------------------------------------------------------------------------
     # Geometry properties
@@ -119,57 +118,57 @@ cdef class BaseLayer(StructureBase):
     @property
     def name(self) -> str:
         """Layer name."""
-        return self._layer.get_name().decode("utf-8")
+        return self._layer_ptr.get().get_name().decode("utf-8")
 
     @property
     def layer_index(self) -> int:
         """Zero-based layer index (0 = innermost)."""
-        return self._layer.get_layer_index()
+        return self._layer_ptr.get().get_layer_index()
 
     @property
     def radius_inner(self) -> float:
         """Inner boundary radius [m]."""
-        return self._layer.get_radius_inner()
+        return self._layer_ptr.get().get_radius_inner()
 
     @property
     def radius_outer(self) -> float:
         """Outer boundary radius [m]."""
-        return self._layer.get_radius_outer()
+        return self._layer_ptr.get().get_radius_outer()
 
     @property
     def thickness(self) -> float:
         """Layer thickness [m] (radius_outer - radius_inner)."""
-        return self._layer.get_thickness()
+        return self._layer_ptr.get().get_thickness()
 
     @property
     def volume(self) -> float:
         """Layer volume [m^3] (spherical shell)."""
-        return self._layer.get_volume()
+        return self._layer_ptr.get().get_volume()
 
     @property
     def surface_area_inner(self) -> float:
         """Inner boundary surface area [m^2]."""
-        return self._layer.get_surface_area_inner()
+        return self._layer_ptr.get().get_surface_area_inner()
 
     @property
     def surface_area_outer(self) -> float:
         """Outer boundary surface area [m^2]."""
-        return self._layer.get_surface_area_outer()
+        return self._layer_ptr.get().get_surface_area_outer()
 
     @property
     def material_name(self) -> str:
         """Material identifier string."""
-        return self._layer.get_material_name().decode("utf-8")
+        return self._layer_ptr.get().get_material_name().decode("utf-8")
 
     @property
     def is_tidal(self) -> bool:
         """Whether this layer contributes to tidal dissipation."""
-        return self._layer.get_is_tidal()
+        return self._layer_ptr.get().get_is_tidal()
 
     @property
     def tidal_scale(self) -> float:
         """Dimensionless tidal heating scale factor."""
-        return self._layer.get_tidal_scale()
+        return self._layer_ptr.get().get_tidal_scale()
 
     # ------------------------------------------------------------------------------------------------------------------
     # EOS profile
@@ -177,7 +176,7 @@ cdef class BaseLayer(StructureBase):
     @property
     def eos_data_populated(self) -> bool:
         """True after EOS profile data has been populated (EOSHandler or update_eos_data)."""
-        return self._layer.get_eos_data_populated()
+        return self._layer_ptr.get().get_eos_data_populated()
 
     def update_eos_data(
             self,
@@ -213,7 +212,7 @@ cdef class BaseLayer(StructureBase):
         cdef vector[double] p_vec   = pressure_pa
         cdef c_LayerEOSData eos_data
         eos_data.populate(r_vec, rho_vec, g_vec, p_vec)
-        self._layer.update_eos_data(eos_data)
+        self._layer_ptr.get().update_eos_data(eos_data)
 
     def get_density(self, double radius_m) -> float:
         """Density at the given radius [kg/m^3]; NaN if EOS data not populated.
@@ -227,7 +226,7 @@ cdef class BaseLayer(StructureBase):
         -----------
         - Linear interpolation; clamped at layer boundaries.
         """
-        return self._layer.get_density(radius_m)
+        return self._layer_ptr.get().get_density(radius_m)
 
     def get_gravity(self, double radius_m) -> float:
         """Gravitational acceleration at the given radius [m/s^2]; NaN if not populated.
@@ -241,7 +240,7 @@ cdef class BaseLayer(StructureBase):
         -----------
         - Linear interpolation; clamped at layer boundaries.
         """
-        return self._layer.get_gravity(radius_m)
+        return self._layer_ptr.get().get_gravity(radius_m)
 
     def get_pressure(self, double radius_m) -> float:
         """Pressure at the given radius [Pa]; NaN if EOS data not populated.
@@ -255,7 +254,7 @@ cdef class BaseLayer(StructureBase):
         -----------
         - Linear interpolation; clamped at layer boundaries.
         """
-        return self._layer.get_pressure(radius_m)
+        return self._layer_ptr.get().get_pressure(radius_m)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config
@@ -270,13 +269,14 @@ cdef class BaseLayer(StructureBase):
             ``radius_outer_m``, ``mass_kg``, ``material_name``,
             ``is_tidal``, ``tidal_scale``.
         """
+        cdef c_BaseLayer* p = self._layer_ptr.get()
         return {
-            "name":           self._layer.get_name().decode("utf-8"),
-            "layer_index":    self._layer.get_layer_index(),
-            "radius_inner_m": self._layer.get_radius_inner(),
-            "radius_outer_m": self._layer.get_radius_outer(),
-            "mass_kg":        self._layer.get_mass(),
-            "material_name":  self._layer.get_material_name().decode("utf-8"),
-            "is_tidal":       bool(self._layer.get_is_tidal()),
-            "tidal_scale":    self._layer.get_tidal_scale(),
+            "name":           p.get_name().decode("utf-8"),
+            "layer_index":    p.get_layer_index(),
+            "radius_inner_m": p.get_radius_inner(),
+            "radius_outer_m": p.get_radius_outer(),
+            "mass_kg":        p.get_mass(),
+            "material_name":  p.get_material_name().decode("utf-8"),
+            "is_tidal":       bool(p.get_is_tidal()),
+            "tidal_scale":    p.get_tidal_scale(),
         }
