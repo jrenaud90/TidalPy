@@ -18,6 +18,7 @@ Never call bool() as a function in the importing .pyx; use `True if x else False
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
+from libcpp.memory cimport unique_ptr
 from libc.stdint cimport uint8_t
 
 
@@ -68,5 +69,9 @@ cdef class StructureBase(TidalPyBaseClass):
 
 
 cdef class PhysicsBase(TidalPyBaseClass):
-    cdef c_PhysicsBase* _physics_ptr
+    # Owns the c_PhysicsBase only when PhysicsBase is instantiated directly.
+    # Subclasses (e.g. rheology models) leave this empty and own the most-derived
+    # object themselves (via their own unique_ptr), setting the inherited
+    # TidalPyBaseClass._ptr instead.
+    cdef unique_ptr[c_PhysicsBase] _physics_ptr
     cpdef dict get_config_dict(self)

@@ -64,6 +64,13 @@ enum class BinaryClassID : uint32_t {
     GasGiantWorld    = 202,
     StarWorld        = 203,
     RheologyBase     = 300,
+    Elastic          = 301,
+    Viscous          = 302,
+    Voigt            = 303,
+    Maxwell          = 304,
+    Burgers          = 305,
+    Andrade          = 306,
+    Sundberg         = 307,
     CoolingBase      = 400,
     RadiogenicsBase  = 500,
 };
@@ -171,6 +178,40 @@ inline bool check_binary_schema_version(
         return true;
     }
     return false;
+}
+
+// ---------------------------------------------------------------------------
+// Length-prefixed string serialization
+// ---------------------------------------------------------------------------
+// Strings are written as a uint32_t length followed by the raw UTF-8 bytes.
+// Used for model names and any other variable-length text in a binary payload.
+// Shared by all serializable classes (e.g. physics model names) so the encoding
+// lives in one place.
+
+// Write a length-prefixed string to an output stream.
+inline void write_binary_string(std::ostream& out, const std::string& text) {
+    const auto length = static_cast<uint32_t>(text.size());
+    out.write(reinterpret_cast<const char*>(&length), sizeof(uint32_t));
+    if (length > 0) {
+        out.write(text.data(), length);
+    }
+}
+
+// Read a length-prefixed string from an input stream.
+inline std::string read_binary_string(std::istream& in) {
+    uint32_t length = 0;
+    in.read(reinterpret_cast<char*>(&length), sizeof(uint32_t));
+    std::string text;
+    text.resize(length);
+    if (length > 0) {
+        in.read(text.data(), length);
+    }
+    return text;
+}
+
+// Number of payload bytes a length-prefixed string occupies (for header sizing).
+inline uint64_t binary_string_bytes(const std::string& text) {
+    return sizeof(uint32_t) + static_cast<uint64_t>(text.size());
 }
 
 } // namespace tidalpy

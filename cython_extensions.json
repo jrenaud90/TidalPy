@@ -177,6 +177,21 @@
     "is_cpp": true
   },
 
+  "rheology_x.rheology": {
+    "name": "TidalPy.rheology_x.rheology",
+    "sources": [["TidalPy", "rheology_x", "rheology.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],

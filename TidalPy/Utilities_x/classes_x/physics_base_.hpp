@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "tidalpy_base_.hpp"
 
@@ -55,37 +56,66 @@ public:
     void set_layer_ptr(c_BaseLayer* layer_ptr) noexcept { p_layer_ptr = layer_ptr; }
 
     // -----------------------------------------------------------------------
-    // Binary I/O
+    // Shared physics-model binary helpers
+    //
+    // Every physics model serializes the same way: a header carrying the model's
+    // BinaryClassID, the model name, then zero or more scalar (double) params.
+    // Subclasses implement write_binary/read_binary by calling these helpers with
+    // their own class id and parameter list, e.g.:
+    //
+    //   void write_binary(std::ostream& out) const override {
+    //       this->write_physics_binary(
+    //           out, static_cast<uint32_t>(BinaryClassID::Andrade), {this->p_alpha, this->p_zeta});
+    //   }
+    //   void read_binary(std::istream& in, bool force = false) override {
+    //       const std::vector<double> params = this->read_physics_binary(in, force, 2);
+    //       this->p_alpha = params[0];
+    //       this->p_zeta  = params[1];
+    //   }
+    //
+    // A model with no extra params just omits the params argument / passes 0.
     // -----------------------------------------------------------------------
-    void write_binary(std::ostream& out) const override {
-        const auto name_len = static_cast<uint32_t>(p_model_name.size());
-        const uint64_t payload = sizeof(uint32_t) + name_len;
-        write_binary_header(
-            out,
-            static_cast<uint32_t>(BinaryClassID::PhysicsBase),
-            payload);
-        out.write(reinterpret_cast<const char*>(&name_len), sizeof(uint32_t));
-        if (name_len > 0) {
-            out.write(p_model_name.data(), name_len);
+    void write_physics_binary(
+            std::ostream& out,
+            uint32_t class_id,
+            const std::vector<double>& params = {}) const {
+        const uint64_t payload =
+            binary_string_bytes(this->p_model_name) + params.size() * sizeof(double);
+        write_binary_header(out, class_id, payload);
+        write_binary_string(out, this->p_model_name);
+        for (const double value : params) {
+            out.write(reinterpret_cast<const char*>(&value), sizeof(double));
         }
         if (!out) {
-            throw std::runtime_error(
-                "TidalPy: failed to write PhysicsBase binary data");
+            throw std::runtime_error("TidalPy: failed to write physics model binary data");
         }
     }
 
-    void read_binary(std::istream& in, bool force = false) override {
+    // Reads + validates the header, restores the model name, and returns the
+    // n_params scalar params (in the order they were written).
+    std::vector<double> read_physics_binary(
+            std::istream& in, bool force, std::size_t n_params) {
         c_TidalPyBaseClass::read_binary(in, force);
-        uint32_t name_len = 0;
-        in.read(reinterpret_cast<char*>(&name_len), sizeof(uint32_t));
-        p_model_name.resize(name_len);
-        if (name_len > 0) {
-            in.read(p_model_name.data(), name_len);
+        this->p_model_name = read_binary_string(in);
+        std::vector<double> params(n_params);
+        for (std::size_t i = 0; i < n_params; ++i) {
+            in.read(reinterpret_cast<char*>(&params[i]), sizeof(double));
         }
         if (!in) {
-            throw std::runtime_error(
-                "TidalPy: failed to read PhysicsBase binary data");
+            throw std::runtime_error("TidalPy: failed to read physics model binary data");
         }
+        return params;
+    }
+
+    // -----------------------------------------------------------------------
+    // Binary I/O — c_PhysicsBase stores only the model name (no extra params).
+    // -----------------------------------------------------------------------
+    void write_binary(std::ostream& out) const override {
+        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::PhysicsBase));
+    }
+
+    void read_binary(std::istream& in, bool force = false) override {
+        this->read_physics_binary(in, force, 0);
     }
 
 protected:

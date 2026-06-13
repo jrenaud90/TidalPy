@@ -59,6 +59,25 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
   * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
 
+##### `TidalPy.rheology_x` Module (new)
+* Created `TidalPy/rheology_x/` as the new C++/Cython module for rheology (complex-compliance) models.
+* Added the abstract base `c_RheologyBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex (shear/bulk) modulus `μ*` [Pa] directly. Simple models are analytic; series composites (Burgers, Andrade, Sundberg) invert the sum of their element compliances internally (compliance is never exposed to Python).
+* Added the seven rheology models, each exposed as a Cython/Python class:
+  * `Elastic` (alias `off`) — purely elastic, no dissipation.
+  * `Viscous` (alias `newton`) — purely viscous (Newtonian fluid).
+  * `Voigt` (alias `voigt-kelvin`) — Voigt-Kelvin element; params `voigt_modulus_frac`, `voigt_viscosity_frac`.
+  * `Maxwell` — standard Maxwell body.
+  * `Burgers` — Maxwell + Voigt in series; params `voigt_modulus_frac`, `voigt_viscosity_frac`.
+  * `Andrade` — Maxwell + Andrade transient term (∝ ω^{−α}); params `alpha`, `zeta`.
+  * `Sundberg` (alias `sundberg-cooper`) — Andrade + Voigt; params `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`.
+  * Physics matches TidalPy's legacy `rheology.complex_compliance` formulas.
+* Added an enum-based C++ factory: `c_RheologyModel` (one value per model), `c_rheology_model_from_name(name)` (alias-aware name → enum), and `c_find_rheology(model, config)` returning a `unique_ptr<c_RheologyBase>` to a heap-allocated model. A name overload `c_find_rheology(name, config)` is also provided.
+* Added `make_rheology(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`. It wraps the C++ enum factory (`c_rheology_model_from_name` → `c_find_rheology`) and adopts the returned `unique_ptr` into the matching rich Python wrapper.
+* Added vectorized complex-modulus methods on `c_RheologyBase` (inherited by all models): `calc_complex_modulus_vectorize_modulus`, `..._vectorize_frequency`, and `..._vectorize_all`. Each writes into a caller-supplied `std::vector<std::complex<double>>&`; the Cython wrappers accept array-likes and return `complex128` NumPy arrays.
+* Added lower-case direct convenience functions (`elastic`, `viscous`, `voigt`, `maxwell`, `burgers`, `andrade`, `sundberg`) that build a stack-allocated model, solve, and return. `frequency`, `modulus`, and `viscosity` accept floats or NumPy arrays (broadcast together); a scalar returns a Python `complex`, arrays return a `complex128` `ndarray`.
+* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 301–307).
+* Refactored the `PhysicsBase` Cython wrapper to be subclassable: subclasses own their most-derived C++ object via a `unique_ptr`, and `model_name` reads through the inherited `_ptr`.
+
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
@@ -68,11 +87,12 @@ _The `_x` in module and function names indicates experimental versions. This suf
 * Added `TidalPy.Utilities_x.binary_x` — custom TidalPy binary file format with a fixed 20-byte header.
   * `check_binary_file(path)` and `get_current_schema_version()` available from Python.
   * C++ utilities in `binary_.hpp`: `write_binary_header`, `read_binary_header`, `check_binary_schema_version`, and `BinaryClassID` enum.
+  * Added shared length-prefixed string serialization helpers `write_binary_string`, `read_binary_string`, and `binary_string_bytes` (used for model names and any variable-length text — one encoding in one place).
   * Schema version `0.2.0` (separate from package version); same `major.minor` required for compatibility.
 * Added `TidalPy.Utilities_x.classes_x` — C++ base class hierarchy with Cython/Python wrappers.
   * `TidalPyBaseClass`: abstract base; provides `save_binary`, `load_binary`, `get_schema_version_str`, `get_config_dict`, `save_config`.
   * `StructureBase(radius_m, mass_kg)`: spherical geometry base with `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity` (all MKS).
-  * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization.
+  * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization. Provides shared `write_physics_binary(out, class_id, params)` / `read_physics_binary(in, force, n_params)` helpers so every physics model serializes uniformly (header + model name + scalar params) and a model's `write_binary`/`read_binary` reduce to one call each.
 
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
