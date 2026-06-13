@@ -109,6 +109,74 @@
     "is_cpp": true
   },
 
+  "structures_x.layers.base": {
+    "name": "TidalPy.structures_x.layers.base",
+    "sources": [["TidalPy", "structures_x", "layers", "base.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "structures_x.layers.physics": {
+    "name": "TidalPy.structures_x.layers.physics",
+    "sources": [["TidalPy", "structures_x", "layers", "physics.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Tides_x", "love"],
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "structures_x.layers.solidliquid": {
+    "name": "TidalPy.structures_x.layers.solidliquid",
+    "sources": [["TidalPy", "structures_x", "layers", "solidliquid.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Tides_x", "love"],
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "cooling_x"],
+      ["TidalPy", "radiogenics_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "structures_x.layers.gas": {
+    "name": "TidalPy.structures_x.layers.gas",
+    "sources": [["TidalPy", "structures_x", "layers", "gas.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Tides_x", "love"],
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],
@@ -602,6 +670,19 @@
   },
 
   
+  "Tides_x.love.love": {
+    "name": "TidalPy.Tides_x.love.love",
+    "sources": [["TidalPy", "Tides_x", "love", "love.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Tides_x", "love"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "Tides_x.obliquity.obliquity_common" : {
     "name": "TidalPy.Tides_x.obliquity.obliquity_common",
     "sources": [["TidalPy", "Tides_x", "obliquity", "obliquity_common.pyx"]],

@@ -1,5 +1,5 @@
 {% set name = "TidalPy" %}
-{% set version = "0.8.0a0.dev1" %}
+{% set version = "0.8.0a1.dev2" %}
 
 package:
   name: {{ name|lower }}

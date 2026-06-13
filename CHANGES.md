@@ -24,6 +24,41 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### New Features
 
+##### `TidalPy.structures_x` Module (new)
+* Created `TidalPy/structures_x/` as the new C++/Cython module for world, layer, and system classes.
+* Added `TidalPy.structures_x.layers.GasLayer` — C++ ideal-gas/fluid layer class (`c_GasLayer`, inherits `c_PhysicsLayer`).
+  * Constructor adds `mean_molecular_weight_kg_mol`, `adiabatic_index`, `reference_temperature_k`, `reference_density_kg_m3`.
+  * `calc_adiabatic_lapse_rate(g)` — dry adiabatic lapse rate: g·(γ−1)·M/(γ·R) [K/m].
+  * `calc_scale_height(T, g)` — barometric scale height: R·T/(g·M) [m].
+  * `calc_pressure_ideal_gas(T, rho)` — ideal-gas pressure: ρ·R·T/M [Pa].
+  * `calc_sound_speed(T)` — adiabatic sound speed: sqrt(γ·R·T/M) [m/s].
+  * No phase changes, cooling, or radiogenics sub-models.
+  * Binary serialization includes all parent fields plus the 4 gas-property doubles; binary class ID 103.
+* Added `TidalPy.structures_x.layers.SolidLiquidLayer` — C++ thermo-mechanical layer with phase-change tracking (`c_SolidLiquidLayer`, inherits `c_PhysicsLayer`).
+  * Constructor adds 11 thermal/melt parameters: `thermal_conductivity_ref_w_mk`, `thermal_expansion_ref_1_k`, `heat_capacity_ref_j_kgk`, `activation_energy_j_mol`, `activation_volume_m3_mol`, `solidus_temperature_k`, `liquidus_temperature_k`, `melt_fraction_exponent`, `reference_density_kg_m3`, `reference_temperature_k`, `melt_viscosity_reduction`.
+  * `calc_melt_fraction(T, P)` — power-law interpolation between solidus and liquidus [0, 1].
+  * `calc_viscosity(T, P)` — Arrhenius temperature/pressure dependence with partial-melt exponential reduction.
+  * `calc_shear_modulus(T, P)` — melt-fraction-reduced shear modulus: G_static·(1−φ).
+  * `calc_thermal_conductivity(T)`, `calc_thermal_diffusivity(T)` — thermal transport properties.
+  * `calc_adiabatic_temperature_gradient(T, P)` — uses EOS surface gravity when available.
+  * `calc_heat_flux_conductive(T_base, T_top)` — conductive heat flux through the layer.
+  * `calc_radiogenic_heating(time_s, mass_kg)` — delegates to optional `c_RadiogenicsBase` sub-model (Phase 7).
+  * Optional cooling (`c_CoolingBase`) and radiogenics (`c_RadiogenicsBase`) sub-models attached via C++-level `set_cooling` / `set_radiogenics`; full concrete models arrive in Phases 6 and 7.
+  * Binary serialization includes all parent fields plus the 11 thermal doubles; sub-models and EOS data excluded. Binary class ID 102.
+* Added `TidalPy.structures_x.layers.PhysicsLayer` — C++ mechanical-properties layer class (`c_PhysicsLayer`, inherits `c_BaseLayer`).
+  * Constructor adds `shear_modulus_static_pa`, `bulk_modulus_static_pa`, `viscosity_static_pas`, `love_number_re`, `love_number_im` to the `BaseLayer` constructor parameters.
+  * `love_number` property returns a Python `complex` (was `love_number_real: float`); `get_config_dict` now emits `love_number_re` and `love_number_im` keys.
+  * `calc_tidal_susceptibility()` — geometrical tidal susceptibility (3/2)·r⁵/(G·m²) [m³].
+  * `calc_complex_shear_modulus(freq)` / `calc_complex_bulk_modulus(freq)` — returns static modulus as real complex when no rheology is attached.
+  * Rheology objects (`c_RheologyBase` subclasses, Phase 5) attach via C++-level `set_shear/bulk_rheology`.
+  * Binary serialization includes all `BaseLayer` fields plus the four mechanical-property doubles; rheology and EOS data are excluded.
+* Added `TidalPy.structures_x.layers.BaseLayer` — C++ geometry-only layer class (`c_BaseLayer`, inherits `c_StructureBase`).
+  * Constructor: `BaseLayer(name, layer_index, radius_inner_m, radius_outer_m, mass_kg, material_name, is_tidal, tidal_scale)`.
+  * Read-only geometry properties: `radius_inner`, `radius_outer`, `thickness`, `volume`, `surface_area_inner`, `surface_area_outer`.
+  * EOS profile: `eos_data_populated`, `update_eos_data(r, rho, g, p)`, `get_density(r)`, `get_gravity(r)`, `get_pressure(r)`.
+  * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
+  * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
+
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
