@@ -126,6 +126,7 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
+* Added `TidalPy.Utilities_x.arrays` — header-only 1-D linear interpolation utilities (`interp_.hpp`: `c_interp`, `c_interp_complex`, `c_binary_search_with_guess`) ported from `TidalPy.utilities.arrays` into the new scheme, with a `numpy.interp`-style Python wrapper `interp(x, xp, fp)`. The interpolated material EOS (`c_InterpolatedEOS`) now uses `c_interp` instead of a hand-rolled lookup.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
   * `init_logger(config)`, `set_log_level(level)`, `shutdown_logger()` are available from Python.
   * C++ code uses `TIDALPY_LOG_DEBUG/INFO/WARN/ERROR/CRITICAL(...)` macros from `logger_.hpp`.

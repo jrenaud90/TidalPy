@@ -95,6 +95,18 @@
     "is_cpp": true
   },
 
+  "Utilities_x.arrays.interp": {
+    "name": "TidalPy.Utilities_x.arrays.interp",
+    "sources": [["TidalPy", "Utilities_x", "arrays", "interp.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Utilities_x", "arrays"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "Utilities_x.classes_x.classes": {
     "name": "TidalPy.Utilities_x.classes_x.classes",
     "sources": [["TidalPy", "Utilities_x", "classes_x", "classes.pyx"]],
@@ -395,6 +407,22 @@
       ["TidalPy", "Material_x", "eos", "methods"],
       ["TidalPy", "Material_x", "eos"],
       ["TidalPy", "utilities", "arrays"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "Material_x.eos.material_eos": {
+    "name": "TidalPy.Material_x.eos.material_eos",
+    "sources": [["TidalPy", "Material_x", "eos", "material_eos.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
       ["TidalPy"]
     ],
     "compile_args": [],
