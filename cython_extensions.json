@@ -177,6 +177,76 @@
     "is_cpp": true
   },
 
+  "structures_x.worlds.base": {
+    "name": "TidalPy.structures_x.worlds.base",
+    "sources": [["TidalPy", "structures_x", "worlds", "base.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "worlds"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "structures_x.worlds.layered": {
+    "name": "TidalPy.structures_x.worlds.layered",
+    "sources": [["TidalPy", "structures_x", "worlds", "layered.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "worlds"],
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Tides_x", "love"],
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "cooling_x"],
+      ["TidalPy", "radiogenics_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "structures_x.worlds.gasgiant": {
+    "name": "TidalPy.structures_x.worlds.gasgiant",
+    "sources": [["TidalPy", "structures_x", "worlds", "gasgiant.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "worlds"],
+      ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Tides_x", "love"],
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "cooling_x"],
+      ["TidalPy", "radiogenics_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "structures_x.worlds.stellar": {
+    "name": "TidalPy.structures_x.worlds.stellar",
+    "sources": [["TidalPy", "structures_x", "worlds", "stellar.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "structures_x", "worlds"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "rheology_x.rheology": {
     "name": "TidalPy.rheology_x.rheology",
     "sources": [["TidalPy", "rheology_x", "rheology.pyx"]],

@@ -26,6 +26,12 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 ##### `TidalPy.structures_x` Module (new)
 * Created `TidalPy/structures_x/` as the new C++/Cython module for world, layer, and system classes.
+* Added the `TidalPy.structures_x.worlds` world-class hierarchy (`c_BaseWorld` → `c_LayeredWorld` → `c_GasGiantWorld`, and `c_BaseWorld` → `c_StarWorld`):
+  * `BaseWorld` — world identity plus albedo/emissivity/obliquity/spin scalars; `calc_surface_gravity`, `calc_escape_velocity`, `calc_mean_density`, and `calc_equilibrium_temperature(flux)` (fast-rotator radiative equilibrium). Binary class id 200.
+  * `LayeredWorld` — owns an ordered (inner-to-outer) stack of layers via `add_layer` (transfers layer ownership, validates boundary continuity), with `num_layers`, `calc_total_mass`, `calc_internal_heating(time)` (sums radiogenic heating over `SolidLiquidLayer`s), and `validate_layers`. Binary class id 201.
+  * `GasGiantWorld` — a `LayeredWorld` for gas giants (default type `"gasgiant"`; binary class id 202).
+  * `StarWorld` — a star with no layers/EOS; effective temperature ↔ luminosity via Stefan-Boltzmann (`L = 4·π·R²·σ·T⁴`). Binary class id 203.
+  * Worlds serialize recursively: `save_binary` / `load_binary` round-trips a layered world together with every layer and each layer's attached rheology/cooling/radiogenics models (via the new `c_layer_from_binary` layer binary-dispatch factory). EOS profile data is excluded and repopulated by the EOS solve.
 * Added `TidalPy.structures_x.layers.GasLayer` — C++ ideal-gas/fluid layer class (`c_GasLayer`, inherits `c_PhysicsLayer`).
   * Constructor adds `mean_molecular_weight_kg_mol`, `adiabatic_index`, `reference_temperature_k`, `reference_density_kg_m3`.
   * `calc_adiabatic_lapse_rate(g)` — dry adiabatic lapse rate: g·(γ−1)·M/(γ·R) [K/m].
