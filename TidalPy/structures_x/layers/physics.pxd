@@ -20,6 +20,8 @@ from libcpp.complex cimport complex as cpp_complex
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport c_RheologyBase
+from TidalPy.viscosity_x.viscosity cimport c_ViscosityBase
+from TidalPy.partial_melt_x.partial_melt cimport c_PartialMeltBase
 
 
 # =====================================================================================================================
@@ -62,6 +64,12 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_bulk_rheology_set()                  const
         void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
         void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk)
+        void                set_shear_viscosity(unique_ptr[c_ViscosityBase] viscosity)
+        void                set_bulk_viscosity(unique_ptr[c_ViscosityBase] viscosity)
+        void                set_partial_melt(unique_ptr[c_PartialMeltBase] partial_melt)
+        cpp_bool            get_shear_viscosity_set()                const
+        cpp_bool            get_bulk_viscosity_set()                 const
+        cpp_bool            get_partial_melt_set()                   const
 
 
 # =====================================================================================================================

@@ -35,6 +35,20 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### New Features
 
+##### `TidalPy.viscosity_x` Module (new)
+* Added a viscosity model hierarchy (`TidalPy.viscosity_x.viscosity`) following the rheology/cooling/radiogenics class pattern. Each model returns the dynamic viscosity [Pa·s] as a function of temperature [K] and pressure [Pa] (the pre-melt "solid" viscosity that the partial-melt step weakens). The molar gas constant comes from the shared TidalPy config.
+  * `ArrheniusViscosity` (alias `arr`) — Arrhenius flow law `η = A·σ^(1−n)·d^m·exp((E_a+P·V_a)/(R·T))` (optional extra factor of `T`).
+  * `ReferenceViscosity` (alias `ref`) — relative-activation law `η = η_ref·exp(((E_a+P·V_a)/R)·(1/T − 1/T_ref))`.
+  * `ConstantViscosity` (alias `const`) — temperature/pressure independent.
+  * Name factory `make_viscosity(name, config)`, enum + binary-dispatch factory (`c_viscosity_from_binary`), and binary serialization (class ids 801–803). Math mirrors the validated legacy `TidalPy/rheology/viscosity/viscosity_models.py`.
+
+##### `TidalPy.partial_melt_x` Module (new)
+* Added a partial-melt (melt-weakening) model hierarchy (`TidalPy.partial_melt_x.partial_melt`) following the rheology/cooling/radiogenics class pattern. Each model maps a material's pre-melt viscosity + shear modulus (and temperature) to the post-melt viscosity + shear modulus and reports the volumetric melt fraction `φ = clip((T − solidus)/(liquidus − solidus), 0, 1)`. These quantities are frequency-independent and feed the downstream rheology (complex modulus) step of the whole-planet love-number pipeline.
+  * `OffPartialMelt` (alias `none`) — no weakening (returns pre-melt strengths).
+  * `SpohnPartialMelt` (alias `fischer`) — Fischer & Spohn (1990) temperature-based viscosity/shear law.
+  * `HenningPartialMelt` — Henning (2009/2010) three-regime weakening (sub-critical, breakdown band, liquid-like), gated by `crit_melt_frac`/`crit_melt_frac_width`.
+  * Name factory `make_partial_melt(name, config)`, enum + binary-dispatch factory (`c_partial_melt_from_binary`), and binary serialization (class ids 701–703). Math mirrors the validated legacy `TidalPy/rheology/partial_melt/melting_models.py`.
+
 ##### `TidalPy.structures_x` Module (new)
 * Created `TidalPy/structures_x/` as the new C++/Cython module for world, layer, and system classes.
 * Added the `TidalPy.structures_x.worlds` world-class hierarchy (`c_BaseWorld` → `c_LayeredWorld` → `c_GasGiantWorld`, and `c_BaseWorld` → `c_StarWorld`):

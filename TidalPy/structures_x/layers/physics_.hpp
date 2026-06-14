@@ -43,6 +43,8 @@
 #include "base_.hpp"
 #include "love_.hpp"
 #include "rheology_.hpp"
+#include "viscosity_.hpp"      // c_ViscosityBase (shear/bulk pre-melt viscosity)
+#include "partial_melt_.hpp"   // c_PartialMeltBase (melt weakening)
 
 namespace tidalpy {
 
@@ -90,9 +92,12 @@ public:
             this->p_shear_viscosity_static_pas = other.p_shear_viscosity_static_pas;
             this->p_bulk_viscosity_static_pas  = other.p_bulk_viscosity_static_pas;
             this->p_love_numbers               = other.p_love_numbers;
-            // Rheology pointers cannot be copied; source temporaries always have null ptrs.
+            // Owned model pointers cannot be copied; source temporaries always have null ptrs.
             this->p_shear_rheology.reset();
             this->p_bulk_rheology.reset();
+            this->p_shear_viscosity.reset();
+            this->p_bulk_viscosity.reset();
+            this->p_partial_melt.reset();
         }
         return *this;
     }
@@ -172,6 +177,38 @@ public:
 
     bool get_shear_rheology_set() const noexcept { return this->p_shear_rheology != nullptr; }
     bool get_bulk_rheology_set()  const noexcept { return this->p_bulk_rheology  != nullptr; }
+
+    // -----------------------------------------------------------------------
+    // Viscosity + partial-melt setters (non-const; transfer ownership).
+    // The shear/bulk viscosity models supply the pre-melt viscosities at (T, P);
+    // the partial-melt model weakens the static moduli and viscosities. These feed
+    // the frequency-independent state computed by the world EOS solve. Each setter
+    // registers this layer as the model's observer.
+    // -----------------------------------------------------------------------
+    void set_shear_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
+        this->p_shear_viscosity = std::move(viscosity);
+        if (this->p_shear_viscosity) { this->p_shear_viscosity->set_layer_ptr(this); }
+    }
+
+    void set_bulk_viscosity(std::unique_ptr<c_ViscosityBase> viscosity) {
+        this->p_bulk_viscosity = std::move(viscosity);
+        if (this->p_bulk_viscosity) { this->p_bulk_viscosity->set_layer_ptr(this); }
+    }
+
+    void set_partial_melt(std::unique_ptr<c_PartialMeltBase> partial_melt) {
+        this->p_partial_melt = std::move(partial_melt);
+        if (this->p_partial_melt) { this->p_partial_melt->set_layer_ptr(this); }
+    }
+
+    bool get_shear_viscosity_set() const noexcept { return this->p_shear_viscosity != nullptr; }
+    bool get_bulk_viscosity_set()  const noexcept { return this->p_bulk_viscosity  != nullptr; }
+    bool get_partial_melt_set()    const noexcept { return this->p_partial_melt    != nullptr; }
+
+    // Non-owning observer pointers (nullptr if unset) — used by the world EOS solve
+    // to compute the per-layer viscoelastic state.
+    c_ViscosityBase*   get_shear_viscosity_model() const noexcept { return this->p_shear_viscosity.get(); }
+    c_ViscosityBase*   get_bulk_viscosity_model()  const noexcept { return this->p_bulk_viscosity.get(); }
+    c_PartialMeltBase* get_partial_melt_model()    const noexcept { return this->p_partial_melt.get(); }
 
     // -----------------------------------------------------------------------
     // Binary I/O
@@ -332,6 +369,13 @@ protected:
     // Optional rheology objects (not serialized; set by Python layer after construction).
     std::unique_ptr<c_RheologyBase> p_shear_rheology;
     std::unique_ptr<c_RheologyBase> p_bulk_rheology;
+
+    // Optional viscosity + partial-melt objects (not yet serialized — TODO: add to
+    // the recursive binary, like rheology). Supply the pre-melt viscosities and the
+    // melt weakening consumed by the world EOS solve's state computation.
+    std::unique_ptr<c_ViscosityBase>   p_shear_viscosity;
+    std::unique_ptr<c_ViscosityBase>   p_bulk_viscosity;
+    std::unique_ptr<c_PartialMeltBase> p_partial_melt;
 };
 
 } // namespace tidalpy

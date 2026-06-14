@@ -24,6 +24,8 @@ from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport RheologyBase
+from TidalPy.viscosity_x.viscosity cimport ViscosityBase
+from TidalPy.partial_melt_x.partial_melt cimport PartialMeltBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -231,6 +233,72 @@ cdef class PhysicsLayer(BaseLayer):
             raise ValueError(
                 "This rheology model holds no C++ object (already attached or moved).")
         self._physics_ptr.set_bulk_rheology(move(rheology._rheology_ptr))
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Viscosity + partial-melt attachment
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def shear_viscosity_set(self) -> bool:
+        """True if a shear viscosity model has been attached."""
+        return self._physics_ptr.get_shear_viscosity_set()
+
+    @property
+    def bulk_viscosity_set(self) -> bool:
+        """True if a bulk viscosity model has been attached."""
+        return self._physics_ptr.get_bulk_viscosity_set()
+
+    @property
+    def partial_melt_set(self) -> bool:
+        """True if a partial-melt model has been attached."""
+        return self._physics_ptr.get_partial_melt_set()
+
+    def set_shear_viscosity(self, ViscosityBase viscosity not None):
+        """Attach a viscosity model supplying the pre-melt shear viscosity.
+
+        Ownership of the C++ model transfers into this layer; the passed
+        ``ViscosityBase`` becomes an empty, non-owning shell and must not be reused.
+
+        Raises
+        ------
+        ValueError
+            If ``viscosity`` has already been attached or otherwise moved.
+        """
+        if viscosity._visc_ptr.get() == NULL:
+            raise ValueError(
+                "This viscosity model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_shear_viscosity(move(viscosity._visc_ptr))
+
+    def set_bulk_viscosity(self, ViscosityBase viscosity not None):
+        """Attach a viscosity model supplying the pre-melt bulk viscosity.
+
+        Ownership of the C++ model transfers into this layer; the passed
+        ``ViscosityBase`` becomes an empty, non-owning shell and must not be reused.
+
+        Raises
+        ------
+        ValueError
+            If ``viscosity`` has already been attached or otherwise moved.
+        """
+        if viscosity._visc_ptr.get() == NULL:
+            raise ValueError(
+                "This viscosity model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_bulk_viscosity(move(viscosity._visc_ptr))
+
+    def set_partial_melt(self, PartialMeltBase partial_melt not None):
+        """Attach a partial-melt model that weakens the static moduli and viscosities.
+
+        Ownership of the C++ model transfers into this layer; the passed
+        ``PartialMeltBase`` becomes an empty, non-owning shell and must not be reused.
+
+        Raises
+        ------
+        ValueError
+            If ``partial_melt`` has already been attached or otherwise moved.
+        """
+        if partial_melt._melt_ptr.get() == NULL:
+            raise ValueError(
+                "This partial-melt model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_partial_melt(move(partial_melt._melt_ptr))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
