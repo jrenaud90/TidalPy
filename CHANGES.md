@@ -27,6 +27,11 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * `VinetEOS` (alias `vinet`) — Vinet/UBER EOS; density inverted from pressure.
   * `InterpolatedEOS` (alias `interp`) — linear `density(radius)` lookup table (e.g. PREM profiles).
   * Name factory `make_material_eos(name, config)`, free pressure laws `birch_murnaghan_pressure` / `vinet_pressure`, enum + binary-dispatch factory (`c_material_eos_from_binary`), and binary serialization (class ids 601–604).
+* Wired the material EOS models into the layer/world classes for the whole-planet EOS solve:
+  * `BaseLayer.set_eos(model)` attaches a material EOS model to a layer (transfers ownership, like `set_cooling`); `BaseLayer.eos_set` reports whether one is attached.
+  * `LayeredWorld.solve_eos(...)` integrates the planet's radial structure (gravity, pressure, enclosed mass, moment of inertia) from center to surface using each layer's EOS model as the local density source, reusing the `Material_x.eos` `c_solve_eos` machinery via a new `c_preeval_material_eos` pre-eval that dispatches to `model.calc_density(pressure, temperature, radius)`. It populates every layer's EOS profile and returns the radial profile arrays plus the converged surface/planet scalars. The full orchestration lives in C++ (`c_LayeredWorld::solve_eos(const c_WorldEOSSolveConfig&)`) so it can be called directly from other C++; the Cython method is a thin wrapper.
+  * After a solve, `LayeredWorld.get_density(r)` / `get_gravity(r)` / `get_pressure(r)` (and the individual layers' getters) return the interpolated profile at any radius [m]; `eos_solved`, `surface_gravity_eos`, `central_pressure`, `planet_mass_eos`, and `planet_moi_eos` expose the scalar results.
+  * Removed the superseded functional `Material_x.eos.solver.solve_eos` Python wrapper (its `c_solve_eos` C++ core is retained and reused) in favor of this class-based world method.
 
 #### New Features
 

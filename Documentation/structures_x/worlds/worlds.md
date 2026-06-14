@@ -25,8 +25,8 @@ TidalPyBaseClass
 |-------|---------|------|---------|
 | `BaseWorld` | no | no | Identity, albedo/emissivity/obliquity/spin, bulk geometry, equilibrium temperature. |
 | `StarWorld` | no | no | A star; effective temperature ↔ luminosity via Stefan-Boltzmann. |
-| `GasGiantWorld` | yes | yes (later phase) | Gas giant; a `LayeredWorld` with its own type/binary id. |
-| `LayeredWorld` | yes | yes (later phase) | Terrestrial/layered body; owns layers, aggregates mass and heating. |
+| `GasGiantWorld` | yes | yes | Gas giant; a `LayeredWorld` with its own type/binary id. |
+| `LayeredWorld` | yes | yes | Terrestrial/layered body; owns layers, aggregates mass and heating, runs the whole-planet EOS solve. |
 
 ---
 
@@ -92,6 +92,97 @@ dict, in index order) to the `BaseWorld` keys.
 
 Binary class id: **201** (`BinaryClassID::LayeredWorld`). See
 [Binary serialization](#binary-serialization) below.
+
+### Equation of state
+
+Each layer carries a [material EOS model](../../material_x/material_eos.md) (its
+density source), attached with `BaseLayer.set_eos(model)`. Once every layer has
+one, `LayeredWorld.solve_eos(...)` integrates the planet's radial structure from
+center to surface and populates every layer's density/gravity/pressure profile.
+
+```python
+from TidalPy.structures_x.worlds import LayeredWorld
+from TidalPy.structures_x.layers import BaseLayer
+from TidalPy.Material_x.eos import make_material_eos
+
+world  = LayeredWorld("Earth", 6.371e6, 5.972e24)
+core   = BaseLayer("core",   0, 0.0,     3.485e6, 0.0)
+mantle = BaseLayer("mantle", 1, 3.485e6, 6.371e6, 0.0)
+core.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 11000.0}))
+mantle.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4500.0}))
+world.add_layer(core)
+world.add_layer(mantle)
+
+result = world.solve_eos(surface_pressure=0.0)   # dict of profile arrays + scalars
+rho = world.get_density(5.0e6)                    # [kg/m³] at radius 5000 km
+g   = world.get_gravity(world.radius)             # surface gravity [m/s²]
+p0  = world.get_pressure(0.0)                      # central pressure [Pa]
+```
+
+The solver carries pressure as a radial state variable, so analytic
+density-from-pressure models (Birch-Murnaghan, Vinet) are evaluated inline; the
+constant and interpolated models ignore pressure. A convergence loop on the
+surface pressure fixes the central pressure.
+
+**`solve_eos(surface_pressure=0.0, slices_per_layer=100, G_to_use=-1.0,
+integration_method='DOP853', rtol=1e-6, atol=1e-10, pressure_tol=1e-3,
+max_iters=100, temperature=0.0, verbose=False) -> dict`**
+
+Raises `ValueError` if the world has no layers, any layer lacks an EOS model,
+`slices_per_layer < 2`, or the integration method is unknown. The returned dict
+contains `success`, `message`, `iterations`, `pressure_error`, the profile arrays
+(`radius`, `gravity`, `pressure`, `mass`, `moi`, `density`), and the scalar
+results (`surface_gravity`, `surface_pressure`, `central_pressure`,
+`planet_mass`, `planet_moi`).
+
+**Profile queries (after a successful solve)**
+
+| Member | Returns | Description |
+|--------|---------|-------------|
+| `get_density(r)` | float [kg/m³] | Density at radius `r` [m] (NaN if unsolved). |
+| `get_gravity(r)` | float [m/s²] | Gravitational acceleration at `r`. |
+| `get_pressure(r)` | float [Pa] | Pressure at `r`. |
+| `eos_solved` | bool | `True` once profiles are populated. |
+| `all_eos_set` | bool | `True` once every layer has an EOS model. |
+| `surface_gravity_eos`, `central_pressure`, `planet_mass_eos`, `planet_moi_eos` | float | Scalar results of the last solve (NaN if unsolved). |
+
+`get_density` / `get_gravity` / `get_pressure` delegate to the layer that contains
+`r` (radii beyond the surface clamp to the outermost layer), so the individual
+layers expose the same getters independently.
+
+#### C++ API
+
+The entire solve runs in C++ and can be driven directly from other C++ code:
+
+```cpp
+tidalpy::c_WorldEOSSolveConfig cfg;          // surface_pressure, slices_per_layer,
+cfg.integration_method = ODEMethod::DOP853;  // G_to_use, rtol/atol, ...
+world.solve_eos(cfg);                        // populates each layer's c_LayerEOSData
+double rho = world.get_density(5.0e6);
+```
+
+`c_LayeredWorld::solve_eos(const c_WorldEOSSolveConfig&)` generates the per-layer
+radius grids, estimates the bulk density, calls `Material_x/eos`'s `c_solve_eos`
+(CyRK ODE integration with the surface-pressure loop), and slices the result into
+each layer's `c_LayerEOSData`. It throws `std::invalid_argument` on bad input
+(surfaced as `ValueError` in Cython via `except +`). The per-layer density source
+is `tidalpy::c_MaterialEOSBase`, attached via
+`c_BaseLayer::set_eos(std::unique_ptr<c_MaterialEOSBase>)` (non-owning observer
+through `get_eos()`; `get_eos_set()`); during integration the
+`c_preeval_material_eos` pre-eval (in `Material_x/eos/methods/material_.hpp`,
+paired with the `c_MaterialEOSInput` struct holding the model pointer) dispatches
+to `model->calc_density(pressure, temperature, radius)`.
+
+`c_LayeredWorld` exposes `get_density/get_gravity/get_pressure(double) const`
+(delegating to the containing layer via `find_layer_for_radius`), the result
+accessors `get_eos_success/get_eos_message/get_eos_iterations/get_eos_pressure_error/`
+`get_surface_gravity_eos/get_surface_pressure_eos/get_central_pressure/`
+`get_planet_mass_eos/get_planet_moi_eos`, the retained full solution via
+`get_eos_solution() -> const c_EOSSolution*`, and `get_eos_solved()` /
+`get_all_eos_set()`. The Cython `LayeredWorld.solve_eos` wrapper only converts the
+integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls
+the C++ method under `nogil`, and builds the Python result dict from the retained
+solution.
 
 ---
 

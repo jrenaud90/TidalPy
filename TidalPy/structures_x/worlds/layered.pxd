@@ -5,16 +5,32 @@ Cython declarations for TidalPy's layered world class (Phase 8b).
 """
 
 from libcpp cimport bool as cpp_bool
+from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
+
+from CyRK cimport ODEMethod
 
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 
 
 # =====================================================================================================================
 # C++ class declarations
 # =====================================================================================================================
 cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_WorldEOSSolveConfig:
+        double    surface_pressure
+        size_t    slices_per_layer
+        double    G_to_use
+        ODEMethod integration_method
+        double    rtol
+        double    atol
+        double    pressure_tol
+        size_t    max_iters
+        double    temperature
+        cpp_bool  verbose
+
     cdef cppclass c_LayeredWorld(c_BaseWorld):
         c_LayeredWorld()
         c_LayeredWorld(const c_WorldConfig& cfg) except +
@@ -25,6 +41,22 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       calc_total_mass() const
         double       calc_internal_heating(double time_s) const
         cpp_bool     validate_layers() const
+        void         solve_eos(const c_WorldEOSSolveConfig& cfg) except +
+        double       get_density(double radius_m) const
+        double       get_gravity(double radius_m) const
+        double       get_pressure(double radius_m) const
+        cpp_bool     get_eos_solved() const
+        cpp_bool     get_all_eos_set() const
+        cpp_bool     get_eos_success() const
+        const string& get_eos_message() const
+        int          get_eos_iterations() const
+        double       get_eos_pressure_error() const
+        double       get_surface_gravity_eos() const
+        double       get_surface_pressure_eos() const
+        double       get_central_pressure() const
+        double       get_planet_mass_eos() const
+        double       get_planet_moi_eos() const
+        const c_EOSSolution* get_eos_solution() const
 
 
 # =====================================================================================================================

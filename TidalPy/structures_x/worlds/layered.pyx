@@ -10,6 +10,11 @@ validates layer-boundary continuity. Whole-planet EOS / radial solves are added
 as methods on this class in later phases.
 """
 
+cimport numpy as cnp
+cnp.import_array()
+
+import numpy as np
+
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
 from cython.operator cimport dereference as deref
@@ -23,10 +28,11 @@ from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 
+# ODEMethod, c_EOSSolution, and c_WorldEOSSolveConfig are provided by layered.pxd.
+
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
-
 
 # =====================================================================================================================
 # LayeredWorld
@@ -142,6 +148,196 @@ cdef class LayeredWorld(BaseWorld):
         return self._layered_ptr.validate_layers()
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Equation of state
+    # ------------------------------------------------------------------------------------------------------------------
+    def solve_eos(
+            self,
+            double surface_pressure   = 0.0,
+            size_t slices_per_layer   = 100,
+            double G_to_use           = -1.0,
+            str    integration_method = 'DOP853',
+            double rtol               = 1.0e-6,
+            double atol               = 1.0e-10,
+            double pressure_tol       = 1.0e-3,
+            size_t max_iters          = 100,
+            double temperature        = 0.0,
+            bint   verbose            = False) -> dict:
+        """Solve the whole-planet equation of state.
+
+        Integrates gravity, pressure, enclosed mass, and moment of inertia
+        radially from the planet center to its surface, using each layer's
+        attached material EOS model (see :meth:`BaseLayer.set_eos`) as the local
+        density source. A convergence loop on the surface pressure determines the
+        central pressure. On success, every layer's EOS profile is populated so
+        that :meth:`get_density`, :meth:`get_gravity`, and :meth:`get_pressure`
+        (on this world or on the individual layers) become available.
+
+        Parameters
+        ----------
+        surface_pressure : float, optional
+            Target surface pressure [Pa]. Default 0.0.
+        slices_per_layer : int, optional
+            Number of radial sample points generated per layer (>= 2).
+            Default 100.
+        G_to_use : float, optional
+            Gravitational constant [m^3 kg^-1 s^-2]. If negative (default), the
+            TidalPy config value is used.
+        integration_method : str, optional
+            CyRK integration method: ``'DOP853'`` (default), ``'RK45'``, or
+            ``'RK23'``.
+        rtol, atol : float, optional
+            Relative / absolute integration tolerances. Default 1e-6 / 1e-10.
+        pressure_tol : float, optional
+            Surface-pressure convergence tolerance. Default 1e-3.
+        max_iters : int, optional
+            Maximum convergence iterations. Default 100.
+        temperature : float, optional
+            Temperature [K] passed to each EOS model's ``calc_density`` (unused
+            by the current isothermal models). Default 0.0.
+        verbose : bool, optional
+            Print solver status messages. Default False.
+
+        Returns
+        -------
+        dict
+            ``success``, ``message``, ``iterations``, ``pressure_error``, the
+            radial profile arrays (``radius``, ``gravity``, ``pressure``,
+            ``mass``, ``moi``, ``density``), and the scalar surface/planet
+            results (``surface_gravity``, ``surface_pressure``,
+            ``central_pressure``, ``planet_mass``, ``planet_moi``).
+
+        Raises
+        ------
+        ValueError
+            If the world has no layers, any layer lacks a material EOS model, an
+            unsupported integration method is given, or ``slices_per_layer < 2``.
+
+        Assumptions
+        -----------
+        - Spherical symmetry; all quantities MKS.
+        - Each layer's density comes from its attached material EOS model.
+
+        Notes
+        -----
+        The whole solve (radius-grid generation, bulk-density estimate, the CyRK
+        ODE integration with its surface-pressure loop, and populating each
+        layer's profile) runs in pure C++ (``c_LayeredWorld::solve_eos``); this
+        wrapper only translates the integration-method string to the CyRK enum and
+        builds the Python result dict from the retained C++ solution.
+        """
+        # Translate the integration-method string to the CyRK enum (string handling
+        # stays at the Cython/Python boundary).
+        cdef ODEMethod ode_method
+        cdef str method_upper = integration_method.upper()
+        if method_upper == 'DOP853':
+            ode_method = ODEMethod.DOP853
+        elif method_upper == 'RK45':
+            ode_method = ODEMethod.RK45
+        elif method_upper == 'RK23':
+            ode_method = ODEMethod.RK23
+        else:
+            raise ValueError(f"Unsupported integration method: {integration_method}")
+
+        cdef c_WorldEOSSolveConfig cfg
+        cfg.surface_pressure   = surface_pressure
+        cfg.slices_per_layer   = slices_per_layer
+        cfg.G_to_use           = G_to_use
+        cfg.integration_method = ode_method
+        cfg.rtol               = rtol
+        cfg.atol               = atol
+        cfg.pressure_tol       = pressure_tol
+        cfg.max_iters          = max_iters
+        cfg.temperature        = temperature
+        cfg.verbose            = <cpp_bool>verbose
+
+        # Pure-C++ solve. Input validation throws std::invalid_argument, surfaced
+        # here as ValueError via the ``except +`` on the C++ declaration.
+        with nogil:
+            self._layered_ptr.solve_eos(cfg)
+
+        return self._build_eos_result()
+
+    def _build_eos_result(self):
+        """Assemble the Python result dict from the retained C++ EOS solution."""
+        cdef const c_EOSSolution* sol = self._layered_ptr.get_eos_solution()
+        cdef size_t n = sol.radius_array_size if sol != NULL else 0
+        cdef cnp.ndarray radius_out   = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray gravity_out  = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray pressure_out = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray mass_out     = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray moi_out      = np.empty(n, dtype=np.float64)
+        cdef cnp.ndarray density_out  = np.empty(n, dtype=np.float64)
+        cdef size_t j
+        if sol != NULL and self._layered_ptr.get_eos_solved():
+            for j in range(n):
+                radius_out[j]   = sol.radius_array_vec[j]
+                gravity_out[j]  = sol.gravity_array_vec[j]
+                pressure_out[j] = sol.pressure_array_vec[j]
+                mass_out[j]     = sol.mass_array_vec[j]
+                moi_out[j]      = sol.moi_array_vec[j]
+                density_out[j]  = sol.density_array_vec[j]
+
+        return {
+            'success':          self._layered_ptr.get_eos_success(),
+            'message':          self._layered_ptr.get_eos_message().decode('utf-8'),
+            'iterations':       self._layered_ptr.get_eos_iterations(),
+            'pressure_error':   self._layered_ptr.get_eos_pressure_error(),
+            'radius':           radius_out,
+            'gravity':          gravity_out,
+            'pressure':         pressure_out,
+            'mass':             mass_out,
+            'moi':              moi_out,
+            'density':          density_out,
+            'surface_gravity':  self._layered_ptr.get_surface_gravity_eos(),
+            'surface_pressure': self._layered_ptr.get_surface_pressure_eos(),
+            'central_pressure': self._layered_ptr.get_central_pressure(),
+            'planet_mass':      self._layered_ptr.get_planet_mass_eos(),
+            'planet_moi':       self._layered_ptr.get_planet_moi_eos(),
+        }
+
+    @property
+    def eos_solved(self) -> bool:
+        """True once the world-level EOS solve has populated the layer profiles."""
+        return self._layered_ptr.get_eos_solved()
+
+    @property
+    def all_eos_set(self) -> bool:
+        """True once every layer has a material EOS model attached."""
+        return self._layered_ptr.get_all_eos_set()
+
+    def get_density(self, double radius_m) -> float:
+        """Density [kg/m^3] at radius_m [m] from the solved EOS profile (NaN if unsolved)."""
+        return self._layered_ptr.get_density(radius_m)
+
+    def get_gravity(self, double radius_m) -> float:
+        """Gravitational acceleration [m/s^2] at radius_m [m] (NaN if EOS unsolved)."""
+        return self._layered_ptr.get_gravity(radius_m)
+
+    def get_pressure(self, double radius_m) -> float:
+        """Pressure [Pa] at radius_m [m] from the solved EOS profile (NaN if unsolved)."""
+        return self._layered_ptr.get_pressure(radius_m)
+
+    @property
+    def surface_gravity_eos(self) -> float:
+        """Surface gravity [m/s^2] from the last EOS solve, or NaN if not solved."""
+        return self._layered_ptr.get_surface_gravity_eos()
+
+    @property
+    def central_pressure(self) -> float:
+        """Central pressure [Pa] from the last EOS solve, or NaN if not solved."""
+        return self._layered_ptr.get_central_pressure()
+
+    @property
+    def planet_mass_eos(self) -> float:
+        """Total planet mass [kg] integrated by the last EOS solve, or NaN if not solved."""
+        return self._layered_ptr.get_planet_mass_eos()
+
+    @property
+    def planet_moi_eos(self) -> float:
+        """Planet moment of inertia [kg m^2] from the last EOS solve, or NaN if not solved."""
+        return self._layered_ptr.get_planet_moi_eos()
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
@@ -156,19 +352,19 @@ cdef class LayeredWorld(BaseWorld):
         d = BaseWorld.get_config_dict(self)
         cdef size_t n = self._layered_ptr.get_num_layers()
         cdef size_t i
-        cdef c_BaseLayer* lp
+        cdef c_BaseLayer* layer_ptr
         layers = []
         for i in range(n):
-            lp = self._layered_ptr.get_layer(i)
+            layer_ptr = self._layered_ptr.get_layer(i)
             layers.append({
-                "name":           lp.get_name().decode("utf-8"),
-                "layer_index":    lp.get_layer_index(),
-                "radius_inner_m": lp.get_radius_inner(),
-                "radius_outer_m": lp.get_radius_outer(),
-                "mass_kg":        lp.get_mass(),
-                "material_name":  lp.get_material_name().decode("utf-8"),
-                "is_tidal":       True if lp.get_is_tidal() else False,
-                "tidal_scale":    lp.get_tidal_scale(),
+                "name":           layer_ptr.get_name().decode("utf-8"),
+                "layer_index":    layer_ptr.get_layer_index(),
+                "radius_inner_m": layer_ptr.get_radius_inner(),
+                "radius_outer_m": layer_ptr.get_radius_outer(),
+                "mass_kg":        layer_ptr.get_mass(),
+                "material_name":  layer_ptr.get_material_name().decode("utf-8"),
+                "is_tidal":       True if layer_ptr.get_is_tidal() else False,
+                "tidal_scale":    layer_ptr.get_tidal_scale(),
             })
         d["num_layers"] = n
         d["layers"] = layers

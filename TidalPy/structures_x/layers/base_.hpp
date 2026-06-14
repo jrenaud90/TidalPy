@@ -27,12 +27,14 @@
  */
 
 #include <cstdint>
+#include <memory>
 #include <ostream>
 #include <stdexcept>
 #include <string>
 
 #include "eos_data_.hpp"
 #include "structure_base_.hpp"
+#include "material_eos_.hpp"   // c_MaterialEOSBase (per-layer density source)
 
 namespace tidalpy {
 
@@ -76,6 +78,32 @@ public:
 
     ~c_BaseLayer() override = default;
 
+    // The owned EOS model (p_eos) is a unique_ptr, which deletes the implicit
+    // copy-assignment. Subclass operator=s call c_BaseLayer::operator=, so an
+    // explicit one is provided here. Source temporaries always have a null
+    // p_eos, so resetting on copy is safe (mirrors the rheology/cooling pattern).
+    c_BaseLayer& operator=(const c_BaseLayer& other) noexcept {
+        if (this != &other) {
+            c_StructureBase::operator=(other);
+            this->p_name               = other.p_name;
+            this->p_layer_index        = other.p_layer_index;
+            this->p_radius_inner       = other.p_radius_inner;
+            this->p_radius_outer       = other.p_radius_outer;
+            this->p_thickness          = other.p_thickness;
+            this->p_volume             = other.p_volume;
+            this->p_surface_area_inner = other.p_surface_area_inner;
+            this->p_surface_area_outer = other.p_surface_area_outer;
+            this->p_material_name      = other.p_material_name;
+            this->p_is_tidal           = other.p_is_tidal;
+            this->p_tidal_scale        = other.p_tidal_scale;
+            this->p_eos_data           = other.p_eos_data;
+            // EOS model pointer cannot be copied; source temporaries have null ptrs.
+            this->p_eos.reset();
+        }
+        return *this;
+    }
+    c_BaseLayer& operator=(c_BaseLayer&&) noexcept = default;
+
     // -----------------------------------------------------------------------
     // Immutable geometry getters (all const, MKS)
     // -----------------------------------------------------------------------
@@ -99,6 +127,19 @@ public:
     double get_gravity(double radius_m)         const noexcept { return this->p_eos_data.get_gravity(radius_m); }
     double get_pressure(double radius_m)        const noexcept { return this->p_eos_data.get_pressure(radius_m); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
+
+    // -----------------------------------------------------------------------
+    // Material EOS model (the per-layer density source consumed by the
+    // whole-planet world-level EOS solve). Ownership is transferred in.
+    // -----------------------------------------------------------------------
+    void set_eos(std::unique_ptr<c_MaterialEOSBase> eos) {
+        this->p_eos = std::move(eos);
+        if (this->p_eos) { this->p_eos->set_layer_ptr(this); }
+    }
+
+    // Non-owning observer pointer to the attached EOS model (nullptr if unset).
+    c_MaterialEOSBase* get_eos()      const noexcept { return this->p_eos.get(); }
+    bool               get_eos_set()  const noexcept { return this->p_eos != nullptr; }
 
     // -----------------------------------------------------------------------
     // Update physical properties
@@ -199,8 +240,12 @@ protected:
     bool        p_is_tidal           = true;
     double      p_tidal_scale        = 1.0;   // dimensionless
 
-    // Mutable EOS profile (populated by EOSHandler; not serialized)
+    // Mutable EOS profile (populated by the world-level EOS solve; not serialized)
     c_LayerEOSData p_eos_data;
+
+    // Optional material EOS model — the per-layer density source (not serialized;
+    // attached from Python via set_eos, mirroring the rheology/cooling pattern).
+    std::unique_ptr<c_MaterialEOSBase> p_eos;
 };
 
 } // namespace tidalpy

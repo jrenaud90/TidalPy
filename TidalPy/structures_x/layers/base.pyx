@@ -14,6 +14,7 @@ import os as _os
 
 from libcpp.vector cimport vector
 from libcpp cimport bool as cpp_bool
+from libcpp.utility cimport move
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -21,6 +22,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport StructureBase, c_TidalPyBaseClass
+from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -175,8 +177,38 @@ cdef class BaseLayer(StructureBase):
     # ------------------------------------------------------------------------------------------------------------------
     @property
     def eos_data_populated(self) -> bool:
-        """True after EOS profile data has been populated (EOSHandler or update_eos_data)."""
+        """True after EOS profile data has been populated (world EOS solve or update_eos_data)."""
         return self._layer_ptr.get().get_eos_data_populated()
+
+    @property
+    def eos_set(self) -> bool:
+        """True after a material EOS model has been attached via :meth:`set_eos`."""
+        return self._layer_ptr.get().get_eos_set()
+
+    def set_eos(self, MaterialEOSBase eos not None):
+        """Attach a material EOS model (the per-layer density source).
+
+        The model supplies density as a function of pressure and/or radius and is
+        consumed by the world-level ``solve_eos`` when integrating the planet's
+        radial structure. Ownership of the C++ model is transferred from ``eos``
+        into this layer; the passed ``MaterialEOSBase`` becomes an empty,
+        non-owning shell and must not be reused.
+
+        Parameters
+        ----------
+        eos : MaterialEOSBase
+            A material EOS model (e.g. ``make_material_eos("constant", ...)``,
+            ``BirchMurnaghanEOS(...)``, ``InterpolatedEOS(...)``).
+
+        Raises
+        ------
+        ValueError
+            If ``eos`` has already been attached or otherwise moved.
+        """
+        if eos._eos_ptr.get() == NULL:
+            raise ValueError(
+                "This EOS model holds no C++ object (already attached or moved).")
+        self._layer_ptr.get().set_eos(move(eos._eos_ptr))
 
     def update_eos_data(
             self,

@@ -12,10 +12,11 @@ All spatial data is stored and returned in **MKS units** (meters, kilograms,
 seconds). Derived geometry (thickness, volume, surface areas) is computed at
 construction and accessible via read-only properties.
 
-An **EOS profile** (density, gravity, and pressure as a function of radius) can
-be attached to the layer by calling `update_eos_data`. In normal workflow this is
-done automatically by `EOSHandler` (Phase 8). Until populated, all EOS getters
-return `NaN`.
+A **material EOS model** (the layer's density source) is attached with `set_eos`.
+An **EOS profile** (density, gravity, and pressure as a function of radius) is then
+populated by the world-level EOS solve
+([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly via
+`update_eos_data`. Until populated, all EOS getters return `NaN`.
 
 ---
 
@@ -86,15 +87,37 @@ BaseLayer(
 
 | Property | Description |
 |----------|-------------|
-| `eos_data_populated` | `True` after `update_eos_data` has been called. |
+| `eos_data_populated` | `True` after the EOS profile has been populated (by the world EOS solve or `update_eos_data`). |
+| `eos_set` | `True` after a material EOS model has been attached via `set_eos`. |
 
 ---
 
 ## Methods
 
+### `set_eos(model)`
+
+Attach a [material EOS model](../../material_x/material_eos.md) (the per-layer
+density source). Ownership of the C++ model transfers into the layer; the passed
+wrapper becomes an empty shell. The model is consumed by the world-level
+[`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet
+structure and populates this layer's EOS profile.
+
+```python
+from TidalPy.Material_x.eos import make_material_eos
+
+layer.set_eos(make_material_eos("birch_murnaghan", {
+    "reference_density_kg_m3": 4500.0,
+    "reference_bulk_modulus_pa": 2.5e11,
+    "bulk_modulus_derivative": 4.0,
+}))
+```
+
+Raises `ValueError` if the model has already been attached or moved.
+
 ### `update_eos_data(radius_m, density_kgm3, gravity_ms2, pressure_pa)`
 
-Populate the EOS profile from sorted radius arrays.
+Populate the EOS profile directly from sorted radius arrays (normally done for you
+by the world EOS solve; useful for tests or manual construction).
 
 ```python
 import numpy as np
@@ -108,7 +131,8 @@ layer.update_eos_data(r, rho, g, p)
 ```
 
 **Notes:**
-- In normal workflow this is called automatically by `EOSHandler` (Phase 8).
+- In normal workflow this is called automatically by the world EOS solve
+  ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
 - All sequences must be the same length and `radius_m` must be sorted ascending.
 - Linear interpolation is used; values are clamped at the layer boundaries.
 

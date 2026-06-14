@@ -126,9 +126,11 @@
     "sources": [["TidalPy", "structures_x", "layers", "base.pyx"]],
     "include_dirs": [
       ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Material_x", "eos"],
       ["TidalPy", "Utilities_x", "classes_x"],
       ["TidalPy", "Utilities_x", "binary_x"],
       ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
       ["TidalPy"]
     ],
     "compile_args": [],
@@ -141,11 +143,13 @@
     "sources": [["TidalPy", "structures_x", "layers", "physics.pyx"]],
     "include_dirs": [
       ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Material_x", "eos"],
       ["TidalPy", "Tides_x", "love"],
       ["TidalPy", "rheology_x"],
       ["TidalPy", "Utilities_x", "classes_x"],
       ["TidalPy", "Utilities_x", "binary_x"],
       ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
       ["TidalPy"]
     ],
     "compile_args": [],
@@ -158,6 +162,7 @@
     "sources": [["TidalPy", "structures_x", "layers", "solidliquid.pyx"]],
     "include_dirs": [
       ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Material_x", "eos"],
       ["TidalPy", "Tides_x", "love"],
       ["TidalPy", "rheology_x"],
       ["TidalPy", "cooling_x"],
@@ -165,6 +170,7 @@
       ["TidalPy", "Utilities_x", "classes_x"],
       ["TidalPy", "Utilities_x", "binary_x"],
       ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
       ["TidalPy"]
     ],
     "compile_args": [],
@@ -177,11 +183,13 @@
     "sources": [["TidalPy", "structures_x", "layers", "gas.pyx"]],
     "include_dirs": [
       ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Material_x", "eos"],
       ["TidalPy", "Tides_x", "love"],
       ["TidalPy", "rheology_x"],
       ["TidalPy", "Utilities_x", "classes_x"],
       ["TidalPy", "Utilities_x", "binary_x"],
       ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
       ["TidalPy"]
     ],
     "compile_args": [],
@@ -210,6 +218,8 @@
     "include_dirs": [
       ["TidalPy", "structures_x", "worlds"],
       ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "Material_x", "eos", "methods"],
       ["TidalPy", "Tides_x", "love"],
       ["TidalPy", "rheology_x"],
       ["TidalPy", "cooling_x"],
@@ -217,6 +227,8 @@
       ["TidalPy", "Utilities_x", "classes_x"],
       ["TidalPy", "Utilities_x", "binary_x"],
       ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
+      ["TidalPy", "utilities", "dimensions"],
       ["TidalPy"]
     ],
     "compile_args": [],
@@ -230,6 +242,8 @@
     "include_dirs": [
       ["TidalPy", "structures_x", "worlds"],
       ["TidalPy", "structures_x", "layers"],
+      ["TidalPy", "Material_x", "eos"],
+      ["TidalPy", "Material_x", "eos", "methods"],
       ["TidalPy", "Tides_x", "love"],
       ["TidalPy", "rheology_x"],
       ["TidalPy", "cooling_x"],
@@ -237,6 +251,8 @@
       ["TidalPy", "Utilities_x", "classes_x"],
       ["TidalPy", "Utilities_x", "binary_x"],
       ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy", "Utilities_x", "arrays"],
+      ["TidalPy", "utilities", "dimensions"],
       ["TidalPy"]
     ],
     "compile_args": [],
@@ -379,18 +395,6 @@
   "Material_x.eos.ode": {
     "name": "TidalPy.Material_x.eos.ode",
     "sources": [["TidalPy", "Material_x", "eos", "ode.pyx"]],
-    "include_dirs": [
-      ["TidalPy", "Material_x", "eos"],
-      ["TidalPy", "utilities", "arrays"],
-      ["TidalPy"]
-    ],
-    "compile_args": [],
-    "link_args": [],
-    "is_cpp": true
-  },
-  "Material_x.eos.solver": {
-    "name": "TidalPy.Material_x.eos.solver",
-    "sources": [["TidalPy", "Material_x", "eos", "solver.pyx"]],
     "include_dirs": [
       ["TidalPy", "Material_x", "eos"],
       ["TidalPy", "utilities", "arrays"],

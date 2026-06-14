@@ -22,6 +22,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
     StructureBase,
     c_StructureBase,
 )
+from TidalPy.Material_x.eos.material_eos cimport c_MaterialEOSBase
 
 
 # =====================================================================================================================
@@ -71,6 +72,9 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_gravity(double radius_m)  const
         double   get_pressure(double radius_m) const
         void     update_eos_data(const c_LayerEOSData& data)
+        void     set_eos(unique_ptr[c_MaterialEOSBase] eos)
+        c_MaterialEOSBase* get_eos() const
+        cpp_bool get_eos_set() const
 
 
 # =====================================================================================================================

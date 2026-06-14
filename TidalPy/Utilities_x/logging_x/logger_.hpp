@@ -31,6 +31,16 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/basic_file_sink.h"
 
+// On Windows, spdlog's color sink pulls in <windows.h>, whose <winerror.h> defines
+// the macro NO_ERROR (== 0L). That collides with CyRK's CyrkErrorCodes::NO_ERROR
+// enumerator in any translation unit that combines TidalPy logging with CyRK (e.g.
+// the world-level EOS / radial solves). spdlog has finished its own includes by
+// this point, so dropping the macro here is safe and fixes the collision at the
+// single place <windows.h> enters the build.
+#ifdef NO_ERROR
+#undef NO_ERROR
+#endif
+
 namespace tidalpy {
 
 // =====================================================================================================================
