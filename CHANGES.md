@@ -59,6 +59,21 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
   * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
 
+##### `TidalPy.cooling_x` Module (new)
+* Created `TidalPy/cooling_x/` as the new C++/Cython module for cooling (heat-transport) models.
+* Added the abstract base `c_CoolingBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_cooling(c_CoolingInputs)` returning a `c_CoolingResult` (heat flux [W/m²], boundary-layer thickness [m], Rayleigh and Nusselt numbers). The eight physical inputs are bundled in a `c_CoolingInputs` struct (per the >5-argument style rule).
+* Added the three cooling models, each exposed as a Cython/Python class:
+  * `OffCooling` (alias `none`) — cooling disabled (zero flux; boundary layer = half thickness).
+  * `ConductiveCooling` (alias `conductive`) — conduction: `q = k · ΔT / thickness`.
+  * `ConvectiveCooling` (alias `convective`) — parameterized boundary-layer convection via the Rayleigh number; params `convection_alpha`, `convection_beta`, `critical_rayleigh` (Nusselt floor of 2). Uses the shared `minimum_layer_thickness` config floor.
+  * Physics matches TidalPy's legacy `cooling.cooling_models` formulas.
+* Added a rich `CoolingResult` container (`cooling_flux`, `boundary_layer_thickness`, `rayleigh`, `nusselt`; `to_dict`, iteration) whose fields are floats for scalar input or `float64` ndarrays for vectorized input.
+* Added an enum-based C++ factory: `c_CoolingModel`, `c_cooling_model_from_name(name)` (alias-aware), and `c_find_cooling(model, config)` returning a `unique_ptr<c_CoolingBase>`. A name overload is also provided.
+* Added `make_cooling(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`.
+* Added vectorized cooling methods on `c_CoolingBase` (inherited by all models): `calc_cooling_vectorize_temperature`, `..._vectorize_viscosity`, and `..._vectorize_all` (the two "live" inputs are the temperature drop and viscosity). The Cython wrappers return a `CoolingResult` of `float64` ndarrays.
+* Added lower-case direct convenience functions (`cooling_off`, `conductive`, `convective`) that build a stack-allocated model, solve, and return a `CoolingResult`; `delta_temp_k` (and, for convection, `viscosity_pas`) accept floats or NumPy arrays (broadcast together).
+* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 401–403).
+
 ##### `TidalPy.rheology_x` Module (new)
 * Created `TidalPy/rheology_x/` as the new C++/Cython module for rheology (complex-compliance) models.
 * Added the abstract base `c_RheologyBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex (shear/bulk) modulus `μ*` [Pa] directly. Simple models are analytic; series composites (Burgers, Andrade, Sundberg) invert the sum of their element compliances internally (compliance is never exposed to Python).
