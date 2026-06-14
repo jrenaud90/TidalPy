@@ -220,10 +220,27 @@ where h is the layer thickness. Returns `0.0` for zero-thickness layers.
 flux = layer.calc_heat_flux_conductive(T_base=3500.0, T_top=1500.0)
 ```
 
+
+### `set_cooling(cooling)` / `set_radiogenics(radiogenics)`
+
+Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model.
+Ownership of the underlying C++ model is **transferred** into the layer; the passed
+Python wrapper becomes an empty, non-owning shell and must not be reused (raises
+`ValueError` if re-attached). Shear/bulk rheology are attached via the inherited
+`set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)).
+
+```python
+from TidalPy.cooling_x import make_cooling
+from TidalPy.radiogenics_x import IsotopeRadiogenics
+layer.set_cooling(make_cooling("convection"))
+layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
+```
+
+
 ### `calc_radiogenic_heating(time_s, mass_kg)` → float
 
 Radiogenic heating power [W] from the attached sub-model.
-Returns `0.0` when no radiogenics sub-model has been attached (Phase 7).
+Returns `0.0` when no radiogenics sub-model has been attached.
 
 ### Inherited from PhysicsLayer / BaseLayer
 
@@ -263,10 +280,20 @@ Returns all configuration values as a Python dictionary (MKS).  Includes all
 1. All `BaseLayer` fields (name, geometry, mass).
 2. All `PhysicsLayer` mechanical fields (G, K, η, love number re+im).
 3. The 11 SolidLiquidLayer doubles in constructor order.
+4. An optional sub-model section: presence flags + recursive binary records for the
+   shear rheology, bulk rheology, cooling, and radiogenics models (in that order).
+
+On load, every attached sub-model is reconstructed recursively via the
+rheology / cooling / radiogenics binary-dispatch factories, so a saved layer
+round-trips with all of its physics intact (verify with `shear_rheology_set`,
+`cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and
+`calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md)
+for the encoding.
 
 Binary class ID: **102** (`BinaryClassID::SolidLiquidLayer`).
 
-**Sub-model objects (cooling, radiogenics) and EOS profile data are NOT serialized.**
+**EOS profile data is NOT serialized** (repopulate it after loading by running the
+EOS handler).
 
 ---
 

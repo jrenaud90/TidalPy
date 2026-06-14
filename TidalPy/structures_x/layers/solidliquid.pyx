@@ -10,6 +10,7 @@ viscosity, melt-fraction tracking, and optional cooling/radiogenics sub-models.
 
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
+from libcpp.utility cimport move
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -20,6 +21,8 @@ from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
+from TidalPy.cooling_x.cooling cimport CoolingBase
+from TidalPy.radiogenics_x.radiogenics cimport RadiogenicsBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -241,6 +244,53 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def radiogenics_set(self) -> bool:
         """True after a radiogenics sub-model has been attached."""
         return self._solidliquid_ptr.get_radiogenics_set()
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Sub-model attachment
+    # ------------------------------------------------------------------------------------------------------------------
+    def set_cooling(self, CoolingBase cooling not None):
+        """Attach a cooling (heat-transport) sub-model.
+
+        Ownership of the C++ model is transferred from ``cooling`` into this
+        layer; the passed ``CoolingBase`` becomes an empty, non-owning shell and
+        must not be reused.
+
+        Parameters
+        ----------
+        cooling : CoolingBase
+            A cooling model (e.g. ``make_cooling("convection")``).
+
+        Raises
+        ------
+        ValueError
+            If ``cooling`` has already been attached or otherwise moved.
+        """
+        if cooling._cooling_ptr.get() == NULL:
+            raise ValueError(
+                "This cooling model holds no C++ object (already attached or moved).")
+        self._solidliquid_ptr.set_cooling(move(cooling._cooling_ptr))
+
+    def set_radiogenics(self, RadiogenicsBase radiogenics not None):
+        """Attach a radiogenic-heating sub-model.
+
+        Ownership of the C++ model is transferred from ``radiogenics`` into this
+        layer; the passed ``RadiogenicsBase`` becomes an empty, non-owning shell
+        and must not be reused.
+
+        Parameters
+        ----------
+        radiogenics : RadiogenicsBase
+            A radiogenics model (e.g. ``make_radiogenics("fixed")``).
+
+        Raises
+        ------
+        ValueError
+            If ``radiogenics`` has already been attached or otherwise moved.
+        """
+        if radiogenics._radiogenics_ptr.get() == NULL:
+            raise ValueError(
+                "This radiogenics model holds no C++ object (already attached or moved).")
+        self._solidliquid_ptr.set_radiogenics(move(radiogenics._radiogenics_ptr))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations

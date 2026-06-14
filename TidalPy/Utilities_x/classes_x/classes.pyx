@@ -11,6 +11,9 @@ PhysicsBase:      physics model base (model_name, layer observer pointer)
 
 import os as _os
 
+from libcpp.memory cimport make_unique
+from libcpp.string cimport string
+
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
@@ -255,17 +258,28 @@ cdef class PhysicsBase(TidalPyBaseClass):
     ----------
     model_name : str
         Physics model name (e.g. 'maxwell', 'convection').
+
+    Notes
+    -----
+    Subclasses (e.g. rheology models) own the most-derived C++ object
+    themselves and leave ``_physics_ptr`` NULL; they set the inherited
+    ``_ptr`` to the derived object. The ``model_name`` property therefore
+    reads through ``_ptr`` (cast to ``c_PhysicsBase*``) so it works for both
+    direct instances and subclasses.
     """
 
-    def __cinit__(self, str model_name):
-        self._physics_ptr = new c_PhysicsBase(model_name.encode("utf-8"))
-        self._ptr = self._physics_ptr
+    def __cinit__(self, *args, **kwargs):
+        pass  # unique_ptr<c_PhysicsBase> auto-inits to nullptr; subclasses own their object
+
+    def __init__(self, str model_name):
+        cdef string name = model_name.encode("utf-8")
+        self._physics_ptr = make_unique[c_PhysicsBase](name)
+        self._ptr = <c_TidalPyBaseClass*>self._physics_ptr.get()
 
     def __dealloc__(self):
-        if self._physics_ptr is not NULL:
-            del self._physics_ptr
-            self._physics_ptr = NULL
-            self._ptr = NULL
+        # unique_ptr frees the owned object (if any); just clear the observer ptr.
+        self._physics_ptr.reset()
+        self._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Properties
@@ -273,17 +287,20 @@ cdef class PhysicsBase(TidalPyBaseClass):
     @property
     def model_name(self) -> str:
         """Physics model name."""
-        return self._physics_ptr.get_model_name().decode("utf-8")
+        self._check_ptr()
+        return (<c_PhysicsBase*>self._ptr).get_model_name().decode("utf-8")
 
     @model_name.setter
     def model_name(self, str value):
-        self._physics_ptr.set_model_name(value.encode("utf-8"))
+        self._check_ptr()
+        (<c_PhysicsBase*>self._ptr).set_model_name(value.encode("utf-8"))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
         """Return configuration dict with model_name."""
+        self._check_ptr()
         return {
-            "model_name": self._physics_ptr.get_model_name().decode("utf-8"),
+            "model_name": (<c_PhysicsBase*>self._ptr).get_model_name().decode("utf-8"),
         }

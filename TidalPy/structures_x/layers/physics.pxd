@@ -14,10 +14,12 @@ Usage::
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
+from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
+from TidalPy.rheology_x.rheology cimport c_RheologyBase
 
 
 # =====================================================================================================================
@@ -58,6 +60,8 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
         cpp_bool            get_shear_rheology_set()                 const
         cpp_bool            get_bulk_rheology_set()                  const
+        void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
+        void                set_bulk_rheology(unique_ptr[c_RheologyBase] bulk)
 
 
 # =====================================================================================================================

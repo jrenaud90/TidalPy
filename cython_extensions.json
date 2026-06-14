@@ -177,6 +177,51 @@
     "is_cpp": true
   },
 
+  "rheology_x.rheology": {
+    "name": "TidalPy.rheology_x.rheology",
+    "sources": [["TidalPy", "rheology_x", "rheology.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "rheology_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "radiogenics_x.radiogenics": {
+    "name": "TidalPy.radiogenics_x.radiogenics",
+    "sources": [["TidalPy", "radiogenics_x", "radiogenics.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "radiogenics_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
+  "cooling_x.cooling": {
+    "name": "TidalPy.cooling_x.cooling",
+    "sources": [["TidalPy", "cooling_x", "cooling.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "cooling_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],

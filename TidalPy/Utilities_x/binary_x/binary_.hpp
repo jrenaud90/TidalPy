@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -64,8 +65,21 @@ enum class BinaryClassID : uint32_t {
     GasGiantWorld    = 202,
     StarWorld        = 203,
     RheologyBase     = 300,
-    CoolingBase      = 400,
-    RadiogenicsBase  = 500,
+    Elastic          = 301,
+    Viscous          = 302,
+    Voigt            = 303,
+    Maxwell          = 304,
+    Burgers          = 305,
+    Andrade          = 306,
+    Sundberg         = 307,
+    CoolingBase        = 400,
+    OffCooling         = 401,
+    ConvectiveCooling  = 402,
+    ConductiveCooling  = 403,
+    RadiogenicsBase    = 500,
+    OffRadiogenics     = 501,
+    IsotopeRadiogenics = 502,
+    FixedRadiogenics   = 503,
 };
 
 // ---------------------------------------------------------------------------
@@ -172,5 +186,84 @@ inline bool check_binary_schema_version(
     }
     return false;
 }
+
+// ---------------------------------------------------------------------------
+// Length-prefixed string serialization
+// ---------------------------------------------------------------------------
+// Strings are written as a uint32_t length followed by the raw UTF-8 bytes.
+// Used for model names and any other variable-length text in a binary payload.
+// Shared by all serializable classes (e.g. physics model names) so the encoding
+// lives in one place.
+
+// Write a length-prefixed string to an output stream.
+inline void write_binary_string(std::ostream& out, const std::string& text) {
+    const auto length = static_cast<uint32_t>(text.size());
+    out.write(reinterpret_cast<const char*>(&length), sizeof(uint32_t));
+    if (length > 0) {
+        out.write(text.data(), length);
+    }
+}
+
+// Read a length-prefixed string from an input stream.
+inline std::string read_binary_string(std::istream& in) {
+    uint32_t length = 0;
+    in.read(reinterpret_cast<char*>(&length), sizeof(uint32_t));
+    std::string text;
+    text.resize(length);
+    if (length > 0) {
+        in.read(text.data(), length);
+    }
+    return text;
+}
+
+// Number of payload bytes a length-prefixed string occupies (for header sizing).
+inline uint64_t binary_string_bytes(const std::string& text) {
+    return sizeof(uint32_t) + static_cast<uint64_t>(text.size());
+}
+
+// ---------------------------------------------------------------------------
+// Optional sub-object serialization
+// ---------------------------------------------------------------------------
+// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a
+// one-byte presence flag (0 = absent, 1 = present) followed, when present, by the
+// sub-object's own complete binary record (its TPYB header + payload, written by
+// its write_binary). The presence flag is part of the *owning* record's payload;
+// the nested record is a separate, self-describing record appended to the stream.
+// Used for recursive serialization of physics models held by layers (and, later,
+// layers held by worlds).
+
+// Write an optional sub-object: presence flag + (if present) its binary record.
+template <typename T>
+inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
+    const uint8_t present = obj ? 1 : 0;
+    out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
+    if (obj) {
+        obj->write_binary(out);
+    }
+    if (!out) {
+        throw std::runtime_error("TidalPy: failed to write optional sub-object binary data");
+    }
+}
+
+// Read an optional sub-object: read the presence flag and, when set, reconstruct
+// the sub-object via the supplied factory (which peeks the record's class id and
+// returns an owning unique_ptr).  Returns nullptr when the flag is absent.
+template <typename T, typename Factory>
+inline std::unique_ptr<T> read_optional_binary(std::istream& in, bool force, Factory factory) {
+    uint8_t present = 0;
+    in.read(reinterpret_cast<char*>(&present), sizeof(uint8_t));
+    if (!in) {
+        throw std::runtime_error("TidalPy: failed to read optional sub-object presence flag");
+    }
+    if (present) {
+        return factory(in, force);
+    }
+    return std::unique_ptr<T>();
+}
+
+// Number of payload bytes one optional sub-object's presence flag contributes to
+// the owning record's payload (the nested record itself is a separate appended
+// record; see above).
+inline constexpr uint64_t optional_binary_flag_bytes() { return sizeof(uint8_t); }
 
 } // namespace tidalpy

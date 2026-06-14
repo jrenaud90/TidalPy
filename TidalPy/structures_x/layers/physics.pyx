@@ -13,6 +13,7 @@ returned as a real-valued complex number.
 
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
+from libcpp.utility cimport move
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -22,6 +23,7 @@ from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
+from TidalPy.rheology_x.rheology cimport RheologyBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -182,6 +184,53 @@ cdef class PhysicsLayer(BaseLayer):
     def bulk_rheology_set(self) -> bool:
         """True if a bulk rheology model has been attached."""
         return self._physics_ptr.get_bulk_rheology_set()
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Rheology attachment
+    # ------------------------------------------------------------------------------------------------------------------
+    def set_shear_rheology(self, RheologyBase rheology not None):
+        """Attach a rheology model used to compute the complex shear modulus.
+
+        Ownership of the C++ model is transferred from ``rheology`` into this
+        layer; the passed ``RheologyBase`` becomes an empty, non-owning shell and
+        must not be reused.
+
+        Parameters
+        ----------
+        rheology : RheologyBase
+            A rheology model (e.g. ``Maxwell()``, ``make_rheology("andrade")``).
+
+        Raises
+        ------
+        ValueError
+            If ``rheology`` has already been attached or otherwise moved.
+        """
+        if rheology._rheology_ptr.get() == NULL:
+            raise ValueError(
+                "This rheology model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_shear_rheology(move(rheology._rheology_ptr))
+
+    def set_bulk_rheology(self, RheologyBase rheology not None):
+        """Attach a rheology model used to compute the complex bulk modulus.
+
+        Ownership of the C++ model is transferred from ``rheology`` into this
+        layer; the passed ``RheologyBase`` becomes an empty, non-owning shell and
+        must not be reused.
+
+        Parameters
+        ----------
+        rheology : RheologyBase
+            A rheology model (e.g. ``Maxwell()``, ``make_rheology("andrade")``).
+
+        Raises
+        ------
+        ValueError
+            If ``rheology`` has already been attached or otherwise moved.
+        """
+        if rheology._rheology_ptr.get() == NULL:
+            raise ValueError(
+                "This rheology model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_bulk_rheology(move(rheology._rheology_ptr))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations

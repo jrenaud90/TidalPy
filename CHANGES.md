@@ -59,6 +59,65 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
   * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
 
+##### Recursive Binary Serialization (`_x` layers + physics models)
+* Layers now serialize their attached physics sub-models recursively in `save_binary` / `load_binary`. A saved layer fully round-trips with its rheology, cooling, and radiogenics models attached; no Python/Cython reconstruction step is needed after `load_binary`.
+  * `PhysicsLayer` and `GasLayer` serialize their shear and bulk rheology models; `SolidLiquidLayer` additionally serializes its cooling and radiogenics models.
+  * Optional owned sub-objects are encoded as a one-byte presence flag followed (when present) by the sub-model's own binary record. New `binary_x` helpers: `write_optional_binary`, `read_optional_binary`, `optional_binary_flag_bytes` (alongside the existing `write_binary_string` / `read_binary_string`).
+  * Each physics module gained a binary-dispatch factory (`c_rheology_from_binary`, `c_cooling_from_binary`, `c_radiogenics_from_binary`) that peeks the record's `BinaryClassID` and reconstructs the correct concrete model. Every concrete model already carries a unique `BinaryClassID` (rheology 301–307, cooling 401–403, radiogenics 501–503).
+* Added Python-level methods to attach sub-models to layers (ownership of the C++ model is transferred into the layer):
+  * `PhysicsLayer.set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)` (inherited by `SolidLiquidLayer` and `GasLayer`).
+  * `SolidLiquidLayer.set_cooling(cooling)` / `set_radiogenics(radiogenics)`.
+
+##### `TidalPy.cooling_x` Module (new)
+* Created `TidalPy/cooling_x/` as the new C++/Cython module for cooling (heat-transport) models.
+* Added the abstract base `c_CoolingBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_cooling(c_CoolingInputs)` returning a `c_CoolingResult` (heat flux [W/m²], boundary-layer thickness [m], Rayleigh and Nusselt numbers). The eight physical inputs are bundled in a `c_CoolingInputs` struct (per the >5-argument style rule).
+* Added the three cooling models, each exposed as a Cython/Python class:
+  * `OffCooling` (alias `none`) — cooling disabled (zero flux; boundary layer = half thickness).
+  * `ConductiveCooling` (alias `conductive`) — conduction: `q = k · ΔT / thickness`.
+  * `ConvectiveCooling` (alias `convective`) — parameterized boundary-layer convection via the Rayleigh number; params `convection_alpha`, `convection_beta`, `critical_rayleigh` (Nusselt floor of 2). Uses the shared `minimum_layer_thickness` config floor.
+  * Physics matches TidalPy's legacy `cooling.cooling_models` formulas.
+* Added a rich `CoolingResult` container (`cooling_flux`, `boundary_layer_thickness`, `rayleigh`, `nusselt`; `to_dict`, iteration) whose fields are floats for scalar input or `float64` ndarrays for vectorized input.
+* Added an enum-based C++ factory: `c_CoolingModel`, `c_cooling_model_from_name(name)` (alias-aware), and `c_find_cooling(model, config)` returning a `unique_ptr<c_CoolingBase>`. A name overload is also provided.
+* Added `make_cooling(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`.
+* Added vectorized cooling methods on `c_CoolingBase` (inherited by all models): `calc_cooling_vectorize_temperature`, `..._vectorize_viscosity`, and `..._vectorize_all` (the two "live" inputs are the temperature drop and viscosity). The Cython wrappers return a `CoolingResult` of `float64` ndarrays.
+* Added lower-case direct convenience functions (`cooling_off`, `conductive`, `convective`) that build a stack-allocated model, solve, and return a `CoolingResult`; `delta_temp_k` (and, for convection, `viscosity_pas`) accept floats or NumPy arrays (broadcast together).
+* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 401–403).
+
+##### `TidalPy.rheology_x` Module (new)
+* Created `TidalPy/rheology_x/` as the new C++/Cython module for rheology (complex-compliance) models.
+* Added the abstract base `c_RheologyBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex (shear/bulk) modulus `μ*` [Pa] directly. Simple models are analytic; series composites (Burgers, Andrade, Sundberg) invert the sum of their element compliances internally (compliance is never exposed to Python).
+* Added the seven rheology models, each exposed as a Cython/Python class:
+  * `Elastic` (alias `off`) — purely elastic, no dissipation.
+  * `Viscous` (alias `newton`) — purely viscous (Newtonian fluid).
+  * `Voigt` (alias `voigt-kelvin`) — Voigt-Kelvin element; params `voigt_modulus_frac`, `voigt_viscosity_frac`.
+  * `Maxwell` — standard Maxwell body.
+  * `Burgers` — Maxwell + Voigt in series; params `voigt_modulus_frac`, `voigt_viscosity_frac`.
+  * `Andrade` — Maxwell + Andrade transient term (∝ ω^{−α}); params `alpha`, `zeta`.
+  * `Sundberg` (alias `sundberg-cooper`) — Andrade + Voigt; params `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`.
+  * Physics matches TidalPy's legacy `rheology.complex_compliance` formulas.
+* Added an enum-based C++ factory: `c_RheologyModel` (one value per model), `c_rheology_model_from_name(name)` (alias-aware name → enum), and `c_find_rheology(model, config)` returning a `unique_ptr<c_RheologyBase>` to a heap-allocated model. A name overload `c_find_rheology(name, config)` is also provided.
+* Added `make_rheology(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`. It wraps the C++ enum factory (`c_rheology_model_from_name` → `c_find_rheology`) and adopts the returned `unique_ptr` into the matching rich Python wrapper.
+* Added vectorized complex-modulus methods on `c_RheologyBase` (inherited by all models): `calc_complex_modulus_vectorize_modulus`, `..._vectorize_frequency`, and `..._vectorize_all`. Each writes into a caller-supplied `std::vector<std::complex<double>>&`; the Cython wrappers accept array-likes and return `complex128` NumPy arrays.
+* Added lower-case direct convenience functions (`elastic`, `viscous`, `voigt`, `maxwell`, `burgers`, `andrade`, `sundberg`) that build a stack-allocated model, solve, and return. `frequency`, `modulus`, and `viscosity` accept floats or NumPy arrays (broadcast together); a scalar returns a Python `complex`, arrays return a `complex128` `ndarray`.
+* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 301–307).
+* Refactored the `PhysicsBase` Cython wrapper to be subclassable: subclasses own their most-derived C++ object via a `unique_ptr`, and `model_name` reads through the inherited `_ptr`.
+
+##### `TidalPy.radiogenics_x` Module (new)
+* Created `TidalPy/radiogenics_x/` as the new C++/Cython module for radiogenic-heating models.
+* Added the abstract base `c_RadiogenicsBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_heating(time_s, mass_kg)` returning the radiogenic heating `Q` [W] directly. All inputs/outputs are MKS (time and half-lives in seconds).
+* Added a lightweight `c_Isotope` value type (no base class) describing one isotope (`name`, `heat_production_w_kg`, `half_life_s`, `mass_frac`, `concentration`) with `decay_constant()` and `specific_heating(time, ref_time)` helpers. `c_RadiogenicsConfig`/`c_IsotopeRadiogenics` carry a `std::vector<c_Isotope>`.
+* Added the three radiogenics models, each exposed as a Cython/Python class:
+  * `OffRadiogenics` (alias `none`) — radiogenics disabled, heating == 0.
+  * `IsotopeRadiogenics` — sum of decaying isotopes; constructed from parallel arrays (`heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, optional `names`) plus `ref_time_s`, or via `IsotopeRadiogenics.from_dataset(name)`.
+  * `FixedRadiogenics` (alias `constant`) — single lumped rate with optional exponential decay; params `fixed_heat_production_w_kg`, `average_half_life_s` (≤0 disables decay), `ref_time_s`.
+  * Physics matches TidalPy's legacy `radiogenics.radiogenic_models` formulas. The decay factor ln(0.5) is a module-level `constexpr` (`d_LN_HALF`).
+* Added built-in literature isotope datasets (C++ `c_get_isotope_dataset` / `c_isotope_dataset_names`, exposed as Python `available_isotope_datasets()` and `isotope_dataset(name)`): `modern_day_chondritic` (Hussmann & Spohn 2004; Turcotte & Schubert 2001), `llri_and_slri` (Castillo-Rogez et al. 2007, adds short-lived Mn53/Fe60/Al26), and `bulk_silicate_earth` (McDonough & Sun 1995). All defined in MKS (Myr converted to seconds).
+* Added an enum-based C++ factory: `c_RadiogenicsModel` (one value per model), `c_radiogenics_model_from_name(name)` (alias-aware name → enum), and `c_find_radiogenics(model, config)` returning a `unique_ptr<c_RadiogenicsBase>` to a heap-allocated model. A name overload is also provided.
+* Added `make_radiogenics(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`. For the isotope model it accepts a built-in dataset name (`isotopes`), explicit MKS arrays, or a global-config/inline dataset (stored in Myr and converted to seconds).
+* Added vectorized heating methods on `c_RadiogenicsBase` (inherited by all models): `calc_heating_vectorize_time`, `..._vectorize_mass`, and `..._vectorize_all`. Each writes into a caller-supplied `std::vector<double>&`; the Cython wrappers accept array-likes and return `float64` NumPy arrays.
+* Added lower-case direct convenience functions (`off`, `isotope`, `fixed`) that build a stack-allocated model, solve, and return. `time` and `mass` accept floats or NumPy arrays (broadcast together); a scalar returns a Python `float`, arrays return a `float64` `ndarray`.
+* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 501–503; the Isotope model serializes its variable-length isotope list, including per-isotope names).
+
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
@@ -68,11 +127,12 @@ _The `_x` in module and function names indicates experimental versions. This suf
 * Added `TidalPy.Utilities_x.binary_x` — custom TidalPy binary file format with a fixed 20-byte header.
   * `check_binary_file(path)` and `get_current_schema_version()` available from Python.
   * C++ utilities in `binary_.hpp`: `write_binary_header`, `read_binary_header`, `check_binary_schema_version`, and `BinaryClassID` enum.
+  * Added shared length-prefixed string serialization helpers `write_binary_string`, `read_binary_string`, and `binary_string_bytes` (used for model names and any variable-length text — one encoding in one place).
   * Schema version `0.2.0` (separate from package version); same `major.minor` required for compatibility.
 * Added `TidalPy.Utilities_x.classes_x` — C++ base class hierarchy with Cython/Python wrappers.
   * `TidalPyBaseClass`: abstract base; provides `save_binary`, `load_binary`, `get_schema_version_str`, `get_config_dict`, `save_config`.
   * `StructureBase(radius_m, mass_kg)`: spherical geometry base with `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity` (all MKS).
-  * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization.
+  * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization. Provides shared `write_physics_binary(out, class_id, params)` / `read_physics_binary(in, force, n_params)` helpers so every physics model serializes uniformly (header + model name + scalar params) and a model's `write_binary`/`read_binary` reduce to one call each.
 
 #### Utilities
 * Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.

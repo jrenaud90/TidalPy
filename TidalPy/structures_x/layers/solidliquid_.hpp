@@ -28,20 +28,28 @@
  *     reference_density_kg_m3        (double, 8)
  *     reference_temperature_k        (double, 8)
  *     melt_viscosity_reduction       (double, 8)
- *   Cooling, radiogenics, and EOS data are NOT serialized.
+ *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
+ *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
+ *     cooling         presence flag (uint8_t, 1) + (if present) its binary record
+ *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
+ *   Attached rheology, cooling, and radiogenics models ARE serialized recursively
+ *   (presence flag + the model's own binary record); the four presence flags are
+ *   part of this payload, each nested model record follows as a separate record.
+ *   EOS profile data is NOT serialized.
  */
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <istream>
 #include <memory>
 #include <ostream>
 #include <stdexcept>
 #include <string>
 
 #include "physics_.hpp"
-#include "cooling_base_.hpp"
-#include "radiogenics_base_.hpp"
+#include "cooling_.hpp"
+#include "radiogenics_.hpp"
 
 namespace tidalpy {
 
@@ -271,7 +279,9 @@ public:
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
             sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
-            sizeof(double)   * 11;           // SolidLiquidLayer thermal fields
+            sizeof(double)   * 11 +          // SolidLiquidLayer thermal fields
+            this->rheology_presence_bytes() +    // shear + bulk rheology presence flags
+            2 * optional_binary_flag_bytes();    // cooling + radiogenics presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer), payload);
 
@@ -319,6 +329,10 @@ public:
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write SolidLiquidLayer binary data");
         }
+
+        // Attached sub-models (presence flag + recursive record each).
+        this->write_rheology_binary(out);    // inherited from c_PhysicsLayer
+        this->write_submodels_binary(out);   // cooling + radiogenics
     }
 
     void read_binary(std::istream& in, bool force = false) override {
@@ -382,10 +396,36 @@ public:
             throw std::runtime_error("TidalPy: failed to read SolidLiquidLayer binary data");
         }
 
+        // Attached sub-models (presence flag + recursive record each).
+        this->read_rheology_binary(in, force);    // inherited from c_PhysicsLayer
+        this->read_submodels_binary(in, force);   // cooling + radiogenics
+
         this->update_physicals();
     }
 
 protected:
+    // -----------------------------------------------------------------------
+    // Recursive (de)serialization of the optional cooling/radiogenics models.
+    // Mirrors c_PhysicsLayer::write_rheology_binary/read_rheology_binary.  Each
+    // model is written as a presence flag followed, when set, by the model's own
+    // binary record; on read the correct concrete model is rebuilt via the
+    // cooling/radiogenics binary-dispatch factories and re-registered as this
+    // layer's observer.
+    // -----------------------------------------------------------------------
+    void write_submodels_binary(std::ostream& out) const {
+        write_optional_binary(out, this->p_cooling);
+        write_optional_binary(out, this->p_radiogenics);
+    }
+
+    void read_submodels_binary(std::istream& in, bool force) {
+        this->p_cooling =
+            read_optional_binary<c_CoolingBase>(in, force, c_cooling_from_binary);
+        if (this->p_cooling) { this->p_cooling->set_layer_ptr(this); }
+        this->p_radiogenics =
+            read_optional_binary<c_RadiogenicsBase>(in, force, c_radiogenics_from_binary);
+        if (this->p_radiogenics) { this->p_radiogenics->set_layer_ptr(this); }
+    }
+
     double p_thermal_conductivity_ref = 4.0;       // [W/m/K]
     double p_thermal_expansion_ref    = 3.0e-5;    // [1/K]
     double p_heat_capacity_ref        = 1200.0;    // [J/(kg·K)]

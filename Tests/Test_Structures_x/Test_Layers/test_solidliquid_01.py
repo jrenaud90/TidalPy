@@ -505,6 +505,121 @@ def test_binary_load_file_not_found():
 
 
 # =====================================================================================================================
+# Sub-model attachment and recursive binary serialization
+# =====================================================================================================================
+
+def _import_rheology():
+    from TidalPy.rheology_x import rheology as _mod
+    return _mod
+
+
+def _import_cooling():
+    from TidalPy.cooling_x import cooling as _mod
+    return _mod
+
+
+def _import_radiogenics():
+    from TidalPy.radiogenics_x import radiogenics as _mod
+    return _mod
+
+
+def test_attach_submodels_set_flags():
+    """set_cooling / set_radiogenics flip their respective flags."""
+    cooling = _import_cooling()
+    radio   = _import_radiogenics()
+    sl = _make_layer()
+    assert sl.cooling_set     is False
+    assert sl.radiogenics_set is False
+    sl.set_cooling(cooling.ConvectiveCooling())
+    sl.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=1.0e-11))
+    assert sl.cooling_set     is True
+    assert sl.radiogenics_set is True
+
+
+def test_attach_radiogenics_changes_heating():
+    """After attaching a fixed radiogenics model, calc_radiogenic_heating is non-zero."""
+    radio = _import_radiogenics()
+    sl = _make_layer()
+    sl.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=2.0e-11))
+    q = sl.calc_radiogenic_heating(0.0, _MASS_KG)
+    assert q == pytest.approx(2.0e-11 * _MASS_KG, rel=1e-12)
+
+
+def test_binary_roundtrip_with_all_submodels():
+    """save_binary + load_binary restores rheology, cooling, and radiogenics models."""
+    mod     = _import_solidliquid()
+    rheo    = _import_rheology()
+    cooling = _import_cooling()
+    radio   = _import_radiogenics()
+    freq    = 1.0e-5
+
+    sl1 = _make_layer()
+    sl1.set_shear_rheology(rheo.Maxwell())
+    sl1.set_cooling(cooling.ConvectiveCooling(convection_alpha=0.9, critical_rayleigh=1200.0))
+    sl1.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=3.0e-11))
+    mu_before = sl1.calc_complex_shear_modulus(freq)
+    q_before  = sl1.calc_radiogenic_heating(0.0, _MASS_KG)
+
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        sl1.save_binary(path)
+        sl2 = _make_layer(name="placeholder")
+        sl2.load_binary(path)
+
+        assert sl2.shear_rheology_set is True
+        assert sl2.cooling_set        is True
+        assert sl2.radiogenics_set    is True
+        mu_after = sl2.calc_complex_shear_modulus(freq)
+        q_after  = sl2.calc_radiogenic_heating(0.0, _MASS_KG)
+        assert mu_after.real == pytest.approx(mu_before.real, rel=1e-12)
+        assert mu_after.imag == pytest.approx(mu_before.imag, rel=1e-12)
+        assert q_after       == pytest.approx(q_before,       rel=1e-12)
+    finally:
+        os.unlink(path)
+
+
+def test_binary_roundtrip_isotope_radiogenics():
+    """Variable-length isotope radiogenics survives a layer binary round-trip."""
+    mod   = _import_solidliquid()
+    radio = _import_radiogenics()
+
+    sl1 = _make_layer()
+    sl1.set_radiogenics(radio.IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
+    q_before = sl1.calc_radiogenic_heating(0.0, _MASS_KG)
+
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        sl1.save_binary(path)
+        sl2 = _make_layer(name="placeholder")
+        sl2.load_binary(path)
+        assert sl2.radiogenics_set is True
+        q_after = sl2.calc_radiogenic_heating(0.0, _MASS_KG)
+        assert q_after == pytest.approx(q_before, rel=1e-12)
+    finally:
+        os.unlink(path)
+
+
+def test_binary_roundtrip_no_submodels_flags_false():
+    """A layer with no sub-models round-trips with all flags False."""
+    mod = _import_solidliquid()
+    sl1 = _make_layer()
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        sl1.save_binary(path)
+        sl2 = _make_layer(name="placeholder")
+        sl2.load_binary(path)
+        assert sl2.shear_rheology_set is False
+        assert sl2.bulk_rheology_set  is False
+        assert sl2.cooling_set        is False
+        assert sl2.radiogenics_set    is False
+    finally:
+        os.unlink(path)
+
+
+# =====================================================================================================================
 # isinstance checks
 # =====================================================================================================================
 def test_solidliquid_is_physics_layer():

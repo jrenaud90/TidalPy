@@ -363,6 +363,119 @@ def test_binary_load_file_not_found():
 
 
 # =====================================================================================================================
+# Rheology attachment and recursive binary serialization
+# =====================================================================================================================
+
+def _import_rheology():
+    try:
+        from TidalPy.rheology_x import rheology as _mod
+        return _mod
+    except ImportError:
+        raise ImportError(
+            "TidalPy.rheology_x.rheology not compiled — run uv pip install first."
+        )
+
+
+def test_attach_shear_rheology_sets_flag():
+    """set_shear_rheology flips the shear_rheology_set flag and consumes the model."""
+    rheo = _import_rheology()
+    pl   = _make_mantle()
+    assert pl.shear_rheology_set is False
+    pl.set_shear_rheology(rheo.Maxwell())
+    assert pl.shear_rheology_set is True
+    assert pl.bulk_rheology_set  is False
+
+
+def test_attach_shear_rheology_changes_complex_modulus():
+    """After attaching Maxwell, calc_complex_shear_modulus matches the model output."""
+    rheo = _import_rheology()
+    pl   = _make_mantle()
+    freq = 1.0e-5
+    pl.set_shear_rheology(rheo.Maxwell())
+    mu       = pl.calc_complex_shear_modulus(freq)
+    expected = rheo.maxwell(freq, _SHEAR_MOD_PA, _VISCOSITY_PAS)
+    assert mu.real == pytest.approx(expected.real, rel=1e-9)
+    assert mu.imag == pytest.approx(expected.imag, rel=1e-9)
+    # A dissipative Maxwell body has a non-zero loss modulus at this frequency.
+    assert mu.imag != 0.0
+
+
+def test_attach_rheology_consumes_wrapper():
+    """A rheology model cannot be attached twice (ownership is transferred)."""
+    rheo = _import_rheology()
+    pl   = _make_mantle()
+    model = rheo.Maxwell()
+    pl.set_shear_rheology(model)
+    with pytest.raises(ValueError):
+        pl.set_bulk_rheology(model)
+
+
+def test_binary_roundtrip_with_rheology():
+    """save_binary + load_binary restores attached shear and bulk rheology models."""
+    mod  = _import_physics()
+    rheo = _import_rheology()
+    freq = 1.0e-5
+
+    pl1 = _make_mantle()
+    pl1.set_shear_rheology(rheo.Maxwell())
+    pl1.set_bulk_rheology(rheo.Andrade(alpha=0.25, zeta=2.0))
+    mu_before = pl1.calc_complex_shear_modulus(freq)
+    k_before  = pl1.calc_complex_bulk_modulus(freq)
+
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        pl1.save_binary(path)
+        pl2 = mod.PhysicsLayer("placeholder", 0, 0.0, 1.0, 1.0)
+        pl2.load_binary(path)
+
+        assert pl2.shear_rheology_set is True
+        assert pl2.bulk_rheology_set  is True
+        mu_after = pl2.calc_complex_shear_modulus(freq)
+        k_after  = pl2.calc_complex_bulk_modulus(freq)
+        assert mu_after.real == pytest.approx(mu_before.real, rel=1e-12)
+        assert mu_after.imag == pytest.approx(mu_before.imag, rel=1e-12)
+        assert k_after.real  == pytest.approx(k_before.real,  rel=1e-12)
+        assert k_after.imag  == pytest.approx(k_before.imag,  rel=1e-12)
+    finally:
+        os.unlink(path)
+
+
+def test_binary_roundtrip_without_rheology_flags_false():
+    """A layer with no rheology round-trips with both flags still False."""
+    mod = _import_physics()
+    pl1 = _make_mantle()
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        pl1.save_binary(path)
+        pl2 = mod.PhysicsLayer("placeholder", 0, 0.0, 1.0, 1.0)
+        pl2.load_binary(path)
+        assert pl2.shear_rheology_set is False
+        assert pl2.bulk_rheology_set  is False
+    finally:
+        os.unlink(path)
+
+
+def test_binary_roundtrip_only_shear_rheology():
+    """Attaching only the shear model leaves the bulk slot absent after a round-trip."""
+    mod  = _import_physics()
+    rheo = _import_rheology()
+    pl1  = _make_mantle()
+    pl1.set_shear_rheology(rheo.Maxwell())
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        pl1.save_binary(path)
+        pl2 = mod.PhysicsLayer("placeholder", 0, 0.0, 1.0, 1.0)
+        pl2.load_binary(path)
+        assert pl2.shear_rheology_set is True
+        assert pl2.bulk_rheology_set  is False
+    finally:
+        os.unlink(path)
+
+
+# =====================================================================================================================
 # isinstance checks
 # =====================================================================================================================
 

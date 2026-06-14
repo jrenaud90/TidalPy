@@ -19,11 +19,17 @@
  *     adiabatic_index               (double, 8)
  *     reference_temperature_k       (double, 8)
  *     reference_density_kg_m3       (double, 8)
+ *     shear_rheology presence flag (uint8_t, 1) + (if present) its binary record
+ *     bulk_rheology  presence flag (uint8_t, 1) + (if present) its binary record
+ *   Attached rheology objects (inherited from c_PhysicsLayer) ARE serialized
+ *   recursively; the two presence flags are part of this payload, each nested
+ *   model record follows as a separate record.
  *   EOS profile data is NOT serialized.
  */
 
 #include <cmath>
 #include <cstdint>
+#include <istream>
 #include <ostream>
 #include <stdexcept>
 #include <string>
@@ -173,7 +179,8 @@ public:
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
             sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
-            sizeof(double)   * 4;            // GasLayer fields
+            sizeof(double)   * 4 +           // GasLayer fields
+            this->rheology_presence_bytes(); // shear + bulk rheology presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::GasLayer), payload);
 
@@ -214,6 +221,9 @@ public:
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write GasLayer binary data");
         }
+
+        // Attached rheology models (presence flag + recursive record each).
+        this->write_rheology_binary(out);
     }
 
     void read_binary(std::istream& in, bool force = false) override {
@@ -269,6 +279,9 @@ public:
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read GasLayer binary data");
         }
+
+        // Attached rheology models (presence flag + recursive record each).
+        this->read_rheology_binary(in, force);
 
         this->update_physicals();
     }

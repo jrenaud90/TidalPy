@@ -343,6 +343,47 @@ def test_binary_load_file_not_found():
 
 
 # =====================================================================================================================
+# Rheology attachment and recursive binary serialization (inherited from PhysicsLayer)
+# =====================================================================================================================
+
+def _import_rheology():
+    from TidalPy.rheology_x import rheology as _mod
+    return _mod
+
+
+def test_gas_attach_rheology_sets_flag():
+    """GasLayer inherits set_shear_rheology from PhysicsLayer."""
+    rheo = _import_rheology()
+    gl = _make_layer(shear_modulus_static_pa=1.0e9, shear_viscosity_static_pas=1.0e18)
+    assert gl.shear_rheology_set is False
+    gl.set_shear_rheology(rheo.Maxwell())
+    assert gl.shear_rheology_set is True
+
+
+def test_gas_binary_roundtrip_with_rheology():
+    """save_binary + load_binary restores a rheology model attached to a GasLayer."""
+    mod  = _import_gas()
+    rheo = _import_rheology()
+    freq = 1.0e-5
+    gl1  = _make_layer(shear_modulus_static_pa=1.0e9, shear_viscosity_static_pas=1.0e18)
+    gl1.set_shear_rheology(rheo.Maxwell())
+    mu_before = gl1.calc_complex_shear_modulus(freq)
+
+    with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
+        path = f.name
+    try:
+        gl1.save_binary(path)
+        gl2 = _make_layer(name="placeholder")
+        gl2.load_binary(path)
+        assert gl2.shear_rheology_set is True
+        mu_after = gl2.calc_complex_shear_modulus(freq)
+        assert mu_after.real == pytest.approx(mu_before.real, rel=1e-12)
+        assert mu_after.imag == pytest.approx(mu_before.imag, rel=1e-12)
+    finally:
+        os.unlink(path)
+
+
+# =====================================================================================================================
 # isinstance checks
 # =====================================================================================================================
 def test_gas_is_physics_layer():
