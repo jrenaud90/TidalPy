@@ -30,6 +30,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <istream>
 #include <limits>
 #include <memory>
 #include <ostream>
@@ -294,6 +295,32 @@ inline std::unique_ptr<c_CoolingBase> c_find_cooling(
 inline std::unique_ptr<c_CoolingBase> c_find_cooling(
         const std::string& model_name, const c_CoolingConfig& cfg) {
     return c_find_cooling(c_cooling_model_from_name(model_name), cfg);
+}
+
+// -------------------------------------------------------------------------------
+// c_cooling_from_binary — reconstruct a cooling model from a binary stream.
+//
+// Peeks the upcoming record's BinaryClassID (without consuming the header),
+// constructs the matching default-initialised concrete model, then delegates to
+// its read_binary to restore the model name and parameters. Used by the layer
+// recursive deserialization (see structures_x/layers). Throws std::runtime_error
+// if the class id is not a known cooling model.
+// -------------------------------------------------------------------------------
+inline std::unique_ptr<c_CoolingBase> c_cooling_from_binary(std::istream& in, bool force = false) {
+    const std::streampos start = in.tellg();
+    const c_BinaryHeader header = read_binary_header(in);
+    in.seekg(start);
+
+    std::unique_ptr<c_CoolingBase> model;
+    switch (static_cast<BinaryClassID>(header.class_id)) {
+        case BinaryClassID::OffCooling:        model = std::make_unique<c_OffCooling>();        break;
+        case BinaryClassID::ConvectiveCooling: model = std::make_unique<c_ConvectiveCooling>(); break;
+        case BinaryClassID::ConductiveCooling: model = std::make_unique<c_ConductiveCooling>(); break;
+        default:
+            throw std::runtime_error("TidalPy: unknown cooling class id in binary stream");
+    }
+    model->read_binary(in, force);
+    return model;
 }
 
 }  // namespace tidalpy

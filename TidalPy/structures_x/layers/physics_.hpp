@@ -24,12 +24,17 @@
  *     love_number_k  re, im        (double×2, 16)
  *     love_number_h  re, im        (double×2, 16)
  *     love_number_l  re, im        (double×2, 16)
- *   Rheology objects are NOT serialized; re-attach after loading.
+ *     shear_rheology presence flag (uint8_t, 1) + (if present) its binary record
+ *     bulk_rheology  presence flag (uint8_t, 1) + (if present) its binary record
+ *   Attached rheology objects ARE serialized recursively (presence flag + the
+ *   model's own binary record); the two presence flags are part of this payload,
+ *   each nested model record follows as a separate record.
  *   EOS profile data is NOT serialized (inherited rule from c_BaseLayer).
  */
 
 #include <complex>
 #include <cstdint>
+#include <istream>
 #include <memory>
 #include <ostream>
 #include <stdexcept>
@@ -37,7 +42,7 @@
 
 #include "base_.hpp"
 #include "love_.hpp"
-#include "rheology_base_.hpp"
+#include "rheology_.hpp"
 
 namespace tidalpy {
 
@@ -132,7 +137,7 @@ public:
     std::complex<double> calc_complex_shear_modulus(double frequency_rad_s) const noexcept {
         if (this->p_shear_rheology) {
             return this->p_shear_rheology->calc_complex_modulus(
-                this->p_shear_viscosity_static_pas, this->p_shear_modulus_static_pa, frequency_rad_s);
+                this->p_shear_modulus_static_pa, this->p_shear_viscosity_static_pas, frequency_rad_s);
         }
         return std::complex<double>(this->p_shear_modulus_static_pa, 0.0);
     }
@@ -146,7 +151,7 @@ public:
     std::complex<double> calc_complex_bulk_modulus(double frequency_rad_s) const noexcept {
         if (this->p_bulk_rheology) {
             return this->p_bulk_rheology->calc_complex_modulus(
-                this->p_bulk_viscosity_static_pas, this->p_bulk_modulus_static_pa, frequency_rad_s);
+                this->p_bulk_modulus_static_pa, this->p_bulk_viscosity_static_pas, frequency_rad_s);
         }
         return std::complex<double>(this->p_bulk_modulus_static_pa, 0.0);
     }
@@ -187,7 +192,8 @@ public:
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
             sizeof(double)   * 4 +           // shear modulus, bulk modulus, shear viscosity, bulk viscosity
-            sizeof(double)   * 6;            // love_number k, h, l (each: re + im)
+            sizeof(double)   * 6 +           // love_number k, h, l (each: re + im)
+            this->rheology_presence_bytes(); // shear + bulk rheology presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer), payload);
 
@@ -224,6 +230,9 @@ public:
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write PhysicsLayer binary data");
         }
+
+        // Attached rheology models (presence flag + recursive record each).
+        this->write_rheology_binary(out);
     }
 
     void read_binary(std::istream& in, bool force = false) override {
@@ -277,11 +286,43 @@ public:
             throw std::runtime_error("TidalPy: failed to read PhysicsLayer binary data");
         }
 
+        // Attached rheology models (presence flag + recursive record each).
+        this->read_rheology_binary(in, force);
+
         // Recompute derived geometry fields from loaded radii.
         this->update_physicals();
     }
 
 protected:
+    // -----------------------------------------------------------------------
+    // Recursive (de)serialization of the optional shear/bulk rheology models.
+    //
+    // Shared by c_PhysicsLayer and its subclasses (c_SolidLiquidLayer,
+    // c_GasLayer) so the rheology section has one canonical byte layout. Each
+    // model is written as a presence flag followed, when set, by the model's own
+    // binary record; on read the correct concrete model is rebuilt via the
+    // rheology binary-dispatch factory and re-registered as this layer's observer.
+    // -----------------------------------------------------------------------
+    void write_rheology_binary(std::ostream& out) const {
+        write_optional_binary(out, this->p_shear_rheology);
+        write_optional_binary(out, this->p_bulk_rheology);
+    }
+
+    void read_rheology_binary(std::istream& in, bool force) {
+        this->p_shear_rheology =
+            read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+        if (this->p_shear_rheology) { this->p_shear_rheology->set_layer_ptr(this); }
+        this->p_bulk_rheology =
+            read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+        if (this->p_bulk_rheology) { this->p_bulk_rheology->set_layer_ptr(this); }
+    }
+
+    // Payload bytes contributed by the two rheology presence flags (the nested
+    // model records follow as separate appended records).
+    static constexpr uint64_t rheology_presence_bytes() {
+        return 2 * optional_binary_flag_bytes();
+    }
+
     double        p_shear_modulus_static_pa    = 0.0;   // [Pa]
     double        p_bulk_modulus_static_pa     = 0.0;   // [Pa]
     double        p_shear_viscosity_static_pas = 0.0;   // [Pa·s]

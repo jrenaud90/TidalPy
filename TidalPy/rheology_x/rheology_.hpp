@@ -38,6 +38,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <istream>
 #include <memory>
 #include <ostream>
 #include <stdexcept>
@@ -627,6 +628,36 @@ inline std::unique_ptr<c_RheologyBase> c_find_rheology(
 inline std::unique_ptr<c_RheologyBase> c_find_rheology(
         const std::string& model_name, const c_RheologyConfig& cfg) {
     return c_find_rheology(c_rheology_model_from_name(model_name), cfg);
+}
+
+// -------------------------------------------------------------------------------
+// c_rheology_from_binary — reconstruct a rheology model from a binary stream.
+//
+// Peeks the upcoming record's BinaryClassID (without consuming the header),
+// constructs the matching default-initialised concrete model, then delegates to
+// its read_binary to restore the model name and parameters. Used by the layer
+// recursive deserialization (see structures_x/layers). Throws std::runtime_error
+// if the class id is not a known rheology model.
+// -------------------------------------------------------------------------------
+inline std::unique_ptr<c_RheologyBase> c_rheology_from_binary(std::istream& in, bool force = false) {
+    const std::streampos start = in.tellg();
+    const c_BinaryHeader header = read_binary_header(in);
+    in.seekg(start);
+
+    std::unique_ptr<c_RheologyBase> model;
+    switch (static_cast<BinaryClassID>(header.class_id)) {
+        case BinaryClassID::Elastic:  model = std::make_unique<c_Elastic>();  break;
+        case BinaryClassID::Viscous:  model = std::make_unique<c_Viscous>();  break;
+        case BinaryClassID::Voigt:    model = std::make_unique<c_Voigt>();    break;
+        case BinaryClassID::Maxwell:  model = std::make_unique<c_Maxwell>();  break;
+        case BinaryClassID::Burgers:  model = std::make_unique<c_Burgers>();  break;
+        case BinaryClassID::Andrade:  model = std::make_unique<c_Andrade>();  break;
+        case BinaryClassID::Sundberg: model = std::make_unique<c_Sundberg>(); break;
+        default:
+            throw std::runtime_error("TidalPy: unknown rheology class id in binary stream");
+    }
+    model->read_binary(in, force);
+    return model;
 }
 
 }  // namespace tidalpy

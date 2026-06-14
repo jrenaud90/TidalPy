@@ -192,25 +192,30 @@ new rheology model named `Foo`:
 
 5. Add `Foo` to the `c_RheologyModel` enum, map its name/aliases in
    `c_rheology_model_from_name`, and add a `case` to `c_find_rheology`.
+6. Add a `case BinaryClassID::Foo` to `c_rheology_from_binary` (the binary-dispatch
+   factory) so a `Foo` attached to a layer can be reconstructed when the layer is
+   loaded from a binary file. Forgetting this makes recursive layer loads throw
+   "unknown rheology class id in binary stream".
 
 **Cython (`rheology.pxd` / `rheology.pyx`)**
 
-6. Declare `c_Foo` (constructors + getters) in `rheology.pxd` and add the enum
+7. Declare `c_Foo` (constructors + getters) in `rheology.pxd` and add the enum
    value to the `c_RheologyModel` cimport.
-7. Add the `cdef class Foo(RheologyBase)` wrapper in `rheology.pyx` (with param
+8. Add the `cdef class Foo(RheologyBase)` wrapper in `rheology.pyx` (with param
    properties and a `get_config_dict` override), the adoption branch in
    `make_rheology`, and the lower-case `foo(frequency, modulus, viscosity, ...)`
    convenience function.
 
 **Package + tests + docs**
 
-8. Export `Foo` (and `foo`) from `TidalPy/rheology_x/__init__.py` (and the C++
+9. Export `Foo` (and `foo`) from `TidalPy/rheology_x/__init__.py` (and the C++
    names from `__init__.pxd`).
-9. Add `Foo` to the parametrized test lists in
-   `Tests/Test_Rheology_x/test_rheology_01.py` (model name, modulus cross-check
-   against an independent reference, factory/alias, vectorization, config dict,
-   binary round-trip, isinstance).
-10. Document the model here (formula, parameters, references).
+10. Add `Foo` to the parametrized test lists in
+    `Tests/Test_Rheology_x/test_rheology_01.py` (model name, modulus cross-check
+    against an independent reference, factory/alias, vectorization, config dict,
+    binary round-trip, isinstance). When a model can be attached to a layer, also
+    cover the layer recursive-binary round-trip.
+11. Document the model here (formula, parameters, references).
 
 No build-system change is needed — `rheology_x.rheology` is already registered in
 `cython_extensions.json`.

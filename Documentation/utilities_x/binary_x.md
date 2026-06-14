@@ -112,6 +112,76 @@ tidalpy::c_BinaryHeader header = tidalpy::read_binary_header_from_file(path);
 | `read_binary_header(in)` | Read 20-byte header from `std::istream&` |
 | `read_binary_header_from_file(path)` | Open file by path and read header |
 | `check_binary_schema_version(header, force)` | Validate version; logs warning on mismatch |
+| `write_binary_string(out, text)` / `read_binary_string(in)` | Length-prefixed (`uint32_t` length + UTF-8 bytes) string I/O |
+| `binary_string_bytes(text)` | Payload byte count of a length-prefixed string (for header sizing) |
+| `write_optional_binary(out, unique_ptr)` | Write an optional owned sub-object (presence flag + nested record) |
+| `read_optional_binary<T>(in, force, factory)` | Read an optional sub-object; rebuilds it via `factory` when present |
+| `optional_binary_flag_bytes()` | Payload bytes one presence flag contributes (`1`) |
+
+---
+
+## Variable-Length Strings
+
+Strings (model names, layer names, material names) are written as a `uint32_t`
+length followed by the raw UTF-8 bytes:
+
+```
+[uint32_t length][length bytes of UTF-8 text]
+```
+
+Use `binary_string_bytes(text)` when computing a record's `payload_size`.
+
+---
+
+## Nested and Recursive Serialization
+
+Container objects (layers, and later worlds and systems) own sub-objects that must
+round-trip with the container. The encoding is uniform:
+
+- **Optional owned sub-object** (held in a `std::unique_ptr`): write a one-byte
+  presence flag (`0` = absent, `1` = present). When present, the sub-object's own
+  complete binary record (its own 20-byte `TPYB` header + payload, produced by its
+  `write_binary`) follows immediately.
+- The **presence flag is part of the owning record's `payload_size`**; each nested
+  record is a separate, self-describing record appended after the owning record's
+  payload (a `.tpyb` stream is a sequence of concatenated records).
+
+On read, the owning class reads the presence flag and, when set, calls a
+**binary-dispatch factory** that peeks the upcoming record's `class_id`, constructs
+the matching concrete subclass (default-initialized), and delegates to its
+`read_binary`. Each physics module provides one:
+
+| Module | Dispatch factory |
+|--------|------------------|
+| `rheology_x` | `c_rheology_from_binary(in, force)` |
+| `cooling_x` | `c_cooling_from_binary(in, force)` |
+| `radiogenics_x` | `c_radiogenics_from_binary(in, force)` |
+
+Example (the shape used by `c_PhysicsLayer`):
+
+```cpp
+// write
+write_optional_binary(out, this->p_shear_rheology);   // flag (+ record if set)
+write_optional_binary(out, this->p_bulk_rheology);
+
+// read
+this->p_shear_rheology =
+    read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+this->p_bulk_rheology =
+    read_optional_binary<c_RheologyBase>(in, force, c_rheology_from_binary);
+```
+
+**What each layer serializes recursively** (the optional section follows the
+layer's own scalar payload):
+
+| Layer | Recursively serialized sub-objects |
+|-------|------------------------------------|
+| `c_PhysicsLayer` | shear rheology, bulk rheology |
+| `c_GasLayer` | shear rheology, bulk rheology (inherited) |
+| `c_SolidLiquidLayer` | shear rheology, bulk rheology, cooling, radiogenics |
+
+EOS profile data (`c_LayerEOSData`) is never serialized; repopulate it after load
+by running the EOS handler.
 
 ### Constants
 
@@ -141,8 +211,25 @@ tidalpy::c_BinaryHeader header = tidalpy::read_binary_header_from_file(path);
 | `GasGiantWorld` | 202 |
 | `StarWorld` | 203 |
 | `RheologyBase` | 300 |
+| `Elastic` | 301 |
+| `Viscous` | 302 |
+| `Voigt` | 303 |
+| `Maxwell` | 304 |
+| `Burgers` | 305 |
+| `Andrade` | 306 |
+| `Sundberg` | 307 |
 | `CoolingBase` | 400 |
+| `OffCooling` | 401 |
+| `ConvectiveCooling` | 402 |
+| `ConductiveCooling` | 403 |
 | `RadiogenicsBase` | 500 |
+| `OffRadiogenics` | 501 |
+| `IsotopeRadiogenics` | 502 |
+| `FixedRadiogenics` | 503 |
+
+Each concrete physics model needs a unique ID here so the binary-dispatch
+factories can reconstruct the correct subclass. Layer ranges (`100`–`199`) and
+world ranges (`200`–`299`) are reserved for the structure classes.
 
 ---
 

@@ -183,7 +183,10 @@ cooling model named `Foo`:
 **C++ factory (`cooling_.hpp`)**
 
 5. Add `Foo` to the `c_CoolingModel` enum, map its name/aliases in
-   `c_cooling_model_from_name`, and add a `case` to `c_find_cooling`.
+   `c_cooling_model_from_name`, and add a `case` to `c_find_cooling`. Also add a
+   `case BinaryClassID::Foo` to `c_cooling_from_binary` (the binary-dispatch
+   factory) so a `Foo` attached to a `SolidLiquidLayer` can be reconstructed when
+   the layer is loaded from a binary file.
 
 **Cython (`cooling.pxd` / `cooling.pyx`)**
 

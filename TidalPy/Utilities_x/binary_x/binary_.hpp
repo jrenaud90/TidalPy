@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -219,5 +220,50 @@ inline std::string read_binary_string(std::istream& in) {
 inline uint64_t binary_string_bytes(const std::string& text) {
     return sizeof(uint32_t) + static_cast<uint64_t>(text.size());
 }
+
+// ---------------------------------------------------------------------------
+// Optional sub-object serialization
+// ---------------------------------------------------------------------------
+// An owned, optional sub-object (held in a std::unique_ptr) is serialized as a
+// one-byte presence flag (0 = absent, 1 = present) followed, when present, by the
+// sub-object's own complete binary record (its TPYB header + payload, written by
+// its write_binary). The presence flag is part of the *owning* record's payload;
+// the nested record is a separate, self-describing record appended to the stream.
+// Used for recursive serialization of physics models held by layers (and, later,
+// layers held by worlds).
+
+// Write an optional sub-object: presence flag + (if present) its binary record.
+template <typename T>
+inline void write_optional_binary(std::ostream& out, const std::unique_ptr<T>& obj) {
+    const uint8_t present = obj ? 1 : 0;
+    out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
+    if (obj) {
+        obj->write_binary(out);
+    }
+    if (!out) {
+        throw std::runtime_error("TidalPy: failed to write optional sub-object binary data");
+    }
+}
+
+// Read an optional sub-object: read the presence flag and, when set, reconstruct
+// the sub-object via the supplied factory (which peeks the record's class id and
+// returns an owning unique_ptr).  Returns nullptr when the flag is absent.
+template <typename T, typename Factory>
+inline std::unique_ptr<T> read_optional_binary(std::istream& in, bool force, Factory factory) {
+    uint8_t present = 0;
+    in.read(reinterpret_cast<char*>(&present), sizeof(uint8_t));
+    if (!in) {
+        throw std::runtime_error("TidalPy: failed to read optional sub-object presence flag");
+    }
+    if (present) {
+        return factory(in, force);
+    }
+    return std::unique_ptr<T>();
+}
+
+// Number of payload bytes one optional sub-object's presence flag contributes to
+// the owning record's payload (the nested record itself is a separate appended
+// record; see above).
+inline constexpr uint64_t optional_binary_flag_bytes() { return sizeof(uint8_t); }
 
 } // namespace tidalpy

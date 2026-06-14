@@ -107,8 +107,10 @@ $$c_s = \sqrt{\frac{\gamma \, R \, T}{M}}$$
 ## Binary serialization
 
 `save_binary(path)` / `load_binary(path, force=False)` round-trip all
-configuration fields.  EOS profile data is never serialized (must be
-re-populated after loading).
+configuration fields, followed by an optional sub-model section holding the
+inherited shear and bulk rheology models (presence flag + recursive binary record
+each; attach them with the inherited `set_shear_rheology` / `set_bulk_rheology`).
+EOS profile data is never serialized (must be re-populated after loading).
 
 Binary class ID: `103` (`BinaryClassID::GasLayer`).
 

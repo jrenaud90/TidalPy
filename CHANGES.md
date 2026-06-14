@@ -59,6 +59,15 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
   * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
 
+##### Recursive Binary Serialization (`_x` layers + physics models)
+* Layers now serialize their attached physics sub-models recursively in `save_binary` / `load_binary`. A saved layer fully round-trips with its rheology, cooling, and radiogenics models attached; no Python/Cython reconstruction step is needed after `load_binary`.
+  * `PhysicsLayer` and `GasLayer` serialize their shear and bulk rheology models; `SolidLiquidLayer` additionally serializes its cooling and radiogenics models.
+  * Optional owned sub-objects are encoded as a one-byte presence flag followed (when present) by the sub-model's own binary record. New `binary_x` helpers: `write_optional_binary`, `read_optional_binary`, `optional_binary_flag_bytes` (alongside the existing `write_binary_string` / `read_binary_string`).
+  * Each physics module gained a binary-dispatch factory (`c_rheology_from_binary`, `c_cooling_from_binary`, `c_radiogenics_from_binary`) that peeks the record's `BinaryClassID` and reconstructs the correct concrete model. Every concrete model already carries a unique `BinaryClassID` (rheology 301–307, cooling 401–403, radiogenics 501–503).
+* Added Python-level methods to attach sub-models to layers (ownership of the C++ model is transferred into the layer):
+  * `PhysicsLayer.set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)` (inherited by `SolidLiquidLayer` and `GasLayer`).
+  * `SolidLiquidLayer.set_cooling(cooling)` / `set_radiogenics(radiogenics)`.
+
 ##### `TidalPy.cooling_x` Module (new)
 * Created `TidalPy/cooling_x/` as the new C++/Cython module for cooling (heat-transport) models.
 * Added the abstract base `c_CoolingBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_cooling(c_CoolingInputs)` returning a `c_CoolingResult` (heat flux [W/m²], boundary-layer thickness [m], Rayleigh and Nusselt numbers). The eight physical inputs are bundled in a `c_CoolingInputs` struct (per the >5-argument style rule).

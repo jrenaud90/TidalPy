@@ -7,8 +7,8 @@
 `PhysicsLayer` extends `BaseLayer` with the static mechanical properties needed
 for tidal calculations: (shear/bulk) modulus and dynamic (shaer/bulk) viscosity.
 
-When a rheology model (`c_RheologyBase` subclass, Phase 5) is attached via the
-C++ `set_shear/bulk_rheology` methods, `calc_complex_shear/bulk_modulus` returns
+When a rheology model (a `RheologyBase` subclass) is attached via the
+`set_shear_rheology` / `set_bulk_rheology` methods, `calc_complex_shear/bulk_modulus` returns
 the frequency-dependent complex modulus from the constitutive law. Until then
 (or when no rheology is set), the methods return the static modulus as a purely
 real complex number, equivalent to perfectly elastic behavior.
@@ -114,13 +114,28 @@ print(f"Tidal susceptibility: {chi:.3e} m³")
 
 **References:** Kaula (1964); Eggleton et al. (1998).
 
+### `set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)`
+
+Attach a rheology model (a `RheologyBase` subclass such as `Maxwell()` or
+`make_rheology("andrade")`) used to compute the complex shear / bulk modulus.
+Ownership of the underlying C++ model is **transferred** into the layer; the
+passed Python wrapper becomes an empty, non-owning shell and must not be reused
+(attempting to attach it again raises `ValueError`).
+
+```python
+from TidalPy.rheology_x import Maxwell, make_rheology
+mantle.set_shear_rheology(Maxwell())
+mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
+```
+
 ### `calc_complex_shear_modulus(frequency_rad_s)` → complex
 
 Complex shear modulus [Pa] at the given tidal forcing frequency.
 
-When a shear rheology model is attached the result is 1 / J(ω), where J(ω)
-is the complex compliance returned by the rheology model. Without a rheology
-model the return value is `shear_modulus_static + 0j`.
+When a shear rheology model is attached the result is the complex modulus μ*(ω)
+returned by that model (evaluated from the static shear modulus, shear viscosity,
+and frequency). Without a rheology model the return value is
+`shear_modulus_static + 0j`.
 
 ```python
 mu = mantle.calc_complex_shear_modulus(2.0 * math.pi / 86400.0)
@@ -149,9 +164,18 @@ delegation logic as `calc_complex_shear_modulus`.
 `bulk_viscosity_static_pas`, then `love_number_k` re+im, `love_number_h` re+im,
 `love_number_l` re+im (6 doubles total for the Love numbers).
 
+Following the scalar payload, an optional sub-model section is written: a one-byte
+presence flag for the shear rheology and one for the bulk rheology, each followed
+(when set) by the rheology model's own binary record. On load, attached rheology
+models are reconstructed recursively via the rheology binary-dispatch factory, so a
+saved layer round-trips with its rheology intact (verify with `shear_rheology_set`
+/ `bulk_rheology_set` and `calc_complex_shear_modulus`). See
+[Binary serialization](../../utilities_x/binary_x.md) for the encoding.
+
 Binary class ID: **101** (`BinaryClassID::PhysicsLayer`).
 
-**Rheology objects and EOS profile data are NOT serialized.**
+**EOS profile data is NOT serialized** (repopulate it after loading by running the
+EOS handler).
 
 ---
 

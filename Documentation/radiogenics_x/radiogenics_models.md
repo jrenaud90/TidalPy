@@ -226,7 +226,10 @@ new radiogenics model named `Foo`:
 **C++ factory (`radiogenics_.hpp`)**
 
 5. Add `Foo` to the `c_RadiogenicsModel` enum, map its name/aliases in
-   `c_radiogenics_model_from_name`, and add a `case` to `c_find_radiogenics`.
+   `c_radiogenics_model_from_name`, and add a `case` to `c_find_radiogenics`. Also
+   add a `case BinaryClassID::Foo` to `c_radiogenics_from_binary` (the
+   binary-dispatch factory) so a `Foo` attached to a `SolidLiquidLayer` can be
+   reconstructed when the layer is loaded from a binary file.
 
 **Cython (`radiogenics.pxd` / `radiogenics.pyx`)**
 
