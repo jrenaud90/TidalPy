@@ -80,6 +80,11 @@ enum class BinaryClassID : uint32_t {
     OffRadiogenics     = 501,
     IsotopeRadiogenics = 502,
     FixedRadiogenics   = 503,
+    MaterialEOSBase    = 600,
+    ConstantDensityEOS = 601,
+    BirchMurnaghanEOS  = 602,
+    VinetEOS           = 603,
+    InterpolatedEOS    = 604,
 };
 
 // ---------------------------------------------------------------------------

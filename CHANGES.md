@@ -21,6 +21,12 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### `TidalPy.Material_x`
 * Created a Cython-wrapped C++ module that duplicates the functionality of `TidalPy.Material` (TidalPy's EOS solver).
+* Added a material equation-of-state (EOS) model hierarchy (`TidalPy.Material_x.eos.material_eos`) following the rheology/cooling/radiogenics class pattern. Each model returns density [kg/m³] from local pressure (analytic models) or radius (interpolated model) and is attached to a layer as the per-layer density source for the whole-planet EOS solve:
+  * `ConstantDensityEOS` (alias `constant`) — incompressible.
+  * `BirchMurnaghanEOS` (alias `bm`) — 3rd-order Birch-Murnaghan; density inverted from pressure (safeguarded Newton).
+  * `VinetEOS` (alias `vinet`) — Vinet/UBER EOS; density inverted from pressure.
+  * `InterpolatedEOS` (alias `interp`) — linear `density(radius)` lookup table (e.g. PREM profiles).
+  * Name factory `make_material_eos(name, config)`, free pressure laws `birch_murnaghan_pressure` / `vinet_pressure`, enum + binary-dispatch factory (`c_material_eos_from_binary`), and binary serialization (class ids 601–604).
 
 #### New Features
 
