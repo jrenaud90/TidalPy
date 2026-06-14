@@ -72,7 +72,10 @@ enum class BinaryClassID : uint32_t {
     Andrade          = 306,
     Sundberg         = 307,
     CoolingBase      = 400,
-    RadiogenicsBase  = 500,
+    RadiogenicsBase    = 500,
+    OffRadiogenics     = 501,
+    IsotopeRadiogenics = 502,
+    FixedRadiogenics   = 503,
 };
 
 // ---------------------------------------------------------------------------

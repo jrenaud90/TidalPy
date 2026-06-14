@@ -78,6 +78,22 @@ _The `_x` in module and function names indicates experimental versions. This suf
 * Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 301–307).
 * Refactored the `PhysicsBase` Cython wrapper to be subclassable: subclasses own their most-derived C++ object via a `unique_ptr`, and `model_name` reads through the inherited `_ptr`.
 
+##### `TidalPy.radiogenics_x` Module (new)
+* Created `TidalPy/radiogenics_x/` as the new C++/Cython module for radiogenic-heating models.
+* Added the abstract base `c_RadiogenicsBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_heating(time_s, mass_kg)` returning the radiogenic heating `Q` [W] directly. All inputs/outputs are MKS (time and half-lives in seconds).
+* Added a lightweight `c_Isotope` value type (no base class) describing one isotope (`name`, `heat_production_w_kg`, `half_life_s`, `mass_frac`, `concentration`) with `decay_constant()` and `specific_heating(time, ref_time)` helpers. `c_RadiogenicsConfig`/`c_IsotopeRadiogenics` carry a `std::vector<c_Isotope>`.
+* Added the three radiogenics models, each exposed as a Cython/Python class:
+  * `OffRadiogenics` (alias `none`) — radiogenics disabled, heating == 0.
+  * `IsotopeRadiogenics` — sum of decaying isotopes; constructed from parallel arrays (`heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, optional `names`) plus `ref_time_s`, or via `IsotopeRadiogenics.from_dataset(name)`.
+  * `FixedRadiogenics` (alias `constant`) — single lumped rate with optional exponential decay; params `fixed_heat_production_w_kg`, `average_half_life_s` (≤0 disables decay), `ref_time_s`.
+  * Physics matches TidalPy's legacy `radiogenics.radiogenic_models` formulas. The decay factor ln(0.5) is a module-level `constexpr` (`d_LN_HALF`).
+* Added built-in literature isotope datasets (C++ `c_get_isotope_dataset` / `c_isotope_dataset_names`, exposed as Python `available_isotope_datasets()` and `isotope_dataset(name)`): `modern_day_chondritic` (Hussmann & Spohn 2004; Turcotte & Schubert 2001), `llri_and_slri` (Castillo-Rogez et al. 2007, adds short-lived Mn53/Fe60/Al26), and `bulk_silicate_earth` (McDonough & Sun 1995). All defined in MKS (Myr converted to seconds).
+* Added an enum-based C++ factory: `c_RadiogenicsModel` (one value per model), `c_radiogenics_model_from_name(name)` (alias-aware name → enum), and `c_find_radiogenics(model, config)` returning a `unique_ptr<c_RadiogenicsBase>` to a heap-allocated model. A name overload is also provided.
+* Added `make_radiogenics(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`. For the isotope model it accepts a built-in dataset name (`isotopes`), explicit MKS arrays, or a global-config/inline dataset (stored in Myr and converted to seconds).
+* Added vectorized heating methods on `c_RadiogenicsBase` (inherited by all models): `calc_heating_vectorize_time`, `..._vectorize_mass`, and `..._vectorize_all`. Each writes into a caller-supplied `std::vector<double>&`; the Cython wrappers accept array-likes and return `float64` NumPy arrays.
+* Added lower-case direct convenience functions (`off`, `isotope`, `fixed`) that build a stack-allocated model, solve, and return. `time` and `mass` accept floats or NumPy arrays (broadcast together); a scalar returns a Python `float`, arrays return a `float64` `ndarray`.
+* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 501–503; the Isotope model serializes its variable-length isotope list, including per-isotope names).
+
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.

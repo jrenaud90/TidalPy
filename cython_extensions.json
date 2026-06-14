@@ -192,6 +192,21 @@
     "is_cpp": true
   },
 
+  "radiogenics_x.radiogenics": {
+    "name": "TidalPy.radiogenics_x.radiogenics",
+    "sources": [["TidalPy", "radiogenics_x", "radiogenics.pyx"]],
+    "include_dirs": [
+      ["TidalPy", "radiogenics_x"],
+      ["TidalPy", "Utilities_x", "classes_x"],
+      ["TidalPy", "Utilities_x", "binary_x"],
+      ["TidalPy", "Utilities_x", "logging_x"],
+      ["TidalPy"]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+
   "utilities.lookups.intmap": {
     "name": "TidalPy.utilities.lookups.intmap",
     "sources": [["TidalPy", "utilities", "lookups", "intmap.pyx"]],
