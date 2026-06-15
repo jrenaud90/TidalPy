@@ -4,22 +4,22 @@
  *
  * Structure quantities (density, gravity, pressure) are queried through CyRK's
  * DENSE OUTPUT — the high-accuracy continuous interpolant produced by the ODE
- * solver, via a type-erased callable (DenseEval) installed by the world EOS
- * solve. Each Cython extension compiles its own copy of CyRK, so a CyRK CySolverResult
- * created in the world extension must only ever be touched by that same copy.
- * The lambda that performs the dense call is compiled in the world translation unit
- * (which owns CyRK and the solution) and co-owns the solution via a captured shared_ptr,
- * so there is no dangling pointer / leak and no cross-extension CyRK call.
- * The layer extensions stay CyRK-free. When no dense evaluator is installed (e.g. a manual
- * update_eos_data for testing) the structure getters fall back to linear
- * interpolation of the stored slice arrays via the shared Utilities_x `c_interp`.
+ * solver — via a type-erased callable (DenseEval) installed by the world EOS
+ * solve. The CySolverResult owns the solver (solver_uptr) and is co-owned (via a
+ * captured shared_ptr) by the evaluator, so the dense output is callable as many
+ * times as needed post-solve with no dangling pointer / leak. The lambda is
+ * compiled in the world (CyRK-owning) translation unit, so the CyRK object is only
+ * ever touched by the copy of CyRK that created it; the layer extensions stay
+ * CyRK-free. When no dense evaluator is installed (e.g. a manual update_eos_data
+ * for testing) the structure getters fall back to linear interpolation of the
+ * stored slice arrays via the shared Utilities_x `c_interp`.
  *
  * Viscoelastic quantities (pre/post-melt shear & bulk modulus + viscosity) are
  * NOT part of the ODE solution — they are computed algebraically at discrete radial
  * slices in the solve's post-pass — so they are stored as arrays and queried with
  * linear interpolation (`c_interp`).
  *
- * All of these are FREQUENCY-INDEPENDENT (they depend only on the solved
+ * All profiles are frequency-independent (they depend only on the solved
  * temperature/pressure state), so they are computed once per EOS solve and cached
  * here; only the downstream rheology (complex modulus) step is recomputed per
  * forcing frequency. Until populated, the getters return NaN. All MKS.
@@ -42,16 +42,8 @@ public:
     using DenseEval = std::function<void(double radius_m, double* y_out)>;
 
     // CyRK EOS-ODE y-layout (see Material_x/eos/ode_.hpp):
-    //   primary y: 0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia.
-    //   extra:     4 density, 5-8 complex shear/bulk modulus.
-    // IMPORTANT: CyRK's dense interpolation is only safe post-solve for the PRIMARY
-    // y-values (interpolated from stored polynomial data). The EXTRA outputs
-    // (index >= EOS_NUM_PRIMARY_Y) are recomputed at call time through a stored
-    // pointer to the (now-destroyed) solver, so dense interpolation of them after
-    // the solve is undefined behaviour. Density and moduli therefore use the
-    // stored slice arrays (linear interp); gravity/pressure use the dense output.
+    //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density.
     static constexpr std::size_t EOS_DENSE_SIZE     = 9;
-    static constexpr std::size_t EOS_NUM_PRIMARY_Y  = 4;
     static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
     static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
     static constexpr std::size_t EOS_INDEX_DENSITY  = 4;
@@ -81,7 +73,8 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    // Post-melt viscoelastic getters (linear interp of the slice arrays).
+    // Post-melt viscoelastic getters (linear interp of the slice arrays — these
+    // are not part of the ODE solution, so there is no dense output for them).
     // -----------------------------------------------------------------------
     double get_shear_modulus(double radius_m) const noexcept {
         return this->interp_viscoelastic(radius_m, this->p_postmelt_shear_pa);
@@ -182,15 +175,12 @@ private:
     std::vector<double> p_postmelt_shear_visc_pas;  // [Pa·s]
     std::vector<double> p_postmelt_bulk_visc_pas;   // [Pa·s]
 
-    // Structure query: for a primary y-value (gravity/pressure) use the CyRK dense
-    // output (high accuracy, safe post-solve). For an extra output (density) the
-    // dense interpolant would dereference the destroyed solver, so always use the
-    // stored slice array. Falls back to the slice array when no dense evaluator is
-    // installed. NaN when neither is available.
+    // Structure query: prefer the CyRK dense output; otherwise linear-interpolate
+    // the stored slice array. NaN when neither is available.
     double dense_or_interp(
             double radius_m, std::size_t dense_index,
             const std::vector<double>& fallback_values) const noexcept {
-        if (this->p_dense_eval && dense_index < EOS_NUM_PRIMARY_Y) {
+        if (this->p_dense_eval) {
             double dense_output[EOS_DENSE_SIZE] = {0.0};
             this->p_dense_eval(radius_m, dense_output);
             return dense_output[dense_index];

@@ -275,11 +275,18 @@ public:
         auto solution = std::make_shared<c_EOSSolution>(
             upper_radii.data(), n_layers, full_radius.data(), total_slices);
 
-        std::vector<PreEvalFunc>        eos_function_vec;
-        std::vector<c_EOS_ODEInput>     eos_input_vec;
-        std::vector<c_MaterialEOSInput> material_inputs(n_layers);
+        std::vector<PreEvalFunc>    eos_function_vec;
+        std::vector<c_EOS_ODEInput> eos_input_vec;
         eos_function_vec.reserve(n_layers);
         eos_input_vec.reserve(n_layers);
+
+        // The per-layer material-EOS inputs are stored as a WORLD MEMBER (not a
+        // local). The solver copies the c_EOS_ODEInput, but that copy holds a
+        // pointer (eos_input_ptr) into this vector, and the dense-output re-calls
+        // the diffeq (for the density extra output) post-solve through that pointer
+        // — so it must outlive solve_eos. The retained solution co-owns the dense
+        // evaluators; this vector lives as long as the world (re-set on every solve).
+        this->p_eos_material_inputs.assign(n_layers, c_MaterialEOSInput());
 
         c_EOS_ODEInput ode_input;
         ode_input.G_to_use      = G_to_use;
@@ -288,9 +295,9 @@ public:
         ode_input.update_bulk   = false;
         ode_input.update_shear  = false;
         for (std::size_t i = 0; i < n_layers; ++i) {
-            material_inputs[i].eos_model_ptr = this->p_layers[i]->get_eos();
-            material_inputs[i].temperature_k = cfg.temperature;
-            ode_input.eos_input_ptr          = reinterpret_cast<char*>(&material_inputs[i]);
+            this->p_eos_material_inputs[i].eos_model_ptr = this->p_layers[i]->get_eos();
+            this->p_eos_material_inputs[i].temperature_k = cfg.temperature;
+            ode_input.eos_input_ptr = reinterpret_cast<char*>(&this->p_eos_material_inputs[i]);
             eos_function_vec.push_back(c_preeval_material_eos);
             eos_input_vec.push_back(ode_input);
         }
@@ -340,13 +347,15 @@ public:
                     std::vector<double>(solution->gravity_array_vec.begin()  + slice_start, solution->gravity_array_vec.begin()  + slice_end),
                     std::vector<double>(solution->pressure_array_vec.begin() + slice_start, solution->pressure_array_vec.begin() + slice_end));
 
-                // Install the CyRK dense-output evaluator for this layer.
-                // The lambda is compiled here (the only CyRK-owning
-                // extension), so the CySolverResult is created and called by the
-                // same CyRK copy; it co-owns the solution via the captured
-                // shared_ptr, so the dense data can never dangle or leak (the raw
-                // result pointer it dereferences is kept alive by that shared_ptr).
-                // The slice arrays above remain only as a fallback.
+                // Install the CyRK dense-output evaluator for this layer. The
+                // CySolverResult owns its solver (solver_uptr), and the captured
+                // shared_ptr co-owns the whole solution, so the dense data + solver
+                // stay alive and callable post-solve (no dangling / leak). The diffeq
+                // args it re-evaluates (for the density extra output) point at
+                // this->p_eos_material_inputs, which also outlives the solve. The
+                // lambda is compiled in this (CyRK-owning) extension, so the CySolverResult
+                // is only ever called by the CyRK copy that built it. The slice arrays
+                // populated above are the fallback for a manual update_eos_data.
                 if (layer_index < solution->cysolver_results_uptr_bylayer_vec.size()) {
                     CySolverResult* layer_solver_result =
                         solution->cysolver_results_uptr_bylayer_vec[layer_index].get();
@@ -562,6 +571,9 @@ protected:
     double      p_planet_mass_eos      = std::numeric_limits<double>::quiet_NaN();
     double      p_planet_moi_eos       = std::numeric_limits<double>::quiet_NaN();
     std::shared_ptr<c_EOSSolution> p_eos_solution;  // retained full-planet solution (co-owned by layer dense evaluators)
+    // Per-layer material-EOS inputs referenced by the solver's stored diffeq args;
+    // must outlive solve_eos so the dense output's diffeq re-calls stay valid.
+    std::vector<c_MaterialEOSInput> p_eos_material_inputs;
 };
 
 } // namespace tidalpy

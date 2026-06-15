@@ -75,4 +75,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class LayeredWorld(BaseWorld):
     cdef c_LayeredWorld* _layered_ptr   # non-owning; ownership via BaseWorld._world_ptr
+    # Scalar dispatch for the vectorized real-valued radius getters (nogil-callable
+    # so the float-or-ndarray wrappers can loop without the GIL).
+    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil
     cpdef dict get_config_dict(self)
