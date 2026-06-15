@@ -7,6 +7,7 @@ Cython declarations for TidalPy's layered world class (Phase 8b).
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
+from libcpp.complex cimport complex as cpp_complex
 
 from CyRK cimport ODEMethod
 
@@ -45,6 +46,16 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_density(double radius_m) const
         double       get_gravity(double radius_m) const
         double       get_pressure(double radius_m) const
+        double       get_shear_modulus(double radius_m) const
+        double       get_bulk_modulus(double radius_m) const
+        double       get_shear_viscosity(double radius_m) const
+        double       get_bulk_viscosity(double radius_m) const
+        double       get_premelt_shear_modulus(double radius_m) const
+        double       get_premelt_bulk_modulus(double radius_m) const
+        double       get_premelt_shear_viscosity(double radius_m) const
+        double       get_premelt_bulk_viscosity(double radius_m) const
+        cpp_complex[double] calc_complex_shear_modulus(double radius_m, double frequency_rad_s) const
+        cpp_complex[double] calc_complex_bulk_modulus(double radius_m, double frequency_rad_s) const
         cpp_bool     get_eos_solved() const
         cpp_bool     get_all_eos_set() const
         cpp_bool     get_eos_success() const

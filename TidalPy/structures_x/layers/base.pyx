@@ -289,6 +289,46 @@ cdef class BaseLayer(StructureBase):
         return self._layer_ptr.get().get_pressure(radius_m)
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Viscoelastic profile (populated by the world EOS solve; NaN before then or on a geometry-only layer)
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def viscoelastic_populated(self) -> bool:
+        """True after the world EOS solve has populated this layer's viscoelastic state."""
+        return self._layer_ptr.get().get_viscoelastic_populated()
+
+    def get_shear_modulus(self, double radius_m) -> float:
+        """Post-melt static shear modulus [Pa] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_shear_modulus(radius_m)
+
+    def get_bulk_modulus(self, double radius_m) -> float:
+        """Post-melt static bulk modulus [Pa] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_bulk_modulus(radius_m)
+
+    def get_shear_viscosity(self, double radius_m) -> float:
+        """Post-melt shear viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_shear_viscosity(radius_m)
+
+    def get_bulk_viscosity(self, double radius_m) -> float:
+        """Post-melt bulk viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_bulk_viscosity(radius_m)
+
+    def get_premelt_shear_modulus(self, double radius_m) -> float:
+        """Pre-melt static shear modulus [Pa] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_premelt_shear_modulus(radius_m)
+
+    def get_premelt_bulk_modulus(self, double radius_m) -> float:
+        """Pre-melt static bulk modulus [Pa] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_premelt_bulk_modulus(radius_m)
+
+    def get_premelt_shear_viscosity(self, double radius_m) -> float:
+        """Pre-melt shear viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_premelt_shear_viscosity(radius_m)
+
+    def get_premelt_bulk_viscosity(self, double radius_m) -> float:
+        """Pre-melt bulk viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
+        return self._layer_ptr.get().get_premelt_bulk_viscosity(radius_m)
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):

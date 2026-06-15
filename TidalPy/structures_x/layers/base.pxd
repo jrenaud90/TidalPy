@@ -75,6 +75,15 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         void     set_eos(unique_ptr[c_MaterialEOSBase] eos)
         c_MaterialEOSBase* get_eos() const
         cpp_bool get_eos_set() const
+        cpp_bool get_viscoelastic_populated() const
+        double   get_shear_modulus(double radius_m) const
+        double   get_bulk_modulus(double radius_m) const
+        double   get_shear_viscosity(double radius_m) const
+        double   get_bulk_viscosity(double radius_m) const
+        double   get_premelt_shear_modulus(double radius_m) const
+        double   get_premelt_bulk_modulus(double radius_m) const
+        double   get_premelt_shear_viscosity(double radius_m) const
+        double   get_premelt_bulk_viscosity(double radius_m) const
 
 
 # =====================================================================================================================

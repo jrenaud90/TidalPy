@@ -162,6 +162,33 @@ public:
     }
 
     // -----------------------------------------------------------------------
+    // Radius-resolved complex moduli [Pa] at frequency_rad_s, using the POST-MELT
+    // static modulus + viscosity stored at radius_m by the world EOS solve (rather
+    // than the single layer-constant static value). Feeds the radial Love-number
+    // solve. Returns the real static modulus (zero dissipation) when no rheology is
+    // attached; NaN if the viscoelastic state has not been populated.
+    // -----------------------------------------------------------------------
+    std::complex<double> calc_complex_shear_modulus(
+            double radius_m, double frequency_rad_s) const noexcept {
+        const double static_modulus = this->get_shear_modulus(radius_m);    // post-melt
+        const double viscosity      = this->get_shear_viscosity(radius_m);  // post-melt
+        if (this->p_shear_rheology) {
+            return this->p_shear_rheology->calc_complex_modulus(static_modulus, viscosity, frequency_rad_s);
+        }
+        return std::complex<double>(static_modulus, 0.0);
+    }
+
+    std::complex<double> calc_complex_bulk_modulus(
+            double radius_m, double frequency_rad_s) const noexcept {
+        const double static_modulus = this->get_bulk_modulus(radius_m);    // post-melt
+        const double viscosity      = this->get_bulk_viscosity(radius_m);  // post-melt
+        if (this->p_bulk_rheology) {
+            return this->p_bulk_rheology->calc_complex_modulus(static_modulus, viscosity, frequency_rad_s);
+        }
+        return std::complex<double>(static_modulus, 0.0);
+    }
+
+    // -----------------------------------------------------------------------
     // Rheology setters (non-const; transfer ownership via unique_ptr)
     // Each setter stores the object and registers this layer as the observer.
     // -----------------------------------------------------------------------

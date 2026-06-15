@@ -31,6 +31,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "eos_data_.hpp"
 #include "structure_base_.hpp"
@@ -127,6 +128,44 @@ public:
     double get_gravity(double radius_m)         const noexcept { return this->p_eos_data.get_gravity(radius_m); }
     double get_pressure(double radius_m)        const noexcept { return this->p_eos_data.get_pressure(radius_m); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
+
+    // -----------------------------------------------------------------------
+    // Viscoelastic state (post-melt by default; pre-melt via the premelt getters).
+    // Populated by the world EOS solve's viscoelastic post-pass (PhysicsLayer and
+    // its subclasses); NaN on a geometry-only BaseLayer or before the solve.
+    // -----------------------------------------------------------------------
+    bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.is_viscoelastic_populated(); }
+    double get_shear_modulus(double radius_m)   const noexcept { return this->p_eos_data.get_shear_modulus(radius_m); }
+    double get_bulk_modulus(double radius_m)    const noexcept { return this->p_eos_data.get_bulk_modulus(radius_m); }
+    double get_shear_viscosity(double radius_m) const noexcept { return this->p_eos_data.get_shear_viscosity(radius_m); }
+    double get_bulk_viscosity(double radius_m)  const noexcept { return this->p_eos_data.get_bulk_viscosity(radius_m); }
+    double get_premelt_shear_modulus(double radius_m)   const noexcept {
+        return this->p_eos_data.get_premelt_shear_modulus(radius_m);
+    }
+    double get_premelt_bulk_modulus(double radius_m)    const noexcept {
+        return this->p_eos_data.get_premelt_bulk_modulus(radius_m);
+    }
+    double get_premelt_shear_viscosity(double radius_m) const noexcept {
+        return this->p_eos_data.get_premelt_shear_viscosity(radius_m);
+    }
+    double get_premelt_bulk_viscosity(double radius_m)  const noexcept {
+        return this->p_eos_data.get_premelt_bulk_viscosity(radius_m);
+    }
+
+    // Store the pre/post-melt viscoelastic profiles (called by the world solve).
+    void update_viscoelastic_data(
+            const std::vector<double>& premelt_shear_pa,
+            const std::vector<double>& premelt_bulk_pa,
+            const std::vector<double>& premelt_shear_visc_pas,
+            const std::vector<double>& premelt_bulk_visc_pas,
+            const std::vector<double>& postmelt_shear_pa,
+            const std::vector<double>& postmelt_bulk_pa,
+            const std::vector<double>& postmelt_shear_visc_pas,
+            const std::vector<double>& postmelt_bulk_visc_pas) {
+        this->p_eos_data.populate_viscoelastic(
+            premelt_shear_pa, premelt_bulk_pa, premelt_shear_visc_pas, premelt_bulk_visc_pas,
+            postmelt_shear_pa, postmelt_bulk_pa, postmelt_shear_visc_pas, postmelt_bulk_visc_pas);
+    }
 
     // -----------------------------------------------------------------------
     // Material EOS model (the per-layer density source consumed by the

@@ -317,6 +317,59 @@ cdef class LayeredWorld(BaseWorld):
         """Pressure [Pa] at radius_m [m] from the solved EOS profile (NaN if unsolved)."""
         return self._layered_ptr.get_pressure(radius_m)
 
+    # ------------------------------------------------------------------------------------------------------------------
+    # Viscoelastic profile queries (delegate to the containing layer)
+    # ------------------------------------------------------------------------------------------------------------------
+    def get_shear_modulus(self, double radius_m) -> float:
+        """Post-melt static shear modulus [Pa] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_shear_modulus(radius_m)
+
+    def get_bulk_modulus(self, double radius_m) -> float:
+        """Post-melt static bulk modulus [Pa] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_bulk_modulus(radius_m)
+
+    def get_shear_viscosity(self, double radius_m) -> float:
+        """Post-melt shear viscosity [Pa s] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_shear_viscosity(radius_m)
+
+    def get_bulk_viscosity(self, double radius_m) -> float:
+        """Post-melt bulk viscosity [Pa s] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_bulk_viscosity(radius_m)
+
+    def get_premelt_shear_modulus(self, double radius_m) -> float:
+        """Pre-melt static shear modulus [Pa] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_premelt_shear_modulus(radius_m)
+
+    def get_premelt_bulk_modulus(self, double radius_m) -> float:
+        """Pre-melt static bulk modulus [Pa] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_premelt_bulk_modulus(radius_m)
+
+    def get_premelt_shear_viscosity(self, double radius_m) -> float:
+        """Pre-melt shear viscosity [Pa s] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_premelt_shear_viscosity(radius_m)
+
+    def get_premelt_bulk_viscosity(self, double radius_m) -> float:
+        """Pre-melt bulk viscosity [Pa s] at radius_m [m]; NaN if unsolved."""
+        return self._layered_ptr.get_premelt_bulk_viscosity(radius_m)
+
+    def calc_complex_shear_modulus(self, double radius_m, double frequency_rad_s) -> complex:
+        """Complex shear modulus [Pa] at radius_m [m] and frequency [rad/s].
+
+        Applies the containing layer's shear rheology to the stored post-melt static
+        modulus + viscosity. NaN+0j for a geometry-only layer or before the solve.
+        """
+        cdef cpp_complex[double] value = self._layered_ptr.calc_complex_shear_modulus(radius_m, frequency_rad_s)
+        return complex(value.real(), value.imag())
+
+    def calc_complex_bulk_modulus(self, double radius_m, double frequency_rad_s) -> complex:
+        """Complex bulk modulus [Pa] at radius_m [m] and frequency [rad/s].
+
+        Applies the containing layer's bulk rheology to the stored post-melt static
+        modulus + viscosity. NaN+0j for a geometry-only layer or before the solve.
+        """
+        cdef cpp_complex[double] value = self._layered_ptr.calc_complex_bulk_modulus(radius_m, frequency_rad_s)
+        return complex(value.real(), value.imag())
+
     @property
     def surface_gravity_eos(self) -> float:
         """Surface gravity [m/s^2] from the last EOS solve, or NaN if not solved."""
