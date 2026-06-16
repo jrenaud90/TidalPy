@@ -184,6 +184,135 @@ integration-method string to the CyRK enum, fills `c_WorldEOSSolveConfig`, calls
 the C++ method under `nogil`, and builds the Python result dict from the retained
 solution.
 
+### Viscoelastic Properties (after EOS solve)
+
+Once `solve_eos` has succeeded, the world and each layer expose the full
+complex-moduli / viscoelastic getter surface, which is needed by the Love number / radial solver.
+
+| Member | Returns | Description |
+|--------|---------|-------------|
+| `get_shear_modulus(r)` | float [Pa] | Post-melt static shear modulus at `r`. |
+| `get_bulk_modulus(r)` | float [Pa] | Post-melt static bulk modulus at `r`. |
+| `get_shear_viscosity(r)` | float [Pa·s] | Post-melt shear viscosity at `r`. |
+| `get_bulk_viscosity(r)` | float [Pa·s] | Post-melt bulk viscosity at `r`. |
+| `calc_complex_shear_modulus(r, ω)` | complex [Pa] | Rheology-derived complex shear modulus at radius `r` [m], frequency `ω` [rad/s]. |
+| `calc_complex_bulk_modulus(r, ω)` | complex [Pa] | Rheology-derived complex bulk modulus. |
+
+All of the above accept a float or `np.ndarray` for `r` (and `ω`);
+array inputs return an `np.ndarray` of the same shape.
+
+---
+
+### RadialSolver (Calculating Love Numbers)
+
+`LayeredWorld.solve_love_numbers(...)` runs the shooting-method radial integration
+to compute the viscoelastic-gravitational Love tidal or loading numbers k, h, l for a given tidal
+forcing frequency. `solve_eos` must be called first.
+
+```python
+from TidalPy.structures_x.worlds import LayeredWorld
+from TidalPy.structures_x.layers import SolidLiquidLayer
+from TidalPy.rheology_x import make_rheology
+from TidalPy.Material_x.eos import make_material_eos
+
+world = LayeredWorld("planet", 6e6, 4.2e24)
+layer = SolidLiquidLayer("mantle", 0, 0.0, 6e6, 4.2e24)
+layer.set_eos(make_material_eos("constant", {"reference_density_kg_m3": 4000.0}))
+layer.set_shear_rheology(make_rheology("maxwell", {
+    "shear_modulus_pa": 6e10, "viscosity_pa_s": 1e21
+}))
+world.add_layer(layer)
+
+world.solve_eos()
+world.solve_love_numbers(frequency_rad_s=1e-5)
+
+print(world.love_k2)   # complex k₂
+print(world.love_h2)   # complex h₂
+print(world.love_l2)   # complex l₂
+```
+
+**`solve_love_numbers(
+   frequency_rad_s=1e-5,
+   degree_l=2,
+   solve_tidal=True,
+   use_kamata=True,
+   nondimensionalize=True,
+   starting_radius=0.0,
+   start_radius_tol=1e-4,
+   integration_method='DOP853',
+   rtol=1e-6,
+   atol=1e-10,
+   scale_rtols=True,
+   max_num_steps=500000,
+   expected_size=500,
+   max_ram_MB=500,
+   max_step=0.0,
+   verbose=False,
+   warnings=True,
+   eos_rtol=1e-6,
+   eos_atol=1e-10,
+   eos_pressure_tol=1e-3,
+   eos_max_iters=100) -> None`**
+
+Raises `RuntimeError` if the EOS has not yet been solved. Results are stored
+internally and accessed through the properties below.
+
+**Love-number properties (after a successful solve)**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `love_solved` | bool | `True` if a solve has been attempted. |
+| `love_success` | bool | `True` if the last solve converged. |
+| `love_error_code` | int | Solver error code (0 = success; < 0 = failure). |
+| `love_message` | str | Human-readable solver message. |
+| `love_num_ytypes` | int | Number of independent solution types (boundary-condition models requested). |
+| `love_k2`, `love_h2`, `love_l2` | complex | Degree-2 Love numbers for the default (tidal) boundary condition. |
+
+**`get_love_number_k(ytype_idx=0) -> complex`**,
+**`get_love_number_h(ytype_idx=0) -> complex`**,
+**`get_love_number_l(ytype_idx=0) -> complex`**
+
+Return the Love numbers for boundary-condition model index `ytype_idx` (0 = first
+requested, usually tidal).
+
+**`get_love_surface_y(ytype_idx, y_idx) -> complex`**
+
+Raw radial function y₁…y₆ at the surface for solution type `ytype_idx`, function
+index `y_idx` (0–5).
+
+#### C++ API
+
+```cpp
+tidalpy::c_LoveSolveConfig cfg;
+cfg.frequency_rad_s   = 1.0e-5;          // [rad/s]
+cfg.degree_l          = 2;
+cfg.nondimensionalize = true;
+cfg.integration_method = ODEMethod::DOP853;
+world.solve_love_numbers(cfg);           // populates p_love_solution
+
+std::complex<double> k2 = world.get_love_number_k(0);
+```
+
+`c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` is fully
+self-contained:
+
+1. Validates `eos_solved` and `tidalpy_config_ptr`.
+2. Copies the EOS radius/density/gravity/pressure/mass/moi arrays from the stored
+   `c_EOSSolution` and calls `calc_complex_shear/bulk_modulus` at the requested
+   frequency to build per-slice complex-moduli arrays.
+3. Builds a `c_NonDimensionalScales` object and non-dimensionalizes all arrays
+   (if `cfg.nondimensionalize`).
+4. Creates a `c_RadialSolutionStorage` (owned by `p_love_solution`) and populates
+   its `c_EOSSolution` via `inject_from_world_eos`, which sets the
+   `p_use_array_interp` flag so the EOS solution interpolates from the copied
+   arrays (no CyRK dense-output required in the radial-solve context).
+5. Calls `c_shooting_solver` directly (no intermediate `c_radial_solver`).
+6. Re-dimensionalizes and calls `c_RadialSolutionStorage::find_love()`.
+
+The `c_RadialSolutionStorage` is owned by `p_love_solution
+(unique_ptr<c_RadialSolutionStorage>)` on `c_LayeredWorld`; `get_love_number_k/h/l`,
+`get_love_surface_y`, and the status accessors delegate to it.
+
 ---
 
 ## `GasGiantWorld`

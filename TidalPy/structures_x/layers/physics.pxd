@@ -45,6 +45,10 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         double              shear_viscosity_static_pas
         double              bulk_viscosity_static_pas
         c_LoveNumbers       love_numbers
+        # Radial-solver layer classification flags:
+        cpp_bool            is_solid
+        cpp_bool            is_static
+        cpp_bool            is_incompressible
 
     cdef cppclass c_PhysicsLayer(c_BaseLayer):
         c_PhysicsLayer() except +
@@ -70,6 +74,9 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_shear_viscosity_set()                const
         cpp_bool            get_bulk_viscosity_set()                 const
         cpp_bool            get_partial_melt_set()                   const
+        cpp_bool            get_is_solid()                           const
+        cpp_bool            get_is_static()                          const
+        cpp_bool            get_is_incompressible()                  const
 
 
 # =====================================================================================================================

@@ -188,6 +188,24 @@ cdef class PhysicsLayer(BaseLayer):
         return self._physics_ptr.get_bulk_rheology_set()
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Radial-solver layer classification flags
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def is_solid(self) -> bool:
+        """True if this layer is solid; False for liquid.  Used by the radial Love-number solver."""
+        return bool(self._physics_ptr.get_is_solid())
+
+    @property
+    def is_static(self) -> bool:
+        """True if the static (no-dynamic-terms) approximation is used.  Used by the radial solver."""
+        return bool(self._physics_ptr.get_is_static())
+
+    @property
+    def is_incompressible(self) -> bool:
+        """True if the incompressible approximation is used.  Used by the radial solver."""
+        return bool(self._physics_ptr.get_is_incompressible())
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Rheology attachment
     # ------------------------------------------------------------------------------------------------------------------
     def set_shear_rheology(self, RheologyBase rheology not None):

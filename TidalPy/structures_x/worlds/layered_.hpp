@@ -32,6 +32,16 @@
 #include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc
 #include "material_.hpp"    // c_MaterialEOSInput, c_preeval_material_eos
 
+// RadialSolver sub-modules: shooting solver, storage, love numbers.
+// Compiled into this TU so the shooting CyRK integration runs in the same
+// extension that owns the CySolverResult objects — no cross-extension call().
+#include "../../utilities/math/numerics_.hpp"        // c_isclose
+#include "../../utilities/dimensions/nondimensional_.hpp"  // c_NonDimensionalScales
+#include "../../RadialSolver_x/rs_constants_.hpp"
+#include "../../RadialSolver_x/rs_solution_.hpp"
+#include "../../RadialSolver_x/love_.hpp"
+#include "../../RadialSolver_x/shooting_.hpp"
+
 namespace tidalpy {
 
 // -------------------------------------------------------------------------------
@@ -49,6 +59,33 @@ struct c_WorldEOSSolveConfig {
     size_t    max_iters           = 100;
     double    temperature         = 0.0;                 // [K]; passed to calc_density (unused yet)
     bool      verbose             = false;
+};
+
+// -------------------------------------------------------------------------------
+// c_LoveSolveConfig — parameters for the whole-planet Love-number solve.
+// -------------------------------------------------------------------------------
+struct c_LoveSolveConfig {
+    double    frequency_rad_s    = 1.0e-5;            // [rad/s]; tidal forcing frequency
+    int       degree_l           = 2;                  // harmonic degree
+    bool      solve_tidal        = true;               // include tidal (bc_model=1) boundary condition
+    bool      use_kamata         = true;
+    bool      nondimensionalize  = true;
+    double    starting_radius    = 0.0;                // [m]; 0 → auto
+    double    start_radius_tol   = 1.0e-4;
+    ODEMethod integration_method = ODEMethod::DOP853;
+    double    rtol               = 1.0e-6;
+    double    atol               = 1.0e-10;
+    bool      scale_rtols        = true;
+    size_t    max_num_steps      = 500000;
+    size_t    expected_size      = 500;
+    size_t    max_ram_MB         = 500;
+    double    max_step           = 0.0;
+    bool      verbose            = false;
+    bool      warnings           = true;
+    double    eos_rtol           = 1.0e-6;
+    double    eos_atol           = 1.0e-10;
+    double    eos_pressure_tol   = 1.0e-3;
+    int       eos_max_iters      = 100;
 };
 
 // -------------------------------------------------------------------------------
@@ -395,6 +432,277 @@ public:
     const c_EOSSolution* get_eos_solution() const noexcept { return this->p_eos_solution.get(); }
 
     // -----------------------------------------------------------------------
+    // Whole-planet Love-number solve (non-const; requires a prior solve_eos).
+    //
+    // Uses the world's already-computed EOS (density, gravity, pressure arrays)
+    // and the layers' rheology models to build frequency-dependent complex moduli,
+    // then calls the shooting solver directly — no external radial-solver function
+    // needed.  The world class is the complete interface; c_RadialSolutionStorage
+    // is an internal detail owned by p_love_solution.
+    //
+    // Throws std::invalid_argument if solve_eos has not been run.
+    //
+    // Assumptions: spherical symmetry; all quantities MKS.
+    // -----------------------------------------------------------------------
+    void solve_love_numbers(const c_LoveSolveConfig& cfg) {
+        if (!this->p_eos_solved || !this->p_eos_solution) {
+            throw std::invalid_argument(
+                "TidalPy: solve_eos must succeed before solve_love_numbers");
+        }
+        if (tidalpy_config_ptr == nullptr) {
+            throw std::runtime_error(
+                "TidalPy: config not initialised — call initialize_tidalpy_config() first");
+        }
+
+        const std::size_t n_layers     = this->p_layers.size();
+        const std::size_t total_slices = this->p_eos_solution->radius_array_size;
+
+        if (n_layers == 0)
+            throw std::invalid_argument("TidalPy: world has no layers");
+        if (total_slices < 5)
+            throw std::invalid_argument("TidalPy: EOS solution has too few radial slices (< 5)");
+
+        // ── Per-layer metadata ─────────────────────────────────────────────
+        auto layer_types   = std::make_unique<int[]>(n_layers);
+        auto is_static_arr = std::make_unique<bool[]>(n_layers);
+        auto is_incomp_arr = std::make_unique<bool[]>(n_layers);
+        for (std::size_t i = 0; i < n_layers; ++i) {
+            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(this->p_layers[i].get());
+            if (phys != nullptr) {
+                layer_types[i]   = phys->get_is_solid() ? 0 : 1;
+                is_static_arr[i] = phys->get_is_static();
+                is_incomp_arr[i] = phys->get_is_incompressible();
+            } else {
+                layer_types[i]   = 0;      // geometry-only layer treated as solid
+                is_static_arr[i] = true;
+                is_incomp_arr[i] = false;
+            }
+        }
+
+        // ── Planet-level scalars ───────────────────────────────────────────
+        const c_EOSSolution* world_eos = this->p_eos_solution.get();
+        const double r_planet    = world_eos->radius;
+        const double g_surface   = world_eos->surface_gravity;   // SI value, saved for find_love
+        const double vol         = (4.0 / 3.0) * TidalPyConstants::d_PI
+                                 * r_planet * r_planet * r_planet;
+        const double bulk_rho    = (vol > 0.0) ? this->p_planet_mass_eos / vol : 3500.0;
+        const double G_si        = tidalpy_config_ptr->d_G;
+
+        // ── Mutable working copies of all EOS arrays ───────────────────────
+        // We non-dimensionalize these in place; the originals in p_eos_solution
+        // are never modified.
+        std::vector<double> radius_copy  (world_eos->radius_array_vec);
+        std::vector<double> density_copy (world_eos->density_array_vec);
+        std::vector<double> gravity_copy (world_eos->gravity_array_vec);
+        std::vector<double> pressure_copy(world_eos->pressure_array_vec);
+        std::vector<double> mass_copy    (world_eos->mass_array_vec);
+        std::vector<double> moi_copy     (world_eos->moi_array_vec);
+
+        // Frequency-dependent complex moduli at the forcing frequency.
+        std::vector<std::complex<double>> shear_vec(total_slices);
+        std::vector<std::complex<double>> bulk_vec(total_slices);
+        for (std::size_t i = 0; i < total_slices; ++i) {
+            const double r = radius_copy[i];
+            shear_vec[i] = this->calc_complex_shear_modulus(r, cfg.frequency_rad_s);
+            bulk_vec[i]  = this->calc_complex_bulk_modulus(r, cfg.frequency_rad_s);
+        }
+
+        // Upper radii per layer (will be non-dimensionalized below if needed).
+        std::vector<double> upper_radii(n_layers);
+        for (std::size_t i = 0; i < n_layers; ++i)
+            upper_radii[i] = this->p_layers[i]->get_radius_outer();
+
+        // ── Non-dimensionalization ─────────────────────────────────────────
+        ::c_NonDimensionalScales non_dim(cfg.frequency_rad_s, r_planet, bulk_rho);
+
+        double G_nd      = G_si;
+        double rho_nd    = bulk_rho;
+        double freq_nd   = cfg.frequency_rad_s;
+        double surf_p_nd = this->p_surface_pressure_eos;
+        double start_r   = cfg.starting_radius;
+
+        if (cfg.nondimensionalize) {
+            const double L    = non_dim.length_conversion;
+            const double M    = non_dim.mass_conversion;
+            const double T2   = non_dim.second2_conversion;
+            const double T    = non_dim.second_conversion;
+            const double Pa   = non_dim.pascal_conversion;
+            const double rho  = non_dim.density_conversion;
+            const double grav = L / T2;
+            const double moi  = M * L * L;
+
+            for (std::size_t i = 0; i < total_slices; ++i) {
+                radius_copy[i]   /= L;
+                density_copy[i]  /= rho;
+                gravity_copy[i]  /= grav;
+                pressure_copy[i] /= Pa;
+                mass_copy[i]     /= M;
+                moi_copy[i]      /= moi;
+                shear_vec[i]     /= Pa;
+                bulk_vec[i]      /= Pa;
+            }
+            for (std::size_t i = 0; i < n_layers; ++i)
+                upper_radii[i] /= L;
+
+            G_nd      = G_si / (non_dim.length3_conversion / (M * T2));
+            rho_nd    = bulk_rho / rho;
+            freq_nd   = cfg.frequency_rad_s / (1.0 / T);
+            surf_p_nd = this->p_surface_pressure_eos / Pa;
+            start_r   = cfg.starting_radius / L;
+        }
+
+        // ── Create solution storage with non-dim arrays ────────────────────
+        // The storage owns the internal c_EOSSolution; we inject the world's
+        // already-computed (and now non-dim) EOS data into it so the shooting
+        // ODE derivative functions can call eos_solution->call() and get the
+        // correct gravity / density / moduli via simple array interpolation.
+        this->p_love_solution = std::make_unique<::c_RadialSolutionStorage>(
+            1 /*num_ytypes*/, upper_radii.data(), n_layers,
+            radius_copy.data(), total_slices, cfg.degree_l
+        );
+        ::c_RadialSolutionStorage* storage = this->p_love_solution.get();
+
+        storage->get_eos_solution_ptr()->inject_from_world_eos(
+            radius_copy.data(),   gravity_copy.data(),
+            pressure_copy.data(), mass_copy.data(),
+            moi_copy.data(),      density_copy.data(),
+            shear_vec.data(),     bulk_vec.data(),
+            total_slices
+        );
+        // inject_from_world_eos sets p_use_array_interp = true so call() uses
+        // linear array interpolation instead of requiring a CyRK dense result.
+
+        // ── Count slices belonging to each layer ───────────────────────────
+        std::vector<std::size_t> first_slice_idx(n_layers);
+        std::vector<std::size_t> num_slices(n_layers);
+        for (std::size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            first_slice_idx[layer_i] = (layer_i == 0)
+                ? 0
+                : first_slice_idx[layer_i - 1] + num_slices[layer_i - 1];
+
+            const double layer_r = upper_radii[layer_i];
+            std::size_t count = 0, iface = 0;
+            for (std::size_t s = first_slice_idx[layer_i]; s < total_slices; ++s) {
+                const double r = radius_copy[s];
+                if (c_isclose(r, layer_r, 1.0e-9, 0.0)) {
+                    if (++iface > 1) break;
+                } else if (r > layer_r) {
+                    break;
+                }
+                ++count;
+            }
+            if (count < 5) {
+                storage->error_code = -5;
+                storage->message    = "TidalPy: at least 5 slices per layer required";
+                storage->success    = false;
+                this->p_love_solved = false;
+                return;
+            }
+            num_slices[layer_i] = count;
+        }
+
+        // ── Boundary condition model (tidal = 1, free = 0) ────────────────
+        int bc_model = cfg.solve_tidal ? 1 : 0;
+        const std::size_t num_bc_models = 1;
+
+        // ── Shooting solver ────────────────────────────────────────────────
+        ::c_shooting_solver(
+            storage,
+            freq_nd, rho_nd,
+            layer_types.get(), is_static_arr.get(), is_incomp_arr.get(),
+            first_slice_idx, num_slices,
+            num_bc_models, &bc_model,
+            G_nd,
+            cfg.degree_l, cfg.use_kamata,
+            start_r, cfg.start_radius_tol,
+            cfg.integration_method, cfg.rtol, cfg.atol,
+            cfg.scale_rtols, cfg.max_num_steps,
+            cfg.expected_size, cfg.max_ram_MB, cfg.max_step,
+            cfg.verbose
+        );
+
+        // ── Redimensionalise ───────────────────────────────────────────────
+        if (cfg.nondimensionalize) {
+            storage->dimensionalize_data(&non_dim, true);
+            // dimensionalize_data scales the *_array_vec members but not the scalar
+            // surface_gravity that find_love() needs; restore the SI value here.
+            storage->get_eos_solution_ptr()->surface_gravity = g_surface;
+        }
+
+        // ── Extract Love numbers ───────────────────────────────────────────
+        if (storage->success)
+            storage->find_love();
+
+        this->p_love_solved = storage->success;
+    }
+
+    // -----------------------------------------------------------------------
+    // Love-number solve result accessors
+    // All valid after solve_love_numbers succeeds; return NaN / empty otherwise.
+    // The world is the sole interface — c_RadialSolutionStorage is internal.
+    // -----------------------------------------------------------------------
+
+    bool get_love_solved() const noexcept { return this->p_love_solved; }
+
+    bool get_love_success() const noexcept {
+        return this->p_love_solution ? this->p_love_solution->success : false;
+    }
+
+    int get_love_error_code() const noexcept {
+        return this->p_love_solution ? this->p_love_solution->error_code : -100;
+    }
+
+    const std::string& get_love_message() const noexcept {
+        static const std::string no_msg = "No love-number solve has been run.";
+        return this->p_love_solution ? this->p_love_solution->message : no_msg;
+    }
+
+    std::size_t get_love_num_ytypes() const noexcept {
+        return this->p_love_solution ? this->p_love_solution->num_ytypes : 0;
+    }
+
+    // Primary Love numbers (k, h, l) for the given boundary-condition ytype index.
+    std::complex<double> get_love_number_k(std::size_t ytype_idx = 0) const noexcept {
+        if (!this->p_love_solution || ytype_idx >= this->p_love_solution->complex_love_vec.size())
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        return this->p_love_solution->complex_love_vec[ytype_idx].k;
+    }
+
+    std::complex<double> get_love_number_h(std::size_t ytype_idx = 0) const noexcept {
+        if (!this->p_love_solution || ytype_idx >= this->p_love_solution->complex_love_vec.size())
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        return this->p_love_solution->complex_love_vec[ytype_idx].h;
+    }
+
+    std::complex<double> get_love_number_l(std::size_t ytype_idx = 0) const noexcept {
+        if (!this->p_love_solution || ytype_idx >= this->p_love_solution->complex_love_vec.size())
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        return this->p_love_solution->complex_love_vec[ytype_idx].l;
+    }
+
+    // Full radial solution y-value at the surface for a given ytype and y-index.
+    // Returns NaN if not solved.  Matches the storage layout: 6 complex y-values
+    // (12 doubles) per ytype per slice.
+    std::complex<double> get_love_surface_y(
+            std::size_t ytype_idx, std::size_t y_idx) const noexcept {
+        if (!this->p_love_solution || !this->p_love_solution->success)
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        const std::size_t n_slices  = this->p_love_solution->num_slices;
+        const std::size_t n_ytypes  = this->p_love_solution->num_ytypes;
+        if (ytype_idx >= n_ytypes || y_idx >= C_MAX_NUM_Y)
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        // Layout: [slice][ytype * C_MAX_NUM_Y_REAL] interleaved real/imag pairs
+        const std::size_t stride    = C_MAX_NUM_Y_REAL * n_ytypes;
+        const std::size_t base      = (n_slices - 1) * stride
+                                    + ytype_idx * C_MAX_NUM_Y_REAL
+                                    + y_idx * 2;
+        const auto& v = this->p_love_solution->full_solution_vec;
+        if (base + 1 >= v.size())
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        return std::complex<double>(v[base], v[base + 1]);
+    }
+
+    // -----------------------------------------------------------------------
     // Whole-planet aggregates (const, MKS)
     // -----------------------------------------------------------------------
     // Total mass [kg] = sum of layer masses.
@@ -574,6 +882,10 @@ protected:
     // Per-layer material-EOS inputs referenced by the solver's stored diffeq args;
     // must outlive solve_eos so the dense output's diffeq re-calls stay valid.
     std::vector<c_MaterialEOSInput> p_eos_material_inputs;
+
+    // Love-number solve results (set by solve_love_numbers; not serialized).
+    bool p_love_solved = false;
+    std::unique_ptr<::c_RadialSolutionStorage> p_love_solution;
 };
 
 } // namespace tidalpy

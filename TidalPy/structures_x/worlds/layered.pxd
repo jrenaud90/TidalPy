@@ -32,6 +32,29 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    temperature
         cpp_bool  verbose
 
+    cdef cppclass c_LoveSolveConfig:
+        double    frequency_rad_s
+        int       degree_l
+        cpp_bool  solve_tidal
+        cpp_bool  use_kamata
+        cpp_bool  nondimensionalize
+        double    starting_radius
+        double    start_radius_tol
+        ODEMethod integration_method
+        double    rtol
+        double    atol
+        cpp_bool  scale_rtols
+        size_t    max_num_steps
+        size_t    expected_size
+        size_t    max_ram_MB
+        double    max_step
+        cpp_bool  verbose
+        cpp_bool  warnings
+        double    eos_rtol
+        double    eos_atol
+        double    eos_pressure_tol
+        int       eos_max_iters
+
     cdef cppclass c_LayeredWorld(c_BaseWorld):
         c_LayeredWorld()
         c_LayeredWorld(const c_WorldConfig& cfg) except +
@@ -68,6 +91,16 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_planet_mass_eos() const
         double       get_planet_moi_eos() const
         const c_EOSSolution* get_eos_solution() const
+        void                 solve_love_numbers(const c_LoveSolveConfig& cfg) except +
+        cpp_bool             get_love_solved() const
+        cpp_bool             get_love_success() const
+        int                  get_love_error_code() const
+        const string&        get_love_message() const
+        size_t               get_love_num_ytypes() const
+        cpp_complex[double]  get_love_number_k(size_t ytype_idx) const
+        cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
+        cpp_complex[double]  get_love_number_l(size_t ytype_idx) const
+        cpp_complex[double]  get_love_surface_y(size_t ytype_idx, size_t y_idx) const
 
 
 # =====================================================================================================================

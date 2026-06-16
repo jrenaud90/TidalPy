@@ -58,6 +58,10 @@ struct c_PhysicsConfig : public c_BaseLayerConfig {
     double        shear_viscosity_static_pas = 0.0;   // [Pa·s]
     double        bulk_viscosity_static_pas  = 0.0;   // [Pa·s]
     c_LoveNumbers love_numbers;                       // k, h, l [dimensionless] placeholder
+    // Radial-solver layer classification flags.
+    bool          is_solid          = true;   // false for liquid layers
+    bool          is_static         = true;   // use static (no dynamic terms) approximation
+    bool          is_incompressible = false;  // use incompressible approximation
 };
 
 // -------------------------------------------------------------------------------
@@ -76,7 +80,10 @@ public:
           p_bulk_modulus_static_pa(cfg.bulk_modulus_static_pa),
           p_shear_viscosity_static_pas(cfg.shear_viscosity_static_pas),
           p_bulk_viscosity_static_pas(cfg.bulk_viscosity_static_pas),
-          p_love_numbers(cfg.love_numbers)
+          p_love_numbers(cfg.love_numbers),
+          p_is_solid(cfg.is_solid),
+          p_is_static(cfg.is_static),
+          p_is_incompressible(cfg.is_incompressible)
     {}
 
     ~c_PhysicsLayer() override = default;
@@ -92,6 +99,9 @@ public:
             this->p_shear_viscosity_static_pas = other.p_shear_viscosity_static_pas;
             this->p_bulk_viscosity_static_pas  = other.p_bulk_viscosity_static_pas;
             this->p_love_numbers               = other.p_love_numbers;
+            this->p_is_solid                   = other.p_is_solid;
+            this->p_is_static                  = other.p_is_static;
+            this->p_is_incompressible          = other.p_is_incompressible;
             // Owned model pointers cannot be copied; source temporaries always have null ptrs.
             this->p_shear_rheology.reset();
             this->p_bulk_rheology.reset();
@@ -116,6 +126,11 @@ public:
     std::complex<double> get_love_number_k()  const noexcept { return this->p_love_numbers.k; }
     std::complex<double> get_love_number_h()  const noexcept { return this->p_love_numbers.h; }
     std::complex<double> get_love_number_l()  const noexcept { return this->p_love_numbers.l; }
+
+    // Radial-solver layer classification getters.
+    bool get_is_solid()          const noexcept { return this->p_is_solid; }
+    bool get_is_static()         const noexcept { return this->p_is_static; }
+    bool get_is_incompressible() const noexcept { return this->p_is_incompressible; }
 
     // -----------------------------------------------------------------------
     // Tidal susceptibility [m^3]
@@ -257,6 +272,7 @@ public:
             sizeof(double)   +               // tidal_scale
             sizeof(double)   * 4 +           // shear modulus, bulk modulus, shear viscosity, bulk viscosity
             sizeof(double)   * 6 +           // love_number k, h, l (each: re + im)
+            sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
             this->rheology_presence_bytes(); // shear + bulk rheology presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::PhysicsLayer), payload);
@@ -290,6 +306,14 @@ public:
         write_complex(this->p_love_numbers.k);
         write_complex(this->p_love_numbers.h);
         write_complex(this->p_love_numbers.l);
+
+        // Radial-solver layer classification flags.
+        const uint8_t is_solid_byte          = static_cast<uint8_t>(this->p_is_solid);
+        const uint8_t is_static_byte         = static_cast<uint8_t>(this->p_is_static);
+        const uint8_t is_incompressible_byte = static_cast<uint8_t>(this->p_is_incompressible);
+        out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
 
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write PhysicsLayer binary data");
@@ -346,6 +370,17 @@ public:
         read_complex(this->p_love_numbers.h);
         read_complex(this->p_love_numbers.l);
 
+        // Radial-solver layer classification flags.
+        uint8_t is_solid_byte = 0;
+        uint8_t is_static_byte = 0;
+        uint8_t is_incompressible_byte = 0;
+        in.read(reinterpret_cast<char*>(&is_solid_byte),          sizeof(uint8_t));
+        in.read(reinterpret_cast<char*>(&is_static_byte),         sizeof(uint8_t));
+        in.read(reinterpret_cast<char*>(&is_incompressible_byte), sizeof(uint8_t));
+        this->p_is_solid          = static_cast<bool>(is_solid_byte);
+        this->p_is_static         = static_cast<bool>(is_static_byte);
+        this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
+
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read PhysicsLayer binary data");
         }
@@ -392,6 +427,10 @@ protected:
     double        p_shear_viscosity_static_pas = 0.0;   // [Pa·s]
     double        p_bulk_viscosity_static_pas  = 0.0;   // [Pa·s]
     c_LoveNumbers p_love_numbers;                       // k, h, l [dimensionless] placeholder
+    // Radial-solver layer classification.
+    bool          p_is_solid          = true;
+    bool          p_is_static         = true;
+    bool          p_is_incompressible = false;
 
     // Optional rheology objects (not serialized; set by Python layer after construction).
     std::unique_ptr<c_RheologyBase> p_shear_rheology;

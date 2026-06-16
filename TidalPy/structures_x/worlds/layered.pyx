@@ -546,6 +546,215 @@ cdef class LayeredWorld(BaseWorld):
         return self._layered_ptr.get_planet_moi_eos()
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Love-number (radial) solve
+    # ------------------------------------------------------------------------------------------------------------------
+    def solve_love_numbers(
+            self,
+            double frequency_rad_s    = 1.0e-5,
+            int    degree_l           = 2,
+            bint   solve_tidal        = True,
+            bint   use_kamata         = True,
+            bint   nondimensionalize  = True,
+            double starting_radius    = 0.0,
+            double start_radius_tol   = 1.0e-4,
+            str    integration_method = 'DOP853',
+            double rtol               = 1.0e-6,
+            double atol               = 1.0e-10,
+            bint   scale_rtols        = True,
+            size_t max_num_steps      = 500000,
+            size_t expected_size      = 500,
+            size_t max_ram_MB         = 500,
+            double max_step           = 0.0,
+            bint   verbose            = False,
+            bint   warnings           = True,
+            double eos_rtol           = 1.0e-6,
+            double eos_atol           = 1.0e-10,
+            double eos_pressure_tol   = 1.0e-3,
+            int    eos_max_iters      = 100) -> dict:
+        """Solve for whole-planet tidal Love numbers using the shooting method.
+
+        Requires :meth:`solve_eos` to have been called first.  For each radial
+        slice the layer's attached rheology model is evaluated at
+        ``frequency_rad_s`` to obtain the complex moduli; the structure ODE is
+        re-integrated from those density/modulus profiles and the deformation ODEs
+        are shot from the centre to the surface to yield k, h, l.
+
+        Parameters
+        ----------
+        frequency_rad_s : float, optional
+            Tidal forcing frequency [rad/s]. Default 1e-5.
+        degree_l : int, optional
+            Harmonic degree. Default 2.
+        solve_tidal : bool, optional
+            Use tidal boundary conditions. Default True.
+        use_kamata : bool, optional
+            Use Kamata starting conditions near the centre. Default True.
+        nondimensionalize : bool, optional
+            Non-dimensionalise the problem internally (recommended). Default True.
+        starting_radius : float, optional
+            Minimum radius [m] for the shooting start.  0 → auto. Default 0.
+        start_radius_tol : float, optional
+            Tolerance for the starting-radius search. Default 1e-4.
+        integration_method : str, optional
+            CyRK ODE method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``.
+        rtol, atol : float, optional
+            Relative / absolute ODE tolerances. Default 1e-6 / 1e-10.
+        scale_rtols : bool, optional
+            Scale tolerances by layer type. Default True.
+        max_num_steps : int, optional
+            Maximum ODE steps. Default 500000.
+        expected_size, max_ram_MB : int, optional
+            CyRK memory hints. Default 500 / 500.
+        max_step : float, optional
+            Maximum ODE step size [m].  0 → auto. Default 0.
+        verbose : bool, optional
+            Print solver status messages. Default False.
+        warnings : bool, optional
+            Emit solver warnings. Default True.
+        eos_rtol, eos_atol, eos_pressure_tol : float, optional
+            Tolerances for the internal EOS re-solve. Default 1e-6 / 1e-10 / 1e-3.
+        eos_max_iters : int, optional
+            Maximum iterations for the EOS pressure loop. Default 100.
+
+        Returns
+        -------
+        dict
+            ``success`` (bool), ``love_number_k``, ``love_number_h``,
+            ``love_number_l`` (complex).
+
+        Raises
+        ------
+        ValueError
+            If the EOS has not been solved or the frequency is too small.
+
+        Assumptions
+        -----------
+        - Spherical symmetry; all quantities MKS.
+        - ``solve_eos`` must be called first.
+        """
+        cdef ODEMethod ode_method
+        cdef str method_upper = integration_method.upper()
+        if method_upper == 'DOP853':
+            ode_method = ODEMethod.DOP853
+        elif method_upper == 'RK45':
+            ode_method = ODEMethod.RK45
+        elif method_upper == 'RK23':
+            ode_method = ODEMethod.RK23
+        else:
+            raise ValueError(f"Unsupported integration method: {integration_method}")
+
+        cdef c_LoveSolveConfig cfg
+        cfg.frequency_rad_s   = frequency_rad_s
+        cfg.degree_l          = degree_l
+        cfg.solve_tidal       = <cpp_bool>solve_tidal
+        cfg.use_kamata        = <cpp_bool>use_kamata
+        cfg.nondimensionalize = <cpp_bool>nondimensionalize
+        cfg.starting_radius   = starting_radius
+        cfg.start_radius_tol  = start_radius_tol
+        cfg.integration_method = ode_method
+        cfg.rtol              = rtol
+        cfg.atol              = atol
+        cfg.scale_rtols       = <cpp_bool>scale_rtols
+        cfg.max_num_steps     = max_num_steps
+        cfg.expected_size     = expected_size
+        cfg.max_ram_MB        = max_ram_MB
+        cfg.max_step          = max_step
+        cfg.verbose           = <cpp_bool>verbose
+        cfg.warnings          = <cpp_bool>warnings
+        cfg.eos_rtol          = eos_rtol
+        cfg.eos_atol          = eos_atol
+        cfg.eos_pressure_tol  = eos_pressure_tol
+        cfg.eos_max_iters     = eos_max_iters
+
+        with nogil:
+            self._layered_ptr.solve_love_numbers(cfg)
+
+        return self._build_love_result()
+
+    def _build_love_result(self):
+        """Assemble the Python result dict from the retained C++ Love-number solution."""
+        cdef cpp_complex[double] k, h, l
+        k = self._layered_ptr.get_love_number_k(0)
+        h = self._layered_ptr.get_love_number_h(0)
+        l = self._layered_ptr.get_love_number_l(0)
+        return {
+            'success':       bool(self._layered_ptr.get_love_solved()),
+            'error_code':    self._layered_ptr.get_love_error_code(),
+            'message':       self._layered_ptr.get_love_message().decode('utf-8'),
+            'love_number_k': complex(k.real(), k.imag()),
+            'love_number_h': complex(h.real(), h.imag()),
+            'love_number_l': complex(l.real(), l.imag()),
+        }
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Love-number solve state (mirrors EOS getter pattern)
+    # ------------------------------------------------------------------------------------------------------------------
+
+    @property
+    def love_solved(self) -> bool:
+        """True once solve_love_numbers has completed successfully."""
+        return bool(self._layered_ptr.get_love_solved())
+
+    @property
+    def love_success(self) -> bool:
+        """True if the last love-number solve reported success."""
+        return bool(self._layered_ptr.get_love_success())
+
+    @property
+    def love_error_code(self) -> int:
+        """Integer error code from the last love-number solve (-100 if not yet run)."""
+        return self._layered_ptr.get_love_error_code()
+
+    @property
+    def love_message(self) -> str:
+        """Status message from the last love-number solve."""
+        return self._layered_ptr.get_love_message().decode('utf-8')
+
+    @property
+    def love_num_ytypes(self) -> int:
+        """Number of boundary-condition types solved (typically 1 for tidal-only)."""
+        return int(self._layered_ptr.get_love_num_ytypes())
+
+    @property
+    def love_number_k(self) -> complex:
+        """Complex potential Love number k2 from the last radial solve (NaN+0j if unsolved)."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_number_k(<size_t>0)
+        return complex(v.real(), v.imag())
+
+    @property
+    def love_number_h(self) -> complex:
+        """Complex radial displacement Love number h2 from the last radial solve (NaN+0j if unsolved)."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_number_h(<size_t>0)
+        return complex(v.real(), v.imag())
+
+    @property
+    def love_number_l(self) -> complex:
+        """Complex tangential (Shida) Love number l2 from the last radial solve (NaN+0j if unsolved)."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_number_l(<size_t>0)
+        return complex(v.real(), v.imag())
+
+    def get_love_number_k(self, ytype_idx: int = 0) -> complex:
+        """Complex k Love number for the given boundary-condition ytype index."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_number_k(<size_t>ytype_idx)
+        return complex(v.real(), v.imag())
+
+    def get_love_number_h(self, ytype_idx: int = 0) -> complex:
+        """Complex h Love number for the given boundary-condition ytype index."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_number_h(<size_t>ytype_idx)
+        return complex(v.real(), v.imag())
+
+    def get_love_number_l(self, ytype_idx: int = 0) -> complex:
+        """Complex l (Shida) Love number for the given boundary-condition ytype index."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_number_l(<size_t>ytype_idx)
+        return complex(v.real(), v.imag())
+
+    def get_love_surface_y(self, ytype_idx: int, y_idx: int) -> complex:
+        """Complex radial y-solution value at the surface for the given ytype and y index."""
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_surface_y(
+            <size_t>ytype_idx, <size_t>y_idx)
+        return complex(v.real(), v.imag())
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):

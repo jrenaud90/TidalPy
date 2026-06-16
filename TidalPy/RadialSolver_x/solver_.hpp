@@ -1,13 +1,13 @@
-// solver_.hpp - Top-level radial solver declarations
-// Ported from TidalPy/RadialSolver/solver.pyx
+// solver_.hpp - Radial solver entry point (standalone array-based API).
 //
-// NOTE: The actual solver (cf_radial_solver) and Python wrapper (radial_solver)
-// live in solver.pyx because they depend on:
-//   - CyRK's Cython-only API (ODEMethod, PreEvalFunc)
-//   - Material_x EOS solver (c_solve_eos via Cython)
-//   - The shooting method (cf_shooting_solver in shooting.pyx)
+// c_radial_solver: full pipeline (EOS→shooting/matrix→Love numbers) for callers
+// that supply raw arrays rather than a world object.  The world-class pathway
+// (c_LayeredWorld::solve_love_numbers) calls c_shooting_solver directly without
+// going through this function, but the standalone RadialSolver_x Python wrapper
+// (solver.pyx) still needs this function.
 //
-// This header exists as a placeholder for any future C++ helper functions.
+// Also contains:
+//   - c_validate_and_prep_radial_inputs: input validation + string→int mapping.
 #pragma once
 
 #include "constants_.hpp"
@@ -45,7 +45,16 @@
 #include <cctype>
 
 
+// =================================================================================================
+// Constants
+// =================================================================================================
+
 constexpr int C_EOS_INTERPOLATE_METHOD_INT = 0;
+
+
+// =================================================================================================
+// Full radial solver (standalone array-based entry point).
+// =================================================================================================
 
 int c_radial_solver(
     c_RadialSolutionStorage* solution_storage_ptr,
@@ -88,7 +97,6 @@ int c_radial_solver(
     bool warnings
 ) noexcept
 {
-    // Check if we have configs.
     if (tidalpy_config_ptr == nullptr)
     {
         solution_storage_ptr->error_code = -999;
@@ -96,21 +104,15 @@ int c_radial_solver(
             "RadialSolver_x:: Fatal Error. TidalPyConfig pointer is uninitialized. "
             "initialize_tidalpy_config() must be called before the solver runs.\n"
         );
-        if (verbose)
-        {
-            printf("%s", solution_storage_ptr->message.c_str());
-        }
+        if (verbose) printf("%s", solution_storage_ptr->message.c_str());
         return solution_storage_ptr->error_code;
     }
 
-    // Figure out how many slices are in each layer
     std::vector<size_t> first_slice_index_by_layer_vec(num_layers);
     std::vector<size_t> num_slices_by_layer_vec(num_layers);
 
-    // Pull out raw pointer
     c_EOSSolution* eos_solution_storage_ptr = solution_storage_ptr->get_eos_solution_ptr();
 
-    // EOS variables
     size_t bottom_slice_index;
     std::vector<PreEvalFunc> eos_function_bylayer_vec(num_layers);
     c_EOS_ODEInput eos_input;
@@ -120,16 +122,11 @@ int c_radial_solver(
     specific_eos_input_bylayer_vec.reserve(num_layers);
     char* specific_eos_char_ptr = nullptr;
 
-    // Ensure there is at least one layer
     if (num_layers == 0)
     {
         solution_storage_ptr->error_code = -5;
-        solution_storage_ptr->message    =
-            std::string("RadialSolver_x:: requires at least one layer, zero provided.\n");
-        if (verbose)
-        {
-            printf("%s", solution_storage_ptr->message.c_str());
-        }
+        solution_storage_ptr->message    = std::string("RadialSolver_x:: requires at least one layer, zero provided.\n");
+        if (verbose) printf("%s", solution_storage_ptr->message.c_str());
         return solution_storage_ptr->error_code;
     }
 
@@ -138,36 +135,20 @@ int c_radial_solver(
         bool top_layer = false;
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
         {
-            if (layer_i == num_layers - 1)
-            {
-                top_layer = true;
-            }
-
-            // Determine starting slice index
-            if (layer_i == 0)
-            {
-                first_slice_index_by_layer_vec[layer_i] = 0;
-            }
-            else
-            {
-                first_slice_index_by_layer_vec[layer_i] = first_slice_index_by_layer_vec[layer_i - 1] + num_slices_by_layer_vec[layer_i - 1];
-            }
+            top_layer = (layer_i == num_layers - 1);
+            first_slice_index_by_layer_vec[layer_i] = (layer_i == 0)
+                ? 0
+                : first_slice_index_by_layer_vec[layer_i - 1] + num_slices_by_layer_vec[layer_i - 1];
 
             const double layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[layer_i];
+            size_t layer_slices = 0, interface_check = 0;
 
-            size_t layer_slices    = 0;
-            size_t interface_check = 0;
             for (size_t slice_i = first_slice_index_by_layer_vec[layer_i]; slice_i < total_slices; ++slice_i)
             {
                 const double radius_check = radius_array_in_ptr[slice_i];
-
                 if (c_isclose(radius_check, layer_upper_radius, 1.0e-9, 0.0))
                 {
-                    interface_check += 1;
-                    if (interface_check > 1)
-                    {
-                        break;
-                    }
+                    if (++interface_check > 1) break;
                 }
                 else if (radius_check > layer_upper_radius)
                 {
@@ -180,20 +161,14 @@ int c_radial_solver(
             {
                 solution_storage_ptr->error_code = -5;
                 solution_storage_ptr->message    = std::string("RadialSolver_x:: At least five layer slices per layer are required.\n");
-                if (verbose)
-                {
-                    printf("%s", solution_storage_ptr->message.c_str());
-                }
+                if (verbose) printf("%s", solution_storage_ptr->message.c_str());
                 return solution_storage_ptr->error_code;
             }
-
             num_slices_by_layer_vec[layer_i] = layer_slices;
         }
     }
 
-    // Get other needed inputs
     const double radius_planet = radius_array_in_ptr[total_slices - 1];
-
     double G_to_use                = tidalpy_config_ptr->d_G;
     double radius_planet_to_use    = radius_planet;
     double bulk_density_to_use     = planet_bulk_density;
@@ -201,11 +176,7 @@ int c_radial_solver(
     double surface_pressure_to_use = surface_pressure;
     double starting_radius_to_use  = starting_radius;
 
-    c_NonDimensionalScales non_dim_scales(
-        frequency,
-        radius_planet,
-        planet_bulk_density
-    );
+    c_NonDimensionalScales non_dim_scales(frequency, radius_planet, planet_bulk_density);
 
     if (nondimensionalize && solution_storage_ptr->error_code == 0)
     {
@@ -216,13 +187,10 @@ int c_radial_solver(
             complex_bulk_modulus_in_ptr[slice_i]  /= non_dim_scales.pascal_conversion;
             complex_shear_modulus_in_ptr[slice_i] /= non_dim_scales.pascal_conversion;
         }
-
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
-        {
             eos_solution_storage_ptr->upper_radius_bylayer_vec[layer_i] /= non_dim_scales.length_conversion;
-        }
 
-        G_to_use                = tidalpy_config_ptr->d_G / (non_dim_scales.length3_conversion / 
+        G_to_use                = tidalpy_config_ptr->d_G / (non_dim_scales.length3_conversion /
             (non_dim_scales.mass_conversion * non_dim_scales.second2_conversion));
         radius_planet_to_use    = radius_planet / non_dim_scales.length_conversion;
         bulk_density_to_use     = planet_bulk_density / non_dim_scales.density_conversion;
@@ -233,7 +201,6 @@ int c_radial_solver(
         solution_storage_ptr->change_radius_array(radius_array_in_ptr, total_slices, true);
     }
 
-    // Solve the equation of state
     if (solution_storage_ptr->error_code == 0)
     {
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
@@ -242,7 +209,6 @@ int c_radial_solver(
             {
                 eos_function_bylayer_vec[layer_i] = c_preeval_interpolate;
                 bottom_slice_index                = first_slice_index_by_layer_vec[layer_i];
-
                 specific_eos_input_bylayer_vec.emplace_back(
                     num_slices_by_layer_vec[layer_i],
                     &radius_array_in_ptr[bottom_slice_index],
@@ -251,15 +217,7 @@ int c_radial_solver(
                     &complex_shear_modulus_in_ptr[bottom_slice_index]
                 );
                 specific_eos_char_ptr = reinterpret_cast<char*>(&specific_eos_input_bylayer_vec.back());
-
-                eos_inputs_bylayer_vec.emplace_back(
-                    G_to_use,
-                    radius_planet_to_use,
-                    specific_eos_char_ptr,
-                    false,
-                    false,
-                    false
-                );
+                eos_inputs_bylayer_vec.emplace_back(G_to_use, radius_planet_to_use, specific_eos_char_ptr, false, false, false);
             }
             else
             {
@@ -287,65 +245,35 @@ int c_radial_solver(
         );
     }
 
-    // Run requested radial solver method
     int sub_process_error_code = 0;
     if (eos_solution_storage_ptr->success && solution_storage_ptr->error_code == 0)
     {
         if (use_prop_matrix)
         {
             sub_process_error_code = c_matrix_propagate(
-                solution_storage_ptr,
-                frequency_to_use,
-                bulk_density_to_use,
-                first_slice_index_by_layer_vec.data(),
-                num_slices_by_layer_vec.data(),
-                num_layers,
-                num_bc_models,
-                bc_models_ptr,
-                G_to_use,
-                degree_l,
-                starting_radius_to_use,
-                start_radius_tolerance,
-                core_model,
-                verbose
+                solution_storage_ptr, frequency_to_use, bulk_density_to_use,
+                first_slice_index_by_layer_vec.data(), num_slices_by_layer_vec.data(),
+                num_layers, num_bc_models, bc_models_ptr, G_to_use, degree_l,
+                starting_radius_to_use, start_radius_tolerance, core_model, verbose
             );
         }
         else
         {
             sub_process_error_code = c_shooting_solver(
-                solution_storage_ptr,
-                frequency_to_use,
-                bulk_density_to_use,
-                layer_types_ptr,
-                is_static_bylayer_ptr,
-                is_incompressible_bylayer_ptr,
-                first_slice_index_by_layer_vec,
-                num_slices_by_layer_vec,
-                num_bc_models,
-                bc_models_ptr,
-                G_to_use,
-                degree_l,
-                use_kamata,
-                starting_radius_to_use,
-                start_radius_tolerance,
-                integration_method_int,
-                integration_rtol,
-                integration_atol,
-                scale_rtols_bylayer_type,
-                max_num_steps,
-                expected_size,
-                max_ram_MB,
-                max_step,
-                verbose
+                solution_storage_ptr, frequency_to_use, bulk_density_to_use,
+                layer_types_ptr, is_static_bylayer_ptr, is_incompressible_bylayer_ptr,
+                first_slice_index_by_layer_vec, num_slices_by_layer_vec,
+                num_bc_models, bc_models_ptr, G_to_use, degree_l, use_kamata,
+                starting_radius_to_use, start_radius_tolerance, integration_method_int,
+                integration_rtol, integration_atol, scale_rtols_bylayer_type,
+                max_num_steps, expected_size, max_ram_MB, max_step, verbose
             );
         }
     }
 
-    // Finalize
     if (nondimensionalize)
     {
         solution_storage_ptr->dimensionalize_data(&non_dim_scales, true);
-
         for (size_t slice_i = 0; slice_i < total_slices; ++slice_i)
         {
             radius_array_in_ptr[slice_i]          *= non_dim_scales.length_conversion;
@@ -356,19 +284,15 @@ int c_radial_solver(
     }
 
     if (solution_storage_ptr->success)
-    {
         solution_storage_ptr->find_love();
-    }
 
     return solution_storage_ptr->error_code;
 }
 
 
 // =================================================================================================
-// MOVED FROM `DEF` FUNC
+// Input validation / string-to-int mapping helper (used by the standalone Python wrapper).
 // =================================================================================================
-// This helper function captures the input validation, string mapping, and sanity checks originally 
-// performed in the `radial_solver` Python wrapper.
 
 std::string to_lower(const std::string& input)
 {

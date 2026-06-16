@@ -14,6 +14,7 @@
 #include "constants_.hpp"      // Part of the TidalPy
 
 #include "ode_.hpp" // For C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
+#include "../../utilities/arrays/interp_.hpp"  // cf_binary_search_with_guess, cf_interp, cf_interp_complex
 
 
 /// Helper: Check if two doubles are approximately equal.
@@ -62,8 +63,9 @@ public:
     int solution_nondim_status = 0;
     bool success          = false;
     bool max_iters_hit    = false;
-    bool radius_array_set = false;
-    bool other_vecs_set   = false;
+    bool radius_array_set  = false;
+    bool other_vecs_set    = false;
+    bool p_use_array_interp = false;  // set by inject_from_world_eos; call() uses array interpolation
 
     std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
@@ -171,12 +173,71 @@ public:
     }
 
 
+    /// Fallback: interpolate all EOS outputs directly from the stored array vectors.
+    /// Used when p_use_array_interp is true (set by inject_from_world_eos).
+    /// Arrays must already be in the units the caller expects; no nondim scaling is applied.
+    void _call_interp_arrays(const double radius_val, double* y_interp_ptr) const noexcept
+    {
+        const size_t n  = this->radius_array_size;
+        // cf_interp/cf_binary_search_with_guess take non-const double* but only read the data.
+        double* r = const_cast<double*>(this->radius_array_vec.data());
+        double  r_val = radius_val;   // mutable copy for cf_interp's desired_x_ptr arg
+
+        // Initial index guess from normalised position in the radius range.
+        const double r_left  = r[0];
+        const double r_right = r[n > 0 ? n - 1 : 0];
+        size_t j = 0;
+        if (r_right > r_left)
+        {
+            const double frac = (radius_val - r_left) / (r_right - r_left);
+            const double clamped = frac < 0.0 ? 0.0 : (frac > 1.0 ? 1.0 : frac);
+            j = static_cast<size_t>(static_cast<double>(n) * clamped);
+            if (j >= n) j = n - 1;
+        }
+        int b_code = 0;
+        j = cf_binary_search_with_guess(radius_val, r, n, j, &b_code);
+
+        // Interpolate each quantity in the order that matches the CySolverResult layout:
+        //   [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
+        //   [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag
+        cf_interp(&r_val, r, const_cast<double*>(this->gravity_array_vec.data()),  n, &j, &y_interp_ptr[0]);
+        cf_interp(&r_val, r, const_cast<double*>(this->pressure_array_vec.data()), n, &j, &y_interp_ptr[1]);
+        cf_interp(&r_val, r, const_cast<double*>(this->mass_array_vec.data()),     n, &j, &y_interp_ptr[2]);
+        cf_interp(&r_val, r, const_cast<double*>(this->moi_array_vec.data()),      n, &j, &y_interp_ptr[3]);
+        cf_interp(&r_val, r, const_cast<double*>(this->density_array_vec.data()),  n, &j, &y_interp_ptr[4]);
+
+        double shear_result[2] = {0.0, 0.0};
+        cf_interp_complex(
+            radius_val, r,
+            const_cast<double*>(reinterpret_cast<const double*>(this->complex_shear_array_vec.data())),
+            n, &j, shear_result);
+        y_interp_ptr[5] = shear_result[0];
+        y_interp_ptr[6] = shear_result[1];
+
+        double bulk_result[2] = {0.0, 0.0};
+        cf_interp_complex(
+            radius_val, r,
+            const_cast<double*>(reinterpret_cast<const double*>(this->complex_bulk_array_vec.data())),
+            n, &j, bulk_result);
+        y_interp_ptr[7] = bulk_result[0];
+        y_interp_ptr[8] = bulk_result[1];
+    }
+
+
     /// Interpolate at a single radius using the CySolverResult from a specific layer.
     void call(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr) const
     {
+        if (this->p_use_array_interp) [[unlikely]]
+        {
+            // EOS was injected from a pre-solved world; use simple array interpolation.
+            // Arrays are already in the units inject_from_world_eos provided.
+            this->_call_interp_arrays(radius_val, y_interp_ptr);
+            return;
+        }
+
         if (layer_index < this->current_layers_saved) [[likely]]
         {
             this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius_val, y_interp_ptr);
@@ -374,6 +435,55 @@ public:
         // Finished
         this->other_vecs_set = true;
     }
+
+    /// Populate all structure arrays directly from pre-solved world EOS data.
+    ///
+    /// Bypasses CySolverResult — use when a LayeredWorld has already run solve_eos
+    /// and the result needs to be handed into a c_RadialSolutionStorage without
+    /// re-integrating the ODE.  All arrays are assumed to be in SI (MKS) units.
+    void inject_from_world_eos(
+        const double* radius_ptr,
+        const double* gravity_ptr,
+        const double* pressure_ptr,
+        const double* mass_ptr,
+        const double* moi_ptr,
+        const double* density_ptr,
+        const std::complex<double>* complex_shear_ptr,
+        const std::complex<double>* complex_bulk_ptr,
+        size_t n)
+    {
+        if (n == 0)
+        {
+            throw std::invalid_argument("inject_from_world_eos: array length n must be > 0.");
+        }
+
+        this->radius_array_size = n;
+
+        this->radius_array_vec.assign(radius_ptr,        radius_ptr        + n);
+        this->gravity_array_vec.assign(gravity_ptr,      gravity_ptr       + n);
+        this->pressure_array_vec.assign(pressure_ptr,    pressure_ptr      + n);
+        this->mass_array_vec.assign(mass_ptr,            mass_ptr          + n);
+        this->moi_array_vec.assign(moi_ptr,              moi_ptr           + n);
+        this->density_array_vec.assign(density_ptr,      density_ptr       + n);
+        this->complex_shear_array_vec.assign(complex_shear_ptr, complex_shear_ptr + n);
+        this->complex_bulk_array_vec.assign(complex_bulk_ptr,   complex_bulk_ptr  + n);
+
+        this->radius           = radius_ptr[n - 1];
+        this->surface_gravity  = gravity_ptr[n - 1];
+        this->surface_pressure = pressure_ptr[n - 1];
+        this->mass             = mass_ptr[n - 1];
+        this->moi              = moi_ptr[n - 1];
+        this->central_pressure = pressure_ptr[0];
+
+        this->nondim_status          = 0;
+        this->solution_nondim_status = 0;
+        this->success                = true;
+        this->error_code             = 0;
+        this->radius_array_set       = true;
+        this->other_vecs_set         = true;
+        this->p_use_array_interp     = true;
+    }
+
 
     /// Handle dimensionalization/redimensionalization of solution data.
     void dimensionalize_data(

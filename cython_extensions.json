@@ -597,6 +597,40 @@
       ],
       [
         "TidalPy",
+        "RadialSolver_x"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "derivatives"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "starting"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "interfaces"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "boundaries"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "collapse"
+      ],
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "matrix_types"
+      ],
+      [
+        "TidalPy",
         "Tides_x",
         "love"
       ],
