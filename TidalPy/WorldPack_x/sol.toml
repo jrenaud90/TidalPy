@@ -1,0 +1,8 @@
+# The Sun: a star world for the structures_x world builder. Stars carry no layers
+# and no EOS; effective temperature and luminosity are coupled by Stefan-Boltzmann.
+schema_version = "0.2.0"
+name = "Sol"
+type = "star"
+radius_m = 695700000.0
+mass_kg = 1.988435e30
+effective_temperature_k = 5772.0

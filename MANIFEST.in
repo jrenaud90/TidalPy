@@ -11,6 +11,9 @@ include TidalPy/utilities/graphics/multilayer/*.csv
 # Include World Configuration Files
 include TidalPy/WorldPack/*.zip
 
+# Include structures_x bundled v0.2.0 example world configs (WorldPack_x)
+include TidalPy/WorldPack_x/*.toml
+
 # Include Cython pyx and pxd files
 global-include *.pxd
 global-include *.pyx

@@ -178,8 +178,76 @@ cdef class BaseWorld(StructureBase):
         self._world_ptr.get().set_obliquity(obliq_rad)
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Builder entry point
+    # ------------------------------------------------------------------------------------------------------------------
+    @staticmethod
+    def build(source, force=False):
+        """Build a world from a configuration source (the public builder entry point).
+
+        Resolves ``source``, validates it, constructs the underlying world (and its
+        layers and physics models), and returns it with the normalized configuration
+        retained on :attr:`source_config` so the world can be written back to TOML.
+
+        This is a factory: the concrete subclass returned (``LayeredWorld``,
+        ``GasGiantWorld``, or ``StarWorld``) is selected by the configuration's world
+        ``type``, regardless of which class ``build`` is invoked on. The module-level
+        :func:`~TidalPy.structures_x.configs.world_builder.build_world` simply calls
+        this method.
+
+        Parameters
+        ----------
+        source : str or dict
+            A bundled world name, a path to a ``.toml`` file, or a configuration dict.
+        force : bool, optional
+            If True, bypass the schema-version compatibility warning. Default False.
+
+        Returns
+        -------
+        BaseWorld
+            The constructed world (a ``BaseWorld`` subclass), with ``source_config``
+            populated.
+        """
+        # Deferred imports: the builder helpers import the world subclasses, so
+        # importing them at module load would be circular.
+        from TidalPy.structures_x.configs.world_builder import (
+            _resolve_source,
+            construct_world)
+        from TidalPy.structures_x.configs.toml_loader import (
+            load_toml,
+            merge_with_defaults,
+            validate_schema_version)
+
+        config = load_toml(_resolve_source(source))
+        config = merge_with_defaults(config)
+        validate_schema_version(config, force=force)
+        return construct_world(config)
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def config(self):
+        """The normalized configuration dict the world was built from (None if built directly)."""
+        return self.source_config
+
+    def save_to_toml(self, str file_path, overwrite=True):
+        """Write this world's configuration to a TOML file.
+
+        Uses the retained build configuration (:attr:`source_config`) when present
+        for a faithful round-trip, otherwise falls back to the world-level
+        :meth:`get_config_dict`.
+
+        Parameters
+        ----------
+        file_path : str
+            Destination ``.toml`` path.
+        overwrite : bool, optional
+            Overwrite an existing file. Default True.
+        """
+        from TidalPy.structures_x.configs.config_writer import save_world_to_toml
+        config = self.source_config if self.source_config is not None else self.get_config_dict()
+        return save_world_to_toml(config, file_path, overwrite=overwrite)
+
     cpdef dict get_config_dict(self):
         """Return all world-level configuration values as a Python dict (MKS).
 

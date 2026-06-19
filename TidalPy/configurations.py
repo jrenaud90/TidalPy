@@ -151,6 +151,44 @@ def get_default_config() -> dict:
 
     return config_dict
 
+def get_default_config_x() -> dict:
+    """ Loads the new ``_x`` TidalPy configuration (``TidalPy_Configs_x.toml``) from disk.
+
+    This is the configuration for the rebuilt ``_x`` class system (schema 0.2.0); it
+    lives next to the legacy ``TidalPy_Configs.toml`` in the user's TidalPy Config
+    directory. If the file is not present (likely the first time the ``_x`` system is
+    used) the defaults from :mod:`TidalPy.defaultc_x` are written there first. The
+    returned dictionary is also stored on ``TidalPy.config_x``.
+
+    Returns
+    -------
+    config_x_dict : dict
+        The ``_x`` configuration dictionary.
+    """
+    from TidalPy.defaultc_x import default_config_x_str
+
+    config_dir = get_config_dir()
+    config_x_path = os.path.join(config_dir, 'TidalPy_Configs_x.toml')
+    # Write the default _x config if it is not already present.
+    if not os.path.isfile(config_x_path):
+        with open(config_x_path, 'w') as config_file:
+            config_file.write('# " + "=" * 117 + "\n')
+            config_file.write(f'#  TidalPy _x Default Configurations for Version: {version}\n')
+            config_file.write('# " + "=" * 117 + "\n')
+            config_file.write(default_config_x_str)
+    else:
+        # Reuse the legacy version check (it scans the header for a 'version:' line).
+        check_config_version(config_x_path)
+
+    config_x_dict = toml.load(config_x_path)
+
+    # Update path and store on the package.
+    TidalPy._config_x_path = config_x_path
+    TidalPy.config_x = config_x_dict
+
+    return config_x_dict
+
+
 def set_config(new_config_path: Union[str, dict]) -> dict:
     """Sets TidalPy's configuration based on a provided configuration file path.
     

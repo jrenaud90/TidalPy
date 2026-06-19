@@ -21,9 +21,13 @@ _tidalpy_init = False
 _in_jupyter = False
 _output_dir = None
 _config_path = None
+_config_x_path = None
 
 # TidalPy configurations
 config = None
+
+# Configuration for the new `_x` class system (loaded from TidalPy_Configs_x.toml).
+config_x = None
 
 # World configuration directory
 world_config_dir = None

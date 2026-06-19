@@ -25,7 +25,7 @@ def initialize(provided_config_file = None):
     See more information about TidalPy_Config.toml in TidalPy.configurations.py
     """
     import TidalPy
-    from TidalPy.constants import update_constants
+    from TidalPy.constants import update_constants, update_constants_x
 
     # Are we in a Jupyter Notebook?
     running_in_jupyter = is_notebook()
@@ -37,7 +37,13 @@ def initialize(provided_config_file = None):
         # No configuration dictionary has been set.
         from TidalPy.configurations import set_config
         set_config('default')
-    
+
+    # Load (or create) the configuration for the new `_x` class system. Stored on
+    # TidalPy.config_x and written to TidalPy_Configs_x.toml on first use.
+    from TidalPy.configurations import get_default_config_x
+    if TidalPy.config_x is None:
+        get_default_config_x()
+
     # Update default configs with any in the CWD
     if TidalPy.config['configs']['use_cwd_for_config']:
         set_config(os.path.join(os.getcwd(), 'TidalPy_Configs.toml'))
@@ -101,8 +107,12 @@ def initialize(provided_config_file = None):
         TidalPy.extensive_logging = False
         TidalPy.extensive_checks  = False
 
-    # Update constant values
+    # Update constant values. update_constants_x() runs after the legacy update so
+    # the shared C++ config singleton carries the `_x` config's numerical settings
+    # for all `_x` modules.
     update_constants()
+    if TidalPy.config_x:
+        update_constants_x()
 
     # Finish initialization
     TidalPy._tidalpy_init = True

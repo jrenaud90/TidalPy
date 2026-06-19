@@ -54,4 +54,5 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class BaseWorld(StructureBase):
     cdef unique_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object
+    cdef public dict source_config            # normalized config the world was built from (or None)
     cpdef dict get_config_dict(self)
