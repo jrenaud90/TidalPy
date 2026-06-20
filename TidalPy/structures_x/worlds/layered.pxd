@@ -11,30 +11,11 @@ from libcpp.complex cimport complex as cpp_complex
 
 from CyRK cimport ODEMethod
 
-from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
+from TidalPy.structures_x.worlds.base cimport (
+    BaseWorld, c_BaseWorld, c_WorldConfig, c_TideConfig, c_TideSolveConfig)
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
-from TidalPy.Tides_x.classes.tide cimport c_TideBase
-
-
-# =====================================================================================================================
-# Global (1D) tidal solve config structs (global namespace, tide_result_.hpp)
-# =====================================================================================================================
-cdef extern from "tide_result_.hpp" nogil:
-    cdef cppclass c_TideConfig:
-        int min_degree_l
-        int max_degree_l
-        int eccentricity_truncation
-        int obliquity_truncation
-
-    cdef cppclass c_TideSolveConfig:
-        double orbital_frequency
-        double spin_frequency
-        double eccentricity
-        double obliquity
-        double semi_major_axis
-        double host_mass
 
 
 # =====================================================================================================================
@@ -126,19 +107,10 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_l(size_t ytype_idx) const
         cpp_complex[double]  get_love_surface_y(size_t ytype_idx, size_t y_idx) const
-        # Global (1D) tidal dissipation (calc_tides defined in world_tides_.hpp).
-        void                 set_tide_model(unique_ptr[c_TideBase] tide)
-        cpp_bool             get_tide_model_set() const
-        void                 set_tide_config(const c_TideConfig& cfg)
+        # Global (1D) tidal dissipation: the model/config/result accessors are inherited from
+        # c_BaseWorld; c_LayeredWorld only adds the rheology-capable calc_tides + layer heating.
         void                 calc_tides(const c_TideSolveConfig& state) except +
-        cpp_bool             get_tides_solved() const
-        double               get_tidal_heating() const
-        double               get_tidal_dU_dM() const
-        double               get_tidal_dU_dw() const
-        double               get_tidal_dU_dO() const
-        int                  get_num_tidal_modes() const
         double               get_layer_tidal_heating(size_t index) const
-        cpp_complex[double]  get_tidal_love_k(int degree_l, int m, int p, int q) const
 
 
 # =====================================================================================================================

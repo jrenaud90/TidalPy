@@ -24,13 +24,24 @@
  */
 
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <istream>
+#include <memory>
 #include <ostream>
 #include <stdexcept>
 #include <string>
 
 #include "structure_base_.hpp"
+
+// Global (1D) tidal dissipation: the analytic tide pipeline (cpl/ctl/ctl_q) is common to ALL
+// world types and lives here on c_BaseWorld so even a layerless star can dissipate tidally.
+// These are LIGHT headers (no eccentricity/obliquity tables); the heavy global-potential engine
+// is pulled only by the out-of-line calc_tides definition in world_tides_base_.hpp.
+#include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase, c_LoveNumbers
+#include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
+#include "../../Utilities_x/lookups/keys_.hpp"      // c_Key4
+#include "../../Utilities_x/lookups/intmap_.hpp"    // c_IntMap (per-mode solver Love-number store)
 
 namespace tidalpy {
 
@@ -119,6 +130,63 @@ public:
     void set_obliquity(double obliq_rad)        noexcept { this->p_obliquity_rad = obliq_rad; }
 
     // -----------------------------------------------------------------------
+    // Global (1D) tidal dissipation (common to all world types)
+    //
+    // Attach a tide model (c_TideBase) + a tide config ([tides] truncation/degree), then call
+    // calc_tides(orbital state) to collapse the global tidal modes into the total heating + the
+    // three orbital potential derivatives. The analytic models (cpl/ctl/ctl_q) work on any
+    // world; the rheology model needs the radial solver and is only supported on c_LayeredWorld
+    // (which hides this calc_tides with its own). calc_tides is defined out-of-line in
+    // world_tides_base_.hpp (it needs the heavy global-potential engine).
+    // -----------------------------------------------------------------------
+    void set_tide_model(std::unique_ptr<c_TideBase> tide) noexcept {
+        this->p_tide         = std::move(tide);
+        this->p_tides_solved = false;
+    }
+    bool get_tide_model_set() const noexcept { return this->p_tide != nullptr; }
+    const c_TideBase* get_tide_model() const noexcept { return this->p_tide.get(); }
+
+    void set_tide_config(const c_TideConfig& cfg) noexcept {
+        this->p_tide_config  = cfg;
+        this->p_tides_solved = false;
+    }
+    const c_TideConfig& get_tide_config() const noexcept { return this->p_tide_config; }
+
+    // Run the global tidal solve for the supplied orbital/spin state. The analytic version
+    // (here) raises if the attached model needs the radial solver; c_LayeredWorld overrides it.
+    void calc_tides(const c_TideSolveConfig& state);
+
+    bool get_tides_solved() const noexcept { return this->p_tides_solved; }
+    double get_tidal_heating() const noexcept {
+        return this->p_tides_solved ? this->p_tide_result.tidal_heating : TidalPyConstants::d_NAN;
+    }
+    double get_tidal_dU_dM() const noexcept {
+        return this->p_tides_solved ? this->p_tide_result.dU_dM : TidalPyConstants::d_NAN;
+    }
+    double get_tidal_dU_dw() const noexcept {
+        return this->p_tides_solved ? this->p_tide_result.dU_dw : TidalPyConstants::d_NAN;
+    }
+    double get_tidal_dU_dO() const noexcept {
+        return this->p_tides_solved ? this->p_tide_result.dU_dO : TidalPyConstants::d_NAN;
+    }
+    int get_num_tidal_modes() const noexcept {
+        return this->p_tides_solved ? this->p_tide_result.num_modes : 0;
+    }
+
+    // Complex potential Love number k_l for the tidal mode (l, m, p, q) from the most recent
+    // rheology calc_tides. NaN for the analytic models (no radial solution) or an inactive mode.
+    std::complex<double> get_tidal_love_k(int degree_l, int m, int p, int q) const noexcept {
+        bool found = false;
+        c_Key4 lmpq_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(m),
+                        static_cast<int16_t>(p), static_cast<int16_t>(q));
+        c_LoveNumbers love = this->p_tide_solver_love.get(found, lmpq_key);
+        if (!found) {
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        }
+        return love.k;
+    }
+
+    // -----------------------------------------------------------------------
     // Binary I/O
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
@@ -184,6 +252,15 @@ protected:
     double      p_emissivity           = 1.0;   // [dimensionless]
     double      p_obliquity_rad        = 0.0;   // [rad]
     double      p_spin_frequency_rad_s = 0.0;   // [rad/s]
+
+    // Global (1D) tidal dissipation state (results not serialized — recompute via calc_tides).
+    c_TideConfig                         p_tide_config;
+    std::unique_ptr<c_TideBase>          p_tide;
+    c_GlobalTideResult                   p_tide_result;
+    bool                                 p_tides_solved = false;
+    // Per-mode radial-solver Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q),
+    // retained from the most recent rheology calc_tides (empty for the analytic models).
+    c_IntMap<c_Key4, c_LoveNumbers>      p_tide_solver_love;
 };
 
 } // namespace tidalpy

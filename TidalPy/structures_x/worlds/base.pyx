@@ -10,6 +10,8 @@ calculations. Layered worlds (terrestrial, gas giant) and stars subclass this.
 """
 
 from libcpp cimport bool as cpp_bool
+from libcpp.utility cimport move
+from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -17,6 +19,12 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport StructureBase, c_TidalPyBaseClass
+from TidalPy.Tides_x.classes.tide cimport TideBase
+
+# Pull in the out-of-line definition of c_BaseWorld::calc_tides (the analytic global tidal
+# path) plus the heavy global-potential engine it uses, so they compile into this extension.
+cdef extern from "world_tides_base_.hpp" nogil:
+    pass
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -176,6 +184,117 @@ cdef class BaseWorld(StructureBase):
     def set_obliquity(self, double obliq_rad):
         """Set the axial obliquity [rad]."""
         self._world_ptr.get().set_obliquity(obliq_rad)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Global (1D) tidal dissipation (analytic path; common to all world types)
+    # ------------------------------------------------------------------------------------------------------------------
+    def set_tide_model(self, TideBase tide not None):
+        """Attach a global tide dissipation model (transfers ownership).
+
+        Ownership of the C++ model is moved from ``tide`` into this world; the passed
+        ``TideBase`` becomes an empty, non-owning shell and must not be reused.
+
+        On a layerless world (e.g. a star) only the analytic models (``cpl``/``ctl``/``ctl_q``)
+        are usable; the ``rheology`` model needs the radial solver and a layered world.
+        """
+        if tide._tide_ptr.get() == NULL:
+            raise ValueError("This tide model holds no C++ object (already attached or moved).")
+        self._world_ptr.get().set_tide_model(move(tide._tide_ptr))
+
+    @property
+    def tide_model_set(self) -> bool:
+        """Whether a tide dissipation model has been attached."""
+        return self._world_ptr.get().get_tide_model_set()
+
+    def set_tide_config(
+            self,
+            int min_degree_l=2,
+            int max_degree_l=2,
+            int eccentricity_truncation=6,
+            int obliquity_truncation=10,
+            double tidal_timescale_width_decades=1.0):
+        """Set the stored ``[tides]`` truncation/degree configuration.
+
+        Parameters
+        ----------
+        min_degree_l, max_degree_l : int
+            Tidal harmonic degree range (2..10).
+        eccentricity_truncation : int
+            Eccentricity-function truncation level.
+        obliquity_truncation : int
+            Obliquity-function truncation (0=off, 2, 4, 10=general).
+        tidal_timescale_width_decades : float
+            Width [decades] of the log-Gaussian bell used by the ``tidal_timescale`` layer
+            scale method.
+        """
+        cdef c_TideConfig cfg
+        cfg.min_degree_l                  = min_degree_l
+        cfg.max_degree_l                  = max_degree_l
+        cfg.eccentricity_truncation       = eccentricity_truncation
+        cfg.obliquity_truncation          = obliquity_truncation
+        cfg.tidal_timescale_width_decades = tidal_timescale_width_decades
+        self._world_ptr.get().set_tide_config(cfg)
+
+    def calc_tides(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass):
+        """Solve the global tidal dissipation for the given orbital/spin state.
+
+        Requires an attached tide model (:meth:`set_tide_model`). Populates the world's
+        :attr:`tidal_heating` and the three potential derivatives. This base-world version
+        runs the analytic models (cpl/ctl/ctl_q) only; :class:`LayeredWorld` extends it with
+        the rheology path and per-layer heating.
+
+        Raises
+        ------
+        RuntimeError
+            If no tide model is attached, the rheology model is selected on a non-layered
+            world, or the global potential solve fails.
+        """
+        cdef c_TideSolveConfig state
+        state.orbital_frequency = orbital_frequency
+        state.spin_frequency    = spin_frequency
+        state.eccentricity      = eccentricity
+        state.obliquity         = obliquity
+        state.semi_major_axis   = semi_major_axis
+        state.host_mass         = host_mass
+        self._world_ptr.get().calc_tides(state)
+
+    @property
+    def tides_solved(self) -> bool:
+        """Whether a successful :meth:`calc_tides` has been run."""
+        return self._world_ptr.get().get_tides_solved()
+
+    def get_tidal_heating(self) -> float:
+        """Total global tidal heating [W] (NaN if unsolved)."""
+        return self._world_ptr.get().get_tidal_heating()
+
+    def get_tidal_potential_derivatives(self) -> tuple:
+        """The three orbital potential derivatives ``(dUdM, dUdw, dUdO)`` [J kg-1 rad-1]."""
+        return (
+            self._world_ptr.get().get_tidal_dU_dM(),
+            self._world_ptr.get().get_tidal_dU_dw(),
+            self._world_ptr.get().get_tidal_dU_dO(),
+        )
+
+    def get_num_tidal_modes(self) -> int:
+        """Number of active (nonzero-frequency) tidal modes summed in the last solve."""
+        return self._world_ptr.get().get_num_tidal_modes()
+
+    def get_tidal_love_k(self, degree_l: int, m: int, p: int, q: int) -> complex:
+        """Complex potential Love number ``k_l`` for the tidal mode ``(l, m, p, q)``.
+
+        Only populated for the rheology tide model (a layered world). Returns NaN for the
+        analytic models, which carry no displacement Love numbers, or for an inactive mode.
+        """
+        cdef cpp_complex[double] k = self._world_ptr.get().get_tidal_love_k(
+            <int>degree_l, <int>m, <int>p, <int>q)
+        return complex(k.real(), k.imag())
 
     # ------------------------------------------------------------------------------------------------------------------
     # Builder entry point

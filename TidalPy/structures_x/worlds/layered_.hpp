@@ -712,76 +712,27 @@ public:
     // -----------------------------------------------------------------------
     // Global (1D) tidal dissipation
     //
-    // Attach a tide model (c_TideBase) + a tide config ([tides] truncation/degree),
-    // then call calc_tides(orbital state) to collapse the global tidal modes into the
-    // total heating + the three orbital potential derivatives. calc_tides is defined
-    // out-of-line in world_tides_.hpp (it needs the heavy global-potential engine).
+    // The tide-model holder, config, results, and the analytic calc_tides path live on
+    // c_BaseWorld (common to all world types). c_LayeredWorld extends calc_tides with the
+    // rheology (radial-solver) path and the per-layer heating distribution. calc_tides is
+    // defined out-of-line in world_tides_.hpp (it needs the heavy global-potential engine).
     // -----------------------------------------------------------------------
-    void set_tide_model(std::unique_ptr<tidalpy::c_TideBase> tide) noexcept {
-        this->p_tide         = std::move(tide);
-        this->p_tides_solved = false;
-    }
-    bool get_tide_model_set() const noexcept { return this->p_tide != nullptr; }
-    const tidalpy::c_TideBase* get_tide_model() const noexcept { return this->p_tide.get(); }
-
-    void set_tide_config(const c_TideConfig& cfg) noexcept {
-        this->p_tide_config  = cfg;
-        this->p_tides_solved = false;
-    }
-    const c_TideConfig& get_tide_config() const noexcept { return this->p_tide_config; }
-
     // Run the global tidal solve for the supplied orbital/spin state (defined in
-    // world_tides_.hpp). Throws std::runtime_error if no tide model is attached.
+    // world_tides_.hpp). Hides c_BaseWorld::calc_tides to add rheology + layer distribution.
     void calc_tides(const c_TideSolveConfig& state);
 
     // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
     // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.
-    double effective_tidal_scale(const c_BaseLayer* layer, double planet_volume) const;
+    double effective_tidal_scale(
+            const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const;
 
-    bool get_tides_solved() const noexcept { return this->p_tides_solved; }
-
-    double get_tidal_heating() const noexcept {
-        return this->p_tides_solved ? this->p_tide_result.tidal_heating : TidalPyConstants::d_NAN;
-    }
-    double get_tidal_dU_dM() const noexcept {
-        return this->p_tides_solved ? this->p_tide_result.dU_dM : TidalPyConstants::d_NAN;
-    }
-    double get_tidal_dU_dw() const noexcept {
-        return this->p_tides_solved ? this->p_tide_result.dU_dw : TidalPyConstants::d_NAN;
-    }
-    double get_tidal_dU_dO() const noexcept {
-        return this->p_tides_solved ? this->p_tide_result.dU_dO : TidalPyConstants::d_NAN;
-    }
-    int get_num_tidal_modes() const noexcept {
-        return this->p_tides_solved ? this->p_tide_result.num_modes : 0;
-    }
-
-    // Per-layer tidal heating [W] = world heating × the layer's tidal_scale (0 if the
+    // Per-layer tidal heating [W] = world heating × the layer's effective tidal scale (0 if the
     // layer is non-tidal). NaN if the index is out of range or tides are unsolved.
     double get_layer_tidal_heating(std::size_t index) const noexcept {
         if (!this->p_tides_solved || index >= this->p_layer_tidal_heating.size()) {
             return TidalPyConstants::d_NAN;
         }
         return this->p_layer_tidal_heating[index];
-    }
-
-    // Complex potential Love number k_l for the tidal mode (l, m, p, q) from the most
-    // recent rheology calc_tides. Returns NaN for analytic tide models (no radial
-    // solution) or if the mode was not active. The full k/h/l suite is retained; this
-    // exposes the dissipation-driving k component for inspection.
-    std::complex<double> get_tidal_love_k(int degree_l, int m, int p, int q) const noexcept {
-        bool found = false;
-        c_Key4 lmpq_key(
-            static_cast<int16_t>(degree_l),
-            static_cast<int16_t>(m),
-            static_cast<int16_t>(p),
-            static_cast<int16_t>(q)
-        );
-        tidalpy::c_LoveNumbers love = this->p_tide_solver_love.get(found, lmpq_key);
-        if (!found) {
-            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        }
-        return love.k;
     }
 
     // -----------------------------------------------------------------------
@@ -1003,16 +954,9 @@ protected:
     bool p_love_solved = false;
     std::unique_ptr<::c_WorldRadialSolver> p_radial_solver;
 
-    // Global (1D) tidal dissipation state (results not serialized — recompute via calc_tides).
-    c_TideConfig                         p_tide_config;
-    std::unique_ptr<tidalpy::c_TideBase> p_tide;
-    c_GlobalTideResult                   p_tide_result;
-    bool                                 p_tides_solved = false;
+    // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;
+    // c_LayeredWorld adds only the per-layer heating distribution (results not serialized).
     std::vector<double>                  p_layer_tidal_heating;
-    // Per-mode radial-solver Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q),
-    // retained from the most recent rheology calc_tides for inspection (empty for the
-    // analytic models, which carry no displacement Love numbers).
-    c_IntMap<c_Key4, tidalpy::c_LoveNumbers> p_tide_solver_love;
 };
 
 } // namespace tidalpy

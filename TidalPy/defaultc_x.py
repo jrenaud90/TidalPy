@@ -62,6 +62,10 @@ schema_version = "{SCHEMA_VERSION_X}"
     eccentricity_trunc_lvl = 6
     obliquity_trunc_lvl = "off"
 
+    # Width [decades] of the log-Gaussian bell used by a layer's `tidal_timescale` scale
+    # method (scale peaks where the layer's Maxwell time equals the orbital forcing period).
+    tidal_timescale_width_decades = 1.0
+
     # Per-degree static potential Love numbers k_l (index 0 -> l=2). Falls off roughly as
     # k_l ~ k_2 / (l - 1) for a soft, near-homogeneous body (k_2 ~ 0.3).
     fixed_k = [0.3, 0.15, 0.1, 0.075, 0.06, 0.05, 0.0429, 0.0375, 0.0333]

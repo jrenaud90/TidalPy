@@ -435,6 +435,9 @@ def construct_world(config: dict):
             if key in config:
                 world_kwargs[key] = config[key]
         world = StarWorld(**world_kwargs)
+        # A star has no layers, but the analytic tide pipeline (cpl/ctl/ctl_q) is common to
+        # all world types, so wire its [tides] table too (default model: fixed_q).
+        _attach_tides(world, config)
     elif world_type == "gasgiant":
         # Layered families carry an inner-to-outer stack of layers.
         world = GasGiantWorld(world_type=world_type, **world_kwargs)
@@ -482,7 +485,7 @@ def _tides_config_x() -> dict:
 
 
 def _attach_tides(world, config: dict) -> None:
-    """Wire the optional ``[tides]`` table onto a layered/gasgiant world.
+    """Wire the optional ``[tides]`` table onto any world (layered, gas giant, or star).
 
     Attaches a tide dissipation model (``set_tide_model``) and the truncation/degree
     configuration (``set_tide_config``). Values resolve through the standard chain: the
@@ -494,8 +497,9 @@ def _attach_tides(world, config: dict) -> None:
 
     Parameters
     ----------
-    world : LayeredWorld or GasGiantWorld
-        The world to wire (must expose ``set_tide_model``/``set_tide_config``).
+    world : LayeredWorld, GasGiantWorld, or StarWorld
+        The world to wire (must expose ``set_tide_model``/``set_tide_config``). A star only
+        supports the analytic models (the rheology model needs a layered interior).
     config : dict
         The normalized world configuration.
     """
@@ -529,6 +533,7 @@ def _attach_tides(world, config: dict) -> None:
         obliquity_truncation=_resolve_obliquity_truncation(
             merged.get("obliquity_trunc_lvl",
                        merged.get("obliquity_truncation", "gen"))),
+        tidal_timescale_width_decades=float(merged.get("tidal_timescale_width_decades", 1.0)),
     )
 
 

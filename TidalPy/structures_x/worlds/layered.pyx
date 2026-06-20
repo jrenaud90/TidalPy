@@ -27,7 +27,6 @@ from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_name
-from TidalPy.Tides_x.classes.tide cimport TideBase
 
 # Pull in the out-of-line definition of c_LayeredWorld::calc_tides (and the heavy
 # global-potential engine it uses) so it compiles into this one extension only.
@@ -850,51 +849,13 @@ cdef class LayeredWorld(BaseWorld):
 
     # ------------------------------------------------------------------------------------------------------------------
     # Global (1D) tidal dissipation
+    #
+    # The tide model holder, config, and the analytic result accessors are inherited from
+    # BaseWorld (set_tide_model / set_tide_config / tide_model_set / tides_solved /
+    # get_tidal_heating / get_tidal_potential_derivatives / get_num_tidal_modes /
+    # get_tidal_love_k). A layered world overrides calc_tides to add the rheology (radial-
+    # solver) path + per-layer heating, and adds the per-layer heating accessor.
     # ------------------------------------------------------------------------------------------------------------------
-    def set_tide_model(self, TideBase tide not None):
-        """Attach a global tide dissipation model (transfers ownership).
-
-        Ownership of the C++ model is moved from ``tide`` into this world; the passed
-        ``TideBase`` becomes an empty, non-owning shell and must not be reused.
-
-        Parameters
-        ----------
-        tide : TideBase
-            A tide model, e.g. ``make_tide("cpl", {...})`` or ``FixedQTide(...)``.
-        """
-        if tide._tide_ptr.get() == NULL:
-            raise ValueError("This tide model holds no C++ object (already attached or moved).")
-        self._layered_ptr.set_tide_model(move(tide._tide_ptr))
-
-    @property
-    def tide_model_set(self) -> bool:
-        """Whether a tide dissipation model has been attached."""
-        return self._layered_ptr.get_tide_model_set()
-
-    def set_tide_config(
-            self,
-            int min_degree_l=2,
-            int max_degree_l=2,
-            int eccentricity_truncation=6,
-            int obliquity_truncation=10):
-        """Set the stored ``[tides]`` truncation/degree configuration.
-
-        Parameters
-        ----------
-        min_degree_l, max_degree_l : int
-            Tidal harmonic degree range (2..10).
-        eccentricity_truncation : int
-            Eccentricity-function truncation level.
-        obliquity_truncation : int
-            Obliquity-function truncation (0=off, 2, 4, 10=general).
-        """
-        cdef c_TideConfig cfg
-        cfg.min_degree_l            = min_degree_l
-        cfg.max_degree_l            = max_degree_l
-        cfg.eccentricity_truncation = eccentricity_truncation
-        cfg.obliquity_truncation    = obliquity_truncation
-        self._layered_ptr.set_tide_config(cfg)
-
     def calc_tides(
             self,
             double orbital_frequency,
@@ -944,45 +905,9 @@ cdef class LayeredWorld(BaseWorld):
         state.host_mass         = host_mass
         self._layered_ptr.calc_tides(state)
 
-    @property
-    def tides_solved(self) -> bool:
-        """Whether a successful :meth:`calc_tides` has been run."""
-        return self._layered_ptr.get_tides_solved()
-
-    def get_tidal_heating(self) -> float:
-        """Total global tidal heating [W] (NaN if unsolved)."""
-        return self._layered_ptr.get_tidal_heating()
-
-    def get_tidal_potential_derivatives(self) -> tuple:
-        """The three orbital potential derivatives ``(dUdM, dUdw, dUdO)`` [J kg-1 rad-1]."""
-        return (
-            self._layered_ptr.get_tidal_dU_dM(),
-            self._layered_ptr.get_tidal_dU_dw(),
-            self._layered_ptr.get_tidal_dU_dO(),
-        )
-
-    def get_num_tidal_modes(self) -> int:
-        """Number of active (nonzero-frequency) tidal modes summed in the last solve."""
-        return self._layered_ptr.get_num_tidal_modes()
-
     def get_layer_tidal_heating(self, index: int) -> float:
-        """Tidal heating [W] deposited in layer ``index`` (= world heating × its tidal_scale)."""
+        """Tidal heating [W] deposited in layer ``index`` (= world heating × its effective scale)."""
         return self._layered_ptr.get_layer_tidal_heating(<size_t>index)
-
-    def get_tidal_love_k(self, degree_l: int, m: int, p: int, q: int) -> complex:
-        """Complex potential Love number ``k_l`` for the tidal mode ``(l, m, p, q)``.
-
-        Only populated for the rheology tide model (the radial solver supplies the Love
-        numbers per mode). Returns NaN for the analytic models, which carry no
-        displacement Love numbers, or if the mode was inactive in the last solve.
-        """
-        cdef cpp_complex[double] k = self._layered_ptr.get_tidal_love_k(
-            <int>degree_l,
-            <int>m,
-            <int>p,
-            <int>q
-        )
-        return complex(k.real(), k.imag())
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

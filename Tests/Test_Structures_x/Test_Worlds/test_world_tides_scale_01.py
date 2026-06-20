@@ -104,9 +104,48 @@ def test_methods_can_differ_per_layer():
 
 
 # =====================================================================================================================
-# tidal_timescale is not yet wired
+# tidal_timescale (Maxwell-time bell curve about the orbital forcing period)
 # =====================================================================================================================
-def test_tidal_timescale_method_raises_pending():
-    world = _cpl_two_layer(core_method="tidal_timescale", mantle_method="user_provided")
-    with pytest.raises(RuntimeError):
-        _solve(world)
+def _cpl_timescale_world(shear_modulus, shear_viscosity, width=1.0):
+    mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
+    world = LayeredWorld("ts", _R, mass)
+    layer = PhysicsLayer("mantle", 0, 0.0, _R, 0.0,
+                         shear_modulus_static_pa=shear_modulus,
+                         shear_viscosity_static_pas=shear_viscosity,
+                         tidal_scale_method="tidal_timescale")
+    world.add_layer(layer)
+    world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))
+    world.set_tide_config(min_degree_l=2, max_degree_l=2,
+                          eccentricity_truncation=2, obliquity_truncation=0,
+                          tidal_timescale_width_decades=width)
+    return world
+
+
+def test_tidal_timescale_peaks_at_orbital_period():
+    """When the layer's Maxwell time equals the orbital forcing period the scale is 1."""
+    forcing_period = 2.0 * math.pi / _N
+    shear_modulus = 6.0e10
+    shear_viscosity = forcing_period * shear_modulus   # tau = eta/mu = forcing_period
+    world = _cpl_timescale_world(shear_modulus, shear_viscosity)
+    _solve(world)
+    total = world.get_tidal_heating()
+    assert math.isclose(world.get_layer_tidal_heating(0), total, rel_tol=1.0e-6)
+
+
+def test_tidal_timescale_falls_off_one_decade():
+    """One decade away from the forcing period the bell drops to exp(-0.5) (width = 1 decade)."""
+    forcing_period = 2.0 * math.pi / _N
+    shear_modulus = 6.0e10
+    shear_viscosity = 10.0 * forcing_period * shear_modulus   # tau = 10 * forcing_period
+    world = _cpl_timescale_world(shear_modulus, shear_viscosity, width=1.0)
+    _solve(world)
+    total = world.get_tidal_heating()
+    expected = math.exp(-0.5)
+    assert math.isclose(world.get_layer_tidal_heating(0) / total, expected, rel_tol=1.0e-6)
+
+
+def test_tidal_timescale_zero_without_moduli():
+    """A layer with no shear modulus/viscosity has no Maxwell time, so the scale is 0."""
+    world = _cpl_timescale_world(0.0, 0.0)
+    _solve(world)
+    assert world.get_layer_tidal_heating(0) == 0.0

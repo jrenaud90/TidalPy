@@ -353,7 +353,7 @@ heating is set (a per-layer config key; default `user_provided`):
 |----------------------|------------------------------|
 | `user_provided` (`user_provided_scale`) | the layer's `tidal_scale` field |
 | `volume_fraction` (`volume_fraction_scale`) | layer volume / planet volume |
-| `tidal_timescale` (`tidal_timescale_scale`) | Maxwell-time bell curve vs the forcing period — **not yet wired** (`calc_tides` raises) |
+| `tidal_timescale` (`tidal_timescale_scale`) | a log-Gaussian bell in the layer's Maxwell time `τ = η/μ` (from its static shear modulus + viscosity) peaking where `τ` equals the orbital forcing period `2π/n`; width [decades] from `set_tide_config(tidal_timescale_width_decades=...)`. 0 for a geometry-only layer or when `μ`/`η`/`n` are unusable. |
 
 A non-tidal layer (`is_tidal = false`) always gets 0. Methods may differ per layer.
 
@@ -454,6 +454,12 @@ sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`,
 `set_luminosity(L)`. A richer luminosity-model hierarchy (mass→luminosity) is a
 later phase.
+
+**Tides.** The analytic tide pipeline (`set_tide_model`/`set_tide_config`/`calc_tides` and the
+`get_tidal_*` accessors) lives on `BaseWorld`, so a star dissipates tidally too — with the
+analytic models only (`cpl`/`ctl`/`ctl_q`). The `rheology` model needs the radial solver and a
+layered interior, so `calc_tides` raises if it is selected on a star. A star has no layers, so
+there is no per-layer heating distribution. See [Global tidal dissipation](#global-tidal-dissipation).
 
 Binary class id: **203** (`BinaryClassID::StarWorld`).
 

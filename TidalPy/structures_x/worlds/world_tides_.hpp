@@ -2,25 +2,21 @@
 /*
  * world_tides_.hpp — out-of-line definition of c_LayeredWorld::calc_tides.
  *
- * Runs the global-potential engine (eccentricity/obliquity functions + tidal potential of
- * Renaud et al. 2021) for the world's stored tide config + the supplied orbital/spin state,
- * then collapses the per-mode terms with the attached tide model into the world's total
- * tidal heating + the three orbital potential derivatives, and distributes per-layer heating
- * by each layer's tidal_scale.
+ * c_LayeredWorld extends the common analytic tide path (c_BaseWorld::calc_tides,
+ * world_tides_base_.hpp) with two layered-world-only capabilities:
+ *   - the rheology model: -Im[k_l(omega)] from the world radial solver run at each unique
+ *     tidal frequency (the EOS must be solved first); and
+ *   - per-layer heating distribution by each layer's tidal_scale_method.
  *
- * This header pulls in the heavy global-potential tables (eccentricity/obliquity). Include it
- * in ONE extension only (the world/layered extension) so those tables don't compile into
- * every translation unit that includes layered_.hpp.
+ * It runs the global-potential engine, collapses (analytic or rheology), stores the result,
+ * then distributes the heat to the layers. The tide-model holder / config / result state is
+ * inherited from c_BaseWorld.
  *
- * Two dissipation paths:
- *   - Analytic models (cpl/ctl/ctl_q): -Im[k_l] comes from the model's fixed per-degree
- *     parameters; the collapse needs no radial solution.
- *   - Rheology model: -Im[k_l(omega)] comes from the world radial solver run at each unique
- *     tidal frequency. calc_tides loops the active modes, solves the Love numbers once per
- *     unique (degree_l, frequency) pair (the EOS must already be solved), and feeds the
- *     per-mode Love numbers into the collapse.
+ * This header pulls in the heavy global-potential tables; force-include it in the layered
+ * (and gas-giant) world extension only.
  */
 
+#include <cmath>
 #include <complex>
 #include <cstddef>
 #include <stdexcept>
@@ -133,7 +129,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     this->p_layer_tidal_heating.assign(n_layers, 0.0);
     for (std::size_t i = 0; i < n_layers; ++i) {
         c_BaseLayer* layer = this->p_layers[i].get();
-        const double scale = this->effective_tidal_scale(layer, planet_volume);
+        const double scale = this->effective_tidal_scale(layer, planet_volume, state);
         const double heat  = this->p_tide_result.tidal_heating * scale;
         this->p_layer_tidal_heating[i] = heat;
         layer->set_tidal_heating(heat);
@@ -141,11 +137,15 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
 }
 
 // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (0 for a
-// non-tidal layer). user_provided uses the layer's tidal_scale field; volume_fraction uses
-// the layer-to-planet volume ratio; tidal_timescale (Maxwell-time bell curve) is not yet
-// wired and raises so a misconfiguration is loud rather than silently wrong.
+// non-tidal layer).
+//   user_provided   : the layer's tidal_scale field.
+//   volume_fraction : layer volume / planet volume.
+//   tidal_timescale : a log-Gaussian bell curve in the layer's Maxwell time tau = eta/mu
+//                     (from its static shear modulus + viscosity) about the tidal forcing
+//                     period 2*pi/|orbital_frequency|; width [decades] from the tide config.
+//                     Returns 0 for a geometry-only layer or when mu/eta/forcing are unusable.
 inline double c_LayeredWorld::effective_tidal_scale(
-        const c_BaseLayer* layer, double planet_volume) const {
+        const c_BaseLayer* layer, double planet_volume, const c_TideSolveConfig& state) const {
     if (!layer->get_is_tidal()) {
         return 0.0;
     }
@@ -153,12 +153,32 @@ inline double c_LayeredWorld::effective_tidal_scale(
         case c_TidalScaleMethod::user_provided:
             return layer->get_tidal_scale();
         case c_TidalScaleMethod::volume_fraction:
-            return (planet_volume > TidalPyConstants::d_EPS) ? layer->get_volume() / planet_volume : 0.0;
-        case c_TidalScaleMethod::tidal_timescale:
+            return (planet_volume > TidalPyConstants::d_EPS)
+                 ? layer->get_volume() / planet_volume : 0.0;
+        case c_TidalScaleMethod::tidal_timescale: {
+            const auto* phys = dynamic_cast<const c_PhysicsLayer*>(layer);
+            if (phys == nullptr) {
+                return 0.0;   // geometry-only layer has no Maxwell time
+            }
+            const double shear_modulus  = phys->get_shear_modulus_static();
+            const double shear_viscosity = phys->get_shear_viscosity_static();
+            const double orbital_freq   = std::abs(state.orbital_frequency);
+            if (shear_modulus  <= TidalPyConstants::d_EPS
+             || shear_viscosity <= TidalPyConstants::d_EPS
+             || orbital_freq    <= TidalPyConstants::d_EPS) {
+                return 0.0;
+            }
+            const double maxwell_time   = shear_viscosity / shear_modulus;          // [s]
+            const double forcing_period = 2.0 * TidalPyConstants::d_PI / orbital_freq;  // [s]
+            double width = this->p_tide_config.tidal_timescale_width_decades;
+            if (width <= TidalPyConstants::d_EPS) {
+                width = 1.0;
+            }
+            const double z = std::log10(maxwell_time / forcing_period) / width;
+            return std::exp(-0.5 * z * z);
+        }
         default:
-            throw std::runtime_error(
-                "TidalPy: the 'tidal_timescale' tidal_scale_method is not yet wired; use "
-                "'user_provided' or 'volume_fraction' for now");
+            return 0.0;
     }
 }
 
