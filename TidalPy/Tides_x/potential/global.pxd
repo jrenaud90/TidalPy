@@ -2,7 +2,7 @@
 
 from libc.stdint cimport int16_t
 
-from TidalPy.utilities.lookups cimport c_IntMap, c_Key2, c_Key4
+from TidalPy.Utilities_x.lookups cimport c_IntMap, c_Key2, c_Key4
 from TidalPy.Tides_x.potential.potential_common cimport c_ModeMap, c_UniqueFreqIndexMap, c_UniqueFreqMap
 
 

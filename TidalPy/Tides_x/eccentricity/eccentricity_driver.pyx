@@ -1,7 +1,7 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
-from TidalPy.utilities.lookups cimport IntMap1, IntMap3, c_Key2, c_Key1, c_IntMap
+from TidalPy.Utilities_x.lookups cimport IntMap1, IntMap3, c_Key2, c_Key1, c_IntMap
 
 def eccentricity_func(
         double eccentricity,

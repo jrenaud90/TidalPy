@@ -3,7 +3,7 @@ from libc.stdint cimport int16_t
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
 
-from TidalPy.utilities.lookups cimport c_IntMap, c_Key2, c_Key4
+from TidalPy.Utilities_x.lookups cimport c_IntMap, c_Key2, c_Key4
 
 
 cdef extern from "potential_common_.hpp" nogil:

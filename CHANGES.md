@@ -172,6 +172,7 @@ _The `_x` in module and function names indicates experimental versions. This suf
 ##### `TidalPy.Utilities_x` Module (new)
 * Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
 * Added `TidalPy.Utilities_x.arrays` — header-only 1-D linear interpolation utilities (`interp_.hpp`: `c_interp`, `c_interp_complex`, `c_binary_search_with_guess`) ported from `TidalPy.utilities.arrays` into the new scheme, with a `numpy.interp`-style Python wrapper `interp(x, xp, fp)`. The interpolated material EOS (`c_InterpolatedEOS`) now uses `c_interp` instead of a hand-rolled lookup.
+* Added `TidalPy.Utilities_x.lookups` — integer-keyed lookup containers (`IntMapN` / `IntMapNComplex`, `N = 1..4`; C++ `c_IntMap<c_KeyN, ...>` + `keys_.hpp` key packing) that store a value against a packed key of up to four 16-bit integers. These back the tidal mode/frequency maps used throughout `Tides_x`. Relocated here from `TidalPy.utilities.lookups` so the `_x` tide code depends only on `_x` utilities.
 * Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
   * `init_logger(config)`, `set_log_level(level)`, `shutdown_logger()` are available from Python.
   * C++ code uses `TIDALPY_LOG_DEBUG/INFO/WARN/ERROR/CRITICAL(...)` macros from `logger_.hpp`.
@@ -187,8 +188,6 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization. Provides shared `write_physics_binary(out, class_id, params)` / `read_physics_binary(in, force, n_params)` helpers so every physics model serializes uniformly (header + model name + scalar params) and a model's `write_binary`/`read_binary` reduce to one call each.
 
 #### Utilities
-* Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
-  * Complex versions are also available as `IntMapNComplex`.
 * Converted `math.numerics` to c++.
 * Implemented a new constant/parameter backend that can be accessed in C++ but modified in Python/cython.
   * Refactored `constants.d_DBL_MANT_DIG` to `constants.d_DBL_MANT_DIGITS` for readability.
