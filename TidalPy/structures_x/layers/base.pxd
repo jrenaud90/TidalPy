@@ -67,6 +67,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         const string& get_material_name()      const
         cpp_bool get_is_tidal()                const
         double   get_tidal_scale()             const
+        double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
         double   get_density(double radius_m)  const
         double   get_gravity(double radius_m)  const

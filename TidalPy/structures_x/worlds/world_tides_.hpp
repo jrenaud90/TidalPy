@@ -12,10 +12,16 @@
  * in ONE extension only (the world/layered extension) so those tables don't compile into
  * every translation unit that includes layered_.hpp.
  *
- * The rheology model's per-mode radial-solver Love numbers are wired in a follow-up; for now
- * calc_tides handles the analytic models (cpl/ctl/ctl_q) and raises for rheology.
+ * Two dissipation paths:
+ *   - Analytic models (cpl/ctl/ctl_q): -Im[k_l] comes from the model's fixed per-degree
+ *     parameters; the collapse needs no radial solution.
+ *   - Rheology model: -Im[k_l(omega)] comes from the world radial solver run at each unique
+ *     tidal frequency. calc_tides loops the active modes, solves the Love numbers once per
+ *     unique (degree_l, frequency) pair (the EOS must already be solved), and feeds the
+ *     per-mode Love numbers into the collapse.
  */
 
+#include <complex>
 #include <cstddef>
 #include <stdexcept>
 #include <vector>
@@ -29,16 +35,6 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
-    }
-
-    // The rheology model needs per-mode radial-solver Love numbers (the world radial solver
-    // run at each unique tidal frequency). That coupling lands in a follow-up step; for now
-    // the analytic models are fully supported.
-    if (this->p_tide->needs_radial_solve()) {
-        throw std::runtime_error(
-            "TidalPy: the rheology tide model's radial-solver coupling is not yet wired into "
-            "calc_tides; use an analytic tide model (cpl/ctl/ctl_q), or call solve_love_numbers "
-            "directly, for now");
     }
 
     const double planet_radius = this->get_radius();
@@ -68,17 +64,77 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         throw std::runtime_error("TidalPy: global potential failed during calc_tides");
     }
 
-    // Analytic collapse (no radial-solver Love numbers needed).
-    this->p_tide_result  = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+    // Collapse the per-mode potential terms with the tide model's dissipation multiplier.
+    this->p_tide_solver_love.clear();
+    if (this->p_tide->needs_radial_solve()) {
+        // Rheology model: the per-mode -Im[k_l(omega)] comes from the world radial solver,
+        // which needs the EOS solved first.
+        if (!this->p_eos_solved || !this->p_eos_solution) {
+            this->p_tides_solved = false;
+            throw std::runtime_error(
+                "TidalPy: the rheology tide model needs the EOS solved first — call "
+                "solve_eos() before calc_tides()");
+        }
+
+        // Solve the Love numbers once per unique (degree_l, frequency) pair, caching by that
+        // pair so modes that share a degree and frequency reuse one radial solve. Then record
+        // each active mode's Love numbers keyed by its (l, m, p, q).
+        c_IntMap<c_Key2, tidalpy::c_LoveNumbers> love_by_l_freq;
+        c_LoveSolveConfig love_cfg;
+        for (const auto& mode_entry : potential.potential_map) {
+            const c_Key4& lmpq_key = mode_entry.first;
+            const int degree_l     = static_cast<int>(lmpq_key.a);
+
+            bool found = false;
+            const std::size_t freq_index = potential.unique_freq_index_map.get(found, lmpq_key);
+            if (!found) {
+                // Inactive (zero-frequency) mode; contributes nothing.
+                continue;
+            }
+            const double frequency = potential.unique_freq_map[freq_index].frequency;
+
+            c_Key2 lf_key(static_cast<int16_t>(degree_l), static_cast<int16_t>(freq_index));
+            bool cached = false;
+            love_by_l_freq.get(cached, lf_key);
+            if (!cached) {
+                love_cfg.degree_l        = degree_l;
+                love_cfg.frequency_rad_s = frequency;
+                this->solve_love_numbers(love_cfg);
+                if (!this->get_love_success()) {
+                    this->p_tides_solved = false;
+                    throw std::runtime_error(
+                        "TidalPy: radial-solver Love-number solve failed during calc_tides: "
+                        + this->get_love_message());
+                }
+                tidalpy::c_LoveNumbers solved_love;
+                solved_love.k = this->get_love_number_k(0);
+                solved_love.h = this->get_love_number_h(0);
+                solved_love.l = this->get_love_number_l(0);
+                love_by_l_freq.set(lf_key, solved_love);
+            }
+
+            bool have = false;
+            tidalpy::c_LoveNumbers mode_love = love_by_l_freq.get(have, lf_key);
+            this->p_tide_solver_love.set(lmpq_key, mode_love);
+        }
+
+        this->p_tide_result = c_collapse_global_tides(potential, *this->p_tide, &this->p_tide_solver_love);
+    } else {
+        // Analytic models: no radial-solver Love numbers needed.
+        this->p_tide_result = c_collapse_global_tides(potential, *this->p_tide, nullptr);
+    }
     this->p_tides_solved = true;
 
-    // Distribute heating to the layers by their tidal scale (0 for non-tidal layers).
+    // Distribute heating to the layers by their tidal scale (0 for non-tidal layers), and
+    // store the result on each layer so layer.get_tidal_heating() reports it directly.
     const std::size_t n_layers = this->p_layers.size();
     this->p_layer_tidal_heating.assign(n_layers, 0.0);
     for (std::size_t i = 0; i < n_layers; ++i) {
-        const c_BaseLayer* layer = this->p_layers[i].get();
-        const double scale = layer->get_is_tidal() ? layer->get_tidal_scale() : 0.0;
-        this->p_layer_tidal_heating[i] = this->p_tide_result.tidal_heating * scale;
+        c_BaseLayer* layer  = this->p_layers[i].get();
+        const double scale  = layer->get_is_tidal() ? layer->get_tidal_scale() : 0.0;
+        const double heat   = this->p_tide_result.tidal_heating * scale;
+        this->p_layer_tidal_heating[i] = heat;
+        layer->set_tidal_heating(heat);
     }
 }
 

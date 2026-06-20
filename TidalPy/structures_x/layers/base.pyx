@@ -172,6 +172,14 @@ cdef class BaseLayer(StructureBase):
         """Dimensionless tidal heating scale factor."""
         return self._layer_ptr.get().get_tidal_scale()
 
+    def get_tidal_heating(self) -> float:
+        """Tidal heating [W] deposited in this layer by the world's last tidal solve.
+
+        Set by :meth:`LayeredWorld.calc_tides` as the world's total tidal heating scaled
+        by this layer's contribution. Returns NaN before a tidal solve has run.
+        """
+        return self._layer_ptr.get().get_tidal_heating()
+
     # ------------------------------------------------------------------------------------------------------------------
     # EOS profile
     # ------------------------------------------------------------------------------------------------------------------

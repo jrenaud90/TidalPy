@@ -908,6 +908,11 @@ cdef class LayeredWorld(BaseWorld):
         Requires an attached tide model (:meth:`set_tide_model`). Populates the world's
         :attr:`tidal_heating`, the three potential derivatives, and per-layer heating.
 
+        The analytic models (cpl/ctl/ctl_q) collapse from their fixed per-degree parameters.
+        The rheology model instead runs the world radial solver at each unique tidal
+        frequency to find the global Love numbers, so the EOS must be solved first
+        (:meth:`solve_eos`).
+
         Parameters
         ----------
         orbital_frequency : float
@@ -926,8 +931,9 @@ cdef class LayeredWorld(BaseWorld):
         Raises
         ------
         RuntimeError
-            If no tide model is attached, the rheology model is used (its radial-solver
-            coupling is not yet wired), or the global potential solve fails.
+            If no tide model is attached, the rheology model is selected but the EOS has
+            not been solved, a radial-solver Love-number solve fails, or the global
+            potential solve fails.
         """
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
@@ -962,6 +968,21 @@ cdef class LayeredWorld(BaseWorld):
     def get_layer_tidal_heating(self, index: int) -> float:
         """Tidal heating [W] deposited in layer ``index`` (= world heating × its tidal_scale)."""
         return self._layered_ptr.get_layer_tidal_heating(<size_t>index)
+
+    def get_tidal_love_k(self, degree_l: int, m: int, p: int, q: int) -> complex:
+        """Complex potential Love number ``k_l`` for the tidal mode ``(l, m, p, q)``.
+
+        Only populated for the rheology tide model (the radial solver supplies the Love
+        numbers per mode). Returns NaN for the analytic models, which carry no
+        displacement Love numbers, or if the mode was inactive in the last solve.
+        """
+        cdef cpp_complex[double] k = self._layered_ptr.get_tidal_love_k(
+            <int>degree_l,
+            <int>m,
+            <int>p,
+            <int>q
+        )
+        return complex(k.real(), k.imag())
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

@@ -365,9 +365,31 @@ world.get_layer_tidal_heating(0)         # = world heating × layer 0's tidal_sc
 ```
 
 For a synchronous, low-eccentricity body the `cpl` result reproduces the classic CPL rate
-`(21/2)(k₂/Q)·G·M_host²·R⁵·n·e²/a⁶`. The analytic models (`cpl`/`ctl`/`ctl_q`) are
-fully supported; the `rheology` model (which needs per-mode radial-solver Love numbers) is
-wired in a follow-up — `calc_tides` raises a clear error for it until then.
+`(21/2)(k₂/Q)·G·M_host²·R⁵·n·e²/a⁶`.
+
+### Rheology model
+
+The analytic models (`cpl`/`ctl`/`ctl_q`) take `−Im[k_l]` from their fixed per-degree
+parameters and need no interior solution. The `rheology` model instead derives `−Im[k_l(ω)]`
+from the world radial solver: `calc_tides` runs the global-potential engine, then for each
+unique tidal frequency it solves the world's complex Love numbers (reusing the frequency-
+independent radial-solver cache), feeds the per-mode `k_l` into the collapse, and retains the
+full `k`/`h`/`l` suite per mode for inspection. Because it runs the radial solver, the EOS must
+be solved first:
+
+```python
+world.solve_eos(G_to_use=G, temperature=1500.0)   # required for the rheology model
+world.set_tide_model(make_tide("rheology"))
+world.set_tide_config(max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
+world.calc_tides(orbital_frequency=2.0e-5, spin_frequency=1.0e-5, eccentricity=0.01,
+                 obliquity=0.0, semi_major_axis=4.0e8, host_mass=1.9e27)
+
+world.get_tidal_heating()             # total heating [W]
+world.get_tidal_love_k(2, 2, 0, 0)    # complex k₂ for the (l,m,p,q) = (2,2,0,0) mode
+```
+
+`calc_tides` raises `RuntimeError` if the `rheology` model is selected but the EOS has not been
+solved, or if a per-frequency radial solve fails.
 
 | Member | Returns | Description |
 |--------|---------|-------------|
@@ -380,6 +402,10 @@ wired in a follow-up — `calc_tides` raises a clear error for it until then.
 | `get_tidal_potential_derivatives()` | tuple | `(dUdM, dUdw, dUdO)` [J kg⁻¹ rad⁻¹]. |
 | `get_num_tidal_modes()` | int | Active modes summed. |
 | `get_layer_tidal_heating(index)` | float [W] | Per-layer heating = world heating × `tidal_scale`. |
+| `get_tidal_love_k(l, m, p, q)` | complex | Per-mode radial-solver `k_l` (rheology only; NaN for analytic models). |
+
+Each layer also stores its own tidal heating: the C++ `c_BaseLayer::get_tidal_heating()` returns
+the world heating scaled by that layer's contribution.
 
 ---
 

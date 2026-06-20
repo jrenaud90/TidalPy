@@ -138,6 +138,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double               get_tidal_dU_dO() const
         int                  get_num_tidal_modes() const
         double               get_layer_tidal_heating(size_t index) const
+        cpp_complex[double]  get_tidal_love_k(int degree_l, int m, int p, int q) const
 
 
 # =====================================================================================================================

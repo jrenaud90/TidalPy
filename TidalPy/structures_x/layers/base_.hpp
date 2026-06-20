@@ -27,6 +27,7 @@
  */
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <ostream>
 #include <stdexcept>
@@ -97,6 +98,7 @@ public:
             this->p_material_name      = other.p_material_name;
             this->p_is_tidal           = other.p_is_tidal;
             this->p_tidal_scale        = other.p_tidal_scale;
+            this->p_tidal_heating      = other.p_tidal_heating;
             this->p_eos_data           = other.p_eos_data;
             // EOS model pointer cannot be copied; source temporaries have null ptrs.
             this->p_eos.reset();
@@ -119,6 +121,15 @@ public:
     const std::string& get_material_name()       const noexcept { return this->p_material_name; }
     bool               get_is_tidal()            const noexcept { return this->p_is_tidal; }
     double             get_tidal_scale()         const noexcept { return this->p_tidal_scale; }
+
+    // -----------------------------------------------------------------------
+    // Tidal heating [W] deposited in this layer (transient result; NOT serialized).
+    // Populated by the world's global tidal solve (c_LayeredWorld::calc_tides) as
+    // the world's total tidal heating scaled by this layer's contribution. Returns
+    // NaN until a tidal solve has run.
+    // -----------------------------------------------------------------------
+    double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
+    void   set_tidal_heating(double heating_w)   noexcept { this->p_tidal_heating = heating_w; }
 
     // -----------------------------------------------------------------------
     // EOS profile (mutable; populated by EOSHandler in Phase 8)
@@ -278,6 +289,7 @@ protected:
     std::string p_material_name;
     bool        p_is_tidal           = true;
     double      p_tidal_scale        = 1.0;   // dimensionless
+    double      p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
 
     // Mutable EOS profile (populated by the world-level EOS solve; not serialized)
     c_LayerEOSData p_eos_data;

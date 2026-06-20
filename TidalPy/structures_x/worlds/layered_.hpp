@@ -51,6 +51,10 @@
 // eccentricity/obliquity tables compile into only the one extension that includes it.
 #include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase
 #include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
+// Relative paths (not bare names) so every extension that includes layered_.hpp resolves
+// these without needing Utilities_x/lookups on its include path. Light headers, no tables.
+#include "../../Utilities_x/lookups/keys_.hpp"     // c_Key4, c_Key2
+#include "../../Utilities_x/lookups/intmap_.hpp"   // c_IntMap (per-mode solver Love-number store)
 
 namespace tidalpy {
 
@@ -757,6 +761,25 @@ public:
         return this->p_layer_tidal_heating[index];
     }
 
+    // Complex potential Love number k_l for the tidal mode (l, m, p, q) from the most
+    // recent rheology calc_tides. Returns NaN for analytic tide models (no radial
+    // solution) or if the mode was not active. The full k/h/l suite is retained; this
+    // exposes the dissipation-driving k component for inspection.
+    std::complex<double> get_tidal_love_k(int degree_l, int m, int p, int q) const noexcept {
+        bool found = false;
+        c_Key4 lmpq_key(
+            static_cast<int16_t>(degree_l),
+            static_cast<int16_t>(m),
+            static_cast<int16_t>(p),
+            static_cast<int16_t>(q)
+        );
+        tidalpy::c_LoveNumbers love = this->p_tide_solver_love.get(found, lmpq_key);
+        if (!found) {
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        }
+        return love.k;
+    }
+
     // -----------------------------------------------------------------------
     // Whole-planet aggregates (const, MKS)
     // -----------------------------------------------------------------------
@@ -982,6 +1005,10 @@ protected:
     c_GlobalTideResult                   p_tide_result;
     bool                                 p_tides_solved = false;
     std::vector<double>                  p_layer_tidal_heating;
+    // Per-mode radial-solver Love numbers (k, h, l) keyed by the tidal mode (l, m, p, q),
+    // retained from the most recent rheology calc_tides for inspection (empty for the
+    // analytic models, which carry no displacement Love numbers).
+    c_IntMap<c_Key4, tidalpy::c_LoveNumbers> p_tide_solver_love;
 };
 
 } // namespace tidalpy

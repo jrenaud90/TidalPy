@@ -112,13 +112,18 @@ def test_ctl_world_positive_heating():
 # =====================================================================================================================
 # Per-world-family default models + error paths
 # =====================================================================================================================
-def test_terrestrial_default_model_is_rheology_and_not_yet_wired():
-    """Terrestrial worlds default to the rheology model; its calc_tides coupling is pending."""
-    cfg = _terrestrial_config({})  # no global_tidal_model -> default
+def test_terrestrial_default_model_is_rheology_requires_eos():
+    """Terrestrial worlds default to the rheology model; calc_tides needs the EOS solved first.
+
+    The rheology model runs the radial solver per tidal frequency, so without a prior
+    solve_eos the world raises. The end-to-end rheology path is exercised in
+    test_world_tides_rheology_01.py.
+    """
+    cfg = _terrestrial_config({})  # no global_tidal_model -> default (rheology)
     world = build_world(cfg)
     assert world.tide_model_set
     with pytest.raises(RuntimeError):
-        _solve(world)
+        _solve(world)  # EOS not solved yet
 
 
 def test_calc_tides_without_model_raises():
