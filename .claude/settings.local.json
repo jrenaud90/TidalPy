@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -c \"import CyRK; print\\(CyRK.get_include\\(\\)\\)\")"
-    ]
-  }
-}
