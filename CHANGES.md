@@ -18,6 +18,13 @@ _The `_x` in module and function names indicates experimental versions. This suf
   * In a future release we will remove the old `TidalPy.tides` module in favor of this one (refactoring it to `Tides` to follow the same capitalization scheme as `RadialSolver`).
 * Created C++ obliquity functions in `TidalPy.Tides_x.obliquity` a helper function is available in Python to call these `TidalPy.Tides_x.obliquity.obliquity_func`. See documentation for more details.
 * Created C++ eccentricity functions in `TidalPy.Tides_x.eccentricity` a helper function is available in Python to call these `TidalPy.Tides_x.eccentricity.eccentricity_func`. See documentation for more details.
+* Added a global (1D) tidal dissipation model hierarchy (`TidalPy.Tides_x.classes`) following the rheology/cooling/viscosity class pattern. Each model maps a per-mode Love number to the dissipation multiplier `-Im[k_l]` that the mode collapse multiplies into the per-mode potential terms produced by `c_global_potential`. All quantities MKS; supported degrees `l = 2..10`. The full complex Love-number suite (`k`, `h`, `l`) is the transport type everywhere (the `LoveNumbers` / `c_LoveNumbers` container) so the displacement Love numbers from the radial solver are retained even though only `k` drives heating/dynamics; the analytic models return `h`, `l` as `NaN` (no radial solution). Each model exposes `calc_love_numbers(degree_l, frequency, solver_love=None) -> LoveNumbers` and `calc_neg_imk(...)`.
+  * `RheologyTide` (alias `rheology`) — `k_l` supplied by the radial solver (frequency dependent; driven by the world's tide solve).
+  * `FixedQTide` (aliases `cpl`/`fixed_q`) — constant phase lag, `k_l*(1 - i/Q_l)` → `-Im[k_l] = k_l/Q_l`.
+  * `FixedLagTide` (aliases `ctl`/`fixed_dt`) — constant time lag, `k_l*(1 - i*omega*dt_l)`.
+  * `CTLQTide` (aliases `ctl_q`/`fixed_dt_q`) — `k_l*(1 - i*omega*dt_l/Q_l)`.
+  * Name factory `make_tide(name, config)`, enum + binary-dispatch factory (`c_tide_from_binary`), and binary serialization (class ids 901–904). Per-degree parameters (`fixed_k`, `fixed_q`, `fixed_dt`) are lists indexed from `l = 2`.
+* Added the standalone global mode collapse `TidalPy.Tides_x.classes.collapse_global_tides(...)`: runs the global-potential engine for an orbital/spin state and collapses the per-mode terms with an analytic tide model into the total tidal heating [W] and the three orbital potential derivatives (`dUdM`, `dUdw`, `dUdO`). For a synchronously rotating, low-eccentricity body the `fixed_q` result reproduces the classic CPL heating rate `(21/2)(k2/Q) G M_host^2 R^5 n e^2 / a^6` exactly. The `rheology` model needs the radial solver and is driven by the world instead.
 
 #### `TidalPy.RadialSolver_x`
 

@@ -2932,6 +2932,119 @@
         "link_args": [],
         "is_cpp": true
     },
+    "Tides_x.classes.tide": {
+        "name": "TidalPy.Tides_x.classes.tide",
+        "sources": [
+            [
+                "TidalPy",
+                "Tides_x",
+                "classes",
+                "tide.pyx"
+            ]
+        ],
+        "include_dirs": [
+            [
+                "TidalPy",
+                "Tides_x",
+                "classes"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "love"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "classes_x"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "binary_x"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "logging_x"
+            ],
+            [
+                "TidalPy"
+            ]
+        ],
+        "compile_args": [],
+        "link_args": [],
+        "is_cpp": true
+    },
+    "Tides_x.classes.collapse": {
+        "name": "TidalPy.Tides_x.classes.collapse",
+        "sources": [
+            [
+                "TidalPy",
+                "Tides_x",
+                "classes",
+                "collapse.pyx"
+            ]
+        ],
+        "include_dirs": [
+            [
+                "TidalPy",
+                "Tides_x",
+                "classes"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "love"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "potential"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "obliquity"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "eccentricity"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "lookups"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "classes_x"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "binary_x"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "logging_x"
+            ],
+            [
+                "TidalPy",
+                "utilities",
+                "math"
+            ],
+            [
+                "TidalPy"
+            ]
+        ],
+        "compile_args": [],
+        "link_args": [],
+        "is_cpp": true
+    },
     "tides.multilayer.sensitivity": {
         "name": "TidalPy.tides.multilayer.sensitivity",
         "sources": [

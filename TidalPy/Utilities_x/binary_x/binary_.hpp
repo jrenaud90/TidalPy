@@ -103,6 +103,12 @@ enum class BinaryClassID : uint32_t {
     ArrheniusViscosity = 801,
     ReferenceViscosity = 802,
     ConstantViscosity  = 803,
+    // 9XX Tidal dissipation models - convert mode Love numbers into global tidal heating + torque.
+    TideBase           = 900,
+    RheologyTide       = 901,
+    FixedQTide         = 902,
+    FixedLagTide       = 903,
+    CTLQTide           = 904,
 };
 
 // ---------------------------------------------------------------------------
