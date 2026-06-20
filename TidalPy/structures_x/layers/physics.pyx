@@ -195,15 +195,27 @@ cdef class PhysicsLayer(BaseLayer):
         """True if this layer is solid; False for liquid.  Used by the radial Love-number solver."""
         return bool(self._physics_ptr.get_is_solid())
 
+    @is_solid.setter
+    def is_solid(self, value: bool):
+        self._physics_ptr.set_is_solid(<cpp_bool>bool(value))
+
     @property
     def is_static(self) -> bool:
         """True if the static (no-dynamic-terms) approximation is used.  Used by the radial solver."""
         return bool(self._physics_ptr.get_is_static())
 
+    @is_static.setter
+    def is_static(self, value: bool):
+        self._physics_ptr.set_is_static(<cpp_bool>bool(value))
+
     @property
     def is_incompressible(self) -> bool:
         """True if the incompressible approximation is used.  Used by the radial solver."""
         return bool(self._physics_ptr.get_is_incompressible())
+
+    @is_incompressible.setter
+    def is_incompressible(self, value: bool):
+        self._physics_ptr.set_is_incompressible(<cpp_bool>bool(value))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Rheology attachment

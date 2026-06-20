@@ -178,12 +178,17 @@ public:
 
     void dimensionalize_data(
         c_NonDimensionalScales* nondim_scales,
-        bool redimensionalize)
+        bool redimensionalize,
+        bool include_eos = true)
     {
         // Perform dimensionalization on the EOS solution first.
+        // include_eos = false redimensionalizes ONLY the y-solution, leaving the EOS
+        // arrays untouched (used by the cached world radial solver, which keeps its
+        // EOS arrays permanently non-dim and reuses them across frequency solves).
         double* full_solution_ptr       = this->full_solution_vec.data();
         c_EOSSolution* eos_solution_ptr = this->get_eos_solution_ptr();
-        eos_solution_ptr->dimensionalize_data(nondim_scales, redimensionalize);
+        if (include_eos)
+            eos_solution_ptr->dimensionalize_data(nondim_scales, redimensionalize);
 
         const double displacement_scale = (nondim_scales->second2_conversion / nondim_scales->length_conversion);
         const double stress_scale       = (nondim_scales->mass_conversion / nondim_scales->length3_conversion);

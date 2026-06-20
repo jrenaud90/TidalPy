@@ -53,7 +53,8 @@ void c_preeval_interpolate(
     size_t j_guess = static_cast<size_t>(
         eos_data->num_slices * std::fabs(std::floor(radius / (right_x - left_x)))
     );
-    j_guess = std::max<size_t>(std::min<size_t>(j_guess, eos_data->num_slices), 0);
+    // Clamp the guess to a valid index (num_slices - 1, not num_slices, to avoid reading one past the end).
+    j_guess = (eos_data->num_slices > 0) ? std::min<size_t>(j_guess, eos_data->num_slices - 1) : 0;
     size_t index_j = cf_binary_search_with_guess(
         radius, 
         eos_data->radius_array_ptr, 

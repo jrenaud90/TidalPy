@@ -14,6 +14,7 @@ from CyRK cimport ODEMethod
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
+from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
 
 
 # =====================================================================================================================
@@ -36,6 +37,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    frequency_rad_s
         int       degree_l
         cpp_bool  solve_tidal
+        cpp_bool  use_prop_matrix
+        int       core_model
         cpp_bool  use_kamata
         cpp_bool  nondimensionalize
         double    starting_radius
@@ -92,6 +95,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_planet_moi_eos() const
         const c_EOSSolution* get_eos_solution() const
         void                 solve_love_numbers(const c_LoveSolveConfig& cfg) except +
+        void                 solve_love_numbers_supplied(const c_LoveSolveConfig& cfg, const cpp_complex[double]* shear_in, const cpp_complex[double]* bulk_in, const double* radius_in, size_t n_in) except +
+        unique_ptr[c_RadialSolutionStorage] release_radial_storage()
         cpp_bool             get_love_solved() const
         cpp_bool             get_love_success() const
         int                  get_love_error_code() const

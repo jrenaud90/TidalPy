@@ -67,6 +67,21 @@ public:
     bool other_vecs_set    = false;
     bool p_use_array_interp = false;  // set by inject_from_world_eos; call() uses array interpolation
 
+    // Optional dense structure source (non-owning). When set together with p_use_array_interp, the solved structure
+    // dependent variables (gravity/pressure/mass/moi) are read from this external dense EOS solution rather than the
+    // stored arrays, preserving the dense (polynomial) accuracy of the integrated EOS structure. Density and the
+    // complex moduli remain array-interpolated (density is algebraic; the complex moduli come from the rheology, not
+    // the EOS solve). Used by the world Love-number solve, which reuses the world's already-solved (dense) EOS while
+    // supplying frequency-dependent complex moduli. The source is dimensional (SI); the scales convert to this
+    // solution's (non-dim) units: source_radius = this_radius * p_structure_length_scale; this_value = source_value /
+    // p_structure_*_scale.
+    const c_EOSSolution* p_structure_dense_source = nullptr;
+    double p_structure_length_scale  = 1.0;
+    double p_structure_gravity_scale = 1.0;
+    double p_structure_pascal_scale  = 1.0;
+    double p_structure_mass_scale    = 1.0;
+    double p_structure_moi_scale     = 1.0;
+
     std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
     size_t num_layers           = 0;
@@ -240,6 +255,20 @@ public:
             // EOS was injected from a pre-solved world; use simple array interpolation.
             // Arrays are already in the units inject_from_world_eos provided.
             this->_call_interp_arrays(radius_val, y_interp_ptr);
+
+            // Override the SOLVED structure dependent variables (gravity/pressure/mass/moi) with the dense-output
+            // values from the source EOS solution, preserving the polynomial accuracy of the integrated structure.
+            // Density (y[4]) and the complex moduli (y[5..8]) keep their array-interpolated values.
+            if (this->p_structure_dense_source) [[unlikely]]
+            {
+                double src_out[C_EOS_DY_VALUES];
+                const double src_radius = radius_val * this->p_structure_length_scale;
+                this->p_structure_dense_source->call(layer_index, src_radius, src_out);
+                y_interp_ptr[0] = src_out[0] / this->p_structure_gravity_scale;   // gravity
+                y_interp_ptr[1] = src_out[1] / this->p_structure_pascal_scale;    // pressure
+                y_interp_ptr[2] = src_out[2] / this->p_structure_mass_scale;      // mass
+                y_interp_ptr[3] = src_out[3] / this->p_structure_moi_scale;       // moment of inertia
+            }
             return;
         }
 

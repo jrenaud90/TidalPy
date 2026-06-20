@@ -132,6 +132,11 @@ public:
     bool get_is_static()         const noexcept { return this->p_is_static; }
     bool get_is_incompressible() const noexcept { return this->p_is_incompressible; }
 
+    // Radial-solver layer classification setters (control the shooting / propagation-matrix assumptions).
+    void set_is_solid(bool value)          noexcept { this->p_is_solid = value; }
+    void set_is_static(bool value)         noexcept { this->p_is_static = value; }
+    void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
+
     // -----------------------------------------------------------------------
     // Tidal susceptibility [m^3]
     //

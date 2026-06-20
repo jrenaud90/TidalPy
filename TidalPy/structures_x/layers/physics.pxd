@@ -77,6 +77,9 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_bool            get_is_solid()                           const
         cpp_bool            get_is_static()                          const
         cpp_bool            get_is_incompressible()                  const
+        void                set_is_solid(cpp_bool)
+        void                set_is_static(cpp_bool)
+        void                set_is_incompressible(cpp_bool)
 
 
 # =====================================================================================================================

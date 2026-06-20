@@ -205,9 +205,21 @@ array inputs return an `np.ndarray` of the same shape.
 
 ### RadialSolver (Calculating Love Numbers)
 
-`LayeredWorld.solve_love_numbers(...)` runs the shooting-method radial integration
-to compute the viscoelastic-gravitational Love tidal or loading numbers k, h, l for a given tidal
-forcing frequency. `solve_eos` must be called first.
+`LayeredWorld.solve_love_numbers(...)` computes the viscoelastic-gravitational Love
+tidal or loading numbers k, h, l for a given tidal forcing frequency. `solve_eos`
+must be called first.
+
+Two radial-solve methods are available behind the same call, selected by
+`use_prop_matrix`:
+
+* **Shooting method** (`use_prop_matrix=False`, default) — numerically integrates
+  the radial ODEs from the center to the surface. Works for arbitrary multi-layer,
+  solid/liquid, static/dynamic, compressible/incompressible worlds.
+* **Propagation-matrix method** (`use_prop_matrix=True`) — a quasi-analytic
+  matrix-propagation technique restricted to a **single solid, static,
+  incompressible layer** (the classic homogeneous-sphere case). An incompatible
+  world fails the solve gracefully (`love_success` is `False`, `love_error_code`
+  non-zero) rather than raising. `core_model` selects the core starting condition.
 
 ```python
 from TidalPy.structures_x.worlds import LayeredWorld
@@ -288,30 +300,41 @@ cfg.frequency_rad_s   = 1.0e-5;          // [rad/s]
 cfg.degree_l          = 2;
 cfg.nondimensionalize = true;
 cfg.integration_method = ODEMethod::DOP853;
-world.solve_love_numbers(cfg);           // populates p_love_solution
+world.solve_love_numbers(cfg);           // delegates to the cached radial solver
 
 std::complex<double> k2 = world.get_love_number_k(0);
 ```
 
-`c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` is fully
-self-contained:
+`c_LayeredWorld::solve_love_numbers(const c_LoveSolveConfig&)` delegates to a
+cached helper, `c_WorldRadialSolver` (held by `p_radial_solver`), that separates the
+**frequency-independent** setup (built once and reused) from the
+**frequency-dependent** work (recomputed cheaply on every call). This matters
+because the Love-number solve is the hot loop for frequency sweeps and orbital
+evolution.
+
+The non-dimensionalization is itself frequency-independent (the
+`c_NonDimensionalScales` time scale is `1/(π·G·ρ_bulk)`, not `1/ω`), so the only
+quantities that change between calls at different frequencies are the complex
+moduli and the shooting integration.
 
 1. Validates `eos_solved` and `tidalpy_config_ptr`.
-2. Copies the EOS radius/density/gravity/pressure/mass/moi arrays from the stored
-   `c_EOSSolution` and calls `calc_complex_shear/bulk_modulus` at the requested
-   frequency to build per-slice complex-moduli arrays.
-3. Builds a `c_NonDimensionalScales` object and non-dimensionalizes all arrays
-   (if `cfg.nondimensionalize`).
-4. Creates a `c_RadialSolutionStorage` (owned by `p_love_solution`) and populates
-   its `c_EOSSolution` via `inject_from_world_eos`, which sets the
-   `p_use_array_interp` flag so the EOS solution interpolates from the copied
-   arrays (no CyRK dense-output required in the radial-solve context).
-5. Calls `c_shooting_solver` directly (no intermediate `c_radial_solver`).
-6. Re-dimensionalizes and calls `c_RadialSolutionStorage::find_love()`.
+2. If the cache does not match the current EOS grid/assumptions, `build_cache`
+   captures (once): the non-dim radius/density/gravity/pressure/mass/moi arrays,
+   per-layer metadata (solid/liquid, static, incompressible) and slice
+   partitioning, the non-dim scalars (`G`, bulk density, surface pressure), and a
+   **reused** `c_RadialSolutionStorage` whose internal `c_EOSSolution` arrays serve
+   as the scratch buffers. The cache is invalidated automatically whenever
+   `solve_eos` re-runs.
+3. Per call: `calc_complex_shear/bulk_modulus` fills the dimensional moduli scratch
+   at the requested frequency; the helper non-dimensionalizes them in place,
+   re-applies the cached non-dim structure arrays via `inject_from_world_eos`
+   (which sets `p_use_array_interp` so the EOS interpolates from the arrays — no
+   CyRK dense output needed), and runs the selected solver.
+4. Re-dimensionalizes the y-solution, restores the SI surface gravity, and calls
+   `c_RadialSolutionStorage::find_love()`.
 
-The `c_RadialSolutionStorage` is owned by `p_love_solution
-(unique_ptr<c_RadialSolutionStorage>)` on `c_LayeredWorld`; `get_love_number_k/h/l`,
-`get_love_surface_y`, and the status accessors delegate to it.
+`get_love_number_k/h/l`, `get_love_surface_y`, and the status accessors read
+through `p_radial_solver->get_storage()`.
 
 ---
 

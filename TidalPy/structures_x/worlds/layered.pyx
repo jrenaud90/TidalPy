@@ -553,6 +553,8 @@ cdef class LayeredWorld(BaseWorld):
             double frequency_rad_s    = 1.0e-5,
             int    degree_l           = 2,
             bint   solve_tidal        = True,
+            bint   use_prop_matrix    = False,
+            int    core_model         = 0,
             bint   use_kamata         = True,
             bint   nondimensionalize  = True,
             double starting_radius    = 0.0,
@@ -587,8 +589,18 @@ cdef class LayeredWorld(BaseWorld):
             Harmonic degree. Default 2.
         solve_tidal : bool, optional
             Use tidal boundary conditions. Default True.
+        use_prop_matrix : bool, optional
+            Select the radial-solve method: ``False`` (default) uses the shooting
+            method; ``True`` uses the propagation-matrix method. The propagation
+            matrix is only valid for a single solid, static, incompressible layer;
+            an incompatible world fails the solve gracefully (``love_success`` is
+            ``False`` with a non-zero ``love_error_code``).
+        core_model : int, optional
+            Propagation-matrix core starting condition (0-4). Ignored by the
+            shooting method. Default 0.
         use_kamata : bool, optional
-            Use Kamata starting conditions near the center. Default True.
+            Use Kamata starting conditions near the center (shooting method only).
+            Default True.
         nondimensionalize : bool, optional
             Non-dimensionalise the problem internally (recommended). Default True.
         starting_radius : float, optional
@@ -647,6 +659,8 @@ cdef class LayeredWorld(BaseWorld):
         cfg.frequency_rad_s   = frequency_rad_s
         cfg.degree_l          = degree_l
         cfg.solve_tidal       = <cpp_bool>solve_tidal
+        cfg.use_prop_matrix   = <cpp_bool>use_prop_matrix
+        cfg.core_model        = core_model
         cfg.use_kamata        = <cpp_bool>use_kamata
         cfg.nondimensionalize = <cpp_bool>nondimensionalize
         cfg.starting_radius   = starting_radius
@@ -669,6 +683,80 @@ cdef class LayeredWorld(BaseWorld):
         with nogil:
             self._layered_ptr.solve_love_numbers(cfg)
 
+        return self._build_love_result()
+
+    def solve_love_numbers_supplied(
+            self,
+            cnp.ndarray[cnp.complex128_t, ndim=1] complex_shear_modulus not None,
+            cnp.ndarray[cnp.complex128_t, ndim=1] complex_bulk_modulus not None,
+            cnp.ndarray[cnp.float64_t, ndim=1] radius_array not None,
+            double frequency_rad_s    = 1.0e-5,
+            int    degree_l           = 2,
+            bint   solve_tidal        = True,
+            bint   use_prop_matrix    = False,
+            int    core_model         = 0,
+            bint   use_kamata         = True,
+            bint   nondimensionalize  = True,
+            double starting_radius    = 0.0,
+            double start_radius_tol   = 1.0e-4,
+            str    integration_method = 'DOP853',
+            double rtol               = 1.0e-6,
+            double atol               = 1.0e-10,
+            bint   scale_rtols        = True,
+            size_t max_num_steps      = 500000,
+            size_t expected_size      = 500,
+            size_t max_ram_MB         = 500,
+            double max_step           = 0.0,
+            bint   verbose            = False,
+            bint   warnings           = True) -> dict:
+        """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
+
+        The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
+        the world's internal EOS radius grid. Used by the standalone ``RadialSolver_x.radial_solver`` API.
+        ``solve_eos`` must be called first.
+        """
+        if (complex_shear_modulus.shape[0] != radius_array.shape[0]
+                or complex_bulk_modulus.shape[0] != radius_array.shape[0]):
+            raise ValueError("complex moduli and radius arrays must have matching length")
+
+        cdef ODEMethod ode_method
+        cdef str method_upper = integration_method.upper()
+        if method_upper == 'DOP853':
+            ode_method = ODEMethod.DOP853
+        elif method_upper == 'RK45':
+            ode_method = ODEMethod.RK45
+        elif method_upper == 'RK23':
+            ode_method = ODEMethod.RK23
+        else:
+            raise ValueError(f"Unsupported integration method: {integration_method}")
+
+        cdef c_LoveSolveConfig cfg
+        cfg.frequency_rad_s    = frequency_rad_s
+        cfg.degree_l           = degree_l
+        cfg.solve_tidal        = <cpp_bool>solve_tidal
+        cfg.use_prop_matrix    = <cpp_bool>use_prop_matrix
+        cfg.core_model         = core_model
+        cfg.use_kamata         = <cpp_bool>use_kamata
+        cfg.nondimensionalize  = <cpp_bool>nondimensionalize
+        cfg.starting_radius    = starting_radius
+        cfg.start_radius_tol   = start_radius_tol
+        cfg.integration_method = ode_method
+        cfg.rtol               = rtol
+        cfg.atol               = atol
+        cfg.scale_rtols        = <cpp_bool>scale_rtols
+        cfg.max_num_steps      = max_num_steps
+        cfg.expected_size      = expected_size
+        cfg.max_ram_MB         = max_ram_MB
+        cfg.max_step           = max_step
+        cfg.verbose            = <cpp_bool>verbose
+        cfg.warnings           = <cpp_bool>warnings
+
+        cdef size_t n_in = radius_array.shape[0]
+        cdef cpp_complex[double]* shear_ptr = <cpp_complex[double]*><void*>&complex_shear_modulus[0]
+        cdef cpp_complex[double]* bulk_ptr  = <cpp_complex[double]*><void*>&complex_bulk_modulus[0]
+        cdef double* radius_ptr = &radius_array[0]
+        with nogil:
+            self._layered_ptr.solve_love_numbers_supplied(cfg, shear_ptr, bulk_ptr, radius_ptr, n_in)
         return self._build_love_result()
 
     def _build_love_result(self):
