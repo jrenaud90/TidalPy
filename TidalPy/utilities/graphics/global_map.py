@@ -39,7 +39,7 @@ try:
         # A Sinusoidal projection. This projection is equal-area.
         'RotatedPole'         : ccrs.RotatedPole,
         # A rotated latitude/longitude projected coordinate system with cylindrical topology and projected distance.
-        # Coordinates are measured in projection metres.
+        # Coordinates are measured in projection meters.
         'NearsidePerspective' : ccrs.NearsidePerspective,
         # Perspective view looking directly down from above a point on the globe.
         # In this projection, the projected coordinates are x and y measured from the origin of a plane tangent to
@@ -116,7 +116,7 @@ def projection_map(
         A Sinusoidal projection. This projection is equal-area.
     'RotatedPole': ccrs.RotatedPole,
         A rotated latitude/longitude projected coordinate system with cylindrical topology and projected distance.
-        Coordinates are measured in projection metres.
+        Coordinates are measured in projection meters.
     'NearsidePerspective': ccrs.NearsidePerspective,
         Perspective view looking directly down from above a point on the globe.
         In this projection, the projected coordinates are x and y measured from the origin of a plane tangent to

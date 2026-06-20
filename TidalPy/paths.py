@@ -6,23 +6,45 @@ from platformdirs import user_documents_dir
 
 from . import version
 
+
+def get_data_version() -> str:
+    """ The TidalPy data-directory version label, scoped to ``<major>.<minor>.X``.
+
+    The TidalPy data/config directories live under
+    ``<user docs>/TidalPy/<data version>/``. Using only the package's major.minor
+    version (with a literal ``X`` patch placeholder) means every patch release of a
+    given major.minor shares the same directory, so user configs and downloaded data
+    are not duplicated (or lost) on each bugfix release.
+
+    Returns
+    -------
+    str
+        A version label of the form ``"<major>.<minor>.X"`` (e.g. ``"0.8.X"``).
+    """
+    parts = str(version).split(".")
+    # Keep only the leading integer of each component (handles tags like "8b1").
+    major = ''.join(ch for ch in parts[0] if ch.isdigit()) if len(parts) > 0 else "0"
+    minor = ''.join(ch for ch in parts[1] if ch.isdigit()) if len(parts) > 1 else "0"
+    return f"{major or '0'}.{minor or '0'}.X"
+
+
 # TidalPy directories
 def get_config_dir() -> str:
     """ TidalPy directory containing global configurations. """
-    config_dir = os.path.join(user_documents_dir(), "TidalPy", f'{version}', 'Config')
+    config_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Config')
     # Create directory if it does not exist
     Path(config_dir).mkdir(parents=True, exist_ok=True)
     return config_dir
 
 def get_log_dir() -> str:
     """ TidalPy directory containing log files. """
-    log_dir = os.path.join(user_documents_dir(), "TidalPy", f'{version}', 'Logs')
+    log_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Logs')
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     return log_dir
 
 def get_worlds_dir() -> str:
     """ TidalPy directory containing configurations for various pre-built worlds. """
-    worlds_dir = os.path.join(user_documents_dir(), "TidalPy", f'{version}', 'Worlds')
+    worlds_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds')
     Path(worlds_dir).mkdir(parents=True, exist_ok=True)
     return worlds_dir
 
@@ -34,7 +56,7 @@ def get_worlds_x_dir() -> str:
     this directory over the packaged copies, so edits made here take effect
     without modifying the installed package.
     """
-    worlds_x_dir = os.path.join(user_documents_dir(), "TidalPy", f'{version}', 'Worlds_x')
+    worlds_x_dir = os.path.join(user_documents_dir(), "TidalPy", get_data_version(), 'Worlds_x')
     Path(worlds_x_dir).mkdir(parents=True, exist_ok=True)
     return worlds_x_dir
 

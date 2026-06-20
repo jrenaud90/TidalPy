@@ -23,11 +23,18 @@ they get from `build_world`, without touching the installed package.
 
 | Role | Path |
 |------|------|
-| Packaged (read-only source) | `<TidalPy package>/WorldPack_x/*.toml` |
-| User data directory (editable) | `<user documents>/TidalPy/<version>/Worlds_x/*.toml` |
+| Packaged (read-only source) | `<TidalPy package>/WorldPack_x/*` |
+| User data directory (editable) | `<user documents>/TidalPy/<major>.<minor>.X/Worlds_x/*` |
 
-The data directory is given by `TidalPy.paths.get_worlds_x_dir()` and is
-**version-scoped**: each TidalPy version gets its own `Worlds_x` folder.
+The data directory is given by `TidalPy.paths.get_worlds_x_dir()`. It is scoped to
+the package's **major.minor** version (with a literal `X` patch placeholder, e.g.
+`0.8.X`), so every patch release of a given major.minor shares the same directory
+(configs and downloaded data are not duplicated on each bugfix release).
+
+World TOMLs and their **companion data files** (PREM-like profiles: `.csv`, `.txt`,
+`.dat`) are both installed. A world's `data_file` reference is resolved by
+`resolve_data_file` in this order: the world TOML's own directory, the data
+directory, the packaged `WorldPack_x`, then the working directory.
 
 ### Install (copy-if-absent)
 
@@ -106,11 +113,12 @@ physics models. Override anything inline as shown above and [`here`](toml_schema
 
 | Function | Description |
 |----------|-------------|
-| `install_worldpack_x(force=False) -> str` | Copy packaged worlds into the data dir (copy-if-absent; `force` re-copies). Returns the data dir. |
+| `install_worldpack_x(force=False) -> str` | Copy packaged worlds and their data files into the data dir (copy-if-absent; `force` re-copies). Returns the data dir. |
 | `resolve_world_path(name) -> str` | Resolve a bundled name to a TOML path (data dir preferred, then packaged). Raises `FileNotFoundError` if unknown. |
+| `resolve_data_file(data_file, base_dir=None) -> str` | Resolve a world's companion `data_file` (toml dir -> data dir -> packaged -> cwd). Raises `FileNotFoundError` if unknown. |
 | `available_worlds() -> list[str]` | Sorted union of data-dir and packaged world names. |
-| `get_worlds_x_dir() -> str` | The user data directory for `_x` worlds (`.../TidalPy/<version>/Worlds_x`). |
-| `PACKAGED_WORLDPACK_X_DIR` | Path to the packaged `WorldPack_x` directory. |
+| `get_worlds_x_dir() -> str` | The user data directory for `_x` worlds (`.../TidalPy/<major>.<minor>.X/Worlds_x`). |
+| `PACKAGED_WORLDPACK_DIR` | Path to the packaged `WorldPack_x` directory. |
 
 `install_worldpack_x` and `available_worlds` are also re-exported from
 `TidalPy.structures_x`; `build_world` (and `BaseWorld.build`) consume the resolver

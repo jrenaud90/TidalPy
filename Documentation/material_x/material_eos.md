@@ -77,7 +77,21 @@ inverted the same way as Birch-Murnaghan.
 ### Interpolated
 
 Linear interpolation of a sorted `(radius_m → density_kg_m3)` table, clamped at the
-boundaries. Reproduces the legacy interpolation EOS (e.g. PREM Earth profiles).
+boundaries.
+
+In addition to density, `InterpolatedEOS` optionally carries radius-varying
+**static shear modulus**, **bulk modulus**, **shear viscosity**, and **bulk
+viscosity** tables (constructor arguments `shear_modulus_pa`, `bulk_modulus_pa`,
+`shear_viscosity_pas`, `bulk_viscosity_pas`, each the same length as `radius_m`).
+These are exposed via `calc_static_shear_modulus(radius)`,
+`calc_static_bulk_modulus(radius)`, `calc_shear_viscosity(radius)`, and
+`calc_bulk_viscosity(radius)` (all on `MaterialEOSBase`; the analytic models return
+NaN). During a whole-planet EOS solve these interpolated viscoelastic values are
+used in preference to a layer's constant when present, so an interpolated (e.g. PREM)
+layer's moduli and viscosities vary with radius. This mirrors the old non-`_x`
+interpolation EOS. The PREM world builder (`data_file` in a world TOML) populates
+these tables automatically; see
+[`structures_x/config/toml_schema.md`](../structures_x/config/toml_schema.md).
 
 ---
 
