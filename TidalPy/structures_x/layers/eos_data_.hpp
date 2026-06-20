@@ -42,8 +42,11 @@ public:
     using DenseEval = std::function<void(double radius_m, double* y_out)>;
 
     // CyRK EOS-ODE y-layout (see Material_x/eos/ode_.hpp):
-    //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density.
-    static constexpr std::size_t EOS_DENSE_SIZE     = 9;
+    //   0 gravity, 1 pressure, 2 mass, 3 moment-of-inertia, 4 density,
+    //   5/6 shear modulus re/im, 7/8 bulk modulus re/im, 9 shear visc, 10 bulk visc.
+    // EOS_DENSE_SIZE MUST equal C_EOS_DY_VALUES in ode_.hpp (kept as a literal here so
+    // this header stays CyRK-free; the dense call writes this many doubles).
+    static constexpr std::size_t EOS_DENSE_SIZE     = 11;
     static constexpr std::size_t EOS_INDEX_GRAVITY  = 0;
     static constexpr std::size_t EOS_INDEX_PRESSURE = 1;
     static constexpr std::size_t EOS_INDEX_DENSITY  = 4;

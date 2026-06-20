@@ -1,0 +1,21 @@
+# PREM Earth for the structures_x world builder, built from a PREM-like data file.
+#
+# `data_file` points to a delimited radial profile with columns
+# radius[km], density[kg/m^3], Vp[m/s], Vs[m/s] (and, optionally, shear and bulk
+# viscosity columns). On build the file is loaded and split into layers
+# automatically by shear modulus (Vs = 0 -> liquid; each solid<->liquid transition
+# starts a new layer, named layer_0, layer_1, ... from the center outward). Each
+# layer gets an interpolated EOS carrying its radius-varying density and static
+# shear/bulk moduli.
+#
+# Layer tables are optional here. To refine an auto-detected layer (e.g. attach a
+# shear rheology, or override a modulus with a constant), add a [layers.layer_N]
+# table with a matching layer_index; a provided outer radius must match the detected
+# boundary. See Documentation/structures_x/config/toml_schema.md.
+schema_version = "0.2.0"
+name = "Earth-PREM"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+data_file = "PREM.csv"

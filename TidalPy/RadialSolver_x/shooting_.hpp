@@ -315,9 +315,11 @@ int c_shooting_solver(
     // Cast the solution pointer from double to double complex
     std::complex<double>* solution_ptr = reinterpret_cast<std::complex<double>*>(solution_storage_ptr->full_solution_vec.data());
 
-    // Layer's differential equation will vary by layer type
-    double eos_interp_array[9];  // The "9" here is the number of variables (dependent + extra) found in the EOS solver.
-    // See TidalPy.Material.eos.solver.pyx for details.
+    // Layer's differential equation will vary by layer type.
+    // Buffer holds the EOS solver's dependent + extra outputs at a radius; its size
+    // MUST match C_EOS_DY_VALUES in Material_x/eos/ode_.hpp (the EOS dense call writes
+    // this many doubles).
+    double eos_interp_array[C_EOS_DY_VALUES];
     double* eos_interp_array_ptr = &eos_interp_array[0];
     std::unique_ptr<CySolverResult> integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
     CySolverResult* integration_solution_ptr = nullptr;

@@ -25,6 +25,10 @@ from TidalPy.paths import get_worlds_x_dir as _paths_get_worlds_x_dir
 PACKAGED_WORLDPACK_DIR = os.path.join(
     os.path.dirname(os.path.abspath(TidalPy.__file__)), "WorldPack_x")
 
+# File extensions installed into the user worlds directory: world TOMLs and their
+# companion data files (e.g. PREM-like radial profiles).
+_INSTALLED_EXTENSIONS = (".toml", ".csv", ".txt", ".dat")
+
 
 def get_worlds_x_dir() -> str:
     """Return the user-editable data directory for structures_x worlds.
@@ -58,12 +62,55 @@ def install_worldpack_x(force: bool = False) -> str:
     if not os.path.isdir(PACKAGED_WORLDPACK_DIR):
         return data_dir
     for entry in os.listdir(PACKAGED_WORLDPACK_DIR):
-        if not entry.endswith(".toml"):
+        # Copy world TOMLs and their companion data files (e.g. PREM-like profiles).
+        if not entry.lower().endswith(_INSTALLED_EXTENSIONS):
             continue
         destination = os.path.join(data_dir, entry)
         if force or not os.path.isfile(destination):
             shutil.copyfile(os.path.join(PACKAGED_WORLDPACK_DIR, entry), destination)
     return data_dir
+
+
+def resolve_data_file(data_file: str, base_dir: str = None) -> str:
+    """Resolve a world's companion data-file reference to an absolute path.
+
+    Search order: an absolute/existing path as given; relative to ``base_dir`` (the
+    directory of the world TOML, when known); the user worlds data directory; the
+    packaged ``WorldPack_x`` directory; finally the current working directory.
+
+    Parameters
+    ----------
+    data_file : str
+        The ``data_file`` value from a world TOML (e.g. ``"PREM.csv"``).
+    base_dir : str, optional
+        Directory of the world TOML, searched first for a relative reference.
+
+    Returns
+    -------
+    str
+        Absolute path to the data file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the data file cannot be found in any location.
+    """
+    if os.path.isabs(data_file) and os.path.isfile(data_file):
+        return data_file
+    install_worldpack_x()
+    candidates = []
+    if base_dir is not None:
+        candidates.append(os.path.join(base_dir, data_file))
+    candidates.append(os.path.join(get_worlds_x_dir(), data_file))
+    candidates.append(os.path.join(PACKAGED_WORLDPACK_DIR, data_file))
+    candidates.append(os.path.join(os.getcwd(), data_file))
+    candidates.append(data_file)
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+    raise FileNotFoundError(
+        f"Could not resolve world data file '{data_file}'. Looked in: "
+        + ", ".join(candidates))
 
 
 def resolve_world_path(name: str) -> str:

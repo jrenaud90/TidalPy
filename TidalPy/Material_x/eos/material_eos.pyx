@@ -35,7 +35,6 @@ set_tidalpy_config_ptr(get_shared_config_address())
 # =====================================================================================================================
 # Free analytic pressure laws (Python-accessible for cross-checks)
 # =====================================================================================================================
-
 def birch_murnaghan_pressure(double eta, double reference_bulk_modulus_pa,
                              double bulk_modulus_derivative=4.0) -> float:
     """3rd-order Birch-Murnaghan pressure [Pa] at compression eta = rho/rho0."""
@@ -51,7 +50,6 @@ def vinet_pressure(double eta, double reference_bulk_modulus_pa,
 # =====================================================================================================================
 # MaterialEOSBase
 # =====================================================================================================================
-
 cdef class MaterialEOSBase(PhysicsBase):
     """Abstract base for material EOS models. Instantiate a concrete subclass."""
 
@@ -75,6 +73,26 @@ cdef class MaterialEOSBase(PhysicsBase):
         Temperature is accepted for API uniformity (currently unused; isothermal).
         """
         return self._eos_ptr.get().calc_density(pressure_pa, temperature_k, radius_m)
+
+    def calc_static_shear_modulus(self, double radius_m) -> float:
+        """Static shear modulus [Pa] at radius_m [m]; NaN if the model has no shear table.
+
+        Only the interpolated model carries radius-varying viscoelastic tables; the
+        analytic models return NaN (the world solve then uses the layer constant).
+        """
+        return self._eos_ptr.get().calc_static_shear_modulus(radius_m)
+
+    def calc_static_bulk_modulus(self, double radius_m) -> float:
+        """Static bulk modulus [Pa] at radius_m [m]; NaN if the model has no bulk table."""
+        return self._eos_ptr.get().calc_static_bulk_modulus(radius_m)
+
+    def calc_shear_viscosity(self, double radius_m) -> float:
+        """Shear viscosity [Pa s] at radius_m [m]; NaN if the model has no shear-viscosity table."""
+        return self._eos_ptr.get().calc_shear_viscosity(radius_m)
+
+    def calc_bulk_viscosity(self, double radius_m) -> float:
+        """Bulk viscosity [Pa s] at radius_m [m]; NaN if the model has no bulk-viscosity table."""
+        return self._eos_ptr.get().calc_bulk_viscosity(radius_m)
 
     cpdef dict get_config_dict(self):
         """Return the model name as a config dict (subclasses add parameters)."""
@@ -250,12 +268,36 @@ cdef class InterpolatedEOS(MaterialEOSBase):
     def __cinit__(self, *args, **kwargs):
         self._interp_ptr = NULL
 
-    def __init__(self, radius_m, density_kg_m3):
+    def __init__(
+            self,
+            radius_m,
+            density_kg_m3,
+            shear_modulus_pa=None,
+            bulk_modulus_pa=None,
+            shear_viscosity_pas=None,
+            bulk_viscosity_pas=None):
         cdef c_MaterialEOSConfig config
         config.radius_m      = <vector[double]>radius_m
         config.density_kg_m3 = <vector[double]>density_kg_m3
         if config.radius_m.size() != config.density_kg_m3.size():
             raise ValueError("radius_m and density_kg_m3 must have the same length.")
+        # Optional radius-varying viscoelastic tables; each must match radius_m length.
+        if shear_modulus_pa is not None:
+            config.shear_modulus_pa = <vector[double]>shear_modulus_pa
+            if config.shear_modulus_pa.size() != config.radius_m.size():
+                raise ValueError("shear_modulus_pa must match radius_m in length.")
+        if bulk_modulus_pa is not None:
+            config.bulk_modulus_pa = <vector[double]>bulk_modulus_pa
+            if config.bulk_modulus_pa.size() != config.radius_m.size():
+                raise ValueError("bulk_modulus_pa must match radius_m in length.")
+        if shear_viscosity_pas is not None:
+            config.shear_viscosity_pas = <vector[double]>shear_viscosity_pas
+            if config.shear_viscosity_pas.size() != config.radius_m.size():
+                raise ValueError("shear_viscosity_pas must match radius_m in length.")
+        if bulk_viscosity_pas is not None:
+            config.bulk_viscosity_pas = <vector[double]>bulk_viscosity_pas
+            if config.bulk_viscosity_pas.size() != config.radius_m.size():
+                raise ValueError("bulk_viscosity_pas must match radius_m in length.")
         # Build through the C++ factory (make_unique) and adopt ownership; no raw new/delete.
         cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(
             c_MaterialEOSModel.Interpolated, config)
@@ -322,6 +364,15 @@ def make_material_eos(str model_name, dict config=None) -> MaterialEOSBase:
         cfg.radius_m = <vector[double]>config["radius_m"]
     if "density_kg_m3" in config:
         cfg.density_kg_m3 = <vector[double]>config["density_kg_m3"]
+    # Optional radius-varying viscoelastic tables for the interpolated model.
+    if "shear_modulus_pa" in config:
+        cfg.shear_modulus_pa = <vector[double]>config["shear_modulus_pa"]
+    if "bulk_modulus_pa" in config:
+        cfg.bulk_modulus_pa = <vector[double]>config["bulk_modulus_pa"]
+    if "shear_viscosity_pas" in config:
+        cfg.shear_viscosity_pas = <vector[double]>config["shear_viscosity_pas"]
+    if "bulk_viscosity_pas" in config:
+        cfg.bulk_viscosity_pas = <vector[double]>config["bulk_viscosity_pas"]
 
     cdef c_MaterialEOSModel model = c_material_eos_model_from_name(model_name.encode("utf-8"))
     cdef unique_ptr[c_MaterialEOSBase] ptr = c_find_material_eos(model, cfg)

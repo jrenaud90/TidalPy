@@ -104,6 +104,9 @@ public:
     std::vector<double> density_array_vec  = std::vector<double>();
     std::vector<std::complex<double>> complex_shear_array_vec = std::vector<std::complex<double>>();
     std::vector<std::complex<double>> complex_bulk_array_vec  = std::vector<std::complex<double>>();
+    // Static (real) shear/bulk viscosity [Pa s] vs radius (EOS-model extra outputs).
+    std::vector<double> shear_viscosity_array_vec = std::vector<double>();
+    std::vector<double> bulk_viscosity_array_vec  = std::vector<double>();
 
 // Methods
 protected:
@@ -130,6 +133,8 @@ public:
         this->density_array_vec.clear();
         this->complex_shear_array_vec.clear();
         this->complex_bulk_array_vec.clear();
+        this->shear_viscosity_array_vec.clear();
+        this->bulk_viscosity_array_vec.clear();
     }
 
     c_EOSSolution()
@@ -317,6 +322,8 @@ public:
             this->density_array_vec.clear();
             this->complex_shear_array_vec.clear();
             this->complex_bulk_array_vec.clear();
+            this->shear_viscosity_array_vec.clear();
+            this->bulk_viscosity_array_vec.clear();
             for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
             {
                 this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
@@ -338,6 +345,8 @@ public:
         this->density_array_vec.reserve(this->radius_array_size);
         this->complex_shear_array_vec.reserve(this->radius_array_size);
         this->complex_bulk_array_vec.reserve(this->radius_array_size);
+        this->shear_viscosity_array_vec.reserve(this->radius_array_size);
+        this->bulk_viscosity_array_vec.reserve(this->radius_array_size);
 
         // Copy over the radius array values
         this->radius_array_vec.resize(this->radius_array_size);
@@ -418,6 +427,10 @@ public:
             //  modulus array.
             this->complex_shear_array_vec.push_back(std::complex<double>(y_interp_ptr[5], y_interp_ptr[6]));
             this->complex_bulk_array_vec.push_back(std::complex<double>(y_interp_ptr[7], y_interp_ptr[8]));
+
+            // Static viscosities (real) carried as EOS extra outputs 9 and 10.
+            this->shear_viscosity_array_vec.push_back(y_interp_ptr[9]);
+            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[10]);
 
             // Record central pressure
             if (current_layer_index == 0 && radius_i == 0)

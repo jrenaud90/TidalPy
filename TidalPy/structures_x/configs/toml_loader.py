@@ -386,7 +386,7 @@ def validate_world_config(config: dict) -> None:
     # Flag unknown world-level scalar keys (typo protection). Reserved structural
     # keys and the optional, not-yet-wired '[tides]' table are tolerated.
     allowed = ALLOWED_WORLD_SCALAR_KEYS[world_type]
-    structural = {"name", "type", "schema_version", "layers", "tides"}
+    structural = {"name", "type", "schema_version", "layers", "tides", "data_file"}
     for key, value in config.items():
         if key in structural:
             continue

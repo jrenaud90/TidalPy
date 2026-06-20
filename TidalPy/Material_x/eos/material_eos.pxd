@@ -8,6 +8,7 @@ Python wrapper classes so other extensions (layers, worlds) can cimport and buil
 or attach EOS models at C speed.
 """
 
+from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.vector cimport vector
@@ -22,6 +23,10 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_MaterialEOSBase(c_PhysicsBase):
         double calc_density(double pressure_pa, double temperature_k, double radius_m) const
+        double calc_static_shear_modulus(double radius_m) const
+        double calc_static_bulk_modulus(double radius_m) const
+        double calc_shear_viscosity(double radius_m) const
+        double calc_bulk_viscosity(double radius_m) const
 
     cdef cppclass c_MaterialEOSConfig:
         double reference_density_kg_m3
@@ -31,6 +36,10 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         int    invert_max_iters
         vector[double] radius_m
         vector[double] density_kg_m3
+        vector[double] shear_modulus_pa
+        vector[double] bulk_modulus_pa
+        vector[double] shear_viscosity_pas
+        vector[double] bulk_viscosity_pas
 
     cdef cppclass c_ConstantDensityEOS(c_MaterialEOSBase):
         c_ConstantDensityEOS() except +
@@ -59,6 +68,10 @@ cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
         c_InterpolatedEOS() except +
         c_InterpolatedEOS(const c_MaterialEOSConfig& cfg) except +
         size_t get_num_points() const
+        cpp_bool has_shear_modulus() const
+        cpp_bool has_bulk_modulus() const
+        cpp_bool has_shear_viscosity() const
+        cpp_bool has_bulk_viscosity() const
 
     # Free analytic pressure laws (for tests / cross-checks).
     double eos_bm_pressure(double eta, double K0, double K0_prime)

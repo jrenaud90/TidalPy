@@ -280,6 +280,79 @@ effective_temperature_k = 5772.0
 
 ---
 
+## Building from a PREM-like data file (`data_file`)
+
+Instead of writing layer tables by hand, a world can be built from a **PREM-like
+radial data file** by giving a top-level `data_file` key. The layers are then
+auto-detected from the data.
+
+```toml
+schema_version = "0.2.0"
+name = "Earth-PREM"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+data_file = "PREM.csv"
+```
+
+### Data file format
+
+A delimited table (comma, tab, or whitespace; `#` comment lines ignored) with
+columns:
+
+| Column | Quantity | Units |
+|--------|----------|-------|
+| 1 | radius | km |
+| 2 | density | kg/m³ |
+| 3 | P-wave velocity `Vp` | m/s |
+| 4 | S-wave velocity `Vs` | m/s |
+| 5 *(optional)* | shear viscosity | Pa s |
+| 6 *(optional)* | bulk viscosity | Pa s |
+
+The file may be ordered surface-first or center-first (it is sorted internally).
+Static moduli are derived per row: shear `μ = ρ·Vs²`, bulk `K = ρ·(Vp² − 4/3·Vs²)`.
+
+### Automatic layer detection
+
+The profile is scanned from the center outward and split into layers by shear
+modulus: `Vs = 0` (zero shear) is **liquid**, non-zero is **solid**, and every
+solid↔liquid transition starts a new layer. Layers are named `layer_0`, `layer_1`,
+… inner to outer. (Duplicate-radius boundary points are absorbed so no
+zero-thickness layers are produced.) For PREM this yields four layers: inner core
+(solid), outer core (liquid), mantle (solid), ocean (liquid).
+
+Each detected layer gets an **interpolated EOS** carrying that layer's
+radius-varying density and static shear/bulk moduli (and viscosities, if the file
+has those columns). During `solve_eos` the structure ODE integrates using the
+interpolated density, and the world's viscoelastic profile is taken from the
+interpolated moduli/viscosities (rather than a per-layer constant).
+
+### Refining auto-detected layers
+
+Add `[layers.layer_N]` tables to refine the auto-detected layers (e.g. attach a
+shear rheology, or override a modulus). When layer tables are provided there must be
+**one per detected layer** (matched in `layer_index` order, inner to outer); a
+count mismatch raises. A provided outer radius (`radius_outer_m` / `radius_fraction`)
+must match the detected boundary or an error is raised. A user-provided **constant**
+modulus or viscosity (e.g. `bulk_modulus_static_pa = 1.0e11`) replaces that layer's
+interpolated array with the constant ("TOML overrides the data file"), while other
+keys (`class`, rheology sub-tables, …) override the auto values.
+
+```toml
+[layers.layer_2]            # the solid mantle
+class = "solidliquid"
+layer_index = 2
+bulk_modulus_static_pa = 1.0e11   # override the PREM bulk profile with a constant
+[layers.layer_2.shear_rheology]
+model = "maxwell"
+```
+
+The `data_file` path is resolved relative to the world TOML's directory, then the
+worlds data directory, then the packaged `WorldPack_x` (see
+[`worldpack.md`](worldpack.md)).
+
+---
+
 ## Python API
 
 All entry points are re-exported from `TidalPy.structures_x` and from

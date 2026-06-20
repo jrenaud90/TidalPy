@@ -577,7 +577,7 @@ cdef class LayeredWorld(BaseWorld):
         slice the layer's attached rheology model is evaluated at
         ``frequency_rad_s`` to obtain the complex moduli; the structure ODE is
         re-integrated from those density/modulus profiles and the deformation ODEs
-        are shot from the centre to the surface to yield k, h, l.
+        are shot from the center to the surface to yield k, h, l.
 
         Parameters
         ----------
@@ -588,7 +588,7 @@ cdef class LayeredWorld(BaseWorld):
         solve_tidal : bool, optional
             Use tidal boundary conditions. Default True.
         use_kamata : bool, optional
-            Use Kamata starting conditions near the centre. Default True.
+            Use Kamata starting conditions near the center. Default True.
         nondimensionalize : bool, optional
             Non-dimensionalise the problem internally (recommended). Default True.
         starting_radius : float, optional

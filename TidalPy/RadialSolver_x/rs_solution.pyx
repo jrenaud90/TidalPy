@@ -5,6 +5,7 @@ from libcpp.memory cimport make_unique
 from libcpp.string cimport string as cpp_string
 
 from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_Y
+from TidalPy.Material_x.eos.ode cimport C_EOS_DY_VALUES
 from TidalPy.constants cimport d_PI
 
 cimport numpy as cnp
@@ -176,7 +177,9 @@ cdef class RadialSolverSolution:
         if layer_index < 0:
             raise ValueError("Could not find correct layer for provided radius.")
 
-        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(9, dtype=np.float64, order='C')
+        # Buffer length MUST match C_EOS_DY_VALUES in Material_x/eos/ode_.hpp: the EOS
+        # dense call writes that many doubles (4 dependent + 7 extra outputs).
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
         cdef double[::1] eos_interp_view = eos_interp
         cdef double* eos_interp_ptr      = &eos_interp_view[0]
 

@@ -9,20 +9,24 @@
 // Number of dependent y values in the EOS ODE
 static const size_t C_EOS_Y_VALUES     = 4;
 // Number of extra parameters tracked during final solve
-static const size_t C_EOS_EXTRA_VALUES = 5;
+static const size_t C_EOS_EXTRA_VALUES = 7;
 // Total number of dy values (y + extra)
-static const size_t C_EOS_DY_VALUES    = 9;
+static const size_t C_EOS_DY_VALUES    = 11;
 // EOS ODE dependent y-values:
 // 0 : gravity
 // 1 : pressure
 // 2 : total mass
 // 3 : moment of inertia
-// Additionally there are 5 extra parameters tracked during the final solve:
+// Additionally there are 7 extra parameters tracked during the final solve:
 // 4 : density
-// 5 : Real part of complex shear modulus
-// 6 : Imag part of complex shear modulus
-// 7 : Real part of complex bulk modulus
-// 8 : Imag part of complex bulk modulus
+// 5 : Real part of complex (static) shear modulus
+// 6 : Imag part of complex (static) shear modulus
+// 7 : Real part of complex (static) bulk modulus
+// 8 : Imag part of complex (static) bulk modulus
+// 9 : shear viscosity
+// 10: bulk viscosity
+// These viscoelastic extras are supplied by the layer's EOS model (the interpolated
+// model returns radius-varying values; analytic models return NaN).
 
 static const double C_FOUR_PI = 4.0 * TidalPyConstants::d_PI;
 
@@ -30,9 +34,11 @@ static const double C_FOUR_PI = 4.0 * TidalPyConstants::d_PI;
 /// Output structure from EOS evaluation at a given radius.
 struct c_EOSOutput
 {
-    double density                        = 0.0;
-    std::complex<double> bulk_modulus     = {0.0, 0.0};
-    std::complex<double> shear_modulus    = {0.0, 0.0};
+    double density                        = TidalPyConstants::d_NAN;
+    std::complex<double> bulk_modulus     = {TidalPyConstants::d_NAN, 0.0};
+    std::complex<double> shear_modulus    = {TidalPyConstants::d_NAN, 0.0};
+    double shear_viscosity                = TidalPyConstants::d_NAN;
+    double bulk_viscosity                 = TidalPyConstants::d_NAN;
 };
 
 
@@ -115,11 +121,11 @@ inline void c_eos_diffeq(
     }
 
     // Store other parameters
-    // TODO: Track the static shear and bulk as well as the bulk and shear viscosity as additional outputs.
     if (eos_input_ptr->final_solve)
     {
-        // There are 4 dependent y values and then 5 additional parameters that are saved but
-        // not used during integration but which the user may want for reference.
+        // There are 4 dependent y values and then 7 additional parameters that are
+        // saved but not used during integration (the viscoelastic profile the world
+        // EOS solve consumes when populating each layer).
         dy_ptr[4] = eos_output.density;
 
         dy_ptr[5] = eos_output.shear_modulus.real();
@@ -127,6 +133,9 @@ inline void c_eos_diffeq(
 
         dy_ptr[7] = eos_output.bulk_modulus.real();
         dy_ptr[8] = eos_output.bulk_modulus.imag();
+
+        dy_ptr[9]  = eos_output.shear_viscosity;
+        dy_ptr[10] = eos_output.bulk_viscosity;
     }
 
     // Done

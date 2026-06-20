@@ -15,6 +15,7 @@
  *   physics sub-models) follows, in index order, as separate appended records.
  */
 
+#include <cmath>
 #include <complex>
 #include <cstdint>
 #include <istream>
@@ -792,14 +793,24 @@ protected:
         auto* physics_layer = dynamic_cast<c_PhysicsLayer*>(layer);
         if (physics_layer == nullptr) { return; }
 
-        const double static_shear_pa = physics_layer->get_shear_modulus_static();
-        const double static_bulk_pa  = physics_layer->get_bulk_modulus_static();
+        const double const_shear_pa = physics_layer->get_shear_modulus_static();
+        const double const_bulk_pa  = physics_layer->get_bulk_modulus_static();
         c_ViscosityBase*   shear_viscosity_model = physics_layer->get_shear_viscosity_model();
         c_ViscosityBase*   bulk_viscosity_model  = physics_layer->get_bulk_viscosity_model();
         c_PartialMeltBase* partial_melt_model    = physics_layer->get_partial_melt_model();
 
-        std::vector<double> premelt_shear_pa(slice_count, static_shear_pa);
-        std::vector<double> premelt_bulk_pa(slice_count, static_bulk_pa);
+        // The static moduli and viscosities are carried as extra outputs of the EOS
+        // ODE (filled by each layer's EOS model during the CyRK solve) and stored on
+        // the solution. For a layer whose EOS supplies them (the interpolated /PREM
+        // model) these radius-varying values are used; a NaN means "not provided", so
+        // the layer's constant modulus (or its viscosity model) is used instead.
+        const bool have_eos_extras =
+            solution.other_vecs_set
+            && solution.complex_shear_array_vec.size() == solution.radius_array_size
+            && solution.shear_viscosity_array_vec.size() == solution.radius_array_size;
+
+        std::vector<double> premelt_shear_pa(slice_count);
+        std::vector<double> premelt_bulk_pa(slice_count);
         std::vector<double> premelt_shear_visc_pas(slice_count);
         std::vector<double> premelt_bulk_visc_pas(slice_count);
         std::vector<double> postmelt_shear_pa(slice_count);
@@ -808,14 +819,36 @@ protected:
         std::vector<double> postmelt_bulk_visc_pas(slice_count);
 
         for (std::size_t slice_offset = 0; slice_offset < slice_count; ++slice_offset) {
-            const double pressure_pa = solution.pressure_array_vec[slice_start + slice_offset];
+            const std::size_t global_slice = slice_start + slice_offset;
+            const double pressure_pa = solution.pressure_array_vec[global_slice];
 
-            const double premelt_shear_visc = (shear_viscosity_model != nullptr)
+            // Static moduli: prefer the EOS extra-output (CyRK solution), else the
+            // layer constant.
+            double static_shear_pa = const_shear_pa;
+            double static_bulk_pa  = const_bulk_pa;
+            if (have_eos_extras) {
+                const double eos_shear = solution.complex_shear_array_vec[global_slice].real();
+                if (std::isfinite(eos_shear)) { static_shear_pa = eos_shear; }
+                const double eos_bulk = solution.complex_bulk_array_vec[global_slice].real();
+                if (std::isfinite(eos_bulk)) { static_bulk_pa = eos_bulk; }
+            }
+            premelt_shear_pa[slice_offset] = static_shear_pa;
+            premelt_bulk_pa[slice_offset]  = static_bulk_pa;
+
+            // Pre-melt viscosities: viscosity-model value, overridden by an EOS
+            // extra-output (CyRK solution) when the EOS provides one.
+            double premelt_shear_visc = (shear_viscosity_model != nullptr)
                 ? shear_viscosity_model->calc_viscosity(temperature_k, pressure_pa)
                 : TidalPyConstants::d_NAN;
-            const double premelt_bulk_visc = (bulk_viscosity_model != nullptr)
+            double premelt_bulk_visc = (bulk_viscosity_model != nullptr)
                 ? bulk_viscosity_model->calc_viscosity(temperature_k, pressure_pa)
                 : TidalPyConstants::d_NAN;
+            if (have_eos_extras) {
+                const double eos_shear_visc = solution.shear_viscosity_array_vec[global_slice];
+                if (std::isfinite(eos_shear_visc)) { premelt_shear_visc = eos_shear_visc; }
+                const double eos_bulk_visc = solution.bulk_viscosity_array_vec[global_slice];
+                if (std::isfinite(eos_bulk_visc)) { premelt_bulk_visc = eos_bulk_visc; }
+            }
             premelt_shear_visc_pas[slice_offset] = premelt_shear_visc;
             premelt_bulk_visc_pas[slice_offset]  = premelt_bulk_visc;
 

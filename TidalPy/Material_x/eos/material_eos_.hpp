@@ -82,6 +82,14 @@ struct c_MaterialEOSConfig {
     // Interpolated model: sorted-ascending radius [m] and matching density [kg/m^3].
     std::vector<double> radius_m;
     std::vector<double> density_kg_m3;
+    // Interpolated model (optional): radius-varying static moduli / viscosities [MKS].
+    // Any left empty are simply not provided (the world solve falls back to the
+    // layer's constant value for that quantity). When non-empty each must match
+    // radius_m in length.
+    std::vector<double> shear_modulus_pa;
+    std::vector<double> bulk_modulus_pa;
+    std::vector<double> shear_viscosity_pas;
+    std::vector<double> bulk_viscosity_pas;
 };
 
 // =====================================================================================================================
@@ -169,6 +177,25 @@ public:
     // [m]. Analytic models use pressure; the interpolated model uses radius.
     virtual double calc_density(
         double pressure_pa, double temperature_k, double radius_m) const = 0;
+
+    // Optional radius-varying viscoelastic quantities. Models that carry tabulated
+    // profiles (currently c_InterpolatedEOS) override these so the whole-planet EOS
+    // solve can interpolate static moduli / viscosities vs radius directly from the
+    // data, instead of replicating a single per-layer constant across all slices.
+    // The default (NaN) signals "not provided", so the world solve falls back to the
+    // layer's constant value for that quantity. All MKS.
+    virtual double calc_static_shear_modulus(double /*radius_m*/) const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    virtual double calc_static_bulk_modulus(double /*radius_m*/) const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    virtual double calc_shear_viscosity(double /*radius_m*/) const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    virtual double calc_bulk_viscosity(double /*radius_m*/) const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 // -------------------------------------------------------------------------------
@@ -335,10 +362,18 @@ public:
     explicit c_InterpolatedEOS(const c_MaterialEOSConfig& cfg)
         : c_MaterialEOSBase("interpolate"),
           p_radius_m(cfg.radius_m),
-          p_density_kg_m3(cfg.density_kg_m3) {}
+          p_density_kg_m3(cfg.density_kg_m3),
+          p_shear_modulus_pa(cfg.shear_modulus_pa),
+          p_bulk_modulus_pa(cfg.bulk_modulus_pa),
+          p_shear_viscosity_pas(cfg.shear_viscosity_pas),
+          p_bulk_viscosity_pas(cfg.bulk_viscosity_pas) {}
     ~c_InterpolatedEOS() override = default;
 
     std::size_t get_num_points() const noexcept { return this->p_radius_m.size(); }
+    bool has_shear_modulus()   const noexcept { return !this->p_shear_modulus_pa.empty(); }
+    bool has_bulk_modulus()    const noexcept { return !this->p_bulk_modulus_pa.empty(); }
+    bool has_shear_viscosity() const noexcept { return !this->p_shear_viscosity_pas.empty(); }
+    bool has_bulk_viscosity()  const noexcept { return !this->p_bulk_viscosity_pas.empty(); }
 
     double calc_density(
             double /*pressure_pa*/,
@@ -353,12 +388,34 @@ public:
             this->p_radius_m.size());
     }
 
+    // Radius-varying viscoelastic quantities (interpolated from the stored tables).
+    // Each returns NaN when its table is empty, so the world solve falls back to the
+    // layer constant for that quantity.
+    double calc_static_shear_modulus(double radius_m) const override {
+        return this->p_interp_optional(radius_m, this->p_shear_modulus_pa);
+    }
+    double calc_static_bulk_modulus(double radius_m) const override {
+        return this->p_interp_optional(radius_m, this->p_bulk_modulus_pa);
+    }
+    double calc_shear_viscosity(double radius_m) const override {
+        return this->p_interp_optional(radius_m, this->p_shear_viscosity_pas);
+    }
+    double calc_bulk_viscosity(double radius_m) const override {
+        return this->p_interp_optional(radius_m, this->p_bulk_viscosity_pas);
+    }
+
     void write_binary(std::ostream& out) const override {
         const auto n = static_cast<uint64_t>(this->p_radius_m.size());
+        // Optional-array presence flags + their data (each is 0 or n long).
+        const uint64_t optional_count =
+            (this->has_shear_modulus()   ? 1u : 0u) + (this->has_bulk_modulus()   ? 1u : 0u)
+            + (this->has_shear_viscosity() ? 1u : 0u) + (this->has_bulk_viscosity() ? 1u : 0u);
         const uint64_t payload =
             binary_string_bytes(this->p_model_name)
             + sizeof(uint64_t)                       // point count
-            + n * 2 * sizeof(double);                // radius + density
+            + n * 2 * sizeof(double)                 // radius + density
+            + 4 * sizeof(uint8_t)                    // 4 optional-array presence flags
+            + optional_count * n * sizeof(double);   // present optional arrays
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::InterpolatedEOS), payload);
         write_binary_string(out, this->p_model_name);
         out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
@@ -366,6 +423,10 @@ public:
             out.write(reinterpret_cast<const char*>(&this->p_radius_m[i]),      sizeof(double));
             out.write(reinterpret_cast<const char*>(&this->p_density_kg_m3[i]), sizeof(double));
         }
+        this->p_write_optional_array(out, this->p_shear_modulus_pa);
+        this->p_write_optional_array(out, this->p_bulk_modulus_pa);
+        this->p_write_optional_array(out, this->p_shear_viscosity_pas);
+        this->p_write_optional_array(out, this->p_bulk_viscosity_pas);
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write interpolated EOS binary data");
         }
@@ -381,14 +442,51 @@ public:
             in.read(reinterpret_cast<char*>(&this->p_radius_m[i]),      sizeof(double));
             in.read(reinterpret_cast<char*>(&this->p_density_kg_m3[i]), sizeof(double));
         }
+        this->p_read_optional_array(in, this->p_shear_modulus_pa, n);
+        this->p_read_optional_array(in, this->p_bulk_modulus_pa, n);
+        this->p_read_optional_array(in, this->p_shear_viscosity_pas, n);
+        this->p_read_optional_array(in, this->p_bulk_viscosity_pas, n);
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read interpolated EOS binary data");
         }
     }
 
 protected:
+    // Interpolate an optional table vs radius; NaN if the table is empty.
+    double p_interp_optional(double radius_m, const std::vector<double>& values) const {
+        if (values.empty()) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        return c_interp(radius_m, this->p_radius_m.data(), values.data(), values.size());
+    }
+    void p_write_optional_array(std::ostream& out, const std::vector<double>& values) const {
+        const uint8_t present = values.empty() ? 0u : 1u;
+        out.write(reinterpret_cast<const char*>(&present), sizeof(uint8_t));
+        if (present) {
+            for (double value : values) {
+                out.write(reinterpret_cast<const char*>(&value), sizeof(double));
+            }
+        }
+    }
+    void p_read_optional_array(std::istream& in, std::vector<double>& values, uint64_t n) {
+        uint8_t present = 0;
+        in.read(reinterpret_cast<char*>(&present), sizeof(uint8_t));
+        values.clear();
+        if (present) {
+            values.resize(n);
+            for (uint64_t i = 0; i < n; ++i) {
+                in.read(reinterpret_cast<char*>(&values[i]), sizeof(double));
+            }
+        }
+    }
+
     std::vector<double> p_radius_m;
     std::vector<double> p_density_kg_m3;
+    // Optional radius-varying viscoelastic tables (empty = not provided).
+    std::vector<double> p_shear_modulus_pa;
+    std::vector<double> p_bulk_modulus_pa;
+    std::vector<double> p_shear_viscosity_pas;
+    std::vector<double> p_bulk_viscosity_pas;
 };
 
 // =====================================================================================================================

@@ -209,6 +209,7 @@ cdef class BaseWorld(StructureBase):
         """
         # Deferred imports: the builder helpers import the world subclasses, so
         # importing them at module load would be circular.
+        import os
         from TidalPy.structures_x.configs.world_builder import (
             _resolve_source,
             construct_world)
@@ -216,10 +217,17 @@ cdef class BaseWorld(StructureBase):
             load_toml,
             merge_with_defaults,
             validate_schema_version)
+        from TidalPy.structures_x.configs.worldpack import resolve_data_file
 
-        config = load_toml(_resolve_source(source))
+        resolved = _resolve_source(source)
+        config = load_toml(resolved)
         config = merge_with_defaults(config)
         validate_schema_version(config, force=force)
+        # Resolve a companion data file (e.g. a PREM profile) relative to the world
+        # file's directory so construct_world can open it directly.
+        if "data_file" in config:
+            base_dir = os.path.dirname(resolved) if isinstance(resolved, str) else None
+            config["data_file"] = resolve_data_file(config["data_file"], base_dir)
         return construct_world(config)
 
     # ------------------------------------------------------------------------------------------------------------------
