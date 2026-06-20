@@ -48,6 +48,38 @@ schema_version = "{SCHEMA_VERSION_X}"
 
 
 # =====================================================================================================================
+# Global (1D) tidal-dissipation defaults
+#
+# Used by the world builder when a world's `[tides]` table omits a value. The default
+# dissipation model is chosen per world family; the truncation/degree settings apply to
+# the global tidal-mode solve. The per-degree analytic parameters (fixed_k/fixed_q/fixed_dt,
+# lists indexed from degree l = 2) are only consumed by the analytic models (cpl/ctl/ctl_q)
+# and are easily overridden per world.
+# =====================================================================================================================
+[tides]
+    min_degree_l = 2
+    max_degree_l = 2
+    eccentricity_trunc_lvl = 6
+    obliquity_trunc_lvl = "off"
+
+    # Per-degree static potential Love numbers k_l (index 0 -> l=2). Falls off roughly as
+    # k_l ~ k_2 / (l - 1) for a soft, near-homogeneous body (k_2 ~ 0.3).
+    fixed_k = [0.3, 0.15, 0.1, 0.075, 0.06, 0.05, 0.0429, 0.0375, 0.0333]
+    # Per-degree tidal quality factors Q_l (a single constant-Q value across degrees).
+    fixed_q = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+    # Per-degree tidal time lags dt_l [s] (a single constant time lag across degrees;
+    # ~600 s is an Earth-like value).
+    fixed_dt = [600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0, 600.0]
+
+    # Default global dissipation model per world family.
+    [tides.default_model]
+        star = "fixed_q"
+        gasgiant = "fixed_dt"
+        terrestrial = "rheology"
+        layered = "rheology"
+
+
+# =====================================================================================================================
 # Per-material layer defaults (keyed by a layer's material `type`)
 #
 # A layer in a world TOML names a `class` (base | physics | solidliquid | gas) and,

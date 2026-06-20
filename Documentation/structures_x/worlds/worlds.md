@@ -336,6 +336,51 @@ moduli and the shooting integration.
 `get_love_number_k/h/l`, `get_love_surface_y`, and the status accessors read
 through `p_radial_solver->get_storage()`.
 
+### Global (1D) Tidal Dissipation
+
+`LayeredWorld.calc_tides(...)` computes the body's total tidal heating and three
+orbital potential partial derivatives by summing over the active tidal modes
+(the global / "1D potential" approach). A tide model (see
+[Global Tidal Dissipation](../../Tides_x/global_tides.md)) supplies the per-mode
+dissipation multiplier `−Im[k_l]`; the world runs the global-potential engine for its
+stored `[tides]` config + the supplied orbital/spin state, collapses, and distributes the
+heat to layers by each layer's `tidal_scale`.
+
+The tide model + config are normally wired by the world builder from the `[tides]` TOML
+table (with per-family defaults: star = `fixed_q`, gasgiant = `fixed_dt`, terrestrial = `rheology`),
+but can also be set directly:
+
+```python
+from TidalPy.Tides_x.classes import make_tide
+
+world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))
+world.set_tide_config(max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
+
+world.calc_tides(orbital_frequency=2.05e-5, spin_frequency=2.05e-5, eccentricity=0.0041,
+                 obliquity=0.0, semi_major_axis=4.2e8, host_mass=1.898e27)
+
+world.get_tidal_heating()                # total heating [W]
+world.get_tidal_potential_derivatives()  # (dUdM, dUdw, dUdO) [J kg-1 rad-1]
+world.get_layer_tidal_heating(0)         # = world heating × layer 0's tidal_scale
+```
+
+For a synchronous, low-eccentricity body the `cpl` result reproduces the classic CPL rate
+`(21/2)(k₂/Q)·G·M_host²·R⁵·n·e²/a⁶`. The analytic models (`cpl`/`ctl`/`ctl_q`) are
+fully supported; the `rheology` model (which needs per-mode radial-solver Love numbers) is
+wired in a follow-up — `calc_tides` raises a clear error for it until then.
+
+| Member | Returns | Description |
+|--------|---------|-------------|
+| `set_tide_model(tide)` | — | Attach a tide model (transfers ownership). |
+| `tide_model_set` | bool | Whether a model is attached. |
+| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=10)` | — | Set the stored `[tides]` truncation/degree. |
+| `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | — | Run the global tidal solve. |
+| `tides_solved` | bool | Whether a solve has succeeded. |
+| `get_tidal_heating()` | float [W] | Total global tidal heating (NaN if unsolved). |
+| `get_tidal_potential_derivatives()` | tuple | `(dUdM, dUdw, dUdO)` [J kg⁻¹ rad⁻¹]. |
+| `get_num_tidal_modes()` | int | Active modes summed. |
+| `get_layer_tidal_heating(index)` | float [W] | Per-layer heating = world heating × `tidal_scale`. |
+
 ---
 
 ## `GasGiantWorld`

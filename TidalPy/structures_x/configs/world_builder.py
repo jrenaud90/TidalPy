@@ -42,6 +42,7 @@ from TidalPy.radiogenics_x.radiogenics import make_radiogenics
 from TidalPy.viscosity_x.viscosity import make_viscosity
 from TidalPy.partial_melt_x.partial_melt import make_partial_melt
 from TidalPy.Material_x.eos.material_eos import make_material_eos
+from TidalPy.Tides_x.classes.tide import make_tide
 
 from TidalPy.structures_x.configs.toml_loader import (
     ALLOWED_LAYER_SCALAR_KEYS,
@@ -438,14 +439,97 @@ def construct_world(config: dict):
         # Layered families carry an inner-to-outer stack of layers.
         world = GasGiantWorld(world_type=world_type, **world_kwargs)
         _add_layers(world, config["layers"], world_radius_m)
+        _attach_tides(world, config)
     else:
         # "terrestrial" and "layered" both map to LayeredWorld.
         world = LayeredWorld(world_type=world_type, **world_kwargs)
         _add_layers(world, config["layers"], world_radius_m)
+        _attach_tides(world, config)
 
     # Retain the normalized config on the world for a faithful save_to_toml.
     world.source_config = config
     return world
+
+
+# Built-in fallback for the per-world-family default tide model, used only if the `_x`
+# config (`TidalPy.config_x['tides']['default_model']`, from defaultc_x.py) is unavailable.
+# The config file is the single source of truth; this mirror just keeps the builder working
+# before that config is generated.
+_DEFAULT_TIDE_MODEL_FALLBACK = {
+    "star":        "fixed_q",
+    "gasgiant":    "fixed_dt",
+    "terrestrial": "rheology",
+    "layered":     "rheology",
+}
+
+
+def _resolve_obliquity_truncation(value) -> int:
+    """Resolve an obliquity truncation (string ``'gen'``/``'off'`` or int) to its integer."""
+    if isinstance(value, str):
+        text = value.lower()
+        if text in ("gen", "general"):
+            return 10
+        if text in ("off",):
+            return 0
+        return int(value)
+    return int(value)
+
+
+def _tides_config_x() -> dict:
+    """Return the ``[tides]`` defaults block from the ``_x`` config (empty if absent)."""
+    config_x = getattr(TidalPy, "config_x", None) or {}
+    return config_x.get("tides", {}) or {}
+
+
+def _attach_tides(world, config: dict) -> None:
+    """Wire the optional ``[tides]`` table onto a layered/gasgiant world.
+
+    Attaches a tide dissipation model (``set_tide_model``) and the truncation/degree
+    configuration (``set_tide_config``). Values resolve through the standard chain: the
+    world's ``[tides]`` table, then the ``[tides]`` defaults in the ``_x`` config
+    (``TidalPy_Configs_x.toml`` via ``defaultc_x.py``), then a built-in fallback. The default
+    dissipation model is chosen per world family (``[tides.default_model][<world_type>]``);
+    the per-degree analytic parameters (``fixed_k``/``fixed_q``/``fixed_dt``) are forwarded to
+    the model (consumed only by the analytic models).
+
+    Parameters
+    ----------
+    world : LayeredWorld or GasGiantWorld
+        The world to wire (must expose ``set_tide_model``/``set_tide_config``).
+    config : dict
+        The normalized world configuration.
+    """
+    world_type = config["type"]
+    tides_cfg = config.get("tides", {}) or {}
+    defaults = _tides_config_x()
+
+    # The default-model map is the one config_x key that is per-world-type; everything else
+    # merges the config_x [tides] defaults underneath the world's [tides] overrides.
+    default_model_map = defaults.get("default_model", {}) or {}
+    merged = {key: value for key, value in defaults.items() if key != "default_model"}
+    merged.update(tides_cfg)
+
+    model_name = merged.get(
+        "global_tidal_model",
+        default_model_map.get(world_type, _DEFAULT_TIDE_MODEL_FALLBACK.get(world_type, "rheology")))
+
+    model_config = {}
+    for key in ("fixed_k", "fixed_q", "fixed_dt"):
+        if key in merged:
+            model_config[key] = list(merged[key])
+
+    world.set_tide_model(make_tide(model_name, model_config if model_config else None))
+
+    world.set_tide_config(
+        min_degree_l=int(merged.get("min_degree_l", 2)),
+        max_degree_l=int(merged.get("max_degree_l", 2)),
+        eccentricity_truncation=int(
+            merged.get("eccentricity_trunc_lvl",
+                       merged.get("eccentricity_truncation", 6))),
+        obliquity_truncation=_resolve_obliquity_truncation(
+            merged.get("obliquity_trunc_lvl",
+                       merged.get("obliquity_truncation", "gen"))),
+    )
 
 
 def _resolve_outer_radius(

@@ -28,15 +28,7 @@
 #include "intmap_.hpp"        // c_IntMap
 #include "keys_.hpp"          // c_Key4
 #include "tide_base_.hpp"     // tidalpy::c_TideBase
-
-struct c_GlobalTideResult {
-    double tidal_heating = 0.0;   // total global tidal heating [W]
-    double dU_dM = 0.0;           // potential derivative wrt mean anomaly      [J kg-1 rad-1]
-    double dU_dw = 0.0;           // potential derivative wrt argument of pericenter [J kg-1 rad-1]
-    double dU_dO = 0.0;           // potential derivative wrt longitude of node  [J kg-1 rad-1]
-    int num_modes = 0;            // number of active (nonzero-frequency) modes summed
-    int error_code = 0;           // propagated from the potential solve
-};
+#include "tide_result_.hpp"   // c_GlobalTideResult
 
 // Collapse the per-mode global potential terms with the tide model's dissipation
 // multiplier. `solver_love_by_lmpq` supplies the radial-solver Love numbers (k, h, l) per

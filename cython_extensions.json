@@ -636,6 +636,36 @@
             ],
             [
                 "TidalPy",
+                "Tides_x",
+                "classes"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "potential"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "obliquity"
+            ],
+            [
+                "TidalPy",
+                "Tides_x",
+                "eccentricity"
+            ],
+            [
+                "TidalPy",
+                "Utilities_x",
+                "lookups"
+            ],
+            [
+                "TidalPy",
+                "utilities",
+                "math"
+            ],
+            [
+                "TidalPy",
                 "rheology_x"
             ],
             [
