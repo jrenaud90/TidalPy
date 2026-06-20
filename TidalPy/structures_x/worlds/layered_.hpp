@@ -734,6 +734,10 @@ public:
     // world_tides_.hpp). Throws std::runtime_error if no tide model is attached.
     void calc_tides(const c_TideSolveConfig& state);
 
+    // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
+    // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.
+    double effective_tidal_scale(const c_BaseLayer* layer, double planet_volume) const;
+
     bool get_tides_solved() const noexcept { return this->p_tides_solved; }
 
     double get_tidal_heating() const noexcept {

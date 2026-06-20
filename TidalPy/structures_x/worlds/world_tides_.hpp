@@ -125,16 +125,40 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     }
     this->p_tides_solved = true;
 
-    // Distribute heating to the layers by their tidal scale (0 for non-tidal layers), and
-    // store the result on each layer so layer.get_tidal_heating() reports it directly.
+    // Distribute heating to the layers by their effective tidal scale (0 for non-tidal
+    // layers), and store the result on each layer so layer.get_tidal_heating() reports it.
+    const double planet_volume =
+        (4.0 / 3.0) * TidalPyConstants::d_PI * planet_radius * planet_radius * planet_radius;
     const std::size_t n_layers = this->p_layers.size();
     this->p_layer_tidal_heating.assign(n_layers, 0.0);
     for (std::size_t i = 0; i < n_layers; ++i) {
-        c_BaseLayer* layer  = this->p_layers[i].get();
-        const double scale  = layer->get_is_tidal() ? layer->get_tidal_scale() : 0.0;
-        const double heat   = this->p_tide_result.tidal_heating * scale;
+        c_BaseLayer* layer = this->p_layers[i].get();
+        const double scale = this->effective_tidal_scale(layer, planet_volume);
+        const double heat  = this->p_tide_result.tidal_heating * scale;
         this->p_layer_tidal_heating[i] = heat;
         layer->set_tidal_heating(heat);
+    }
+}
+
+// Effective per-layer tidal-heating scale for the layer's tidal_scale_method (0 for a
+// non-tidal layer). user_provided uses the layer's tidal_scale field; volume_fraction uses
+// the layer-to-planet volume ratio; tidal_timescale (Maxwell-time bell curve) is not yet
+// wired and raises so a misconfiguration is loud rather than silently wrong.
+inline double c_LayeredWorld::effective_tidal_scale(
+        const c_BaseLayer* layer, double planet_volume) const {
+    if (!layer->get_is_tidal()) {
+        return 0.0;
+    }
+    switch (layer->get_tidal_scale_method()) {
+        case c_TidalScaleMethod::user_provided:
+            return layer->get_tidal_scale();
+        case c_TidalScaleMethod::volume_fraction:
+            return (planet_volume > TidalPyConstants::d_EPS) ? layer->get_volume() / planet_volume : 0.0;
+        case c_TidalScaleMethod::tidal_timescale:
+        default:
+            throw std::runtime_error(
+                "TidalPy: the 'tidal_timescale' tidal_scale_method is not yet wired; use "
+                "'user_provided' or 'volume_fraction' for now");
     }
 }
 

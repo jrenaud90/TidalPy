@@ -344,7 +344,18 @@ orbital potential partial derivatives by summing over the active tidal modes
 [Global Tidal Dissipation](../../Tides_x/global_tides.md)) supplies the per-mode
 dissipation multiplier `−Im[k_l]`; the world runs the global-potential engine for its
 stored `[tides]` config + the supplied orbital/spin state, collapses, and distributes the
-heat to layers by each layer's `tidal_scale`.
+heat to the layers by each layer's `tidal_scale_method` (see below).
+
+**Per-layer scaling (`tidal_scale_method`).** Each layer chooses how its share of the global
+heating is set (a per-layer config key; default `user_provided`):
+
+| `tidal_scale_method` | Layer heating = total × ... |
+|----------------------|------------------------------|
+| `user_provided` (`user_provided_scale`) | the layer's `tidal_scale` field |
+| `volume_fraction` (`volume_fraction_scale`) | layer volume / planet volume |
+| `tidal_timescale` (`tidal_timescale_scale`) | Maxwell-time bell curve vs the forcing period — **not yet wired** (`calc_tides` raises) |
+
+A non-tidal layer (`is_tidal = false`) always gets 0. Methods may differ per layer.
 
 The tide model + config are normally wired by the world builder from the `[tides]` TOML
 table (with per-family defaults: star = `fixed_q`, gasgiant = `fixed_dt`, terrestrial = `rheology`),

@@ -29,7 +29,11 @@
 #include <complex>
 #include <string>
 
-#include "love_.hpp"          // tidalpy::c_LoveNumbers
+// Explicit relative path (not bare "love_.hpp"): the layered/world extension also has
+// RadialSolver_x on its include path, which has a different global-namespace love_.hpp, so a
+// bare include can resolve to the wrong file depending on include-dir order. This pins the
+// Tides_x (tidalpy::c_LoveNumbers) header.
+#include "../love/love_.hpp"   // tidalpy::c_LoveNumbers
 #include "physics_base_.hpp"
 
 namespace tidalpy {

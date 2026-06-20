@@ -26,6 +26,7 @@
  *   EOS profile data is NOT serialized; it must be repopulated after loading.
  */
 
+#include <cctype>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -41,18 +42,64 @@
 namespace tidalpy {
 
 // ---------------------------------------------------------------------------
+// c_TidalScaleMethod — how a layer's share of the world's global tidal heating
+// is determined (consumed by c_LayeredWorld::calc_tides).
+//   user_provided   : use the layer's tidal_scale field directly.
+//   volume_fraction : scale = layer volume / planet volume.
+//   tidal_timescale : Maxwell-time bell curve vs the tidal forcing period
+//                     (per-layer volume-averaged eta/mu); not yet wired.
+// ---------------------------------------------------------------------------
+enum class c_TidalScaleMethod : uint8_t {
+    user_provided   = 0,
+    volume_fraction = 1,
+    tidal_timescale = 2
+};
+
+// Case-insensitive string -> c_TidalScaleMethod (alias-aware). Throws
+// std::invalid_argument on an unknown name (surfaced as ValueError in Cython).
+inline c_TidalScaleMethod c_tidal_scale_method_from_name(const std::string& name) {
+    std::string key;
+    key.reserve(name.size());
+    for (char ch : name) {
+        key.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+    if (key == "user_provided" || key == "user_provided_scale" || key == "user") {
+        return c_TidalScaleMethod::user_provided;
+    }
+    if (key == "volume_fraction" || key == "volume_fraction_scale" || key == "volume") {
+        return c_TidalScaleMethod::volume_fraction;
+    }
+    if (key == "tidal_timescale" || key == "tidal_timescale_scale"
+            || key == "timescale" || key == "maxwell") {
+        return c_TidalScaleMethod::tidal_timescale;
+    }
+    throw std::invalid_argument("TidalPy: unknown tidal_scale_method '" + name + "'");
+}
+
+// Canonical name for a c_TidalScaleMethod (round-trips through the factory).
+inline const char* c_tidal_scale_method_name(c_TidalScaleMethod method) noexcept {
+    switch (method) {
+        case c_TidalScaleMethod::volume_fraction: return "volume_fraction_scale";
+        case c_TidalScaleMethod::tidal_timescale: return "tidal_timescale_scale";
+        case c_TidalScaleMethod::user_provided:
+        default:                                  return "user_provided_scale";
+    }
+}
+
+// ---------------------------------------------------------------------------
 // c_BaseLayerConfig — construction parameters for c_BaseLayer.
 // Using a config struct avoids a long constructor argument list.
 // ---------------------------------------------------------------------------
 struct c_BaseLayerConfig {
-    std::string name;
-    int         layer_index    = 0;
-    double      radius_inner_m = 0.0;   // [m]
-    double      radius_outer_m = 0.0;   // [m]
-    double      mass_kg        = 0.0;   // [kg]
-    std::string material_name  = "Unknown";
-    bool        is_tidal       = true;
-    double      tidal_scale    = 1.0;   // dimensionless
+    std::string        name;
+    int                layer_index        = 0;
+    double             radius_inner_m     = 0.0;   // [m]
+    double             radius_outer_m     = 0.0;   // [m]
+    double             mass_kg            = 0.0;   // [kg]
+    std::string        material_name      = "Unknown";
+    bool               is_tidal           = true;
+    double             tidal_scale        = 1.0;   // dimensionless
+    c_TidalScaleMethod tidal_scale_method = c_TidalScaleMethod::user_provided;
 };
 
 // ---------------------------------------------------------------------------
@@ -72,7 +119,8 @@ public:
           p_radius_inner(cfg.radius_inner_m),
           p_material_name(cfg.material_name),
           p_is_tidal(cfg.is_tidal),
-          p_tidal_scale(cfg.tidal_scale)
+          p_tidal_scale(cfg.tidal_scale),
+          p_tidal_scale_method(cfg.tidal_scale_method)
     {
         // Update derived properties.
         this->update_physicals();
@@ -98,6 +146,7 @@ public:
             this->p_material_name      = other.p_material_name;
             this->p_is_tidal           = other.p_is_tidal;
             this->p_tidal_scale        = other.p_tidal_scale;
+            this->p_tidal_scale_method = other.p_tidal_scale_method;
             this->p_tidal_heating      = other.p_tidal_heating;
             this->p_eos_data           = other.p_eos_data;
             // EOS model pointer cannot be copied; source temporaries have null ptrs.
@@ -121,6 +170,8 @@ public:
     const std::string& get_material_name()       const noexcept { return this->p_material_name; }
     bool               get_is_tidal()            const noexcept { return this->p_is_tidal; }
     double             get_tidal_scale()         const noexcept { return this->p_tidal_scale; }
+    c_TidalScaleMethod get_tidal_scale_method()  const noexcept { return this->p_tidal_scale_method; }
+    void   set_tidal_scale_method(c_TidalScaleMethod method) noexcept { this->p_tidal_scale_method = method; }
 
     // -----------------------------------------------------------------------
     // Tidal heating [W] deposited in this layer (transient result; NOT serialized).
@@ -287,9 +338,10 @@ protected:
     double      p_surface_area_inner = 0.0;   // [m^2]
     double      p_surface_area_outer = 0.0;   // [m^2]
     std::string p_material_name;
-    bool        p_is_tidal           = true;
-    double      p_tidal_scale        = 1.0;   // dimensionless
-    double      p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
+    bool               p_is_tidal           = true;
+    double             p_tidal_scale        = 1.0;   // dimensionless
+    c_TidalScaleMethod p_tidal_scale_method = c_TidalScaleMethod::user_provided;
+    double             p_tidal_heating      = std::numeric_limits<double>::quiet_NaN();  // [W]; set by the world tidal solve
 
     // Mutable EOS profile (populated by the world-level EOS solve; not serialized)
     c_LayerEOSData p_eos_data;

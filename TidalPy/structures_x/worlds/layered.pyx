@@ -26,7 +26,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_name
 from TidalPy.Tides_x.classes.tide cimport TideBase
 
 # Pull in the out-of-line definition of c_LayeredWorld::calc_tides (and the heavy
@@ -1000,18 +1000,21 @@ cdef class LayeredWorld(BaseWorld):
         cdef size_t n = self._layered_ptr.get_num_layers()
         cdef size_t i
         cdef c_BaseLayer* layer_ptr
+        cdef bytes method_bytes
         layers = []
         for i in range(n):
             layer_ptr = self._layered_ptr.get_layer(i)
+            method_bytes = c_tidal_scale_method_name(layer_ptr.get_tidal_scale_method())
             layers.append({
-                "name":           layer_ptr.get_name().decode("utf-8"),
-                "layer_index":    layer_ptr.get_layer_index(),
-                "radius_inner_m": layer_ptr.get_radius_inner(),
-                "radius_outer_m": layer_ptr.get_radius_outer(),
-                "mass_kg":        layer_ptr.get_mass(),
-                "material_name":  layer_ptr.get_material_name().decode("utf-8"),
-                "is_tidal":       True if layer_ptr.get_is_tidal() else False,
-                "tidal_scale":    layer_ptr.get_tidal_scale(),
+                "name":               layer_ptr.get_name().decode("utf-8"),
+                "layer_index":        layer_ptr.get_layer_index(),
+                "radius_inner_m":     layer_ptr.get_radius_inner(),
+                "radius_outer_m":     layer_ptr.get_radius_outer(),
+                "mass_kg":            layer_ptr.get_mass(),
+                "material_name":      layer_ptr.get_material_name().decode("utf-8"),
+                "is_tidal":           True if layer_ptr.get_is_tidal() else False,
+                "tidal_scale":        layer_ptr.get_tidal_scale(),
+                "tidal_scale_method": method_bytes.decode("utf-8"),
             })
         d["num_layers"] = n
         d["layers"] = layers

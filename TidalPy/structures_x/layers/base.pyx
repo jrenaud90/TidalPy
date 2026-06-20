@@ -81,18 +81,20 @@ cdef class BaseLayer(StructureBase):
             double radius_inner_m,
             double radius_outer_m,
             double mass_kg,
-            str    material_name = "",
-            bint   is_tidal      = True,
-            double tidal_scale   = 1.0):
+            str    material_name      = "",
+            bint   is_tidal           = True,
+            double tidal_scale        = 1.0,
+            str    tidal_scale_method = "user_provided"):
         cdef c_BaseLayerConfig config
-        config.name           = name.encode("utf-8")
-        config.layer_index    = layer_index
-        config.radius_inner_m = radius_inner_m
-        config.radius_outer_m = radius_outer_m
-        config.mass_kg        = mass_kg
-        config.material_name  = material_name.encode("utf-8")
-        config.is_tidal       = is_tidal
-        config.tidal_scale    = tidal_scale
+        config.name               = name.encode("utf-8")
+        config.layer_index        = layer_index
+        config.radius_inner_m     = radius_inner_m
+        config.radius_outer_m     = radius_outer_m
+        config.mass_kg            = mass_kg
+        config.material_name      = material_name.encode("utf-8")
+        config.is_tidal           = is_tidal
+        config.tidal_scale        = tidal_scale
+        config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         self._layer_ptr.reset(new c_BaseLayer(config))
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
@@ -169,8 +171,25 @@ cdef class BaseLayer(StructureBase):
 
     @property
     def tidal_scale(self) -> float:
-        """Dimensionless tidal heating scale factor."""
+        """Dimensionless tidal heating scale factor (used when ``tidal_scale_method`` is ``user_provided``)."""
         return self._layer_ptr.get().get_tidal_scale()
+
+    @property
+    def tidal_scale_method(self) -> str:
+        """How this layer's share of the world tidal heating is determined.
+
+        One of ``"user_provided_scale"`` (use ``tidal_scale``), ``"volume_fraction_scale"``
+        (layer volume / planet volume), or ``"tidal_timescale_scale"`` (Maxwell-time bell
+        curve; not yet wired). Settable from any alias of those names.
+        """
+        cdef bytes name_bytes = c_tidal_scale_method_name(
+            self._layer_ptr.get().get_tidal_scale_method())
+        return name_bytes.decode("utf-8")
+
+    @tidal_scale_method.setter
+    def tidal_scale_method(self, str method):
+        self._layer_ptr.get().set_tidal_scale_method(
+            c_tidal_scale_method_from_name(method.encode("utf-8")))
 
     def get_tidal_heating(self) -> float:
         """Tidal heating [W] deposited in this layer by the world's last tidal solve.
@@ -347,16 +366,18 @@ cdef class BaseLayer(StructureBase):
         dict
             Keys: ``name``, ``layer_index``, ``radius_inner_m``,
             ``radius_outer_m``, ``mass_kg``, ``material_name``,
-            ``is_tidal``, ``tidal_scale``.
+            ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``.
         """
         cdef c_BaseLayer* p = self._layer_ptr.get()
+        cdef bytes method_bytes = c_tidal_scale_method_name(p.get_tidal_scale_method())
         return {
-            "name":           p.get_name().decode("utf-8"),
-            "layer_index":    p.get_layer_index(),
-            "radius_inner_m": p.get_radius_inner(),
-            "radius_outer_m": p.get_radius_outer(),
-            "mass_kg":        p.get_mass(),
-            "material_name":  p.get_material_name().decode("utf-8"),
-            "is_tidal":       bool(p.get_is_tidal()),
-            "tidal_scale":    p.get_tidal_scale(),
+            "name":               p.get_name().decode("utf-8"),
+            "layer_index":        p.get_layer_index(),
+            "radius_inner_m":     p.get_radius_inner(),
+            "radius_outer_m":     p.get_radius_outer(),
+            "mass_kg":            p.get_mass(),
+            "material_name":      p.get_material_name().decode("utf-8"),
+            "is_tidal":           bool(p.get_is_tidal()),
+            "tidal_scale":        p.get_tidal_scale(),
+            "tidal_scale_method": method_bytes.decode("utf-8"),
         }

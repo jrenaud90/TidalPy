@@ -43,15 +43,24 @@ cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
+    cdef enum class c_TidalScaleMethod:
+        user_provided
+        volume_fraction
+        tidal_timescale
+
+    c_TidalScaleMethod c_tidal_scale_method_from_name(const string& name) except +
+    const char* c_tidal_scale_method_name(c_TidalScaleMethod method)
+
     cdef cppclass c_BaseLayerConfig:
-        string   name
-        int      layer_index
-        double   radius_inner_m
-        double   radius_outer_m
-        double   mass_kg
-        string   material_name
-        cpp_bool is_tidal
-        double   tidal_scale
+        string             name
+        int                layer_index
+        double             radius_inner_m
+        double             radius_outer_m
+        double             mass_kg
+        string             material_name
+        cpp_bool           is_tidal
+        double             tidal_scale
+        c_TidalScaleMethod tidal_scale_method
 
     cdef cppclass c_BaseLayer(c_StructureBase):
         c_BaseLayer()
@@ -67,6 +76,8 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         const string& get_material_name()      const
         cpp_bool get_is_tidal()                const
         double   get_tidal_scale()             const
+        c_TidalScaleMethod get_tidal_scale_method() const
+        void     set_tidal_scale_method(c_TidalScaleMethod method)
         double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
         double   get_density(double radius_m)  const

@@ -18,7 +18,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.cooling_x.cooling cimport CoolingBase
@@ -138,7 +138,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double melt_fraction_exponent          = 1.0,
             double reference_density_kg_m3         = 3500.0,
             double reference_temperature_k         = 1600.0,
-            double melt_viscosity_reduction        = 25.0):
+            double melt_viscosity_reduction        = 25.0,
+            str    tidal_scale_method              = "user_provided"):
         cdef c_SolidLiquidConfig config
         config.name                          = name.encode("utf-8")
         config.layer_index                   = layer_index
@@ -148,6 +149,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.material_name                 = material_name.encode("utf-8")
         config.is_tidal                      = is_tidal
         config.tidal_scale                   = tidal_scale
+        config.tidal_scale_method            = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         config.shear_modulus_static_pa       = shear_modulus_static_pa
         config.bulk_modulus_static_pa        = bulk_modulus_static_pa
         config.shear_viscosity_static_pas    = shear_viscosity_static_pas

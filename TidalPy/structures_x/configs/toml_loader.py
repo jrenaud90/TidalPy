@@ -39,6 +39,8 @@ names a ``class`` (which Cython layer class to build) and, optionally, a materia
     mass_kg        = 0.0            # optional (EOS solve recomputes)
     material_name  = "rock"         # optional
     is_tidal       = true           # optional
+    tidal_scale    = 1.0            # optional (used when tidal_scale_method=user_provided)
+    tidal_scale_method = "user_provided"  # optional: user_provided | volume_fraction
     ...                             # physics / solidliquid / gas scalar parameters
 
 A layer may attach physics models through nested tables, each carrying a
@@ -178,7 +180,8 @@ _GEOMETRY_LAYER_KEYS = (
     "mass_kg",
     "material_name",
     "is_tidal",
-    "tidal_scale"
+    "tidal_scale",
+    "tidal_scale_method"
 )
 _PHYSICS_LAYER_KEYS = (
     "shear_modulus_static_pa",

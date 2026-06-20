@@ -17,7 +17,7 @@ from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_TidalScaleMethod
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport c_RheologyBase
 from TidalPy.viscosity_x.viscosity cimport c_ViscosityBase
@@ -39,6 +39,7 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         string              material_name
         cpp_bool            is_tidal
         double              tidal_scale
+        c_TidalScaleMethod  tidal_scale_method
         # PhysicsLayer additions:
         double              shear_modulus_static_pa
         double              bulk_modulus_static_pa
