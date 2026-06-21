@@ -686,27 +686,36 @@ public:
         return s->complex_love_vec[ytype_idx].l;
     }
 
-    // Full radial solution y-value at the surface for a given ytype and y-index.
-    // Returns NaN if not solved.  Matches the storage layout: 6 complex y-values
-    // (12 doubles) per ytype per slice.
+    // Full radial solution y-value (SI) at the surface for a given ytype and y-index (0..5 -> y1..y6).
+    // Returns NaN if not solved. Evaluated from the radial solver's dense calling system (shooting) or the
+    // gridded solution (matrix) via get_surface_y; no longer reads the gridded buffer directly.
     std::complex<double> get_love_surface_y(
             std::size_t ytype_idx, std::size_t y_idx) const noexcept {
         const auto* s = this->get_love_storage();
-        if (!s || !s->success)
+        if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        const std::size_t n_slices  = s->num_slices;
-        const std::size_t n_ytypes  = s->num_ytypes;
-        if (ytype_idx >= n_ytypes || y_idx >= C_MAX_NUM_Y)
+        std::complex<double> surface_y[C_MAX_NUM_Y];
+        if (!s->get_surface_y(ytype_idx, surface_y))
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        // Layout: [slice][ytype * C_MAX_NUM_Y_REAL] interleaved real/imag pairs
-        const std::size_t stride    = C_MAX_NUM_Y_REAL * n_ytypes;
-        const std::size_t base      = (n_slices - 1) * stride
-                                    + ytype_idx * C_MAX_NUM_Y_REAL
-                                    + y_idx * 2;
-        const auto& v = s->full_solution_vec;
-        if (base + 1 >= v.size())
+        return surface_y[y_idx];
+    }
+
+    // Full radial solution y-value (SI) at an arbitrary radius [m] for a given ytype and y-index. The shooting
+    // method evaluates its dense per-layer interpolants at this radius (accurate anywhere, including between EOS
+    // grid slices); the matrix method linearly interpolates its constructed grid. Returns NaN if not solved,
+    // out of range, or below the solver's starting radius.
+    std::complex<double> get_radial_solution_y(
+            double radius_m,
+            std::size_t ytype_idx,
+            std::size_t y_idx) const noexcept {
+        const auto* s = this->get_love_storage();
+        if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-        return std::complex<double>(v[base], v[base + 1]);
+
+        std::complex<double> y_at_r[C_MAX_NUM_Y];
+        if (!s->get_radial_solution(radius_m, ytype_idx, y_at_r))
+            return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        return y_at_r[y_idx];
     }
 
     // -----------------------------------------------------------------------

@@ -3,6 +3,7 @@
 
 from libcpp.memory cimport make_unique
 from libcpp.string cimport string as cpp_string
+from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.RadialSolver_x.rs_constants cimport C_MAX_NUM_Y
 from TidalPy.Material_x.eos.ode cimport C_EOS_DY_VALUES
@@ -185,6 +186,32 @@ cdef class RadialSolverSolution:
 
         eos_solution_ptr.call(<size_t>layer_index, radius, eos_interp_ptr)
         return eos_interp
+
+    def get_radial_solution(self, double radius, size_t ytype_index = 0):
+        """Collapsed complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
+
+        Shooting solutions evaluate their dense per-layer interpolants at ``radius`` (accurate
+        anywhere, including between EOS grid slices); the matrix method linearly interpolates its
+        constructed grid. Returns a length-6 complex128 array, NaN where the radius is out of range
+        or below the solver's starting radius.
+        """
+        cdef cnp.ndarray[cnp.complex128_t, ndim=1] out = np.empty(C_MAX_NUM_Y, dtype=np.complex128)
+        self.solution_storage_ptr.get_radial_solution(
+            radius, ytype_index, <cpp_complex[double]*><void*>&out[0])
+        return out
+
+    def get_radial_solution_array(self, double[::1] radius_array not None, size_t ytype_index = 0):
+        """Vectorized :meth:`get_radial_solution`: complex y1..y6 (SI) at each radius [m].
+
+        Returns an ``(n, 6)`` complex128 array. Each radius is evaluated independently from the dense
+        interpolants (shooting) or the constructed grid (matrix), entirely in fast C++.
+        """
+        cdef size_t n = radius_array.shape[0]
+        cdef cnp.ndarray[cnp.complex128_t, ndim=2] out = np.empty((n, C_MAX_NUM_Y), dtype=np.complex128)
+        if n > 0:
+            self.solution_storage_ptr.get_radial_solution_array(
+                &radius_array[0], n, ytype_index, <cpp_complex[double]*><void*>&out[0, 0])
+        return out
 
     def plot_ys(self):
         cdef list result_list

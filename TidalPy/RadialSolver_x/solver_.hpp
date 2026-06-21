@@ -271,9 +271,43 @@ int c_radial_solver(
         }
     }
 
+    // Hand the storage its dimensional context so get_radial_solution can map SI radii into solve units and
+    // re-dimensionalize the solve-unit y-solution to SI. The EOS arrays are still non-dim at this point.
+    if (solution_storage_ptr->success)
+    {
+        if (nondimensionalize)
+        {
+            const double length_conv = non_dim_scales.length_conversion;
+            const double sec2_conv   = non_dim_scales.second2_conversion;
+            solution_storage_ptr->set_dimensional_context(
+                length_conv,
+                sec2_conv / length_conv,
+                non_dim_scales.mass_conversion / non_dim_scales.length3_conversion,
+                1.0 / length_conv,
+                /*eos_is_nondim=*/true,
+                length_conv / sec2_conv,
+                non_dim_scales.density_conversion);
+        }
+        else
+        {
+            solution_storage_ptr->set_dimensional_context(1.0, 1.0, 1.0, 1.0, /*eos_is_nondim=*/false, 1.0, 1.0);
+        }
+
+        // Love numbers first (scale-invariant), while the EOS arrays are still non-dim.
+        solution_storage_ptr->find_love();
+
+        // Snapshot the SI y-grid from the dense interpolants so the legacy array-returning API keeps working
+        // (shooting only; the matrix method fills the grid itself and re-dimensionalizes it below).
+        if (solution_storage_ptr->p_uses_interpolants)
+            solution_storage_ptr->sample_onto_grid();
+    }
+
     if (nondimensionalize)
     {
+        // Re-dimensionalize the matrix y-grid (the shooting grid is already SI and skipped) plus the EOS arrays.
         solution_storage_ptr->dimensionalize_data(&non_dim_scales, true);
+        if (solution_storage_ptr->success)
+            solution_storage_ptr->p_eos_is_nondim = false;   // EOS arrays are now SI
         for (size_t slice_i = 0; slice_i < total_slices; ++slice_i)
         {
             radius_array_in_ptr[slice_i]          *= non_dim_scales.length_conversion;
@@ -282,9 +316,6 @@ int c_radial_solver(
             complex_shear_modulus_in_ptr[slice_i] *= non_dim_scales.pascal_conversion;
         }
     }
-
-    if (solution_storage_ptr->success)
-        solution_storage_ptr->find_love();
 
     return solution_storage_ptr->error_code;
 }

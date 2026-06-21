@@ -491,6 +491,27 @@ public:
             c_shooting_solve(storage, shoot, freq_nd, rt.verbose);
         }
 
+        // Hand the storage the dimensional context so get_radial_solution can map external SI radii into solve units
+        // and re-dimensionalize the (non-dim) solve-unit y-solution back to SI on demand. At this point the EOS
+        // arrays are still non-dim (the fast path keeps them so; export mode re-dimensionalizes them below).
+        if (storage->success) {
+            if (this->p_nondim) {
+                const double length_conv  = this->p_non_dim_uptr->length_conversion;
+                const double sec2_conv    = this->p_non_dim_uptr->second2_conversion;
+                const double disp_scale   = sec2_conv / length_conv;
+                const double stress_scale =
+                    this->p_non_dim_uptr->mass_conversion / this->p_non_dim_uptr->length3_conversion;
+                const double pot_scale    = 1.0 / length_conv;
+                const double grav_conv    = length_conv / sec2_conv;
+                const double dens_conv    = this->p_non_dim_uptr->density_conversion;
+                storage->set_dimensional_context(
+                    length_conv, disp_scale, stress_scale, pot_scale,
+                    /*eos_is_nondim=*/true, grav_conv, dens_conv);
+            } else {
+                storage->set_dimensional_context(1.0, 1.0, 1.0, 1.0, /*eos_is_nondim=*/false, 1.0, 1.0);
+            }
+        }
+
         // Extract the Love numbers directly from the (non-dim) solution. c_find_love is scale-invariant:
         // k = y5 - 1 (y5 unitless), h = y1*g and l = y3*g, where the displacement scale (T^2/L) and the gravity
         // scale (L/T^2) cancel exactly, so non-dim (y, g) give the same k, h, l as the SI pair. The storage's
@@ -498,8 +519,15 @@ public:
         if (storage->success)
             storage->find_love();
 
-        // Re-dimensionalize the y-solution (always) and, in export mode, the EOS arrays too. In the fast path the
-        // EOS arrays stay non-dim so the cache survives for the next frequency without a re-inject.
+        // Export mode: snapshot the full grid (SI) from the dense interpolants now, while the EOS is still non-dim, so
+        // the standalone solution object keeps its legacy array-returning API. The world fast path skips this and
+        // queries get_radial_solution at the radii it needs.
+        if (rt.redim_eos_arrays && storage->success && storage->p_uses_interpolants)
+            storage->sample_onto_grid();
+
+        // Re-dimensionalize the y-solution (matrix grid only; the shooting grid is unused and redims on the fly) and,
+        // in export mode, the EOS arrays too. In the fast path the EOS arrays stay non-dim so the cache survives for
+        // the next frequency without a re-inject.
         if (this->p_nondim && storage->success) {
             storage->dimensionalize_data(
                 this->p_non_dim_uptr.get(),
@@ -507,8 +535,11 @@ public:
                 /*include_eos=*/rt.redim_eos_arrays
             );
 
-            if (rt.redim_eos_arrays)
+            if (rt.redim_eos_arrays) {
                 storage->get_eos_solution_ptr()->surface_gravity = this->p_surface_gravity_si;
+                // The EOS arrays are now SI; tell the storage so later arbitrary-radius queries convert correctly.
+                storage->p_eos_is_nondim = false;
+            }
         }
         // Export mode consumes the cache (the EOS arrays are now SI); force a rebuild before any later reuse.
         if (rt.redim_eos_arrays)

@@ -204,7 +204,11 @@ int c_shooting_solver(
     // Number of extra parameters captured during integration
     const size_t num_extra            = 0;
     const double first_step_size      = 0.0;
-    const bool   capture_dense_output = false;
+    // Dense output is captured and the whole CySolverResult retained for each independent solution, so the collapsed
+    // y-solution can be evaluated at any radius later (the dense calling system) rather than only on a fixed grid.
+    const bool   capture_dense_output = true;
+    // Empty t_eval: with dense output on, the integrator stores its adaptive dense segments (no fixed evaluation grid).
+    std::vector<double> teval_empty;
     // Events (empty — not used by RadialSolver)
     std::vector<Event> events_vec;
 
@@ -251,37 +255,34 @@ int c_shooting_solver(
         num_solutions_by_layer_ptr[current_layer_i] = num_sols;
     }
 
-    // We have all the size information needed to build storage pointers
-    // Main storage pointer is setup like [current_layer_i][solution_i][y_i + r_i]
-    std::vector<std::vector<std::vector<std::complex<double>>>> main_storage_vec;
-
-    try
+    // We no longer sample each independent solution onto a grid. Instead each layer/solution's full dense CyRK
+    // interpolant is retained in the storage (the dense calling system), and the collapse constants + per-layer
+    // metadata needed to combine them at any radius are recorded alongside. Prepare that storage now.
+    const std::complex<double> c_constant_NAN(TidalPyConstants::d_NAN, TidalPyConstants::d_NAN);
+    solution_storage_ptr->reset_interpolant_storage();
+    solution_storage_ptr->p_uses_interpolants = true;
+    solution_storage_ptr->p_frequency_solve   = frequency;
+    solution_storage_ptr->p_interp_by_layer_sol.resize(num_layers);
+    solution_storage_ptr->p_num_sols_by_layer.assign(num_solutions_by_layer_vec.begin(), num_solutions_by_layer_vec.end());
+    solution_storage_ptr->p_layer_types.resize(num_layers);
+    solution_storage_ptr->p_layer_is_static.resize(num_layers);
+    solution_storage_ptr->p_layer_is_incomp.resize(num_layers);
+    solution_storage_ptr->p_upper_radii_solve.resize(num_layers);
+    for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
     {
-        main_storage_vec.resize(num_layers);
-
-        for (size_t current_layer_i = 0; current_layer_i < num_layers; ++current_layer_i)
-        {
-            const size_t num_sols     = num_solutions_by_layer_ptr[current_layer_i];
-            const size_t layer_slices = num_slices_by_layer_vec[current_layer_i];
-            
-            // Number of ys = 2x num sols
-            const size_t num_ys = 2 * num_sols;
-
-            // Resize the middle vector (storage by solution)
-            main_storage_vec[current_layer_i].resize(num_sols);
-
-            for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
-            {
-                // Resize the inner vector (storage by y). 
-                // Note: std::vector automatically zero-initializes std::complex elements
-                main_storage_vec[current_layer_i][solution_i].resize(layer_slices * num_ys);
-            }
-        }
+        const size_t num_sols = num_solutions_by_layer_ptr[current_layer_i];
+        solution_storage_ptr->p_interp_by_layer_sol[current_layer_i].resize(num_sols);
+        solution_storage_ptr->p_layer_types[current_layer_i]     = layer_types_ptr[current_layer_i];
+        solution_storage_ptr->p_layer_is_static[current_layer_i] = is_static_by_layer_ptr[current_layer_i] ? 1 : 0;
+        solution_storage_ptr->p_layer_is_incomp[current_layer_i] = is_incompressible_by_layer_ptr[current_layer_i] ? 1 : 0;
+        solution_storage_ptr->p_upper_radii_solve[current_layer_i] =
+            eos_solution_storage_ptr->upper_radius_bylayer_vec[current_layer_i];
     }
-    catch (const std::bad_alloc& e)
-    {
-        throw std::runtime_error("Failed to allocate memory for: main_storage_vec (radial_solver; init)");
-    }
+    // Collapse constants: [ytype][layer][<=3 solutions], filled NaN until the collapse phase.
+    solution_storage_ptr->p_constants_by_ytype_layer.assign(
+        num_ytypes,
+        std::vector<std::array<std::complex<double>, 3>>(
+            num_layers, std::array<std::complex<double>, 3>{c_constant_NAN, c_constant_NAN, c_constant_NAN}));
 
     // Create storage for uppermost ys for each solution. We don't know how many solutions or ys per layer so assume the
     //  worst.
@@ -441,6 +442,10 @@ int c_shooting_solver(
             last_radius_check = last_layer_upper_radius;
         }
     }
+
+    // Record the start info so the dense calling system NaNs any query below the starting radius.
+    solution_storage_ptr->p_start_layer_i         = start_layer_i;
+    solution_storage_ptr->p_starting_radius_solve = starting_radius;
 
     // Step through the solution vector and NAN out data below the starting radius
     for (size_t slice_i = 0; slice_i < last_index_before_start + 1; ++slice_i)
@@ -786,7 +791,7 @@ int c_shooting_solver(
                 max_num_steps,             // Max number of steps (0 = find good value) [size_t]
                 max_ram_MB,                // Max amount of RAM allowed [size_t]
                 capture_dense_output,      // Use dense output [bool]
-                layer_radius_vec,          // Interpolate at this layer's radius array vector[double]
+                teval_empty,               // No fixed eval grid; the dense interpolant is retained instead
                 diffeq_preeval_ptr,        // Pre-eval function used in diffeq [PreEvalFunc]
                 events_vec,                // Events vector[Event]
                 rtols_vec,                 // Relative Tolerance (as array) vector[double]
@@ -819,33 +824,23 @@ int c_shooting_solver(
                 return solution_storage_ptr->error_code;
             }
 
-            // If no problems, store results.
-            // TODO: Eventually we will want to store the full integration_solution_uptr so we can use dense outputs.
-            //    When we do that we will need to make sure we std::move(integration_solution_uptr) the unique pointer.
-            double* integrator_data_ptr = integration_solution_ptr->solution.data();
-            
-            // Need to make a copy because the solver pointers will be reallocated during the next solution.
-            // Get storage pointer for this solution
-            std::vector<std::complex<double>>& storage_by_y_vec = main_storage_vec[current_layer_i][solution_i];
-
-            for (size_t slice_i = 0; slice_i < layer_slices; ++slice_i)
+            // Capture the y-values at the top of this layer (from the dense interpolant) for the next layer's
+            // interface boundary condition, then retain the whole interpolant in the storage so the collapsed
+            // solution can be evaluated at any radius later.
+            double interp_top[C_MAX_NUM_Y_REAL];
+            integration_solution_ptr->call(radius_upper, interp_top);
+            for (size_t y_i = 0; y_i < num_ys; ++y_i)
             {
-                for (size_t y_i = 0; y_i < num_ys; ++y_i)
-                {
-                    // Convert 2x real ys to 1x complex ys
-                    const std::complex<double> dcomplex_tmp = std::complex<double>(
-                        integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i)],
-                        integrator_data_ptr[num_ys_dbl * slice_i + (2 * y_i) + 1]
-                    );
-                    storage_by_y_vec[num_ys * slice_i + y_i] = dcomplex_tmp;
-
-                    if (slice_i == (layer_slices - 1))
-                    {
-                        // Store top most result for initial condition for the next layer
-                        uppermost_y_per_solution_ptr[solution_i * C_MAX_NUM_Y + y_i] = dcomplex_tmp;
-                    }
-                }
+                uppermost_y_per_solution_ptr[solution_i * C_MAX_NUM_Y + y_i] =
+                    std::complex<double>(interp_top[2 * y_i], interp_top[2 * y_i + 1]);
             }
+
+            // Move the dense interpolant into the storage (keyed by layer/solution) and arm a fresh one for the next
+            // integration. Mirrors how the EOS solver retains its per-layer interpolators.
+            solution_storage_ptr->p_interp_by_layer_sol[current_layer_i][solution_i] =
+                std::move(integration_solution_uptr);
+            integration_solution_uptr = std::make_unique<CySolverResult>(integration_method);
+            integration_solution_ptr  = integration_solution_uptr.get();
         }
         if (solution_storage_ptr->error_code != 0)
         {
@@ -978,15 +973,16 @@ int c_shooting_solver(
                 const bool layer_is_static = is_static_by_layer_ptr[layer_i_reversed];
                 const bool layer_is_incomp = is_incompressible_by_layer_ptr[layer_i_reversed];
 
-                // Get radial solution values at the top of the layer
+                // Evaluate each independent solution's y-values at the top of the layer from its dense interpolant.
                 for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
                 {
-                    std::vector<std::complex<double>>& storage_by_y_vec = 
-                        main_storage_vec[layer_i_reversed][solution_i];
+                    double interp_top[C_MAX_NUM_Y_REAL];
+                    solution_storage_ptr->p_interp_by_layer_sol[layer_i_reversed][solution_i]->call(
+                        radius_upper, interp_top);
                     for (size_t y_i = 0; y_i < num_ys; ++y_i)
                     {
-                        uppermost_y_per_solution_ptr[solution_i * C_MAX_NUM_Y + y_i] = 
-                            storage_by_y_vec[(layer_slices - 1) * num_ys + y_i];
+                        uppermost_y_per_solution_ptr[solution_i * C_MAX_NUM_Y + y_i] =
+                            std::complex<double>(interp_top[2 * y_i], interp_top[2 * y_i + 1]);
                     }
                 }
 
@@ -1043,26 +1039,13 @@ int c_shooting_solver(
                     );
                 }
 
-                // Use constant vectors to find the full y from all of the solutions in this layer
-                c_collapse_layer_solution(
-                    solution_ptr,  // Modified Variable
-                    constant_vector_ptr,
-                    main_storage_vec[layer_i_reversed],
-                    layer_radius_ptr,
-                    layer_density_ptr,
-                    layer_gravity_ptr,
-                    frequency,
-                    first_slice_index,
-                    layer_slices,
-                    num_sols,
-                    C_MAX_NUM_Y,
-                    num_ys,
-                    num_output_ys,
-                    ytype_i,
-                    layer_type,
-                    layer_is_static,
-                    layer_is_incomp
-                );
+                // Store this layer's collapse constants for this ytype. The collapsed y-solution is now evaluated on
+                // demand from the dense interpolants + these constants (see c_RadialSolutionStorage::eval_solveunits),
+                // rather than being written onto a fixed grid here. num_sols <= 3; unused entries stay NaN.
+                std::array<std::complex<double>, 3>& dest_constants =
+                    solution_storage_ptr->p_constants_by_ytype_layer[ytype_i][layer_i_reversed];
+                for (size_t s = 0; s < num_sols; ++s)
+                    dest_constants[s] = constant_vector_ptr[s];
 
                 // Setup for next layer
                 layer_above_lower_gravity = gravity_lower;
