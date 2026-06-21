@@ -87,6 +87,9 @@ public:
     // -----------------------------------------------------------------------
     // Property getters (const, MKS)
     // -----------------------------------------------------------------------
+    uint32_t get_layer_class_id() const noexcept override {
+        return static_cast<uint32_t>(BinaryClassID::GasLayer);
+    }
     double get_mean_molecular_weight() const noexcept { return this->p_mean_molecular_weight; }
     double get_adiabatic_index()       const noexcept { return this->p_adiabatic_index; }
     double get_reference_temperature() const noexcept { return this->p_reference_temperature; }

@@ -12,6 +12,7 @@ Usage::
         BaseLayer, c_BaseLayer, c_LayerEOSData)
 """
 
+from libc.stdint cimport uint32_t
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.vector cimport vector
@@ -78,6 +79,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_tidal_scale()             const
         c_TidalScaleMethod get_tidal_scale_method() const
         void     set_tidal_scale_method(c_TidalScaleMethod method)
+        uint32_t get_layer_class_id()          const
         double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
         double   get_density(double radius_m)  const
@@ -103,4 +105,11 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class BaseLayer(StructureBase):
     cdef unique_ptr[c_BaseLayer] _layer_ptr   # owns the most-derived C++ layer object
+    cdef cpp_bool _is_view                    # True => non-owning view into a world-owned layer
+    cdef object   _world_ref                  # keep-alive ref to the owning world (views only)
     cpdef dict get_config_dict(self)
+    # Initialise this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
+    # pointers + keep-alive ref; subclass `_view` factories set their own typed pointer first).
+    cdef void _init_view(self, c_BaseLayer* ptr, object world)
+    @staticmethod
+    cdef BaseLayer _view(c_BaseLayer* ptr, object world)

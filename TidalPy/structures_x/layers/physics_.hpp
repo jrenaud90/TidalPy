@@ -113,6 +113,10 @@ public:
     }
     c_PhysicsLayer& operator=(c_PhysicsLayer&&) noexcept = default;
 
+    uint32_t get_layer_class_id() const noexcept override {
+        return static_cast<uint32_t>(BinaryClassID::PhysicsLayer);
+    }
+
     // -----------------------------------------------------------------------
     // Static mechanical property getters (all const, MKS)
     // -----------------------------------------------------------------------

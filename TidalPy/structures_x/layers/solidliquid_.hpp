@@ -137,6 +137,10 @@ public:
     double get_reference_temperature()     const noexcept { return this->p_reference_temperature; }
     double get_melt_viscosity_reduction()  const noexcept { return this->p_melt_viscosity_reduction; }
 
+    uint32_t get_layer_class_id() const noexcept override {
+        return static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer);
+    }
+
     // -----------------------------------------------------------------------
     // calc_melt_fraction [dimensionless, 0..1]
     //

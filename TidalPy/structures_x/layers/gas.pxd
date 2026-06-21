@@ -69,4 +69,7 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class GasLayer(PhysicsLayer):
     cdef c_GasLayer* _gas_ptr   # non-owning; ownership via BaseLayer._layer_ptr
+    
+    @staticmethod
+    cdef GasLayer _view(c_GasLayer* ptr, object world)
     cpdef dict get_config_dict(self)

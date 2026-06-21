@@ -131,6 +131,13 @@ cdef class PhysicsLayer(BaseLayer):
     def __dealloc__(self):
         self._physics_ptr = NULL  # base's unique_ptr owns the C++ object
 
+    @staticmethod
+    cdef PhysicsLayer _view(c_PhysicsLayer* ptr, object world):
+        cdef PhysicsLayer v = PhysicsLayer.__new__(PhysicsLayer)
+        v._physics_ptr = ptr
+        v._init_view(<c_BaseLayer*>ptr, world)
+        return v
+
     # ------------------------------------------------------------------------------------------------------------------
     # Static mechanical property properties
     # ------------------------------------------------------------------------------------------------------------------

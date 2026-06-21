@@ -97,3 +97,6 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
 cdef class SolidLiquidLayer(PhysicsLayer):
     cdef c_SolidLiquidLayer* _solidliquid_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     cpdef dict get_config_dict(self)
+    
+    @staticmethod
+    cdef SolidLiquidLayer _view(c_SolidLiquidLayer* ptr, object world)

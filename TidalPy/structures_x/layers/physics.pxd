@@ -89,3 +89,6 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
 cdef class PhysicsLayer(BaseLayer):
     cdef c_PhysicsLayer* _physics_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     cpdef dict get_config_dict(self)
+    
+    @staticmethod
+    cdef PhysicsLayer _view(c_PhysicsLayer* ptr, object world)

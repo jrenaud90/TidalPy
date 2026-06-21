@@ -150,6 +150,14 @@ cdef class GasLayer(PhysicsLayer):
         self._gas_ptr     = NULL  # base's unique_ptr owns the C++ object
         self._physics_ptr = NULL
 
+    @staticmethod
+    cdef GasLayer _view(c_GasLayer* ptr, object world):
+        cdef GasLayer v = GasLayer.__new__(GasLayer)
+        v._gas_ptr      = ptr
+        v._physics_ptr  = <c_PhysicsLayer*>ptr
+        v._init_view(<c_BaseLayer*>ptr, world)
+        return v
+
     # ------------------------------------------------------------------------------------------------------------------
     # Gas property properties
     # ------------------------------------------------------------------------------------------------------------------

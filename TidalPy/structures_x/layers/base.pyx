@@ -72,7 +72,9 @@ cdef class BaseLayer(StructureBase):
     """
 
     def __cinit__(self, *args, **kwargs):
-        pass  # unique_ptr<c_BaseLayer> auto-inits to nullptr; _ptr set in __init__
+        # unique_ptr<c_BaseLayer> auto-inits to nullptr; _ptr set in __init__.
+        self._is_view   = False
+        self._world_ref = None
 
     def __init__(
             self,
@@ -99,8 +101,33 @@ cdef class BaseLayer(StructureBase):
         self._ptr = <c_TidalPyBaseClass*>self._layer_ptr.get()
 
     def __dealloc__(self):
-        self._layer_ptr.reset()
+        if self._is_view:
+            # The C++ layer is owned by the world; relinquish without deleting it.
+            self._layer_ptr.release()
+        else:
+            self._layer_ptr.reset()
         self._ptr = NULL
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Non-owning view construction (used by a world to hand back a wrapper around a layer it owns)
+    # ------------------------------------------------------------------------------------------------------------------
+    cdef void _init_view(self, c_BaseLayer* ptr, object world):
+        """Set this wrapper up as a non-owning view onto a world-owned C++ layer.
+
+        Stores ``ptr`` in ``_layer_ptr`` so all base getters work unchanged, but marks the
+        wrapper as a view so ``__dealloc__`` releases (does not delete) it, and keeps a
+        reference to the owning ``world`` so the C++ layer outlives the view.
+        """
+        self._layer_ptr.reset(ptr)
+        self._ptr       = <c_TidalPyBaseClass*>ptr
+        self._is_view   = True
+        self._world_ref = world
+
+    @staticmethod
+    cdef BaseLayer _view(c_BaseLayer* ptr, object world):
+        cdef BaseLayer v = BaseLayer.__new__(BaseLayer)
+        v._init_view(ptr, world)
+        return v
 
     # ------------------------------------------------------------------------------------------------------------------
     # Base class property overrides

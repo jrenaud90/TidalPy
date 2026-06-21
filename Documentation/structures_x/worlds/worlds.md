@@ -87,6 +87,25 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 | `calc_internal_heating(time_s)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. |
 | `validate_layers()` | `True` if every boundary is continuous and the innermost starts at 0. |
 
+**Accessing layers.** A built world owns its layers, you can reach them with wrappers:
+
+| Access | Returns |
+|--------|---------|
+| `world.get_layer(i)` / `world[i]` | the layer at index `i` (0 = innermost; negative indices allowed) |
+| `world[a:b]` | a list of the sliced layer wrappers |
+| `world.layers` | a list of all layer wrappers, inner to outer |
+| `world.<layer_name>` | the layer with that name (e.g. `world.mantle`) |
+| `for layer in world:` | iterate the layers inner-to-outer; `len(world)` is the layer count |
+
+Each returns a **non-owning view** dispatched to the matching subclass
+(`PhysicsLayer`/`SolidLiquidLayer`/`GasLayer`/`BaseLayer`), so the layer's full API is available
+(`world.mantle.shear_modulus_static`, `world.mantle.get_tidal_heating()`,
+`world.core.calc_complex_shear_modulus(r, ω)`, ...). The world still owns the C++ layer; the view
+keeps the world alive, so it is safe to hold but must not be mutated through. The views are built
+once and cached (rebuilt only when a layer is added), so repeated access returns the same object
+(`world.mantle is world.mantle`). Attribute access by name is only consulted after normal attribute
+lookup (defined members win) and ignores names starting with `_`.
+
 `get_config_dict()` adds `num_layers` and a `layers` list (each a geometry-level
 dict, in index order) to the `BaseWorld` keys.
 

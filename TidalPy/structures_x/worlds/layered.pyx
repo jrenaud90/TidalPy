@@ -15,6 +15,7 @@ cnp.import_array()
 
 import numpy as np
 
+from libc.stdint cimport uint32_t
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
 from cython.operator cimport dereference as deref
@@ -27,6 +28,22 @@ from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_name
+from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
+from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
+from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
+
+
+# Build the matching layer wrapper as a NON-owning view onto a layer the world owns, dispatched
+# by the C++ layer's concrete class id. The view keeps the world alive (see BaseLayer._view).
+cdef BaseLayer _wrap_layer_view(c_BaseLayer* ptr, object world):
+    cdef uint32_t class_id = ptr.get_layer_class_id()
+    if class_id == 101:
+        return PhysicsLayer._view(<c_PhysicsLayer*>ptr, world)
+    elif class_id == 102:
+        return SolidLiquidLayer._view(<c_SolidLiquidLayer*>ptr, world)
+    elif class_id == 103:
+        return GasLayer._view(<c_GasLayer*>ptr, world)
+    return BaseLayer._view(ptr, world)
 
 # Pull in the out-of-line definition of c_LayeredWorld::calc_tides (and the heavy
 # global-potential engine it uses) so it compiles into this one extension only.
@@ -144,11 +161,95 @@ cdef class LayeredWorld(BaseWorld):
                 "the current outermost radius (add layers inner-to-outer, innermost "
                 "starting at radius 0).")
         self._layered_ptr.add_layer(move(layer._layer_ptr))
+        # The layer set changed; drop the cached views so they rebuild on next access.
+        self._layer_views = None
+        self._layer_view_by_name = None
 
     @property
     def num_layers(self) -> int:
         """Number of layers in the world."""
         return self._layered_ptr.get_num_layers()
+
+    cdef list _ensure_layer_views(self):
+        """Build the per-layer view cache once (lazily); reuse it thereafter.
+
+        The views are non-owning wrappers onto the world's stable C++ layers, so they are built
+        a single time (on first access after the layers are added) and reused, rather than
+        re-allocated on every access. ``add_layer`` invalidates the cache.
+        """
+        cdef size_t n, i
+        cdef BaseLayer view
+        if self._layer_views is None:
+            n = self._layered_ptr.get_num_layers()
+            self._layer_views = []
+            self._layer_view_by_name = {}
+            for i in range(n):
+                view = _wrap_layer_view(self._layered_ptr.get_layer(i), self)
+                self._layer_views.append(view)
+                self._layer_view_by_name[view.name] = view
+        return self._layer_views
+
+    def get_layer(self, index: int) -> BaseLayer:
+        """Return a wrapper around the layer at ``index`` (0 = innermost).
+
+        The returned object is a **non-owning view**: the world still owns the C++ layer, so
+        the view exposes the layer's full Cython API (the matching ``PhysicsLayer`` /
+        ``SolidLiquidLayer`` / ``GasLayer`` / ``BaseLayer`` subclass) but must not outlive the
+        world (it keeps a reference to the world to prevent that). The views are cached (built
+        once), so repeated access is cheap. Negative indices count from the end. Raises
+        ``IndexError`` if out of range.
+        """
+        cdef list views = self._ensure_layer_views()
+        cdef Py_ssize_t n = len(views)
+        cdef Py_ssize_t i = index
+        if i < 0:
+            i += n
+        if i < 0 or i >= n:
+            raise IndexError(f"layer index {index} out of range (world has {n} layers)")
+        return views[i]
+
+    @property
+    def layers(self) -> list:
+        """List of (non-owning) layer views, inner to outer (cached). See :meth:`get_layer`."""
+        return list(self._ensure_layer_views())
+
+    def __len__(self):
+        """Number of layers, so ``len(world)`` works."""
+        return self._layered_ptr.get_num_layers()
+
+    def __iter__(self):
+        """Iterate the layer views inner-to-outer, so ``for layer in world: ...`` works."""
+        return iter(self._ensure_layer_views())
+
+    def __getitem__(self, index):
+        """Index or slice the layers: ``world[0]`` (a view) or ``world[:2]`` (a list of views).
+
+        Integer indices accept negatives and raise ``IndexError`` out of range; a slice returns
+        the corresponding list of views.
+        """
+        if isinstance(index, slice):
+            return self._ensure_layer_views()[index]
+        return self.get_layer(index)
+
+    def __getattr__(self, name):
+        """Resolve ``world.<layer_name>`` to that layer's view (after normal attribute lookup).
+
+        Only consulted when ``name`` is not a real attribute/method, so defined members always
+        win. Names starting with ``_`` are never treated as layers (so dunder/internal probes
+        are not intercepted). The view is taken from the cache (built once).
+
+        This __getattr__ is only a fallback that is called if the standard getattr fails to find 
+        a member attribute. So accessing attributes like `<world>.calc_internal_heating` will
+        still work.
+        """
+        if name.startswith("_") or self._layered_ptr == NULL:
+            raise AttributeError(name)
+        self._ensure_layer_views()
+        view = self._layer_view_by_name.get(name)
+        if view is not None:
+            return view
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute or layer named '{name}'")
 
     def calc_total_mass(self) -> float:
         """Total mass [kg] = sum of all layer masses."""

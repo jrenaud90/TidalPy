@@ -171,6 +171,12 @@ public:
     bool               get_is_tidal()            const noexcept { return this->p_is_tidal; }
     double             get_tidal_scale()         const noexcept { return this->p_tidal_scale; }
     c_TidalScaleMethod get_tidal_scale_method()  const noexcept { return this->p_tidal_scale_method; }
+
+    // Concrete-type discriminator (matches the binary class id) so a caller holding a
+    // c_BaseLayer* can build the matching wrapper. Subclasses override.
+    virtual uint32_t get_layer_class_id() const noexcept {
+        return static_cast<uint32_t>(BinaryClassID::BaseLayer);
+    }
     void   set_tidal_scale_method(c_TidalScaleMethod method) noexcept { this->p_tidal_scale_method = method; }
 
     // -----------------------------------------------------------------------

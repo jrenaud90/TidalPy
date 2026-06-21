@@ -179,6 +179,14 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         self._solidliquid_ptr = NULL  # base's unique_ptr owns the C++ object
         self._physics_ptr     = NULL
 
+    @staticmethod
+    cdef SolidLiquidLayer _view(c_SolidLiquidLayer* ptr, object world):
+        cdef SolidLiquidLayer v = SolidLiquidLayer.__new__(SolidLiquidLayer)
+        v._solidliquid_ptr = ptr
+        v._physics_ptr     = <c_PhysicsLayer*>ptr
+        v._init_view(<c_BaseLayer*>ptr, world)
+        return v
+
     # ------------------------------------------------------------------------------------------------------------------
     # Thermal property properties
     # ------------------------------------------------------------------------------------------------------------------
