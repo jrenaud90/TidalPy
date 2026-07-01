@@ -35,8 +35,8 @@ cdef extern from "tidal_potential_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_TidalPotentialModeSet:
         int num_modes
-        double mode_frequency[9]
-        c_PotentialPoint potential[9]
+        double mode_frequency[17]
+        c_PotentialPoint potential[17]
 
     cdef cppclass c_TidalPotentialBase(c_PhysicsBase):
         c_TidalPotentialModeSet calc_modes(
@@ -61,9 +61,15 @@ cdef extern from "tidal_potential_.hpp" namespace "tidalpy" nogil:
         c_NSRModesPotential(const c_TidalPotentialConfig& cfg) except +
         cpp_bool get_use_static() const
 
+    cdef cppclass c_NSRMedObliquityPotential(c_TidalPotentialBase):
+        c_NSRMedObliquityPotential() except +
+        c_NSRMedObliquityPotential(const c_TidalPotentialConfig& cfg) except +
+        cpp_bool get_use_static() const
+
     cdef enum class c_TidalPotentialModel:
         SyncLowE
         NSRModes
+        NSRMedObliquity
 
     c_TidalPotentialModel c_tidal_potential_model_from_name(const string& model_name) except +
     unique_ptr[c_TidalPotentialBase] c_find_tidal_potential(
@@ -81,4 +87,9 @@ cdef class SyncLowEPotential(TidalPotentialBase):
 
 cdef class NSRModesPotential(TidalPotentialBase):
     cdef c_NSRModesPotential* _nsr_ptr                     # non-owning; ownership via _potential_ptr
+    cpdef dict get_config_dict(self)
+
+
+cdef class NSRMedObliquityPotential(TidalPotentialBase):
+    cdef c_NSRMedObliquityPotential* _obl_ptr             # non-owning; ownership via _potential_ptr
     cpdef dict get_config_dict(self)

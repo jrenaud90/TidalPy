@@ -26,6 +26,9 @@ def _import():
     ("nsr_modes", "NSRModesPotential"),
     ("nsr", "NSRModesPotential"),
     ("NSR_MODES", "NSRModesPotential"),   # case-insensitive
+    ("nsr_modes_med_obliquity", "NSRMedObliquityPotential"),
+    ("nsr_med_obliquity", "NSRMedObliquityPotential"),
+    ("MED_OBLIQUITY", "NSRMedObliquityPotential"),   # case-insensitive
 ])
 def test_make_tidal_potential_returns_subclass(name, cls_attr):
     mod = _import()
@@ -43,6 +46,7 @@ def test_num_modes():
     mod = _import()
     assert mod.make_tidal_potential("sync_low_e").num_modes == 1
     assert mod.make_tidal_potential("nsr_modes").num_modes == 9
+    assert mod.make_tidal_potential("nsr_modes_med_obliquity").num_modes == 17
 
 
 # =====================================================================================================================
@@ -57,6 +61,11 @@ def test_config_dict():
     assert cfg["model"] == "nsr_modes"
     assert cfg["use_static"] is True
     assert nsr.use_static is True
+    obl = mod.make_tidal_potential("nsr_modes_med_obliquity", {"use_static": True})
+    cfg_obl = obl.get_config_dict()
+    assert cfg_obl["model"] == "nsr_modes_med_obliquity"
+    assert cfg_obl["use_static"] is True
+    assert obl.use_static is True
 
 
 # =====================================================================================================================
@@ -66,6 +75,8 @@ def test_config_dict():
     ("sync_low_e", None),
     ("nsr_modes", {"use_static": True}),
     ("nsr_modes", {"use_static": False}),
+    ("nsr_modes_med_obliquity", {"use_static": True}),
+    ("nsr_modes_med_obliquity", {"use_static": False}),
 ])
 def test_binary_round_trip(name, config):
     mod = _import()
@@ -115,6 +126,25 @@ def test_nsr_modes_matches_legacy():
     modes, pots = nsr.calc_modes(n, o, ecc, host, a, radius, colat, lon, t)
     freqs_by_name, modes_by_name, ptup_by_mode = legacy(radius, lon, colat, t, n, o, ecc, host, a)
     mode_names = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n')
+    for i, mode_name in enumerate(mode_names):
+        assert np.isclose(modes[i], modes_by_name[mode_name], rtol=1e-12)
+        assert np.allclose(np.asarray(pots[i]), np.asarray(ptup_by_mode[mode_name]), rtol=1e-10, atol=1e-30)
+
+
+@pytest.mark.parametrize("use_static", [False, True])
+def test_nsr_med_obliquity_matches_legacy(use_static):
+    from TidalPy.tides.potential.nsr_modes_med_eccen_med_obliquity import tidal_potential as legacy
+    mod = _import()
+    obl = mod.make_tidal_potential("nsr_modes_med_obliquity", {"use_static": use_static})
+    n = 2.0 * np.pi / 86400.0
+    o = 1.5 * n
+    radius, lon, colat, t, ecc, host, a = 6.0e6, 0.7, 1.3, 1234.0, 0.05, 1.0e26, 1.0e9
+    obliquity = 0.2
+    modes, pots = obl.calc_modes(n, o, ecc, host, a, radius, colat, lon, t, obliquity)
+    freqs_by_name, modes_by_name, ptup_by_mode = legacy(
+        radius, lon, colat, t, n, o, ecc, obliquity, host, a, use_static)
+    mode_names = ('n', '2n', '3n', '2o+n', '2o-n', '2o-2n', '2o-3n', '2o-4n', '2o-5n',
+                  'o', '2o', 'o+n', 'o+2n', 'o-n', 'o-2n', 'o-3n', 'o-4n')
     for i, mode_name in enumerate(mode_names):
         assert np.isclose(modes[i], modes_by_name[mode_name], rtol=1e-12)
         assert np.allclose(np.asarray(pots[i]), np.asarray(ptup_by_mode[mode_name]), rtol=1e-10, atol=1e-30)

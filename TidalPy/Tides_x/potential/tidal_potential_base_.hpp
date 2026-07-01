@@ -14,6 +14,9 @@
  *   c_SyncLowEPotential  (alias "sync_low_e") - synchronous rotation, low eccentricity, no obliquity (1 mode).
  *   c_NSRModesPotential  (alias "nsr_modes")  - moderate eccentricity, non-synchronous rotation, no obliquity
  *                                               (up to 9 modes n, 2n, 3n, 2o+-kn).
+ *   c_NSRMedObliquityPotential (alias "nsr_modes_med_obliquity") - moderate eccentricity, moderate obliquity,
+ *                                               non-synchronous rotation (up to 17 l = 2 modes; adds the m = 1
+ *                                               harmonics o, o+-kn and the 2o mode).
  *
  * All quantities MKS; frequencies in rad s-1; angles in radians. calc_modes is const. Universal
  * constants (G, the spin-orbit mode threshold) are read from the TidalPy config singleton, not passed in.
@@ -41,9 +44,10 @@ struct c_TidalPotentialState {
     double semi_major_axis   = 0.0;   // [m]
 };
 
-// Maximum number of modes any currently-supported l = 2 truncation produces (extend when obliquity modes
-// are added). The mode set is a fixed-capacity value type so it can be returned without heap allocation.
-constexpr int C_MAX_TIDAL_POTENTIAL_MODES = 9;
+// Maximum number of modes any currently-supported l = 2 truncation produces (the moderate-obliquity NSR
+// truncation is the largest at 17). The mode set is a fixed-capacity value type so it can be returned
+// without heap allocation.
+constexpr int C_MAX_TIDAL_POTENTIAL_MODES = 17;
 
 // The active tidal modes at a point: signed frequency + potential angular factor per mode.
 struct c_TidalPotentialModeSet {

@@ -10,10 +10,14 @@
  *                         One mode at the orbital frequency n.
  *   c_NSRModesPotential  (alias "nsr_modes")  - moderate eccentricity (e^3), non-synchronous rotation,
  *                         no obliquity. Up to nine l = 2 modes n, 2n, 3n, 2o+-kn (o = spin frequency).
+ *   c_NSRMedObliquityPotential (alias "nsr_modes_med_obliquity") - moderate eccentricity (e^3), moderate
+ *                         obliquity (obliquity^3), non-synchronous rotation. Up to seventeen l = 2 modes
+ *                         (the nine no-obliquity modes plus the m = 1 modes o, o+-kn and the mode 2o).
  *
  * Binary format (20-byte header + payload):
  *   c_SyncLowEPotential: class_id 1001, 0 params.
  *   c_NSRModesPotential: class_id 1002, 1 param (use_static as 0.0/1.0).
+ *   c_NSRMedObliquityPotential: class_id 1003, 1 param (use_static as 0.0/1.0).
  */
 
 #include <algorithm>
@@ -270,6 +274,191 @@ protected:
 };
 
 
+// -------------------------------------------------------------------------------------------------------
+// c_NSRMedObliquityPotential - moderate eccentricity (e^3), moderate obliquity (obliquity^3),
+// non-synchronous rotation (alias "nsr_modes_med_obliquity"). Seventeen l = 2 modes: the nine no-obliquity
+// modes n, 2n, 3n, 2o+-kn plus the obliquity-driven m = 1 modes o, o+-kn and the m = 2 mode 2o.
+// global_coefficient = 1.5 G M r^2 / a^3. Direct port of
+// tides/potential/nsr_modes_med_eccen_med_obliquity.py.
+// -------------------------------------------------------------------------------------------------------
+class c_NSRMedObliquityPotential : public c_TidalPotentialBase {
+public:
+    c_NSRMedObliquityPotential() : c_TidalPotentialBase("nsr_modes_med_obliquity") {}
+    explicit c_NSRMedObliquityPotential(const c_TidalPotentialConfig& cfg)
+        : c_TidalPotentialBase("nsr_modes_med_obliquity"), p_use_static(cfg.use_static) {}
+    ~c_NSRMedObliquityPotential() override = default;
+
+    bool get_use_static() const { return this->p_use_static; }
+
+    int num_modes() const override { return 17; }
+
+    c_TidalPotentialModeSet calc_modes(
+            const c_TidalPotentialState& state,
+            double radius,
+            double colatitude,
+            double longitude,
+            double time) const override {
+        const double G                   = tidalpy_config_ptr->d_G;
+        const double min_spin_orbit_diff = tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF;
+
+        const double cos_t = std::cos(colatitude);
+        const double sin_t = std::sin(colatitude);
+        const double cos2t = cos_t * cos_t;
+        const double sin2t = sin_t * sin_t;
+        const double sqrt_1mc2 = std::sqrt(1.0 - cos2t);   // = sin_t for colatitude in [0, pi]
+
+        // Associated Legendre functions P_2m and their colatitude derivatives.
+        const double p_20   = 0.5 * (3.0 * cos2t - 1.0);
+        const double dp_20  = -3.0 * cos_t * sin_t;
+        const double d2p_20 = 3.0 * (sin2t - cos2t);
+        const double p_21   = -3.0 * cos_t * sqrt_1mc2;
+        const double dp_21  = 3.0 * sin_t * (1.0 - 2.0 * cos2t) / sqrt_1mc2;
+        const double d2p_21 = 3.0 * cos_t
+                            * (3.0 * sin2t + 2.0 * cos2t * cos2t - (2.0 * sin2t + 3.0) * cos2t + 1.0)
+                            / ((1.0 - cos2t) * sqrt_1mc2);
+        const double p_22   = 3.0 * (1.0 - cos2t);
+        const double dp_22  = 6.0 * cos_t * sin_t;
+        const double d2p_22 = 6.0 * (cos2t - sin2t);
+
+        const double cos_l  = std::cos(longitude);
+        const double sin_l  = std::sin(longitude);
+        const double cos_2l = std::cos(2.0 * longitude);
+        const double sin_2l = std::sin(2.0 * longitude);
+
+        const double ecc  = state.eccentricity;
+        const double ecc2 = ecc * ecc;
+        const double ecc3 = ecc * ecc2;
+        const double obl  = state.obliquity;
+        const double obl2 = obl * obl;
+        const double obl3 = obl * obl2;
+        const double n    = state.orbital_frequency;
+        const double o    = state.spin_frequency;
+
+        const double modes[17] = {
+            n,
+            2.0 * n,
+            3.0 * n,
+            2.0 * o + n,
+            2.0 * o - n,
+            2.0 * o - 2.0 * n,
+            2.0 * o - 3.0 * n,
+            2.0 * o - 4.0 * n,
+            2.0 * o - 5.0 * n,
+            o,
+            2.0 * o,
+            o + n,
+            o + 2.0 * n,
+            o - n,
+            o - 2.0 * n,
+            o - 3.0 * n,
+            o - 4.0 * n
+        };
+        // The m integer (0/1/2) selecting the Legendre and longitude harmonic for each mode.
+        const int mode_m[17] = {
+            0, 0, 0, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1
+        };
+        const double mode_coeffs[17] = {
+            -ecc - (9.0 / 8.0) * ecc3 + (7.0 / 4.0) * ecc * obl2,
+            -(3.0 / 2.0) * ecc2 - (1.0 / 2.0) * obl2,
+            -(53.0 / 24.0) * ecc3 - (7.0 / 4.0) * ecc * obl2,
+            (1.0 / 288.0) * ecc3 + (1.0 / 8.0) * obl2 * ecc,
+            (-1.0 / 12.0) * ecc + (1.0 / 96.0) * ecc3 + (1.0 / 6.0) * ecc * obl2,
+            (1.0 / 6.0) - (5.0 / 12.0) * ecc2 - (1.0 / 12.0) * obl2,
+            (7.0 / 12.0) * ecc - (41.0 / 32.0) * ecc3 - (7.0 / 24.0) * ecc * obl2,
+            (17.0 / 12.0) * ecc2,
+            (845.0 / 288.0) * ecc3,
+            (1.0 / 3.0) * obl + (1.0 / 2.0) * obl * ecc2 - (2.0 / 9.0) * obl3,
+            (1.0 / 12.0) * obl2,
+            (1.0 / 2.0) * ecc * obl,
+            (3.0 / 4.0) * ecc2 * obl + (1.0 / 12.0) * obl3,
+            (2.0 / 3.0) * obl * ecc,
+            -(1.0 / 3.0) * obl + (19.0 / 12.0) * obl * ecc2 + (5.0 / 36.0) * obl3,
+            -(7.0 / 6.0) * obl * ecc,
+            -(17.0 / 6.0) * obl * ecc2
+        };
+        const double static_coeff = (-1.0 / 3.0) - (1.0 / 2.0) * ecc2 + (1.0 / 2.0) * obl;
+        const double global_coefficient = (3.0 / 2.0) * G * state.host_mass * radius * radius
+                                        / (state.semi_major_axis * state.semi_major_axis * state.semi_major_axis);
+
+        c_TidalPotentialModeSet set;
+        set.num_modes = 17;
+        for (int mode_i = 0; mode_i < 17; ++mode_i) {
+            const double mode = modes[mode_i];
+            const double freq = std::fabs(mode);
+            set.mode_frequency[mode_i] = mode;
+
+            const double cos_mode = std::cos(mode * time);
+            const double sin_mode = std::sin(mode * time);
+
+            double legendre, legendre_dtheta, legendre_dtheta2;
+            switch (mode_m[mode_i]) {
+                case 0:  legendre = p_20; legendre_dtheta = dp_20; legendre_dtheta2 = d2p_20; break;
+                case 1:  legendre = p_21; legendre_dtheta = dp_21; legendre_dtheta2 = d2p_21; break;
+                default: legendre = p_22; legendre_dtheta = dp_22; legendre_dtheta2 = d2p_22; break;
+            }
+
+            // Longitude harmonic factor and its phi derivatives (0*phi, sin(phi + mode), cos(2phi + mode)).
+            double longitude_coeff, longitude_coeff_dphi, longitude_coeff_dphi2;
+            switch (mode_m[mode_i]) {
+                case 0:
+                    longitude_coeff       = cos_mode;
+                    longitude_coeff_dphi  = 0.0;
+                    longitude_coeff_dphi2 = 0.0;
+                    break;
+                case 1:
+                    longitude_coeff       = sin_l * cos_mode + cos_l * sin_mode;
+                    longitude_coeff_dphi  = cos_l * cos_mode - sin_l * sin_mode;
+                    longitude_coeff_dphi2 = -sin_l * cos_mode - cos_l * sin_mode;
+                    break;
+                default:
+                    longitude_coeff       = cos_2l * cos_mode - sin_2l * sin_mode;
+                    longitude_coeff_dphi  = -2.0 * sin_2l * cos_mode - 2.0 * cos_2l * sin_mode;
+                    longitude_coeff_dphi2 = -4.0 * cos_2l * cos_mode + 4.0 * sin_2l * sin_mode;
+                    break;
+            }
+
+            const double mode_switch  = (this->p_use_static || freq > min_spin_orbit_diff) ? 1.0 : 0.0;
+            const double switch_coeff = mode_switch * mode_coeffs[mode_i];
+
+            double potential         = switch_coeff * longitude_coeff * legendre;
+            double partial_theta     = switch_coeff * longitude_coeff * legendre_dtheta;
+            double partial_phi       = switch_coeff * longitude_coeff_dphi * legendre;
+            double partial_theta2    = switch_coeff * longitude_coeff * legendre_dtheta2;
+            double partial_phi2      = switch_coeff * longitude_coeff_dphi2 * legendre;
+            double partial_theta_phi = switch_coeff * longitude_coeff_dphi * legendre_dtheta;
+
+            if (this->p_use_static) {
+                potential      += static_coeff * p_20;
+                partial_theta  += static_coeff * dp_20;
+                partial_theta2 += static_coeff * d2p_20;
+            }
+
+            set.potential[mode_i] = c_PotentialPoint {
+                global_coefficient * potential,
+                global_coefficient * partial_theta,
+                global_coefficient * partial_phi,
+                global_coefficient * partial_theta2,
+                global_coefficient * partial_phi2,
+                global_coefficient * partial_theta_phi
+            };
+        }
+        return set;
+    }
+
+    void write_binary(std::ostream& out) const override {
+        this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::NSRMedObliquityPotential),
+                                   {this->p_use_static ? 1.0 : 0.0});
+    }
+    void read_binary(std::istream& in, bool force = false) override {
+        const std::vector<double> params = this->read_physics_binary(in, force, 1);
+        this->p_use_static = (params[0] != 0.0);
+    }
+
+protected:
+    bool p_use_static = false;
+};
+
+
 // =====================================================================================================================
 // Factory
 // =====================================================================================================================
@@ -277,6 +466,7 @@ protected:
 enum class c_TidalPotentialModel : uint8_t {
     SyncLowE = 0,
     NSRModes = 1,
+    NSRMedObliquity = 2,
 };
 
 // Map a (case-insensitive) model name or alias to a c_TidalPotentialModel. Throws on an unknown name.
@@ -288,6 +478,9 @@ inline c_TidalPotentialModel c_tidal_potential_model_from_name(const std::string
     if (name == "nsr_modes" || name == "nsr" || name == "nsr_med_eccen") {
         return c_TidalPotentialModel::NSRModes;
     }
+    if (name == "nsr_modes_med_obliquity" || name == "nsr_med_obliquity" || name == "med_obliquity") {
+        return c_TidalPotentialModel::NSRMedObliquity;
+    }
     throw std::invalid_argument("TidalPy: unknown tidal potential model name '" + model_name + "'");
 }
 
@@ -297,6 +490,7 @@ inline std::unique_ptr<c_TidalPotentialBase> c_find_tidal_potential(
     switch (model) {
         case c_TidalPotentialModel::SyncLowE: return std::make_unique<c_SyncLowEPotential>(cfg);
         case c_TidalPotentialModel::NSRModes: return std::make_unique<c_NSRModesPotential>(cfg);
+        case c_TidalPotentialModel::NSRMedObliquity: return std::make_unique<c_NSRMedObliquityPotential>(cfg);
     }
     throw std::invalid_argument("TidalPy: unrecognised c_TidalPotentialModel enum value");
 }
@@ -317,6 +511,8 @@ inline std::unique_ptr<c_TidalPotentialBase> c_tidal_potential_from_binary(std::
     switch (static_cast<BinaryClassID>(header.class_id)) {
         case BinaryClassID::SyncLowEPotential: model = std::make_unique<c_SyncLowEPotential>(); break;
         case BinaryClassID::NSRModesPotential: model = std::make_unique<c_NSRModesPotential>(); break;
+        case BinaryClassID::NSRMedObliquityPotential:
+            model = std::make_unique<c_NSRMedObliquityPotential>(); break;
         default:
             throw std::runtime_error("TidalPy: unknown tidal potential class id in binary stream");
     }

@@ -34,9 +34,11 @@ potential angular factor `U` with its colatitude/longitude derivatives.
 |---------------|-------|------------|
 | `SyncLowEPotential` (`sync_low_e`) | 1 (`n`) | synchronous rotation, low eccentricity (`e`), no obliquity |
 | `NSRModesPotential` (`nsr_modes`) | up to 9 (`n, 2n, 3n, 2o±kn`) | moderate eccentricity (`e³`), non-synchronous rotation, no obliquity |
+| `NSRMedObliquityPotential` (`nsr_modes_med_obliquity`) | up to 17 (the 9 no-obliquity modes plus the `m = 1` modes `o, o±kn` and `2o`) | moderate eccentricity (`e³`), moderate obliquity (`obliquity³`), non-synchronous rotation |
 
 `o` is the rotation (spin) frequency and `n` the orbital frequency. A mode whose `|frequency|` does not
-exceed `min_spin_orbit_diff` is switched off.
+exceed `min_spin_orbit_diff` is switched off. The obliquity truncation adds the `m = 1` associated
+Legendre harmonic (`P_21`); pass the planet `obliquity` (radians) to `calc_modes` when using it.
 
 ## Multi-mode combination
 

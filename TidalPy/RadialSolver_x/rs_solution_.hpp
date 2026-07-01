@@ -390,9 +390,9 @@ public:
         // Locate the layer. Upper radii ascend; an interface radius belongs to the lower of the two layers, so the
         // first layer whose upper radius is >= the query wins. A tiny relative slack absorbs the exact-surface case.
         size_t target_layer_i = this->num_layers;
-        for (size_t layer_i = this->p_start_layer_i; layer_i < this->num_layers; ++L)
+        for (size_t layer_i = this->p_start_layer_i; layer_i < this->num_layers; ++layer_i)
         {
-            const double upper = this->p_upper_radii_solve[L];
+            const double upper = this->p_upper_radii_solve[layer_i];
             if (radius_solve <= upper * (1.0 + 1.0e-12) + 1.0e-300) { target_layer_i = layer_i; break; }
         }
         if (target_layer_i >= this->num_layers) target_layer_i = this->num_layers - 1;   // clamp slight surface overshoot
@@ -418,7 +418,7 @@ public:
         }
 
         const std::array<std::complex<double>, 3>& constants =
-            this->p_constants_by_ytype_layer[ytype_i][layer_i];
+            this->p_constants_by_ytype_layer[ytype_i][target_layer_i];
 
         // Collapse: out6[y] = sum_sol const[sol] * ysol[sol][mapped_y]. The y-index mapping mirrors
         // c_collapse_layer_solution (liquid layers store fewer ys); undefined ys are left NaN.
@@ -573,7 +573,7 @@ public:
     {
         if (!this->eos_solution_uptr || !this->success) return false;
         const double solve_r = radius_si / this->p_length_conv;
-        size_t layer_i = (this->num_layers == 0) ? 0 : this->num_layers - 1;
+        size_t target_layer_i = (this->num_layers == 0) ? 0 : this->num_layers - 1;
         for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
         {
             const double upper = (layer_i < this->p_upper_radii_solve.size())
@@ -581,11 +581,11 @@ public:
                 : TidalPyConstants::d_INF;
             if (solve_r <= upper * (1.0 + 1.0e-12) + 1.0e-300)
             {
-                layer_i = layer_i;
+                target_layer_i = layer_i;
                 break;
             }
         }
-        this->eos_solution_uptr->call(layer_i, solve_r, out);
+        this->eos_solution_uptr->call(target_layer_i, solve_r, out);
         return true;
     }
 

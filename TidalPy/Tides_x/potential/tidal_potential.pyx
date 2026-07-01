@@ -11,6 +11,8 @@ stress/strain/heating kernel multiplies each mode's potential by that mode's rad
 - SyncLowEPotential  (alias "sync_low_e") - synchronous rotation, low eccentricity, no obliquity (1 mode).
 - NSRModesPotential  (alias "nsr_modes")  - moderate eccentricity, non-synchronous rotation, no obliquity
                                             (up to 9 modes n, 2n, 3n, 2o+-kn).
+- NSRMedObliquityPotential (alias "nsr_modes_med_obliquity") - moderate eccentricity, moderate obliquity,
+                                            non-synchronous rotation (up to 17 modes).
 """
 
 import numpy as np
@@ -164,6 +166,35 @@ cdef class NSRModesPotential(TidalPotentialBase):
         return d
 
 
+cdef class NSRMedObliquityPotential(TidalPotentialBase):
+    """Moderate eccentricity, moderate obliquity, non-synchronous rotation. Up to seventeen modes."""
+
+    def __cinit__(self, *args, **kwargs):
+        self._obl_ptr = NULL
+
+    def __init__(self, bint use_static=False):
+        cdef c_TidalPotentialConfig config
+        config.use_static = use_static
+        cdef unique_ptr[c_TidalPotentialBase] ptr = c_find_tidal_potential(
+            c_TidalPotentialModel.NSRMedObliquity, config)
+        self._obl_ptr       = <c_NSRMedObliquityPotential*>ptr.get()
+        self._potential_ptr = move(ptr)
+        self._ptr           = <c_TidalPyBaseClass*>self._potential_ptr.get()
+
+    def __dealloc__(self):
+        self._obl_ptr = NULL
+
+    @property
+    def use_static(self) -> bool:
+        """Whether the time-independent (static) potential terms are included."""
+        return bool(self._obl_ptr.get_use_static())
+
+    cpdef dict get_config_dict(self):
+        d = TidalPotentialBase.get_config_dict(self)
+        d["use_static"] = bool(self._obl_ptr.get_use_static())
+        return d
+
+
 # =====================================================================================================================
 # Factory
 # =====================================================================================================================
@@ -173,8 +204,9 @@ def make_tidal_potential(str model_name, dict config=None) -> TidalPotentialBase
     Parameters
     ----------
     model_name : str
-        One of ``"sync_low_e"`` (aliases ``"synchronous_low_e"``, ``"simple"``) or
-        ``"nsr_modes"`` (aliases ``"nsr"``, ``"nsr_med_eccen"``).
+        One of ``"sync_low_e"`` (aliases ``"synchronous_low_e"``, ``"simple"``),
+        ``"nsr_modes"`` (aliases ``"nsr"``, ``"nsr_med_eccen"``), or
+        ``"nsr_modes_med_obliquity"`` (aliases ``"nsr_med_obliquity"``, ``"med_obliquity"``).
     config : dict, optional
         Model parameters. Currently only ``use_static`` (bool, NSR only) is honored.
 
@@ -194,15 +226,22 @@ def make_tidal_potential(str model_name, dict config=None) -> TidalPotentialBase
 
     cdef SyncLowEPotential sync_potential
     cdef NSRModesPotential nsr_potential
+    cdef NSRMedObliquityPotential obl_potential
     if model == c_TidalPotentialModel.SyncLowE:
         sync_potential = SyncLowEPotential.__new__(SyncLowEPotential)
         sync_potential._sync_ptr      = <c_SyncLowEPotential*>ptr.get()
         sync_potential._potential_ptr = move(ptr)
         sync_potential._ptr           = <c_TidalPyBaseClass*>sync_potential._potential_ptr.get()
         return sync_potential
-    else:
+    elif model == c_TidalPotentialModel.NSRModes:
         nsr_potential = NSRModesPotential.__new__(NSRModesPotential)
         nsr_potential._nsr_ptr       = <c_NSRModesPotential*>ptr.get()
         nsr_potential._potential_ptr = move(ptr)
         nsr_potential._ptr           = <c_TidalPyBaseClass*>nsr_potential._potential_ptr.get()
         return nsr_potential
+    else:
+        obl_potential = NSRMedObliquityPotential.__new__(NSRMedObliquityPotential)
+        obl_potential._obl_ptr       = <c_NSRMedObliquityPotential*>ptr.get()
+        obl_potential._potential_ptr = move(ptr)
+        obl_potential._ptr           = <c_TidalPyBaseClass*>obl_potential._potential_ptr.get()
+        return obl_potential

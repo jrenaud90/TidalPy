@@ -113,6 +113,7 @@ enum class BinaryClassID : uint32_t {
     TidalPotentialBase    = 1000,
     SyncLowEPotential     = 1001,
     NSRModesPotential     = 1002,
+    NSRMedObliquityPotential = 1003,
 };
 
 // ---------------------------------------------------------------------------
