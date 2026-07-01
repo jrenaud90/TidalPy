@@ -25,7 +25,7 @@ struct c_InterpolateEOSInput
 // The function signature matches CyRK's PreEvalFunc:
 //   void(char* preeval_output, double radius, double* radial_solutions, char* preeval_input)
 
-void c_preeval_interpolate(
+inline void c_preeval_interpolate(
         // Values that will be updated by the function
         char* preeval_output,
         // Input that is used by the pre-eval

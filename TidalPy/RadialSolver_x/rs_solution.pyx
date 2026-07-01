@@ -187,6 +187,19 @@ cdef class RadialSolverSolution:
         eos_solution_ptr.call(<size_t>layer_index, radius, eos_interp_ptr)
         return eos_interp
 
+    def eos_call_si(self, double radius):
+        """Dense EOS outputs (SI) at an arbitrary radius [m], via the solution's own dense interpolant.
+
+        Unlike :meth:`eos_call` (which passes the raw radius straight to the non-dim-domain cysolver and
+        only works for a non-dim radius), this converts the SI radius into the interpolant domain and
+        returns SI values. Use this for on-radius shear/bulk (indices 5,6 and 7,8) and structure.
+        """
+        cdef cnp.ndarray[cnp.float64_t, ndim=1] eos_interp = np.empty(C_EOS_DY_VALUES, dtype=np.float64, order='C')
+        cdef double[::1] eos_interp_view = eos_interp
+        if not self.solution_storage_ptr.get_eos_si(radius, &eos_interp_view[0]):
+            eos_interp[:] = np.nan
+        return eos_interp
+
     def get_radial_solution(self, double radius, size_t ytype_index = 0):
         """Collapsed complex y1..y6 (SI) at one radius [m] for a boundary-condition ytype.
 

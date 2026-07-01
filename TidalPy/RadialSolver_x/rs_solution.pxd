@@ -52,6 +52,7 @@ cdef extern from "rs_solution_.hpp" nogil:
             size_t ytype_i,
             cpp_complex[double]* out)
         cpp_bool get_surface_y(size_t ytype_i, cpp_complex[double]* out6)
+        cpp_bool get_eos_si(double radius_si, double* out)
         void find_love()
         void dimensionalize_data(
             c_NonDimensionalScales* nondim_scales,

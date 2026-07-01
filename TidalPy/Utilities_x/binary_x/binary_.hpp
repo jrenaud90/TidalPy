@@ -109,6 +109,10 @@ enum class BinaryClassID : uint32_t {
     FixedQTide         = 902,
     FixedLagTide       = 903,
     CTLQTide           = 904,
+    // 10XX Tidal potential models - the 2D (colatitude/longitude/time) tidal potential per mode.
+    TidalPotentialBase    = 1000,
+    SyncLowEPotential     = 1001,
+    NSRModesPotential     = 1002,
 };
 
 // ---------------------------------------------------------------------------

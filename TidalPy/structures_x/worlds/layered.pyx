@@ -1011,6 +1011,54 @@ cdef class LayeredWorld(BaseWorld):
         return self._layered_ptr.get_layer_tidal_heating(<size_t>index)
 
     # ------------------------------------------------------------------------------------------------------------------
+    # On-demand 3D tidal stress/strain/heating
+    # ------------------------------------------------------------------------------------------------------------------
+    def set_tidal_potential_model(self, TidalPotentialBase potential not None):
+        """Attach a tidal potential model (truncation) for the 3D dissipation path (transfers ownership).
+
+        Ownership of the C++ model is moved from ``potential`` into this world; the passed
+        ``TidalPotentialBase`` becomes an empty shell and must not be reused. Build one with
+        :func:`TidalPy.Tides_x.potential.tidal_potential.make_tidal_potential`.
+        """
+        if potential._potential_ptr.get() == NULL:
+            raise ValueError("This tidal potential model holds no C++ object (already attached or moved).")
+        self._layered_ptr.set_tidal_potential_model(move(potential._potential_ptr))
+
+    @property
+    def tidal_potential_model_set(self) -> bool:
+        """Whether a tidal potential model has been attached for the 3D path."""
+        return self._layered_ptr.get_tidal_potential_model_set()
+
+    def get_3d_tidal_heating(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass,
+            double radius,
+            double colatitude,
+            double longitude,
+            double time) -> float:
+        """On-demand 3D tidal volumetric heating [W m-3] at one point.
+
+        Requires the rheology tide model (:meth:`set_tide_model`), a tidal potential model
+        (:meth:`set_tidal_potential_model`), and a solved EOS (:meth:`solve_eos`). The radial response is
+        solved once per active tidal mode frequency; each mode's stress/strain tensors are summed (scaled
+        by ``|omega|/2``) and the heating is taken once from the combined tensors. Returns NaN in liquid
+        layers / at the center / below the solver's starting radius.
+        """
+        cdef c_TideSolveConfig state
+        state.orbital_frequency = orbital_frequency
+        state.spin_frequency    = spin_frequency
+        state.eccentricity      = eccentricity
+        state.obliquity         = obliquity
+        state.semi_major_axis   = semi_major_axis
+        state.host_mass         = host_mass
+        return self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude, longitude, time)
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):

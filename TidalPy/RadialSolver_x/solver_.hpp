@@ -118,8 +118,6 @@ int c_radial_solver(
     c_EOS_ODEInput eos_input;
     std::vector<c_EOS_ODEInput> eos_inputs_bylayer_vec;
     eos_inputs_bylayer_vec.reserve(num_layers);
-    std::vector<c_InterpolateEOSInput> specific_eos_input_bylayer_vec;
-    specific_eos_input_bylayer_vec.reserve(num_layers);
     char* specific_eos_char_ptr = nullptr;
 
     if (num_layers == 0)
@@ -203,20 +201,49 @@ int c_radial_solver(
 
     if (solution_storage_ptr->error_code == 0)
     {
+        // Persist the EOS input arrays (in the current solve units: non-dim when nondimensionalize is set, else SI)
+        // into the solution storage. The cysolver's dense extra-output re-invoke references the per-layer
+        // c_InterpolateEOSInput, which in turn references these arrays; persisting them here (rather than in
+        // c_radial_solver's locals, which dangled after return and corrupted get_eos_si) keeps that dense path valid
+        // and unit-correct for the life of the solution. See c_RadialSolutionStorage::p_eos_in_*_nd.
+        solution_storage_ptr->p_eos_in_radius_nd.assign(
+            radius_array_in_ptr,
+            radius_array_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_in_density_nd.assign(
+            density_array_in_ptr,
+            density_array_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_in_bulk_nd.assign(
+            complex_bulk_modulus_in_ptr,
+            complex_bulk_modulus_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_in_shear_nd.assign(
+            complex_shear_modulus_in_ptr,
+            complex_shear_modulus_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_interp_inputs.clear();
+        solution_storage_ptr->p_eos_interp_inputs.reserve(num_layers);   // reserve so the addresses below stay stable
+
+        double* persist_radius_ptr              = solution_storage_ptr->p_eos_in_radius_nd.data();
+        double* persist_density_ptr             = solution_storage_ptr->p_eos_in_density_nd.data();
+        std::complex<double>* persist_bulk_ptr  = solution_storage_ptr->p_eos_in_bulk_nd.data();
+        std::complex<double>* persist_shear_ptr = solution_storage_ptr->p_eos_in_shear_nd.data();
+
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
         {
             if (eos_integration_method_int_bylayer_ptr[layer_i] == C_EOS_INTERPOLATE_METHOD_INT)
             {
                 eos_function_bylayer_vec[layer_i] = c_preeval_interpolate;
                 bottom_slice_index                = first_slice_index_by_layer_vec[layer_i];
-                specific_eos_input_bylayer_vec.emplace_back(
+                solution_storage_ptr->p_eos_interp_inputs.emplace_back(
                     num_slices_by_layer_vec[layer_i],
-                    &radius_array_in_ptr[bottom_slice_index],
-                    &density_array_in_ptr[bottom_slice_index],
-                    &complex_bulk_modulus_in_ptr[bottom_slice_index],
-                    &complex_shear_modulus_in_ptr[bottom_slice_index]
+                    &persist_radius_ptr[bottom_slice_index],
+                    &persist_density_ptr[bottom_slice_index],
+                    &persist_bulk_ptr[bottom_slice_index],
+                    &persist_shear_ptr[bottom_slice_index]
                 );
-                specific_eos_char_ptr = reinterpret_cast<char*>(&specific_eos_input_bylayer_vec.back());
+                specific_eos_char_ptr = reinterpret_cast<char*>(&solution_storage_ptr->p_eos_interp_inputs.back());
                 eos_inputs_bylayer_vec.emplace_back(G_to_use, radius_planet_to_use, specific_eos_char_ptr, false, false, false);
             }
             else

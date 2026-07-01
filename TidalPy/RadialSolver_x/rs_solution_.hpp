@@ -13,6 +13,7 @@
 #include "love_.hpp"
 #include "rs_constants_.hpp"
 #include "../Material_x/eos/eos_solution_.hpp"   // also provides CyRK's CySolverResult (complete type)
+#include "../Material_x/eos/methods/interpolate_.hpp"  // c_InterpolateEOSInput (persisted standalone EOS args)
 #include "../../constants_.hpp"
 #include "../utilities/dimensions/nondimensional_.hpp"
 #include "../utilities/arrays/interp_.hpp"        // cf_interp / cf_binary_search_with_guess (shared array-interp)
@@ -102,6 +103,18 @@ public:
     bool   p_eos_is_nondim = false;
     double p_grav_conv     = 1.0;
     double p_dens_conv     = 1.0;
+
+    // Persisted EOS inputs for the standalone (c_radial_solver) shooting path. The EOS cysolver's dense extra-output
+    // re-invoke (density + complex moduli) reads its stored c_InterpolateEOSInput, which only references, never
+    // copies, these arrays. They must therefore (a) outlive c_radial_solver (the original per-call locals dangled,
+    // corrupting any post-solve eos->call), and (b) stay in the EOS solve units (non-dim when the solve ran non-dim),
+    // so c_EOSSolution::call's nondim_status redim restores SI. get_eos_si then evaluates the dense interpolant at a
+    // solve-unit radius and gets correct SI back. The world path never fills these (it injects array-interp EOS data).
+    std::vector<double> p_eos_in_radius_nd  = std::vector<double>();
+    std::vector<double> p_eos_in_density_nd = std::vector<double>();
+    std::vector<std::complex<double>> p_eos_in_bulk_nd  = std::vector<std::complex<double>>();
+    std::vector<std::complex<double>> p_eos_in_shear_nd = std::vector<std::complex<double>>();
+    std::vector<c_InterpolateEOSInput> p_eos_interp_inputs = std::vector<c_InterpolateEOSInput>();
 
     // Default constructor
     c_RadialSolutionStorage() = default;
@@ -376,17 +389,17 @@ public:
 
         // Locate the layer. Upper radii ascend; an interface radius belongs to the lower of the two layers, so the
         // first layer whose upper radius is >= the query wins. A tiny relative slack absorbs the exact-surface case.
-        size_t layer_i = this->num_layers;
-        for (size_t L = this->p_start_layer_i; L < this->num_layers; ++L)
+        size_t target_layer_i = this->num_layers;
+        for (size_t layer_i = this->p_start_layer_i; layer_i < this->num_layers; ++L)
         {
             const double upper = this->p_upper_radii_solve[L];
-            if (radius_solve <= upper * (1.0 + 1.0e-12) + 1.0e-300) { layer_i = L; break; }
+            if (radius_solve <= upper * (1.0 + 1.0e-12) + 1.0e-300) { target_layer_i = layer_i; break; }
         }
-        if (layer_i >= this->num_layers) layer_i = this->num_layers - 1;   // clamp slight surface overshoot
+        if (target_layer_i >= this->num_layers) target_layer_i = this->num_layers - 1;   // clamp slight surface overshoot
 
-        const size_t num_sols = this->p_num_sols_by_layer[layer_i];
-        const int  layer_type = this->p_layer_types[layer_i];
-        const bool is_static  = this->p_layer_is_static[layer_i] != 0;
+        const size_t num_sols = this->p_num_sols_by_layer[target_layer_i];
+        const int  layer_type = this->p_layer_types[target_layer_i];
+        const bool is_static  = this->p_layer_is_static[target_layer_i] != 0;
         if (num_sols == 0 || num_sols > 3) return false;
 
         // Evaluate each independent solution's dense interpolant at this radius (CyRK writes 2x real per complex y).
@@ -397,7 +410,7 @@ public:
         {
             // unique_ptr::get() yields a non-const CySolverResult* even from this const method; call() is non-const
             // (mirrors how c_EOSSolution::call invokes its stored interpolants).
-            CySolverResult* interp = this->p_interp_by_layer_sol[layer_i][sol_i].get();
+            CySolverResult* interp = this->p_interp_by_layer_sol[target_layer_i][sol_i].get();
             if (!interp) return false;
             interp->call(radius_solve, real_out);
             for (size_t y_i = 0; y_i < num_ys; ++y_i)
@@ -547,6 +560,32 @@ public:
         }
         for (size_t y_i = 0; y_i < C_MAX_NUM_Y; ++y_i)
             out6[y_i] = this->p_surface_y_si[ytype_i * C_MAX_NUM_Y + y_i];
+        return true;
+    }
+
+    // SI-aware dense EOS evaluation at an arbitrary radius. Routes through the solution's own dense EOS
+    // interpolant (not a re-interpolation of the gridded arrays): converts the external SI radius into the
+    // interpolant's solve-unit (non-dim) domain, locates the layer in solve units, then lets eos->call
+    // redimensionalize the outputs back to SI (the cysolver interpolant lives in the non-dim radius domain,
+    // so an SI radius would extrapolate). out must hold C_EOS_DY_VALUES doubles:
+    //   [0] gravity [1] pressure [2] mass [3] moi [4] density [5,6] shear re/im [7,8] bulk re/im.
+    bool get_eos_si(double radius_si, double* out) const
+    {
+        if (!this->eos_solution_uptr || !this->success) return false;
+        const double solve_r = radius_si / this->p_length_conv;
+        size_t layer_i = (this->num_layers == 0) ? 0 : this->num_layers - 1;
+        for (size_t layer_i = 0; layer_i < this->num_layers; ++layer_i)
+        {
+            const double upper = (layer_i < this->p_upper_radii_solve.size())
+                ? this->p_upper_radii_solve[layer_i]
+                : TidalPyConstants::d_INF;
+            if (solve_r <= upper * (1.0 + 1.0e-12) + 1.0e-300)
+            {
+                layer_i = layer_i;
+                break;
+            }
+        }
+        this->eos_solution_uptr->call(layer_i, solve_r, out);
         return true;
     }
 

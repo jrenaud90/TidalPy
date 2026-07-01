@@ -3170,5 +3170,68 @@
     "compile_args": [],
     "link_args": [],
     "is_cpp": true
+  },
+  "Tides_x.multilayer.stress_strain": {
+    "name": "TidalPy.Tides_x.multilayer.stress_strain",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides_x",
+        "multilayer",
+        "stress_strain.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides_x",
+        "multilayer"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Tides_x.potential.tidal_potential": {
+    "name": "TidalPy.Tides_x.potential.tidal_potential",
+    "sources": [
+      [
+        "TidalPy",
+        "Tides_x",
+        "potential",
+        "tidal_potential.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Tides_x",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "classes_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "binary_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "logging_x"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
   }
 }

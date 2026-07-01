@@ -67,15 +67,31 @@ rs = radial_solver(...)            # RadialSolverSolution
 y = rs.get_radial_solution(300.0)              # length-6 complex128 array at r = 300 m, ytype 0
 ys = rs.get_radial_solution_array(r_array)     # (N, 6) complex128, evaluated in vectorized C++
 
+# Arbitrary-radius EOS / material state (SI), via the same dense interpolant:
+eos = rs.eos_call_si(300.0)                    # length-11 float64 array at r = 300 m
+#   [0] gravity [1] pressure [2] mass [3] moment of inertia [4] density
+#   [5,6] complex shear (re, im) [7,8] complex bulk (re, im) [9,10] shear/bulk viscosity
+shear = complex(eos[5], eos[6])
+
 # Legacy array API is unchanged (the standalone solver samples the dense interpolants back onto the
 # EOS grid so .result / .love behave exactly as before):
 rs.result    # gridded y-solution
 rs.love      # k, h, l
 ```
 
+`eos_call_si(radius)` is the dense analogue of `get_radial_solution` for the structural / material
+state: it maps the SI radius into the solver's non-dimensional domain and evaluates the solution's own
+dense EOS interpolant, so on-radius queries (e.g. the complex moduli the 3D-tides kernel needs) use the
+same dense evaluation the solver uses internally rather than a separate re-interpolation of the gridded
+modulus arrays. (The older `eos_call(radius)` accepts only a raw non-dimensional radius and is kept for
+internal use.) For this to stay valid after the standalone solve returns, the per-layer EOS
+interpolation inputs are persisted in the solution storage in non-dimensional solve units; the dense
+re-invoke of the EOS extra outputs then reads live, correctly-scaled data and `c_EOSSolution::call`
+re-dimensionalizes it back to SI.
+
 At the C++ level the same is available on `c_RadialSolutionStorage`
-(`get_radial_solution` / `get_radial_solution_array` / `get_surface_y`) and, for a built world, on
-`c_LayeredWorld` (`get_radial_solution_y`, `get_love_surface_y`).
+(`get_radial_solution` / `get_radial_solution_array` / `get_surface_y` / `get_eos_si`) and, for a built
+world, on `c_LayeredWorld` (`get_radial_solution_y`, `get_love_surface_y`).
 
 ## Validation
 

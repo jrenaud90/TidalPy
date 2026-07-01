@@ -16,6 +16,7 @@ from TidalPy.structures_x.worlds.base cimport (
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
+from TidalPy.Tides_x.potential.tidal_potential cimport c_TidalPotentialBase, TidalPotentialBase
 
 
 # =====================================================================================================================
@@ -111,6 +112,15 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         # c_BaseWorld; c_LayeredWorld only adds the rheology-capable calc_tides + layer heating.
         void                 calc_tides(const c_TideSolveConfig& state) except +
         double               get_layer_tidal_heating(size_t index) const
+        # On-demand 3D tidal stress/strain/heating (rheology model + tidal potential model).
+        void                 set_tidal_potential_model(unique_ptr[c_TidalPotentialBase] potential)
+        cpp_bool             get_tidal_potential_model_set() const
+        double               get_3d_tidal_heating(
+                                 const c_TideSolveConfig& state,
+                                 double radius,
+                                 double colatitude,
+                                 double longitude,
+                                 double time) except +
 
 
 # =====================================================================================================================
