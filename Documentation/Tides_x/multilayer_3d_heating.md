@@ -75,6 +75,21 @@ h = world.get_3d_tidal_heating(
 Requires the rheology tide model, a tidal potential model, and a solved EOS (the analytic tide models like fixed-Q
 are rejected as they have no depth-resolved solution).
 
+When a world is built from a TOML/dict config, the tidal potential model is wired automatically from the
+`[tides]` table for a layered world running the `rheology` dissipation model. The key
+`tidal_potential_model` selects the truncation (`"sync_low_e"`, `"nsr_modes"`, or
+`"nsr_modes_med_obliquity"`; default `"sync_low_e"`), so `set_tidal_potential_model` need not be called
+by hand:
+
+```toml
+[tides]
+    global_tidal_model = "rheology"
+    tidal_potential_model = "nsr_modes_med_obliquity"
+```
+
+The default value lives in the `_x` config (`defaultc_x.py` -> `TidalPy_Configs_x.toml` ->
+`config_x['tides']`). Analytic dissipation models and layerless stars get no potential model.
+
 ### Standalone (raw-array) helpers
 
 When you have radius/density/modulus arrays rather than a world, the standalone helpers can be
