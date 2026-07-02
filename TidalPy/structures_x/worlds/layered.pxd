@@ -116,6 +116,12 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                                  const c_TideSolveConfig& state,
                                  double radius,
                                  double colatitude) except +
+        void                 get_3d_tidal_heating_array(
+                                 const c_TideSolveConfig& state,
+                                 const double* radii,
+                                 const double* colatitudes,
+                                 size_t num_points,
+                                 double* out_heating) except +
 
 
 # =====================================================================================================================

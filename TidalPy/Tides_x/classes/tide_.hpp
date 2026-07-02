@@ -29,6 +29,7 @@
 #include <cctype>
 #include <cmath>
 #include <complex>
+#include <cstddef>
 #include <cstdint>
 #include <istream>
 #include <memory>
@@ -133,6 +134,21 @@ public:
             const c_TideSolveConfig& state,
             double radius,
             double colatitude) const;
+
+    // Vectorized batch form: the secular 3D volumetric heating [W m-3] at num_points paired
+    // (radii[i], colatitudes[i]) query points, written into the caller-supplied out_heating[i]. Same
+    // physics as the scalar calc_3d_tidal_heating, but the position-independent mode list is built once
+    // and the world radial (Love-number) solve is amortized across all points (it depends on (l,
+    // frequency) only, not on radius/colatitude), so building a map costs one radial solve per unique
+    // (l, frequency) rather than one per point. out_heating[i] is NaN for a point in a liquid layer / at
+    // the center / below the solver's starting radius. Defined out-of-line in world_tides_.hpp.
+    void calc_3d_tidal_heating_batch(
+            c_LayeredWorld& world,
+            const c_TideSolveConfig& state,
+            const double* radii,
+            const double* colatitudes,
+            size_t num_points,
+            double* out_heating) const;
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::RheologyTide));

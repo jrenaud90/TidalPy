@@ -95,6 +95,29 @@ as they have no depth-resolved solution). When a world is built from a TOML/dict
 truncation levels flow automatically from the `[tides]` table (`max_degree_l`, `eccentricity_trunc_lvl`,
 `obliquity_trunc_lvl`).
 
+#### Building a map: the vectorized batch form
+
+Evaluating a heating map point-by-point through `get_3d_tidal_heating` re-solves the world radial
+response at every point, which is wasteful: the radial (Love-number) solve depends only on the tidal
+mode's `(degree l, frequency)`, not on the query position. `get_3d_tidal_heating_array` takes paired,
+equal-length `(radius, colatitude)` arrays, builds the position-independent tidal-mode list once, and
+solves the radial response once per unique `(l, frequency)`, reusing it across all points. It returns a
+same-shape array (NaN where a radius has no depth-resolved solution) and is the efficient way to build a
+map:
+
+```python
+import numpy as np
+rr = np.linspace(0.01 * world_radius, 0.999 * world_radius, 40)
+th = np.linspace(1e-3, np.pi - 1e-3, 60)
+rg, tg = np.meshgrid(rr, th, indexing="ij")
+hbar = world.get_3d_tidal_heating_array(
+  orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass,
+  rg.ravel(), tg.ravel()).reshape(rg.shape)  # [W m-3], secular
+```
+
+It reproduces the scalar `get_3d_tidal_heating` point-for-point (to machine precision), so the two are
+interchangeable in physics; only the performance differs.
+
 ### Engine + kernel (raw) access
 
 The dynamic potential engine is exposed directly for callers building their own pipelines. It returns
@@ -119,7 +142,8 @@ the complex/signed form above.
 Implemented: the associated-Legendre tables (`Utilities_x.legendre`), the dynamic Kaula potential
 engine (any eccentricity/obliquity truncation, `l = 2..10`), the point kernel, and the **world-level,
 all-C++** secular `LayeredWorld.get_3d_tidal_heating` (orchestration on `c_RheologyTide`; the world
-delegates), whose volume integral matches the 1D global heating to ~0.1%. Planned: pre-integrated
-angular tables and the analytic dimension collapse (latitude/longitude/radial sums); a vectorized C++
-batch path for building maps; and (if wanted) a correct instantaneous-map output derived from the same
-complex phasors (`Re[U_c e^{i omega t}]`).
+delegates), whose volume integral matches the 1D global heating to ~0.1%, and the **vectorized C++ batch
+path** `get_3d_tidal_heating_array` (position-independent mode list built once, radial solve amortized
+across points). Planned: pre-integrated angular tables and the analytic dimension collapse
+(latitude/longitude/radial sums); and (if wanted) a correct instantaneous-map output derived from the
+same complex phasors (`Re[U_c e^{i omega t}]`).

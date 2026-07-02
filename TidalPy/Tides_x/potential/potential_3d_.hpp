@@ -49,16 +49,56 @@ struct c_TidalPotential3DMode {
     c_PotentialPointC potential;      // complex amplitude of U and its theta/phi derivatives
 };
 
-// Complex-phasor variant of the engine, for the SECULAR (cycle/orbit-averaged) 3D heating. the angular factor is a
-// complex amplitude (the mode's time factor e^{i omega t} pulled out): U(t) = Re[U_c e^{i omega t}].
-//   even parity ((l-m) even): U = A P cos(omega t + m phi)  -> U_c = A P e^{i m phi}
-//   odd parity  ((l-m) odd):  U = A P sin(omega t + m phi)  -> U_c = -i A P e^{i m phi}
-// The phi derivatives bring a factor i*m (d/dphi of e^{i m phi}); the theta derivatives act on P. With
-// these complex amplitudes the cycle-average heating is exact: h_bar = (omega/2) Im(sigma_c : conj(eps_c)),
-// with no time grid and the U-vs-phi-derivative phase quadrature handled automatically. NOTE the e^{i m
-// phi} factor cancels in Im(sigma_c conj(eps_c)) for a single mode, so the per-mode secular heating is
-// longitude-independent; longitude is still honored here for generality.
-inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
+// Position-INDEPENDENT description of one active tidal mode: everything the engine can determine
+// without a colatitude/longitude. The angular factor at a point (P_lm and the e^{i m phi} phasor) is
+// evaluated on demand by c_eval_potential_point_3d below. Splitting the engine this way lets a batch /
+// map path build the mode list once and reuse it across every (radius, colatitude) query, and lets the
+// radial (Love-number) solve be amortized across points, since neither depends on m or on position.
+struct c_TidalPotential3DModeCoeff {
+    int degree_l = 0;
+    int order_m = 0;
+    int parity = 0;                   // (l - m) & 1: 0 -> cos (even), 1 -> sin (odd)
+    double mode_frequency = 0.0;      // signed omega_lmpq [rad s-1]
+    double amplitude = 0.0;           // G_lpq * F_lmp * (R/a)^l * (G M_host / a) * (l-m)!/(l+m)!(2-d_m0)
+};
+
+// Evaluate a mode's complex potential angular factor U_c and its theta/phi derivatives at a point.
+// This is the position-DEPENDENT part of the Kaula engine, factored out of c_tidal_potential_3d_modes:
+//   even parity ((l-m) even): U_c = amplitude * P_lm(cos theta) * e^{i m phi}
+//   odd parity  ((l-m) odd):  U_c = -i * amplitude * P_lm(cos theta) * e^{i m phi}
+// theta derivatives act on P_lm; phi derivatives bring a factor i*m from d/dphi of e^{i m phi}.
+inline c_PotentialPointC c_eval_potential_point_3d(
+        const c_TidalPotential3DModeCoeff& coeff,
+        double colatitude,
+        double longitude)
+{
+    const c_LegendreValue legendre = c_legendre(coeff.degree_l, coeff.order_m, colatitude);
+    const double m_d = static_cast<double>(coeff.order_m);
+
+    const std::complex<double> base = (coeff.parity == 0)
+        ? std::complex<double>(1.0, 0.0)
+        : std::complex<double>(0.0, -1.0);
+    const std::complex<double> e_imphi(std::cos(m_d * longitude), std::sin(m_d * longitude));
+    const std::complex<double> phasor = coeff.amplitude * base * e_imphi;
+    const std::complex<double> im(0.0, m_d);   // d/dphi -> factor i*m
+
+    return c_PotentialPointC {
+        phasor * legendre.p,                     // U_c
+        phasor * legendre.dp_dtheta,             // dU/dtheta
+        phasor * (im * legendre.p),              // dU/dphi
+        phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
+        phasor * (-m_d * m_d * legendre.p),      // d2U/dphi2
+        phasor * (im * legendre.dp_dtheta)       // d2U/dtheta_dphi
+    };
+}
+
+// Build the position-INDEPENDENT list of active tidal modes (degree, order, parity, signed frequency,
+// scalar amplitude) from the orbital/spin state and truncation levels. This is the mode-discovery loop
+// shared with the global (1D) engine, but LINEAR in F_lmp, G_lpq (the amplitude carries one power of
+// each) and carrying the (l, m) labels so the P_lm angular factor can be evaluated per point later.
+// Neither the mode list nor the downstream radial (Love-number) solve depends on colatitude/longitude,
+// so a batch / map path builds this once and reuses it across all query points.
+inline std::vector<c_TidalPotential3DModeCoeff> c_tidal_potential_3d_mode_coeffs(
         double planet_radius,
         double semi_major_axis,
         double orbital_frequency,
@@ -71,12 +111,10 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
         int max_degree_l,
         int obliquity_truncation,
         int eccentricity_truncation,
-        double colatitude,
-        double longitude,
         int* error_code)
 {
     error_code[0] = 0;
-    std::vector<c_TidalPotential3DMode> modes;
+    std::vector<c_TidalPotential3DModeCoeff> coeffs;
 
     const double R_a  = planet_radius / semi_major_axis;
     double ra_l_coeff = std::pow(R_a, static_cast<double>(min_degree_l)) * (G_to_use * host_mass / semi_major_axis);
@@ -93,11 +131,11 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
 
         ObliquityFuncOutput obliquity_funcs =
             c_obliquity_func(error_code, obliquity, degree_l, obliquity_truncation);
-        if (error_code[0] != 0) { return modes; }
+        if (error_code[0] != 0) { return coeffs; }
 
         EccentricityFuncOutput eccentricity_funcs =
             c_eccentricity_func(error_code, eccentricity, degree_l, eccentricity_truncation);
-        if (error_code[0] != 0) { return modes; }
+        if (error_code[0] != 0) { return coeffs; }
 
         lm_key.a = degree_l;
         lm_key.b = -1;
@@ -114,10 +152,9 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
                 lm_key.rebuild_reference();
                 bool found = false;
                 lm_coeff = lm_coeff_map.get(found, lm_key);
-                if (!found) { error_code[0] = -20; return modes; }
+                if (!found) { error_code[0] = -20; return coeffs; }
             }
 
-            const c_LegendreValue legendre = c_legendre(degree_l, order_m, colatitude);
             const int parity = (degree_l - order_m) & 1;
             const double lmp_coeff = F_lmp * ra_l_coeff * lm_coeff;
 
@@ -135,31 +172,58 @@ inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
                     static_cast<double>(degree_l - 2 * lmp_key.c + q) * orbital_frequency
                     - static_cast<double>(order_m) * spin_frequency;
 
-                const double amplitude = G_lpq * lmp_coeff;
-                const double m_d = static_cast<double>(order_m);
-
-                // Complex phasor: base (1 for cos / -i for sin) * e^{i m phi} * amplitude.
-                const std::complex<double> base = (parity == 0)
-                    ? std::complex<double>(1.0, 0.0)
-                    : std::complex<double>(0.0, -1.0);
-                const std::complex<double> e_imphi(std::cos(m_d * longitude), std::sin(m_d * longitude));
-                const std::complex<double> phasor = amplitude * base * e_imphi;
-                const std::complex<double> im(0.0, m_d);   // d/dphi -> factor i*m
-
-                c_TidalPotential3DMode out;
+                c_TidalPotential3DModeCoeff out;
                 out.degree_l = degree_l;
+                out.order_m = order_m;
+                out.parity = parity;
                 out.mode_frequency = mode;
-                out.potential = c_PotentialPointC {
-                    phasor * legendre.p,                     // U_c
-                    phasor * legendre.dp_dtheta,             // dU/dtheta
-                    phasor * (im * legendre.p),              // dU/dphi
-                    phasor * legendre.d2p_dtheta2,           // d2U/dtheta2
-                    phasor * (-m_d * m_d * legendre.p),      // d2U/dphi2
-                    phasor * (im * legendre.dp_dtheta)       // d2U/dtheta_dphi
-                };
-                modes.push_back(out);
+                out.amplitude = G_lpq * lmp_coeff;
+                coeffs.push_back(out);
             }
         }
+    }
+    return coeffs;
+}
+
+// Complex-phasor engine for the SECULAR (cycle/orbit-averaged) 3D heating at a single point. the angular
+// factor is a complex amplitude (the mode's time factor e^{i omega t} pulled out): U(t) = Re[U_c e^{i
+// omega t}]. Thin wrapper: build the position-independent mode list once, then evaluate each mode's
+// angular factor at (colatitude, longitude). NOTE the e^{i m phi} factor cancels in Im(sigma_c
+// conj(eps_c)) for a single mode, so the per-mode secular heating is longitude-independent; longitude is
+// still honored here for generality.
+inline std::vector<c_TidalPotential3DMode> c_tidal_potential_3d_modes(
+        double planet_radius,
+        double semi_major_axis,
+        double orbital_frequency,
+        double spin_frequency,
+        double obliquity,
+        double eccentricity,
+        double host_mass,
+        double G_to_use,
+        int min_degree_l,
+        int max_degree_l,
+        int obliquity_truncation,
+        int eccentricity_truncation,
+        double colatitude,
+        double longitude,
+        int* error_code)
+{
+    const std::vector<c_TidalPotential3DModeCoeff> coeffs = c_tidal_potential_3d_mode_coeffs(
+        planet_radius, semi_major_axis, orbital_frequency, spin_frequency, obliquity, eccentricity,
+        host_mass, G_to_use, min_degree_l, max_degree_l, obliquity_truncation, eccentricity_truncation,
+        error_code);
+
+    std::vector<c_TidalPotential3DMode> modes;
+    if (error_code[0] != 0) { return modes; }
+    modes.reserve(coeffs.size());
+
+    for (const c_TidalPotential3DModeCoeff& coeff : coeffs)
+    {
+        c_TidalPotential3DMode out;
+        out.degree_l = coeff.degree_l;
+        out.mode_frequency = coeff.mode_frequency;
+        out.potential = c_eval_potential_point_3d(coeff, colatitude, longitude);
+        modes.push_back(out);
     }
     return modes;
 }

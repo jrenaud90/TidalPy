@@ -1044,6 +1044,53 @@ cdef class LayeredWorld(BaseWorld):
         state.host_mass         = host_mass
         return self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude)
 
+    def get_3d_tidal_heating_array(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass,
+            radii,
+            colatitudes):
+        """Secular 3D tidal volumetric heating [W m-3] at an array of ``(radius, colatitude)`` points.
+
+        Vectorized batch form of :meth:`get_3d_tidal_heating`: ``radii`` and ``colatitudes`` are paired,
+        equal-length 1D arrays (point ``i`` is ``(radii[i], colatitudes[i])``), and a same-shape
+        ``np.ndarray`` of heating is returned. Same physics and preconditions as the scalar method, but
+        the world radial response is solved once per unique ``(degree l, frequency)`` and reused across
+        all points (the solve does not depend on radius or colatitude), so this is the efficient way to
+        build a heating map. Entries are NaN for points in a liquid layer / at the center / below the
+        solver's starting radius. Requires the rheology tide model and a solved EOS.
+        """
+        cdef cnp.ndarray radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
+        cdef cnp.ndarray colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
+        if radii_arr.shape[0] != colat_arr.shape[0]:
+            raise ValueError("radii and colatitudes must have the same length")
+
+        cdef size_t num_points = <size_t>radii_arr.shape[0]
+        cdef cnp.ndarray out_arr = np.empty(num_points, dtype=np.float64)
+        if num_points == 0:
+            return out_arr
+
+        cdef double[::1] radii_view = radii_arr
+        cdef double[::1] colat_view = colat_arr
+        cdef double[::1] out_view   = out_arr
+
+        cdef c_TideSolveConfig state
+        state.orbital_frequency = orbital_frequency
+        state.spin_frequency    = spin_frequency
+        state.eccentricity      = eccentricity
+        state.obliquity         = obliquity
+        state.semi_major_axis   = semi_major_axis
+        state.host_mass         = host_mass
+
+        with nogil:
+            self._layered_ptr.get_3d_tidal_heating_array(
+                state, &radii_view[0], &colat_view[0], num_points, &out_view[0])
+        return out_arr
+
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------

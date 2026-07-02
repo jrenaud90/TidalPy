@@ -748,6 +748,18 @@ public:
             double radius,
             double colatitude);
 
+    // Vectorized batch form: secular 3D volumetric heating [W m-3] at num_points paired
+    // (radii[i], colatitudes[i]), written into out_heating[i]. Same physics/preconditions as the scalar
+    // get_3d_tidal_heating, but the radial solve is amortized across points (one solve per unique (l,
+    // frequency) rather than per point), so it is the efficient way to build a map. Defined out-of-line
+    // in world_tides_.hpp.
+    void get_3d_tidal_heating_array(
+            const c_TideSolveConfig& state,
+            const double* radii,
+            const double* colatitudes,
+            size_t num_points,
+            double* out_heating);
+
     // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
     // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.
     double effective_tidal_scale(
