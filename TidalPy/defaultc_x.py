@@ -62,14 +62,6 @@ schema_version = "{SCHEMA_VERSION_X}"
     eccentricity_trunc_lvl = 6
     obliquity_trunc_lvl = "off"
 
-    # 2D tidal potential truncation used by the on-demand 3D stress/strain/heating path
-    # (only the `rheology` dissipation model resolves a depth-dependent solution, so this is
-    # attached to layered worlds running the rheology model). Options: "sync_low_e"
-    # (1 mode, synchronous + low eccentricity), "nsr_modes" (up to 9 modes, moderate
-    # eccentricity + non-synchronous rotation), "nsr_modes_med_obliquity" (up to 17 modes,
-    # adds moderate obliquity).
-    tidal_potential_model = "sync_low_e"
-
     # Width [decades] of the log-Gaussian bell used by a layer's `tidal_timescale` scale
     # method (scale peaks where the layer's Maxwell time equals the orbital forcing period).
     tidal_timescale_width_decades = 1.0

@@ -55,7 +55,6 @@
 // these without needing Utilities_x/lookups on its include path. Light headers, no tables.
 #include "../../Utilities_x/lookups/keys_.hpp"     // c_Key4, c_Key2
 #include "../../Utilities_x/lookups/intmap_.hpp"   // c_IntMap (per-mode solver Love-number store)
-#include "../../Tides_x/potential/tidal_potential_base_.hpp"  // c_TidalPotentialBase (3D-path holder)
 
 namespace tidalpy {
 
@@ -734,22 +733,14 @@ public:
     // -----------------------------------------------------------------------
     // On-demand 3D tidal stress/strain/heating
     //
-    // The tidal potential model (truncation) is held here and consumed by the 3D path; it is owned,
-    // set via the builder or set_tidal_potential_model. The 3D orchestration itself lives on the
-    // rheology tide model (c_RheologyTide); get_3d_tidal_heating delegates to it and is defined
-    // out-of-line in world_tides_.hpp (it needs the kernel + potential headers).
+    // The tidal potential is built dynamically from the world's [tides] truncation config (max degree
+    // l, eccentricity/obliquity truncation) — there is no potential-model object. The 3D orchestration
+    // lives on the rheology tide model (c_RheologyTide); get_3d_tidal_heating delegates to it and is
+    // defined out-of-line in world_tides_.hpp (it needs the kernel + potential-engine headers).
     // -----------------------------------------------------------------------
-    void set_tidal_potential_model(std::unique_ptr<c_TidalPotentialBase> potential) noexcept {
-        this->p_tidal_potential = std::move(potential);
-    }
-    bool get_tidal_potential_model_set() const noexcept { return this->p_tidal_potential != nullptr; }
-    const c_TidalPotentialBase* get_tidal_potential_model() const noexcept {
-        return this->p_tidal_potential.get();
-    }
-
     // On-demand 3D tidal volumetric heating [W m-3] at one point (radius [m], colatitude/longitude
-    // [rad], time [s]). Requires the rheology tide model, a tidal potential model, and a solved EOS.
-    // Defined out-of-line in world_tides_.hpp.
+    // [rad], time [s]). Requires the rheology tide model and a solved EOS. Defined out-of-line in
+    // world_tides_.hpp.
     double get_3d_tidal_heating(
             const c_TideSolveConfig& state,
             double radius,
@@ -996,9 +987,6 @@ protected:
     // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;
     // c_LayeredWorld adds only the per-layer heating distribution (results not serialized).
     std::vector<double>                  p_layer_tidal_heating;
-
-    // Tidal potential model (truncation) for the 3D dissipation path (owned; not serialized).
-    std::unique_ptr<c_TidalPotentialBase> p_tidal_potential;
 };
 
 } // namespace tidalpy

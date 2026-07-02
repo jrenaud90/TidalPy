@@ -108,12 +108,7 @@ enum class BinaryClassID : uint32_t {
     RheologyTide       = 901,
     FixedQTide         = 902,
     FixedLagTide       = 903,
-    CTLQTide           = 904,
-    // 10XX Tidal potential models - the 2D (colatitude/longitude/time) tidal potential per mode.
-    TidalPotentialBase    = 1000,
-    SyncLowEPotential     = 1001,
-    NSRModesPotential     = 1002,
-    NSRMedObliquityPotential = 1003,
+    CTLQTide           = 904
 };
 
 // ---------------------------------------------------------------------------

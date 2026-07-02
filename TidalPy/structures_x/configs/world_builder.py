@@ -43,7 +43,6 @@ from TidalPy.viscosity_x.viscosity import make_viscosity
 from TidalPy.partial_melt_x.partial_melt import make_partial_melt
 from TidalPy.Material_x.eos.material_eos import make_material_eos
 from TidalPy.Tides_x.classes.tide import make_tide
-from TidalPy.Tides_x.potential.tidal_potential import make_tidal_potential
 
 from TidalPy.structures_x.configs.toml_loader import (
     ALLOWED_LAYER_SCALAR_KEYS,
@@ -525,6 +524,8 @@ def _attach_tides(world, config: dict) -> None:
 
     world.set_tide_model(make_tide(model_name, model_config if model_config else None))
 
+    # The truncation levels below also drive the on-demand 3D stress/strain/heating path (the tidal
+    # potential is built dynamically from them by the rheology model; no potential-model object).
     world.set_tide_config(
         min_degree_l=int(merged.get("min_degree_l", 2)),
         max_degree_l=int(merged.get("max_degree_l", 2)),
@@ -536,17 +537,6 @@ def _attach_tides(world, config: dict) -> None:
                        merged.get("obliquity_truncation", "gen"))),
         tidal_timescale_width_decades=float(merged.get("tidal_timescale_width_decades", 1.0)),
     )
-
-    # Attach the 2D tidal potential used by the on-demand 3D stress/strain/heating path. Only the
-    # rheology model resolves a depth-dependent solution, and only layered worlds expose
-    # `set_tidal_potential_model`, so wire it just for that combination.
-    if model_name == "rheology" and hasattr(world, "set_tidal_potential_model"):
-        potential_name = merged.get("tidal_potential_model", "sync_low_e")
-        potential_config = {}
-        if "use_static" in merged:
-            potential_config["use_static"] = bool(merged["use_static"])
-        world.set_tidal_potential_model(
-            make_tidal_potential(potential_name, potential_config if potential_config else None))
 
 
 def _resolve_outer_radius(

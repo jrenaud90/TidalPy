@@ -616,6 +616,11 @@
         "TidalPy",
         "utilities",
         "math"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "legendre"
       ]
     ],
     "compile_args": [],
@@ -767,6 +772,11 @@
         "TidalPy",
         "utilities",
         "dimensions"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "legendre"
       ],
       [
         "TidalPy"
@@ -3219,14 +3229,14 @@
     "link_args": [],
     "is_cpp": true
   },
-  "Tides_x.potential.tidal_potential": {
-    "name": "TidalPy.Tides_x.potential.tidal_potential",
+  "Tides_x.potential.potential_3d": {
+    "name": "TidalPy.Tides_x.potential.potential_3d",
     "sources": [
       [
         "TidalPy",
         "Tides_x",
         "potential",
-        "tidal_potential.pyx"
+        "potential_3d.pyx"
       ]
     ],
     "include_dirs": [
@@ -3237,18 +3247,28 @@
       ],
       [
         "TidalPy",
-        "Utilities_x",
-        "classes_x"
+        "Tides_x",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides_x",
+        "eccentricity"
       ],
       [
         "TidalPy",
         "Utilities_x",
-        "binary_x"
+        "lookups"
       ],
       [
         "TidalPy",
         "Utilities_x",
-        "logging_x"
+        "legendre"
+      ],
+      [
+        "TidalPy",
+        "utilities",
+        "math"
       ],
       [
         "TidalPy"

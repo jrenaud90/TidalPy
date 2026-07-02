@@ -39,17 +39,17 @@
 
 #include "constants_.hpp"     // TidalPyConstants::d_EPS
 #include "tide_base_.hpp"
+#include "tide_result_.hpp"   // c_TideSolveConfig (orbital state), c_TideConfig (truncation)
 
 namespace tidalpy {
 
 // Forward declarations for the on-demand 3D tidal-heating path. c_RheologyTide::calc_3d_tidal_heating is
 // declared here but defined in structures_x/worlds/world_tides_.hpp (compiled only into the
-// world extension), so this lightweight tide header never includes the world / potential / kernel
+// world extension), so this lightweight tide header never includes the world / potential-engine / kernel
 // headers. The method calls the world's members directly (no callbacks); references to these incomplete
-// types are legal in the declaration, and the complete types are visible at the definition.
+// types are legal in the declaration, and the complete types are visible at the definition. The tidal
+// potential is built dynamically from the world's truncation config (no potential-model object).
 class c_LayeredWorld;
-class c_TidalPotentialBase;
-struct c_TidalPotentialState;
 
 // Supported tidal degrees: l = 2..10 (matches the eccentricity/obliquity tables).
 constexpr int C_TIDE_MIN_DEGREE  = 2;
@@ -120,15 +120,15 @@ public:
 
     // On-demand 3D tidal volumetric heating [W m-3] at one point (radius [m], colatitude/longitude
     // [rad], time [s]). Only the rheology model supports the 3D path (it alone has the depth-resolved
-    // radial solution). Loops the potential model's active modes, solving the world radial response once
-    // per unique mode frequency, summing each mode's stress and strain tensors (each scaled by its own
-    // freq_half = |omega|/2), and computing the heating once from the combined tensors (cross-mode terms
-    // preserved). Defined out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN in liquid
-    // layers / at the center / below the solver's starting radius.
+    // radial solution). Builds the active tidal modes dynamically from the world's truncation config
+    // (c_tidal_potential_3d_modes), solving the world radial response once per mode (l, frequency),
+    // summing each mode's stress and strain tensors (each scaled by its own freq_half = |omega|/2), and
+    // computing the heating once from the combined tensors (cross-mode terms preserved). Defined
+    // out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN in liquid layers / at the center /
+    // below the solver's starting radius.
     double calc_3d_tidal_heating(
             c_LayeredWorld& world,
-            const c_TidalPotentialBase& potential,
-            const c_TidalPotentialState& state,
+            const c_TideSolveConfig& state,
             double radius,
             double colatitude,
             double longitude,

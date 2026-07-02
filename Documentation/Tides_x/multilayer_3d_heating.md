@@ -22,37 +22,42 @@ constitutive law. The volumetric heating is
 (Europa-book Eq. 42). The potential's `r²` coefficient is taken at the **surface** radius; all radial
 dependence is carried by `y(r)` and the `1/r` factors in the kernel.
 
-## Tidal Potential Truncations
+## Tidal potential — dynamic Kaula engine
 
-The tidal potential is a class hierarchy `c_TidalPotentialBase : c_PhysicsBase`
-(`TidalPy.Tides_x.potential.tidal_potential`), built by `make_tidal_potential(name, config)` and
-following the same model pattern as the rheology/tide hierarchies (enum factory, binary serialization,
-config dict). Each model's `calc_modes(...)` returns every active mode's signed frequency and the
-potential angular factor `U` with its colatitude/longitude derivatives.
+The tidal potential is built by a **class-free dynamic engine** driven purely by the user's truncation
+levels — there is no per-scenario potential-model object. Following Kaula (1964) / Efroimsky &
+Williams (2009) Eq. 18, the engine (`c_tidal_potential_3d_modes`, wrapped as
+`TidalPy.Tides_x.potential.tidal_potential_3d_modes`) enumerates the active `(l, m, p, q)` modes from
+the same eccentricity (`G_lpq`) and inclination/obliquity (`F_lmp`) functions the global (1D) path
+uses, times the associated Legendre functions `P_lm` (from `TidalPy.Utilities_x.legendre`). For each
+active mode it returns the degree `l`, the signed forcing frequency
 
-| Model (alias) | Modes | Truncation |
-|---------------|-------|------------|
-| `SyncLowEPotential` (`sync_low_e`) | 1 (`n`) | synchronous rotation, low eccentricity (`e`), no obliquity |
-| `NSRModesPotential` (`nsr_modes`) | up to 9 (`n, 2n, 3n, 2o±kn`) | moderate eccentricity (`e³`), non-synchronous rotation, no obliquity |
-| `NSRMedObliquityPotential` (`nsr_modes_med_obliquity`) | up to 17 (the 9 no-obliquity modes plus the `m = 1` modes `o, o±kn` and `2o`) | moderate eccentricity (`e³`), moderate obliquity (`obliquity³`), non-synchronous rotation |
+```
+omega_lmpq = (l - 2p + q) n - m * spin
+```
 
-`o` is the rotation (spin) frequency and `n` the orbital frequency. A mode whose `|frequency|` does not
-exceed `min_spin_orbit_diff` is switched off. The obliquity truncation adds the `m = 1` associated
-Legendre harmonic (`P_21`); pass the planet `obliquity` (radians) to `calc_modes` when using it.
+(`n` = orbital mean motion, `spin` = rotation rate; periapse/node precession dropped), and the
+potential angular factor `U` with its first/second colatitude/longitude derivatives. The potential is
+linear in `F_lmp`, `G_lpq`, and `P_lm` (the global 1D path squares `F`, `G` because global heating goes
+as the potential squared). A mode whose `|frequency|` does not exceed `min_spin_orbit_diff` is switched
+off downstream.
+
+The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l`
+(2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation
+turns on the odd-`m` (`P_21`, ...) harmonics automatically.
 
 ## Multi-mode combination
 
 Each active mode has its own frequency, so its radial response (complex moduli + `y`-solution) differs.
-The on-demand multi-mode path therefore:
+The on-demand path therefore, at each point:
 
-1. solves the radial response **once per unique active mode frequency** (`prepare_nsr_modes`), caching it;
-2. at each point, sums every mode's **stress and strain tensors**, each scaled by its own
-   `freq_half = |ω_mode| / 2`, and then computes the heating **once** from the combined tensors
-   (`tidal_heating_3d_point_nsr`).
+1. builds the active modes from the truncation config;
+2. solves the radial response for each mode (once per `(l, frequency)`; the radial ODEs depend on `l`
+   and `omega` only, not `m`);
+3. sums every mode's **stress and strain tensors**, each scaled by its own `freq_half = |omega| / 2`,
+   then computes the heating **once** from the combined tensors.
 
-Summing the tensors before heating (rather than heating per mode and summing) keeps the cross-mode terms,
-matching the legacy collapse. This is validated to ~1e-12 (relative) against
-`collapse_multilayer_modes(use_modes=True)` for a non-synchronously rotating homogeneous body.
+Summing the tensors before heating (rather than heating per mode and summing) keeps the cross-mode terms.
 
 ## Python API
 
@@ -66,67 +71,42 @@ world's radial-solver/EOS members directly).
 world = build_world(...)  # a LayeredWorld
 world.solve_eos()
 world.set_tide_model(make_tide("rheology"))
-world.set_tidal_potential_model(make_tidal_potential("nsr_modes"))
+# The tidal potential truncation comes from the tide config (or the [tides] TOML table):
+world.set_tide_config(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
 h = world.get_3d_tidal_heating(
   orbital_frequency, spin_frequency, eccentricity, obliquity,
   semi_major_axis, host_mass, radius, colatitude, longitude, time)  # [W m-3]
 ```
 
-Requires the rheology tide model, a tidal potential model, and a solved EOS (the analytic tide models like fixed-Q
-are rejected as they have no depth-resolved solution).
+Requires the rheology tide model and a solved EOS (the analytic tide models like fixed-Q are rejected
+as they have no depth-resolved solution). When a world is built from a TOML/dict config, the
+truncation levels flow automatically from the `[tides]` table (`max_degree_l`, `eccentricity_trunc_lvl`,
+`obliquity_trunc_lvl`).
 
-When a world is built from a TOML/dict config, the tidal potential model is wired automatically from the
-`[tides]` table for a layered world running the `rheology` dissipation model. The key
-`tidal_potential_model` selects the truncation (`"sync_low_e"`, `"nsr_modes"`, or
-`"nsr_modes_med_obliquity"`; default `"sync_low_e"`), so `set_tidal_potential_model` need not be called
-by hand:
+### Engine + kernel (raw) access
 
-```toml
-[tides]
-    global_tidal_model = "rheology"
-    tidal_potential_model = "nsr_modes_med_obliquity"
-```
-
-The default value lives in the `_x` config (`defaultc_x.py` -> `TidalPy_Configs_x.toml` ->
-`config_x['tides']`). Analytic dissipation models and layerless stars get no potential model.
-
-### Standalone (raw-array) helpers
-
-When you have radius/density/modulus arrays rather than a world, the standalone helpers can be
-used to solve for the 3D tidal heating directly:
+The dynamic potential engine is exposed directly for callers building their own pipelines:
 
 ```python
-from TidalPy.RadialSolver_x.solver import radial_solver
-from TidalPy.Tides_x.multilayer.heating_3d import (
-    tidal_heating_3d_point, prepare_nsr_modes, tidal_heating_3d_point_nsr)
-
-# Single synchronous mode: solve the radial problem once, then query points.
-rs = radial_solver(...)
-h = tidal_heating_3d_point(
-  rs, radius, longitude, colatitude, time,
-  orbital_frequency, eccentricity, host_mass, semi_major_axis,
-  layer_types, is_static_bylayer, is_incompressible_bylayer,
-  upper_radius_bylayer, G)   # [W m-3]
-
-# NSR multi-mode: prepare once (one radial solve per active mode frequency), then query points.
-prepared = prepare_nsr_modes(
-  orbital_frequency, spin_frequency, eccentricity, host_mass,
-  semi_major_axis, radius_array, density_array, shear_array, bulk_array,
-  shear_viscosity_array, bulk_viscosity_array,
-  shear_rheology_bylayer, bulk_rheology_bylayer,
-  upper_radius_bylayer, planet_bulk_density,
-  layer_types, is_static_bylayer, is_incompressible_bylayer)
-h = tidal_heating_3d_point_nsr(prepared, radius, longitude, colatitude, time)   # [W m-3]
+from TidalPy.Tides_x.potential import tidal_potential_3d_modes
+degrees, freqs, pots = tidal_potential_3d_modes(
+  orbital_frequency, spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis,
+  planet_radius, colatitude, longitude, time, G,
+  max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
+# pots[i] = (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 
-The tidal-potential models live in the `Tides_x.potential.tidal_potential` extension
-(`make_tidal_potential`, `SyncLowEPotential`, `NSRModesPotential`); the compiled strain/stress/heating
-kernel is in `Tides_x.multilayer.stress_strain` (`strain_stress_heating_point`, `volumetric_heating`).
+The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strain`
+(`strain_stress_heating_point`, `volumetric_heating`).
 
 ## Status / follow-on work
 
-Implemented: the `c_TidalPotentialBase` model hierarchy (both truncations), the point kernel, the
-on-demand single- and multi-mode heating, and the **world-level, all-C++** `LayeredWorld.get_3d_tidal_heating`
-(orchestration on `c_RheologyTide`; the world delegates). Planned: obliquity-mode potentials;
-pre-integrated angular tables and the analytic dimension collapse (orbit-average and
-latitude/longitude/radial sums); and a vectorized C++ batch path for building maps.
+Implemented: the associated-Legendre tables (`Utilities_x.legendre`), the dynamic Kaula potential
+engine (any eccentricity/obliquity truncation, `l = 2..10`), the point kernel, and the **world-level,
+all-C++** `LayeredWorld.get_3d_tidal_heating` (orchestration on `c_RheologyTide`; the world delegates).
+**Under validation (in development):** the new engine's point heating agrees with the legacy
+`collapse_multilayer_modes(use_modes=True)` to ~1%, versus <0.5% for the retired hand-coded provider
+that shared the legacy convention; the faithful-Kaula normalization and the 1D-vs-3D total-heating
+consistency are being validated against a direct/1D-consistent reference. Planned: pre-integrated
+angular tables and the analytic dimension collapse (orbit-average and latitude/longitude/radial sums);
+and a vectorized C++ batch path for building maps.

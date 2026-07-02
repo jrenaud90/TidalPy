@@ -15,7 +15,6 @@ from TidalPy.tides.multilayer.stress_strain import calculate_strain_stress
 from TidalPy.tides.heating import calculate_volumetric_heating
 
 from TidalPy.Tides_x.multilayer.stress_strain import strain_stress_heating_point
-from TidalPy.Tides_x.potential.tidal_potential import SyncLowEPotential
 
 
 def _legacy_strain_stress_heat(y, shear, bulk, radius, l, pot6, theta):
@@ -31,23 +30,6 @@ def _legacy_strain_stress_heat(y, shear, bulk, radius, l, pot6, theta):
     s = stresses[:, 0, 0, 0, 0]
     vh = calculate_volumetric_heating(s.reshape(6, 1, 1, 1, 1), e.reshape(6, 1, 1, 1, 1))[0, 0, 0, 0]
     return e, s, vh
-
-
-def test_potential_sync_low_e_matches_legacy():
-    sync_potential = SyncLowEPotential()
-    rng = np.random.default_rng(7)
-    worst = 0.0
-    for _ in range(150):
-        radius = rng.uniform(1e5, 6e6); lon = rng.uniform(0, 2 * np.pi)
-        colat = rng.uniform(0.15, np.pi - 0.15); t = rng.uniform(0, 1e5)
-        n = 2 * np.pi / (86400.0 * rng.uniform(0.5, 5.0)); ecc = rng.uniform(0.001, 0.2)
-        hm = 1e26 * rng.uniform(0.5, 5.0); a = rng.uniform(3e8, 3e9)
-        _, pots = sync_potential.calc_modes(n, 0.0, ecc, hm, a, radius, colat, lon, t)
-        mine = np.asarray(pots[0])
-        _, _, ptup = legacy_potential(radius, lon, colat, t, n, ecc, hm, a)
-        ref = np.array(ptup['n'])
-        worst = max(worst, float(np.max(np.abs(mine - ref) / (np.abs(ref) + 1e-30))))
-    assert worst < 1e-12, f"potential differs from legacy: {worst:.3e}"
 
 
 def test_strain_stress_heating_matches_legacy():
