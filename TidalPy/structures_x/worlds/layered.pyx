@@ -1022,17 +1022,18 @@ cdef class LayeredWorld(BaseWorld):
             double semi_major_axis,
             double host_mass,
             double radius,
-            double colatitude,
-            double longitude,
-            double time) -> float:
-        """On-demand 3D tidal volumetric heating [W m-3] at one point.
+            double colatitude) -> float:
+        """Secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at ``(radius, colatitude)``.
 
-        Requires the rheology tide model (:meth:`set_tide_model`) and a solved EOS (:meth:`solve_eos`).
-        The active tidal modes are built dynamically from the world's ``[tides]`` truncation config
-        (max degree l, eccentricity/obliquity truncation). The radial response is solved once per active
-        tidal mode; each mode's stress/strain tensors are summed (scaled by ``|omega|/2``) and the heating
-        is taken once from the combined tensors. Returns NaN in liquid layers / at the center / below the
-        solver's starting radius.
+        This is the physically time-averaged power density: the active tidal modes are built dynamically
+        from the world's ``[tides]`` truncation config (max degree l, eccentricity/obliquity truncation),
+        the world radial response is solved once per mode, and each mode contributes
+        ``(omega/2) Im(sigma_c : conj(eps_c))`` (a single ``omega/2``, complex amplitudes, no ``abs``),
+        summed with sign. It is longitude- and time-independent (the ``e^{i m phi}`` cancels per mode),
+        and its volume integral over the planet equals the 1D global tidal heating
+        (:meth:`get_tidal_heating`). Requires the rheology tide model (:meth:`set_tide_model`) and a
+        solved EOS (:meth:`solve_eos`). Returns NaN in liquid layers / at the center / below the solver's
+        starting radius.
         """
         cdef c_TideSolveConfig state
         state.orbital_frequency = orbital_frequency
@@ -1041,7 +1042,7 @@ cdef class LayeredWorld(BaseWorld):
         state.obliquity         = obliquity
         state.semi_major_axis   = semi_major_axis
         state.host_mass         = host_mass
-        return self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude, longitude, time)
+        return self._layered_ptr.get_3d_tidal_heating(state, radius, colatitude)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

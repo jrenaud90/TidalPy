@@ -738,15 +738,15 @@ public:
     // lives on the rheology tide model (c_RheologyTide); get_3d_tidal_heating delegates to it and is
     // defined out-of-line in world_tides_.hpp (it needs the kernel + potential-engine headers).
     // -----------------------------------------------------------------------
-    // On-demand 3D tidal volumetric heating [W m-3] at one point (radius [m], colatitude/longitude
-    // [rad], time [s]). Requires the rheology tide model and a solved EOS. Defined out-of-line in
+    // On-demand secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at (radius,
+    // colatitude). The physically time-averaged power density (single omega/2, complex amplitudes, no
+    // abs); longitude- and time-independent. Requires the rheology tide model and a solved EOS. Its
+    // volume integral equals the 1D global heating (get_tidal_heating). Defined out-of-line in
     // world_tides_.hpp.
     double get_3d_tidal_heating(
             const c_TideSolveConfig& state,
             double radius,
-            double colatitude,
-            double longitude,
-            double time);
+            double colatitude);
 
     // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
     // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.

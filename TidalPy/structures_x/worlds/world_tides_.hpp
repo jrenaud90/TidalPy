@@ -198,12 +198,7 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         c_LayeredWorld& world,
         const c_TideSolveConfig& state,
         double radius,
-        double colatitude,
-        double longitude,
-        double time) const {
-    // Build the active tidal modes dynamically from the world's truncation config (Kaula engine). The
-    // potential's r^2 coefficient uses the SURFACE radius; the radial dependence is carried entirely by
-    // the y-functions + the 1/r factors inside the kernel.
+        double colatitude) const {
     const c_TideConfig& tide_cfg = world.get_tide_config();
     const double surface_radius = world.get_radius();
     const double G_to_use =
@@ -215,15 +210,13 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         state.obliquity, state.eccentricity, state.host_mass, G_to_use,
         tide_cfg.min_degree_l, tide_cfg.max_degree_l,
         tide_cfg.obliquity_truncation, tide_cfg.eccentricity_truncation,
-        colatitude, longitude, time, &engine_error);
+        colatitude, 0.0, &engine_error);
     if (engine_error != 0) {
         throw std::runtime_error(
-            "TidalPy: tidal potential engine failed during 3D tidal heating (error "
+            "TidalPy: tidal potential engine failed during secular 3D tidal heating (error "
             + std::to_string(engine_error) + "); check degree/truncation levels");
     }
 
-    // Layer type at this radius. The shear kernel is a solid-layer computation (liquids carry no shear
-    // dissipation and the kernel NaN-fills them).
     bool is_solid = true;
     bool is_incompressible = false;
     const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(world.find_layer_for_radius(radius));
@@ -235,32 +228,26 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
     const double min_freq =
         (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF : 1.0e-9;
 
-    tides::c_Tensor6 strain_total;   // zero-initialized (std::array<complex,6>{})
-    tides::c_Tensor6 stress_total;
-    bool any_mode = false;
-
+    double heating = 0.0;
     c_LoveSolveConfig love_cfg;
     for (const c_TidalPotential3DMode& mode : modes) {
         const double frequency = std::abs(mode.mode_frequency);
         if (frequency <= min_freq) {
-            continue;   // switched-off (zero-frequency) mode; no tidal response
+            continue;
         }
 
-        // One radial solve per mode (l, frequency) — the world's frequency-independent setup is cached,
-        // so only the per-omega part recomputes. Q8: recompute per mode, bounded memory. The radial ODEs
-        // depend on l and omega only (not m), so distinct-m modes at the same (l, omega) reuse this solve.
         love_cfg.degree_l = mode.degree_l;
         love_cfg.frequency_rad_s = frequency;
         world.solve_love_numbers(love_cfg);
         if (!world.get_love_success()) {
             throw std::runtime_error(
-                "TidalPy: radial solve failed during 3D tidal heating: " + world.get_love_message());
+                "TidalPy: radial solve failed during secular 3D tidal heating: " + world.get_love_message());
         }
 
         const ::c_RadialSolutionStorage* storage = world.get_love_storage();
         std::complex<double> y_at_r[C_MAX_NUM_Y];
         if (storage == nullptr || !storage->get_radial_solution(radius, 0, y_at_r)) {
-            return TidalPyConstants::d_NAN;   // out of range / below the starting radius
+            return TidalPyConstants::d_NAN;
         }
         if (!std::isfinite(y_at_r[0].real()) || !std::isfinite(y_at_r[1].real())
          || !std::isfinite(y_at_r[2].real()) || !std::isfinite(y_at_r[3].real())) {
@@ -273,22 +260,16 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         const tides::c_StrainRadialCoeffs coeffs = tides::c_compute_strain_radial_coeffs(
             y_at_r[0], y_at_r[1], y_at_r[2], y_at_r[3], shear, bulk, radius,
             static_cast<double>(mode.degree_l), is_solid, is_incompressible);
+        if (!coeffs.valid) {
+            continue;   // liquid / center: no shear dissipation contribution
+        }
         tides::c_Tensor6 strain;
         tides::c_Tensor6 stress;
         tides::c_compute_strain_stress(coeffs, mode.potential, colatitude, strain, stress);
 
-        const double freq_half = 0.5 * frequency;
-        for (int k = 0; k < 6; ++k) {
-            strain_total.c[k] += freq_half * strain.c[k];
-            stress_total.c[k] += freq_half * stress.c[k];
-        }
-        any_mode = true;
+        heating += 0.5 * frequency * tides::c_volumetric_heating_signed(stress, strain);
     }
-
-    if (!any_mode) {
-        return 0.0;
-    }
-    return tides::c_volumetric_heating(stress_total, strain_total);
+    return heating;
 }
 
 // World delegation: validate preconditions, map the solve state into the potential's state struct, and
@@ -296,9 +277,7 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
 inline double c_LayeredWorld::get_3d_tidal_heating(
         const c_TideSolveConfig& state,
         double radius,
-        double colatitude,
-        double longitude,
-        double time) {
+        double colatitude) {
     if (!this->p_tide) {
         throw std::runtime_error(
             "TidalPy: no tide model attached to the world — call set_tide_model() first");
@@ -313,8 +292,7 @@ inline double c_LayeredWorld::get_3d_tidal_heating(
         throw std::runtime_error(
             "TidalPy: 3D tidal heating needs the EOS solved first — call solve_eos()");
     }
-
-    return rheology->calc_3d_tidal_heating(*this, state, radius, colatitude, longitude, time);
+    return rheology->calc_3d_tidal_heating(*this, state, radius, colatitude);
 }
 
 } // namespace tidalpy

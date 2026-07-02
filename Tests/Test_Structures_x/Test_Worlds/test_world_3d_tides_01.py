@@ -62,7 +62,9 @@ def _build_world(tide_model="rheology"):
 
 
 def _get(world, radius, colat, lon, t, sma):
-    return world.get_3d_tidal_heating(_N, _SPIN, _ECC, 0.0, sma, _HOST, radius, colat, lon, t)
+    # The 3D heating is now the secular (cycle/orbit-averaged) density: longitude- and time-independent,
+    # so lon/t are accepted for call-site compatibility but not passed through.
+    return world.get_3d_tidal_heating(_N, _SPIN, _ECC, 0.0, sma, _HOST, radius, colat)
 
 
 # =====================================================================================================================
@@ -83,63 +85,15 @@ def test_analytic_model_rejected():
 
 
 # =====================================================================================================================
-# Physics vs the legacy collapse_multilayer_modes
+# Physics
 # =====================================================================================================================
-@pytest.mark.xfail(reason="The new class-free Kaula potential engine uses the faithful (l,m,p,q) mode "
-                          "enumeration of the validated 1D global path, which differs slightly from the "
-                          "legacy 3D provider's ad-hoc mode set. Point heating agrees with the legacy "
-                          "collapse to ~1.1% (was <0.5% with the old provider that shared the legacy "
-                          "convention). Pending author-directed validation vs a direct/1D-consistent "
-                          "reference (see tidal_potential_plan.md).", strict=False)
-def test_world_3d_heating_matches_legacy():
-    from TidalPy.rheology import Maxwell as LegacyMaxwell, Elastic as LegacyElastic
-    from TidalPy.utilities.spherical_helper.volume import calculate_voxel_volumes
-    from TidalPy.tides.modes.multilayer_modes import collapse_multilayer_modes
-
-    sma = _semi_major_axis()
-    n_slices = 12
-    radius_array = np.linspace(0.0, _R, n_slices)
-    density_array = _DENSITY * np.ones(n_slices)
-    shear_array = _SHEAR * np.ones(n_slices)
-    bulk_array = _BULK * np.ones(n_slices)
-    visc_array = _VISC * np.ones(n_slices)
-    shell_volume = (4.0 / 3.0) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
-    bulk_density = float(np.sum(shell_volume * density_array[1:]) / np.sum(shell_volume))
-
-    colat = np.radians(np.linspace(20.0, 160.0, 3))
-    lon = np.radians(np.linspace(0.0, 270.0, 3))
-    tt = np.linspace(0.0, 2.0 * np.pi / _N, 3)
-    vox = calculate_voxel_volumes(radius_array, lon, colat)
-    LON, COLAT, TIME = np.meshgrid(lon, colat, tt, indexing="ij")
-
-    leg = collapse_multilayer_modes(
-        orbital_frequency=_N, spin_frequency=_SPIN, semi_major_axis=sma, eccentricity=_ECC,
-        host_mass=_HOST, planet_bulk_density=bulk_density, radius_array=radius_array,
-        density_array=density_array, bulk_array=bulk_array, shear_array=shear_array,
-        bulk_viscosity_array=visc_array, shear_viscosity_array=visc_array,
-        shear_rheology_inst_bylayer=(LegacyMaxwell(),), bulk_rheology_inst_bylayer=(LegacyElastic(),),
-        upper_radius_bylayer_array=np.asarray((_R,)), longitude_matrix=LON, colatitude_matrix=COLAT,
-        time_matrix=TIME, voxel_volume=vox, layer_types=("solid",), is_static_bylayer=(False,),
-        is_incompressible_bylayer=(False,), degree_l=2, use_modes=True, use_simple_potential=False,
-        orbit_average_results=False, nondimensionalize=True, integration_method="DOP853",
-        integration_rtol=1e-8, integration_atol=1e-10)
-    leg_volheat = leg[1]
-
+# The 3D heating is now the SECULAR (cycle/orbit-averaged) volumetric power density. Its authoritative
+# physical check is that its volume integral equals the 1D global tidal heating — see
+# test_world_1d_vs_3d_tides_01.py. (The legacy collapse_multilayer_modes produces an instantaneous map,
+# a different quantity, so it is no longer used as the reference here.)
+def test_secular_heating_positive_in_solid_interior():
     world = _build_world()
     world.solve_eos(G_to_use=G)
-
-    worst = 0.0
-    ncmp = 0
-    for ri in range(2, n_slices - 1):          # solid interior, away from r=0 and the surface
-        for lj in range(lon.size):
-            for ck in range(colat.size):
-                for tm in range(tt.size):
-                    mine = _get(world, radius_array[ri], colat[ck], lon[lj], tt[tm], sma)
-                    ref = abs(leg_volheat[ri, lj, ck, tm])
-                    if ref > 1e-20 and np.isfinite(mine):
-                        worst = max(worst, abs(mine - ref) / ref)
-                        ncmp += 1
-    assert ncmp > 30
-    # World uses a 100-slice ConstantDensity EOS grid + its own radial solver; legacy uses the 12-point
-    # supplied arrays. Both solve the same homogeneous physics, so they agree to the radial-grid accuracy.
-    assert worst < 5e-3, f"world 3D heating differs from legacy: {worst:.3e} over {ncmp} points"
+    sma = _semi_major_axis()
+    heat = _get(world, 0.5e6, 1.0, 0.0, 0.0, sma)
+    assert np.isfinite(heat) and heat > 0.0

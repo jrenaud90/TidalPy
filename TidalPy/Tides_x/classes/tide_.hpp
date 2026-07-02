@@ -118,21 +118,21 @@ public:
 
     bool needs_radial_solve() const override { return true; }
 
-    // On-demand 3D tidal volumetric heating [W m-3] at one point (radius [m], colatitude/longitude
-    // [rad], time [s]). Only the rheology model supports the 3D path (it alone has the depth-resolved
-    // radial solution). Builds the active tidal modes dynamically from the world's truncation config
-    // (c_tidal_potential_3d_modes), solving the world radial response once per mode (l, frequency),
-    // summing each mode's stress and strain tensors (each scaled by its own freq_half = |omega|/2), and
-    // computing the heating once from the combined tensors (cross-mode terms preserved). Defined
-    // out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN in liquid layers / at the center /
-    // below the solver's starting radius.
+    // On-demand secular (cycle/orbit-averaged) 3D tidal volumetric heating [W m-3] at (radius,
+    // colatitude). Only the rheology model supports the 3D path (it alone has the depth-resolved radial
+    // solution). It is the physically time-averaged power density: the active tidal modes are built
+    // dynamically from the world's truncation config (c_tidal_potential_3d_modes, complex amplitudes),
+    // the world radial response is solved once per mode (l, frequency), and each mode contributes
+    // (omega/2) Im(sigma_c : conj(eps_c)) (a SINGLE omega/2, complex amplitudes, no abs), summed with
+    // sign (distinct-frequency cross terms average to zero). Longitude- and time-independent (the
+    // e^{i m phi} cancels per mode); its volume integral equals the world's 1D global tidal heating
+    // (get_tidal_heating). Defined out-of-line in structures_x/worlds/world_tides_.hpp. Returns NaN in
+    // liquid layers / at the center / below the solver's starting radius.
     double calc_3d_tidal_heating(
             c_LayeredWorld& world,
             const c_TideSolveConfig& state,
             double radius,
-            double colatitude,
-            double longitude,
-            double time) const;
+            double colatitude) const;
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::RheologyTide));

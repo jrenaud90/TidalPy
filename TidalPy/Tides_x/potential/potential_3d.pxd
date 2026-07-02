@@ -2,26 +2,28 @@
 """
 potential_3d.pxd
 Cython declarations for the dynamic Kaula 3D tidal-potential engine (potential_3d_.hpp).
+
+The engine returns each active mode's degree, signed forcing frequency, and the COMPLEX potential
+angular-factor amplitude (the mode's e^{i omega t} pulled out) used by the secular 3D heating.
 """
 
 from libcpp.vector cimport vector
-
-
-cdef extern from "potential_point_.hpp" namespace "tidalpy" nogil:
-    cdef cppclass c_PotentialPoint:
-        double U
-        double dU_dtheta
-        double dU_dphi
-        double d2U_dtheta2
-        double d2U_dphi2
-        double d2U_dtheta_dphi
+from libcpp.complex cimport complex as cpp_complex
 
 
 cdef extern from "potential_3d_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_PotentialPointC:
+        cpp_complex[double] U
+        cpp_complex[double] dU_dtheta
+        cpp_complex[double] dU_dphi
+        cpp_complex[double] d2U_dtheta2
+        cpp_complex[double] d2U_dphi2
+        cpp_complex[double] d2U_dtheta_dphi
+
     cdef cppclass c_TidalPotential3DMode:
         int degree_l
         double mode_frequency
-        c_PotentialPoint potential
+        c_PotentialPointC potential
 
     vector[c_TidalPotential3DMode] c_tidal_potential_3d_modes(
         double planet_radius,
@@ -38,5 +40,4 @@ cdef extern from "potential_3d_.hpp" namespace "tidalpy" nogil:
         int eccentricity_truncation,
         double colatitude,
         double longitude,
-        double time,
         int* error_code) except +

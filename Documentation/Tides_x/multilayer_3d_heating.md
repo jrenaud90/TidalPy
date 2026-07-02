@@ -46,18 +46,30 @@ The user selects the truncation via three knobs (on the world's `[tides]` config
 (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation
 turns on the odd-`m` (`P_21`, ...) harmonics automatically.
 
-## Multi-mode combination
+## Secular (cycle/orbit-averaged) heating — the physical quantity
 
-Each active mode has its own frequency, so its radial response (complex moduli + `y`-solution) differs.
-The on-demand path therefore, at each point:
+`get_3d_tidal_heating` returns the **secular** (cycle/orbit-averaged) tidal volumetric heating: the
+physically time-averaged dissipated-power density. It is built from the mode's **complex** potential
+amplitudes (the `e^{i omega t}` pulled out), so the cycle-average is exact with no time grid:
 
-1. builds the active modes from the truncation config;
-2. solves the radial response for each mode (once per `(l, frequency)`; the radial ODEs depend on `l`
-   and `omega` only, not `m`);
-3. sums every mode's **stress and strain tensors**, each scaled by its own `freq_half = |omega| / 2`,
-   then computes the heating **once** from the combined tensors.
+```
+h_bar(r, theta) = sum_modes (omega_mode / 2) * Im( sigma_c : conj(eps_c) )
+```
 
-Summing the tensors before heating (rather than heating per mode and summing) keeps the cross-mode terms.
+Per mode this uses a **single** `omega/2` (the cycle-average factor), the complex stress/strain
+amplitudes, and **no** `abs()` — it is inherently non-negative for a dissipative material and modes sum
+with sign (distinct-frequency cross terms average to zero over the orbit, so they are omitted). The
+`e^{i m phi}` cancels per mode, so `h_bar` is **longitude- and time-independent** (a function of `r` and
+`colatitude` only).
+
+**Consistency with the 1D path:** the volume integral of `h_bar` equals the 1D global tidal heating
+(`get_tidal_heating`) — both are the same total dissipated power. This is the authoritative correctness
+check (validated to ~0.1% for a homogeneous Maxwell sphere; see
+`Tests/Test_Structures_x/Test_Worlds/test_world_1d_vs_3d_tides_01.py`).
+
+At each point the path: (1) builds the active modes from the truncation config; (2) solves the world
+radial response once per mode `(l, frequency)` (the radial ODEs depend on `l` and `omega` only, not
+`m`); (3) accumulates each mode's `(omega/2) Im(sigma_c : conj(eps_c))`.
 
 ## Python API
 
@@ -73,9 +85,9 @@ world.solve_eos()
 world.set_tide_model(make_tide("rheology"))
 # The tidal potential truncation comes from the tide config (or the [tides] TOML table):
 world.set_tide_config(max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
-h = world.get_3d_tidal_heating(
+h_bar = world.get_3d_tidal_heating(
   orbital_frequency, spin_frequency, eccentricity, obliquity,
-  semi_major_axis, host_mass, radius, colatitude, longitude, time)  # [W m-3]
+  semi_major_axis, host_mass, radius, colatitude)  # [W m-3], secular
 ```
 
 Requires the rheology tide model and a solved EOS (the analytic tide models like fixed-Q are rejected
@@ -85,28 +97,29 @@ truncation levels flow automatically from the `[tides]` table (`max_degree_l`, `
 
 ### Engine + kernel (raw) access
 
-The dynamic potential engine is exposed directly for callers building their own pipelines:
+The dynamic potential engine is exposed directly for callers building their own pipelines. It returns
+each mode's degree, signed frequency, and the **complex** angular-factor amplitudes:
 
 ```python
 from TidalPy.Tides_x.potential import tidal_potential_3d_modes
 degrees, freqs, pots = tidal_potential_3d_modes(
   orbital_frequency, spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis,
-  planet_radius, colatitude, longitude, time, G,
+  planet_radius, colatitude, longitude, G,
   max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
-# pots[i] = (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
+# pots[i] = complex (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 
 The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strain`
-(`strain_stress_heating_point`, `volumetric_heating`).
+(`strain_stress_heating_point`, `volumetric_heating`) — low-level helpers that take a real potential
+row (a snapshot at one time) and return the raw bilinear magnitude; the physical secular heating uses
+the complex/signed form above.
 
 ## Status / follow-on work
 
 Implemented: the associated-Legendre tables (`Utilities_x.legendre`), the dynamic Kaula potential
 engine (any eccentricity/obliquity truncation, `l = 2..10`), the point kernel, and the **world-level,
-all-C++** `LayeredWorld.get_3d_tidal_heating` (orchestration on `c_RheologyTide`; the world delegates).
-**Under validation (in development):** the new engine's point heating agrees with the legacy
-`collapse_multilayer_modes(use_modes=True)` to ~1%, versus <0.5% for the retired hand-coded provider
-that shared the legacy convention; the faithful-Kaula normalization and the 1D-vs-3D total-heating
-consistency are being validated against a direct/1D-consistent reference. Planned: pre-integrated
-angular tables and the analytic dimension collapse (orbit-average and latitude/longitude/radial sums);
-and a vectorized C++ batch path for building maps.
+all-C++** secular `LayeredWorld.get_3d_tidal_heating` (orchestration on `c_RheologyTide`; the world
+delegates), whose volume integral matches the 1D global heating to ~0.1%. Planned: pre-integrated
+angular tables and the analytic dimension collapse (latitude/longitude/radial sums); a vectorized C++
+batch path for building maps; and (if wanted) a correct instantaneous-map output derived from the same
+complex phasors (`Re[U_c e^{i omega t}]`).

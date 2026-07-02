@@ -26,7 +26,7 @@ def _modes(**kw):
     args = dict(
         orbital_frequency=_N, spin_frequency=_SPIN, eccentricity=_ECC, obliquity=0.0,
         host_mass=_HOST, semi_major_axis=_SMA, planet_radius=_R,
-        colatitude=_COLAT, longitude=_LON, time=_T, G_to_use=G,
+        colatitude=_COLAT, longitude=_LON, G_to_use=G,
     )
     args.update(kw)
     return tidal_potential_3d_modes(**args)
