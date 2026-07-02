@@ -235,6 +235,30 @@
     "link_args": [],
     "is_cpp": true
   },
+  "Utilities_x.legendre.legendre": {
+    "name": "TidalPy.Utilities_x.legendre.legendre",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities_x",
+        "legendre",
+        "legendre.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities_x",
+        "legendre"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "Utilities_x.classes_x.classes": {
     "name": "TidalPy.Utilities_x.classes_x.classes",
     "sources": [
