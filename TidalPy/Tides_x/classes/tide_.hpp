@@ -150,6 +150,24 @@ public:
             size_t num_points,
             double* out_heating) const;
 
+    // Collapsed (summed/averaged) secular 3D tidal heating: reduces the density along any of the
+    // colatitude / longitude / radial dimensions per the flags in cfg (see c_Heating3DCollapseConfig).
+    // radii/colatitudes are the user grids for the NON-summed axes (ignored for a summed axis, which
+    // uses an internal integration grid). Returns the marginal power density on the surviving axes plus,
+    // when radial_summed, the whole-planet and per-layer totals. Defined out-of-line in world_tides_.hpp.
+    c_Heating3DCollapsed calc_3d_tidal_heating_collapsed(
+            c_LayeredWorld& world,
+            const c_TideSolveConfig& state,
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            const c_Heating3DCollapseConfig& cfg) const;
+
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(out, static_cast<uint32_t>(BinaryClassID::RheologyTide));
     }

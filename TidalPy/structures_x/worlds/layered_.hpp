@@ -760,6 +760,22 @@ public:
             size_t num_points,
             double* out_heating);
 
+    // Collapsed (summed/averaged) secular 3D tidal heating (see c_Heating3DCollapseConfig): the radial
+    // power profile, colatitude profile, per-layer totals, and/or whole-planet total, per the flags.
+    // Same rheology + solved-EOS preconditions as get_3d_tidal_heating. Defined out-of-line in
+    // world_tides_.hpp.
+    c_Heating3DCollapsed calc_3d_tides(
+            const c_TideSolveConfig& state,
+            const double* radii,
+            size_t num_radii,
+            const double* colatitudes,
+            size_t num_colatitudes,
+            const double* longitudes,
+            size_t num_longitudes,
+            const double* times,
+            size_t num_times,
+            const c_Heating3DCollapseConfig& cfg);
+
     // Effective per-layer tidal-heating scale for the layer's tidal_scale_method (defined in
     // world_tides_.hpp). Used by calc_tides to distribute the global heating to the layers.
     double effective_tidal_scale(

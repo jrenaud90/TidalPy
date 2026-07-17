@@ -12,7 +12,8 @@ from libcpp.complex cimport complex as cpp_complex
 from CyRK cimport ODEMethod
 
 from TidalPy.structures_x.worlds.base cimport (
-    BaseWorld, c_BaseWorld, c_WorldConfig, c_TideConfig, c_TideSolveConfig)
+    BaseWorld, c_BaseWorld, c_WorldConfig, c_TideConfig, c_TideSolveConfig,
+    c_Heating3DCollapseConfig, c_Heating3DCollapsed)
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
@@ -122,6 +123,17 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
                                  const double* colatitudes,
                                  size_t num_points,
                                  double* out_heating) except +
+        c_Heating3DCollapsed calc_3d_tides(
+                                 const c_TideSolveConfig& state,
+                                 const double* radii,
+                                 size_t num_radii,
+                                 const double* colatitudes,
+                                 size_t num_colatitudes,
+                                 const double* longitudes,
+                                 size_t num_longitudes,
+                                 const double* times,
+                                 size_t num_times,
+                                 const c_Heating3DCollapseConfig& cfg) except +
 
 
 # =====================================================================================================================

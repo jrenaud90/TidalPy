@@ -18,6 +18,7 @@ import numpy as np
 from libc.stdint cimport uint32_t
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
+from libcpp.vector cimport vector
 from cython.operator cimport dereference as deref
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
@@ -49,6 +50,19 @@ cdef BaseLayer _wrap_layer_view(c_BaseLayer* ptr, object world):
 # global-potential engine it uses) so it compiles into this one extension only.
 cdef extern from "world_tides_.hpp" nogil:
     pass
+
+
+# Copy a C++ vector[double] into a new 1D float64 ndarray.
+cdef cnp.ndarray _vec_to_ndarray(const vector[double]& v):
+    cdef Py_ssize_t n = <Py_ssize_t>v.size()
+    cdef cnp.ndarray out = np.empty(n, dtype=np.float64)
+    cdef double[::1] mv
+    cdef Py_ssize_t i
+    if n > 0:
+        mv = out
+        for i in range(n):
+            mv[i] = v[i]
+    return out
 
 # ODEMethod, c_EOSSolution, and c_WorldEOSSolveConfig are provided by layered.pxd.
 
@@ -1090,6 +1104,147 @@ cdef class LayeredWorld(BaseWorld):
             self._layered_ptr.get_3d_tidal_heating_array(
                 state, &radii_view[0], &colat_view[0], num_points, &out_view[0])
         return out_arr
+
+    def calc_3d_tides(
+            self,
+            double orbital_frequency,
+            double spin_frequency,
+            double eccentricity,
+            double obliquity,
+            double semi_major_axis,
+            double host_mass,
+            radii=None,
+            colatitudes=None,
+            longitudes=None,
+            times=None,
+            orbit_averaged=True,
+            latitude_summed=False,
+            longitude_summed=False,
+            radial_summed=False,
+            int latitude_nodes=16,
+            int longitude_nodes=64,
+            int radial_slices=16) -> dict:
+        """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
+
+        With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
+        heating density ``h_bar`` [W m-3], which is longitude- and time-independent (so the longitude
+        axis is constant and there is no time axis). With ``orbit_averaged=False`` it is the instantaneous
+        mechanical power density ``sigma_ij(t) * eps_dot_ij(t)`` [W m-3] at each supplied time (a 4th
+        axis), which orbit-averages back to ``h_bar``.
+
+        Any spatial dimension can be integrated out via ``latitude_summed`` / ``longitude_summed`` /
+        ``radial_summed``. Reduction convention: if any spatial axis is summed, the surviving spatial
+        axes carry their Jacobian (``r^2``, ``sin theta``, ``1``) so a plain integral over them recovers
+        the total; if none is summed the output is the raw density. The colatitude integral uses an
+        internal Gauss-Legendre grid (``latitude_nodes``), the radial integral an internal per-layer
+        trapezoid (``radial_slices``), and the longitude integral the analytic ``2*pi`` when averaged or
+        a ``longitude_nodes`` trapezoid when instantaneous.
+
+        Non-summed spatial axes require the corresponding ``radii`` / ``colatitudes`` / ``longitudes``
+        arrays; the ``times`` array is required when ``orbit_averaged=False``. The returned dict carries
+        the surviving axes (``radii``, ``colatitudes``, ``longitudes``, and ``times`` when instantaneous)
+        plus either ``heating`` (the grid over the surviving axes, in the order radius, colatitude,
+        longitude, time) or, when all three spatial axes are summed, ``total`` [W] and ``per_layer`` [W]
+        (per-layer totals, innermost first; each an array over time when instantaneous). Requires the
+        rheology tide model and a solved EOS.
+        """
+        cdef cpp_bool instantaneous = not orbit_averaged
+        cdef c_Heating3DCollapseConfig cfg
+        cfg.orbit_averaged   = <cpp_bool>orbit_averaged
+        cfg.latitude_summed  = <cpp_bool>latitude_summed
+        cfg.longitude_summed = <cpp_bool>longitude_summed
+        cfg.radial_summed    = <cpp_bool>radial_summed
+        cfg.latitude_nodes   = latitude_nodes
+        cfg.longitude_nodes  = longitude_nodes
+        cfg.radial_slices    = radial_slices
+
+        cdef cnp.ndarray radii_arr
+        cdef double[::1] radii_view
+        cdef const double* radii_ptr = NULL
+        cdef size_t num_radii = 0
+        if not radial_summed:
+            if radii is None:
+                raise ValueError("radii must be provided when radial_summed is False")
+            radii_arr = np.ascontiguousarray(radii, dtype=np.float64)
+            num_radii = <size_t>radii_arr.shape[0]
+            if num_radii > 0:
+                radii_view = radii_arr
+                radii_ptr = &radii_view[0]
+
+        cdef cnp.ndarray colat_arr
+        cdef double[::1] colat_view
+        cdef const double* colat_ptr = NULL
+        cdef size_t num_colat = 0
+        if not latitude_summed:
+            if colatitudes is None:
+                raise ValueError("colatitudes must be provided when latitude_summed is False")
+            colat_arr = np.ascontiguousarray(colatitudes, dtype=np.float64)
+            num_colat = <size_t>colat_arr.shape[0]
+            if num_colat > 0:
+                colat_view = colat_arr
+                colat_ptr = &colat_view[0]
+
+        cdef cnp.ndarray lon_arr
+        cdef double[::1] lon_view
+        cdef const double* lon_ptr = NULL
+        cdef size_t num_lon = 0
+        if not longitude_summed:
+            if longitudes is None:
+                raise ValueError("longitudes must be provided when longitude_summed is False")
+            lon_arr = np.ascontiguousarray(longitudes, dtype=np.float64)
+            num_lon = <size_t>lon_arr.shape[0]
+            if num_lon > 0:
+                lon_view = lon_arr
+                lon_ptr = &lon_view[0]
+
+        cdef cnp.ndarray time_arr
+        cdef double[::1] time_view
+        cdef const double* time_ptr = NULL
+        cdef size_t num_time = 0
+        if instantaneous:
+            if times is None:
+                raise ValueError("times must be provided when orbit_averaged is False")
+            time_arr = np.ascontiguousarray(times, dtype=np.float64)
+            num_time = <size_t>time_arr.shape[0]
+            if num_time > 0:
+                time_view = time_arr
+                time_ptr = &time_view[0]
+
+        cdef c_TideSolveConfig state
+        state.orbital_frequency = orbital_frequency
+        state.spin_frequency    = spin_frequency
+        state.eccentricity      = eccentricity
+        state.obliquity         = obliquity
+        state.semi_major_axis   = semi_major_axis
+        state.host_mass         = host_mass
+
+        cdef c_Heating3DCollapsed res
+        with nogil:
+            res = self._layered_ptr.calc_3d_tides(
+                state, radii_ptr, num_radii, colat_ptr, num_colat,
+                lon_ptr, num_lon, time_ptr, num_time, cfg)
+
+        # Surviving-axis shape (row-major, order radius, colatitude, longitude, time).
+        cdef list shape = [<Py_ssize_t>res.shape[i] for i in range(res.shape.size())]
+        cdef dict out = {'radii': _vec_to_ndarray(res.radii),
+                         'colatitudes': _vec_to_ndarray(res.colatitudes),
+                         'longitudes': _vec_to_ndarray(res.longitudes)}
+        if instantaneous:
+            out['times'] = _vec_to_ndarray(res.times)
+
+        cdef Py_ssize_t nlayers = <Py_ssize_t>res.n_layers
+        cdef Py_ssize_t ntimes = <Py_ssize_t>res.n_times
+        if res.all_spatial_summed:
+            total = _vec_to_ndarray(res.values)
+            per_layer = _vec_to_ndarray(res.layer_totals).reshape(nlayers, ntimes)
+            if not instantaneous:
+                total = float(total[0]) if total.size else 0.0
+                per_layer = per_layer[:, 0]
+            out['total'] = total
+            out['per_layer'] = per_layer
+        else:
+            out['heating'] = _vec_to_ndarray(res.values).reshape(shape) if shape else _vec_to_ndarray(res.values)
+        return out
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

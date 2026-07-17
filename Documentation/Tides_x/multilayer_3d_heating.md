@@ -118,6 +118,96 @@ hbar = world.get_3d_tidal_heating_array(
 It reproduces the scalar `get_3d_tidal_heating` point-for-point (to machine precision), so the two are
 interchangeable in physics; only the performance differs.
 
+#### Full grid + collapsed flavors: `calc_3d_tides`
+
+`calc_3d_tides` produces the 3D heating as a full grid over `(radius, colatitude, longitude[, time])`
+or reduced along any spatial dimension. Two quantities:
+
+* `orbit_averaged=True` (default): the **secular** heating density `h_bar` [W m-3]. It is longitude- and
+  time-independent (the per-mode `e^{i m phi}` cancels), so the longitude axis is constant and there is
+  no time axis.
+* `orbit_averaged=False`: the **instantaneous** mechanical power density `sigma_ij(t) * eps_dot_ij(t)`
+  [W m-3] at each supplied time (a 4th axis). It depends on longitude and time and orbit-averages back
+  to `h_bar` (modes with signed `omega < 0` use the conjugated phasor at `+|omega|`, reproducing the
+  true real field including cross-mode terms).
+
+Non-summed spatial axes take user arrays (`radii`, `colatitudes`, `longitudes`); the `times` array is
+required when `orbit_averaged=False`. Reduction convention: if any spatial axis is summed, the surviving
+spatial axes carry their Jacobian (`r^2`, `sin theta`, `1`) so a plain integral over them recovers the
+total; if none is summed the output is the raw density (it matches the scalar `get_3d_tidal_heating`).
+The colatitude integral uses an internal Gauss-Legendre grid (`latitude_nodes`), the radial integral an
+internal per-layer trapezoid (`radial_slices`), and the longitude integral the analytic `2*pi` when
+averaged or a `longitude_nodes` trapezoid when instantaneous.
+
+The returned dict carries the surviving axes plus either `heating` (the grid over the surviving axes,
+in the order radius, colatitude, longitude, time) or, when all three spatial axes are summed, `total`
+[W] and `per_layer` [W]:
+
+```python
+# default: full secular density grid (nr, ncolat, nlon) — constant along longitude
+grid = world.calc_3d_tides(
+    orbital_motion,
+    spin,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host,
+    radii=rr,
+    colatitudes=cc,
+    longitudes=ll)['heating']
+
+# per-layer and total heating (all three spatial axes summed)
+res = world.calc_3d_tides(
+    orbital_motion,
+    spin,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host,
+    latitude_summed=True,
+    longitude_summed=True,
+    radial_summed=True)
+
+res['total']      # [W], equals the 1D get_tidal_heating
+res['per_layer']  # [W] per layer (innermost first), sums to res['total']
+
+# radial power profile dP/dr (integrates to the total)
+prof = world.calc_3d_tides(
+    orbital_motion,
+    spin,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host,
+    radii=np.linspace(1e3, R, 400),
+    latitude_summed=True,
+    longitude_summed=True)
+np.trapezoid(prof['heating'], prof['radii'])   # == total
+
+# time-resolved instantaneous power over one orbital period
+res = world.calc_3d_tides(
+    orbital_motion,
+    spin,
+    eccentricity,
+    obliquity,
+    semi_major_axis,
+    host,
+    radii=rr,
+    colatitudes=cc,
+    longitudes=ll,
+    times=np.linspace(0, 2*np.pi/n, 400),
+    orbit_averaged=False)
+res['heating']   # shape (nr, ncolat, nlon, ntime)
+```
+
+The fully collapsed `total` equals the 1D global `get_tidal_heating`; per-layer totals sum to it (they
+replace the `tidal_scale` distribution for the depth-resolved rheology path); the radial and colatitude
+profiles integrate to it. The `latitude_nodes` / `radial_slices` defaults (16 each) were tuned so the
+collapsed total is well within 1% of the 1D heating for a homogeneous degree-2 body (~4 colatitude
+nodes and ~8 radial slices per layer already suffice; the defaults add margin for higher degree l and
+layered bodies). This collapse uses numerical quadrature; an analytic pre-integrated angular-table fast
+path is planned behind the same API.
+
 ### Engine + kernel (raw) access
 
 The dynamic potential engine is exposed directly for callers building their own pipelines. It returns
@@ -144,6 +234,8 @@ engine (any eccentricity/obliquity truncation, `l = 2..10`), the point kernel, a
 all-C++** secular `LayeredWorld.get_3d_tidal_heating` (orchestration on `c_RheologyTide`; the world
 delegates), whose volume integral matches the 1D global heating to ~0.1%, and the **vectorized C++ batch
 path** `get_3d_tidal_heating_array` (position-independent mode list built once, radial solve amortized
-across points). Planned: pre-integrated angular tables and the analytic dimension collapse
-(latitude/longitude/radial sums); and (if wanted) a correct instantaneous-map output derived from the
-same complex phasors (`Re[U_c e^{i omega t}]`).
+across points), and `calc_3d_tides` — the **full `(radius, colatitude, longitude[, time])` grid** with
+its **collapsed flavors** (radial/colatitude profiles, per-layer and whole-planet totals via numerical
+quadrature; the total equals the 1D global heating) and the **instantaneous `sigma:eps_dot` path**
+(`orbit_averaged=False`), which orbit-averages back to the secular density. Planned: an analytic
+pre-integrated angular-table fast path behind the same `calc_3d_tides` API.

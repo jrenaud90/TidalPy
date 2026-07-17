@@ -11,6 +11,7 @@ from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
+from libcpp.vector cimport vector
 
 from TidalPy.Utilities_x.classes_x.classes cimport (
     TidalPyBaseClass,
@@ -39,6 +40,27 @@ cdef extern from "tide_result_.hpp" nogil:
         double obliquity
         double semi_major_axis
         double host_mass
+
+    cdef cppclass c_Heating3DCollapseConfig:
+        cpp_bool orbit_averaged
+        cpp_bool latitude_summed
+        cpp_bool longitude_summed
+        cpp_bool radial_summed
+        int      latitude_nodes
+        int      longitude_nodes
+        int      radial_slices
+
+    cdef cppclass c_Heating3DCollapsed:
+        vector[double] values
+        vector[size_t] shape
+        vector[double] radii
+        vector[double] colatitudes
+        vector[double] longitudes
+        vector[double] times
+        vector[double] layer_totals
+        size_t n_layers
+        size_t n_times
+        cpp_bool all_spatial_summed
 
 
 # =====================================================================================================================
