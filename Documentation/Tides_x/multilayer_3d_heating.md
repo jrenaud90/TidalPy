@@ -135,9 +135,14 @@ Non-summed spatial axes take user arrays (`radii`, `colatitudes`, `longitudes`);
 required when `orbit_averaged=False`. Reduction convention: if any spatial axis is summed, the surviving
 spatial axes carry their Jacobian (`r^2`, `sin theta`, `1`) so a plain integral over them recovers the
 total; if none is summed the output is the raw density (it matches the scalar `get_3d_tidal_heating`).
-The colatitude integral uses an internal Gauss-Legendre grid (`latitude_nodes`), the radial integral an
-internal per-layer trapezoid (`radial_slices`), and the longitude integral the analytic `2*pi` when
-averaged or a `longitude_nodes` trapezoid when instantaneous.
+The colatitude integral (secular, `latitude_summed`) is done **analytically** by default: the six angular
+functions the strain/stress needs form a bounded basis whose sphere integrals are precomputed once into a
+per-`(l, m)` Gram table (`Tides_x.multilayer.stress_strain.angular_gram`), so no colatitude grid or
+Legendre evaluation is needed. This is exact and, for a large radius grid (a radial profile or map), a few
+times faster than the numerical quadrature (the Love-number solves otherwise dominate). Pass
+`latitude_analytic=False` to fall back to a Gauss-Legendre colatitude grid (`latitude_nodes`); the two
+agree to machine precision. The radial integral is an internal per-layer trapezoid (`radial_slices`), and
+the longitude integral the analytic `2*pi` when averaged or a `longitude_nodes` trapezoid when instantaneous.
 
 The returned dict carries the surviving axes plus either `heating` (the grid over the surviving axes,
 in the order radius, colatitude, longitude, time) or, when all three spatial axes are summed, `total`
@@ -202,11 +207,10 @@ res['heating']   # shape (nr, ncolat, nlon, ntime)
 
 The fully collapsed `total` equals the 1D global `get_tidal_heating`; per-layer totals sum to it (they
 replace the `tidal_scale` distribution for the depth-resolved rheology path); the radial and colatitude
-profiles integrate to it. The `latitude_nodes` / `radial_slices` defaults (16 each) were tuned so the
-collapsed total is well within 1% of the 1D heating for a homogeneous degree-2 body (~4 colatitude
-nodes and ~8 radial slices per layer already suffice; the defaults add margin for higher degree l and
-layered bodies). This collapse uses numerical quadrature; an analytic pre-integrated angular-table fast
-path is planned behind the same API.
+profiles integrate to it. The secular colatitude collapse is analytic (the angular Gram table); the
+`radial_slices` default (16 per layer) and the fallback `latitude_nodes` (16) were tuned so the collapsed
+total is well within 1% of the 1D heating for a homogeneous degree-2 body (~8 radial slices per layer and
+~4 colatitude nodes already suffice; the defaults add margin for higher degree l and layered bodies).
 
 ### Engine + kernel (raw) access
 
@@ -235,7 +239,7 @@ all-C++** secular `LayeredWorld.get_3d_tidal_heating` (orchestration on `c_Rheol
 delegates), whose volume integral matches the 1D global heating to ~0.1%, and the **vectorized C++ batch
 path** `get_3d_tidal_heating_array` (position-independent mode list built once, radial solve amortized
 across points), and `calc_3d_tides` — the **full `(radius, colatitude, longitude[, time])` grid** with
-its **collapsed flavors** (radial/colatitude profiles, per-layer and whole-planet totals via numerical
-quadrature; the total equals the 1D global heating) and the **instantaneous `sigma:eps_dot` path**
-(`orbit_averaged=False`), which orbit-averages back to the secular density. Planned: an analytic
-pre-integrated angular-table fast path behind the same `calc_3d_tides` API.
+its **collapsed flavors** (radial/colatitude profiles, per-layer and whole-planet totals; the total
+equals the 1D global heating), the **analytic colatitude collapse** (precomputed angular Gram table, exact
+and faster than the quadrature for large radius grids), and the **instantaneous `sigma:eps_dot` path**
+(`orbit_averaged=False`), which orbit-averages back to the secular density.

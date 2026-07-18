@@ -29,6 +29,26 @@ def volumetric_heating(double complex[::1] stress not None, double complex[::1] 
     return c_volumetric_heating_flat(&stress12[0], &strain12[0])
 
 
+def angular_gram(int degree_l, int order_m):
+    """The symmetric 6x6 angular Gram matrix ``G_ij(l, m) = int_0^pi f_i f_j sin(theta) dtheta``.
+
+    The bounded 6-function angular basis is ``f1=P_lm, f2=dP/dtheta, f3=d2P/dtheta2, f4=P/sin,
+    f5=-m^2 P/sin^2 + cot dP, f6=(dP - cot P)/sin``. This is the precomputed table backing the analytic
+    colatitude collapse (:meth:`LayeredWorld.calc_3d_tides`). Returns a ``(6, 6)`` float64 array; raises
+    ``ValueError`` if ``(l, m)`` is outside the tabulated range (``l = 2..10``, ``m = 0..l``).
+    """
+    cdef double[36] gram36
+    if c_angular_gram_flat(degree_l, order_m, &gram36[0]) == 0:
+        raise ValueError(f"angular Gram table has no entry for l={degree_l}, m={order_m} "
+                         "(supported l=2..10, m=0..l)")
+    cdef cnp.ndarray[cnp.float64_t, ndim=2] gram = np.empty((6, 6), dtype=np.float64)
+    cdef Py_ssize_t i, j
+    for i in range(6):
+        for j in range(6):
+            gram[i, j] = gram36[i * 6 + j]
+    return gram
+
+
 def strain_stress_heating_point(
         double complex[::1] y not None,
         double complex shear,

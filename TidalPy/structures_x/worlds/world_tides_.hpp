@@ -27,6 +27,7 @@
 #include "../../Tides_x/classes/tide_.hpp"               // c_RheologyTide (3D orchestration target)
 #include "../../Tides_x/potential/potential_3d_.hpp"     // c_tidal_potential_3d_modes (dynamic Kaula engine)
 #include "../../Tides_x/multilayer/kernel_.hpp"          // strain/stress/heating kernel + c_StrainRadialCoeffs
+#include "../../Tides_x/multilayer/angular_collapse_.hpp" // c_theta_integrated_heating (analytic colatitude collapse)
 
 namespace tidalpy {
 
@@ -689,7 +690,33 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
 
     // Evaluate and Reduce
     const double nan_v = TidalPyConstants::d_NAN;
-    if (!instantaneous) {
+    if (!instantaneous && cfg.latitude_summed && cfg.latitude_analytic) {
+        // Analytic colatitude collapse: integrate the secular density over theta with the precomputed
+        // angular Gram table (exact, no theta grid). theta is summed away, so scatter over (radius, phi).
+        for (size_t ir = 0; ir < nr; ++ir) {
+            double theta_integral = 0.0;
+            if (!radius_solve_failed[ir]) {
+                for (size_t m = 0; m < modes.size(); ++m) {
+                    const int g = mode_group[m];
+                    if (g < 0 || !group_coeffs[g][ir].valid) { continue; }
+                    const double amplitude = modes[m].amplitude;
+                    const double angular = tides::c_theta_integrated_heating(
+                        group_coeffs[g][ir], modes[m].degree_l, modes[m].order_m);
+                    theta_integral += 0.5 * groups[g].frequency * amplitude * amplitude * angular;
+                }
+            }
+            // theta already integrated (Gram absorbs sin theta); apply only the radial + longitude factors.
+            const double radial_factor = cfg.radial_summed ? r_wsum[ir] : (r_grid[ir] * r_grid[ir]);
+            for (size_t iph = 0; iph < nph; ++iph) {
+                const double longitude_factor = cfg.longitude_summed ? ph_wsum[iph] : 1.0;
+                const double contrib = theta_integral * radial_factor * longitude_factor;
+                result.values[surv_index(ir, 0, iph, 0)] += contrib;
+                if (result.all_spatial_summed) {
+                    result.layer_totals[r_layer[ir] * nt + 0] += contrib;
+                }
+            }
+        }
+    } else if (!instantaneous) {
         // Secular density h_bar(r, theta): sum over modes of (freq/2) Im(sigma_c : conj(eps_c)).
         // Longitude/time independent, so evaluate once per (r, theta) and broadcast over phi.
         for (size_t ir = 0; ir < nr; ++ir) {

@@ -49,6 +49,7 @@ cdef extern from "tide_result_.hpp" nogil:
         int      latitude_nodes
         int      longitude_nodes
         int      radial_slices
+        cpp_bool latitude_analytic
 
     cdef cppclass c_Heating3DCollapsed:
         vector[double] values

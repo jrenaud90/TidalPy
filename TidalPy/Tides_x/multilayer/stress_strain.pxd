@@ -20,3 +20,8 @@ cdef extern from "multilayer_bind_.hpp" namespace "tidalpy::tides" nogil:
     double c_volumetric_heating_flat(
         const double* stress12,
         const double* strain12)
+
+    int c_angular_gram_flat(
+        int degree_l,
+        int order_m,
+        double* gram36)

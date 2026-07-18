@@ -9,10 +9,24 @@
 #include <cstddef>
 
 #include "kernel_.hpp"
+#include "angular_gram_.hpp"
 
 
 namespace tidalpy {
 namespace tides {
+
+// Fill the symmetric 6x6 angular Gram matrix for (l, m) into gram36 (row-major). Returns 1 on success,
+// 0 if (l, m) is out of the tabulated range (l = 2..10, m = 0..l). Used to test the table from Python.
+inline int c_angular_gram_flat(int degree_l, int order_m, double* gram36) noexcept
+{
+    double gram[6][6];
+    if (!c_angular_gram(degree_l, order_m, gram)) { return 0; }
+    for (int i = 0; i < 6; ++i)
+    {
+        for (int j = 0; j < 6; ++j) { gram36[i * 6 + j] = gram[i][j]; }
+    }
+    return 1;
+}
 
 // Volumetric tidal heating [W m-3] from the 6 complex stress and 6 complex strain components, each passed
 // as 12 doubles (re, im per component). Used to heat once from the mode-summed stress/strain tensors.

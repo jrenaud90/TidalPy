@@ -1123,7 +1123,8 @@ cdef class LayeredWorld(BaseWorld):
             radial_summed=False,
             int latitude_nodes=16,
             int longitude_nodes=64,
-            int radial_slices=16) -> dict:
+            int radial_slices=16,
+            latitude_analytic=True) -> dict:
         """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
 
         With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
@@ -1147,6 +1148,10 @@ cdef class LayeredWorld(BaseWorld):
         longitude, time) or, when all three spatial axes are summed, ``total`` [W] and ``per_layer`` [W]
         (per-layer totals, innermost first; each an array over time when instantaneous). Requires the
         rheology tide model and a solved EOS.
+
+        When ``latitude_summed`` and ``orbit_averaged`` (the default), the colatitude integral uses the
+        precomputed analytic angular Gram table (exact, no theta grid); pass ``latitude_analytic=False``
+        to fall back to the Gauss-Legendre quadrature instead (they agree to quadrature accuracy).
         """
         cdef cpp_bool instantaneous = not orbit_averaged
         cdef c_Heating3DCollapseConfig cfg
@@ -1157,6 +1162,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.latitude_nodes   = latitude_nodes
         cfg.longitude_nodes  = longitude_nodes
         cfg.radial_slices    = radial_slices
+        cfg.latitude_analytic = <cpp_bool>latitude_analytic
 
         cdef cnp.ndarray radii_arr
         cdef double[::1] radii_view
