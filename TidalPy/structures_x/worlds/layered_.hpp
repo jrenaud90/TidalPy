@@ -30,6 +30,7 @@
 #include "../layers/factory_.hpp"
 
 #include "constants_.hpp"   // TidalPyConstants::d_PI, tidalpy_config_ptr
+#include "../../dynamics_x/spin_.hpp"   // c_Spin (spin-dynamics model attached to the world)
 #include "solver_.hpp"      // c_solve_eos, c_EOS_ODEInput, c_EOSSolution, ODEMethod, PreEvalFunc
 #include "material_.hpp"    // c_MaterialEOSInput, c_preeval_material_eos
 
@@ -446,6 +447,39 @@ public:
     double             get_central_pressure()     const noexcept { return this->p_central_pressure; }
     double             get_planet_mass_eos()      const noexcept { return this->p_planet_mass_eos; }
     double             get_planet_moi_eos()       const noexcept { return this->p_planet_moi_eos; }
+
+    // -----------------------------------------------------------------------
+    // Spin dynamics (the c_Spin model attached to the world; rates only)
+    //
+    // The world holds a spin model and drives it with its own, EOS-based moment of inertia, so the
+    // spin-rate change uses the accurate structure-resolved MoI rather than the uniform-density value.
+    // -----------------------------------------------------------------------
+    void           set_spin_model(const c_Spin& spin) noexcept { this->p_spin = spin; }
+    const c_Spin&  get_spin_model() const noexcept { return this->p_spin; }
+
+    // Moment of inertia [kg m2]: the EOS-solved value (get_planet_moi_eos) when the EOS has been solved,
+    // otherwise the spin model's uniform-density fallback from the world mass and radius.
+    double get_moment_of_inertia() const noexcept {
+        if (this->p_eos_solved && std::isfinite(this->p_planet_moi_eos)) {
+            return this->p_planet_moi_eos;
+        }
+        return this->p_spin.calc_moment_of_inertia(this->get_mass(), this->get_radius(), 0.0);
+    }
+
+    // Tidal spin-rate change [rad s-2] = M_host * dU/dO / I, using the world's stored dU/dO (from the
+    // last calc_tides) and its moment of inertia. Requires a completed tidal solve.
+    double calc_spin_derivative(double host_mass) const {
+        if (!this->get_tides_solved()) {
+            throw std::runtime_error(
+                "TidalPy: spin derivative needs a tidal solve first: call calc_tides()");
+        }
+        return this->p_spin.calc_dspin_dt(host_mass, this->get_tidal_dU_dO(), this->get_moment_of_inertia());
+    }
+
+    // Synchronous spin rate [rad s-1]: equal to the orbital mean motion.
+    double calc_synchronous_spin(double orbital_frequency) const noexcept {
+        return this->p_spin.calc_synchronous_spin(orbital_frequency);
+    }
 
     // Non-owning observer pointer to the retained full-planet EOS solution (the
     // source of the radial profile arrays), or nullptr if solve_eos was not run.
@@ -1001,6 +1035,7 @@ protected:
     double      p_central_pressure     = std::numeric_limits<double>::quiet_NaN();
     double      p_planet_mass_eos      = std::numeric_limits<double>::quiet_NaN();
     double      p_planet_moi_eos       = std::numeric_limits<double>::quiet_NaN();
+    c_Spin      p_spin {};              // spin-dynamics model (uses the world's EOS moment of inertia)
     std::shared_ptr<c_EOSSolution> p_eos_solution;  // retained full-planet solution (co-owned by layer dense evaluators)
     // Per-layer material-EOS inputs referenced by the solver's stored diffeq args;
     // must outlive solve_eos so the dense output's diffeq re-calls stay valid.

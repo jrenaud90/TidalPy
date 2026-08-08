@@ -666,6 +666,28 @@ cdef class LayeredWorld(BaseWorld):
         return self._layered_ptr.get_planet_moi_eos()
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Spin dynamics (the Spin model attached to the world; uses the world's EOS moment of inertia)
+    # ------------------------------------------------------------------------------------------------------------------
+    def set_spin_model(self, Spin spin not None):
+        """Attach a :class:`~TidalPy.dynamics_x.Spin` model (its moment-of-inertia factor is the fallback
+        when the EOS has not been solved)."""
+        self._layered_ptr.set_spin_model(spin._spin)
+
+    def get_moment_of_inertia(self) -> float:
+        """Moment of inertia [kg m^2]: the EOS-solved value when the EOS has been solved, else the spin
+        model's uniform-density fallback from the world mass and radius."""
+        return self._layered_ptr.get_moment_of_inertia()
+
+    def calc_spin_derivative(self, double host_mass) -> float:
+        """Tidal spin-rate change [rad s-2] ``= M_host * dU/dO / I`` using the world's stored ``dU/dO``
+        (from the last :meth:`calc_tides`) and its moment of inertia. Requires a completed tidal solve."""
+        return self._layered_ptr.calc_spin_derivative(host_mass)
+
+    def calc_synchronous_spin(self, double orbital_frequency) -> float:
+        """Synchronous spin rate [rad s-1]: equal to the orbital mean motion ``orbital_frequency``."""
+        return self._layered_ptr.calc_synchronous_spin(orbital_frequency)
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Love-number (radial) solve
     # ------------------------------------------------------------------------------------------------------------------
     def solve_love_numbers(

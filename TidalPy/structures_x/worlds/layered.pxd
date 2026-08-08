@@ -17,6 +17,7 @@ from TidalPy.structures_x.worlds.base cimport (
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver_x.rs_solution cimport c_RadialSolutionStorage
+from TidalPy.dynamics_x.spin cimport Spin, c_Spin
 
 
 # =====================================================================================================================
@@ -95,6 +96,11 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double       get_central_pressure() const
         double       get_planet_mass_eos() const
         double       get_planet_moi_eos() const
+        void         set_spin_model(const c_Spin& spin)
+        const c_Spin& get_spin_model() const
+        double       get_moment_of_inertia() const
+        double       calc_spin_derivative(double host_mass) except +
+        double       calc_synchronous_spin(double orbital_frequency) const
         const c_EOSSolution* get_eos_solution() const
         void                 solve_love_numbers(const c_LoveSolveConfig& cfg) except +
         void                 solve_love_numbers_supplied(const c_LoveSolveConfig& cfg, const cpp_complex[double]* shear_in, const cpp_complex[double]* bulk_in, const double* radius_in, size_t n_in) except +
