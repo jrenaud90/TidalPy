@@ -2352,6 +2352,60 @@
     "link_args": [],
     "is_cpp": true
   },
+  "dynamics_x.spin": {
+    "name": "TidalPy.dynamics_x.spin",
+    "sources": [
+      [
+        "TidalPy",
+        "dynamics_x",
+        "spin.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "dynamics_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "logging_x"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "dynamics_x.orbit_solver": {
+    "name": "TidalPy.dynamics_x.orbit_solver",
+    "sources": [
+      [
+        "TidalPy",
+        "dynamics_x",
+        "orbit_solver.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "dynamics_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "logging_x"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "Tides_x.love.love": {
     "name": "TidalPy.Tides_x.love.love",
     "sources": [
