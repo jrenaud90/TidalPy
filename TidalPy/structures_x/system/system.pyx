@@ -14,7 +14,7 @@ All quantities are MKS: masses [kg], semi-major axes [m], orbital frequencies [r
 parameters [m^3 s-2].
 """
 
-from libc.math cimport NAN
+from libc.math cimport NAN, isfinite
 from libcpp cimport bool as cpp_bool
 from libcpp.vector cimport vector
 
@@ -107,12 +107,52 @@ cdef class System:
 
     def __cinit__(self, *args, **kwargs):
         self._world_wrappers = []
+        self.source_config = None
 
     def __init__(self, str name=""):
         self._system.reset(new c_System(name.encode("utf-8")))
 
     def __dealloc__(self):
         self._system.reset()
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Builder entry point
+    # ------------------------------------------------------------------------------------------------------------------
+    @staticmethod
+    def build(source, force=False):
+        """Build a system from a configuration source (the public builder entry point).
+
+        Resolves ``source``, validates it, builds each member world, and returns the assembled
+        ``System`` with the normalized configuration retained on :attr:`source_config` (so it can be
+        written back to TOML). Mirrors :meth:`BaseWorld.build
+        <TidalPy.structures_x.worlds.base.BaseWorld.build>`; the module-level
+        :func:`~TidalPy.structures_x.configs.system_builder.build_system` simply calls this method.
+
+        Parameters
+        ----------
+        source : str or dict
+            A bundled system name, a path to a ``.toml`` file, or a system configuration dict.
+        force : bool, optional
+            If True, bypass the schema-version compatibility warning. Default False.
+
+        Returns
+        -------
+        System
+            The constructed system, with ``source_config`` populated.
+        """
+        # Deferred imports: the builder helpers import the System class, so importing them at module
+        # load would be circular.
+        from TidalPy.structures_x.configs.system_builder import _resolve_source, construct_system
+        from TidalPy.structures_x.configs.toml_loader import (
+            load_toml,
+            merge_with_defaults,
+            validate_schema_version)
+
+        resolved = _resolve_source(source)
+        config = load_toml(resolved)
+        config = merge_with_defaults(config)
+        validate_schema_version(config, force=force)
+        return construct_system(config, force=force)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Membership
@@ -407,6 +447,72 @@ cdef class System:
         """
         cdef c_PairEvolution pair = self._system.get().calc_pair_evolution(<size_t>self._resolve_index(world))
         return _pair_to_dict(pair)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Config / serialization
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def config(self):
+        """The system configuration dict the system was built from (None if built directly)."""
+        return self.source_config
+
+    cpdef dict get_config_dict(self):
+        """Return the system's live state as a configuration dict (the ``build_system`` schema).
+
+        Each member world is inlined with its own configuration (its retained ``config`` when present,
+        else its world-level ``get_config_dict``) under the world's system name, together with its
+        host/star roles and its orbital elements about the tidal host and the star. This is the
+        self-contained, live-state expansion; it is used by :meth:`save_to_toml` when no
+        ``source_config`` was retained (a directly-built system).
+
+        Returns
+        -------
+        dict
+            A system configuration dict with ``name`` and a ``worlds`` table.
+        """
+        cdef c_System* system_ptr = self._system.get()
+        cdef int host_index = system_ptr.get_host_index()
+        cdef int star_index = system_ptr.get_star_index()
+        cdef int i
+        cdef double a, stellar_a
+        worlds_table = {}
+        for i in range(<int>system_ptr.get_num_worlds()):
+            world = self._world_wrappers[i]
+            world_cfg = dict(world.config) if world.config is not None else world.get_config_dict()
+            world_cfg["name"] = world.name
+            entry = {"world": world_cfg}
+            if i == host_index:
+                entry["is_host"] = True
+            if i == star_index:
+                entry["is_star"] = True
+            a = system_ptr.get_semi_major_axis(<size_t>i)
+            if isfinite(a):
+                entry["semi_major_axis_m"] = a
+                entry["eccentricity"] = system_ptr.get_eccentricity(<size_t>i)
+            stellar_a = system_ptr.get_stellar_semi_major_axis(<size_t>i)
+            if isfinite(stellar_a):
+                entry["stellar_semi_major_axis_m"] = stellar_a
+                entry["stellar_eccentricity"] = system_ptr.get_stellar_eccentricity(<size_t>i)
+            worlds_table[world.name] = entry
+        return {"name": self.name, "worlds": worlds_table}
+
+    def save_to_toml(self, str file_path, overwrite=True):
+        """Write this system's configuration to a TOML file.
+
+        Uses the retained build configuration (:attr:`source_config`) when present for a faithful
+        round-trip of the original description (world references intact), otherwise falls back to the
+        self-contained live-state expansion :meth:`get_config_dict`.
+
+        Parameters
+        ----------
+        file_path : str
+            Destination ``.toml`` path.
+        overwrite : bool, optional
+            Overwrite an existing file. Default True.
+        """
+        from TidalPy.structures_x.configs.config_writer import save_system_to_toml
+        config = self.source_config if self.source_config is not None else self.get_config_dict()
+        return save_system_to_toml(config, file_path, overwrite=overwrite)
 
     # ------------------------------------------------------------------------------------------------------------------
     # World identification: accept an index (int), a world name (str), or the world wrapper object.

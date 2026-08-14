@@ -503,6 +503,85 @@ def validate_layer_config(layer_name: str, layer_cfg: dict) -> None:
 
 
 # =====================================================================================================================
+# System validation
+# =====================================================================================================================
+# Allowed keys in a system's ``[worlds.<name>]`` entry. ``world`` (the world source: a bundled world
+# name, a path to a world TOML, or an inline world config table) is required; the rest are optional and
+# mirror the ``System.add_world`` / ``set_stellar_*`` arguments.
+SYSTEM_WORLD_KEYS = (
+    "world",                      # required: bundled name / path / inline world config
+    "is_host",                    # role: the tidal host
+    "is_star",                    # role: the insolation source
+    "semi_major_axis_m",          # orbit about the tidal host [m]
+    "eccentricity",               # orbit about the tidal host
+    "stellar_semi_major_axis_m",  # orbit about the star [m]
+    "stellar_eccentricity",       # orbit about the star
+)
+
+# Reserved system-level keys (everything else must live inside a ``[worlds.<name>]`` table).
+_SYSTEM_STRUCTURAL_KEYS = ("name", "schema_version", "worlds")
+
+
+def validate_system_config(config: dict) -> None:
+    """Validate a system configuration dictionary.
+
+    Checks that the ``worlds`` table is present and well formed, that each member names a ``world``
+    source, that no unknown keys appear at either the system or per-world level, and that at most one
+    world is flagged as the host and at most one as the star.
+
+    Parameters
+    ----------
+    config : dict
+        The system configuration dictionary. The recognized shape is a top-level ``name`` /
+        ``schema_version`` plus a ``[worlds.<name>]`` table per member world.
+
+    Raises
+    ------
+    ValueError
+        If the ``worlds`` table is missing/empty, a member is missing its ``world`` source, an
+        unexpected key appears, or more than one host / star is declared.
+    """
+    worlds = config.get("worlds", None)
+    if not worlds:
+        raise ValueError(
+            "System configuration requires at least one '[worlds.<name>]' table.")
+    if not isinstance(worlds, dict):
+        raise ValueError("The 'worlds' entry must be a table of named worlds.")
+
+    # Flag unknown system-level keys (typo protection).
+    for key in config:
+        if key not in _SYSTEM_STRUCTURAL_KEYS:
+            raise ValueError(
+                f"Unexpected system-level key '{key}'. Allowed: {sorted(_SYSTEM_STRUCTURAL_KEYS)}.")
+
+    host_count = 0
+    star_count = 0
+    for world_key, world_cfg in worlds.items():
+        if not isinstance(world_cfg, dict):
+            raise ValueError(f"System world '{world_key}' must be a table of key-value pairs.")
+        if "world" not in world_cfg:
+            raise ValueError(
+                f"System world '{world_key}' is missing the required 'world' key (a bundled world "
+                "name, a path to a world TOML, or an inline world config table).")
+        for key in world_cfg:
+            if key not in SYSTEM_WORLD_KEYS:
+                raise ValueError(
+                    f"Unexpected key '{key}' on system world '{world_key}'. "
+                    f"Allowed keys: {sorted(SYSTEM_WORLD_KEYS)}.")
+        if world_cfg.get("is_host", False):
+            host_count += 1
+        if world_cfg.get("is_star", False):
+            star_count += 1
+
+    if host_count > 1:
+        raise ValueError(
+            f"System declares {host_count} host worlds (is_host = true); at most one is allowed.")
+    if star_count > 1:
+        raise ValueError(
+            f"System declares {star_count} star worlds (is_star = true); at most one is allowed.")
+
+
+# =====================================================================================================================
 # Default merging
 # =====================================================================================================================
 def merge_with_defaults(config: dict) -> dict:

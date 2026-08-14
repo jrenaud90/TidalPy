@@ -1,0 +1,26 @@
+# A miniature Solar System for the structures_x system builder: the Sun as both the tidal host and the
+# star, with Earth and Jupiter orbiting it. Each planet references a bundled world by name. Because the
+# star is also the tidal host here, each planet's orbit about the host and about the star coincide (the
+# exoplanet case); for a system where the star is a separate body (e.g. a moon orbiting a planet under a
+# distant star) the two orbits differ.
+schema_version = "0.2.0"
+name = "Sol System"
+
+[worlds.sun]
+world = "sol"
+is_host = true
+is_star = true
+
+[worlds.earth]
+world = "earth_simple"
+semi_major_axis_m = 1.495978707e11
+eccentricity = 0.0167
+stellar_semi_major_axis_m = 1.495978707e11
+stellar_eccentricity = 0.0167
+
+[worlds.jupiter]
+world = "jupiter_simple"
+semi_major_axis_m = 7.785472e11
+eccentricity = 0.0489
+stellar_semi_major_axis_m = 7.785472e11
+stellar_eccentricity = 0.0489

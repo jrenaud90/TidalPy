@@ -114,4 +114,6 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
 cdef class System:
     cdef unique_ptr[c_System] _system
     cdef list _world_wrappers   # Python list of the added BaseWorld wrappers (co-own the C++ worlds)
+    cdef public dict source_config   # system config the system was built from (or None if built directly)
     cdef Py_ssize_t _resolve_index(self, object world) except *
+    cpdef dict get_config_dict(self)

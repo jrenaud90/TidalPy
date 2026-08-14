@@ -113,6 +113,10 @@ cdef class BaseWorld(StructureBase):
         """World name."""
         return self._world_ptr.get().get_name().decode("utf-8")
 
+    @name.setter
+    def name(self, str value):
+        self._world_ptr.get().set_name(value.encode("utf-8"))
+
     @property
     def world_type(self) -> str:
         """World type label."""

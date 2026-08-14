@@ -126,6 +126,7 @@ public:
     // -----------------------------------------------------------------------
     // Mutators (non-const)
     // -----------------------------------------------------------------------
+    void set_name(const std::string& name)      { this->p_name = name; }
     void set_spin_frequency(double freq_rad_s) noexcept { this->p_spin_frequency_rad_s = freq_rad_s; }
     void set_obliquity(double obliq_rad)        noexcept { this->p_obliquity_rad = obliq_rad; }
 

@@ -91,6 +91,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   calc_escape_velocity()  const
         double   calc_mean_density()     const
         double   calc_equilibrium_temperature(double insolation_flux_w_m2) const
+        void     set_name(const string& name) except +
         void     set_spin_frequency(double freq_rad_s)
         void     set_obliquity(double obliq_rad)
         # Global (1D) tidal dissipation (analytic path; calc_tides defined in world_tides_base_.hpp).

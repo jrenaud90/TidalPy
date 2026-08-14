@@ -49,6 +49,57 @@ system.set_stellar_semi_major_axis("moon", AU)                        # moon abo
 system.set_stellar_eccentricity("moon", 0.0167)
 ```
 
+## Building a system from TOML (`build_system`)
+
+A whole system can be described in TOML and built in one call, mirroring `build_world`. Each
+`[worlds.<name>]` table names a `world` (a bundled world name, a path to a world TOML, or an inline
+world config) plus its host/star roles and its orbital elements. The table key becomes the world's name
+within the system (so a bundled world template can be reused under different names).
+
+```toml
+schema_version = "0.2.0"
+name = "Sol System"
+
+[worlds.sun]
+world = "sol"          # a bundled world name (also accepts a path or an inline [worlds.sun.world] table)
+is_host = true
+is_star = true
+
+[worlds.earth]
+world = "earth_simple"
+semi_major_axis_m = 1.495978707e11   # orbit about the tidal host
+eccentricity      = 0.0167
+stellar_semi_major_axis_m = 1.495978707e11   # orbit about the star (for insolation)
+stellar_eccentricity      = 0.0167
+```
+
+```python
+from TidalPy.structures_x.configs import build_system
+
+system = build_system("sol_system")      # a bundled system name, a .toml path, or a dict
+# equivalently: System.build("sol_system")
+system.calc_insolation_flux("earth")     # ~1361 W/m^2 (the solar constant)
+```
+
+`build_system(source, force=False)` (a thin wrapper over `System.build`, mirroring
+`build_world` / `BaseWorld.build`) resolves the source, validates it (schema version + structure), and
+builds each member world with `build_world`. `construct_system(config)` does the same from an
+already-parsed `dict`. The star need not be the tidal host: set `is_host` and `is_star` on different
+worlds (e.g. a moon whose tidal host is its planet but whose insolation comes from the system star), and
+give each world both a tidal-host orbit (`semi_major_axis_m` / `eccentricity`) and a stellar orbit
+(`stellar_semi_major_axis_m` / `stellar_eccentricity`).
+
+A built system retains its normalized configuration on `source_config` and can be written back out:
+
+```python
+system.save_to_toml("my_system.toml")    # faithful round-trip of the description (world references kept)
+system.get_config_dict()                 # the self-contained live-state expansion (each world inlined)
+```
+
+`save_to_toml` writes the retained `source_config` when present (the original world references), falling
+back to `get_config_dict` — the self-contained expansion that inlines each world's full config together
+with its roles and orbital elements — for a system assembled directly in Python.
+
 ## Worlds, Host, and Identification
 
 Most methods accept a world by **index** (int, negatives allowed), **name** (str), or the **world
