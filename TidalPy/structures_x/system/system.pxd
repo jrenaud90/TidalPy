@@ -46,6 +46,23 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   dE_spin_dt
         double   energy_residual
 
+    cdef cppclass c_PairEvolution:
+        size_t           world_index
+        size_t           host_index
+        cpp_bool         evolved
+        double           orbital_frequency
+        double           semi_major_axis
+        double           eccentricity
+        double           da_dt
+        double           de_dt
+        double           dn_dt
+        c_WorldEvolution world
+        c_WorldEvolution host
+        double           tidal_heating_total
+        double           dE_orbit_dt
+        double           dE_spin_dt_total
+        double           energy_residual
+
     cdef cppclass c_System:
         c_System() except +
         c_System(const string& name) except +
@@ -85,6 +102,7 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   calc_equilibrium_temperature(size_t index) except +
         c_WorldEvolution         calc_world_evolution(size_t index) except +
         vector[c_WorldEvolution] calc_system_evolution() except +
+        c_PairEvolution          calc_pair_evolution(size_t index) except +
         double   calc_orbital_energy_derivative(const c_WorldEvolution& evolution) except +
         double   calc_spin_energy_derivative(const c_WorldEvolution& evolution)
         double   calc_energy_residual(const c_WorldEvolution& evolution) except +

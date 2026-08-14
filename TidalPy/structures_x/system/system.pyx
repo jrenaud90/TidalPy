@@ -66,6 +66,27 @@ cdef dict _evolution_to_dict(c_WorldEvolution evolution):
     }
 
 
+cdef dict _pair_to_dict(c_PairEvolution pair):
+    """Convert a c_PairEvolution (dual-body) result into a plain Python dict (all values MKS)."""
+    return {
+        'world_index':         <int>pair.world_index,
+        'host_index':          <int>pair.host_index,
+        'evolved':             True if pair.evolved else False,
+        'orbital_frequency':   pair.orbital_frequency,
+        'semi_major_axis':     pair.semi_major_axis,
+        'eccentricity':        pair.eccentricity,
+        'da_dt':               pair.da_dt,
+        'de_dt':               pair.de_dt,
+        'dn_dt':               pair.dn_dt,
+        'tidal_heating_total': pair.tidal_heating_total,
+        'dE_orbit_dt':         pair.dE_orbit_dt,
+        'dE_spin_dt_total':    pair.dE_spin_dt_total,
+        'energy_residual':     pair.energy_residual,
+        'world':               _evolution_to_dict(pair.world),
+        'host':                _evolution_to_dict(pair.host),
+    }
+
+
 # =====================================================================================================================
 # System
 # =====================================================================================================================
@@ -360,6 +381,32 @@ cdef class System:
         for i in range(results.size()):
             out.append(_evolution_to_dict(results[i]))
         return out
+
+    def calc_pair_evolution(self, world) -> dict:
+        """Evolve an orbiting world together with its host under dual-body tidal dissipation.
+
+        Both the orbiting world and the tidal host raise a tide on their shared orbit. Each body's tides
+        are solved with the other body as the tide raiser; their orbital-rate contributions add and each
+        body evolves its own spin. A body with no tide model is rigid and contributes nothing (with a
+        rigid host this reduces to :meth:`calc_world_evolution`).
+
+        Parameters
+        ----------
+        world : int or str or BaseWorld
+            The orbiting world, identified by index, name, or the world object.
+
+        Returns
+        -------
+        dict
+            Combined shared-orbit fields (``da_dt``, ``de_dt``, ``dn_dt``, ``tidal_heating_total``,
+            ``dE_orbit_dt``, ``dE_spin_dt_total``, ``energy_residual``, plus ``orbital_frequency`` /
+            ``semi_major_axis`` / ``eccentricity`` / ``world_index`` / ``host_index`` / ``evolved``), and
+            each body's full single-body contribution under keys ``world`` and ``host`` (each a
+            :meth:`calc_world_evolution`-style dict). ``evolved`` is ``False`` for the host's own entry, a
+            hostless system, or a world with no usable orbit.
+        """
+        cdef c_PairEvolution pair = self._system.get().calc_pair_evolution(<size_t>self._resolve_index(world))
+        return _pair_to_dict(pair)
 
     # ------------------------------------------------------------------------------------------------------------------
     # World identification: accept an index (int), a world name (str), or the world wrapper object.

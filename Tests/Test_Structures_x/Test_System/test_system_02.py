@@ -217,3 +217,113 @@ def test_layerless_world_evolves_without_spin():
     assert np.isfinite(ev["de_dt"])
     # The orbital-energy term is populated even without a spin model; the spin term is not.
     assert np.isfinite(ev["dE_orbit_dt"])
+
+
+# =====================================================================================================================
+# Dual-body dissipation (calc_pair_evolution): both bodies raise tides on the shared orbit
+# =====================================================================================================================
+def _mass(radius):
+    return (4.0 / 3.0) * math.pi * radius ** 3 * _DENSITY
+
+
+def _layered(name, radius, spin_frequency):
+    """A homogeneous Maxwell body that dissipates tidally and carries a spin model."""
+    mass = _mass(radius)
+    world = LayeredWorld(name, radius, mass)
+    layer = PhysicsLayer("mantle", 0, 0.0, radius, mass,
+                         shear_modulus_static_pa=_SHEAR, bulk_modulus_static_pa=_BULK)
+    layer.is_static = False
+    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _VISC}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _VISC}))
+    layer.set_shear_rheology(Maxwell())
+    layer.set_bulk_rheology(Elastic())
+    world.add_layer(layer)
+    world.set_tide_model(make_tide("rheology"))
+    world.set_tide_config(min_degree_l=2, max_degree_l=2,
+                          eccentricity_truncation=3, obliquity_truncation=0)
+    world.set_spin_model(Spin())
+    world.solve_eos(G_to_use=G)
+    world.set_spin_frequency(spin_frequency)
+    return world
+
+
+def _dual_system(sma=60.0 * _R, host_radius=2.0 * _R, world_radius=_R,
+                 host_spin=0.7, world_spin=1.5, eccentricity=_ECC):
+    """A system where both the host and the orbiting world are tidally dissipating layered bodies.
+
+    The spin factors are relative to the shared mean motion (from Kepler's third law for this orbit).
+    """
+    host_mass = _mass(host_radius)
+    world_mass = _mass(world_radius)
+    n = math.sqrt(G * (host_mass + world_mass) / sma ** 3)
+    host = _layered("host", host_radius, host_spin * n)
+    orbiter = _layered("orbiter", world_radius, world_spin * n)
+    system = System("dual")
+    system.add_world(host, is_host=True)
+    system.add_world(orbiter, semi_major_axis=sma, eccentricity=eccentricity)
+    return system
+
+
+@pytest.mark.parametrize("world_spin,host_spin", [(1.5, 0.7), (1.37, 1.2), (0.5, 2.0)])
+def test_pair_evolution_energy_balance(world_spin, host_spin):
+    """Dual-body energy conservation: both bodies dissipate and the combined + per-body balances hold."""
+    system = _dual_system(world_spin=world_spin, host_spin=host_spin)
+    pair = system.calc_pair_evolution("orbiter")
+    assert pair["evolved"] is True
+    assert pair["world"]["tidal_heating"] > 0.0
+    assert pair["host"]["tidal_heating"] > 0.0
+    # Combined balance and each body's own balance are ~0 relative to the heating.
+    assert abs(pair["energy_residual"]) <= 1e-6 * abs(pair["tidal_heating_total"])
+    assert abs(pair["world"]["energy_residual"]) <= 1e-6 * abs(pair["world"]["tidal_heating"])
+    assert abs(pair["host"]["energy_residual"]) <= 1e-6 * abs(pair["host"]["tidal_heating"])
+    # Combined rates + heating are the sum of the two bodies' contributions.
+    assert math.isclose(pair["da_dt"], pair["world"]["da_dt"] + pair["host"]["da_dt"], rel_tol=1e-12)
+    assert math.isclose(pair["de_dt"], pair["world"]["de_dt"] + pair["host"]["de_dt"], rel_tol=1e-12)
+    assert math.isclose(pair["tidal_heating_total"],
+                        pair["world"]["tidal_heating"] + pair["host"]["tidal_heating"], rel_tol=1e-12)
+
+
+def test_pair_world_matches_single_body():
+    """The pair's orbiting-world contribution equals the single-body calc_world_evolution result."""
+    system = _dual_system()
+    pair = system.calc_pair_evolution("orbiter")
+    single = system.calc_world_evolution("orbiter")
+    for key in ("da_dt", "de_dt", "dn_dt", "dspin_dt", "tidal_heating", "energy_residual"):
+        assert math.isclose(pair["world"][key], single[key], rel_tol=1e-12, abs_tol=1e-30)
+
+
+def test_pair_symmetry_identical_bodies():
+    """Two identical bodies contribute equally to the shared orbit; the combined is twice each."""
+    system = _dual_system(host_radius=_R, world_radius=_R, host_spin=1.5, world_spin=1.5)
+    pair = system.calc_pair_evolution("orbiter")
+    assert math.isclose(pair["world"]["da_dt"], pair["host"]["da_dt"], rel_tol=1e-9)
+    assert math.isclose(pair["world"]["tidal_heating"], pair["host"]["tidal_heating"], rel_tol=1e-9)
+    assert math.isclose(pair["world"]["dspin_dt"], pair["host"]["dspin_dt"], rel_tol=1e-9)
+    assert math.isclose(pair["da_dt"], 2.0 * pair["world"]["da_dt"], rel_tol=1e-12)
+
+
+def test_pair_rigid_host_reduces_to_single_body():
+    """A host with no tide model is rigid: the pair reduces to the single-body result."""
+    system = _system()   # star host (no tide model) + layered moon
+    pair = system.calc_pair_evolution("moon")
+    single = system.calc_world_evolution("moon")
+    assert pair["host"]["tidal_heating"] == 0.0
+    assert pair["host"]["da_dt"] == 0.0
+    assert pair["host"]["has_spin"] is False
+    assert math.isclose(pair["da_dt"], single["da_dt"], rel_tol=1e-12)
+    assert math.isclose(pair["tidal_heating_total"], single["tidal_heating"], rel_tol=1e-12)
+    assert abs(pair["energy_residual"]) <= 1e-6 * abs(pair["tidal_heating_total"])
+
+
+def test_pair_host_entry_not_evolved():
+    system = _dual_system()
+    pair = system.calc_pair_evolution("host")
+    assert pair["evolved"] is False
+
+
+def test_pair_no_host_not_evolved():
+    system = System("hostless")
+    system.add_world(_moon(), semi_major_axis=_SMA, eccentricity=_ECC)
+    pair = system.calc_pair_evolution("moon")
+    assert pair["evolved"] is False

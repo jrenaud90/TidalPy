@@ -148,8 +148,28 @@ comes from the world's attached spin model (`dspin/dt = M_host dU/dO / I`). The 
 spin energy loss balance to `heating = −(dE_orbit/dt + dE_spin/dt)` with
 `E_orbit = −G M_host M_world / (2 a)` and `E_spin = ½ I spin²`.
 
-Each orbiting world evolves on its own two-body orbit about the host and dissipates independently; the
-tide raised on the host by the world is not yet included.
+Each orbiting world evolves on its own two-body orbit about the host and dissipates independently.
+
+### Dual-body dissipation
+
+`calc_pair_evolution(world)` evolves an orbiting world **together with its host**, with both bodies
+raising a tide on their shared orbit. Each body's tides are solved with the other body as the tide
+raiser (masses swapped), so their orbital-rate contributions add and each body evolves its own spin:
+
+```python
+pair = system.calc_pair_evolution("moon")
+pair["da_dt"], pair["de_dt"], pair["dn_dt"]     # combined shared-orbit rates
+pair["tidal_heating_total"]                     # heating in both bodies
+pair["energy_residual"]                         # ~0: heating_total + dE_orbit/dt + dE_spin_total/dt
+pair["world"]                                   # the orbiting world's single-body contribution (a dict)
+pair["host"]                                    # the host's single-body contribution (a dict)
+```
+
+The `world` and `host` entries are each a full `calc_world_evolution`-style dict (their own solve, spin,
+heating, and share of the orbital rates + energy). The combined balance is the sum of the two
+single-body balances, `heating_world + heating_host = −(dE_orbit/dt + dE_spin_world/dt + dE_spin_host/dt)`.
+A body with no tide model attached is **rigid** and contributes nothing, so a rigid host reduces
+`calc_pair_evolution` to the single-body `calc_world_evolution` result.
 
 ## C++ API
 
@@ -171,6 +191,10 @@ tide raised on the host by the world is not yet included.
   (a layered world is resolved via `dynamic_cast` so the rheology solve runs and the spin model is
   reached; a layerless world uses the analytic solve and contributes no spin). `calc_orbital_energy_derivative`,
   `calc_spin_energy_derivative`, `calc_energy_residual` compute the energy-balance terms.
+* `calc_pair_evolution(i)` — dual-body evolution returning a `c_PairEvolution` (both bodies' `c_WorldEvolution`
+  contributions + the combined shared-orbit rates and energy balance). Built on the shared
+  `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal
+  solve + rate + spin contribution (a body with no tide model is rigid and contributes zero).
 
 ## References
 
