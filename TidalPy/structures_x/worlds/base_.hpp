@@ -173,6 +173,12 @@ public:
         return this->p_tides_solved ? this->p_tide_result.num_modes : 0;
     }
 
+    // The whole collapsed global tidal result (heating + the three potential derivatives + mode/error
+    // codes) from the most recent calc_tides, as one struct. Read it after checking get_tides_solved():
+    // the fields hold their unsolved defaults (zeros) when the tides have not been solved, unlike the
+    // scalar getters above which return NaN.
+    const c_GlobalTideResult& get_tide_result() const noexcept { return this->p_tide_result; }
+
     // Complex potential Love number k_l for the tidal mode (l, m, p, q) from the most recent
     // rheology calc_tides. NaN for the analytic models (no radial solution) or an inactive mode.
     std::complex<double> get_tidal_love_k(int degree_l, int m, int p, int q) const noexcept {

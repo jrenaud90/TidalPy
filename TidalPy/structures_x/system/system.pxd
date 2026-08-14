@@ -9,6 +9,12 @@ Exports c_System and the Python wrapper System so other extensions can cimport a
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr, shared_ptr
+from libcpp.vector cimport vector
+
+# Cimported so the CyRK solver implementation (cysolve.cpp / cysolution.cpp, force-included by CyRK's
+# own pxd) compiles into this extension: the world tidal solve the system drives runs the CyRK-backed
+# radial solver, whose symbols must be linked here (the same cimport the world extensions use).
+from CyRK cimport ODEMethod
 
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 
@@ -17,6 +23,29 @@ from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 # C++ class declarations
 # =====================================================================================================================
 cdef extern from "system_.hpp" namespace "tidalpy" nogil:
+    cdef cppclass c_WorldEvolution:
+        size_t   world_index
+        cpp_bool evolved
+        double   orbital_frequency
+        double   semi_major_axis
+        double   eccentricity
+        double   spin_frequency
+        double   host_mass
+        double   target_mass
+        double   tidal_heating
+        double   dU_dM
+        double   dU_dw
+        double   dU_dO
+        double   da_dt
+        double   de_dt
+        double   dn_dt
+        double   dspin_dt
+        double   moment_of_inertia
+        cpp_bool has_spin
+        double   dE_orbit_dt
+        double   dE_spin_dt
+        double   energy_residual
+
     cdef cppclass c_System:
         c_System() except +
         c_System(const string& name) except +
@@ -54,6 +83,11 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double   calc_stellar_orbital_frequency(size_t index) except +
         double   calc_insolation_flux(size_t index) except +
         double   calc_equilibrium_temperature(size_t index) except +
+        c_WorldEvolution         calc_world_evolution(size_t index) except +
+        vector[c_WorldEvolution] calc_system_evolution() except +
+        double   calc_orbital_energy_derivative(const c_WorldEvolution& evolution) except +
+        double   calc_spin_energy_derivative(const c_WorldEvolution& evolution)
+        double   calc_energy_residual(const c_WorldEvolution& evolution) except +
 
 
 # =====================================================================================================================

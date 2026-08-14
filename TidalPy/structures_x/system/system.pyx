@@ -16,6 +16,7 @@ parameters [m^3 s-2].
 
 from libc.math cimport NAN
 from libcpp cimport bool as cpp_bool
+from libcpp.vector cimport vector
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -27,6 +28,42 @@ from TidalPy.structures_x.worlds.base cimport BaseWorld
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
+
+# Pull in the out-of-line (inline) definitions of the world tidal solves so the system can drive a
+# world's tides directly in C++. world_tides_base_.hpp defines the analytic c_BaseWorld::calc_tides;
+# world_tides_.hpp defines the layered c_LayeredWorld::calc_tides (rheology + layer heat distribution),
+# whose rheology path runs the CyRK-backed radial solver (linked via the CyRK cimport in system.pxd).
+cdef extern from "world_tides_base_.hpp" nogil:
+    pass
+cdef extern from "world_tides_.hpp" nogil:
+    pass
+
+
+cdef dict _evolution_to_dict(c_WorldEvolution evolution):
+    """Convert a c_WorldEvolution result into a plain Python dict (all values MKS)."""
+    return {
+        'world_index':       <int>evolution.world_index,
+        'evolved':           True if evolution.evolved else False,
+        'orbital_frequency': evolution.orbital_frequency,
+        'semi_major_axis':   evolution.semi_major_axis,
+        'eccentricity':      evolution.eccentricity,
+        'spin_frequency':    evolution.spin_frequency,
+        'host_mass':         evolution.host_mass,
+        'target_mass':       evolution.target_mass,
+        'tidal_heating':     evolution.tidal_heating,
+        'dU_dM':             evolution.dU_dM,
+        'dU_dw':             evolution.dU_dw,
+        'dU_dO':             evolution.dU_dO,
+        'da_dt':             evolution.da_dt,
+        'de_dt':             evolution.de_dt,
+        'dn_dt':             evolution.dn_dt,
+        'dspin_dt':          evolution.dspin_dt,
+        'moment_of_inertia': evolution.moment_of_inertia,
+        'has_spin':          True if evolution.has_spin else False,
+        'dE_orbit_dt':       evolution.dE_orbit_dt,
+        'dE_spin_dt':        evolution.dE_spin_dt,
+        'energy_residual':   evolution.energy_residual,
+    }
 
 
 # =====================================================================================================================
@@ -259,6 +296,70 @@ cdef class System:
         ``T = ((1-A) F / (4 eps sigma))^(1/4)``. Returns NaN if the insolation flux is unavailable.
         """
         return self._system.get().calc_equilibrium_temperature(<size_t>self._resolve_index(world))
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Orbital + spin evolution (single-body tidal dissipation)
+    # ------------------------------------------------------------------------------------------------------------------
+    def calc_world_evolution(self, world) -> dict:
+        """Evolve one orbiting world for a single tidal solve, returning its rates as a dict.
+
+        Solves the world's global tides in the current system state (mean motion from Kepler's third law,
+        spin + obliquity from the world, eccentricity + semi-major axis from its orbit about the host,
+        host mass from the host world), then turns the tidal-potential derivatives into the orbital rates
+        and the world's spin rate. Only this world raises tides; the host is treated as a point mass.
+
+        Parameters
+        ----------
+        world : int or str or BaseWorld
+            The orbiting world, identified by index, name, or the world object.
+
+        Returns
+        -------
+        dict
+            Keys (all MKS): 
+                - ``world_index``
+                - ``evolved`` (``False`` for the host or a world with no usable orbit)
+                - ``orbital_frequency``
+                - ``semi_major_axis``
+                - ``eccentricity``
+                - ``spin_frequency``
+                - ``host_mass``
+                - ``target_mass``
+                - ``tidal_heating``
+                - ``dU_dM``
+                - ``dU_dw``
+                - ``dU_dO``
+                - ``da_dt``
+                - ``de_dt``
+                - ``dn_dt``
+                - ``dspin_dt``
+                - ``moment_of_inertia``
+                - ``has_spin``
+                - ``dE_orbit_dt``
+                - ``dE_spin_dt``
+                - ``energy_residual``
+        """
+        cdef c_WorldEvolution evolution = self._system.get().calc_world_evolution(
+            <size_t>self._resolve_index(world))
+        return _evolution_to_dict(evolution)
+
+    def calc_system_evolution(self) -> list:
+        """Evolve every world in the system (single-body dissipation).
+
+        Solves each orbiting world's tides for its current orbit, then returns the rates.
+
+        Returns
+        -------
+        list of dict
+            One :meth:`calc_world_evolution` dict per world, in index order. The host's own entry and any
+            world without a usable orbit come back with ``evolved`` set to ``False``.
+        """
+        cdef vector[c_WorldEvolution] results = self._system.get().calc_system_evolution()
+        cdef list out = []
+        cdef size_t i
+        for i in range(results.size()):
+            out.append(_evolution_to_dict(results[i]))
+        return out
 
     # ------------------------------------------------------------------------------------------------------------------
     # World identification: accept an index (int), a world name (str), or the world wrapper object.

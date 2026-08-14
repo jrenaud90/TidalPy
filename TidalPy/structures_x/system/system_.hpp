@@ -31,9 +31,11 @@
 #include <string>
 #include <vector>
 
-#include "../worlds/base_.hpp"      // c_BaseWorld
-#include "../worlds/stellar_.hpp"   // c_StarWorld (for the star's luminosity in insolation)
-#include "constants_.hpp"           // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
+#include "../worlds/base_.hpp"                // c_BaseWorld
+#include "../worlds/stellar_.hpp"             // c_StarWorld (for the star's luminosity in insolation)
+#include "../worlds/layered_.hpp"             // c_LayeredWorld (rheology tidal solve + spin model)
+#include "../../dynamics_x/orbit_solver_.hpp" // c_OrbitSolver / c_OrbitState (orbital rate engine)
+#include "constants_.hpp"                     // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
 
 namespace tidalpy {
 
@@ -45,6 +47,46 @@ namespace tidalpy {
 struct c_OrbitElements {
     double semi_major_axis = TidalPyConstants::d_NAN;   // a [m]
     double eccentricity    = 0.0;                       // e [dimensionless]
+};
+
+// -------------------------------------------------------------------------------
+// c_WorldEvolution - the tidal + orbital + spin rates of one orbiting world for a single tidal solve,
+// together with the orbital/spin state used and the raw tidal outputs so the energy balance can be
+// checked. Produced by c_System::calc_world_evolution. evolved is false when the world does not orbit
+// the host (the host's own entry, or a world with no usable orbit); the numeric fields are then unset.
+// -------------------------------------------------------------------------------
+struct c_WorldEvolution {
+    std::size_t world_index = 0;
+    bool        evolved     = false;
+
+    // Orbital + spin state used for the solve.
+    double orbital_frequency = TidalPyConstants::d_NAN;  // mean motion n            [rad s-1]
+    double semi_major_axis   = TidalPyConstants::d_NAN;  // a about the host         [m]
+    double eccentricity      = 0.0;                      // e about the host         [dimensionless]
+    double spin_frequency    = 0.0;                      // world spin rate          [rad s-1]
+    double host_mass         = 0.0;                      // tidal host mass          [kg]
+    double target_mass       = 0.0;                      // dissipating world mass   [kg]
+
+    // Raw global-tidal-solve outputs for the world.
+    double tidal_heating = 0.0;  // total tidal heating                     [W]
+    double dU_dM         = 0.0;  // potential derivative wrt mean anomaly   [J kg-1 rad-1]
+    double dU_dw         = 0.0;  // potential derivative wrt arg pericenter [J kg-1 rad-1]
+    double dU_dO         = 0.0;  // potential derivative wrt node longitude [J kg-1 rad-1]
+
+    // Rates.
+    double da_dt    = 0.0;  // semi-major-axis rate                 [m s-1]
+    double de_dt    = 0.0;  // eccentricity rate                    [s-1]
+    double dn_dt    = 0.0;  // mean-motion rate                     [rad s-2]
+    double dspin_dt = 0.0;  // spin rate (0 without a spin model)   [rad s-2]
+
+    double moment_of_inertia = TidalPyConstants::d_NAN;  // world MoI [kg m2] (NaN without a spin model)
+    bool   has_spin          = false;                    // set when the world carries a spin model
+
+    // Energy-balance terms [W]: the tidal heating is drawn from the orbit + the spin, so
+    // energy_residual = tidal_heating + dE_orbit_dt + dE_spin_dt is ~0 under conservation.
+    double dE_orbit_dt     = 0.0;
+    double dE_spin_dt      = 0.0;
+    double energy_residual = 0.0;
 };
 
 // -------------------------------------------------------------------------------
@@ -321,6 +363,145 @@ public:
     }
 
     // -----------------------------------------------------------------------
+    // Orbital + spin evolution (single-body tidal dissipation)
+    //
+    // For one orbiting world, run its global tidal solve in the current system state (mean motion from
+    // Kepler's third law, spin + obliquity from the world, eccentricity + semi-major axis from its orbit
+    // about the host, host mass from the host world), then turn the resulting tidal-potential derivatives
+    // into the orbital rates (da/dt, de/dt, dn/dt) via the orbital rate engine and the spin rate
+    // (dspin/dt) via the world's own spin model. Only this world raises tides; the host is treated as a
+    // point mass. The returned struct carries the state and raw tidal outputs alongside the rates so the
+    // orbit + spin energy balance can be checked.
+    //
+    // c_LayeredWorld hides the base analytic calc_tides with the rheology + layer-distribution path and
+    // owns the spin model, so the concrete world type is resolved here to run the right solve and reach
+    // the spin rate; a layerless world (e.g. a star) uses the base analytic solve and contributes no spin.
+    // -----------------------------------------------------------------------
+    c_WorldEvolution calc_world_evolution(std::size_t index) {
+        this->check_index(index);
+        c_WorldEvolution out;
+        out.world_index = index;
+
+        // The host does not orbit itself; a world without a usable orbit about the host cannot evolve.
+        if (!this->has_host() || static_cast<int>(index) == this->p_host_index) {
+            return out;
+        }
+        const double orbital_frequency = this->calc_orbital_frequency(index);
+        if (!std::isfinite(orbital_frequency)) {
+            return out;
+        }
+
+        c_BaseWorld* world_ptr   = this->p_worlds[index].get();
+        const double host_mass   = this->get_host_mass();
+        const double target_mass = world_ptr->get_mass();
+        const double semi_major_axis = this->p_orbits[index].semi_major_axis;
+        const double eccentricity    = this->p_orbits[index].eccentricity;
+        const double spin_frequency  = world_ptr->get_spin_frequency();
+
+        out.orbital_frequency = orbital_frequency;
+        out.semi_major_axis   = semi_major_axis;
+        out.eccentricity      = eccentricity;
+        out.spin_frequency    = spin_frequency;
+        out.host_mass         = host_mass;
+        out.target_mass       = target_mass;
+
+        // Global tidal solve for this world in the current orbital/spin state.
+        c_TideSolveConfig state;
+        state.orbital_frequency = orbital_frequency;
+        state.spin_frequency    = spin_frequency;
+        state.eccentricity      = eccentricity;
+        state.obliquity         = world_ptr->get_obliquity();
+        state.semi_major_axis   = semi_major_axis;
+        state.host_mass         = host_mass;
+
+        c_LayeredWorld* layered = dynamic_cast<c_LayeredWorld*>(world_ptr);
+        if (layered != nullptr) {
+            layered->calc_tides(state);
+        } else {
+            world_ptr->calc_tides(state);
+        }
+
+        // calc_tides succeeded above (it throws on failure), so the world's tide result is populated.
+        const c_GlobalTideResult& tide = world_ptr->get_tide_result();
+        out.tidal_heating = tide.tidal_heating;
+        out.dU_dM         = tide.dU_dM;
+        out.dU_dw         = tide.dU_dw;
+        out.dU_dO         = tide.dU_dO;
+
+        // Orbital rates from the tidal-potential derivatives.
+        c_OrbitState orbit_state;
+        orbit_state.orbital_frequency = orbital_frequency;
+        orbit_state.semi_major_axis   = semi_major_axis;
+        orbit_state.eccentricity      = eccentricity;
+        orbit_state.target_mass       = target_mass;
+        orbit_state.host_mass         = host_mass;
+        const c_OrbitDerivatives rates =
+            this->p_orbit_solver.calc_derivatives(orbit_state, out.dU_dM, out.dU_dw);
+        out.da_dt = rates.da_dt;
+        out.de_dt = rates.de_dt;
+        out.dn_dt = rates.dn_dt;
+
+        // Spin rate from the world's own spin model (layered worlds carry one).
+        if (layered != nullptr) {
+            out.moment_of_inertia = layered->get_moment_of_inertia();
+            out.dspin_dt          = layered->calc_spin_derivative(host_mass);
+            out.has_spin          = true;
+        }
+
+        // Energy-balance bookkeeping.
+        out.dE_orbit_dt     = this->calc_orbital_energy_derivative(out);
+        out.dE_spin_dt      = this->calc_spin_energy_derivative(out);
+        out.energy_residual = out.tidal_heating + out.dE_orbit_dt + out.dE_spin_dt;
+        out.evolved         = true;
+        return out;
+    }
+
+    // Evolve every world in the system (single-body dissipation), returning one c_WorldEvolution per
+    // world in index order. The host's own entry and any world without a usable orbit come back with
+    // evolved = false.
+    std::vector<c_WorldEvolution> calc_system_evolution() {
+        std::vector<c_WorldEvolution> results;
+        results.reserve(this->p_worlds.size());
+        for (std::size_t i = 0; i < this->p_worlds.size(); ++i) {
+            results.push_back(this->calc_world_evolution(i));
+        }
+        return results;
+    }
+
+    // Rate of change of a world's Keplerian two-body orbital energy [W] from its semi-major-axis rate:
+    //   E_orbit = -G M_host M_world / (2 a)   ->   dE_orbit/dt = G M_host M_world / (2 a^2) da/dt.
+    // Returns NaN for an unusable semi-major axis or a null config pointer.
+    double calc_orbital_energy_derivative(const c_WorldEvolution& evolution) const {
+        if (tidalpy_config_ptr == nullptr) {
+            return TidalPyConstants::d_NAN;
+        }
+        const double a = evolution.semi_major_axis;
+        if (!std::isfinite(a) || std::abs(a) <= TidalPyConstants::d_EPS) {
+            return TidalPyConstants::d_NAN;
+        }
+        return tidalpy_config_ptr->d_G * evolution.host_mass * evolution.target_mass
+             / (2.0 * a * a) * evolution.da_dt;
+    }
+
+    // Rate of change of a world's rotational (spin) energy [W]:
+    //   E_spin = (1/2) I spin^2   ->   dE_spin/dt = I spin dspin/dt.
+    // Returns 0 for a world with no spin model.
+    double calc_spin_energy_derivative(const c_WorldEvolution& evolution) const noexcept {
+        if (!evolution.has_spin || !std::isfinite(evolution.moment_of_inertia)) {
+            return 0.0;
+        }
+        return evolution.moment_of_inertia * evolution.spin_frequency * evolution.dspin_dt;
+    }
+
+    // Energy-balance residual [W] for a single evolved world: tidal_heating + dE_orbit/dt + dE_spin/dt.
+    // Conservation (all dissipated tidal power is drawn from the orbit + spin) makes this ~0.
+    double calc_energy_residual(const c_WorldEvolution& evolution) const {
+        return evolution.tidal_heating
+             + this->calc_orbital_energy_derivative(evolution)
+             + this->calc_spin_energy_derivative(evolution);
+    }
+
+    // -----------------------------------------------------------------------
     // Binary I/O
     //
     // write_binary records the system's own container state (name, host/star indices, and each world's
@@ -372,6 +553,7 @@ protected:
     std::vector<c_OrbitElements>              p_stellar_orbits; // orbit about the star; star entry unused
     int p_host_index = -1;                                      // index into p_worlds, or -1 if unset
     int p_star_index = -1;                                      // index into p_worlds, or -1 if unset
+    c_OrbitSolver p_orbit_solver;                              // stateless engine turning dU/dX into orbital rates
 };
 
 } // namespace tidalpy

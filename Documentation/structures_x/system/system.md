@@ -119,6 +119,38 @@ Mendez & Rivera-Valentin 2017), using the world's orbital elements **about the s
 raise `RuntimeError` if no star is set and return NaN for the star's own entry, an unset stellar
 semi-major axis, or a star with no luminosity.
 
+## Orbital and spin evolution
+
+`calc_world_evolution(world)` evolves a single orbiting world. It solves the world's global tides in the
+current system state — mean motion from Kepler's third law, spin and obliquity from the world,
+eccentricity and semi-major axis from the orbit about the host, host mass from the host world — then
+turns the tidal-potential derivatives into the orbital rates and the world's spin rate. Only the
+orbiting world raises tides; the host is treated as a point mass.
+
+```python
+ev = system.calc_world_evolution("moon")
+ev["da_dt"], ev["de_dt"], ev["dn_dt"]     # orbital rates [m/s], [1/s], [rad/s^2]
+ev["dspin_dt"]                            # spin rate [rad/s^2] (0 without a spin model)
+ev["tidal_heating"]                       # [W]
+ev["energy_residual"]                     # heating + dE_orbit/dt + dE_spin/dt (~0 under conservation)
+```
+
+The returned dict also carries the state used (`orbital_frequency`, `semi_major_axis`, `eccentricity`,
+`spin_frequency`, `host_mass`, `target_mass`), the raw tidal outputs (`dU_dM`, `dU_dw`, `dU_dO`), the
+`moment_of_inertia` and `has_spin` flag, and the energy terms (`dE_orbit_dt`, `dE_spin_dt`). `evolved`
+is `False` for the host's own entry or a world with no usable orbit about the host; its rates are then
+zero. `calc_system_evolution()` returns one such dict per world, in index order.
+
+The rates follow the orbital rate engine (`dynamics_x`): `da/dt = (2/(n a)) dR/dM`,
+`de/dt = (√(1-e²)/(n a² e))(√(1-e²) dR/dM − dR/dw)` (zero at `e = 0`), and `dn/dt = −(3/2)(n/a) da/dt`,
+with the disturbing-function derivative `dR/dX = −((M_target + M_host)/M_target) dU/dX`. The spin rate
+comes from the world's attached spin model (`dspin/dt = M_host dU/dO / I`). The heating and the orbit +
+spin energy loss balance to `heating = −(dE_orbit/dt + dE_spin/dt)` with
+`E_orbit = −G M_host M_world / (2 a)` and `E_spin = ½ I spin²`.
+
+Each orbiting world evolves on its own two-body orbit about the host and dissipates independently; the
+tide raised on the host by the world is not yet included.
+
 ## C++ API
 
 `c_System : c_TidalPyBaseClass` (`structures_x/system/system_.hpp`):
@@ -134,6 +166,11 @@ semi-major axis, or a star with no luminosity.
   `calc_semi_major_axis_from_frequency(i, n)` (host orbit), and the
   `calc_stellar_gravitational_parameter(i)` / `calc_stellar_orbital_frequency(i)` counterparts.
 * `calc_insolation_flux(i)`, `calc_equilibrium_temperature(i)`.
+* `calc_world_evolution(i)` / `calc_system_evolution()` — run the world's tidal solve for the current
+  system state and return the orbital rates, spin rate, and energy terms as a `c_WorldEvolution` struct
+  (a layered world is resolved via `dynamic_cast` so the rheology solve runs and the spin model is
+  reached; a layerless world uses the analytic solve and contributes no spin). `calc_orbital_energy_derivative`,
+  `calc_spin_energy_derivative`, `calc_energy_residual` compute the energy-balance terms.
 
 ## References
 
