@@ -59,7 +59,11 @@ inline std::size_t c_binary_search_with_guess(
             return guess + 1;
         } else {
             imin = guess + 2;
-            if ((guess < (length - LIKELY_IN_CACHE_SIZE - 1)) &&
+            // The guard is written as an addition (guess + window + 1 < length) rather than
+            // length - window - 1 so it stays correct with unsigned size_t: the subtraction form
+            // underflows for short arrays (length <= LIKELY_IN_CACHE_SIZE + 1) and would then read
+            // array[guess + LIKELY_IN_CACHE_SIZE] out of bounds.
+            if ((guess + LIKELY_IN_CACHE_SIZE + 1 < length) &&
                 (key < array[guess + LIKELY_IN_CACHE_SIZE])) {
                 imax = guess + LIKELY_IN_CACHE_SIZE;
             }

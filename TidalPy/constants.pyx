@@ -154,7 +154,7 @@ def update_constants_x():
     universal physical constants (G, AU, SBC, R, k_boltzman) are set by
     :func:`update_constants` from SciPy and are not overridden here.
     """
-    global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness, test_constant
+    global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
 
     numerical = TidalPy.config_x['numerical']
 
@@ -164,7 +164,10 @@ def update_constants_x():
     tidalpy_config_ptr.d_MIN_VISCOSITY = numerical['minimum_viscosity']
     tidalpy_config_ptr.d_MIN_MODULUS = numerical['minimum_modulus']
     tidalpy_config_ptr.d_MIN_THICKNESS = numerical['minimum_layer_thickness']
-    tidalpy_config_ptr.d_TEST_CONST = numerical['test_constant']
+    # test_constant is intentionally not set here. It is a debug knob whose user-facing override is the
+    # legacy config's `debug.test_constant`, applied by update_constants (which runs just before this).
+    # Re-reading it from config_x would clobber a user override supplied through reinit(). Both configs
+    # default it to the same value, so the _x config check still holds.
 
     # Update the module-level mirrors of these dynamic parameters.
     min_frequency = tidalpy_config_ptr.d_MIN_FREQUENCY
@@ -173,4 +176,3 @@ def update_constants_x():
     min_viscosity = tidalpy_config_ptr.d_MIN_VISCOSITY
     min_modulus = tidalpy_config_ptr.d_MIN_MODULUS
     min_thickness = tidalpy_config_ptr.d_MIN_THICKNESS
-    test_constant = tidalpy_config_ptr.d_TEST_CONST
