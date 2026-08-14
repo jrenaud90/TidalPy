@@ -894,6 +894,10 @@
       ],
       [
         "TidalPy",
+        "stellar_x"
+      ],
+      [
+        "TidalPy",
         "Utilities_x",
         "classes_x"
       ],
@@ -2392,6 +2396,43 @@
       [
         "TidalPy",
         "dynamics_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "logging_x"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "stellar_x.luminosity": {
+    "name": "TidalPy.stellar_x.luminosity",
+    "sources": [
+      [
+        "TidalPy",
+        "stellar_x",
+        "luminosity.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "stellar_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "classes_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "binary_x"
       ],
       [
         "TidalPy",

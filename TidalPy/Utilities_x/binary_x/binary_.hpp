@@ -108,7 +108,13 @@ enum class BinaryClassID : uint32_t {
     RheologyTide       = 901,
     FixedQTide         = 902,
     FixedLagTide       = 903,
-    CTLQTide           = 904
+    CTLQTide           = 904,
+
+    // 10XX Stellar luminosity models - a star's luminosity / effective temperature.
+    LuminosityBase     = 1000,
+    FixedLuminosity    = 1001,
+    MassToLuminosity   = 1002,
+    PowerLawLuminosity = 1003
 };
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,15 @@
 # distutils: language = c++
 """
 stellar.pxd
-Cython declarations for TidalPy's star world class (Phase 8b).
+Cython declarations for TidalPy's star world class.
 """
 
+from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
+from libcpp.memory cimport unique_ptr
 
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
+from TidalPy.stellar_x.luminosity cimport LuminosityBase, c_LuminosityBase
 
 
 # =====================================================================================================================
@@ -36,6 +39,11 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
         double calc_temperature_from_luminosity(double luminosity_w)  const
         void   set_effective_temperature(double temperature_k)
         void   set_luminosity(double luminosity_w)
+        void   set_luminosity_model(unique_ptr[c_LuminosityBase] model)
+        cpp_bool has_luminosity_model() const
+        double calc_luminosity_from_mass() except +
+        double calc_effective_temperature_from_mass() except +
+        void   update_luminosity_from_mass() except +
 
 
 # =====================================================================================================================

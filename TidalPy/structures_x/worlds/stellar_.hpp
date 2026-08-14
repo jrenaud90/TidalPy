@@ -16,10 +16,12 @@
 #include <cmath>
 #include <cstdint>
 #include <istream>
+#include <memory>
 #include <ostream>
 #include <stdexcept>
 
 #include "base_.hpp"
+#include "../../stellar_x/luminosity_base_.hpp"   // c_LuminosityBase (luminosity model attached to the star)
 
 namespace tidalpy {
 
@@ -93,6 +95,48 @@ public:
     }
 
     // -----------------------------------------------------------------------
+    // Luminosity model (c_LuminosityBase; a global-scale physics model owned by the star)
+    //
+    // When attached, the star can derive its luminosity (and effective temperature) from its own mass
+    // via the model's mass-luminosity relation. The star's own radius drives the Stefan-Boltzmann
+    // conversion. The model is optional; the star still keeps consistent scalar T/L without one.
+    // -----------------------------------------------------------------------
+    void set_luminosity_model(std::unique_ptr<c_LuminosityBase> model) noexcept {
+        this->p_luminosity = std::move(model);
+    }
+    const c_LuminosityBase* get_luminosity_model() const noexcept { return this->p_luminosity.get(); }
+    bool has_luminosity_model()                    const noexcept { return this->p_luminosity != nullptr; }
+
+    // Luminosity [W] derived from the star's mass via the attached model.
+    // Throws std::runtime_error if no luminosity model is attached.
+    double calc_luminosity_from_mass() const {
+        if (this->p_luminosity == nullptr) {
+            throw std::runtime_error(
+                "TidalPy: c_StarWorld::calc_luminosity_from_mass — no luminosity model attached "
+                "(call set_luminosity_model first).");
+        }
+        return this->p_luminosity->calc_luminosity(this->get_mass());
+    }
+
+    // Effective temperature [K] derived from the star's mass (mass -> L -> T via the attached model).
+    // Throws std::runtime_error if no luminosity model is attached.
+    double calc_effective_temperature_from_mass() const {
+        if (this->p_luminosity == nullptr) {
+            throw std::runtime_error(
+                "TidalPy: c_StarWorld::calc_effective_temperature_from_mass — no luminosity model "
+                "attached (call set_luminosity_model first).");
+        }
+        return this->p_luminosity->calc_effective_temperature(this->get_mass(), this->get_radius());
+    }
+
+    // Update the star's stored luminosity and effective temperature from its mass using the attached
+    // model. Throws std::runtime_error if no luminosity model is attached.
+    void update_luminosity_from_mass() {
+        this->p_luminosity_w = this->calc_luminosity_from_mass();
+        this->p_effective_temperature_k = this->calc_temperature_from_luminosity(this->p_luminosity_w);
+    }
+
+    // -----------------------------------------------------------------------
     // Binary I/O
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
@@ -119,6 +163,8 @@ public:
 protected:
     double p_effective_temperature_k = 5772.0;   // [K]
     double p_luminosity_w            = 0.0;       // [W]
+    // Optional global-scale luminosity model (mass -> luminosity); not serialized (reattach after load).
+    std::unique_ptr<c_LuminosityBase> p_luminosity {};
 };
 
 } // namespace tidalpy
