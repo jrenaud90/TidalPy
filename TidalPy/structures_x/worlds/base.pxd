@@ -9,7 +9,7 @@ extensions can cimport and use C-speed access.
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport unique_ptr, shared_ptr
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.vector cimport vector
 
@@ -111,6 +111,6 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 # Cython wrapper class declaration
 # =====================================================================================================================
 cdef class BaseWorld(StructureBase):
-    cdef unique_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object
+    cdef shared_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object (shared so a System can co-own it)
     cdef public dict source_config            # normalized config the world was built from (or None)
     cpdef dict get_config_dict(self)

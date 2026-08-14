@@ -1,4 +1,88 @@
 {
+  "structures_x.system.system": {
+    "name": "TidalPy.structures_x.system.system",
+    "sources": [
+      [
+        "TidalPy",
+        "structures_x",
+        "system",
+        "system.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "structures_x",
+        "system"
+      ],
+      [
+        "TidalPy",
+        "structures_x",
+        "worlds"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "classes_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "binary_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "logging_x"
+      ],
+      [
+        "TidalPy"
+      ],
+      [
+        "TidalPy",
+        "Tides_x",
+        "love"
+      ],
+      [
+        "TidalPy",
+        "Tides_x",
+        "classes"
+      ],
+      [
+        "TidalPy",
+        "Tides_x",
+        "potential"
+      ],
+      [
+        "TidalPy",
+        "Tides_x",
+        "obliquity"
+      ],
+      [
+        "TidalPy",
+        "Tides_x",
+        "eccentricity"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "lookups"
+      ],
+      [
+        "TidalPy",
+        "utilities",
+        "math"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "legendre"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "constants": {
     "name": "TidalPy.constants",
     "sources": [

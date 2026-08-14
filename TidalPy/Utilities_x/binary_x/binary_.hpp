@@ -68,6 +68,8 @@ enum class BinaryClassID : uint32_t {
     LayeredWorld     = 201,
     GasGiantWorld    = 202,
     StarWorld        = 203,
+
+    System           = 210,
     // 3XX: Rheological models to convert static moduli and viscosities into complex ones.
     RheologyBase     = 300,
     Elastic          = 301,
