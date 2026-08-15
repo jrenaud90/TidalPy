@@ -59,7 +59,8 @@ schema_version = "{SCHEMA_VERSION_X}"
 [tides]
     min_degree_l = 2
     max_degree_l = 2
-    eccentricity_trunc_lvl = 6
+    # Eccentricity functions are tabulated at truncations e^1..e^5, e^10, e^15, e^20.
+    eccentricity_trunc_lvl = 3
     obliquity_trunc_lvl = "off"
 
     # Width [decades] of the log-Gaussian bell used by a layer's `tidal_timescale` scale
