@@ -45,6 +45,34 @@ Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
 
 ```{toctree}
 :maxdepth: 2
+:caption: Demos (_x)
+
+Demos_x/Basics/01_config.ipynb
+Demos_x/Basics/02_world_building.ipynb
+Demos_x/Basics/03_save_load.ipynb
+Demos_x/Physics/04_orbits_insolation.ipynb
+Demos_x/Physics/05_tidal_basics.ipynb
+Demos_x/Physics/06_rheology_io.ipynb
+Demos_x/Physics/07_gasgiant_fixedQ_dt.ipynb
+Demos_x/Physics/08_love_numbers_1d.ipynb
+Demos_x/Physics/09_tidal_heating_3d.ipynb
+Demos_x/Physics/10_thermal_eos.ipynb
+Demos_x/Systems/11_multi_world.ipynb
+Demos_x/Systems/12_thermal_orbital_evolution.ipynb
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Benchmarks (_x)
+
+Benchmarks_x/RadialSolver/Earth_Love_Numbers.ipynb
+Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb
+Benchmarks_x/EOS/EOS_vs_BurnMan.ipynb
+Benchmarks_x/Performance/Perf_Trends.ipynb
+```
+
+```{toctree}
+:maxdepth: 2
 :caption: Auto Generated API
 
 TidalPy API <API/index.md>

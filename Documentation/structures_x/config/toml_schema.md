@@ -26,7 +26,7 @@ bypass these checks entirely.
 from TidalPy.structures_x import build_world, available_worlds
 
 # Build one of the bundled example worlds by name.
-print(available_worlds())            # ['earth_simple', 'jupiter_simple', 'sol']
+print(available_worlds())            # ['earth_prem', 'earth_simple', 'jupiter_simple', 'sol', ...]
 earth = build_world("earth_simple")  # returns the Cython world (a BaseWorld subclass)
 
 # build_world returns the world object directly, so its methods are immediate.
@@ -350,6 +350,52 @@ model = "maxwell"
 The `data_file` path is resolved relative to the world TOML's directory, then the
 worlds data directory, then the packaged `WorldPack_x` (see
 [`worldpack.md`](worldpack.md)).
+
+---
+
+## System schema (`[worlds.<name>]`)
+
+A **system** groups several worlds and the orbits that connect them into one TOML,
+built with `build_system` (the system analogue of `build_world`). The file carries a
+top-level `schema_version` and `name`, then one `[worlds.<key>]` table per member
+world. The table key becomes that world's name within the system.
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `world` | **yes** | The member world: a bundled world name, a path to a world TOML, or an inline `[worlds.<key>.world]` table. |
+| `is_host` | optional | Marks the gravitational host the others orbit (at most one per system). |
+| `is_star` | optional | Marks the star that lights the system (at most one; often the same body as the host). |
+| `semi_major_axis_m` | optional | Orbital semi-major axis about the host [m]. |
+| `eccentricity` | optional | Orbital eccentricity about the host. |
+| `stellar_semi_major_axis_m` | optional | Distance from the star [m], tracked separately from the host distance so a moon can orbit a non-star host. |
+| `stellar_eccentricity` | optional | Orbital eccentricity about the star. |
+
+A system needs at least one world, at most one host, and at most one star.
+
+```toml
+schema_version = "0.2.0"
+name = "Sol System"
+
+[worlds.sun]
+world = "sol"          # a bundled world name (also accepts a path or an inline table)
+is_host = true
+is_star = true
+
+[worlds.earth]
+world = "earth_simple"
+semi_major_axis_m = 1.495978707e11
+eccentricity = 0.0167
+stellar_semi_major_axis_m = 1.495978707e11
+stellar_eccentricity = 0.0167
+```
+
+```python
+from TidalPy.structures_x.configs import build_system
+system = build_system("sol_system")     # or a path / a config dict
+```
+
+The full system API (evolution, insolation, save/load) is documented in
+[`../system/system.md`](../system/system.md).
 
 ---
 
