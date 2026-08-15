@@ -11,6 +11,7 @@ dependencies = [
     "numba>=0.54.1",
     'numpy >= 1.22, <2.5',
     "scipy>=1.9.3",
+    "pandas>=1.5",
     # Configuration file resources
     "platformdirs>=3.11.0",
     "toml>=0.10.2",
