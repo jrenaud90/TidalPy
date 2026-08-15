@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.structures_x.worlds — LayeredWorld and GasGiantWorld (Phase 8b).
+Tests for TidalPy.structures_x.worlds — LayeredWorld and GasGiantWorld.
 
 Covers layer ownership (add/aggregate/validate), geometry-continuity errors,
 internal radiogenic heating, recursive binary round-trip (world + layers + each

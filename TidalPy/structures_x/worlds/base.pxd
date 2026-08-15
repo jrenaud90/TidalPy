@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 base.pxd
-Cython declarations for TidalPy's base world class (Phase 8b).
+Cython declarations for TidalPy's base world class.
 
 Exports c_WorldConfig, c_BaseWorld, and the Python wrapper BaseWorld so other
 extensions can cimport and use C-speed access.

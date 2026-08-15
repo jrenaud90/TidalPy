@@ -571,7 +571,7 @@ enum class c_RheologyModel : uint8_t {
 // c_rheology_model_from_name — map a (case-insensitive) model name or alias to a
 // c_RheologyModel enum value.
 //
-// Recognised names and aliases:
+// Recognized names and aliases:
 //   "elastic" / "off"
 //   "viscous" / "newton"
 //   "voigt"   / "voigt-kelvin" / "voigt_kelvin"
@@ -634,7 +634,7 @@ inline std::unique_ptr<c_RheologyBase> c_find_rheology(
 // c_rheology_from_binary — reconstruct a rheology model from a binary stream.
 //
 // Peeks the upcoming record's BinaryClassID (without consuming the header),
-// constructs the matching default-initialised concrete model, then delegates to
+// constructs the matching default-initialized concrete model, then delegates to
 // its read_binary to restore the model name and parameters. Used by the layer
 // recursive deserialization (see structures_x/layers). Throws std::runtime_error
 // if the class id is not a known rheology model.

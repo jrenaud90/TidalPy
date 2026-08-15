@@ -4,10 +4,10 @@
 
 ## Overview
 
-`SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behaviour:
+`SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behavior:
 phase-change tracking, Arrhenius viscosity, dynamic shear modulus, thermal
-transport, and optional sub-model hooks for radiogenic heating (Phase 7) and
-convective/conductive cooling (Phase 6).
+transport, and optional sub-model hooks for radiogenic heating and
+convective/conductive cooling.
 
 Key physics:
 
@@ -24,8 +24,8 @@ Key physics:
 
 - **Conductive heat flux** — F = k · (T_base − T_top) / h.
 
-Pressure-dependent solidus/liquidus and full EOS-coupled thermal calculations
-are deferred to Phase 9.
+The solidus/liquidus temperatures are constant: the melt curve carries no
+pressure dependence.
 
 All values are in **MKS units** (meters, kilograms, seconds, pascals, kelvin).
 
@@ -134,8 +134,8 @@ See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`,
 | `reference_density` | kg/m³ | Reference density for thermal diffusivity. |
 | `reference_temperature` | K | Reference temperature for Arrhenius viscosity. |
 | `melt_viscosity_reduction` | — | Exponential melt-viscosity reduction coefficient C. |
-| `cooling_set` | — | `True` after a cooling sub-model is attached (Phase 6). |
-| `radiogenics_set` | — | `True` after a radiogenics sub-model is attached (Phase 7). |
+| `cooling_set` | — | `True` after a cooling sub-model is attached. |
+| `radiogenics_set` | — | `True` after a radiogenics sub-model is attached. |
 
 ---
 
@@ -150,8 +150,8 @@ Volumetric melt fraction φ ∈ [0, 1]:
 φ = τ^n
 ```
 
-`pressure_pa` is reserved for future pressure-dependent solidus/liquidus
-(Phase 9) and is currently unused.
+`pressure_pa` is accepted for interface uniformity and is unused: the melt
+curve carries no pressure dependence.
 
 ```python
 phi = layer.calc_melt_fraction(3200.0)        # T = 3200 K, P = 0
@@ -188,7 +188,7 @@ G = layer.calc_shear_modulus(3000.0)
 ### `calc_thermal_conductivity(temperature_k)` → float
 
 Returns the reference thermal conductivity k [W/(m·K)].
-Temperature dependence is deferred to a later phase.
+Temperature dependence is not modeled.
 
 ### `calc_thermal_diffusivity(temperature_k)` → float
 

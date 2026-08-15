@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.structures_x.worlds — BaseWorld and StarWorld (Phase 8b).
+Tests for TidalPy.structures_x.worlds — BaseWorld and StarWorld.
 
 Covers construction, bulk geometry, equilibrium temperature, Stefan-Boltzmann
 luminosity (stars), config dict, binary round-trip, and isinstance checks.

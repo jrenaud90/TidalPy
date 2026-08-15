@@ -104,7 +104,7 @@ cdef class GasLayer(PhysicsLayer):
             double radius_outer_m,
             double mass_kg,
             str    material_name                = "",
-            bint   is_tidal                     = True,
+            cpp_bool is_tidal                   = True,
             double tidal_scale                  = 1.0,
             double shear_modulus_static_pa      = 0.0,
             double bulk_modulus_static_pa       = 0.0,

@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 classes.pxd
-Cython declarations for TidalPy's base class hierarchy (Phase 0d).
+Cython declarations for TidalPy's base class hierarchy.
 
 Declares C++ classes and Cython extension types so other modules can cimport
 the types and call C-speed methods without going through Python dispatch.

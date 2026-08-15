@@ -386,7 +386,7 @@ public:
         return luminosity / denom;
     }
 
-    // Surface equilibrium temperature [K] of a world from stellar insolation alone (grey-body radiative
+    // Surface equilibrium temperature [K] of a world from stellar insolation alone (gray-body radiative
     // balance using the world's albedo + emissivity: T = ((1-A) F / (4 eps sigma))^(1/4)). Delegates the
     // radiative balance to the world. Returns NaN if the insolation flux is unavailable.
     double calc_equilibrium_temperature(std::size_t index) const {

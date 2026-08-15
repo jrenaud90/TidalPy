@@ -333,7 +333,8 @@ int c_shooting_solver(
     std::vector<double> y0_vec(C_MAX_NUM_Y_REAL);
 
     // The diffeq needs to be able to call the EOS solution which is different for each layer.
-    // We will load the EOS solution into this argument structure for each layer. For now, set it to null.
+    // The EOS solution is loaded into this argument structure inside the per-layer loop below;
+    // it starts null until the first layer is processed.
 
     // Set diffeq inputs that do not change with layer
     diffeq_args_ptr->degree_l         = degree_l_dbl;
@@ -533,7 +534,8 @@ int c_shooting_solver(
             // Save the values, look at the "TidalPy.Material.eos.eos_solution_.hpp" to see how these are saved. 
             // We are storing these in function-global variables because they will be used again during collapse
             starting_gravity = eos_interp_array_ptr[0];
-            // TODO: Sometimes at very small r the g can be negative. Probably an issue with the EOS but for now just put a force check in?
+            // TODO: At very small r the interpolated g can come back negative (likely an EOS artifact);
+            // clamp it to a small positive floor so the shooting start is well defined.
             if (starting_gravity < TidalPyConstants::d_EPS)
             {
                 starting_gravity = TidalPyConstants::d_EPS;
@@ -630,7 +632,7 @@ int c_shooting_solver(
             }
         }
 
-        // Set initial y to nan for now.
+        // Initialize y to nan so uninitialized reads are visible.
         // OPT: this is for debugging purposes. could likely be commented out in the future for small performance gain.
         for (size_t y_i = 0; y_i < 36; ++y_i)
         {

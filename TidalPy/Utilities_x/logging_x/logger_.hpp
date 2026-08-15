@@ -114,7 +114,7 @@ inline void set_tidalpy_logger_ptr_void(void* ptr) noexcept {
  * Returns
  * -------
  * void*
- *     Raw address of the TidalPy logger, or nullptr if not yet initialised.
+ *     Raw address of the TidalPy logger, or nullptr if not yet initialized.
  */
 inline void* cy_get_logger_ptr() noexcept {
     return static_cast<void*>(tidalpy_logger_ptr);

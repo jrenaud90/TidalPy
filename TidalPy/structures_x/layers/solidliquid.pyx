@@ -43,8 +43,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     - Melt-fraction-reduced shear modulus.
     - Thermal conductivity, diffusivity, and adiabatic temperature gradient.
     - Conductive heat flux through the layer.
-    - Radiogenic heating via an optional RadiogenicsBase sub-model (Phase 7).
-    - Convective/conductive cooling via an optional CoolingBase sub-model (Phase 6).
+    - Radiogenic heating via an optional RadiogenicsBase sub-model.
+    - Convective/conductive cooling via an optional CoolingBase sub-model.
 
     Parameters
     ----------
@@ -105,7 +105,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     -----------
     - Spherically symmetric layer geometry.
     - All values in MKS units.
-    - Solidus/liquidus pressure dependence deferred to Phase 9.
+    - Solidus/liquidus temperatures are constant (no pressure dependence).
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -119,7 +119,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double radius_outer_m,
             double mass_kg,
             str    material_name                   = "",
-            bint   is_tidal                        = True,
+            cpp_bool   is_tidal                        = True,
             double tidal_scale                     = 1.0,
             double shear_modulus_static_pa         = 0.0,
             double bulk_modulus_static_pa          = 0.0,
@@ -367,7 +367,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def calc_thermal_conductivity(self, double temperature_k) -> float:
         """Thermal conductivity [W/(m·K)].
 
-        Returns the reference value (temperature dependence deferred to later phases).
+        Returns the reference value (temperature dependence is not modeled).
 
         Parameters
         ----------
@@ -440,7 +440,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def calc_radiogenic_heating(self, double time_s, double mass_kg) -> float:
         """Radiogenic heating [W] from the attached sub-model.
 
-        Returns 0.0 when no radiogenics sub-model has been attached (Phase 7).
+        Returns 0.0 when no radiogenics sub-model has been attached.
 
         Parameters
         ----------

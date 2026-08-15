@@ -5,8 +5,7 @@
  * Inherits c_BaseWorld. Owns its layers as std::unique_ptr<c_BaseLayer> (inner to
  * outer, index 0 = innermost) and provides whole-planet aggregates (total mass,
  * internal radiogenic heating) and geometry validation. The whole-planet EOS and
- * radial solves (which walk all layers) are added as methods on this class in
- * later phases.
+ * radial (Love number) solves, which walk all layers, are methods on this class.
  *
  * Binary format (20-byte header + payload):
  *   header: class_id = BinaryClassID::LayeredWorld (201)
@@ -505,7 +504,7 @@ public:
         if (!this->p_eos_solved || !this->p_eos_solution)
             throw std::invalid_argument("TidalPy: solve_eos must succeed before solve_love_numbers");
         if (tidalpy_config_ptr == nullptr)
-            throw std::runtime_error("TidalPy: config not initialised - call initialize_tidalpy_config() first");
+            throw std::runtime_error("TidalPy: config not initialized - call initialize_tidalpy_config() first");
 
         const std::size_t n_layers     = this->p_layers.size();
         const std::size_t total_slices = this->p_eos_solution->radius_array_size;

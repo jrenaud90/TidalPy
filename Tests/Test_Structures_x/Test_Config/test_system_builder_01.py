@@ -43,7 +43,7 @@ def test_bundled_sol_system_insolation():
     assert system.get_star_luminosity() > 3.0e26   # ~3.83e26 W (solar)
     flux = system.calc_insolation_flux("earth")
     assert math.isclose(flux, SOLAR_CONSTANT, rel_tol=5e-3)
-    # Earth's grey-body equilibrium temperature is ~255 K.
+    # Earth's gray-body equilibrium temperature is ~255 K.
     assert 250.0 < system.calc_equilibrium_temperature("earth") < 260.0
 
 

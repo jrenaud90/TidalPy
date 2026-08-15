@@ -98,7 +98,7 @@ inline double c_interp(
     if (len_x == 0) { return std::numeric_limits<double>::quiet_NaN(); }
     if (len_x == 1) { return dependent_values[0]; }
 
-    // Endpoint clamping (matches numpy.interp's default left/right behaviour).
+    // Endpoint clamping (matches numpy.interp's default left/right behavior).
     if (desired_x <= x_domain[0])         { return dependent_values[0]; }
     if (desired_x >= x_domain[len_x - 1]) { return dependent_values[len_x - 1]; }
 

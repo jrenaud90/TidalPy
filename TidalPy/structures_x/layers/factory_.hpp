@@ -4,7 +4,7 @@
  *
  * Reconstructs the correct concrete layer subclass from a binary stream by
  * peeking the upcoming record's BinaryClassID (without consuming the header),
- * constructing the matching default-initialised layer, then delegating to its
+ * constructing the matching default-initialized layer, then delegating to its
  * read_binary (which reads the full record, including any recursively-serialized
  * physics sub-models).
  *

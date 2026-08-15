@@ -41,7 +41,7 @@ with the shape of `x`.
 
 **Raises:** `ValueError` if `xp` is empty or `xp` and `fp` differ in length.
 
-**Behaviour notes**
+**Behavior notes**
 
 - Matches `numpy.interp` for in-range and out-of-range (clamped) queries.
 - `xp` is assumed sorted ascending; results are undefined otherwise (no check, for speed).

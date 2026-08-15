@@ -5,7 +5,7 @@
  * Inherits c_StructureBase (Utilities_x/classes_x/structure_base_.hpp).
  * Stores immutable geometry and identification data set at construction, plus
  * mutable EOS profile data (density, gravity, pressure vs. radius) populated
- * by c_EOSHandler (Material_x/, Phase 8).
+ * by the world's EOS solve (Material_x/).
  *
  * All spatial fields are in meters [m]; mass in kilograms [kg] (MKS).
  *
@@ -189,7 +189,7 @@ public:
     void   set_tidal_heating(double heating_w)   noexcept { this->p_tidal_heating = heating_w; }
 
     // -----------------------------------------------------------------------
-    // EOS profile (mutable; populated by EOSHandler in Phase 8)
+    // EOS profile (mutable; populated by the world's EOS solve)
     // -----------------------------------------------------------------------
     bool   get_eos_data_populated()             const noexcept { return this->p_eos_data.is_populated(); }
     double get_density(double radius_m)         const noexcept { return this->p_eos_data.get_density(radius_m); }

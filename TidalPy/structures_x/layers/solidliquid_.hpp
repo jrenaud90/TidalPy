@@ -145,8 +145,8 @@ public:
     // calc_melt_fraction [dimensionless, 0..1]
     //
     // Linear interpolation between solidus and liquidus, raised to
-    // melt_fraction_exponent.  Pressure dependence on the melt curve is
-    // deferred to Phase 9 (EOSHandler integration).
+    // melt_fraction_exponent. The melt curve carries no pressure dependence;
+    // the pressure argument is accepted for interface uniformity and unused.
     // -----------------------------------------------------------------------
     double calc_melt_fraction(double temperature_k, double /*pressure_pa*/) const noexcept {
         const double dT = this->p_liquidus_temperature - this->p_solidus_temperature;

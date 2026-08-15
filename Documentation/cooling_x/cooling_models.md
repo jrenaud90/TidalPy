@@ -69,7 +69,7 @@ with parameters `convection_alpha` (default `1.0`), `convection_beta`
 (default `1/3`), and `critical_rayleigh` (default `1100.0`). The Nusselt number
 has a floor of 2 (stagnant-lid limit). Degenerate inputs (`ΔT ≤ 0`, or a
 thickness below the shared `minimum_layer_thickness` config floor) collapse to the
-legacy edge behaviour (`Ra = 0`, `Nu = 2`).
+legacy edge behavior (`Ra = 0`, `Nu = 2`).
 
 ## Usage
 

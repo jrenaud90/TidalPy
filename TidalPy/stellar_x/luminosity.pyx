@@ -291,7 +291,7 @@ def make_luminosity(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognised.
+        If the model name is not recognized.
     """
     if config is None:
         config = {}

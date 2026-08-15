@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 layered.pxd
-Cython declarations for TidalPy's layered world class (Phase 8b).
+Cython declarations for TidalPy's layered world class.
 """
 
 from libcpp cimport bool as cpp_bool

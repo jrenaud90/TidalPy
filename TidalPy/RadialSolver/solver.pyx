@@ -744,6 +744,10 @@ def radial_solver(
                 '   ("tidal", "loading")  # If you just want tidal and loading Love numbers.'
                 )
         num_bc_models = len(solve_for)
+        # The boundary-condition models are written into a fixed int[5] buffer.
+        if num_bc_models > 5:
+            raise ArgumentException(
+                f'radial_solver supports at most 5 simultaneous solve_for entries; got {num_bc_models}.')
         for i in range(num_bc_models):
             solve_for_tmp = solve_for[i]
             if solve_for_tmp == "free":

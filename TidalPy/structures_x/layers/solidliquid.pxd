@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 solidliquid.pxd
-Cython declarations for TidalPy's solid/liquid layer class (Phase 3).
+Cython declarations for TidalPy's solid/liquid layer class.
 
 Exports c_SolidLiquidConfig, c_SolidLiquidLayer, and the Python wrapper
 SolidLiquidLayer so other extensions can cimport and use C-speed access.

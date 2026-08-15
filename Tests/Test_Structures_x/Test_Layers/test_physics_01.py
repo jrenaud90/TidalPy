@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.structures_x.layers.physics — PhysicsLayer (Phase 2).
+Tests for TidalPy.structures_x.layers.physics — PhysicsLayer.
 
 Covers construction, geometry inheritance, mechanical property getters,
 tidal susceptibility, complex modulus calculations (no rheology), binary

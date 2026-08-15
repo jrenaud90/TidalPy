@@ -203,7 +203,7 @@ public:
         double* r = const_cast<double*>(this->radius_array_vec.data());
         double  r_val = radius_val;   // mutable copy for cf_interp's desired_x_ptr arg
 
-        // Initial index guess from normalised position in the radius range.
+        // Initial index guess from normalized position in the radius range.
         const double r_left  = r[0];
         const double r_right = r[n > 0 ? n - 1 : 0];
         size_t j = 0;
@@ -557,7 +557,7 @@ public:
         }
         else
         {
-            // TODO: Deal with this case! For now push the problem to the user when they try to call...
+            // TODO: Handle repeated same-direction dimensionalization requests instead of raising.
             throw std::runtime_error("Unsupported dimensionalization encountered.");
         }
 

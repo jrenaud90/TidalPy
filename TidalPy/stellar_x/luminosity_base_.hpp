@@ -71,7 +71,7 @@ public:
     //
     // Assumptions
     // -----------
-    // The star radiates as an ideal grey body at the given effective temperature.
+    // The star radiates as an ideal gray body at the given effective temperature.
     // -----------------------------------------------------------------------
     double calc_luminosity_from_temperature(double temperature_k, double radius_m) const noexcept {
         if (temperature_k <= 0.0 || radius_m <= 0.0 || tidalpy_config_ptr == nullptr) {

@@ -376,7 +376,7 @@ cdef class System:
     def calc_equilibrium_temperature(self, world) -> float:
         """Surface equilibrium temperature [K] of a world from stellar insolation.
 
-        Grey-body radiative balance using the world's albedo + emissivity,
+        Gray-body radiative balance using the world's albedo + emissivity,
         ``T = ((1-A) F / (4 eps sigma))^(1/4)``. Returns NaN if the insolation flux is unavailable.
         """
         return self._system.get().calc_equilibrium_temperature(<size_t>self._resolve_index(world))
@@ -550,7 +550,7 @@ cdef class System:
         for i in range(num):
             self._world_wrappers.append(_wrap_world(system_ptr.get_world(i)))
 
-    def load_binary(self, str path, bint force=False):
+    def load_binary(self, str path, cpp_bool force=False):
         """Load this system's state from a TidalPy binary file (overriding the base to rewrap worlds).
 
         Reads the container state and rebuilds the heterogeneous world list from the stream (each world's

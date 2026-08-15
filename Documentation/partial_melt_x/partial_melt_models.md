@@ -30,7 +30,7 @@ A degenerate envelope (`solidus >= liquidus`) yields `φ = 0` (fully solid).
 
 ## Models
 
-| Model | Alias | Behaviour |
+| Model | Alias | Behavior |
 |-------|-------|-----------|
 | `OffPartialMelt` | `none` | No weakening: post-melt strength equals pre-melt. |
 | `SpohnPartialMelt` | `fischer`, `fischer_spohn` | Fischer & Spohn (1990): post-melt viscosity/shear depend only on temperature. |

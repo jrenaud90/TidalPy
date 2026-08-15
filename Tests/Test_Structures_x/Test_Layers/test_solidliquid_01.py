@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.structures_x.layers.solidliquid — SolidLiquidLayer (Phase 3).
+Tests for TidalPy.structures_x.layers.solidliquid — SolidLiquidLayer.
 
 Covers construction, geometry/EOS/tidal inheritance (via _layer_ptr), thermal
 property getters, melt fraction, Arrhenius viscosity, dynamic shear modulus,

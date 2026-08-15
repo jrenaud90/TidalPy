@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 base.pxd
-Cython declarations for TidalPy's base layer class (Phase 1).
+Cython declarations for TidalPy's base layer class.
 
 Exports c_LayerEOSData, c_BaseLayerConfig, c_BaseLayer, and the Python
 wrapper BaseLayer so other extensions can cimport and use C-speed access.
@@ -108,7 +108,7 @@ cdef class BaseLayer(StructureBase):
     cdef cpp_bool _is_view                    # True => non-owning view into a world-owned layer
     cdef object   _world_ref                  # keep-alive ref to the owning world (views only)
     cpdef dict get_config_dict(self)
-    # Initialise this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
+    # Initialize this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
     # pointers + keep-alive ref; subclass `_view` factories set their own typed pointer first).
     cdef void _init_view(self, c_BaseLayer* ptr, object world)
     @staticmethod

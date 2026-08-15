@@ -227,7 +227,7 @@ enum class c_LuminosityModel : uint8_t {
 // c_luminosity_model_from_name - map a (case-insensitive) model name or alias to a
 // c_LuminosityModel enum value.
 //
-// Recognised names and aliases:
+// Recognized names and aliases:
 //   "fixed" / "constant"
 //   "mass_to_luminosity" / "cuntz_wang" / "cw"
 //   "power_law" / "powerlaw"
@@ -274,7 +274,7 @@ inline std::unique_ptr<c_LuminosityBase> c_find_luminosity(
 // c_luminosity_from_binary - reconstruct a luminosity model from a binary stream.
 //
 // Peeks the upcoming record's BinaryClassID (without consuming the header), constructs the matching
-// default-initialised concrete model, then delegates to its read_binary to restore the model name and
+// default-initialized concrete model, then delegates to its read_binary to restore the model name and
 // parameters. Throws std::runtime_error if the class id is not a known luminosity model.
 // -------------------------------------------------------------------------------
 inline std::unique_ptr<c_LuminosityBase> c_luminosity_from_binary(std::istream& in, bool force = false) {

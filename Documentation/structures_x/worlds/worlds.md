@@ -471,8 +471,9 @@ sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 **Properties:** `effective_temperature` [K], `luminosity` [W].
 **Methods:** `calc_luminosity_from_temperature(T)`,
 `calc_temperature_from_luminosity(L)`, `set_effective_temperature(T)`,
-`set_luminosity(L)`. A richer luminosity-model hierarchy (mass→luminosity) is a
-later phase.
+`set_luminosity(L)`. A luminosity-model hierarchy (fixed, mass-to-luminosity,
+power law) can be attached via `set_luminosity_model` (see
+`stellar_x/luminosity.md`).
 
 **Tides.** The analytic tide pipeline (`set_tide_model`/`set_tide_config`/`calc_tides` and the
 `get_tidal_*` accessors) lives on `BaseWorld`, so a star dissipates tidally too — with the

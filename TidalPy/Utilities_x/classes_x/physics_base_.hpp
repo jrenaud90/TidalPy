@@ -28,7 +28,7 @@
 
 namespace tidalpy {
 
-// Forward declaration — c_BaseLayer is defined in structures_x/layers/base_.hpp (Phase 1).
+// Forward declaration: c_BaseLayer is defined in structures_x/layers/base_.hpp.
 class c_BaseLayer;
 
 class c_PhysicsBase : public c_TidalPyBaseClass {

@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 gasgiant.pxd
-Cython declarations for TidalPy's gas-giant world class (Phase 8b).
+Cython declarations for TidalPy's gas-giant world class.
 """
 
 from libcpp.memory cimport shared_ptr

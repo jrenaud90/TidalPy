@@ -8,6 +8,7 @@ come from the (dense) radial solver / EOS, and the tidal potential from a tidal-
 (TidalPy.Tides_x.potential.tidal_potential); the caller supplies both.
 """
 import numpy as np
+from libcpp cimport bool as cpp_bool
 cimport numpy as cnp
 cnp.import_array()
 
@@ -55,8 +56,8 @@ def strain_stress_heating_point(
         double complex bulk,
         double radius,
         double degree_l,
-        bint is_solid,
-        bint is_incompressible,
+        cpp_bool is_solid,
+        cpp_bool is_incompressible,
         tuple potential6,
         double colatitude):
     """6 complex strains, 6 complex stresses, and the volumetric heating [W m-3] at one point.

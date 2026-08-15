@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 rheology.pxd
-Cython declarations for TidalPy's rheology model hierarchy (Phase 5).
+Cython declarations for TidalPy's rheology model hierarchy.
 
 Exports the seven concrete C++ rheology models, the combined config struct, and
 the Python wrapper classes so other extensions can cimport and build/attach

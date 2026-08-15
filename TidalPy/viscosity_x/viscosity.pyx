@@ -15,6 +15,7 @@ Models:
 """
 
 from libcpp.string cimport string
+from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
 
@@ -158,7 +159,7 @@ cdef class ArrheniusViscosity(ViscosityBase):
             double grain_size_expo=0.0,
             double molar_activation_energy=3.0e5,
             double molar_activation_volume=0.0,
-            bint additional_temp_dependence=False):
+            cpp_bool additional_temp_dependence=False):
         cdef c_ViscosityConfig config
         config.arrhenius_coeff            = arrhenius_coeff
         config.stress                     = stress

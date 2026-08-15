@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """
 rheology.pyx
-Cython/Python wrappers for TidalPy's rheology model hierarchy (Phase 5).
+Cython/Python wrappers for TidalPy's rheology model hierarchy.
 
 Exposes the seven complex-compliance rheology models:
 
@@ -26,6 +26,7 @@ References
 - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784
 """
 
+from libcpp cimport bool as cpp_bool
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
@@ -82,9 +83,9 @@ cdef object _solve_complex_modulus(
     Returns a Python ``complex`` for all-scalar input, else an ``np.ndarray``
     (complex128) broadcast to the common shape.
     """
-    cdef bint f_arr = isinstance(frequency, np.ndarray)
-    cdef bint m_arr = isinstance(modulus, np.ndarray)
-    cdef bint v_arr = isinstance(viscosity, np.ndarray)
+    cdef cpp_bool f_arr = isinstance(frequency, np.ndarray)
+    cdef cpp_bool m_arr = isinstance(modulus, np.ndarray)
+    cdef cpp_bool v_arr = isinstance(viscosity, np.ndarray)
 
     cdef cpp_complex[double] scalar_result
     cdef vector[double] vmod, vvisc, vfreq
@@ -566,11 +567,11 @@ def make_rheology(str model_name, dict config=None):
     Parameters
     ----------
     model_name : str
-        Model name or alias. Recognised names: ``elastic`` (``off``),
+        Model name or alias. Recognized names: ``elastic`` (``off``),
         ``viscous`` (``newton``), ``voigt`` (``voigt-kelvin``), ``maxwell``,
         ``burgers``, ``andrade``, ``sundberg`` (``sundberg-cooper``).
     config : dict, optional
-        Model parameters. Recognised keys (model-dependent):
+        Model parameters. Recognized keys (model-dependent):
         ``alpha``, ``zeta``, ``voigt_modulus_frac``, ``voigt_viscosity_frac``.
         Unused keys are ignored; missing keys fall back to model defaults.
 
@@ -582,7 +583,7 @@ def make_rheology(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognised.
+        If the model name is not recognized.
     """
     if config is None:
         config = {}

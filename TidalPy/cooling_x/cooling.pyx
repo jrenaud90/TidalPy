@@ -21,6 +21,7 @@ References
 - Solomatov (1995); Schubert, Turcotte, and Olson (2001) — boundary-layer theory.
 """
 
+from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
@@ -107,8 +108,8 @@ cdef object _solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
     Returns a ``CoolingResult`` whose fields are floats for all-scalar input, else
     float64 ndarrays broadcast to the common shape.
     """
-    cdef bint d_arr = isinstance(delta_temp, np.ndarray)
-    cdef bint v_arr = isinstance(viscosity, np.ndarray)
+    cdef cpp_bool d_arr = isinstance(delta_temp, np.ndarray)
+    cdef cpp_bool v_arr = isinstance(viscosity, np.ndarray)
 
     cdef vector[double] vtemp, vvisc
     cdef vector[c_CoolingResult] vout
@@ -441,7 +442,7 @@ def make_cooling(str model_name, dict config=None):
     Parameters
     ----------
     model_name : str
-        Model name or alias. Recognised names: ``off`` (``none``), ``convection``
+        Model name or alias. Recognized names: ``off`` (``none``), ``convection``
         (``convective``), ``conduction`` (``conductive``).
     config : dict, optional
         Convection parameters: ``convection_alpha``, ``convection_beta``,
@@ -455,7 +456,7 @@ def make_cooling(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognised.
+        If the model name is not recognized.
     """
     if config is None:
         config = {}

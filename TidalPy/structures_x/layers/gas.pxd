@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 gas.pxd
-Cython declarations for TidalPy's gas layer class (Phase 4).
+Cython declarations for TidalPy's gas layer class.
 
 Exports c_GasConfig, c_GasLayer, and the Python wrapper GasLayer so other
 extensions can cimport and use C-speed access.

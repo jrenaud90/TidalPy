@@ -102,7 +102,7 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 //   flux = k * delta_temp / boundary_layer
 //
 // Degenerate inputs (delta_temp <= 0, thickness below the minimum-layer-thickness
-// floor) collapse to the legacy edge behaviour (Ra = 0, Nu = 2). The minimum
+// floor) collapse to the legacy edge behavior (Ra = 0, Nu = 2). The minimum
 // thickness comes from the shared TidalPy config (tidalpy_config_ptr->d_MIN_THICKNESS).
 inline c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
@@ -255,7 +255,7 @@ enum class c_CoolingModel : uint8_t {
 // c_cooling_model_from_name — map a (case-insensitive) model name or alias to a
 // c_CoolingModel enum value.
 //
-// Recognised names and aliases:
+// Recognized names and aliases:
 //   "off" / "none"
 //   "convection" / "convective"
 //   "conduction" / "conductive"
@@ -301,7 +301,7 @@ inline std::unique_ptr<c_CoolingBase> c_find_cooling(
 // c_cooling_from_binary — reconstruct a cooling model from a binary stream.
 //
 // Peeks the upcoming record's BinaryClassID (without consuming the header),
-// constructs the matching default-initialised concrete model, then delegates to
+// constructs the matching default-initialized concrete model, then delegates to
 // its read_binary to restore the model name and parameters. Used by the layer
 // recursive deserialization (see structures_x/layers). Throws std::runtime_error
 // if the class id is not a known cooling model.

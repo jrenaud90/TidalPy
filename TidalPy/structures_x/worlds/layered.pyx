@@ -6,8 +6,8 @@ Cython/Python wrapper for TidalPy's layered world class.
 
 LayeredWorld: a world built from an ordered stack of layers (inner to outer).
 Owns its layers, aggregates total mass and internal radiogenic heating, and
-validates layer-boundary continuity. Whole-planet EOS / radial solves are added
-as methods on this class in later phases.
+validates layer-boundary continuity. Whole-planet EOS and radial (Love number)
+solves are provided as methods on this class.
 """
 
 cimport numpy as cnp
@@ -306,7 +306,7 @@ cdef class LayeredWorld(BaseWorld):
             double pressure_tol       = 1.0e-3,
             size_t max_iters          = 100,
             double temperature        = 0.0,
-            bint   verbose            = False) -> dict:
+            cpp_bool verbose          = False) -> dict:
         """Solve the whole-planet equation of state.
 
         Integrates gravity, pressure, enclosed mass, and moment of inertia
@@ -705,23 +705,23 @@ cdef class LayeredWorld(BaseWorld):
             self,
             double frequency_rad_s    = 1.0e-5,
             int    degree_l           = 2,
-            bint   solve_tidal        = True,
-            bint   use_prop_matrix    = False,
+            cpp_bool   solve_tidal        = True,
+            cpp_bool   use_prop_matrix    = False,
             int    core_model         = 0,
-            bint   use_kamata         = True,
-            bint   nondimensionalize  = True,
+            cpp_bool   use_kamata         = True,
+            cpp_bool   nondimensionalize  = True,
             double starting_radius    = 0.0,
             double start_radius_tol   = 1.0e-4,
             str    integration_method = 'DOP853',
             double rtol               = 1.0e-6,
             double atol               = 1.0e-10,
-            bint   scale_rtols        = True,
+            cpp_bool scale_rtols      = True,
             size_t max_num_steps      = 500000,
             size_t expected_size      = 500,
             size_t max_ram_MB         = 500,
             double max_step           = 0.0,
-            bint   verbose            = False,
-            bint   warnings           = True,
+            cpp_bool verbose          = False,
+            cpp_bool warnings         = True,
             double eos_rtol           = 1.0e-6,
             double eos_atol           = 1.0e-10,
             double eos_pressure_tol   = 1.0e-3,
@@ -755,7 +755,7 @@ cdef class LayeredWorld(BaseWorld):
             Use Kamata starting conditions near the center (shooting method only).
             Default True.
         nondimensionalize : bool, optional
-            Non-dimensionalise the problem internally (recommended). Default True.
+            Non-dimensionalize the problem internally (recommended). Default True.
         starting_radius : float, optional
             Minimum radius [m] for the shooting start.  0 → auto. Default 0.
         start_radius_tol : float, optional
@@ -845,23 +845,23 @@ cdef class LayeredWorld(BaseWorld):
             cnp.ndarray[cnp.float64_t, ndim=1] radius_array not None,
             double frequency_rad_s    = 1.0e-5,
             int    degree_l           = 2,
-            bint   solve_tidal        = True,
-            bint   use_prop_matrix    = False,
+            cpp_bool solve_tidal      = True,
+            cpp_bool use_prop_matrix  = False,
             int    core_model         = 0,
-            bint   use_kamata         = True,
-            bint   nondimensionalize  = True,
+            cpp_bool use_kamata       = True,
+            cpp_bool nondimensionalize = True,
             double starting_radius    = 0.0,
             double start_radius_tol   = 1.0e-4,
             str    integration_method = 'DOP853',
             double rtol               = 1.0e-6,
             double atol               = 1.0e-10,
-            bint   scale_rtols        = True,
+            cpp_bool scale_rtols      = True,
             size_t max_num_steps      = 500000,
             size_t expected_size      = 500,
             size_t max_ram_MB         = 500,
             double max_step           = 0.0,
-            bint   verbose            = False,
-            bint   warnings           = True) -> dict:
+            cpp_bool verbose          = False,
+            cpp_bool warnings         = True) -> dict:
         """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
 
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto

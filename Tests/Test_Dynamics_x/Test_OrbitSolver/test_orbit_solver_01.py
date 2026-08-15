@@ -1,7 +1,7 @@
 """Orbital rate engine (``TidalPy.dynamics_x.OrbitSolver``).
 
 Checks the da/dt, de/dt, dn/dt formulas, the reduced-mass conversion, and the circular-orbit guard.
-This is the low-level rate engine; the System class (Phase 13) will attach it and pull the orbital
+This is the low-level rate engine; the System class attaches it and pulls the orbital
 state / tidal-potential derivatives from its worlds. End-to-end energy conservation with the world
 spin is validated in ``Tests/Test_Structures_x/Test_Worlds/test_world_spin_01.py``.
 """

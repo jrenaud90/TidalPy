@@ -6,7 +6,7 @@ Cython/Python wrapper for TidalPy's physics layer class.
 
 PhysicsLayer: extends BaseLayer with static mechanical properties (shear
 modulus, bulk modulus, shear and bulk viscosity) and three complex Love
-numbers (k, h, l).  Optional rheology objects (Phase 5) enable
+numbers (k, h, l).  Optional rheology objects enable
 frequency-dependent complex moduli; until then the static modulus is
 returned as a real-valued complex number.
 """
@@ -40,7 +40,7 @@ cdef class PhysicsLayer(BaseLayer):
     """Mechanical-properties layer: static shear/bulk modulus, viscosities, Love numbers, and optional rheology.
 
     Extends BaseLayer with material-mechanical parameters needed for tidal
-    calculations.  Rheology objects (Phase 5) can be attached to enable
+    calculations.  Rheology objects can be attached to enable
     frequency-dependent complex moduli; until then the static modulus is
     returned as a real-valued complex number.
 
@@ -95,7 +95,7 @@ cdef class PhysicsLayer(BaseLayer):
             double radius_outer_m,
             double mass_kg,
             str    material_name                = "",
-            bint   is_tidal                     = True,
+            cpp_bool is_tidal                   = True,
             double tidal_scale                  = 1.0,
             double shear_modulus_static_pa      = 0.0,
             double bulk_modulus_static_pa       = 0.0,
@@ -170,19 +170,19 @@ cdef class PhysicsLayer(BaseLayer):
 
     @property
     def love_number_k(self) -> complex:
-        """Complex potential Love number k (placeholder; computed in later phases)."""
+        """Complex potential Love number k (stored value; zero until assigned)."""
         cdef cpp_complex[double] k = self._physics_ptr.get_love_number_k()
         return complex(k.real(), k.imag())
 
     @property
     def love_number_h(self) -> complex:
-        """Complex radial displacement Love number h (placeholder; computed in later phases)."""
+        """Complex radial displacement Love number h (stored value; zero until assigned)."""
         cdef cpp_complex[double] h = self._physics_ptr.get_love_number_h()
         return complex(h.real(), h.imag())
 
     @property
     def love_number_l(self) -> complex:
-        """Complex tangential displacement Love number l (placeholder; computed in later phases)."""
+        """Complex tangential displacement Love number l (stored value; zero until assigned)."""
         cdef cpp_complex[double] l = self._physics_ptr.get_love_number_l()
         return complex(l.real(), l.imag())
 
@@ -352,7 +352,7 @@ cdef class PhysicsLayer(BaseLayer):
         -------
         float
             Tidal susceptibility [m^3].  Returns 0.0 when config is not
-            initialised or mass is zero.
+            initialized or mass is zero.
 
         Assumptions
         -----------
@@ -364,7 +364,7 @@ cdef class PhysicsLayer(BaseLayer):
     def calc_complex_shear_modulus(self, double frequency_rad_s) -> complex:
         """Complex shear modulus at the given tidal forcing frequency [Pa].
 
-        When a shear rheology model is attached (Phase 5), the result is
+        When a shear rheology model is attached, the result is
         computed from the model's complex compliance.  Until then the static
         shear modulus is returned as a real-valued complex number.
 
@@ -388,7 +388,7 @@ cdef class PhysicsLayer(BaseLayer):
     def calc_complex_bulk_modulus(self, double frequency_rad_s) -> complex:
         """Complex bulk modulus at the given tidal forcing frequency [Pa].
 
-        When a bulk rheology model is attached (Phase 5), the result is
+        When a bulk rheology model is attached, the result is
         computed from the model's complex compliance.  Until then the static
         bulk modulus is returned as a real-valued complex number.
 

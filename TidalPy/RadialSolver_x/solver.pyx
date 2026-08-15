@@ -166,6 +166,10 @@ def radial_solver(
 
     cdef vector[cpp_string] c_solve_for
     if solve_for is not None:
+        # The validator writes one boundary-condition model per entry into a fixed int[5] buffer.
+        if len(solve_for) > 5:
+            raise ValueError(
+                f'radial_solver supports at most 5 simultaneous solve_for entries; got {len(solve_for)}.')
         for sf in solve_for:
             c_solve_for.push_back(sf.encode('utf-8'))
 

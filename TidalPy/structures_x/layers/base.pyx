@@ -6,7 +6,7 @@ Cython/Python wrapper for TidalPy's base layer class.
 
 BaseLayer: geometry-only layer storing inner/outer radii, mass, and
 material identification. EOS profile (density, gravity, pressure vs. radius)
-is unpopulated until EOSHandler runs (Phase 8) or update_eos_data() is called
+is unpopulated until the world's EOS solve runs or update_eos_data() is called
 directly (e.g., for testing).
 """
 
@@ -41,8 +41,8 @@ cdef class BaseLayer(StructureBase):
     construction and accessible as read-only properties.
 
     The EOS profile (density, gravity, pressure vs. radius) starts unpopulated.
-    After EOSHandler solves the Adams-Williamson ODE (Phase 8), or after a
-    direct call to ``update_eos_data``, the profile is interpolatable.
+    After the world's EOS solve populates it, or after a direct call to
+    ``update_eos_data``, the profile is interpolatable.
 
     Parameters
     ----------
@@ -84,7 +84,7 @@ cdef class BaseLayer(StructureBase):
             double radius_outer_m,
             double mass_kg,
             str    material_name      = "",
-            bint   is_tidal           = True,
+            cpp_bool   is_tidal           = True,
             double tidal_scale        = 1.0,
             str    tidal_scale_method = "user_provided"):
         cdef c_BaseLayerConfig config
@@ -272,8 +272,8 @@ cdef class BaseLayer(StructureBase):
             pressure_pa):
         """Populate the EOS profile from sorted radius arrays (MKS).
 
-        In normal use this is called by EOSHandler (Phase 8). For unit tests
-        or manual construction the arrays can be provided directly.
+        In normal use this is populated by the world's EOS solve. For unit
+        tests or manual construction the arrays can be provided directly.
 
         Parameters
         ----------

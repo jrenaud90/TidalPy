@@ -11,6 +11,7 @@ PhysicsBase:      physics model base (model_name, layer observer pointer)
 
 import os as _os
 
+from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport make_unique
 from libcpp.string cimport string
 
@@ -70,7 +71,7 @@ cdef class TidalPyBaseClass:
         self._check_ptr()
         self._ptr.save_binary(path.encode("utf-8"))
 
-    def load_binary(self, str path, bint force=False):
+    def load_binary(self, str path, cpp_bool force=False):
         """Load this object's state from a TidalPy binary file.
 
         Parameters

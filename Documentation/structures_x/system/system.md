@@ -165,7 +165,7 @@ temp = system.calc_equilibrium_temperature("earth")    # K
 `calc_insolation_flux` is the orbit-averaged incident stellar flux
 `F = L_star / (4 π a² √(1-e²))` (the `√(1-e²)` is the time-average of `1/r²` over the eccentric orbit,
 Mendez & Rivera-Valentin 2017), using the world's orbital elements **about the star**.
-`calc_equilibrium_temperature` applies the world's own grey-body radiative balance
+`calc_equilibrium_temperature` applies the world's own gray-body radiative balance
 `T = ((1-A) F / (4 ε σ))^(1/4)` to that flux (using the world's albedo `A` and emissivity `ε`). Both
 raise `RuntimeError` if no star is set and return NaN for the star's own entry, an unset stellar
 semi-major axis, or a star with no luminosity.

@@ -13,9 +13,9 @@ c_TidalPyBaseClass          (abstract; binary I/O, schema version)
     └── c_PhysicsBase       (physics models: model_name, layer observer ptr)
 ```
 
-In later phases every layer (`c_BaseLayer`, `c_PhysicsLayer`, ...) inherits
-`c_StructureBase`, and every physics model (`c_RheologyBase`, `c_CoolingBase`,
-...) inherits `c_PhysicsBase`.
+Every layer (`c_BaseLayer`, `c_PhysicsLayer`, ...) inherits `c_StructureBase`,
+and every physics model (`c_RheologyBase`, `c_CoolingBase`, ...) inherits
+`c_PhysicsBase`.
 
 ---
 
@@ -111,7 +111,7 @@ PhysicsBase(model_name: str)
 | `get_config_dict()` | `dict` | `{"model_name": "..."}` |
 
 The layer observer pointer (`p_layer_ptr`) is a C++ only field set by the owning
-layer after construction. It is not serialized and not exposed to Python in Phase 0d.
+layer after construction. It is not serialized and not exposed to Python.
 
 **Binary format** (24 + n bytes total):
 - 20-byte header (`BinaryClassID::PhysicsBase = 3`, payload `4 + n`)

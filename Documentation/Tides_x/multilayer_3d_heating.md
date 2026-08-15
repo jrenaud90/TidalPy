@@ -231,7 +231,7 @@ The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strai
 row (a snapshot at one time) and return the raw bilinear magnitude; the physical secular heating uses
 the complex/signed form above.
 
-## Status / follow-on work
+## Feature summary
 
 Implemented: the associated-Legendre tables (`Utilities_x.legendre`), the dynamic Kaula potential
 engine (any eccentricity/obliquity truncation, `l = 2..10`), the point kernel, and the **world-level,
