@@ -96,8 +96,9 @@ struct c_MaterialEOSConfig {
 // Analytic pressure laws and the density-from-pressure inversion
 //
 // All laws are written in terms of the compression ratio eta = rho / rho0 = V0 / V
-// (mass conservation), and are monotonically increasing in eta, so the inversion
-// (density given pressure) is well posed.
+// (mass conservation). They increase monotonically in eta over the physical compression
+// range near eta = 1; the finite-strain corrections can turn them over at extreme eta, so
+// the inversion (density given pressure) brackets the root within the monotonic range.
 // =====================================================================================================================
 
 // 3rd-order Birch-Murnaghan pressure [Pa] at compression eta = rho/rho0.
@@ -114,9 +115,15 @@ inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcep
     return 3.0 * K0 * (1.0 - x) / (x * x) * std::exp(1.5 * (K0_prime - 1.0) * (1.0 - x));
 }
 
-// Invert a monotonic pressure law for the compression eta = rho/rho0 given a
-// target pressure, using a safeguarded Newton iteration (bisection fallback).
+// Invert a pressure law for the compression eta = rho/rho0 given a target pressure,
+// using a safeguarded Newton iteration (bisection fallback).
 // Returns eta (caller multiplies by rho0 for density). PressureFn = double(eta, K0, K0').
+//
+// The pressure laws are monotonically increasing in eta only over a finite compression
+// range: the 3rd-order Birch-Murnaghan term 1 + (3/4)(K0'-4)(eta^(2/3)-1) changes sign at
+// large eta when K0' != 4, so P(eta) turns over and even goes negative there. The root is
+// therefore bracketed by expanding outward from eta = 1 (where P = 0) and stopping at the
+// turning point, rather than assuming monotonicity over a fixed wide interval.
 //
 // rtol is the relative convergence tolerance on eta; max_iters is a hard
 // termination-safeguard cap (not a physical parameter). Both come from the model
@@ -128,15 +135,41 @@ inline double eos_invert_eta(
         double rtol, int max_iters) noexcept {
     if (pressure_target_pa == 0.0) { return 1.0; }
 
-    // Bracket eta over a wide compression range; the laws are monotonic in eta.
-    double lo = 1.0e-3;
-    double hi = 1.0e3;
-    const double p_lo = pressure_fn(lo, K0, K0_prime);
-    const double p_hi = pressure_fn(hi, K0, K0_prime);
-    if (pressure_target_pa <= p_lo) { return lo; }
-    if (pressure_target_pa >= p_hi) { return hi; }
+    // Bracket the root by walking away from eta = 1 while the pressure is still moving
+    // monotonically toward the target, so the bracket stays inside the valid range.
+    double lo;
+    double hi;
+    if (pressure_target_pa > 0.0) {
+        // Compression: the solution has eta > 1. Grow hi while P keeps increasing.
+        lo         = 1.0;
+        hi         = 1.0;
+        double p_hi = 0.0;  // P(eta = 1) = 0
+        for (int k = 0; k < 200; ++k) {
+            const double cand   = hi * 1.25;
+            const double p_cand = pressure_fn(cand, K0, K0_prime);
+            if (!(p_cand > p_hi)) { break; }  // reached the monotonic turning point
+            hi   = cand;
+            p_hi = p_cand;
+            if (p_hi >= pressure_target_pa) { break; }  // target now bracketed
+        }
+        if (pressure_target_pa >= p_hi) { return hi; }  // beyond the model's valid range
+    } else {
+        // Tension: the solution has eta < 1. Shrink lo while P keeps decreasing.
+        hi         = 1.0;
+        lo         = 1.0;
+        double p_lo = 0.0;
+        for (int k = 0; k < 200; ++k) {
+            const double cand   = lo * 0.8;
+            const double p_cand = pressure_fn(cand, K0, K0_prime);
+            if (!(p_cand < p_lo)) { break; }
+            lo   = cand;
+            p_lo = p_cand;
+            if (p_lo <= pressure_target_pa) { break; }
+        }
+        if (pressure_target_pa <= p_lo) { return lo; }
+    }
 
-    double eta = 1.0;  // P(eta=1) == 0; a good starting point near typical solutions.
+    double eta = 0.5 * (lo + hi);
     for (int i = 0; i < max_iters; ++i) {
         const double p = pressure_fn(eta, K0, K0_prime);
         if (p < pressure_target_pa) { lo = eta; } else { hi = eta; }
