@@ -20,7 +20,7 @@
 
 // TidalPy imports
 #include "../constants_.hpp"
-#include "../utilities/math/numerics_.hpp"
+#include "../Utilities_x/math_x/numerics_.hpp"
 #include "../utilities/dimensions/nondimensional_.hpp"
 
 // RadialSolver imports

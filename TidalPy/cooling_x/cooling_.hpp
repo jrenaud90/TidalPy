@@ -106,7 +106,7 @@ inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
 // thickness comes from the shared TidalPy config (tidalpy_config_ptr->d_MIN_THICKNESS).
 inline c_CoolingResult cool_convection(
         const c_CoolingInputs& in, const c_CoolingConfig& cfg) noexcept {
-    const double eps = std::numeric_limits<double>::epsilon();
+    const double eps = TidalPyConstants::d_EPS;
     const double min_thickness = tidalpy_config_ptr->d_MIN_THICKNESS;
     c_CoolingResult result;
 

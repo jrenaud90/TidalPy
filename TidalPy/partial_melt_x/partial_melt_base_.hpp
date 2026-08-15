@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "physics_base_.hpp"
+#include "../constants_.hpp"  // TidalPyConstants::d_EPS
 
 namespace tidalpy {
 
@@ -97,7 +98,7 @@ public:
     // -----------------------------------------------------------------------
     double calc_melt_fraction(double temperature_k) const noexcept {
         const double denom = this->p_liquidus_k - this->p_solidus_k;
-        if (denom <= 0.0) { return 0.0; }
+        if (denom <= TidalPyConstants::d_EPS) { return 0.0; }
         double phi = (temperature_k - this->p_solidus_k) / denom;
         if (phi < 0.0) { phi = 0.0; }
         if (phi > 1.0) { phi = 1.0; }

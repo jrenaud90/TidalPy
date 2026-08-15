@@ -36,9 +36,9 @@
 // RadialSolver sub-modules: shooting solver, storage, love numbers.
 // Compiled into this TU so the shooting CyRK integration runs in the same
 // extension that owns the CySolverResult objects — no cross-extension call().
-#include "../../utilities/math/numerics_.hpp"        // c_isclose
+#include "../../Utilities_x/math_x/numerics_.hpp"        // c_isclose
 #include "../../utilities/dimensions/nondimensional_.hpp"  // c_NonDimensionalScales
-#include "../../utilities/arrays/interp_.hpp"        // cf_interp_complex
+#include "../../utilities/arrays/interp_.hpp"        // c_interp_complex
 #include "../../RadialSolver_x/rs_constants_.hpp"
 #include "../../RadialSolver_x/rs_solution_.hpp"
 #include "../../RadialSolver_x/love_.hpp"
@@ -322,7 +322,7 @@ public:
             total_volume  += shell_vol;
             mass_estimate += rho_mid * shell_vol;
         }
-        const double planet_bulk_density = (total_volume > 0.0) ? (mass_estimate / total_volume) : 3500.0;
+        const double planet_bulk_density = (total_volume > TidalPyConstants::d_EPS) ? (mass_estimate / total_volume) : 3500.0;
 
         // Build the EOS solution object and the per-layer pre-eval functions/inputs.
         auto solution = std::make_shared<c_EOSSolution>(
@@ -633,9 +633,9 @@ public:
         double interp_result[2];
         for (std::size_t i = 0; i < total_slices; ++i) {
             const double r = radius_si[i];
-            cf_interp_complex(r, radius_in_mut, shear_in_mut, n_in, &shear_guess, interp_result);
+            c_interp_complex(r, radius_in_mut, shear_in_mut, n_in, &shear_guess, interp_result);
             shear_out[i] = std::complex<double>(interp_result[0], interp_result[1]);
-            cf_interp_complex(r, radius_in_mut, bulk_in_mut, n_in, &bulk_guess, interp_result);
+            c_interp_complex(r, radius_in_mut, bulk_in_mut, n_in, &bulk_guess, interp_result);
             bulk_out[i]  = std::complex<double>(interp_result[0], interp_result[1]);
         }
 

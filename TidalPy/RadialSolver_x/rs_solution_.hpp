@@ -16,7 +16,7 @@
 #include "../Material_x/eos/methods/interpolate_.hpp"  // c_InterpolateEOSInput (persisted standalone EOS args)
 #include "../../constants_.hpp"
 #include "../utilities/dimensions/nondimensional_.hpp"
-#include "../utilities/arrays/interp_.hpp"        // cf_interp / cf_binary_search_with_guess (shared array-interp)
+#include "../utilities/arrays/interp_.hpp"        // c_interp / c_binary_search_with_guess (shared array-interp)
 
 
 // Error Codes:
@@ -459,7 +459,7 @@ public:
         if (calculate_y3)
         {
             // y3 = (1/(w^2 r)) (y1 g - y2/rho - y5), all in solve units. Gravity/density are read from the EOS's
-            // structural arrays via the shared array-interp utility (cf_interp + cf_binary_search_with_guess) - the
+            // structural arrays via the shared array-interp utility (c_interp + c_binary_search_with_guess) - the
             // same arrays the gridded collapse used (layer_gravity_ptr/layer_density_ptr), so the dense y3 reproduces
             // the grid y3. (eos->call would route through the cysolver dense output, whose unit handling differs across
             // solve paths.) Mirrors c_EOSSolution::_call_interp_arrays.
@@ -475,10 +475,10 @@ public:
                 if (j_guess >= n) j_guess = n - 1;
             }
             int b_code = 0;
-            size_t j   = cf_binary_search_with_guess(eos_r, r_arr, n, j_guess, &b_code);
+            size_t j   = c_binary_search_with_guess(eos_r, r_arr, n, j_guess, &b_code);
             double desired = eos_r, g_solve = 0.0, rho_solve = 0.0;
-            cf_interp(&desired, r_arr, eos->gravity_array_vec.data(), n, &j, &g_solve);
-            cf_interp(&desired, r_arr, eos->density_array_vec.data(), n, &j, &rho_solve);
+            c_interp(&desired, r_arr, eos->gravity_array_vec.data(), n, &j, &g_solve);
+            c_interp(&desired, r_arr, eos->density_array_vec.data(), n, &j, &rho_solve);
             if (!this->p_eos_is_nondim) { g_solve /= this->p_grav_conv; rho_solve /= this->p_dens_conv; }
             const double w = this->p_frequency_solve;
             out6[2] = (1.0 / (w * w * radius_solve)) * (out6[0] * g_solve - out6[1] / rho_solve - out6[4]);

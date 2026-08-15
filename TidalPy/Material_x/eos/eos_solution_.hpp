@@ -14,36 +14,8 @@
 #include "constants_.hpp"      // Part of the TidalPy
 
 #include "ode_.hpp" // For C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
-#include "../../utilities/arrays/interp_.hpp"  // cf_binary_search_with_guess, cf_interp, cf_interp_complex
-
-
-/// Helper: Check if two doubles are approximately equal.
-inline bool c_eos_isclose(double a, double b)
-{
-    // TODO: Make the numerics.pyx utility a C header that we can import here instead of reimplementing it.
-    const double rtol = 1.0e-9;
-    const double atol = 0.0;
-
-    if (std::isnan(a))
-    {
-        return false;
-    }
-
-    if (std::isnan(b))
-    {
-        return false;
-    }
-
-    if (a == b)
-    {
-        return true;
-    }
-
-    const double lhs = std::fabs(a - b);
-    const double rhs = std::fmax(rtol * std::fmax(std::fabs(a), std::fabs(b)), atol);
-
-    return lhs <= rhs;
-}
+#include "../../utilities/arrays/interp_.hpp"  // c_binary_search_with_guess, c_interp, c_interp_complex
+#include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
 
 
 /// C++ class storing the equation of state integration results for a layered planet.
@@ -199,13 +171,23 @@ public:
     void _call_interp_arrays(const double radius_val, double* y_interp_ptr) const noexcept
     {
         const size_t n  = this->radius_array_size;
-        // cf_interp/cf_binary_search_with_guess take non-const double* but only read the data.
-        double* r = const_cast<double*>(this->radius_array_vec.data());
-        double  r_val = radius_val;   // mutable copy for cf_interp's desired_x_ptr arg
+        if (n == 0)
+        {
+            // No stored arrays to interpolate; make the failure visible rather than reading
+            // uninitialized memory.
+            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
+            {
+                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
+            }
+            return;
+        }
+        // c_interp/c_binary_search_with_guess take non-const double* but only read the data.
+        double* radius_data_ptr = const_cast<double*>(this->radius_array_vec.data());
+        double  radius_query = radius_val;   // mutable copy for c_interp's desired_x_ptr arg
 
         // Initial index guess from normalized position in the radius range.
-        const double r_left  = r[0];
-        const double r_right = r[n > 0 ? n - 1 : 0];
+        const double r_left  = radius_data_ptr[0];
+        const double r_right = radius_data_ptr[n - 1];
         size_t j = 0;
         if (r_right > r_left)
         {
@@ -215,32 +197,46 @@ public:
             if (j >= n) j = n - 1;
         }
         int b_code = 0;
-        j = cf_binary_search_with_guess(radius_val, r, n, j, &b_code);
+        j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
 
         // Interpolate each quantity in the order that matches the CySolverResult layout:
         //   [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
         //   [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag
-        cf_interp(&r_val, r, const_cast<double*>(this->gravity_array_vec.data()),  n, &j, &y_interp_ptr[0]);
-        cf_interp(&r_val, r, const_cast<double*>(this->pressure_array_vec.data()), n, &j, &y_interp_ptr[1]);
-        cf_interp(&r_val, r, const_cast<double*>(this->mass_array_vec.data()),     n, &j, &y_interp_ptr[2]);
-        cf_interp(&r_val, r, const_cast<double*>(this->moi_array_vec.data()),      n, &j, &y_interp_ptr[3]);
-        cf_interp(&r_val, r, const_cast<double*>(this->density_array_vec.data()),  n, &j, &y_interp_ptr[4]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->gravity_array_vec.data()),  n, &j, &y_interp_ptr[0]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->pressure_array_vec.data()), n, &j, &y_interp_ptr[1]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->mass_array_vec.data()),     n, &j, &y_interp_ptr[2]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->moi_array_vec.data()),      n, &j, &y_interp_ptr[3]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->density_array_vec.data()),  n, &j, &y_interp_ptr[4]);
 
         double shear_result[2] = {0.0, 0.0};
-        cf_interp_complex(
-            radius_val, r,
+        c_interp_complex(
+            radius_val, radius_data_ptr,
             const_cast<double*>(reinterpret_cast<const double*>(this->complex_shear_array_vec.data())),
             n, &j, shear_result);
         y_interp_ptr[5] = shear_result[0];
         y_interp_ptr[6] = shear_result[1];
 
         double bulk_result[2] = {0.0, 0.0};
-        cf_interp_complex(
-            radius_val, r,
+        c_interp_complex(
+            radius_val, radius_data_ptr,
             const_cast<double*>(reinterpret_cast<const double*>(this->complex_bulk_array_vec.data())),
             n, &j, bulk_result);
         y_interp_ptr[7] = bulk_result[0];
         y_interp_ptr[8] = bulk_result[1];
+
+        // The dense path writes C_EOS_DY_VALUES (11) outputs including the shear/bulk
+        // viscosities at [9]/[10]; interpolate them when stored, else mark them NaN so
+        // consumers never read uninitialized memory.
+        if (this->shear_viscosity_array_vec.size() == n && this->bulk_viscosity_array_vec.size() == n)
+        {
+            c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->shear_viscosity_array_vec.data()), n, &j, &y_interp_ptr[9]);
+            c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->bulk_viscosity_array_vec.data()),  n, &j, &y_interp_ptr[10]);
+        }
+        else
+        {
+            y_interp_ptr[9]  = TidalPyConstants::d_NAN;
+            y_interp_ptr[10] = TidalPyConstants::d_NAN;
+        }
     }
 
 
@@ -409,7 +405,7 @@ public:
         {
             const double radius_val = this->radius_array_vec[radius_i];
 
-            if (c_eos_isclose(radius_val, current_layer_upper_radius))
+            if (c_isclose(radius_val, current_layer_upper_radius))
             {
                 // At the layer's radius. We want to capture it once at interfaces
                 // (there will be two of the same radii for interface layers)

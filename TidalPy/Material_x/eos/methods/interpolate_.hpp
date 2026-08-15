@@ -42,7 +42,7 @@ inline void c_preeval_interpolate(
     c_EOSOutput* output = reinterpret_cast<c_EOSOutput*>(preeval_output);
 
     // Find the shared index_j to use across all three interpolations.
-    // We do this explicitly because the provided cf_interp functions read the pointer but don't output the new j.
+    // We do this explicitly because the provided c_interp functions read the pointer but don't output the new j.
     int b_search_code = 0;
     
     // Formulate the initial guess to pass to the binary search
@@ -55,7 +55,7 @@ inline void c_preeval_interpolate(
     );
     // Clamp the guess to a valid index (num_slices - 1, not num_slices, to avoid reading one past the end).
     j_guess = (eos_data->num_slices > 0) ? std::min<size_t>(j_guess, eos_data->num_slices - 1) : 0;
-    size_t index_j = cf_binary_search_with_guess(
+    size_t index_j = c_binary_search_with_guess(
         radius, 
         eos_data->radius_array_ptr, 
         eos_data->num_slices, 
@@ -65,7 +65,7 @@ inline void c_preeval_interpolate(
 
     // Interpolate Density
     double density_result = 0.0;
-    cf_interp(
+    c_interp(
         &radius,
         eos_data->radius_array_ptr,
         eos_data->density_array_ptr,
@@ -81,11 +81,11 @@ inline void c_preeval_interpolate(
     {
         double bulk_result[2] = {0.0, 0.0};
         
-        // Cast the complex array to a double array (interleaved real/imag) for cf_interp_complex
+        // Cast the complex array to a double array (interleaved real/imag) for c_interp_complex
         auto* bulk_ptr = reinterpret_cast<double*>(eos_data->bulk_modulus_array_ptr);
         
-        cf_interp_complex(
-            radius,                      // Note: cf_interp_complex takes double
+        c_interp_complex(
+            radius,                      // Note: c_interp_complex takes double
             eos_data->radius_array_ptr,
             bulk_ptr,
             eos_data->num_slices,
@@ -107,7 +107,7 @@ inline void c_preeval_interpolate(
         
         auto* shear_ptr = reinterpret_cast<double*>(eos_data->shear_modulus_array_ptr);
         
-        cf_interp_complex(
+        c_interp_complex(
             radius,
             eos_data->radius_array_ptr,
             shear_ptr,

@@ -49,6 +49,8 @@
 
 #include "physics_base_.hpp"
 #include "interp_.hpp"
+#include "../../constants_.hpp"                    // TidalPyConstants::d_EPS
+#include "../../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow, c_safe_exp
 
 namespace tidalpy {
 
@@ -103,16 +105,17 @@ struct c_MaterialEOSConfig {
 
 // 3rd-order Birch-Murnaghan pressure [Pa] at compression eta = rho/rho0.
 inline double eos_bm_pressure(double eta, double K0, double K0_prime) noexcept {
-    const double f23 = std::pow(eta, 2.0 / 3.0);
-    const double f53 = std::pow(eta, 5.0 / 3.0);
-    const double f73 = std::pow(eta, 7.0 / 3.0);
-    return 1.5 * K0 * (f73 - f53) * (1.0 + 0.75 * (K0_prime - 4.0) * (f23 - 1.0));
+    const double eta_23 = c_safe_pow(eta, 2.0 / 3.0);
+    const double eta_53 = c_safe_pow(eta, 5.0 / 3.0);
+    const double eta_73 = c_safe_pow(eta, 7.0 / 3.0);
+    return 1.5 * K0 * (eta_73 - eta_53) * (1.0 + 0.75 * (K0_prime - 4.0) * (eta_23 - 1.0));
 }
 
-// Vinet pressure [Pa] at compression eta = rho/rho0 (x = (V/V0)^{1/3} = eta^{-1/3}).
+// Vinet pressure [Pa] at compression eta = rho/rho0 (inv_cbrt_eta = (V/V0)^{1/3} = eta^{-1/3}).
 inline double eos_vinet_pressure(double eta, double K0, double K0_prime) noexcept {
-    const double x = std::pow(eta, -1.0 / 3.0);
-    return 3.0 * K0 * (1.0 - x) / (x * x) * std::exp(1.5 * (K0_prime - 1.0) * (1.0 - x));
+    const double inv_cbrt_eta = c_safe_pow(eta, -1.0 / 3.0);
+    return 3.0 * K0 * (1.0 - inv_cbrt_eta) / (inv_cbrt_eta * inv_cbrt_eta)
+        * c_safe_exp(1.5 * (K0_prime - 1.0) * (1.0 - inv_cbrt_eta));
 }
 
 // Invert a pressure law for the compression eta = rho/rho0 given a target pressure,
@@ -133,7 +136,7 @@ template <typename PressureFn>
 inline double eos_invert_eta(
         double pressure_target_pa, double K0, double K0_prime, PressureFn pressure_fn,
         double rtol, int max_iters) noexcept {
-    if (pressure_target_pa == 0.0) { return 1.0; }
+    if (std::abs(pressure_target_pa) <= TidalPyConstants::d_EPS) { return 1.0; }
 
     // Bracket the root by walking away from eta = 1 while the pressure is still moving
     // monotonically toward the target, so the bracket stays inside the valid range.
@@ -171,13 +174,15 @@ inline double eos_invert_eta(
 
     double eta = 0.5 * (lo + hi);
     for (int i = 0; i < max_iters; ++i) {
-        const double p = pressure_fn(eta, K0, K0_prime);
-        if (p < pressure_target_pa) { lo = eta; } else { hi = eta; }
+        const double pressure_pa = pressure_fn(eta, K0, K0_prime);
+        if (pressure_pa < pressure_target_pa) { lo = eta; } else { hi = eta; }
 
         // Numerical derivative for the Newton step.
-        const double h    = 1.0e-6 * eta;
-        const double dp   = (pressure_fn(eta + h, K0, K0_prime) - p) / h;
-        double next       = (dp > 0.0) ? eta + (pressure_target_pa - p) / dp : 0.5 * (lo + hi);
+        const double fd_step        = 1.0e-6 * eta;
+        const double pressure_slope = (pressure_fn(eta + fd_step, K0, K0_prime) - pressure_pa) / fd_step;
+        double next = (pressure_slope > TidalPyConstants::d_EPS)
+            ? eta + (pressure_target_pa - pressure_pa) / pressure_slope
+            : 0.5 * (lo + hi);
         if (!(next > lo && next < hi)) { next = 0.5 * (lo + hi); }  // safeguard
 
         // Converged once the compression stops changing to relative tolerance.

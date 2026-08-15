@@ -37,8 +37,9 @@
 #include <string>
 #include <vector>
 
-#include "constants_.hpp"      // tidalpy_config_ptr->d_R
+#include "constants_.hpp"      // tidalpy_config_ptr->d_R, TidalPyConstants::d_EPS/d_INF
 #include "viscosity_base_.hpp"
+#include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow
 
 namespace tidalpy {
 
@@ -131,10 +132,17 @@ public:
 
     double calc_viscosity(double temperature_k, double pressure_pa) const override {
         const double R = tidalpy_config_ptr->d_R;
+        // A non-positive temperature is the cold limit: effectively rigid (infinite viscosity),
+        // which the rheology models treat as a purely elastic response.
+        if (temperature_k <= TidalPyConstants::d_EPS
+            || this->p_reference_temperature <= TidalPyConstants::d_EPS) {
+            return TidalPyConstants::d_INF;
+        }
         const double delta_inv_temp = (1.0 / temperature_k) - (1.0 / this->p_reference_temperature);
         const double exponent =
             ((this->p_molar_activation_energy + pressure_pa * this->p_molar_activation_volume) / R)
             * delta_inv_temp;
+        // Plain exp: an overflowing (very cold) exponent saturates to the same rigid limit.
         return this->p_reference_viscosity * std::exp(exponent);
     }
 
@@ -190,12 +198,18 @@ public:
 
     double calc_viscosity(double temperature_k, double pressure_pa) const override {
         const double R = tidalpy_config_ptr->d_R;
+        // A non-positive temperature is the cold limit: effectively rigid (infinite viscosity),
+        // which the rheology models treat as a purely elastic response.
+        if (temperature_k <= TidalPyConstants::d_EPS) {
+            return TidalPyConstants::d_INF;
+        }
         const double exponent =
             (this->p_molar_activation_energy + pressure_pa * this->p_molar_activation_volume)
             / (R * temperature_k);
+        // Plain exp: an overflowing (very cold) exponent saturates to the same rigid limit.
         double viscosity = this->p_arrhenius_coeff
-                         * std::pow(this->p_stress, 1.0 - this->p_stress_expo)
-                         * std::pow(this->p_grain_size, this->p_grain_size_expo)
+                         * c_safe_pow(this->p_stress, 1.0 - this->p_stress_expo)
+                         * c_safe_pow(this->p_grain_size, this->p_grain_size_expo)
                          * std::exp(exponent);
         if (this->p_additional_temp_dependence) {
             viscosity *= temperature_k;

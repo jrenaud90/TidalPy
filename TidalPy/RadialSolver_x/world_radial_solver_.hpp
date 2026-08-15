@@ -35,7 +35,7 @@
 #include <vector>
 
 #include "constants_.hpp"                                   // TidalPyConstants
-#include "../utilities/math/numerics_.hpp"                  // c_isclose
+#include "../Utilities_x/math_x/numerics_.hpp"                  // c_isclose
 #include "../utilities/dimensions/nondimensional_.hpp"      // c_NonDimensionalScales
 #include "rs_constants_.hpp"
 #include "rs_solution_.hpp"

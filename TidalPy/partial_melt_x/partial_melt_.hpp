@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "partial_melt_base_.hpp"
+#include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_pow, c_safe_exp
 
 namespace tidalpy {
 
@@ -140,9 +141,9 @@ public:
         c_PartialMeltResult result;
         result.melt_fraction = this->calc_melt_fraction(in.temperature_k);
 
-        double post_visc = std::pow(10.0,
+        double post_visc = c_safe_pow(10.0,
             (this->p_fs_visc_power_slope / in.temperature_k) - this->p_fs_visc_power_phase);
-        double post_shear = std::pow(10.0,
+        double post_shear = c_safe_pow(10.0,
             (this->p_fs_shear_power_slope / in.temperature_k) - this->p_fs_shear_power_phase);
 
         // Floor at the liquid limits (legacy sanity check).
@@ -225,17 +226,17 @@ public:
             post_shear = in.premelt_shear;
         } else if (phi < crit) {
             // Sub-critical exponential weakening.
-            post_visc  = in.premelt_viscosity * std::exp(-this->p_hn_visc_slope_1 * phi);
+            post_visc  = in.premelt_viscosity * c_safe_exp(-this->p_hn_visc_slope_1 * phi);
             post_shear = in.premelt_shear
-                       * std::exp((this->p_hn_shear_param_1 / in.temperature_k) - this->p_hn_shear_param_2);
+                       * c_safe_exp((this->p_hn_shear_param_1 / in.temperature_k) - this->p_hn_shear_param_2);
         } else if (phi <= crit_plus) {
             // Transition / breakdown band: maximum sub-critical effect then a steep falloff.
             post_visc  = in.premelt_viscosity
-                       * std::exp(-this->p_hn_visc_slope_1 * crit)
-                       * std::exp(-this->p_hn_visc_falloff_slope * (phi - crit));
+                       * c_safe_exp(-this->p_hn_visc_slope_1 * crit)
+                       * c_safe_exp(-this->p_hn_visc_falloff_slope * (phi - crit));
             post_shear = in.premelt_shear
-                       * std::exp((this->p_hn_shear_param_1 / break_temp) - this->p_hn_shear_param_2)
-                       * std::exp(-this->p_hn_shear_falloff_slope * (phi - crit));
+                       * c_safe_exp((this->p_hn_shear_param_1 / break_temp) - this->p_hn_shear_param_2)
+                       * c_safe_exp(-this->p_hn_shear_falloff_slope * (phi - crit));
         } else {
             // Past breakdown: liquid-like.
             post_visc  = in.liquid_viscosity;

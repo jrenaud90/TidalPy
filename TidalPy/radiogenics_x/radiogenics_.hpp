@@ -46,6 +46,7 @@
 #include <vector>
 
 #include "radiogenics_base_.hpp"
+#include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_exp
 
 namespace tidalpy {
 
@@ -110,9 +111,11 @@ struct c_Isotope {
     }
 
     // Specific radiogenic heating per unit layer mass [W/kg] at the given time.
+    // The guarded exponential returns NaN (rather than inf) if the requested time is so far
+    // before the reference time that the back-extrapolated heating overflows.
     double specific_heating(double time_s, double ref_time_s) const noexcept {
         const double q_ref = this->mass_frac * this->concentration * this->heat_production_w_kg;
-        return q_ref * std::exp(this->decay_constant() * (time_s - ref_time_s));
+        return q_ref * c_safe_exp(this->decay_constant() * (time_s - ref_time_s));
     }
 };
 
