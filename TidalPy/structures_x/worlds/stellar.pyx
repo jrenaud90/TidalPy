@@ -86,6 +86,15 @@ cdef class StarWorld(BaseWorld):
     def __dealloc__(self):
         self._star_ptr = NULL  # base's unique_ptr owns the C++ object
 
+    @staticmethod
+    cdef StarWorld _wrap(shared_ptr[c_BaseWorld] ptr):
+        """Wrap an already-constructed C++ star world (no new C++ object is built)."""
+        cdef StarWorld world = StarWorld.__new__(StarWorld)
+        world._world_ptr = ptr
+        world._ptr = <c_TidalPyBaseClass*>ptr.get()
+        world._star_ptr = <c_StarWorld*>ptr.get()
+        return world
+
     # ------------------------------------------------------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------------------------------------------------------

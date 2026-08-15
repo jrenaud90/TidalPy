@@ -16,12 +16,18 @@ from libcpp.vector cimport vector
 # radial solver, whose symbols must be linked here (the same cimport the world extensions use).
 from CyRK cimport ODEMethod
 
+from TidalPy.Utilities_x.classes_x.classes cimport TidalPyBaseClass, c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 
 
 # =====================================================================================================================
 # C++ class declarations
 # =====================================================================================================================
+# World binary-dispatch helpers (worlds/factory_.hpp): reconstruct + type-discriminate a loaded world.
+cdef extern from "factory_.hpp" namespace "tidalpy" nogil:
+    int c_world_kind(const c_BaseWorld* world)
+
+
 cdef extern from "system_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_WorldEvolution:
         size_t   world_index
@@ -63,11 +69,12 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
         double           dE_spin_dt_total
         double           energy_residual
 
-    cdef cppclass c_System:
+    cdef cppclass c_System(c_TidalPyBaseClass):
         c_System() except +
         c_System(const string& name) except +
         const string& get_name() const
         void   set_name(const string& name)
+        const shared_ptr[c_BaseWorld]& get_world(size_t index) except +
         size_t add_world(
             shared_ptr[c_BaseWorld] world,
             cpp_bool is_host,
@@ -111,9 +118,10 @@ cdef extern from "system_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 # Cython wrapper class declaration
 # =====================================================================================================================
-cdef class System:
+cdef class System(TidalPyBaseClass):
     cdef unique_ptr[c_System] _system
     cdef list _world_wrappers   # Python list of the added BaseWorld wrappers (co-own the C++ worlds)
     cdef public dict source_config   # system config the system was built from (or None if built directly)
     cdef Py_ssize_t _resolve_index(self, object world) except *
+    cdef void _rebuild_world_wrappers(self)
     cpdef dict get_config_dict(self)

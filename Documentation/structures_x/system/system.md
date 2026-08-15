@@ -222,6 +222,26 @@ single-body balances, `heating_world + heating_host = −(dE_orbit/dt + dE_spin_
 A body with no tide model attached is **rigid** and contributes nothing, so a rigid host reduces
 `calc_pair_evolution` to the single-body `calc_world_evolution` result.
 
+## Binary save/load
+
+A system serializes to (and loads from) TidalPy's binary format, reconstructing its heterogeneous world
+list — each world's concrete type (star / layered / gas giant) is recovered from the stream:
+
+```python
+system.save_binary("system.tpyb")
+
+loaded = System()
+loaded.load_binary("system.tpyb")
+loaded["earth"]        # comes back as a LayeredWorld (with its layers), the Sun as a StarWorld, ...
+```
+
+`System` inherits the binary machinery (`save_binary`, `load_binary`, `get_schema_version_str`,
+`save_config`) from the shared `TidalPyBaseClass`. As for a directly-loaded world, physics sub-models a
+world does not serialize (the layer EOS profile data, the tide / spin / luminosity models) are not
+carried in the binary and are reattached after load; the container state (name, host/star roles, and
+each world's orbital elements about both the host and the star) and each world's own fields (including,
+for a star, its effective temperature, so insolation survives) are.
+
 ## C++ API
 
 `c_System : c_TidalPyBaseClass` (`structures_x/system/system_.hpp`):
@@ -246,6 +266,10 @@ A body with no tide model attached is **rigid** and contributes nothing, so a ri
   contributions + the combined shared-orbit rates and energy balance). Built on the shared
   `calc_dissipation(dissipator_i, companion_mass, n, a, e)` primitive, which computes one body's tidal
   solve + rate + spin contribution (a body with no tide model is rigid and contributes zero).
+* `write_binary` / `read_binary` (inherited `save_binary` / `load_binary` open the file). `read_binary`
+  rebuilds the world list via `c_world_from_binary` (`structures_x/worlds/factory_.hpp`), which peeks each
+  record's `BinaryClassID` and constructs the matching world type; `c_world_kind` gives a loaded world's
+  concrete type so the Cython layer can pick the matching wrapper.
 
 ## References
 

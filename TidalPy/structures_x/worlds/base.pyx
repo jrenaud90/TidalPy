@@ -92,6 +92,14 @@ cdef class BaseWorld(StructureBase):
         self._world_ptr.reset()
         self._ptr = NULL
 
+    @staticmethod
+    cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr):
+        """Wrap an already-constructed C++ base world (no new C++ object is built)."""
+        cdef BaseWorld world = BaseWorld.__new__(BaseWorld)
+        world._world_ptr = ptr
+        world._ptr = <c_TidalPyBaseClass*>ptr.get()
+        return world
+
     # ------------------------------------------------------------------------------------------------------------------
     # Base class property overrides (read from the most-derived C++ world)
     # ------------------------------------------------------------------------------------------------------------------

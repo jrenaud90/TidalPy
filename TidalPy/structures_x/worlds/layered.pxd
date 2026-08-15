@@ -6,11 +6,12 @@ Cython declarations for TidalPy's layered world class (Phase 8b).
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport unique_ptr, shared_ptr
 from libcpp.complex cimport complex as cpp_complex
 
 from CyRK cimport ODEMethod
 
+from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport (
     BaseWorld, c_BaseWorld, c_WorldConfig, c_TideConfig, c_TideSolveConfig,
     c_Heating3DCollapseConfig, c_Heating3DCollapsed)
@@ -147,6 +148,8 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class LayeredWorld(BaseWorld):
     cdef c_LayeredWorld* _layered_ptr   # non-owning; ownership via BaseWorld._world_ptr
+    @staticmethod
+    cdef LayeredWorld _wrap(shared_ptr[c_BaseWorld] ptr)
     # Cached non-owning layer views, built once (lazily) and invalidated by add_layer so the
     # wrappers are not rebuilt on every world.<layer> / get_layer access.
     cdef list _layer_views

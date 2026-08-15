@@ -17,6 +17,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
     TidalPyBaseClass,
     StructureBase,
     c_StructureBase,
+    c_TidalPyBaseClass,
 )
 from TidalPy.Tides_x.classes.tide cimport c_TideBase
 
@@ -115,3 +116,7 @@ cdef class BaseWorld(StructureBase):
     cdef shared_ptr[c_BaseWorld] _world_ptr   # owns the most-derived C++ world object (shared so a System can co-own it)
     cdef public dict source_config            # normalized config the world was built from (or None)
     cpdef dict get_config_dict(self)
+    # Wrap an already-constructed C++ world (e.g. one loaded by c_System::read_binary) as a Python
+    # wrapper without building a new C++ object. Each subclass overrides to return its own type.
+    @staticmethod
+    cdef BaseWorld _wrap(shared_ptr[c_BaseWorld] ptr)

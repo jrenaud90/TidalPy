@@ -34,6 +34,7 @@
 #include "../worlds/base_.hpp"                // c_BaseWorld
 #include "../worlds/stellar_.hpp"             // c_StarWorld (for the star's luminosity in insolation)
 #include "../worlds/layered_.hpp"             // c_LayeredWorld (rheology tidal solve + spin model)
+#include "../worlds/factory_.hpp"             // c_world_from_binary (world binary-dispatch factory)
 #include "../../dynamics_x/orbit_solver_.hpp" // c_OrbitSolver / c_OrbitState (orbital rate engine)
 #include "constants_.hpp"                     // TidalPyConstants::d_EPS / d_NAN / d_PI, tidalpy_config_ptr->d_G
 
@@ -613,8 +614,10 @@ public:
     //
     // write_binary records the system's own container state (name, host/star indices, and each world's
     // orbital elements about both the host and the star) followed by every world's complete binary
-    // record. Loading a system back (reconstructing the heterogeneous world list from the stream) is
-    // handled separately once the world binary-dispatch factory is available.
+    // record. read_binary reverses it, rebuilding the heterogeneous world list from the stream via the
+    // world binary-dispatch factory (c_world_from_binary). Physics sub-models a world does not serialize
+    // (the star's luminosity model, the layer EOS profile data, the orbit-solver/spin/tide models) are
+    // reattached after load, exactly as for a directly-loaded world.
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());
@@ -643,6 +646,46 @@ public:
         }
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write System binary data");
+        }
+    }
+
+    void read_binary(std::istream& in, bool force = false) override {
+        c_TidalPyBaseClass::read_binary(in, force);
+        this->p_name = read_binary_string(in);
+
+        int32_t host_index = -1;
+        int32_t star_index = -1;
+        in.read(reinterpret_cast<char*>(&host_index), sizeof(int32_t));
+        in.read(reinterpret_cast<char*>(&star_index), sizeof(int32_t));
+        uint64_t num_worlds = 0;
+        in.read(reinterpret_cast<char*>(&num_worlds), sizeof(uint64_t));
+        if (!in) {
+            throw std::runtime_error("TidalPy: failed to read System binary data");
+        }
+
+        // Per-world orbital elements about the host, then about the star (same order write_binary used).
+        this->p_orbits.assign(num_worlds, c_OrbitElements{});
+        for (uint64_t i = 0; i < num_worlds; ++i) {
+            in.read(reinterpret_cast<char*>(&this->p_orbits[i].semi_major_axis), sizeof(double));
+            in.read(reinterpret_cast<char*>(&this->p_orbits[i].eccentricity),    sizeof(double));
+        }
+        this->p_stellar_orbits.assign(num_worlds, c_OrbitElements{});
+        for (uint64_t i = 0; i < num_worlds; ++i) {
+            in.read(reinterpret_cast<char*>(&this->p_stellar_orbits[i].semi_major_axis), sizeof(double));
+            in.read(reinterpret_cast<char*>(&this->p_stellar_orbits[i].eccentricity),    sizeof(double));
+        }
+
+        // Rebuild the heterogeneous world list; each world's concrete type is recovered from its record.
+        this->p_worlds.clear();
+        this->p_worlds.reserve(num_worlds);
+        for (uint64_t i = 0; i < num_worlds; ++i) {
+            this->p_worlds.push_back(c_world_from_binary(in, force));
+        }
+
+        this->p_host_index = host_index;
+        this->p_star_index = star_index;
+        if (!in) {
+            throw std::runtime_error("TidalPy: failed to read System binary data");
         }
     }
 

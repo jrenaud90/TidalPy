@@ -4,7 +4,10 @@ gasgiant.pxd
 Cython declarations for TidalPy's gas-giant world class (Phase 8b).
 """
 
-from TidalPy.structures_x.worlds.base cimport c_WorldConfig
+from libcpp.memory cimport shared_ptr
+
+from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
+from TidalPy.structures_x.worlds.base cimport c_WorldConfig, c_BaseWorld
 from TidalPy.structures_x.worlds.layered cimport LayeredWorld, c_LayeredWorld
 
 
@@ -22,3 +25,5 @@ cdef extern from "gasgiant_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class GasGiantWorld(LayeredWorld):
     cdef c_GasGiantWorld* _gasgiant_ptr   # non-owning; ownership via BaseWorld._world_ptr
+    @staticmethod
+    cdef GasGiantWorld _wrap(shared_ptr[c_BaseWorld] ptr)

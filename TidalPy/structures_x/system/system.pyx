@@ -24,6 +24,9 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.structures_x.worlds.base cimport BaseWorld
+from TidalPy.structures_x.worlds.layered cimport LayeredWorld
+from TidalPy.structures_x.worlds.gasgiant cimport GasGiantWorld
+from TidalPy.structures_x.worlds.stellar cimport StarWorld
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -37,6 +40,22 @@ cdef extern from "world_tides_base_.hpp" nogil:
     pass
 cdef extern from "world_tides_.hpp" nogil:
     pass
+
+
+cdef BaseWorld _wrap_world(shared_ptr[c_BaseWorld] ptr):
+    """Wrap a C++ world (e.g. one loaded by c_System::read_binary) as the matching Python wrapper.
+
+    Dispatches on the world's concrete type so a layered / gas-giant / star world comes back as its own
+    wrapper class (with its layered / star methods), not a bare BaseWorld.
+    """
+    cdef int kind = c_world_kind(ptr.get())
+    if kind == 1:
+        return LayeredWorld._wrap(ptr)
+    if kind == 2:
+        return GasGiantWorld._wrap(ptr)
+    if kind == 3:
+        return StarWorld._wrap(ptr)
+    return BaseWorld._wrap(ptr)
 
 
 cdef dict _evolution_to_dict(c_WorldEvolution evolution):
@@ -111,9 +130,13 @@ cdef class System:
 
     def __init__(self, str name=""):
         self._system.reset(new c_System(name.encode("utf-8")))
+        # Wire the inherited TidalPyBaseClass._ptr to the owned c_System so save_binary / load_binary /
+        # get_schema_version_str / save_config resolve to it (c_System : c_TidalPyBaseClass).
+        self._ptr = self._system.get()
 
     def __dealloc__(self):
         self._system.reset()
+        self._ptr = NULL
 
     # ------------------------------------------------------------------------------------------------------------------
     # Builder entry point
@@ -513,6 +536,51 @@ cdef class System:
         from TidalPy.structures_x.configs.config_writer import save_system_to_toml
         config = self.source_config if self.source_config is not None else self.get_config_dict()
         return save_system_to_toml(config, file_path, overwrite=overwrite)
+
+    cdef void _rebuild_world_wrappers(self):
+        """Rebuild the Python world-wrapper list around the C++ system's current worlds.
+
+        Called after load_binary, where c_System::read_binary has replaced the owned worlds with freshly
+        deserialized ones; each is re-wrapped as its concrete Python type (co-owning the C++ world).
+        """
+        cdef c_System* system_ptr = self._system.get()
+        cdef size_t num = system_ptr.get_num_worlds()
+        cdef size_t i
+        self._world_wrappers = []
+        for i in range(num):
+            self._world_wrappers.append(_wrap_world(system_ptr.get_world(i)))
+
+    def load_binary(self, str path, bint force=False):
+        """Load this system's state from a TidalPy binary file (overriding the base to rewrap worlds).
+
+        Reads the container state and rebuilds the heterogeneous world list from the stream (each world's
+        concrete type is recovered from its record), then rebuilds the Python world wrappers around the
+        loaded worlds. Physics sub-models a world does not serialize (the star's luminosity model, layer
+        EOS data, tide/spin models) are reattached after load, as for a directly-loaded world.
+
+        Parameters
+        ----------
+        path : str
+            Source file path.
+        force : bool, optional
+            If True, attempt to load even on a schema-version mismatch.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file does not exist.
+        IOError
+            If the file is invalid or the schema version is incompatible.
+        """
+        import os as _os
+        if not _os.path.isfile(path):
+            raise FileNotFoundError(f"No such file: '{path}'")
+        try:
+            self._system.get().load_binary(path.encode("utf-8"), force)
+        except RuntimeError as exc:
+            raise IOError(str(exc)) from exc
+        self._rebuild_world_wrappers()
+        self.source_config = None
 
     # ------------------------------------------------------------------------------------------------------------------
     # World identification: accept an index (int), a world name (str), or the world wrapper object.

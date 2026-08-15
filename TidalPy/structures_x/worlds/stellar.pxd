@@ -6,8 +6,9 @@ Cython declarations for TidalPy's star world class.
 
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport unique_ptr, shared_ptr
 
+from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld
 from TidalPy.stellar_x.luminosity cimport LuminosityBase, c_LuminosityBase
 
@@ -52,3 +53,5 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
 cdef class StarWorld(BaseWorld):
     cdef c_StarWorld* _star_ptr   # non-owning; ownership via BaseWorld._world_ptr
     cpdef dict get_config_dict(self)
+    @staticmethod
+    cdef StarWorld _wrap(shared_ptr[c_BaseWorld] ptr)

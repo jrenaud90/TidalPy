@@ -65,3 +65,15 @@ cdef class GasGiantWorld(LayeredWorld):
     def __dealloc__(self):
         self._gasgiant_ptr = NULL  # base's unique_ptr owns the C++ object
         self._layered_ptr  = NULL
+
+    @staticmethod
+    cdef GasGiantWorld _wrap(shared_ptr[c_BaseWorld] ptr):
+        """Wrap an already-constructed C++ gas-giant world (no new C++ object is built)."""
+        cdef GasGiantWorld world = GasGiantWorld.__new__(GasGiantWorld)
+        world._world_ptr = ptr
+        world._ptr = <c_TidalPyBaseClass*>ptr.get()
+        world._layered_ptr = <c_LayeredWorld*>ptr.get()
+        world._gasgiant_ptr = <c_GasGiantWorld*>ptr.get()
+        world._layer_views = None
+        world._layer_view_by_name = None
+        return world

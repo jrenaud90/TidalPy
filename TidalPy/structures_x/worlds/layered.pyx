@@ -140,6 +140,17 @@ cdef class LayeredWorld(BaseWorld):
     def __dealloc__(self):
         self._layered_ptr = NULL  # base's unique_ptr owns the C++ object
 
+    @staticmethod
+    cdef LayeredWorld _wrap(shared_ptr[c_BaseWorld] ptr):
+        """Wrap an already-constructed C++ layered world (no new C++ object is built)."""
+        cdef LayeredWorld world = LayeredWorld.__new__(LayeredWorld)
+        world._world_ptr = ptr
+        world._ptr = <c_TidalPyBaseClass*>ptr.get()
+        world._layered_ptr = <c_LayeredWorld*>ptr.get()
+        world._layer_views = None
+        world._layer_view_by_name = None
+        return world
+
     # ------------------------------------------------------------------------------------------------------------------
     # Layer management
     # ------------------------------------------------------------------------------------------------------------------
