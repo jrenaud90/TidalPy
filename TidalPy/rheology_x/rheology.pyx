@@ -344,8 +344,8 @@ cdef class Voigt(RheologyBase):
     Parameters
     ----------
     voigt_modulus_frac : float, optional
-        Voigt compliance fraction relative to the layer compliance.
-        Default ``0.2``.
+        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
+        Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -369,7 +369,7 @@ cdef class Voigt(RheologyBase):
 
     @property
     def voigt_modulus_frac(self) -> float:
-        """Voigt compliance fraction [dimensionless]."""
+        """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         return self._voigt_ptr.get_voigt_modulus_frac()
 
     @property
@@ -394,8 +394,8 @@ cdef class Burgers(RheologyBase):
     Parameters
     ----------
     voigt_modulus_frac : float, optional
-        Voigt compliance fraction relative to the layer compliance.
-        Default ``0.2``.
+        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
+        Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -419,7 +419,7 @@ cdef class Burgers(RheologyBase):
 
     @property
     def voigt_modulus_frac(self) -> float:
-        """Voigt compliance fraction [dimensionless]."""
+        """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         return self._burgers_ptr.get_voigt_modulus_frac()
 
     @property
@@ -495,8 +495,8 @@ cdef class Sundberg(RheologyBase):
     zeta : float, optional
         Andrade timescale ratio [dimensionless]. Default ``1.0``.
     voigt_modulus_frac : float, optional
-        Voigt compliance fraction relative to the layer compliance.
-        Default ``0.2``.
+        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
+        Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -533,7 +533,7 @@ cdef class Sundberg(RheologyBase):
 
     @property
     def voigt_modulus_frac(self) -> float:
-        """Voigt compliance fraction [dimensionless]."""
+        """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         return self._sundberg_ptr.get_voigt_modulus_frac()
 
     @property
@@ -702,7 +702,12 @@ def burgers(frequency, modulus, viscosity,
     return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
 
 
-def andrade(frequency, modulus, viscosity, double alpha=0.3, double zeta=1.0):
+def andrade(
+        frequency,
+        modulus,
+        viscosity,
+        double alpha=0.3,
+        double zeta=1.0):
     """Complex shear/bulk modulus for the Andrade model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.alpha = alpha
