@@ -12,7 +12,7 @@ Performance/
   run_all.py         runs every registered task and writes one JSON record
   tasks/
     common_tasks.py  the tasks (mirror the operations taught in Demos_x/)
-  results/           one JSON file per run (committed, so history accumulates)
+  results/           one JSON file per run (accumulates locally per machine; commit runs you want to keep)
   Perf_Trends.ipynb  loads results/*.json and plots timings vs date / version / OS
 ```
 
@@ -36,7 +36,7 @@ Each run writes `results/<timestamp>_<host>_<version>.json`. The file holds one 
 Register a zero-argument callable in `tasks/common_tasks.py`:
 
 ```python
-from ..harness import benchmark
+from harness import benchmark
 
 @benchmark("build_layered_world", group="structures")
 def _build_layered_world():

@@ -29,6 +29,9 @@ except ImportError:
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
+# Version stamp written into every results JSON so future readers can detect layout changes.
+RESULTS_SCHEMA_VERSION = "1.0"
+
 
 # =====================================================================================================================
 # Environment capture
@@ -198,13 +201,25 @@ def run_suite(
     for task in task_list:
         if verbose:
             print(f"  timing {task.name} ...", flush=True)
-        results.append(time_task(task))
-    payload = {"environment": env, "label": label, "results": results}
+        # A failing task records an error row instead of discarding the whole run.
+        try:
+            results.append(time_task(task))
+        except Exception as error:
+            results.append({"name": task.name, "group": task.group, "error": repr(error)})
+            if verbose:
+                print(f"    task {task.name} failed: {error!r}", flush=True)
+    payload = {"schema_version": RESULTS_SCHEMA_VERSION, "environment": env, "label": label, "results": results}
 
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = env["timestamp_utc"].replace(":", "").replace("-", "")
-    fname = _sanitize(f"{stamp}_{env['node']}_{env['tidalpy_version']}.json")
-    path = output_dir / fname
+    label_part = f"_{_sanitize(label)}" if label else ""
+    base_name = _sanitize(f"{stamp}_{env['node']}_{env['tidalpy_version']}") + label_part
+    path = output_dir / f"{base_name}.json"
+    # Never silently overwrite a same-second run; append a counter instead.
+    counter = 1
+    while path.exists():
+        path = output_dir / f"{base_name}_{counter:02d}.json"
+        counter += 1
     path.write_text(json.dumps(payload, indent=2))
     if verbose:
         print(f"Wrote {len(results)} task result(s) to {path}")
@@ -222,10 +237,17 @@ def load_results(output_dir: Path = RESULTS_DIR) -> list[dict]:
     """
     rows = []
     for path in sorted(output_dir.glob("*.json")):
-        payload = json.loads(path.read_text())
+        # A single malformed file should not take down the whole trend view.
+        try:
+            payload = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            print(f"Skipping unreadable results file {path.name}: {error!r}")
+            continue
         env = payload.get("environment", {})
         label = payload.get("label", "")
         for res in payload.get("results", []):
+            if "error" in res:
+                continue
             rows.append({**env, **res, "run_label": label, "source_file": path.name})
     return rows
 

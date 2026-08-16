@@ -48,5 +48,7 @@ prune .github
 prune Tests
 prune Papers
 prune Demos
+prune Demos_x
 prune Documentation
 prune Benchmarks
+prune Benchmarks_x
