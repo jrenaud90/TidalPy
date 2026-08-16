@@ -30,11 +30,15 @@
  *     melt_viscosity_reduction       (double, 8)
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
+ *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
+ *     bulk_viscosity  presence flag (uint8_t, 1) + (if present) its binary record
+ *     partial_melt    presence flag (uint8_t, 1) + (if present) its binary record
  *     cooling         presence flag (uint8_t, 1) + (if present) its binary record
  *     radiogenics     presence flag (uint8_t, 1) + (if present) its binary record
- *   Attached rheology, cooling, and radiogenics models ARE serialized recursively
- *   (presence flag + the model's own binary record); the four presence flags are
- *   part of this payload, each nested model record follows as a separate record.
+ *   Attached rheology, viscosity, partial-melt, cooling, and radiogenics models ARE
+ *   serialized recursively (presence flag + the model's own binary record); the seven
+ *   presence flags are part of this payload, each nested model record follows as a
+ *   separate record.
  *   EOS profile data is NOT serialized.
  */
 
@@ -282,9 +286,11 @@ public:
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
+            sizeof(uint8_t)  +               // tidal_scale_method
             sizeof(double)   * 10 +          // shear/bulk modulus, shear/bulk viscosity, love_numbers k/h/l re+im
+            sizeof(uint8_t)  * 3 +           // is_solid, is_static, is_incompressible
             sizeof(double)   * 11 +          // SolidLiquidLayer thermal fields
-            this->rheology_presence_bytes() +    // shear + bulk rheology presence flags
+            this->physics_models_presence_bytes() +    // rheology + viscosity + partial-melt presence flags
             2 * optional_binary_flag_bytes();    // cooling + radiogenics presence flags
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer), payload);
@@ -302,6 +308,8 @@ public:
         const uint8_t is_tidal_byte = static_cast<uint8_t>(this->p_is_tidal);
         out.write(reinterpret_cast<const char*>(&is_tidal_byte),        sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
+        const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
+        out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         // c_PhysicsLayer fields
         out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
@@ -316,6 +324,14 @@ public:
         write_complex(this->p_love_numbers.k);
         write_complex(this->p_love_numbers.h);
         write_complex(this->p_love_numbers.l);
+
+        // Radial-solver layer classification flags (mirrors c_PhysicsLayer's layout).
+        const uint8_t is_solid_byte          = static_cast<uint8_t>(this->p_is_solid);
+        const uint8_t is_static_byte         = static_cast<uint8_t>(this->p_is_static);
+        const uint8_t is_incompressible_byte = static_cast<uint8_t>(this->p_is_incompressible);
+        out.write(reinterpret_cast<const char*>(&is_solid_byte),          sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&is_static_byte),         sizeof(uint8_t));
+        out.write(reinterpret_cast<const char*>(&is_incompressible_byte), sizeof(uint8_t));
 
         // c_SolidLiquidLayer fields
         out.write(reinterpret_cast<const char*>(&this->p_thermal_conductivity_ref), sizeof(double));
@@ -335,7 +351,7 @@ public:
         }
 
         // Attached sub-models (presence flag + recursive record each).
-        this->write_rheology_binary(out);    // inherited from c_PhysicsLayer
+        this->write_physics_models_binary(out);    // inherited from c_PhysicsLayer
         this->write_submodels_binary(out);   // cooling + radiogenics
     }
 
@@ -368,6 +384,10 @@ public:
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
 
+        uint8_t scale_method_byte = 0;
+        in.read(reinterpret_cast<char*>(&scale_method_byte), sizeof(uint8_t));
+        this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
+
         // c_PhysicsLayer fields
         in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
@@ -382,6 +402,17 @@ public:
         read_complex(this->p_love_numbers.k);
         read_complex(this->p_love_numbers.h);
         read_complex(this->p_love_numbers.l);
+
+        // Radial-solver layer classification flags (mirrors c_PhysicsLayer's layout).
+        uint8_t is_solid_byte = 0;
+        uint8_t is_static_byte = 0;
+        uint8_t is_incompressible_byte = 0;
+        in.read(reinterpret_cast<char*>(&is_solid_byte),          sizeof(uint8_t));
+        in.read(reinterpret_cast<char*>(&is_static_byte),         sizeof(uint8_t));
+        in.read(reinterpret_cast<char*>(&is_incompressible_byte), sizeof(uint8_t));
+        this->p_is_solid          = static_cast<bool>(is_solid_byte);
+        this->p_is_static         = static_cast<bool>(is_static_byte);
+        this->p_is_incompressible = static_cast<bool>(is_incompressible_byte);
 
         // c_SolidLiquidLayer fields
         in.read(reinterpret_cast<char*>(&this->p_thermal_conductivity_ref), sizeof(double));
@@ -401,7 +432,7 @@ public:
         }
 
         // Attached sub-models (presence flag + recursive record each).
-        this->read_rheology_binary(in, force);    // inherited from c_PhysicsLayer
+        this->read_physics_models_binary(in, force);    // inherited from c_PhysicsLayer
         this->read_submodels_binary(in, force);   // cooling + radiogenics
 
         this->update_physicals();
@@ -410,7 +441,7 @@ public:
 protected:
     // -----------------------------------------------------------------------
     // Recursive (de)serialization of the optional cooling/radiogenics models.
-    // Mirrors c_PhysicsLayer::write_rheology_binary/read_rheology_binary.  Each
+    // Mirrors c_PhysicsLayer::write_physics_models_binary/read_physics_models_binary.  Each
     // model is written as a presence flag followed, when set, by the model's own
     // binary record; on read the correct concrete model is rebuilt via the
     // cooling/radiogenics binary-dispatch factories and re-registered as this

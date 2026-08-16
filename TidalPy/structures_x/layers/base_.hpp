@@ -11,17 +11,18 @@
  *
  * Binary format (20-byte header + variable payload):
  *   header: class_id = BinaryClassID::BaseLayer (100)
- *   payload layout (fixed part 45 bytes + variable string data):
- *     p_radius          (double, 8)
- *     p_mass            (double, 8)
- *     name_len          (uint32_t, 4)
- *     name              (name_len bytes, UTF-8)
- *     layer_index       (int32_t, 4)
- *     radius_inner_m    (double, 8)
- *     material_name_len (uint32_t, 4)
- *     material_name     (material_name_len bytes, UTF-8)
- *     is_tidal          (uint8_t, 1)
- *     tidal_scale       (double, 8)
+ *   payload layout (fixed part 46 bytes + variable string data):
+ *     p_radius           (double, 8)
+ *     p_mass             (double, 8)
+ *     name_len           (uint32_t, 4)
+ *     name               (name_len bytes, UTF-8)
+ *     layer_index        (int32_t, 4)
+ *     radius_inner_m     (double, 8)
+ *     material_name_len  (uint32_t, 4)
+ *     material_name      (material_name_len bytes, UTF-8)
+ *     is_tidal           (uint8_t, 1)
+ *     tidal_scale        (double, 8)
+ *     tidal_scale_method (uint8_t, 1)
  *   Derived fields (thickness, volume, surface areas) are recomputed on load.
  *   EOS profile data is NOT serialized; it must be repopulated after loading.
  */
@@ -272,7 +273,8 @@ public:
             sizeof(double)   +               // radius_inner_m
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
-            sizeof(double);                  // tidal_scale
+            sizeof(double)   +               // tidal_scale
+            sizeof(uint8_t);                 // tidal_scale_method
 
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::BaseLayer), payload);
 
@@ -290,6 +292,8 @@ public:
         const uint8_t is_tidal = static_cast<uint8_t>(this->p_is_tidal);
         out.write(reinterpret_cast<const char*>(&is_tidal),         sizeof(uint8_t));
         out.write(reinterpret_cast<const char*>(&this->p_tidal_scale),  sizeof(double));
+        const uint8_t scale_method_byte = static_cast<uint8_t>(this->p_tidal_scale_method);
+        out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         if (!out) {
             throw std::runtime_error("TidalPy: failed to write BaseLayer binary data");
@@ -324,6 +328,10 @@ public:
         this->p_is_tidal = static_cast<bool>(is_tidal);
 
         in.read(reinterpret_cast<char*>(&this->p_tidal_scale), sizeof(double));
+
+        uint8_t scale_method_byte = 0;
+        in.read(reinterpret_cast<char*>(&scale_method_byte), sizeof(uint8_t));
+        this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         if (!in) {
             throw std::runtime_error("TidalPy: failed to read BaseLayer binary data");
