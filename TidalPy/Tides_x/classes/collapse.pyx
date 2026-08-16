@@ -129,7 +129,7 @@ def collapse_global_tides(
         int min_degree_l=2,
         int max_degree_l=2,
         object obliquity_truncation='gen',
-        int eccentricity_truncation=6) -> dict:
+        int eccentricity_truncation=3) -> dict:
     """Collapse the global tidal modes into heating and orbital potential derivatives.
 
     Parameters
@@ -164,7 +164,7 @@ def collapse_global_tides(
     obliquity_truncation : str or int
         Obliquity truncation: ``"off"`` (0), 2, 4, or ``"gen"``/``"general"`` (10).
     eccentricity_truncation : int
-        Eccentricity truncation level.
+        Eccentricity truncation level. Tabulated levels: 1..5, 10, 15, 20.
 
     Returns
     -------
@@ -179,6 +179,11 @@ def collapse_global_tides(
         If the rheology model is requested, or a truncation/degree is unsupported.
     """
     cdef int i_obliquity_truncation = _resolve_obliquity_truncation(obliquity_truncation)
+
+    if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
+        raise NotImplementedError(
+            f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
+            'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
 
     # Build the tide model (analytic only).
     cdef c_TideModelConfig cfg = _build_tide_config(tide_config)

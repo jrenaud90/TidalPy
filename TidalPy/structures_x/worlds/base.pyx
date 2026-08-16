@@ -222,7 +222,7 @@ cdef class BaseWorld(StructureBase):
             self,
             int min_degree_l=2,
             int max_degree_l=2,
-            int eccentricity_truncation=6,
+            int eccentricity_truncation=3,
             int obliquity_truncation=10,
             double tidal_timescale_width_decades=1.0):
         """Set the stored ``[tides]`` truncation/degree configuration.
@@ -232,13 +232,17 @@ cdef class BaseWorld(StructureBase):
         min_degree_l, max_degree_l : int
             Tidal harmonic degree range (2..10).
         eccentricity_truncation : int
-            Eccentricity-function truncation level.
+            Eccentricity-function truncation level. Tabulated levels: 1..5, 10, 15, 20.
         obliquity_truncation : int
             Obliquity-function truncation (0=off, 2, 4, 10=general).
         tidal_timescale_width_decades : float
             Width [decades] of the log-Gaussian bell used by the ``tidal_timescale`` layer
             scale method.
         """
+        if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
+            raise NotImplementedError(
+                f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
+                'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
         cdef c_TideConfig cfg
         cfg.min_degree_l                  = min_degree_l
         cfg.max_degree_l                  = max_degree_l

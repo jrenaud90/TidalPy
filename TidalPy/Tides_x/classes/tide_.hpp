@@ -218,9 +218,9 @@ public:
                                    this->pack_params());
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 2 * C_TIDE_NUM_DEGREES);
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_k[i] = p[i]; }
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_q[i] = p[C_TIDE_NUM_DEGREES + i]; }
+        const std::vector<double> params = this->read_physics_binary(in, force, 2 * C_TIDE_NUM_DEGREES);
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_k[i] = params[i]; }
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_q[i] = params[C_TIDE_NUM_DEGREES + i]; }
     }
 
 protected:
@@ -228,11 +228,11 @@ protected:
     std::array<double, C_TIDE_NUM_DEGREES> p_fixed_q{};
 
     std::vector<double> pack_params() const {
-        std::vector<double> p;
-        p.reserve(2 * C_TIDE_NUM_DEGREES);
-        p.insert(p.end(), this->p_fixed_k.begin(), this->p_fixed_k.end());
-        p.insert(p.end(), this->p_fixed_q.begin(), this->p_fixed_q.end());
-        return p;
+        std::vector<double> params;
+        params.reserve(2 * C_TIDE_NUM_DEGREES);
+        params.insert(params.end(), this->p_fixed_k.begin(), this->p_fixed_k.end());
+        params.insert(params.end(), this->p_fixed_q.begin(), this->p_fixed_q.end());
+        return params;
     }
 };
 
@@ -270,9 +270,9 @@ public:
                                    this->pack_params());
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 2 * C_TIDE_NUM_DEGREES);
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_k[i] = p[i]; }
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_dt[i] = p[C_TIDE_NUM_DEGREES + i]; }
+        const std::vector<double> params = this->read_physics_binary(in, force, 2 * C_TIDE_NUM_DEGREES);
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_k[i] = params[i]; }
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_dt[i] = params[C_TIDE_NUM_DEGREES + i]; }
     }
 
 protected:
@@ -280,11 +280,11 @@ protected:
     std::array<double, C_TIDE_NUM_DEGREES> p_fixed_dt{};
 
     std::vector<double> pack_params() const {
-        std::vector<double> p;
-        p.reserve(2 * C_TIDE_NUM_DEGREES);
-        p.insert(p.end(), this->p_fixed_k.begin(), this->p_fixed_k.end());
-        p.insert(p.end(), this->p_fixed_dt.begin(), this->p_fixed_dt.end());
-        return p;
+        std::vector<double> params;
+        params.reserve(2 * C_TIDE_NUM_DEGREES);
+        params.insert(params.end(), this->p_fixed_k.begin(), this->p_fixed_k.end());
+        params.insert(params.end(), this->p_fixed_dt.begin(), this->p_fixed_dt.end());
+        return params;
     }
 };
 
@@ -330,10 +330,10 @@ public:
                                    this->pack_params());
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 3 * C_TIDE_NUM_DEGREES);
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_k[i]  = p[i]; }
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_dt[i] = p[C_TIDE_NUM_DEGREES + i]; }
-        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_q[i]  = p[2 * C_TIDE_NUM_DEGREES + i]; }
+        const std::vector<double> params = this->read_physics_binary(in, force, 3 * C_TIDE_NUM_DEGREES);
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_k[i]  = params[i]; }
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_dt[i] = params[C_TIDE_NUM_DEGREES + i]; }
+        for (int i = 0; i < C_TIDE_NUM_DEGREES; ++i) { this->p_fixed_q[i]  = params[2 * C_TIDE_NUM_DEGREES + i]; }
     }
 
 protected:
@@ -342,12 +342,12 @@ protected:
     std::array<double, C_TIDE_NUM_DEGREES> p_fixed_q{};
 
     std::vector<double> pack_params() const {
-        std::vector<double> p;
-        p.reserve(3 * C_TIDE_NUM_DEGREES);
-        p.insert(p.end(), this->p_fixed_k.begin(),  this->p_fixed_k.end());
-        p.insert(p.end(), this->p_fixed_dt.begin(), this->p_fixed_dt.end());
-        p.insert(p.end(), this->p_fixed_q.begin(),  this->p_fixed_q.end());
-        return p;
+        std::vector<double> params;
+        params.reserve(3 * C_TIDE_NUM_DEGREES);
+        params.insert(params.end(), this->p_fixed_k.begin(),  this->p_fixed_k.end());
+        params.insert(params.end(), this->p_fixed_dt.begin(), this->p_fixed_dt.end());
+        params.insert(params.end(), this->p_fixed_q.begin(),  this->p_fixed_q.end());
+        return params;
     }
 };
 

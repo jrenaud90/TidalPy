@@ -6,23 +6,29 @@ from TidalPy.Utilities_x.lookups cimport IntMap1, IntMap3, c_Key2, c_Key1, c_Int
 def eccentricity_func(
         double eccentricity,
         int degree_l,
-        object truncation = 'gen'):
-    
-    # Clean up input and check for issues.
+        object truncation = 3):
+
+    # Clean up input and check for issues. Numeric strings (e.g. "10") are accepted.
     if isinstance(truncation, str):
         try:
             truncation = int(truncation)
-        except:
-            raise NotImplementedError("Unsupported truncation provided for eccentricity function. Options are: ('general', 'off', '2', '4'). Use 'general' if unsure.")
+        except ValueError:
+            raise NotImplementedError(
+                "Unsupported truncation provided for eccentricity function. "
+                "Tabulated levels: 1, 2, 3, 4, 5, 10, 15, 20.")
     elif isinstance(truncation, int):
         pass
     else:
         raise TypeError("Unexpected type found for `truncation`.")
     if truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
-            raise NotImplementedError("Unsupported truncation provided for eccentricity function. Options are: ('general', 'off', '2', '4'). Use 'general' if unsure.")
-    
+            raise NotImplementedError(
+                "Unsupported truncation provided for eccentricity function. "
+                "Tabulated levels: 1, 2, 3, 4, 5, 10, 15, 20.")
+
     if degree_l not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
-        raise NotImplementedError(f"Degree l = {degree_l} is not currently supported for eccentricity function calculations. Options are l = 2")
+        raise NotImplementedError(
+            f"Degree l = {degree_l} is not currently supported for eccentricity function calculations. "
+            "Supported degrees: l = 2 through 10.")
     
     # Call c function to get result.
     cdef int error_code = 0

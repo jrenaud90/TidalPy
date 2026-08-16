@@ -92,7 +92,7 @@ cdef class TideBase(PhysicsBase):
         self._tide_ptr.reset()
         self._ptr = NULL
 
-    def calc_love_numbers(self, int degree_l, double frequency, object solver_love=None) -> LoveNumbers:
+    def calc_love_numbers(self, int degree_l, double frequency, LoveNumbers solver_love=None) -> LoveNumbers:
         """Full complex Love-number suite (k, h, l) at the tidal frequency [rad s-1].
 
         For analytic models h and l are NaN (no radial solution); the rheology model
@@ -101,17 +101,17 @@ cdef class TideBase(PhysicsBase):
         """
         cdef c_LoveNumbers solver_c
         if solver_love is not None:
-            solver_c = (<LoveNumbers>solver_love)._love
+            solver_c = solver_love._love
         cdef c_LoveNumbers result = self._tide_ptr.get().calc_love_numbers(degree_l, frequency, solver_c)
         cdef LoveNumbers out = LoveNumbers.__new__(LoveNumbers)
         out._love = result
         return out
 
-    def calc_neg_imk(self, int degree_l, double frequency, object solver_love=None) -> float:
+    def calc_neg_imk(self, int degree_l, double frequency, LoveNumbers solver_love=None) -> float:
         """-Im[k_l] at the tidal frequency [rad s-1] (the mode-collapse dissipation multiplier)."""
         cdef c_LoveNumbers solver_c
         if solver_love is not None:
-            solver_c = (<LoveNumbers>solver_love)._love
+            solver_c = solver_love._love
         return self._tide_ptr.get().calc_neg_imk(degree_l, frequency, solver_c)
 
     @property

@@ -66,12 +66,14 @@ def test_obliquity_activates_m1_modes():
 
 
 def test_higher_degree_adds_modes():
-    _, freqs_l2, degrees_l2 = _modes(max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
+    """Raising max_degree_l to 3 adds degree-3 modes on top of the degree-2 set."""
+    degrees_l2, freqs_l2, _ = _modes(max_degree_l=2, eccentricity_truncation=2, obliquity_truncation=0)
     degrees_l3, freqs_l3, _ = _modes(max_degree_l=3, eccentricity_truncation=2, obliquity_truncation=0)
+    assert set(degrees_l2.tolist()) == {2}
     assert 3 in set(degrees_l3.tolist())
-    assert freqs_l3.shape[0] >= degrees_l2.shape[0]
+    assert freqs_l3.shape[0] > freqs_l2.shape[0]
 
 
 def test_bad_truncation_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(NotImplementedError):
         _modes(max_degree_l=2, eccentricity_truncation=99, obliquity_truncation=0)

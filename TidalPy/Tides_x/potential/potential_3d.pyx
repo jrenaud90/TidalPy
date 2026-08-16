@@ -44,7 +44,7 @@ def tidal_potential_3d_modes(
         double longitude,
         double G_to_use,
         int max_degree_l=2,
-        int eccentricity_truncation=6,
+        int eccentricity_truncation=3,
         int obliquity_truncation=0,
         int min_degree_l=2):
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
@@ -59,6 +59,11 @@ def tidal_potential_3d_modes(
         Row i: the complex amplitudes ``(U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2,
         d2U/dtheta_dphi)`` for mode i (with the mode's e^{i omega t} pulled out).
     """
+    if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
+        raise NotImplementedError(
+            f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
+            'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
+
     cdef int error_code = 0
     cdef vector[c_TidalPotential3DMode] modes = c_tidal_potential_3d_modes(
         planet_radius, semi_major_axis, orbital_frequency, spin_frequency,
