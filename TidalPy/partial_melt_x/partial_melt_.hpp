@@ -108,10 +108,10 @@ public:
             {this->p_solidus_k, this->p_liquidus_k, this->p_liquid_shear_pa});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 3);
-        this->p_solidus_k       = p[0];
-        this->p_liquidus_k      = p[1];
-        this->p_liquid_shear_pa = p[2];
+        const std::vector<double> params = this->read_physics_binary(in, force, 3);
+        this->p_solidus_k       = params[0];
+        this->p_liquidus_k      = params[1];
+        this->p_liquid_shear_pa = params[2];
     }
 };
 
@@ -163,14 +163,14 @@ public:
              this->p_fs_shear_power_slope, this->p_fs_shear_power_phase});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p  = this->read_physics_binary(in, force, 7);
-        this->p_solidus_k            = p[0];
-        this->p_liquidus_k           = p[1];
-        this->p_liquid_shear_pa      = p[2];
-        this->p_fs_visc_power_slope  = p[3];
-        this->p_fs_visc_power_phase  = p[4];
-        this->p_fs_shear_power_slope = p[5];
-        this->p_fs_shear_power_phase = p[6];
+        const std::vector<double> params  = this->read_physics_binary(in, force, 7);
+        this->p_solidus_k            = params[0];
+        this->p_liquidus_k           = params[1];
+        this->p_liquid_shear_pa      = params[2];
+        this->p_fs_visc_power_slope  = params[3];
+        this->p_fs_visc_power_phase  = params[4];
+        this->p_fs_shear_power_slope = params[5];
+        this->p_fs_shear_power_phase = params[6];
     }
 
 protected:
@@ -262,17 +262,17 @@ public:
              this->p_hn_shear_falloff_slope});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 10);
-        this->p_solidus_k              = p[0];
-        this->p_liquidus_k             = p[1];
-        this->p_liquid_shear_pa        = p[2];
-        this->p_crit_melt_frac         = p[3];
-        this->p_crit_melt_frac_width   = p[4];
-        this->p_hn_visc_slope_1        = p[5];
-        this->p_hn_visc_falloff_slope  = p[6];
-        this->p_hn_shear_param_1       = p[7];
-        this->p_hn_shear_param_2       = p[8];
-        this->p_hn_shear_falloff_slope = p[9];
+        const std::vector<double> params = this->read_physics_binary(in, force, 10);
+        this->p_solidus_k              = params[0];
+        this->p_liquidus_k             = params[1];
+        this->p_liquid_shear_pa        = params[2];
+        this->p_crit_melt_frac         = params[3];
+        this->p_crit_melt_frac_width   = params[4];
+        this->p_hn_visc_slope_1        = params[5];
+        this->p_hn_visc_falloff_slope  = params[6];
+        this->p_hn_shear_param_1       = params[7];
+        this->p_hn_shear_param_2       = params[8];
+        this->p_hn_shear_falloff_slope = params[9];
     }
 
 protected:

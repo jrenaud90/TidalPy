@@ -175,8 +175,10 @@ inline std::vector<std::string> c_isotope_dataset_names() {
 //       Source: McDonough and Sun (1995) (concentrations); heat production rates
 //       and half lives from Turcotte and Schubert (2002).
 //
-// All reference times are 4600 Myr (i.e. concentrations are quoted at the present
-// epoch, 4.6 Gyr after solar-system formation).
+// Reference times: "modern_day_chondritic" and "bulk_silicate_earth" quote present-epoch
+// concentrations (ref_time = 4600 Myr after solar-system formation). "llri_and_slri" quotes
+// formation (CAI) abundances (ref_time = 0), so time is measured from solar-system formation
+// and the short-lived isotopes decay away over the first ~10 Myr.
 inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name);
 
 // =====================================================================================================================
@@ -248,7 +250,10 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
         return dataset;
     }
     if (key == "llri_and_slri") {
-        // Castillo-Rogez et al. (2007).
+        // Castillo-Rogez et al. (2007). Abundances are formation (CAI) values, including the
+        // canonical 26Al/27Al = 5e-5 and the elevated (undecayed) long-lived concentrations,
+        // so the reference time is solar-system formation, not the present epoch.
+        dataset.ref_time_s = 0.0;
         dataset.isotopes = {
             c_Isotope("U238",  9.465e-5, 4468.0   * myr, 0.9928,   0.026e-6),
             c_Isotope("U235",  5.687e-4, 703.81   * myr, 0.0071,   0.0082e-6),

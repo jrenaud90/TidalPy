@@ -41,9 +41,29 @@ def _reference_mass_luminosity(mass_kg):
         return LUM_SOLAR * ratio ** exponent
     if ratio < 2.0:
         return LUM_SOLAR * ratio ** 4
-    if ratio < 20.0:
+    # The linear branch takes over where it meets 1.4 M^3.5 (~55 Msun), keeping continuity.
+    if ratio < 55.0:
         return LUM_SOLAR * 1.4 * ratio ** 3.5
     return LUM_SOLAR * 3.2e4 * ratio
+
+
+def test_mass_luminosity_branch_continuity():
+    """Adjacent branches of the piecewise L(M) relation agree at their boundaries.
+
+    A wrong branch boundary produces an order-of-magnitude jump in L. The two branch
+    formulas are compared essentially at the boundary itself (a one-part-per-million
+    mass offset selects the branch), so the check measures the true discontinuity
+    rather than the local slope of the relation.
+    """
+    epsilon = 1.0e-6
+    for boundary_ratio, tolerance in ((0.2, 0.30), (0.85, 0.02), (2.0, 0.02), (55.0, 0.05)):
+        below = _reference_mass_luminosity((1.0 - epsilon) * boundary_ratio * MASS_SOLAR)
+        above = _reference_mass_luminosity((1.0 + epsilon) * boundary_ratio * MASS_SOLAR)
+        assert abs(above - below) / below < tolerance, f"jump at {boundary_ratio} Msun"
+        model = MassToLuminosity()
+        below_c = model.calc_luminosity((1.0 - epsilon) * boundary_ratio * MASS_SOLAR)
+        above_c = model.calc_luminosity((1.0 + epsilon) * boundary_ratio * MASS_SOLAR)
+        assert abs(above_c - below_c) / below_c < tolerance, f"C++ jump at {boundary_ratio} Msun"
 
 
 # =====================================================================================================================

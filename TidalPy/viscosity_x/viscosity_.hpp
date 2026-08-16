@@ -101,8 +101,8 @@ public:
                                    {this->p_reference_viscosity});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 1);
-        this->p_reference_viscosity = p[0];
+        const std::vector<double> params = this->read_physics_binary(in, force, 1);
+        this->p_reference_viscosity = params[0];
     }
 
 protected:
@@ -153,11 +153,11 @@ public:
              this->p_molar_activation_energy, this->p_molar_activation_volume});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 4);
-        this->p_reference_viscosity     = p[0];
-        this->p_reference_temperature   = p[1];
-        this->p_molar_activation_energy = p[2];
-        this->p_molar_activation_volume = p[3];
+        const std::vector<double> params = this->read_physics_binary(in, force, 4);
+        this->p_reference_viscosity     = params[0];
+        this->p_reference_temperature   = params[1];
+        this->p_molar_activation_energy = params[2];
+        this->p_molar_activation_volume = params[3];
     }
 
 protected:
@@ -226,15 +226,15 @@ public:
              this->p_additional_temp_dependence ? 1.0 : 0.0});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> p = this->read_physics_binary(in, force, 8);
-        this->p_arrhenius_coeff            = p[0];
-        this->p_stress                     = p[1];
-        this->p_stress_expo                = p[2];
-        this->p_grain_size                 = p[3];
-        this->p_grain_size_expo            = p[4];
-        this->p_molar_activation_energy    = p[5];
-        this->p_molar_activation_volume    = p[6];
-        this->p_additional_temp_dependence = (p[7] != 0.0);
+        const std::vector<double> params = this->read_physics_binary(in, force, 8);
+        this->p_arrhenius_coeff            = params[0];
+        this->p_stress                     = params[1];
+        this->p_stress_expo                = params[2];
+        this->p_grain_size                 = params[3];
+        this->p_grain_size_expo            = params[4];
+        this->p_molar_activation_energy    = params[5];
+        this->p_molar_activation_volume    = params[6];
+        this->p_additional_temp_dependence = (params[7] != 0.0);
     }
 
 protected:

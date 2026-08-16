@@ -94,7 +94,9 @@ inline double lum_from_mass(double mass_kg) noexcept {
     if (mass_ratio < 2.0) {
         return luminosity_solar * std::pow(mass_ratio, 4.0);
     }
-    if (mass_ratio < 20.0) {
+    // The linear branch takes over where it meets the 1.4 M^3.5 branch (~55 Msun);
+    // both give ~1.75e6 Lsun there, keeping the relation continuous.
+    if (mass_ratio < 55.0) {
         return luminosity_solar * 1.4 * std::pow(mass_ratio, 3.5);
     }
     return luminosity_solar * 3.2e4 * mass_ratio;
