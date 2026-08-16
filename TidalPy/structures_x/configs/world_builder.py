@@ -23,6 +23,7 @@ apply.
 """
 
 import os
+import warnings
 from typing import Optional, Union, Callable
 
 import TidalPy
@@ -193,6 +194,10 @@ def construct_layer(
         If the layer class is unknown or a model name is not recognized.
     """
     layer_class_name = layer_cfg["class"]
+    if layer_class_name not in _LAYER_CLASSES:
+        raise ValueError(
+            f"Layer '{layer_name}' has unknown class '{layer_class_name}'. "
+            f"Allowed classes: {sorted(_LAYER_CLASSES)}.")
     layer_class = _LAYER_CLASSES[layer_class_name]
     allowed_scalars = ALLOWED_LAYER_SCALAR_KEYS[layer_class_name]
 
@@ -289,7 +294,7 @@ def _build_prem_layers(data_path: str) -> list:
             "class":                   "solidliquid",
             "layer_index":             index,
             "radius_outer_m":          float(radius_slice[-1]),
-            "is_tidal":                bool(is_solid), # Not implemented yet
+            "is_tidal":                bool(is_solid),
             # Representative per-layer constants (fallbacks; the EOS arrays above are
             # what the solve actually interpolates).
             "shear_modulus_static_pa": float(np.mean(shear_slice)),
@@ -377,6 +382,10 @@ def _expand_data_file(config: dict) -> dict:
                 f"but {len(auto_layers)} layer(s) were detected from the data file "
                 f"'{config['data_file']}'. Provide one table per detected layer "
                 "(inner to outer) or none.")
+        if "radius_m" not in config:
+            raise ValueError(
+                f"World '{config.get('name')}' uses a data_file but is missing the "
+                "required 'radius_m' key.")
         world_radius_m = config["radius_m"]
         merged_layers = {}
         for (auto_name, auto_cfg), (user_name, user_cfg) in zip(auto_layers, user_items):
@@ -484,6 +493,38 @@ def _tides_config_x() -> dict:
     return config_x.get("tides", {}) or {}
 
 
+SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
+
+# Untabulated truncation levels already warned about, so a stale configuration file (which
+# would otherwise trigger the promotion warning on every single world build) warns once per
+# session per level.
+_WARNED_ECCENTRICITY_TRUNCATIONS: set = set()
+
+
+def _resolve_eccentricity_truncation(value) -> int:
+    """Resolve an eccentricity truncation to a tabulated level.
+
+    The eccentricity functions are tabulated at truncations e^1 through e^5, e^10, e^15, and
+    e^20. A configured level that is not tabulated (for example the legacy default of 6) is
+    promoted to the next tabulated level with a once-per-session warning, so stale
+    configuration files keep working while the accuracy never silently decreases.
+    """
+    level = int(value)
+    if level in SUPPORTED_ECCENTRICITY_TRUNCATIONS:
+        return level
+    for supported in SUPPORTED_ECCENTRICITY_TRUNCATIONS:
+        if supported > level:
+            if level not in _WARNED_ECCENTRICITY_TRUNCATIONS:
+                _WARNED_ECCENTRICITY_TRUNCATIONS.add(level)
+                warnings.warn(
+                    f"Eccentricity truncation {level} is not tabulated; using {supported} instead. "
+                    f"Supported levels: {SUPPORTED_ECCENTRICITY_TRUNCATIONS}.")
+            return supported
+    raise ValueError(
+        f"Eccentricity truncation {level} is not supported. "
+        f"Supported levels: {SUPPORTED_ECCENTRICITY_TRUNCATIONS}.")
+
+
 def _attach_tides(world, config: dict) -> None:
     """Wire the optional ``[tides]`` table onto any world (layered, gas giant, or star).
 
@@ -529,12 +570,12 @@ def _attach_tides(world, config: dict) -> None:
     world.set_tide_config(
         min_degree_l=int(merged.get("min_degree_l", 2)),
         max_degree_l=int(merged.get("max_degree_l", 2)),
-        eccentricity_truncation=int(
+        eccentricity_truncation=_resolve_eccentricity_truncation(
             merged.get("eccentricity_trunc_lvl",
-                       merged.get("eccentricity_truncation", 6))),
+                       merged.get("eccentricity_truncation", 3))),
         obliquity_truncation=_resolve_obliquity_truncation(
             merged.get("obliquity_trunc_lvl",
-                       merged.get("obliquity_truncation", "gen"))),
+                       merged.get("obliquity_truncation", "off"))),
         tidal_timescale_width_decades=float(merged.get("tidal_timescale_width_decades", 1.0)),
     )
 

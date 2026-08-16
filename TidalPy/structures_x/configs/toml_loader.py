@@ -238,6 +238,22 @@ ALLOWED_WORLD_SCALAR_KEYS = {
     "star":        frozenset(_COMMON_WORLD_KEYS + _STAR_WORLD_KEYS),
 }
 
+# Keys accepted inside a world's optional '[tides]' table (consumed by the world builder's
+# tide wiring). The `_lvl` spellings are canonical; the long forms are accepted aliases.
+ALLOWED_TIDES_KEYS = frozenset((
+    "global_tidal_model",
+    "fixed_k",
+    "fixed_q",
+    "fixed_dt",
+    "min_degree_l",
+    "max_degree_l",
+    "eccentricity_trunc_lvl",
+    "eccentricity_truncation",
+    "obliquity_trunc_lvl",
+    "obliquity_truncation",
+    "tidal_timescale_width_decades",
+))
+
 # Some parameters are required for world construction
 _REQUIRED_WORLD_KEYS = (
     'name',
@@ -387,10 +403,19 @@ def validate_world_config(config: dict) -> None:
                 f"World configuration is missing the required '{required}' key.")
 
     # Flag unknown world-level scalar keys (typo protection). Reserved structural
-    # keys and the optional, not-yet-wired '[tides]' table are tolerated.
+    # keys and the optional '[tides]' table (validated separately below) are tolerated.
     allowed = ALLOWED_WORLD_SCALAR_KEYS[world_type]
     structural = {"name", "type", "schema_version", "layers", "tides", "data_file"}
     for key, value in config.items():
+        if key == "tides":
+            if not isinstance(value, dict):
+                raise ValueError("The '[tides]' entry must be a table.")
+            for tides_key in value:
+                if tides_key not in ALLOWED_TIDES_KEYS:
+                    raise ValueError(
+                        f"Unexpected '[tides]' key '{tides_key}'. "
+                        f"Allowed keys: {sorted(ALLOWED_TIDES_KEYS)}.")
+            continue
         if key in structural:
             continue
         if isinstance(value, dict):

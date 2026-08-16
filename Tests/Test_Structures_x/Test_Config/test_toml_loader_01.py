@@ -184,11 +184,19 @@ def test_layered_without_layers_raises():
         tl.validate_world_config(config)
 
 
-def test_tides_table_tolerated():
-    # The not-yet-wired [tides] table is preserved, not rejected.
+def test_tides_table_validated():
+    # A well-formed [tides] table passes; unknown keys are rejected (typo protection).
     config = _valid_terrestrial()
-    config["tides"] = {"model": "fixed_q", "fixed_q": 100.0}
+    config["tides"] = {"global_tidal_model": "fixed_q", "fixed_q": [100.0], "max_degree_l": 2}
     tl.validate_world_config(config)
+
+    config["tides"] = {"fixed_qq": [100.0]}
+    with pytest.raises(ValueError):
+        tl.validate_world_config(config)
+
+    config["tides"] = "fixed_q"
+    with pytest.raises(ValueError):
+        tl.validate_world_config(config)
 
 
 # =====================================================================================================================

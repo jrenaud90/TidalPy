@@ -172,9 +172,9 @@ def get_default_config_x() -> dict:
     # Write the default _x config if it is not already present.
     if not os.path.isfile(config_x_path):
         with open(config_x_path, 'w') as config_file:
-            config_file.write('# " + "=" * 117 + "\n')
+            config_file.write('# ' + '=' * 117 + '\n')
             config_file.write(f'#  TidalPy _x Default Configurations for Version: {version}\n')
-            config_file.write('# " + "=" * 117 + "\n')
+            config_file.write('# ' + '=' * 117 + '\n')
             config_file.write(default_config_x_str)
     else:
         # Reuse the legacy version check (it scans the header for a 'version:' line).
@@ -223,8 +223,6 @@ def set_config(new_config_path: Union[str, dict]) -> dict:
             new_config = toml.load(new_config_path)
     else:
         raise TypeError("Unexpected type found for TidalPy config replacement. Expected configuration file filepath (str) or config (dict).")
-
-        TidalPy.config = get_default_config()
 
     # Set or override configurations with this new config file.
     if TidalPy.config is None:

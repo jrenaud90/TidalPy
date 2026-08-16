@@ -35,7 +35,6 @@ def initialize(provided_config_file = None):
     from TidalPy.configurations import set_config
     if TidalPy.config is None:
         # No configuration dictionary has been set.
-        from TidalPy.configurations import set_config
         set_config('default')
 
     # Load (or create) the configuration for the new `_x` class system. Stored on

@@ -106,8 +106,6 @@ def update_constants():
     tidalpy_config_ptr.d_MIN_VISCOSITY = TidalPy.config['physics']['materials']['minimum_viscosity']
     tidalpy_config_ptr.d_MIN_MODULUS = TidalPy.config['physics']['materials']['minimum_modulus']
     tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
-
-    tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
     tidalpy_config_ptr.d_TEST_CONST = TidalPy.config['debug']['test_constant']
 
     # Update globals/aliases for the dynamic TidalPy parameters
