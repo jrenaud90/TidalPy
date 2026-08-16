@@ -404,7 +404,12 @@ public:
           p_shear_modulus_pa(cfg.shear_modulus_pa),
           p_bulk_modulus_pa(cfg.bulk_modulus_pa),
           p_shear_viscosity_pas(cfg.shear_viscosity_pas),
-          p_bulk_viscosity_pas(cfg.bulk_viscosity_pas) {}
+          p_bulk_viscosity_pas(cfg.bulk_viscosity_pas)
+    {
+        // Reject mismatched table lengths up front; interpolating a table longer than the
+        // radius table would otherwise read past the end of the radius array.
+        this->p_validate_tables();
+    }
     ~c_InterpolatedEOS() override = default;
 
     std::size_t get_num_points() const noexcept { return this->p_radius_m.size(); }
@@ -490,6 +495,29 @@ public:
     }
 
 protected:
+    // Throw if the table lengths are inconsistent: density must match radius exactly and
+    // every non-empty optional table must match it as well.
+    void p_validate_tables() const {
+        const std::size_t num_points = this->p_radius_m.size();
+        if (this->p_density_kg_m3.size() != num_points) {
+            throw std::invalid_argument(
+                "TidalPy: interpolated EOS density table length does not match its radius table.");
+        }
+        const std::vector<double>* optional_tables[4] = {
+            &this->p_shear_modulus_pa, &this->p_bulk_modulus_pa,
+            &this->p_shear_viscosity_pas, &this->p_bulk_viscosity_pas};
+        const char* table_labels[4] = {
+            "shear modulus", "bulk modulus", "shear viscosity", "bulk viscosity"};
+        for (int table_i = 0; table_i < 4; ++table_i) {
+            const std::vector<double>& table = *optional_tables[table_i];
+            if (!table.empty() && table.size() != num_points) {
+                throw std::invalid_argument(
+                    std::string("TidalPy: interpolated EOS ") + table_labels[table_i] +
+                    " table length does not match its radius table.");
+            }
+        }
+    }
+
     // Interpolate an optional table vs radius; NaN if the table is empty.
     double p_interp_optional(double radius_m, const std::vector<double>& values) const {
         if (values.empty()) {

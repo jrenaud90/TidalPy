@@ -125,6 +125,7 @@ inline void c_solve_eos(
     bool failed                     = false;
     bool max_iters_hit              = false;
     bool final_run                  = false;
+    std::string integrator_failure_message;
 
     // Integration solution variables
     size_t last_solution_size = 0;
@@ -228,6 +229,9 @@ inline void c_solve_eos(
             if (!integration_result_ptr->success)
             {
                 failed = true;
+                // Capture the integrator's message now; the result pointer is cleared each
+                // layer iteration, so it is no longer available when the warning is built.
+                integrator_failure_message = integration_result_ptr->message;
             }
 
             if (final_run && !failed)
@@ -341,9 +345,9 @@ inline void c_solve_eos(
     {
         eos_solution_ptr->success = false;
         eos_solution_ptr->message = std::string("Warning in `c_solve_eos`: Integrator failed at iteration ") + std::to_string(iterations);
-        if (integration_result_ptr)
+        if (!integrator_failure_message.empty())
         {
-            eos_solution_ptr->message += std::string(". Message: ") + integration_result_ptr->message;
+            eos_solution_ptr->message += std::string(". Message: ") + integrator_failure_message;
         }
         if (verbose)
         {
