@@ -203,6 +203,27 @@ public:
             && this->p_nondim       == nondimensionalize;
     }
 
+    // Compare the freshly gathered per-layer assumptions against the cached copies. The layer
+    // flags (solid/static/incompressible) are user-mutable without an EOS re-solve, so a cache
+    // hit must also confirm they are unchanged; otherwise a solve would silently reuse the old
+    // assumptions baked into the shooting/matrix inputs.
+    bool layer_flags_match(
+        const int* layer_types,
+        const bool* is_static,
+        const bool* is_incompressible,
+        size_t n_layers) const noexcept
+    {
+        const c_ShootingInputs& shoot = this->p_shooting_inputs;
+        if (shoot.layer_types.size() != n_layers) { return false; }
+        if (!shoot.is_static || !shoot.is_incompressible) { return false; }
+        for (size_t layer_i = 0; layer_i < n_layers; ++layer_i) {
+            if (shoot.layer_types[layer_i]       != layer_types[layer_i])       { return false; }
+            if (shoot.is_static[layer_i]         != is_static[layer_i])         { return false; }
+            if (shoot.is_incompressible[layer_i] != is_incompressible[layer_i]) { return false; }
+        }
+        return true;
+    }
+
     void invalidate() noexcept { this->p_cache_valid = false; }
 
     // Reusable storage (owns the internal c_EOSSolution + full y-solution vector). Result accessors on the world
@@ -212,8 +233,23 @@ public:
     bool get_solved() const noexcept { return this->p_solved; }
 
     // Move the solution storage out of the helper (one-shot export). Invalidates the cache.
+    // The storage's non-owning dense-source pointer is cleared: the exported storage may
+    // outlive the world's EOS solution, and a dangling source would be dereferenced by the
+    // solution's eos_call path. The exported storage answers EOS queries from its stored
+    // (dimensional) arrays instead.
     std::unique_ptr<c_RadialSolutionStorage> release_storage() noexcept {
         this->p_cache_valid = false;
+        if (this->p_storage) {
+            c_EOSSolution* storage_eos = this->p_storage->get_eos_solution_ptr();
+            if (storage_eos) {
+                storage_eos->p_structure_dense_source = nullptr;
+                storage_eos->p_structure_length_scale  = 1.0;
+                storage_eos->p_structure_gravity_scale = 1.0;
+                storage_eos->p_structure_pascal_scale  = 1.0;
+                storage_eos->p_structure_mass_scale    = 1.0;
+                storage_eos->p_structure_moi_scale     = 1.0;
+            }
+        }
         return std::move(this->p_storage);
     }
 

@@ -178,6 +178,10 @@ cdef class LayeredWorld(BaseWorld):
         if layer._layer_ptr.get() == NULL:
             raise ValueError(
                 "This layer holds no C++ object (already added to a world or moved).")
+        if layer._is_view:
+            raise ValueError(
+                "This layer is a non-owning view into a world-owned layer and cannot be "
+                "added to another world. Construct a new layer instead.")
         # Validate continuity before transferring ownership so a rejected layer
         # stays usable (the C++ add_layer would otherwise consume it on throw).
         if not self._layered_ptr.accepts_layer(deref(layer._layer_ptr.get())):
@@ -840,9 +844,9 @@ cdef class LayeredWorld(BaseWorld):
 
     def solve_love_numbers_supplied(
             self,
-            cnp.ndarray[cnp.complex128_t, ndim=1] complex_shear_modulus not None,
-            cnp.ndarray[cnp.complex128_t, ndim=1] complex_bulk_modulus not None,
-            cnp.ndarray[cnp.float64_t, ndim=1] radius_array not None,
+            double complex[::1] complex_shear_modulus not None,
+            double complex[::1] complex_bulk_modulus not None,
+            double[::1] radius_array not None,
             double frequency_rad_s    = 1.0e-5,
             int    degree_l           = 2,
             cpp_bool solve_tidal      = True,
@@ -868,6 +872,8 @@ cdef class LayeredWorld(BaseWorld):
         the world's internal EOS radius grid. Used by the standalone ``RadialSolver_x.radial_solver`` API.
         ``solve_eos`` must be called first.
         """
+        if radius_array.shape[0] == 0:
+            raise ValueError("radius_array must not be empty")
         if (complex_shear_modulus.shape[0] != radius_array.shape[0]
                 or complex_bulk_modulus.shape[0] != radius_array.shape[0]):
             raise ValueError("complex moduli and radius arrays must have matching length")

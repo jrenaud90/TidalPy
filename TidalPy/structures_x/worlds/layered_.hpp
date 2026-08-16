@@ -517,15 +517,9 @@ public:
             this->p_radial_solver = std::make_unique<::c_WorldRadialSolver>();
         ::c_WorldRadialSolver* solver = this->p_radial_solver.get();
 
-        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize))
-            return true;
-
-        const c_EOSSolution* world_eos = this->p_eos_solution.get();
-        const double r_planet = world_eos->radius;
-        const double vol      = (4.0 / 3.0) * TidalPyConstants::d_PI * r_planet * r_planet * r_planet;
-        const double bulk_rho = (vol > 0.0) ? this->p_planet_mass_eos / vol : 3500.0;
-
-        // Per-layer metadata (geometry-only layers default to static solid).
+        // Per-layer metadata (geometry-only layers default to static solid). Gathered before
+        // the cache check because the flags are user-mutable without an EOS re-solve: a cache
+        // hit is only valid when they match what the cached inputs were built from.
         auto layer_types   = std::make_unique<int[]>(n_layers);
         auto is_static_arr = std::make_unique<bool[]>(n_layers);
         auto is_incomp_arr = std::make_unique<bool[]>(n_layers);
@@ -543,6 +537,15 @@ public:
             }
             upper_radii[i] = this->p_layers[i]->get_radius_outer();
         }
+
+        if (solver->cache_matches(n_layers, total_slices, cfg.degree_l, cfg.nondimensionalize)
+            && solver->layer_flags_match(layer_types.get(), is_static_arr.get(), is_incomp_arr.get(), n_layers))
+            return true;
+
+        const c_EOSSolution* world_eos = this->p_eos_solution.get();
+        const double r_planet = world_eos->radius;
+        const double vol      = (4.0 / 3.0) * TidalPyConstants::d_PI * r_planet * r_planet * r_planet;
+        const double bulk_rho = (vol > TidalPyConstants::d_EPS) ? this->p_planet_mass_eos / vol : 3500.0;
 
         return solver->build_cache(
             world_eos->radius_array_vec,
@@ -625,18 +628,13 @@ public:
         std::complex<double>* shear_out = solver->shear_scratch_data();
         std::complex<double>* bulk_out  = solver->bulk_scratch_data();
         // Interpolate the supplied complex moduli (defined at radius_in) onto the world's EOS grid via the shared
-        // utilities interpolator. Running index guesses keep the sweep O(total_slices) since both grids ascend.
-        double* radius_in_mut = const_cast<double*>(radius_in);
-        double* shear_in_mut  = const_cast<double*>(reinterpret_cast<const double*>(shear_in));
-        double* bulk_in_mut   = const_cast<double*>(reinterpret_cast<const double*>(bulk_in));
-        std::size_t shear_guess = 0, bulk_guess = 0;
-        double interp_result[2];
+        // utilities interpolator. Both grids ascend, so seeding the search from the aligned fractional
+        // position keeps each lookup near O(1).
         for (std::size_t i = 0; i < total_slices; ++i) {
             const double r = radius_si[i];
-            c_interp_complex(r, radius_in_mut, shear_in_mut, n_in, &shear_guess, interp_result);
-            shear_out[i] = std::complex<double>(interp_result[0], interp_result[1]);
-            c_interp_complex(r, radius_in_mut, bulk_in_mut, n_in, &bulk_guess, interp_result);
-            bulk_out[i]  = std::complex<double>(interp_result[0], interp_result[1]);
+            const std::size_t seed = (total_slices > 0) ? (i * n_in) / total_slices : 0;
+            shear_out[i] = c_interp_complex(r, radius_in, shear_in, n_in, seed);
+            bulk_out[i]  = c_interp_complex(r, radius_in, bulk_in, n_in, seed);
         }
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);

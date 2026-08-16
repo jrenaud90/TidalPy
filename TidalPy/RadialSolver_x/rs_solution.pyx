@@ -168,13 +168,19 @@ cdef class RadialSolverSolution:
         cdef double layer_r = 0.0
         cdef double last_layer_r = 0.0
 
-        for layer_i in range(eos_solution_ptr.upper_radius_bylayer_vec.size()):
+        # Interior interfaces resolve to the layer above (half-open intervals); the planet
+        # surface itself resolves to the top layer rather than falling out of the search.
+        cdef size_t num_eos_layers = eos_solution_ptr.upper_radius_bylayer_vec.size()
+        for layer_i in range(num_eos_layers):
             layer_r = eos_solution_ptr.upper_radius_bylayer_vec[layer_i]
             if last_layer_r <= radius < layer_r:
                 layer_index = <int>layer_i
                 break
             last_layer_r = layer_r
-            
+        if (layer_index < 0) and (num_eos_layers > 0):
+            if radius == eos_solution_ptr.upper_radius_bylayer_vec[num_eos_layers - 1]:
+                layer_index = <int>(num_eos_layers - 1)
+
         if layer_index < 0:
             raise ValueError("Could not find correct layer for provided radius.")
 
