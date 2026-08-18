@@ -544,6 +544,25 @@ def radial_solver(
     cdef double last_layer_r = 0.
     cdef size_t total_slices = radius_array.size
     cdef size_t num_layers   = len(layer_types)
+
+    # Every radial array must match the radius array's length; the solver reads and writes all
+    # of them over the radius-derived slice count, so a shorter array would be accessed out of
+    # bounds (heap corruption).
+    if total_slices == 0:
+        raise ArgumentException('radius_array must not be empty.')
+    if (<size_t>density_array.size != total_slices
+            or <size_t>complex_bulk_modulus_array.size != total_slices
+            or <size_t>complex_shear_modulus_array.size != total_slices):
+        raise ArgumentException(
+            'density, complex bulk modulus, and complex shear modulus arrays must all match '
+            f'the radius array length ({total_slices}); got {density_array.size}, '
+            f'{complex_bulk_modulus_array.size}, {complex_shear_modulus_array.size}.')
+    if <size_t>upper_radius_bylayer_array.size != num_layers:
+        raise ArgumentException(
+            f'upper_radius_bylayer_array length ({upper_radius_bylayer_array.size}) must match '
+            f'the number of layers ({num_layers}).')
+    if len(is_static_bylayer) != num_layers or len(is_incompressible_bylayer) != num_layers:
+        raise ArgumentException('layer_types, is_static_bylayer, and is_incompressible_bylayer must have equal lengths.')
     cdef size_t layer_check, slice_check
     cdef cpp_bool top_layer
     cdef double last_layer_radius

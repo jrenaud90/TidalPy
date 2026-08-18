@@ -159,6 +159,25 @@ def radial_solver(
     cdef size_t total_slices = radius_array.shape[0]
     cdef size_t num_layers   = len(layer_types)
 
+    # Every radial array must match the radius array's length; the C++ pipeline reads and
+    # writes all of them over the radius-derived slice count, so a shorter array would be
+    # accessed out of bounds.
+    if total_slices == 0:
+        raise ValueError('radius_array must not be empty.')
+    if (<size_t>density_array.shape[0] != total_slices
+            or <size_t>complex_bulk_modulus_array.shape[0] != total_slices
+            or <size_t>complex_shear_modulus_array.shape[0] != total_slices):
+        raise ValueError(
+            'density, complex bulk modulus, and complex shear modulus arrays must all match '
+            f'the radius array length ({total_slices}); got {density_array.shape[0]}, '
+            f'{complex_bulk_modulus_array.shape[0]}, {complex_shear_modulus_array.shape[0]}.')
+    if <size_t>upper_radius_bylayer_array.shape[0] != num_layers:
+        raise ValueError(
+            f'upper_radius_bylayer_array length ({upper_radius_bylayer_array.shape[0]}) must match '
+            f'the number of layers ({num_layers}).')
+    if len(is_static_bylayer) != num_layers or len(is_incompressible_bylayer) != num_layers:
+        raise ValueError('layer_types, is_static_bylayer, and is_incompressible_bylayer must have equal lengths.')
+
     # Convert Python tuples into C++ std::vectors of strings
     cdef vector[cpp_string] c_layer_types
     for lt in layer_types:
