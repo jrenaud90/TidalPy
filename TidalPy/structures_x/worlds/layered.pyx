@@ -66,6 +66,27 @@ cdef cnp.ndarray _vec_to_ndarray(const vector[double]& v):
 
 # ODEMethod, c_EOSSolution, and c_WorldEOSSolveConfig are provided by layered.pxd.
 
+# Translate an integration-method name to the CyRK enum (string handling stays at the
+# Cython/Python boundary). Case-insensitive; covers the explicit Runge-Kutta methods and
+# the implicit/stiff methods.
+cdef ODEMethod _resolve_integration_method(str integration_method) except *:
+    cdef str method_upper = integration_method.upper()
+    if method_upper == 'DOP853':
+        return ODEMethod.DOP853
+    elif method_upper == 'RK45':
+        return ODEMethod.RK45
+    elif method_upper == 'RK23':
+        return ODEMethod.RK23
+    elif method_upper == 'BDF':
+        return ODEMethod.BDF
+    elif method_upper == 'LSODA':
+        return ODEMethod.LSODA
+    elif method_upper == 'RADAU':
+        return ODEMethod.RADAU
+    raise ValueError(
+        f"Unsupported integration method: {integration_method}. "
+        "Supported: RK23, RK45, DOP853, BDF, LSODA, Radau.")
+
 # Selectors for the vectorized real-valued radius getters (see _eval_real).
 cdef enum:
     _KIND_DENSITY        = 0
@@ -332,8 +353,8 @@ cdef class LayeredWorld(BaseWorld):
             Gravitational constant [m^3 kg^-1 s^-2]. If negative (default), the
             TidalPy config value is used.
         integration_method : str, optional
-            CyRK integration method: ``'DOP853'`` (default), ``'RK45'``, or
-            ``'RK23'``.
+            CyRK integration method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``,
+            or the implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
         rtol, atol : float, optional
             Relative / absolute integration tolerances. Default 1e-6 / 1e-10.
         pressure_tol : float, optional
@@ -374,18 +395,7 @@ cdef class LayeredWorld(BaseWorld):
         wrapper only translates the integration-method string to the CyRK enum and
         builds the Python result dict from the retained C++ solution.
         """
-        # Translate the integration-method string to the CyRK enum (string handling
-        # stays at the Cython/Python boundary).
-        cdef ODEMethod ode_method
-        cdef str method_upper = integration_method.upper()
-        if method_upper == 'DOP853':
-            ode_method = ODEMethod.DOP853
-        elif method_upper == 'RK45':
-            ode_method = ODEMethod.RK45
-        elif method_upper == 'RK23':
-            ode_method = ODEMethod.RK23
-        else:
-            raise ValueError(f"Unsupported integration method: {integration_method}")
+        cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
 
         cdef c_WorldEOSSolveConfig cfg
         cfg.surface_pressure   = surface_pressure
@@ -765,7 +775,8 @@ cdef class LayeredWorld(BaseWorld):
         start_radius_tol : float, optional
             Tolerance for the starting-radius search. Default 1e-4.
         integration_method : str, optional
-            CyRK ODE method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``.
+            CyRK ODE method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``, or the
+            implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
         rtol, atol : float, optional
             Relative / absolute ODE tolerances. Default 1e-6 / 1e-10.
         scale_rtols : bool, optional
@@ -801,16 +812,7 @@ cdef class LayeredWorld(BaseWorld):
         - Spherical symmetry; all quantities MKS.
         - ``solve_eos`` must be called first.
         """
-        cdef ODEMethod ode_method
-        cdef str method_upper = integration_method.upper()
-        if method_upper == 'DOP853':
-            ode_method = ODEMethod.DOP853
-        elif method_upper == 'RK45':
-            ode_method = ODEMethod.RK45
-        elif method_upper == 'RK23':
-            ode_method = ODEMethod.RK23
-        else:
-            raise ValueError(f"Unsupported integration method: {integration_method}")
+        cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
 
         cdef c_LoveSolveConfig cfg
         cfg.frequency_rad_s   = frequency_rad_s
@@ -878,16 +880,7 @@ cdef class LayeredWorld(BaseWorld):
                 or complex_bulk_modulus.shape[0] != radius_array.shape[0]):
             raise ValueError("complex moduli and radius arrays must have matching length")
 
-        cdef ODEMethod ode_method
-        cdef str method_upper = integration_method.upper()
-        if method_upper == 'DOP853':
-            ode_method = ODEMethod.DOP853
-        elif method_upper == 'RK45':
-            ode_method = ODEMethod.RK45
-        elif method_upper == 'RK23':
-            ode_method = ODEMethod.RK23
-        else:
-            raise ValueError(f"Unsupported integration method: {integration_method}")
+        cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
 
         cdef c_LoveSolveConfig cfg
         cfg.frequency_rad_s    = frequency_rad_s

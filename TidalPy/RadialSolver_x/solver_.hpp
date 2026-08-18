@@ -509,13 +509,23 @@ void c_validate_and_prep_radial_inputs(
     if (int_method_lower == "rk45")        integration_method_out = ODEMethod::RK45;
     else if (int_method_lower == "rk23")   integration_method_out = ODEMethod::RK23;
     else if (int_method_lower == "dop853") integration_method_out = ODEMethod::DOP853;
-    else throw std::invalid_argument("Unsupported integration method provided: " + int_method_lower);
+    else if (int_method_lower == "bdf")    integration_method_out = ODEMethod::BDF;
+    else if (int_method_lower == "lsoda")  integration_method_out = ODEMethod::LSODA;
+    else if (int_method_lower == "radau")  integration_method_out = ODEMethod::RADAU;
+    else throw std::invalid_argument(
+        "Unsupported integration method provided: " + int_method_lower +
+        ". Supported: rk23, rk45, dop853, bdf, lsoda, radau.");
 
     std::string eos_int_method_lower = to_lower(eos_integration_method);
     if (eos_int_method_lower == "rk45")        eos_integration_method_out = ODEMethod::RK45;
     else if (eos_int_method_lower == "rk23")   eos_integration_method_out = ODEMethod::RK23;
     else if (eos_int_method_lower == "dop853") eos_integration_method_out = ODEMethod::DOP853;
-    else throw std::invalid_argument("Unsupported EOS integration method provided: " + eos_int_method_lower);
+    else if (eos_int_method_lower == "bdf")    eos_integration_method_out = ODEMethod::BDF;
+    else if (eos_int_method_lower == "lsoda")  eos_integration_method_out = ODEMethod::LSODA;
+    else if (eos_int_method_lower == "radau")  eos_integration_method_out = ODEMethod::RADAU;
+    else throw std::invalid_argument(
+        "Unsupported EOS integration method provided: " + eos_int_method_lower +
+        ". Supported: rk23, rk45, dop853, bdf, lsoda, radau.");
 
     // EOS integration methods by layer
     eos_integration_method_int_bylayer_out.resize(num_layers);

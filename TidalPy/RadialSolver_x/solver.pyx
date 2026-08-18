@@ -107,7 +107,7 @@ def radial_solver(
     use_kamata : bool, default=False
         Use Kamata+ (2015) starting conditions.
     integration_method : str, default='DOP853'
-        CyRK integration method ('RK23', 'RK45', 'DOP853').
+        CyRK integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', 'Radau'.
     integration_rtol : float64, default=1.0e-5
         Relative integration tolerance.
     integration_atol : float64, default=1.0e-8
@@ -131,7 +131,7 @@ def radial_solver(
     surface_pressure : float64, default=0.0
         Planet surface pressure [Pa].
     eos_integration_method : str, default='DOP853'
-        EOS integration method.
+        EOS integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'.
     eos_rtol : float64, default=1.0e-3
         EOS relative tolerance.
     eos_atol : float64, default=1.0e-5

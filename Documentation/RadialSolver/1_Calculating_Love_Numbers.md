@@ -158,6 +158,9 @@ rs_solution = radial_solver(
     #  - 'RK23'    Explicit Runge-Kutta method of order 3(2)
     #  - 'RK45'    Explicit Runge-Kutta method of order 5(4)
     #  - 'DOP853'  Explicit Runge-Kutta method of order 8
+    #  - 'BDF'     Implicit multi-step method (good for stiff problems)
+    #  - 'LSODA'   Adams/BDF method with automatic stiffness detection
+    #  - 'Radau'   Implicit Runge-Kutta method of the Radau IIA family, order 5
     
     integration_rtol = 1.0e-5,
     # Integration relative tolerance

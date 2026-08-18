@@ -318,7 +318,7 @@ cdef int cf_radial_solver(
                 use_kamata,                     # Flag to use Kamata+ (2015)'s starting conditions vs. Takeuchi+Saito (1972) [cpp_bool]
                 starting_radius_to_use,         # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
                 start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]
-                integration_method_int,         # Integration method int (0=RK23, 1=RK45, 2=DOP853) [unsigned char]
+                integration_method_int,         # Integration method [CyRK ODEMethod enum]
                 integration_rtol,               # Integration relative tolerance [double]
                 integration_atol,               # Integration absolute tolerance [double]
                 scale_rtols_bylayer_type,       # Flag for if tolerances should vary with layer type (using pre-defined scaling) [cpp_bool]
@@ -456,11 +456,14 @@ def radial_solver(
     use_kamata : bool, default=False
         If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
         Otherwise, starting solution will be based on Takeuchi and Saito (1972)
-    integration_method : int32, default="DOP853"
+    integration_method : str, default="DOP853"
         Which CyRK integration protocol should be used. Options that are currently available are:
-            - 0: Runge-Kutta 2(3)
-            - 1: Runge-Kutta 4(5)
-            - 2: Runge-Kutta / DOP 8(5/3)
+            - "RK23": Runge-Kutta 2(3)
+            - "RK45": Runge-Kutta 4(5)
+            - "DOP853": Runge-Kutta / DOP 8(5/3)
+            - "BDF": Implicit multi-step method (good for stiff problems)
+            - "LSODA": Adams/BDF method with automatic stiffness detection
+            - "Radau": Implicit Runge-Kutta method of the Radau IIA family, order 5
     integration_rtol : float64, default=1.0e-5
         Relative integration tolerance. Lower tolerance will lead to more precise results at increased computation.
     integration_atol : float64, default=1.0e-8
@@ -693,9 +696,17 @@ def radial_solver(
         integration_method_int = ODEMethod.RK23
     elif integration_method_lower == 'dop853':
         integration_method_int = ODEMethod.DOP853
+    elif integration_method_lower == 'bdf':
+        integration_method_int = ODEMethod.BDF
+    elif integration_method_lower == 'lsoda':
+        integration_method_int = ODEMethod.LSODA
+    elif integration_method_lower == 'radau':
+        integration_method_int = ODEMethod.RADAU
     else:
-        raise UnknownModelError(f"Unsupported integration method provided: {integration_method_lower}.")
-    
+        raise UnknownModelError(
+            f"Unsupported integration method provided: {integration_method_lower}. "
+            "Supported: rk23, rk45, dop853, bdf, lsoda, radau.")
+
     cdef str eos_integration_method_lower = eos_integration_method.lower()
     cdef ODEMethod eos_integration_method_int = ODEMethod.NO_METHOD_SET
     if eos_integration_method_lower == 'rk45':
@@ -704,8 +715,16 @@ def radial_solver(
         eos_integration_method_int = ODEMethod.RK23
     elif eos_integration_method_lower == 'dop853':
         eos_integration_method_int = ODEMethod.DOP853
+    elif eos_integration_method_lower == 'bdf':
+        eos_integration_method_int = ODEMethod.BDF
+    elif eos_integration_method_lower == 'lsoda':
+        eos_integration_method_int = ODEMethod.LSODA
+    elif eos_integration_method_lower == 'radau':
+        eos_integration_method_int = ODEMethod.RADAU
     else:
-        raise UnknownModelError(f"Unsupported EOS integration method provided: {eos_integration_method_lower}.")
+        raise UnknownModelError(
+            f"Unsupported EOS integration method provided: {eos_integration_method_lower}. "
+            "Supported: rk23, rk45, dop853, bdf, lsoda, radau.")
 
     # Convert EOS methods from string to int
     cdef str eos_method_str

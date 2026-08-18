@@ -220,7 +220,8 @@ inline void c_solve_eos(
                 atols_vec,         // Absolute Tolerance vector[double]
                 max_step,          // Maximum step size [double]
                 first_step,        // Initial step size [double]
-                true               // Force retain solver [bool]
+                true,              // Force retain solver [bool]
+                nullptr            // Analytic jacobian (null = numerical; used by implicit methods) [JacobianFuncType]
             );
             /////////////////////////////////////////////////////
             last_solution_size = integration_result_ptr->size;
