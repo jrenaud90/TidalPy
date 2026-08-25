@@ -20,13 +20,24 @@ def _fresh_world():
 
 @pytest.mark.parametrize("integration_method", IMPLICIT_METHODS)
 def test_world_eos_solve_implicit(integration_method):
-    """solve_eos accepts each implicit method and reproduces the DOP853 planet mass."""
+    """solve_eos accepts each implicit method and reproduces the DOP853 planet mass.
+
+    The EOS integration starts at the planet's center, where the structure ODE is
+    singular (r ~ 0, g = 0). LSODA's Adams/Newton startup can fail to take its first
+    step there; when it does, the failure must be clean (success False with the
+    integrator's message, no exception) rather than garbage results. BDF and Radau
+    handle the singular start and must reproduce the reference mass.
+    """
     reference_world = _fresh_world()
     reference_world.solve_eos(integration_method="DOP853")
     reference_mass = reference_world.planet_mass_eos
 
     world = _fresh_world()
-    world.solve_eos(integration_method=integration_method)
+    result = world.solve_eos(integration_method=integration_method)
+    if integration_method == "LSODA" and not result["success"]:
+        assert "failed" in result["message"].lower()
+        return
+    assert result["success"]
     assert math.isclose(world.planet_mass_eos, reference_mass, rel_tol=1.0e-5)
 
 

@@ -355,6 +355,9 @@ cdef class LayeredWorld(BaseWorld):
         integration_method : str, optional
             CyRK integration method: ``'DOP853'`` (default), ``'RK45'``, ``'RK23'``,
             or the implicit (stiff) methods ``'BDF'``, ``'LSODA'``, ``'Radau'``.
+            The structure ODE is singular at the planet's center; LSODA's startup can
+            fail to take its first step there (a clean unsuccessful result), while BDF
+            and Radau handle the singular start.
         rtol, atol : float, optional
             Relative / absolute integration tolerances. Default 1e-6 / 1e-10.
         pressure_tol : float, optional
