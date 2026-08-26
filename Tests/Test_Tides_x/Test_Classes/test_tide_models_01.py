@@ -32,6 +32,7 @@ def _import():
     ("constant_time_lag", "FixedLagTide"),
     ("ctl_q", "CTLQTide"),
     ("fixed_dt_q", "CTLQTide"),
+    ("constant_time_lag_and_q", "CTLQTide"),
     ("CTL_Q", "CTLQTide"),  # case-insensitive
 ])
 def test_make_tide_returns_subclass(name, cls_attr):
