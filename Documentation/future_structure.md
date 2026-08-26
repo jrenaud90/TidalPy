@@ -10,6 +10,14 @@ to start using the `_x` modules or make plans to switch.
 This page explains what is different, maps the classic modules to their replacements, and shows how to port common
 workflows.
 
+TidalPy announces this transition once per session when the package is imported. The notice can be silenced with:
+
+```python
+import warnings
+from TidalPy.exceptions import TidalPyDeprecationWarning
+warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
+```
+
 ## Why the rework?
 
 * **Performance.** All core physics now runs in C++ (with the Eigen linear algebra library and CyRK integrators),

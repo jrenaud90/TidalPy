@@ -46,6 +46,20 @@ reinit()
 from .cache import clear_cache as clear_cache
 from .cache import clear_data as clear_data
 
+# Announce the backend transition once per session. The classic modules (no `_x` suffix) are deprecated in favor
+# of the new C++ backend (`structures_x`, `Tides_x`, `RadialSolver_x`, ...), which will become the only TidalPy in
+# a future major release.
+import warnings as _warnings
+from TidalPy.exceptions import TidalPyDeprecationWarning
+
+_warnings.warn(
+    "TidalPy's backend is changing: the classic modules (structures, tides, RadialSolver, rheology, ...) are "
+    "deprecated and will be replaced by the new C++ backend (structures_x, Tides_x, RadialSolver_x, rheology_x, "
+    "...) in a future major release. New development happens in the `_x` modules. See the porting guide at "
+    "https://tidalpy.readthedocs.io/en/latest/future_structure.html. Silence this message with "
+    "warnings.filterwarnings('ignore', category=TidalPy.exceptions.TidalPyDeprecationWarning).",
+    TidalPyDeprecationWarning)
+
 def test_mode():
     """ Turn on test mode and reinitialize TidalPy """
     global _test_mode

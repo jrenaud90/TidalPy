@@ -57,6 +57,7 @@ _The `_x` in module and function names indicates experimental versions. This suf
 
 #### Package
 * Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
+* Importing TidalPy now announces the backend transition once per session: the classic modules are deprecated in favor of the new C++ backend (the `_x` modules), which will become the only TidalPy in a future major release. The notice points at the porting guide (`Documentation/future_structure.md`) and uses the new named category `TidalPy.exceptions.TidalPyDeprecationWarning` (a `FutureWarning` subclass, so it is visible by default) so it can be silenced with a single `warnings.filterwarnings` call.
 * The TidalPy data/config directories are now scoped to the package's `<major>.<minor>.X` version (e.g. `.../TidalPy/0.8.X/`) instead of the full patch version. Every patch release of a given major.minor now shares one directory, so user configs and downloaded data are not duplicated (or lost) on each bugfix release. New helper `TidalPy.paths.get_data_version()` returns the scoped label; `get_config_dir`, `get_log_dir`, `get_worlds_dir`, and `get_worlds_x_dir` all use it.
 * Drops support for Python 3.9
 
