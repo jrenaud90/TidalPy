@@ -45,7 +45,26 @@ Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
 
 ```{toctree}
 :maxdepth: 2
-:caption: Demos (_x)
+:caption: Future Structure
+
+Overview and Porting Guide <future_structure.md>
+Structures <structures_x/index.md>
+Material and EOS <material_x/material_eos.md>
+Rheology <rheology_x/rheology_models.md>
+Viscosity <viscosity_x/viscosity_models.md>
+Partial Melting <partial_melt_x/partial_melt_models.md>
+Cooling <cooling_x/cooling_models.md>
+Radiogenics <radiogenics_x/radiogenics_models.md>
+Tides <Tides_x/index.md>
+RadialSolver Dense Solutions <RadialSolver_x/dense_radial_solution.md>
+Dynamics <dynamics_x/dynamics.md>
+Stellar <stellar_x/luminosity.md>
+Utilities <utilities_x/index.md>
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Future Structure Demos
 
 Demos_x/Basics/01_config.ipynb
 Demos_x/Basics/02_world_building.ipynb
@@ -63,7 +82,7 @@ Demos_x/Systems/12_thermal_orbital_evolution.ipynb
 
 ```{toctree}
 :maxdepth: 2
-:caption: Benchmarks (_x)
+:caption: Future Structure Benchmarks
 
 Benchmarks_x/RadialSolver/Earth_Love_Numbers.ipynb
 Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb
