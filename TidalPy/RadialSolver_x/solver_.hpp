@@ -293,7 +293,7 @@ int c_radial_solver(
                 num_bc_models, bc_models_ptr, G_to_use, degree_l, use_kamata,
                 starting_radius_to_use, start_radius_tolerance, integration_method_int,
                 integration_rtol, integration_atol, scale_rtols_bylayer_type,
-                max_num_steps, expected_size, max_ram_MB, max_step, verbose
+                max_num_steps, expected_size, max_ram_MB, max_step, verbose, warnings
             );
         }
     }

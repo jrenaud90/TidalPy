@@ -25,6 +25,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.utilities.math.numerics cimport c_isclose
 from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
+from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
 
@@ -327,6 +328,7 @@ cdef int cf_radial_solver(
                 max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallelized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
                 max_step,                       # Maximum allowed step size per layer [double]
                 verbose,                        # Verbose flag [cpp_bool]
+                warnings,                       # Warnings flag; enables the surface conditioning diagnostic [cpp_bool]
                 )
 
     # Finalize solution storage
@@ -876,5 +878,6 @@ def radial_solver(
     if warnings:
         if np.any(solution.steps_taken > 7_000):
             log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}). Recommend checking for instabilities (a good method is looking at `<solution>.plot_ys()`).")
+        check_surface_solve_conditioning(solution.surface_solve_amplification, integration_rtol)
 
     return solution

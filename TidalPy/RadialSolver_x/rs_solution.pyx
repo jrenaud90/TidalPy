@@ -13,6 +13,46 @@ cimport numpy as cnp
 import numpy as np
 cnp.import_array()
 
+# Surface boundary condition conditioning thresholds (see RadialSolverSolution.surface_solve_amplification).
+# The severe threshold sits well above the ~1e6 amplification of a healthy automatic-starting-radius solve.
+DBL_EPSILON = np.finfo(np.float64).eps
+SEVERE_SURFACE_AMPLIFICATION = 1.0e8
+
+
+def check_surface_solve_conditioning(double surface_amplification, double integration_rtol):
+    """Log a warning when the radial solver's surface boundary condition solve is poorly conditioned.
+
+    Warns when the roundoff floor (``surface_amplification`` times machine epsilon) exceeds the requested
+    integration tolerance, or when the amplification alone is severe enough that amplified integration error
+    likely ruins the leading digits of the Love numbers.
+
+    Parameters
+    ----------
+    surface_amplification : float64
+        Worst-case error amplification of the surface solve (see
+        ``RadialSolverSolution.surface_solve_amplification``).
+    integration_rtol : float64
+        Relative tolerance the radial integration was requested at.
+
+    Returns
+    -------
+    warned : bool
+        True when a warning was emitted.
+    """
+    if (surface_amplification * DBL_EPSILON > integration_rtol) or \
+            (surface_amplification > SEVERE_SURFACE_AMPLIFICATION):
+        from TidalPy.logger import get_logger
+        log = get_logger("TidalPy")
+        log.warning(
+            f"Radial solver surface boundary condition solve is poorly conditioned (error amplification "
+            f"~{surface_amplification:0.1e}; achievable relative accuracy "
+            f"~{surface_amplification * DBL_EPSILON:0.1e} vs requested integration rtol "
+            f"{integration_rtol:0.1e}). Love numbers and surface outputs may be much less accurate than "
+            f"requested. A larger (or automatic) starting radius improves conditioning; tightening "
+            f"tolerances cannot beat the roundoff floor.")
+        return True
+    return False
+
 
 cdef class RadialSolverSolution:
 
@@ -658,6 +698,20 @@ cdef class RadialSolverSolution:
     @property
     def steps_taken(self):
         return np.copy(self.shooting_method_steps_taken_array)
+
+    @property
+    def surface_solve_amplification(self):
+        """Worst-case error amplification of the surface boundary condition solve (shooting method).
+
+        The collapsed surface solution combines the independent solutions with constants that can grow large
+        and cancel (deep starting radii, high harmonic degrees). Roundoff and integration error are amplified
+        into the surface solution, and the Love numbers derived from it, by up to this factor; the achievable
+        relative accuracy is floor limited to about this value times machine epsilon regardless of the
+        integration tolerance. Values near 1 indicate a well conditioned solve. Only recorded when the solve
+        runs with ``warnings`` enabled, and stays 0 for the propagation matrix method, which does not use the
+        shooting surface collapse.
+        """
+        return self.solution_storage_ptr.surface_amplification
 
     def get_result_by_ytype_name(self, str ytype_name):
         cdef size_t ytype_i

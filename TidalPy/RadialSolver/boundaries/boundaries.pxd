@@ -15,3 +15,11 @@ cdef void cf_apply_surface_bc(
     cpp_bool layer_is_static,
     cpp_bool layer_is_incomp
     ) noexcept nogil
+
+cdef double cf_estimate_surface_amplification(
+    double complex* constant_vector_ptr,
+    double complex* uppermost_y_per_solution_ptr,
+    size_t num_sols,
+    size_t num_ys,
+    size_t max_num_y
+    ) noexcept nogil

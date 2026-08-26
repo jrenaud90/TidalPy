@@ -85,6 +85,7 @@ struct c_ShootingInputs {
     size_t    expected_size       = 500;
     size_t    max_ram_MB          = 500;
     double    max_step            = 0.0;
+    bool      warnings            = true;
 };
 
 // Propagation-matrix-method inputs (only valid for a single solid, static, incompressible layer).
@@ -132,7 +133,8 @@ inline int c_shooting_solve(
         in.expected_size,
         in.max_ram_MB,
         in.max_step,
-        verbose
+        verbose,
+        in.warnings
     );
 }
 
@@ -177,6 +179,7 @@ struct c_LoveSolveRuntimeConfig {
     size_t    max_ram_MB         = 500;
     double    max_step           = 0.0;
     bool      verbose            = false;
+    bool      warnings           = true;              // enables the surface conditioning diagnostic
     bool      redim_eos_arrays   = false;             // export mode: also redimensionalize the EOS arrays
 };
 
@@ -524,6 +527,7 @@ public:
             shoot.expected_size      = rt.expected_size;
             shoot.max_ram_MB         = rt.max_ram_MB;
             shoot.max_step           = rt.max_step;
+            shoot.warnings           = rt.warnings;
             c_shooting_solve(storage, shoot, freq_nd, rt.verbose);
         }
 

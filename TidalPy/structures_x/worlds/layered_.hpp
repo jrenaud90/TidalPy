@@ -587,6 +587,7 @@ public:
         rt.max_ram_MB         = cfg.max_ram_MB;
         rt.max_step           = cfg.max_step;
         rt.verbose            = cfg.verbose;
+        rt.warnings           = cfg.warnings;
         return rt;
     }
 
@@ -693,6 +694,13 @@ public:
     std::size_t get_love_num_ytypes() const noexcept {
         const auto* s = this->get_love_storage();
         return s ? s->num_ytypes : 0;
+    }
+
+    // Worst-case error amplification of the surface boundary condition solve (shooting method; 0 until a
+    // solve has run). See c_estimate_surface_amplification in RadialSolver_x/boundaries/boundaries_.hpp.
+    double get_love_surface_amplification() const noexcept {
+        const auto* s = this->get_love_storage();
+        return s ? s->surface_amplification : 0.0;
     }
 
     // Primary Love numbers (k, h, l) for the given boundary-condition ytype index.

@@ -62,6 +62,10 @@ public:
     // Diagnostic data
     std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
 
+    // Worst-case error amplification of the surface boundary condition solve across ytypes (shooting method
+    // only; stays 0 for the matrix method). See c_estimate_surface_amplification in boundaries_.hpp.
+    double surface_amplification = 0.0;
+
     // ================================================================================================================
     // Interpolant-based (shooting) solution
     //

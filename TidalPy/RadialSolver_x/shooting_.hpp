@@ -148,7 +148,8 @@ int c_shooting_solver(
     size_t expected_size,
     size_t max_ram_MB,
     double max_step,
-    bool verbose
+    bool verbose,
+    bool warnings
 ) noexcept
 {
     /** Solves the viscoelastic-gravitational problem for planets using a shooting method.
@@ -889,6 +890,9 @@ int c_shooting_solver(
         bool layer_above_is_static         = false;
         bool layer_above_is_incomp         = false;
 
+        // Reset the surface conditioning diagnostic (the storage can be reused across solves).
+        solution_storage_ptr->surface_amplification = 0.0;
+
         for (size_t ytype_i = 0; ytype_i < num_ytypes; ++ytype_i)
         {
             solution_storage_ptr->message =
@@ -1024,6 +1028,22 @@ int c_shooting_solver(
                             printf("%s", solution_storage_ptr->message.c_str());
                         }
                         return solution_storage_ptr->error_code;
+                    }
+
+                    // Record the worst-case error amplification of the surface solve across ytypes. Large
+                    // constants that cancel at the surface amplify roundoff and integration error into the
+                    // collapsed solution; the solver wrappers warn from this diagnostic. Skipped when the
+                    // caller disabled warnings, so the hot path pays nothing for a diagnostic it will not use.
+                    if (warnings)
+                    {
+                        solution_storage_ptr->surface_amplification = std::fmax(
+                            solution_storage_ptr->surface_amplification,
+                            c_estimate_surface_amplification(
+                                constant_vector_ptr,
+                                uppermost_y_per_solution_ptr,
+                                num_sols,
+                                num_ys,
+                                C_MAX_NUM_Y));
                     }
                 }
                 else

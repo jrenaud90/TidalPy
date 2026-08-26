@@ -55,6 +55,10 @@ public:
     // Diagnostic data
     std::vector<size_t> shooting_method_steps_taken_vec = std::vector<size_t>();
 
+    // Worst-case error amplification of the surface boundary condition solve across ytypes (shooting method
+    // only; stays 0 for the matrix method). See cf_estimate_surface_amplification in boundaries.pyx.
+    double surface_amplification = 0.0;
+
     // Constructors and methods
     virtual ~RadialSolutionStorageCC();
     RadialSolutionStorageCC();

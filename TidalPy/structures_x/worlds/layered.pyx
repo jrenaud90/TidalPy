@@ -32,6 +32,7 @@ from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_sc
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
+from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 
 
 # Build the matching layer wrapper as a NON-owning view onto a layer the world owns, dispatched
@@ -845,6 +846,8 @@ cdef class LayeredWorld(BaseWorld):
         with nogil:
             self._layered_ptr.solve_love_numbers(cfg)
 
+        if warnings:
+            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), rtol)
         return self._build_love_result()
 
     def solve_love_numbers_supplied(
@@ -912,6 +915,8 @@ cdef class LayeredWorld(BaseWorld):
         cdef double* radius_ptr = &radius_array[0]
         with nogil:
             self._layered_ptr.solve_love_numbers_supplied(cfg, shear_ptr, bulk_ptr, radius_ptr, n_in)
+        if warnings:
+            check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), rtol)
         return self._build_love_result()
 
     def _build_love_result(self):
@@ -952,6 +957,17 @@ cdef class LayeredWorld(BaseWorld):
     def love_message(self) -> str:
         """Status message from the last love-number solve."""
         return self._layered_ptr.get_love_message().decode('utf-8')
+
+    @property
+    def love_surface_amplification(self) -> float:
+        """Worst-case error amplification of the last solve's surface boundary condition collapse.
+
+        Values near 1 indicate a well conditioned solve; large values mean roundoff and integration error are
+        amplified into the Love numbers (the achievable relative accuracy is floor limited to about this value
+        times machine epsilon). 0 until a shooting-method solve has run with ``warnings`` enabled; the propagation
+        matrix method does not use the shooting surface collapse.
+        """
+        return self._layered_ptr.get_love_surface_amplification()
 
     @property
     def love_num_ytypes(self) -> int:

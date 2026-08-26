@@ -24,7 +24,7 @@ from TidalPy.RadialSolver.starting.driver cimport cf_find_starting_conditions
 from TidalPy.RadialSolver.interfaces.interfaces cimport cf_solve_upper_y_at_interface
 from TidalPy.RadialSolver.interfaces.reversed cimport cf_top_to_bottom_interface_bc
 from TidalPy.RadialSolver.derivatives.odes cimport RadialSolverDiffeqArgStruct, cf_find_layer_diffeq
-from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc
+from TidalPy.RadialSolver.boundaries.boundaries cimport cf_apply_surface_bc, cf_estimate_surface_amplification
 from TidalPy.RadialSolver.boundaries.surface_bc cimport cf_get_surface_bc
 from TidalPy.RadialSolver.collapse.collapse cimport cf_collapse_layer_solution
 
@@ -125,7 +125,8 @@ cdef int cf_shooting_solver(
         size_t expected_size,
         size_t max_ram_MB,
         double max_step,
-        cpp_bool verbose
+        cpp_bool verbose,
+        cpp_bool warnings
         ) noexcept nogil:
     """ Solves the viscoelastic-gravitational problem for planets using a shooting method.
     """
@@ -783,6 +784,9 @@ cdef int cf_shooting_solver(
         # No errors. Proceed with collapsing all sub-solutions into final full solution.
         solution_storage_ptr.message = cpp_string('Integration completed for all layers. Beginning solution collapse.\n')
 
+        # Reset the surface conditioning diagnostic (the storage can be reused across solves).
+        solution_storage_ptr.surface_amplification = 0.0
+
         for ytype_i in range(num_ytypes):
             solution_storage_ptr.message = cpp_string('Collapsing radial solutions for "') + to_string(ytype_i) + cpp_string('" solver.\n')
 
@@ -888,6 +892,22 @@ cdef int cf_shooting_solver(
                         if verbose:
                             printf(solution_storage_ptr.message.c_str())
                         return solution_storage_ptr.error_code
+
+                    # Record the worst-case error amplification of the surface solve across ytypes. Large
+                    # constants that cancel at the surface amplify roundoff and integration error into the
+                    # collapsed solution; the solver wrapper warns from this diagnostic. Skipped when the
+                    # caller disabled warnings, so the hot path pays nothing for a diagnostic it will not use.
+                    if warnings:
+                        solution_storage_ptr.surface_amplification = fmax(
+                            solution_storage_ptr.surface_amplification,
+                            cf_estimate_surface_amplification(
+                                constant_vector_ptr,
+                                uppermost_y_per_solution_ptr,
+                                num_sols,
+                                num_ys,
+                                MAX_NUM_Y
+                                )
+                            )
                 else:
                     # Working on interior layers. Will need to find the constants of integration based on the layer above.
                     cf_top_to_bottom_interface_bc(

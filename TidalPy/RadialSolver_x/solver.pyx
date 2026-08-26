@@ -22,6 +22,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
+from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 
 log = get_logger("TidalPy")
 
@@ -324,5 +325,6 @@ def radial_solver(
     if warnings:
         if np.any(solution.steps_taken > 7_000):
             log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}).")
+        check_surface_solve_conditioning(solution.surface_solve_amplification, integration_rtol)
 
     return solution

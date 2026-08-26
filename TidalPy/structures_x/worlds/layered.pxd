@@ -111,6 +111,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         int                  get_love_error_code() const
         const string&        get_love_message() const
         size_t               get_love_num_ytypes() const
+        double               get_love_surface_amplification() const
         cpp_complex[double]  get_love_number_k(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_l(size_t ytype_idx) const

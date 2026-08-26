@@ -132,6 +132,11 @@ rs_solution = radial_solver(
     # Some problems are more stable if the starting radius is higher in the planet. This tends to be the case 
     # when degree_l >> 2. If set to 0.0, the default, then TidalPy will use Martens (2016) technique to determine 
     # a good starting radius depending on the degree_l and the tolerance set in the next variable.
+    # Warning: starting very deep (near the center) at degree_l > 2 can make the surface boundary condition
+    # solve ill conditioned: the solution constants grow enormous and cancel, amplifying integration error and
+    # roundoff into the Love numbers. TidalPy measures this amplification on every solve (see
+    # `solution.surface_solve_amplification`) and logs a warning when the achievable accuracy falls below the
+    # requested tolerance. Prefer the automatic starting radius when that warning appears.
 
     start_radius_tolerance = 1.0e-5
     # Starting radius tolerance (type: scalar double)
