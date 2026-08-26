@@ -1,4 +1,5 @@
 from TidalPy.RadialSolver_x.solver import radial_solver as radial_solver
+from TidalPy.RadialSolver_x.helpers import homogeneous_love_numbers as homogeneous_love_numbers
 
 # The input-builder helpers are shared with the original TidalPy.RadialSolver module; both solvers
 # accept the same array-based call signature.

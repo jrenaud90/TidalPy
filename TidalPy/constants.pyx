@@ -86,18 +86,20 @@ au = d_NAN
 sbc = d_NAN
 R = d_NAN
 k_boltzman = d_NAN
+year = d_NAN
 
 # Dynamic Aliases
 SBC = sbc
 Au = au
 k = k_boltzman
 newtons_constant = G
+yr = year
 
 
 def update_constants():
     """Use the current TidalPy configurations to load in certain parameters/constants that are not Read-Only."""
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness, test_constant
-    global G, au, sbc, R, k_boltzman, SBC, Au, k, newtons_constant
+    global G, au, sbc, R, k_boltzman, year, SBC, Au, k, newtons_constant, yr
 
     # Update dynamic properties from TidalPy
     tidalpy_config_ptr.d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
@@ -131,10 +133,12 @@ def update_constants():
     sbc = tidalpy_config_ptr.d_SBC
     R = tidalpy_config_ptr.d_R
     k_boltzman = tidalpy_config_ptr.d_K_BOLTZMAN
+    year = scipy.constants.Julian_year
     SBC = sbc
     Au = au
     k = k_boltzman
     newtons_constant = G
+    yr = year
 
 
 def update_constants_x():
