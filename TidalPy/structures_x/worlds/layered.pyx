@@ -25,7 +25,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_name
@@ -87,6 +87,20 @@ cdef ODEMethod _resolve_integration_method(str integration_method) except *:
     raise ValueError(
         f"Unsupported integration method: {integration_method}. "
         "Supported: RK23, RK45, DOP853, BDF, LSODA, Radau.")
+
+
+cdef int _resolve_solve_for(str solve_for) except? -999:
+    # Map a surface-boundary-condition name to the radial solver's bc_model integer
+    # (same names as the standalone radial_solver's solve_for entries).
+    cdef str name_lower = solve_for.lower()
+    if name_lower == 'tidal':
+        return 1
+    elif name_lower == 'loading':
+        return 2
+    elif name_lower == 'free':
+        return 0
+    raise ValueError(
+        f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
 
 # Selectors for the vectorized real-valued radius getters (see _eval_real).
 cdef enum:
@@ -721,29 +735,29 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     def solve_love_numbers(
             self,
-            double frequency_rad_s    = 1.0e-5,
-            int    degree_l           = 2,
-            cpp_bool   solve_tidal        = True,
-            cpp_bool   use_prop_matrix    = False,
-            int    core_model         = 0,
-            cpp_bool   use_kamata         = True,
-            cpp_bool   nondimensionalize  = True,
-            double starting_radius    = 0.0,
-            double start_radius_tol   = 1.0e-4,
-            str    integration_method = 'DOP853',
-            double rtol               = 1.0e-6,
-            double atol               = 1.0e-10,
-            cpp_bool scale_rtols      = True,
-            size_t max_num_steps      = 500000,
-            size_t expected_size      = 500,
-            size_t max_ram_MB         = 500,
-            double max_step           = 0.0,
-            cpp_bool verbose          = False,
-            cpp_bool warnings         = True,
-            double eos_rtol           = 1.0e-6,
-            double eos_atol           = 1.0e-10,
-            double eos_pressure_tol   = 1.0e-3,
-            int    eos_max_iters      = 100) -> dict:
+            double frequency_rad_s     = 1.0e-5,
+            int degree_l               = 2,
+            str solve_for              = 'tidal',
+            cpp_bool use_prop_matrix   = False,
+            int core_model             = 0,
+            cpp_bool use_kamata        = True,
+            cpp_bool nondimensionalize = True,
+            double starting_radius     = 0.0,
+            double start_radius_tol    = 1.0e-4,
+            str integration_method     = 'DOP853',
+            double rtol                = 1.0e-6,
+            double atol                = 1.0e-10,
+            cpp_bool scale_rtols       = True,
+            size_t max_num_steps       = 500000,
+            size_t expected_size       = 500,
+            size_t max_ram_MB          = 500,
+            double max_step            = 0.0,
+            cpp_bool verbose           = False,
+            cpp_bool warnings          = True,
+            double eos_rtol            = 1.0e-6,
+            double eos_atol            = 1.0e-10,
+            double eos_pressure_tol    = 1.0e-3,
+            int eos_max_iters          = 100) -> dict:
         """Solve for whole-planet tidal Love numbers using the shooting method.
 
         Requires :meth:`solve_eos` to have been called first.  For each radial
@@ -758,8 +772,10 @@ cdef class LayeredWorld(BaseWorld):
             Tidal forcing frequency [rad/s]. Default 1e-5.
         degree_l : int, optional
             Harmonic degree. Default 2.
-        solve_tidal : bool, optional
-            Use tidal boundary conditions. Default True.
+        solve_for : str, optional
+            Surface boundary condition: ``'tidal'`` (default; tidal Love numbers k, h, l),
+            ``'loading'`` (load Love numbers k', h', l'), or ``'free'`` (free-surface
+            response). Same names as the standalone ``radial_solver``.
         use_prop_matrix : bool, optional
             Select the radial-solve method: ``False`` (default) uses the shooting
             method; ``True`` uses the propagation-matrix method. The propagation
@@ -821,7 +837,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg
         cfg.frequency_rad_s   = frequency_rad_s
         cfg.degree_l          = degree_l
-        cfg.solve_tidal       = <cpp_bool>solve_tidal
+        cfg.bc_model          = _resolve_solve_for(solve_for)
         cfg.use_prop_matrix   = <cpp_bool>use_prop_matrix
         cfg.core_model        = core_model
         cfg.use_kamata        = <cpp_bool>use_kamata
@@ -855,25 +871,25 @@ cdef class LayeredWorld(BaseWorld):
             double complex[::1] complex_shear_modulus not None,
             double complex[::1] complex_bulk_modulus not None,
             double[::1] radius_array not None,
-            double frequency_rad_s    = 1.0e-5,
-            int    degree_l           = 2,
-            cpp_bool solve_tidal      = True,
-            cpp_bool use_prop_matrix  = False,
-            int    core_model         = 0,
-            cpp_bool use_kamata       = True,
+            double frequency_rad_s     = 1.0e-5,
+            int    degree_l            = 2,
+            str    solve_for           = 'tidal',
+            cpp_bool use_prop_matrix   = False,
+            int    core_model          = 0,
+            cpp_bool use_kamata        = True,
             cpp_bool nondimensionalize = True,
-            double starting_radius    = 0.0,
-            double start_radius_tol   = 1.0e-4,
-            str    integration_method = 'DOP853',
-            double rtol               = 1.0e-6,
-            double atol               = 1.0e-10,
-            cpp_bool scale_rtols      = True,
-            size_t max_num_steps      = 500000,
-            size_t expected_size      = 500,
-            size_t max_ram_MB         = 500,
-            double max_step           = 0.0,
-            cpp_bool verbose          = False,
-            cpp_bool warnings         = True) -> dict:
+            double starting_radius     = 0.0,
+            double start_radius_tol    = 1.0e-4,
+            str    integration_method  = 'DOP853',
+            double rtol                = 1.0e-6,
+            double atol                = 1.0e-10,
+            cpp_bool scale_rtols       = True,
+            size_t max_num_steps       = 500000,
+            size_t expected_size       = 500,
+            size_t max_ram_MB          = 500,
+            double max_step            = 0.0,
+            cpp_bool verbose           = False,
+            cpp_bool warnings          = True) -> dict:
         """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
 
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
@@ -891,7 +907,7 @@ cdef class LayeredWorld(BaseWorld):
         cdef c_LoveSolveConfig cfg
         cfg.frequency_rad_s    = frequency_rad_s
         cfg.degree_l           = degree_l
-        cfg.solve_tidal        = <cpp_bool>solve_tidal
+        cfg.bc_model           = _resolve_solve_for(solve_for)
         cfg.use_prop_matrix    = <cpp_bool>use_prop_matrix
         cfg.core_model         = core_model
         cfg.use_kamata         = <cpp_bool>use_kamata
@@ -1175,7 +1191,9 @@ cdef class LayeredWorld(BaseWorld):
             int latitude_nodes=16,
             int longitude_nodes=64,
             int radial_slices=16,
-            latitude_analytic=True) -> dict:
+            latitude_analytic=True,
+            double colatitude_min=0.0,
+            double colatitude_max=np.pi) -> dict:
         """3D tidal heating as a full grid over ``(radius, colatitude, longitude[, time])`` or reduced.
 
         With ``orbit_averaged=True`` (default) the quantity is the secular (cycle-averaged) volumetric
@@ -1203,7 +1221,16 @@ cdef class LayeredWorld(BaseWorld):
         When ``latitude_summed`` and ``orbit_averaged`` (the default), the colatitude integral uses the
         precomputed analytic angular Gram table (exact, no theta grid); pass ``latitude_analytic=False``
         to fall back to the Gauss-Legendre quadrature instead (they agree to quadrature accuracy).
+
+        When ``latitude_summed``, a latitude band can be integrated instead of the full sphere by
+        setting ``colatitude_min`` / ``colatitude_max`` [rad] (defaults 0 and pi). Band totals and
+        band profiles sum the heating within ``colatitude_min <= theta <= colatitude_max`` only,
+        so complementary bands add up to the full-sphere result. A band narrower than the full
+        sphere always uses the Gauss-Legendre quadrature (the analytic Gram table is full-sphere
+        only). The band has no effect when colatitude is not summed.
         """
+        if not (0.0 <= colatitude_min < colatitude_max <= np.pi + 1.0e-12):
+            raise ValueError("colatitude band must satisfy 0 <= colatitude_min < colatitude_max <= pi")
         cdef cpp_bool instantaneous = not orbit_averaged
         cdef c_Heating3DCollapseConfig cfg
         cfg.orbit_averaged   = <cpp_bool>orbit_averaged
@@ -1214,6 +1241,12 @@ cdef class LayeredWorld(BaseWorld):
         cfg.longitude_nodes  = longitude_nodes
         cfg.radial_slices    = radial_slices
         cfg.latitude_analytic = <cpp_bool>latitude_analytic
+        cfg.colatitude_min   = colatitude_min
+        # The default (np.pi) can sit a rounding step above the C++ d_PI; clamp so the
+        # full-sphere default never trips the C++ band check.
+        cfg.colatitude_max   = colatitude_max
+        if cfg.colatitude_max > d_PI:
+            cfg.colatitude_max = d_PI
 
         cdef cnp.ndarray radii_arr
         cdef double[::1] radii_view

@@ -36,7 +36,9 @@ def global_potential(
     elif isinstance(obliquity_truncation, int):
         i_obliquity_truncation = obliquity_truncation
     if i_obliquity_truncation not in (0, 2, 4, 10):
-        raise NotImplementedError("Unsupported obliquity truncation encountered.")
+        raise NotImplementedError(
+            f"Obliquity truncation {i_obliquity_truncation} is not tabulated. "
+            "Supported levels: 0 ('off'), 2, 4, 10 ('gen', fully general).")
     if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
         raise NotImplementedError(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '

@@ -63,6 +63,10 @@ def tidal_potential_3d_modes(
         raise NotImplementedError(
             f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
             'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
+    if obliquity_truncation not in (0, 2, 4, 10):
+        raise NotImplementedError(
+            f'Obliquity truncation {obliquity_truncation} is not tabulated. '
+            'Supported levels: 0 (off), 2, 4, 10 (fully general).')
 
     cdef int error_code = 0
     cdef vector[c_TidalPotential3DMode] modes = c_tidal_potential_3d_modes(

@@ -265,7 +265,7 @@ print(world.love_l2)   # complex l₂
 **`solve_love_numbers(
    frequency_rad_s=1e-5,
    degree_l=2,
-   solve_tidal=True,
+   solve_for='tidal',
    use_kamata=True,
    nondimensionalize=True,
    starting_radius=0.0,
@@ -287,6 +287,11 @@ print(world.love_l2)   # complex l₂
 
 Raises `RuntimeError` if the EOS has not yet been solved. Results are stored
 internally and accessed through the properties below.
+
+`solve_for` selects the surface boundary condition, with the same names as the standalone
+`radial_solver`: `'tidal'` (default) yields the tidal Love numbers k, h, l; `'loading'` yields the
+load Love numbers k', h', l' (surface mass load response; k'.real is negative); `'free'` the
+free-surface response. `solve_love_numbers_supplied` takes the same argument.
 
 **Love-number properties (after a successful solve)**
 

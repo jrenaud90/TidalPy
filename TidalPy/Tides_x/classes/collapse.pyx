@@ -91,7 +91,9 @@ cdef int _resolve_obliquity_truncation(object obliquity_truncation) except? -999
     elif isinstance(obliquity_truncation, int):
         value = obliquity_truncation
     if value not in (0, 2, 4, 10):
-        raise NotImplementedError("Unsupported obliquity truncation encountered.")
+        raise NotImplementedError(
+            f"Obliquity truncation {value} is not tabulated. "
+            "Supported levels: 0 ('off'), 2, 4, 10 ('gen', fully general).")
     return value
 
 

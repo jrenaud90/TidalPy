@@ -81,7 +81,7 @@ struct c_WorldEOSSolveConfig {
 struct c_LoveSolveConfig {
     double    frequency_rad_s    = 1.0e-5;            // [rad/s]; tidal forcing frequency
     int       degree_l           = 2;                  // harmonic degree
-    bool      solve_tidal        = true;               // include tidal (bc_model=1) boundary condition
+    int       bc_model           = 1;                  // surface boundary condition: 1 = tidal, 2 = loading, 0 = free
     bool      use_prop_matrix    = false;              // false = shooting method, true = propagation matrix
     int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
     bool      use_kamata         = true;
@@ -572,7 +572,7 @@ public:
     c_LoveSolveRuntimeConfig make_runtime_config(const c_LoveSolveConfig& cfg) const {
         c_LoveSolveRuntimeConfig rt;
         rt.frequency_rad_s    = cfg.frequency_rad_s;
-        rt.bc_model           = cfg.solve_tidal ? 1 : 0;
+        rt.bc_model           = cfg.bc_model;
         rt.use_prop_matrix    = cfg.use_prop_matrix;
         rt.core_model         = cfg.core_model;
         rt.use_kamata         = cfg.use_kamata;

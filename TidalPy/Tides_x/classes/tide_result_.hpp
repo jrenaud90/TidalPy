@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <vector>
 
+#include "constants_.hpp"   // TidalPyConstants::d_PI (colatitude band default)
+
 // -------------------------------------------------------------------------------
 // c_TideConfig — the world's stored [tides] configuration (truncation + degree range).
 // The dissipation model itself is held separately on the world (c_TideBase).
@@ -95,6 +97,12 @@ struct c_Heating3DCollapseConfig {
     // precomputed analytic angular Gram table (exact, no theta grid) instead of the Gauss-Legendre
     // quadrature above. No effect on the instantaneous path or when colatitude is not summed.
     bool latitude_analytic = true;
+    // Colatitude band [rad] for the latitude integral: when latitude_summed, integrate theta over
+    // [colatitude_min, colatitude_max] instead of the full sphere. The analytic Gram table is
+    // full-sphere only, so a band narrower than [0, pi] always uses the Gauss-Legendre quadrature
+    // (latitude_analytic is ignored). No effect when colatitude is not summed.
+    double colatitude_min = 0.0;
+    double colatitude_max = TidalPyConstants::d_PI;
 };
 
 struct c_Heating3DCollapsed {

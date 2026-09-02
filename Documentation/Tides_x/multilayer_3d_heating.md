@@ -144,6 +144,13 @@ times faster than the numerical quadrature (the Love-number solves otherwise dom
 agree to machine precision. The radial integral is an internal per-layer trapezoid (`radial_slices`), and
 the longitude integral the analytic `2*pi` when averaged or a `longitude_nodes` trapezoid when instantaneous.
 
+The colatitude integral can also be restricted to a **latitude band**: with `latitude_summed`, pass
+`colatitude_min` / `colatitude_max` [rad] (defaults 0 and pi) to integrate only
+`colatitude_min <= theta <= colatitude_max`. Complementary bands add up to the full-sphere result,
+so zonal heating budgets (polar caps vs an equatorial belt, say) come from a few banded calls. A
+band narrower than the full sphere always uses the Gauss-Legendre quadrature (the analytic Gram
+table is full-sphere only); the band has no effect when colatitude is not summed.
+
 The returned dict carries the surviving axes plus either `heating` (the grid over the surviving axes,
 in the order radius, colatitude, longitude, time) or, when all three spatial axes are summed, `total`
 [W] and `per_layer` [W]:

@@ -40,7 +40,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_LoveSolveConfig:
         double    frequency_rad_s
         int       degree_l
-        cpp_bool  solve_tidal
+        int       bc_model
         cpp_bool  use_prop_matrix
         int       core_model
         cpp_bool  use_kamata

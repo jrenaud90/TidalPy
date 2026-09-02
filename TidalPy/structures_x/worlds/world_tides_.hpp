@@ -539,13 +539,30 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
         r_grid.assign(radii, radii + num_radii);
     }
     // Colatitude: user array unless summed (Gauss-Legendre in cos theta; the weight absorbs sin theta).
+    // A colatitude band [min, max] narrower than [0, pi] maps the nodes onto [cos(max), cos(min)]
+    // (affine substitution; the weights scale by the half-width) so the integral covers only the band.
+    const bool latitude_full_sphere =
+        (cfg.colatitude_min <= TidalPyConstants::d_EPS)
+        && (cfg.colatitude_max >= TidalPyConstants::d_PI - TidalPyConstants::d_EPS);
     std::vector<double> th_grid, th_wsum;
     if (cfg.latitude_summed) {
+        if (cfg.colatitude_min < 0.0 || cfg.colatitude_max > TidalPyConstants::d_PI
+                || cfg.colatitude_min >= cfg.colatitude_max) {
+            throw std::invalid_argument(
+                "TidalPy: colatitude band must satisfy 0 <= colatitude_min < colatitude_max <= pi");
+        }
         const int num_nodes = (cfg.latitude_nodes > 1) ? cfg.latitude_nodes : 48;
         std::vector<double> gl_x;
         c_gauss_legendre_nodes(num_nodes, gl_x, th_wsum);
+        const double x_lo = std::cos(cfg.colatitude_max);
+        const double x_hi = std::cos(cfg.colatitude_min);
+        const double x_mid  = 0.5 * (x_hi + x_lo);
+        const double x_half = 0.5 * (x_hi - x_lo);
         th_grid.resize(num_nodes);
-        for (int i = 0; i < num_nodes; ++i) { th_grid[i] = std::acos(gl_x[i]); }
+        for (int i = 0; i < num_nodes; ++i) {
+            th_grid[i] = std::acos(x_mid + x_half * gl_x[i]);
+            th_wsum[i] *= x_half;
+        }
     } else {
         th_grid.assign(colatitudes, colatitudes + num_colatitudes);
     }
@@ -690,7 +707,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
 
     // Evaluate and Reduce
     const double nan_v = TidalPyConstants::d_NAN;
-    if (!instantaneous && cfg.latitude_summed && cfg.latitude_analytic) {
+    if (!instantaneous && cfg.latitude_summed && cfg.latitude_analytic && latitude_full_sphere) {
         // Analytic colatitude collapse: integrate the secular density over theta with the precomputed
         // angular Gram table (exact, no theta grid). theta is summed away, so scatter over (radius, phi).
         for (size_t ir = 0; ir < nr; ++ir) {

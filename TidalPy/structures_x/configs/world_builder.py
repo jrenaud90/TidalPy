@@ -476,15 +476,41 @@ _DEFAULT_TIDE_MODEL_FALLBACK = {
 
 
 def _resolve_obliquity_truncation(value) -> int:
-    """Resolve an obliquity truncation (string ``'gen'``/``'off'`` or int) to its integer."""
+    """Resolve an obliquity truncation (string ``'gen'``/``'off'`` or int) to a tabulated level.
+
+    The obliquity functions are tabulated at truncations 0 (off), 2, 4, and 10 (the fully
+    general, untruncated form). A configured integer that is not tabulated is promoted to the
+    next tabulated level with a once-per-session warning (anything above 4 promotes to the
+    exact general form), so stale configuration files keep working while the accuracy never
+    silently decreases.
+    """
     if isinstance(value, str):
         text = value.lower()
         if text in ("gen", "general"):
             return 10
         if text in ("off",):
             return 0
-        return int(value)
-    return int(value)
+        level = int(value)
+    else:
+        level = int(value)
+    if level in SUPPORTED_OBLIQUITY_TRUNCATIONS:
+        return level
+    if level < 0:
+        raise ValueError(
+            f"Obliquity truncation {level} is not supported. "
+            f"Supported levels: {SUPPORTED_OBLIQUITY_TRUNCATIONS} (10 = fully general).")
+    for supported in SUPPORTED_OBLIQUITY_TRUNCATIONS:
+        if supported > level:
+            promoted = supported
+            break
+    else:
+        promoted = 10
+    if level not in _WARNED_OBLIQUITY_TRUNCATIONS:
+        _WARNED_OBLIQUITY_TRUNCATIONS.add(level)
+        warnings.warn(
+            f"Obliquity truncation {level} is not tabulated; using {promoted} instead. "
+            f"Supported levels: {SUPPORTED_OBLIQUITY_TRUNCATIONS} (10 = fully general).")
+    return promoted
 
 
 def _tides_config_x() -> dict:
@@ -494,6 +520,11 @@ def _tides_config_x() -> dict:
 
 
 SUPPORTED_ECCENTRICITY_TRUNCATIONS = (1, 2, 3, 4, 5, 10, 15, 20)
+SUPPORTED_OBLIQUITY_TRUNCATIONS = (0, 2, 4, 10)
+
+# Untabulated obliquity levels already warned about (same once-per-session rule as the
+# eccentricity promotion below).
+_WARNED_OBLIQUITY_TRUNCATIONS: set = set()
 
 # Untabulated truncation levels already warned about, so a stale configuration file (which
 # would otherwise trigger the promotion warning on every single world build) warns once per
