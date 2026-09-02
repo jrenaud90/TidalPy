@@ -37,7 +37,7 @@
 // Compiled into this TU so the shooting CyRK integration runs in the same
 // extension that owns the CySolverResult objects — no cross-extension call().
 #include "../../Utilities_x/math_x/numerics_.hpp"        // c_isclose
-#include "../../utilities/dimensions/nondimensional_.hpp"  // c_NonDimensionalScales
+#include "../../Utilities_x/dimensions/nondimensional_.hpp"  // c_NonDimensionalScales
 #include "../../utilities/arrays/interp_.hpp"        // c_interp_complex
 #include "../../RadialSolver_x/rs_constants_.hpp"
 #include "../../RadialSolver_x/rs_solution_.hpp"

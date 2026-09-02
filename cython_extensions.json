@@ -155,7 +155,7 @@
       ],
       [
         "TidalPy",
-        "utilities",
+        "Utilities_x",
         "dimensions"
       ]
     ],
@@ -390,6 +390,54 @@
         "TidalPy",
         "Utilities_x",
         "arrays"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Utilities_x.dimensions.nondimensional": {
+    "name": "TidalPy.Utilities_x.dimensions.nondimensional",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities_x",
+        "dimensions",
+        "nondimensional.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities_x",
+        "dimensions"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
+  "Utilities_x.conversions.conversions": {
+    "name": "TidalPy.Utilities_x.conversions.conversions",
+    "sources": [
+      [
+        "TidalPy",
+        "Utilities_x",
+        "conversions",
+        "conversions.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "Utilities_x",
+        "conversions"
       ],
       [
         "TidalPy"
@@ -934,7 +982,7 @@
       ],
       [
         "TidalPy",
-        "utilities",
+        "Utilities_x",
         "dimensions"
       ],
       [
@@ -1029,7 +1077,7 @@
       ],
       [
         "TidalPy",
-        "utilities",
+        "Utilities_x",
         "dimensions"
       ],
       [
@@ -1438,7 +1486,7 @@
       ],
       [
         "TidalPy",
-        "utilities",
+        "Utilities_x",
         "dimensions"
       ],
       [
@@ -1628,7 +1676,7 @@
       ],
       [
         "TidalPy",
-        "utilities",
+        "Utilities_x",
         "dimensions"
       ],
       [
@@ -2111,7 +2159,7 @@
       ],
       [
         "TidalPy",
-        "utilities",
+        "Utilities_x",
         "dimensions"
       ],
       [

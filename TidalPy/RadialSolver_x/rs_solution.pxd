@@ -7,7 +7,7 @@ from libcpp.vector cimport vector
 from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
-from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales
+from TidalPy.Utilities_x.dimensions.nondimensional cimport c_NonDimensionalScales
 from TidalPy.Material_x.eos.eos_solution cimport c_EOSSolution
 from TidalPy.RadialSolver_x.love cimport c_LoveNumbers
 

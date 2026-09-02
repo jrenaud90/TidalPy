@@ -15,7 +15,7 @@
 #include "../Material_x/eos/eos_solution_.hpp"   // also provides CyRK's CySolverResult (complete type)
 #include "../Material_x/eos/methods/interpolate_.hpp"  // c_InterpolateEOSInput (persisted standalone EOS args)
 #include "../../constants_.hpp"
-#include "../utilities/dimensions/nondimensional_.hpp"
+#include "../Utilities_x/dimensions/nondimensional_.hpp"
 #include "../utilities/arrays/interp_.hpp"        // c_interp / c_binary_search_with_guess (shared array-interp)
 
 

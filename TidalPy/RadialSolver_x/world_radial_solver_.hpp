@@ -36,7 +36,7 @@
 
 #include "constants_.hpp"                                   // TidalPyConstants
 #include "../Utilities_x/math_x/numerics_.hpp"                  // c_isclose
-#include "../utilities/dimensions/nondimensional_.hpp"      // c_NonDimensionalScales
+#include "../Utilities_x/dimensions/nondimensional_.hpp"    // c_NonDimensionalScales
 #include "rs_constants_.hpp"
 #include "rs_solution_.hpp"
 #include "love_.hpp"

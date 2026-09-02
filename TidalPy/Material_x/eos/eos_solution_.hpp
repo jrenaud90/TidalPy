@@ -10,7 +10,7 @@
 
 #include "cysolution.hpp"  // Part of the CyRK python package. Header should be included in setup using CyRK.get_include()
 
-#include "nondimensional_.hpp" // Part of the TidalPy.utilities module
+#include "../../Utilities_x/dimensions/nondimensional_.hpp" // c_NonDimensionalScales
 #include "constants_.hpp"      // Part of the TidalPy
 
 #include "ode_.hpp" // For C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
