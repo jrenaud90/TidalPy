@@ -10,13 +10,21 @@ reattached after load, as for a directly-loaded world.
 import math
 import os
 
+import numpy as np
 import pytest
 
-from TidalPy.constants import G
+from TidalPy.constants import G, mass_trap1
+from TidalPy.utilities.conversions import orbital_motion2semi_a
 from TidalPy.structures_x.system import System
 from TidalPy.structures_x.worlds.stellar import StarWorld
 from TidalPy.structures_x.worlds.layered import LayeredWorld
+from TidalPy.structures_x.layers.physics import PhysicsLayer
 from TidalPy.structures_x.configs import build_system
+from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
+from TidalPy.viscosity_x import make_viscosity
+from TidalPy.rheology_x.rheology import Maxwell, Elastic
+from TidalPy.Tides_x.classes.tide import make_tide
+from TidalPy.dynamics_x import Spin
 
 AU = 1.495978707e11
 
@@ -107,3 +115,75 @@ def test_load_binary_file_not_found():
     system = System()
     with pytest.raises(FileNotFoundError):
         system.load_binary("/nonexistent/path/system.tpyb")
+
+
+# =====================================================================================================================
+# Orbital evolution after a binary round trip
+# =====================================================================================================================
+_EVO_RADIUS = 1.0e6
+_EVO_DENSITY = 5000.0
+_EVO_VISC = 1.0e19
+_EVO_N = 2.0 * np.pi / 86400.0
+_EVO_ECC = 0.05
+_EVO_HOST_MASS = mass_trap1
+_EVO_MOON_MASS = (4.0 / 3.0) * math.pi * _EVO_RADIUS ** 3 * _EVO_DENSITY
+_EVO_SMA = orbital_motion2semi_a(_EVO_N, _EVO_HOST_MASS, _EVO_MOON_MASS)
+
+
+def _dissipating_moon():
+    """A homogeneous Maxwell moon with tide + spin models attached and its EOS solved."""
+    moon = LayeredWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
+    layer = PhysicsLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS,
+                         shear_modulus_static_pa=5.0e10, bulk_modulus_static_pa=1.0e11)
+    layer.is_static = False
+    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_EVO_DENSITY))
+    layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _EVO_VISC}))
+    layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _EVO_VISC}))
+    layer.set_shear_rheology(Maxwell())
+    layer.set_bulk_rheology(Elastic())
+    moon.add_layer(layer)
+    moon.set_tide_model(make_tide("rheology"))
+    moon.set_tide_config(min_degree_l=2, max_degree_l=2,
+                         eccentricity_truncation=3, obliquity_truncation=0)
+    moon.set_spin_model(Spin())
+    moon.solve_eos(G_to_use=G)
+    moon.set_spin_frequency(1.5 * _EVO_N)
+    return moon
+
+
+def test_loaded_system_orbital_evolution_matches(tmp_path):
+    """A loaded system reproduces the original's orbital + spin rates exactly.
+
+    The orbital rate engine is stateless, so the serialized orbital elements plus the documented
+    reattach-after-load steps (the material EOS model, the EOS profile via a re-solve, the tide
+    model, and the spin model; rheology/viscosity/partial-melt models serialize with the layers)
+    are everything orbital evolution needs.
+    """
+    system = System("evo")
+    system.add_world(StarWorld("host", 7.0e8, _EVO_HOST_MASS), is_host=True)
+    system.add_world(_dissipating_moon(), semi_major_axis=_EVO_SMA, eccentricity=_EVO_ECC)
+    reference = system.calc_world_evolution("moon")
+    assert reference["evolved"] is True
+    assert reference["tidal_heating"] > 0.0
+
+    path = str(tmp_path / "evo.tpyb")
+    system.save_binary(path)
+    loaded = System()
+    loaded.load_binary(path)
+
+    # The orbital elements survive the round trip; the material EOS model, tide/spin models, and
+    # the EOS profile are reattached / re-solved per the documented reattach-after-load rule.
+    moon = loaded["moon"]
+    moon.mantle.set_eos(ConstantDensityEOS(reference_density_kg_m3=_EVO_DENSITY))
+    moon.set_tide_model(make_tide("rheology"))
+    moon.set_tide_config(min_degree_l=2, max_degree_l=2,
+                         eccentricity_truncation=3, obliquity_truncation=0)
+    moon.set_spin_model(Spin())
+    moon.solve_eos(G_to_use=G)
+    moon.set_spin_frequency(1.5 * _EVO_N)
+
+    result = loaded.calc_world_evolution("moon")
+    assert result["evolved"] is True
+    for key in ("orbital_frequency", "semi_major_axis", "eccentricity",
+                "tidal_heating", "da_dt", "de_dt", "dn_dt", "dspin_dt", "energy_residual"):
+        assert math.isclose(result[key], reference[key], rel_tol=1e-12), key

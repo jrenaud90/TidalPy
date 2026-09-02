@@ -616,8 +616,10 @@ public:
     // orbital elements about both the host and the star) followed by every world's complete binary
     // record. read_binary reverses it, rebuilding the heterogeneous world list from the stream via the
     // world binary-dispatch factory (c_world_from_binary). Physics sub-models a world does not serialize
-    // (the star's luminosity model, the layer EOS profile data, the orbit-solver/spin/tide models) are
-    // reattached after load, exactly as for a directly-loaded world.
+    // (the star's luminosity model, each layer's material EOS model and EOS profile data, the spin/tide
+    // models) are reattached after load, exactly as for a directly-loaded world. The orbital rate engine
+    // (c_OrbitSolver) is stateless, so orbital evolution needs no serialized state beyond the orbital
+    // elements above.
     // -----------------------------------------------------------------------
     void write_binary(std::ostream& out) const override {
         const auto num_worlds = static_cast<uint64_t>(this->p_worlds.size());

@@ -136,17 +136,36 @@ layer.update_eos_data(r, rho, g, p)
 - All sequences must be the same length and `radius_m` must be sorted ascending.
 - Linear interpolation is used; values are clamped at the layer boundaries.
 
-### `get_density(radius_m)` → float
+### `get_density(radius_m)` → float or ndarray
 
 Density at `radius_m` [kg/m³]. Returns `NaN` if EOS data not populated.
 
-### `get_gravity(radius_m)` → float
+### `get_gravity(radius_m)` → float or ndarray
 
 Gravitational acceleration at `radius_m` [m/s²]. Returns `NaN` if not populated.
 
-### `get_pressure(radius_m)` → float
+### `get_pressure(radius_m)` → float or ndarray
 
 Pressure at `radius_m` [Pa]. Returns `NaN` if not populated.
+
+### Viscoelastic profile getters → float or ndarray
+
+After the world EOS solve populates the layer, the radius-resolved viscoelastic state is
+readable through the same getter names the world exposes: `get_shear_modulus`,
+`get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their
+`get_premelt_*` counterparts (before the partial-melt step), and the shorthand bundles
+`get_static_viscoelastics(radius_m)` (the post-melt 4-tuple) and `get_state(radius_m)`
+(all profiles as a dict). All return `NaN` before the profile is populated.
+
+**Vectorization:** every profile getter on this page accepts a float or an `np.ndarray`
+of radii and returns a matching scalar or same-shape array (evaluated in a C loop):
+
+```python
+import numpy as np
+radii = np.linspace(3.5e6, 6.3e6, 100)
+rho = mantle.get_density(radii)        # ndarray, shape (100,)
+mu, eta_mu, kk, eta_k = mantle.get_static_viscoelastics(radii)
+```
 
 ### Inherited geometry calculations (from `StructureBase`)
 

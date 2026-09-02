@@ -108,6 +108,8 @@ cdef class BaseLayer(StructureBase):
     cdef cpp_bool _is_view                    # True => non-owning view into a world-owned layer
     cdef object   _world_ref                  # keep-alive ref to the owning world (views only)
     cpdef dict get_config_dict(self)
+    # Scalar kernel behind the vectorized real-valued radius getters (see _apply_real in base.pyx).
+    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil
     # Initialize this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
     # pointers + keep-alive ref; subclass `_view` factories set their own typed pointer first).
     cdef void _init_view(self, c_BaseLayer* ptr, object world)

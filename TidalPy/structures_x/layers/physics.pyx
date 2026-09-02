@@ -11,6 +11,11 @@ frequency-dependent complex moduli; until then the static modulus is
 returned as a real-valued complex number.
 """
 
+cimport numpy as cnp
+cnp.import_array()
+
+import numpy as np
+
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
@@ -361,53 +366,98 @@ cdef class PhysicsLayer(BaseLayer):
         """
         return self._physics_ptr.calc_tidal_susceptibility()
 
-    def calc_complex_shear_modulus(self, double frequency_rad_s) -> complex:
-        """Complex shear modulus at the given tidal forcing frequency [Pa].
+    def _apply_complex(self, radius_m, double frequency_rad_s, cpp_bool is_shear):
+        # Radius-resolved complex modulus: float -> complex; np.ndarray -> complex np.ndarray (same shape).
+        cdef cnp.ndarray in_arr
+        cdef cnp.ndarray out_arr
+        cdef double[::1] flat_in
+        cdef double complex[::1] flat_out
+        cdef cpp_complex[double] value
+        cdef Py_ssize_t i, n
+        if isinstance(radius_m, np.ndarray):
+            in_arr   = np.ascontiguousarray(radius_m, dtype=np.float64)
+            out_arr  = np.empty_like(in_arr, dtype=np.complex128)
+            flat_in  = in_arr.reshape(-1)
+            flat_out = out_arr.reshape(-1)
+            n = flat_in.shape[0]
+            for i in range(n):
+                if is_shear:
+                    value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency_rad_s)
+                else:
+                    value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency_rad_s)
+                flat_out[i] = value.real() + 1j * value.imag()
+            return out_arr
+        if is_shear:
+            value = self._physics_ptr.calc_complex_shear_modulus(<double>radius_m, frequency_rad_s)
+        else:
+            value = self._physics_ptr.calc_complex_bulk_modulus(<double>radius_m, frequency_rad_s)
+        return complex(value.real(), value.imag())
 
-        When a shear rheology model is attached, the result is
-        computed from the model's complex compliance.  Until then the static
-        shear modulus is returned as a real-valued complex number.
+    def calc_complex_shear_modulus(self, first_arg, frequency_rad_s=None):
+        """Complex shear modulus [Pa]: layer-constant or radius-resolved.
+
+        With one argument, ``calc_complex_shear_modulus(frequency_rad_s)`` applies the shear
+        rheology to the layer-constant static shear modulus and viscosity. With two arguments,
+        ``calc_complex_shear_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
+        static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
+        surface the world exposes); ``radius_m`` may be a float or np.ndarray.
 
         Parameters
         ----------
-        frequency_rad_s : float
-            Tidal forcing frequency [rad/s].
+        first_arg : float or np.ndarray
+            Tidal forcing frequency [rad/s] (one-argument form), or query radius [m]
+            (two-argument form; float or np.ndarray).
+        frequency_rad_s : float, optional
+            Tidal forcing frequency [rad/s] for the radius-resolved form.
 
         Returns
         -------
-        complex
-            Complex shear modulus [Pa].
+        complex or np.ndarray
+            Complex shear modulus [Pa]; a complex ndarray for an array of radii.
 
         Assumptions
         -----------
         - Linear viscoelastic response (single forcing frequency).
+        - The radius-resolved form returns NaN before the world EOS solve populates the layer.
         """
-        cdef cpp_complex[double] result = self._physics_ptr.calc_complex_shear_modulus(frequency_rad_s)
-        return complex(result.real(), result.imag())
+        cdef cpp_complex[double] result
+        if frequency_rad_s is None:
+            result = self._physics_ptr.calc_complex_shear_modulus(<double>first_arg)
+            return complex(result.real(), result.imag())
+        return self._apply_complex(first_arg, <double>frequency_rad_s, True)
 
-    def calc_complex_bulk_modulus(self, double frequency_rad_s) -> complex:
-        """Complex bulk modulus at the given tidal forcing frequency [Pa].
+    def calc_complex_bulk_modulus(self, first_arg, frequency_rad_s=None):
+        """Complex bulk modulus [Pa]: layer-constant or radius-resolved.
 
-        When a bulk rheology model is attached, the result is
-        computed from the model's complex compliance.  Until then the static
-        bulk modulus is returned as a real-valued complex number.
+        With one argument, ``calc_complex_bulk_modulus(frequency_rad_s)`` applies the bulk
+        rheology to the layer-constant static bulk modulus and viscosity. With two arguments,
+        ``calc_complex_bulk_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
+        static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
+        surface the world exposes); ``radius_m`` may be a float or np.ndarray.
 
         Parameters
         ----------
-        frequency_rad_s : float
-            Tidal forcing frequency [rad/s].
+        first_arg : float or np.ndarray
+            Tidal forcing frequency [rad/s] (one-argument form), or query radius [m]
+            (two-argument form; float or np.ndarray).
+        frequency_rad_s : float, optional
+            Tidal forcing frequency [rad/s] for the radius-resolved form.
 
         Returns
         -------
-        complex
-            Complex bulk modulus [Pa].
+        complex or np.ndarray
+            Complex bulk modulus [Pa]; a complex ndarray for an array of radii.
 
         Assumptions
         -----------
         - Linear viscoelastic response (single forcing frequency).
+        - The radius-resolved form returns NaN before the world EOS solve populates the layer.
         """
-        cdef cpp_complex[double] result = self._physics_ptr.calc_complex_bulk_modulus(frequency_rad_s)
-        return complex(result.real(), result.imag())
+        cdef cpp_complex[double] result
+        if frequency_rad_s is None:
+            result = self._physics_ptr.calc_complex_bulk_modulus(<double>first_arg)
+            return complex(result.real(), result.imag())
+        return self._apply_complex(first_arg, <double>frequency_rad_s, False)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

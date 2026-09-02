@@ -12,6 +12,11 @@ directly (e.g., for testing).
 
 import os as _os
 
+cimport numpy as cnp
+cnp.import_array()
+
+import numpy as np
+
 from libcpp.vector cimport vector
 from libcpp cimport bool as cpp_bool
 from libcpp.utility cimport move
@@ -27,6 +32,22 @@ from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
+
+
+# Selectors for the vectorized real-valued radius getters (see _eval_real). Mirrors the world-level
+# surface in structures_x/worlds/layered.pyx so layers and worlds share one calling convention.
+cdef enum:
+    _KIND_DENSITY        = 0
+    _KIND_GRAVITY        = 1
+    _KIND_PRESSURE       = 2
+    _KIND_SHEAR_MOD      = 3
+    _KIND_BULK_MOD       = 4
+    _KIND_SHEAR_VISC     = 5
+    _KIND_BULK_VISC      = 6
+    _KIND_PRE_SHEAR_MOD  = 7
+    _KIND_PRE_BULK_MOD   = 8
+    _KIND_PRE_SHEAR_VISC = 9
+    _KIND_PRE_BULK_VISC  = 10
 
 
 # =====================================================================================================================
@@ -300,47 +321,66 @@ cdef class BaseLayer(StructureBase):
         eos_data.populate(r_vec, rho_vec, g_vec, p_vec)
         self._layer_ptr.get().update_eos_data(eos_data)
 
-    def get_density(self, double radius_m) -> float:
-        """Density at the given radius [kg/m^3]; NaN if EOS data not populated.
+    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil:
+        cdef c_BaseLayer* layer = self._layer_ptr.get()
+        if   kind == _KIND_DENSITY:        return layer.get_density(radius_m)
+        elif kind == _KIND_GRAVITY:        return layer.get_gravity(radius_m)
+        elif kind == _KIND_PRESSURE:       return layer.get_pressure(radius_m)
+        elif kind == _KIND_SHEAR_MOD:      return layer.get_shear_modulus(radius_m)
+        elif kind == _KIND_BULK_MOD:       return layer.get_bulk_modulus(radius_m)
+        elif kind == _KIND_SHEAR_VISC:     return layer.get_shear_viscosity(radius_m)
+        elif kind == _KIND_BULK_VISC:      return layer.get_bulk_viscosity(radius_m)
+        elif kind == _KIND_PRE_SHEAR_MOD:  return layer.get_premelt_shear_modulus(radius_m)
+        elif kind == _KIND_PRE_BULK_MOD:   return layer.get_premelt_bulk_modulus(radius_m)
+        elif kind == _KIND_PRE_SHEAR_VISC: return layer.get_premelt_shear_viscosity(radius_m)
+        elif kind == _KIND_PRE_BULK_VISC:  return layer.get_premelt_bulk_viscosity(radius_m)
+        return 0.0
 
-        Parameters
-        ----------
-        radius_m : float
-            Query radius [m].
+    def _apply_real(self, radius_m, int kind):
+        # float -> float; np.ndarray -> np.ndarray (same shape, looped under nogil).
+        cdef cnp.ndarray in_arr
+        cdef cnp.ndarray out_arr
+        cdef double[::1] flat_in
+        cdef double[::1] flat_out
+        cdef Py_ssize_t i, n
+        if isinstance(radius_m, np.ndarray):
+            in_arr   = np.ascontiguousarray(radius_m, dtype=np.float64)
+            out_arr  = np.empty_like(in_arr)
+            flat_in  = in_arr.reshape(-1)
+            flat_out = out_arr.reshape(-1)
+            n = flat_in.shape[0]
+            with nogil:
+                for i in range(n):
+                    flat_out[i] = self._eval_real(kind, flat_in[i])
+            return out_arr
+        return self._eval_real(kind, <double>radius_m)
+
+    def get_density(self, radius_m):
+        """Density [kg/m^3] at radius_m [m] (float or np.ndarray); NaN if EOS data not populated.
 
         Assumptions
         -----------
         - Linear interpolation; clamped at layer boundaries.
         """
-        return self._layer_ptr.get().get_density(radius_m)
+        return self._apply_real(radius_m, _KIND_DENSITY)
 
-    def get_gravity(self, double radius_m) -> float:
-        """Gravitational acceleration at the given radius [m/s^2]; NaN if not populated.
-
-        Parameters
-        ----------
-        radius_m : float
-            Query radius [m].
+    def get_gravity(self, radius_m):
+        """Gravitational acceleration [m/s^2] at radius_m [m] (float or np.ndarray); NaN if not populated.
 
         Assumptions
         -----------
         - Linear interpolation; clamped at layer boundaries.
         """
-        return self._layer_ptr.get().get_gravity(radius_m)
+        return self._apply_real(radius_m, _KIND_GRAVITY)
 
-    def get_pressure(self, double radius_m) -> float:
-        """Pressure at the given radius [Pa]; NaN if EOS data not populated.
-
-        Parameters
-        ----------
-        radius_m : float
-            Query radius [m].
+    def get_pressure(self, radius_m):
+        """Pressure [Pa] at radius_m [m] (float or np.ndarray); NaN if EOS data not populated.
 
         Assumptions
         -----------
         - Linear interpolation; clamped at layer boundaries.
         """
-        return self._layer_ptr.get().get_pressure(radius_m)
+        return self._apply_real(radius_m, _KIND_PRESSURE)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Viscoelastic profile (populated by the world EOS solve; NaN before then or on a geometry-only layer)
@@ -350,37 +390,60 @@ cdef class BaseLayer(StructureBase):
         """True after the world EOS solve has populated this layer's viscoelastic state."""
         return self._layer_ptr.get().get_viscoelastic_populated()
 
-    def get_shear_modulus(self, double radius_m) -> float:
-        """Post-melt static shear modulus [Pa] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_shear_modulus(radius_m)
+    def get_shear_modulus(self, radius_m):
+        """Post-melt static shear modulus [Pa] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_SHEAR_MOD)
 
-    def get_bulk_modulus(self, double radius_m) -> float:
-        """Post-melt static bulk modulus [Pa] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_bulk_modulus(radius_m)
+    def get_bulk_modulus(self, radius_m):
+        """Post-melt static bulk modulus [Pa] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_BULK_MOD)
 
-    def get_shear_viscosity(self, double radius_m) -> float:
-        """Post-melt shear viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_shear_viscosity(radius_m)
+    def get_shear_viscosity(self, radius_m):
+        """Post-melt shear viscosity [Pa s] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_SHEAR_VISC)
 
-    def get_bulk_viscosity(self, double radius_m) -> float:
-        """Post-melt bulk viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_bulk_viscosity(radius_m)
+    def get_bulk_viscosity(self, radius_m):
+        """Post-melt bulk viscosity [Pa s] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_BULK_VISC)
 
-    def get_premelt_shear_modulus(self, double radius_m) -> float:
-        """Pre-melt static shear modulus [Pa] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_premelt_shear_modulus(radius_m)
+    def get_premelt_shear_modulus(self, radius_m):
+        """Pre-melt static shear modulus [Pa] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_PRE_SHEAR_MOD)
 
-    def get_premelt_bulk_modulus(self, double radius_m) -> float:
-        """Pre-melt static bulk modulus [Pa] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_premelt_bulk_modulus(radius_m)
+    def get_premelt_bulk_modulus(self, radius_m):
+        """Pre-melt static bulk modulus [Pa] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_PRE_BULK_MOD)
 
-    def get_premelt_shear_viscosity(self, double radius_m) -> float:
-        """Pre-melt shear viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_premelt_shear_viscosity(radius_m)
+    def get_premelt_shear_viscosity(self, radius_m):
+        """Pre-melt shear viscosity [Pa s] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_PRE_SHEAR_VISC)
 
-    def get_premelt_bulk_viscosity(self, double radius_m) -> float:
-        """Pre-melt bulk viscosity [Pa s] at radius_m [m]; NaN if unpopulated."""
-        return self._layer_ptr.get().get_premelt_bulk_viscosity(radius_m)
+    def get_premelt_bulk_viscosity(self, radius_m):
+        """Pre-melt bulk viscosity [Pa s] at radius_m [m] (float or np.ndarray); NaN if unpopulated."""
+        return self._apply_real(radius_m, _KIND_PRE_BULK_VISC)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Shorthand bundles (one call returns several profiles at once; mirrors the world-level surface)
+    # ------------------------------------------------------------------------------------------------------------------
+    def get_static_viscoelastics(self, radius_m):
+        """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius_m.
+
+        Each element is a float (scalar radius) or np.ndarray (array of radii).
+        """
+        return (self.get_shear_modulus(radius_m), self.get_shear_viscosity(radius_m),
+                self.get_bulk_modulus(radius_m),  self.get_bulk_viscosity(radius_m))
+
+    def get_state(self, radius_m):
+        """All EOS-related profiles at radius_m as a dict (float or np.ndarray values)."""
+        return {
+            "density":         self.get_density(radius_m),
+            "gravity":         self.get_gravity(radius_m),
+            "pressure":        self.get_pressure(radius_m),
+            "shear_modulus":   self.get_shear_modulus(radius_m),
+            "shear_viscosity": self.get_shear_viscosity(radius_m),
+            "bulk_modulus":    self.get_bulk_modulus(radius_m),
+            "bulk_viscosity":  self.get_bulk_viscosity(radius_m),
+        }
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

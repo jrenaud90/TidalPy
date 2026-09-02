@@ -65,6 +65,8 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         double              calc_tidal_susceptibility()              const
         cpp_complex[double] calc_complex_shear_modulus(double freq)  const
         cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
+        cpp_complex[double] calc_complex_shear_modulus(double radius_m, double freq) const
+        cpp_complex[double] calc_complex_bulk_modulus(double radius_m, double freq)  const
         cpp_bool            get_shear_rheology_set()                 const
         cpp_bool            get_bulk_rheology_set()                  const
         void                set_shear_rheology(unique_ptr[c_RheologyBase] shear)
