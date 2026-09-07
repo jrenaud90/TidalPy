@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "TidalPy: Software Suite for Solving Problems in Tidal Dynamics"
+authors:
+  - family-names: "Renaud"
+    given-names: "Joe"
+    orcid: "https://orcid.org/0000-0002-8619-8542"
+repository-code: "https://github.com/jrenaud90/TidalPy"
+license: "Apache-2.0"
+version: "0.7.4"
