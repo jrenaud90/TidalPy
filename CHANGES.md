@@ -2,6 +2,21 @@
 
 ## Version 0.7.X
 
+### Version 0.7.5 (2026-09-08)
+
+#### Dependencies
+* Bumped Python version pinning to >=3.9, <3.15.
+* Updated the pinning of CyRK to >=0.18.0, <0.19.0.
+* Updated the pinning of numpy >=1.22, <2.6.
+
+#### Refactors
+
+##### Material Module
+* `eos.solver`: Updated the `baseline_cysolve_ivp_noreturn` call for CyRK 0.18's new analytic Jacobian argument (passed as null; TidalPy uses explicit methods).
+
+##### RadialSolver Module
+* `shooting`: Updated the `baseline_cysolve_ivp_noreturn` call for CyRK 0.18's new analytic Jacobian argument (passed as null).
+
 ### Version 0.7.4 (2026-03-27)
 
 #### Dependencies
