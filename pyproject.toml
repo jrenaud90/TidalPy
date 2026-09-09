@@ -11,6 +11,8 @@ dependencies = [
     "numba>=0.54.1",
     'numpy >= 1.22, <2.6',
     "scipy>=1.9.3",
+    # Plotting
+    "matplotlib>=3.4.2",
     # Configuration file resources
     "platformdirs>=3.11.0",
     "toml>=0.10.2",
@@ -78,7 +80,6 @@ dev = [
     "jupyter",
     "pytest",
     "cmcrameri>=1.4, <2.0",
-    "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
 ]
@@ -102,7 +103,6 @@ docs = [
 graphics = [
     "jupyter",
     "cmcrameri>=1.4,<2.0",
-    "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
     "cartopy>=0.22.0"
@@ -172,7 +172,7 @@ skip = ["pp*", "*musl*", "cp3??t-*"]
 archs = ["auto64"]
 # Import the installed wheel, including the compiled RadialSolver modules that failed to load from the v0.7.4 macOS
 # wheels.
-test-command = 'python -c "import TidalPy; from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers; from TidalPy.rheology import Maxwell; print(TidalPy.__version__)"'
+test-command = 'python -c "import TidalPy; from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers; from TidalPy.rheology import Maxwell; from TidalPy.structures import build_world; print(TidalPy.__version__)"'
 
 [tool.cibuildwheel.macos]
 # The oldest macOS supported by numba's and scipy's arm64 wheels; also what the previous TidalPy wheels targeted.

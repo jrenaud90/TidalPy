@@ -12,6 +12,7 @@
 * Bumped Python version pinning to >=3.9, <3.15.
 * Updated the pinning of CyRK to >=0.19.0, <0.20.0.
 * Updated the pinning of numpy >=1.22, <2.6.
+* Added `matplotlib>=3.4.2` back to the core dependencies. `TidalPy.structures` imports the plotting tools, so since v0.7.4 (which moved matplotlib into the optional extras) a minimal install could not import `TidalPy.structures` or build worlds.
 
 #### Build
 * Dropped the OpenMP compile and link flags. None of TidalPy's Cython uses `prange`, and CyRK no longer needs OpenMP either, so the flags only added a run time library that had to be bundled (or, on macOS, was not). Each platform's default compiler now works, including clang.

@@ -42,12 +42,13 @@ requirements:
     - cyrk >=0.19.0,<0.20.0
     - astropy-base
     - astroquery
+    - matplotlib-base >=3.4.2
 
 test:
   imports:
     - TidalPy
   commands:
-    - python -c "import TidalPy; from TidalPy.RadialSolver import radial_solver; print(TidalPy.__version__)"
+    - python -c "import TidalPy; from TidalPy.RadialSolver import radial_solver; from TidalPy.structures import build_world; print(TidalPy.__version__)"
     - pip check
   requires:
     - pip
