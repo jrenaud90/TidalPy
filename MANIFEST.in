@@ -29,7 +29,9 @@ include TidalPy/Material/eos/eos_solution_.cpp
 include TidalPy/Material/eos/eos_solution_.hpp
 include TidalPy/utilities/dimensions/nondimensional_.hpp
 
-# Exclude the whole Tests folder
+# Exclude the whole Tests folder and the other developer-only directories. Third-party checkouts under
+# Dependencies/ are never part of the distribution.
+prune Dependencies
 prune .vscode
 prune .idea
 prune .github

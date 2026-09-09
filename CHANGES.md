@@ -2,6 +2,42 @@
 
 ## Version 0.7.X
 
+### Version 0.7.5 (2026-09-08)
+
+#### Fixes
+* Fixed the macOS wheels on PyPI, which could not be imported unless an OpenMP run time happened to exist at the path used on the build machine (`Library not loaded: @rpath/libomp.dylib`). CyRK's macOS wheels had the same defect, which CyRK v0.19.0 fixes (see new pin below).
+* Fixed the `SyntaxWarning: invalid escape sequence` (Python 3.12+) raised the first time `rheology.complex_compliance.compliance_models` was compiled: the Andrade docstrings contain LaTeX backslashes and are now raw strings.
+
+#### Dependencies
+* Bumped Python version pinning to >=3.9, <3.15.
+* Updated the pinning of CyRK to >=0.19.0, <0.20.0.
+* Updated the pinning of numpy >=1.22, <2.6.
+* Added `matplotlib>=3.4.2` back to the core dependencies. `TidalPy.structures` imports the plotting tools, so since v0.7.4 (which moved matplotlib into the optional extras) a minimal install could not import `TidalPy.structures` or build worlds.
+
+#### Build
+* Dropped the OpenMP compile and link flags. None of TidalPy's Cython uses `prange`, and CyRK no longer needs OpenMP either, so the flags only added a run time library that had to be bundled (or, on macOS, was not). Each platform's default compiler now works, including clang.
+* Merged `_build_tidalpy.py` into `setup.py`. The cmdclass hook dated from the pyproject.toml conversion; `setup.py` already declared the extensions (the only way setuptools can mark a wheel as platform specific), so the hook was redundant and, through `py-modules`, was installing `_build_tidalpy` as a top-level module in users' site-packages.
+* The macOS arm64 wheels are now built by `cibuildwheel` alongside the Linux and Windows wheels. Every wheel is installed into a fresh environment and the compiled `RadialSolver` entry points are imported before the upload job can start. Free-threaded CPython wheels are skipped because numba does not ship them.
+* Classifiers now list Python 3.9 and 3.14 to match `requires-python`.
+* `MANIFEST.in` prunes `Dependencies/` so third-party checkouts under it can never reach the sdist (a stale, git-ignored `TidalPy.egg-info/SOURCES.txt` from another branch had been seeding them in).
+
+#### Tests
+* The macOS test workflow now installs TidalPy with clang through `setup-python`, the same way the Ubuntu and Windows workflows do (and the same toolchain the wheels are built with). The conda environment and the brew `llvm`/`libomp` steps are gone.
+
+#### Conda-Forge
+* The recipe pins `cyrk >=0.19.0,<0.20.0`, no longer lists `vcomp14`, `llvm-openmp`, or `libgomp`, drops the no-op `--no-binary cyrk`, and imports `TidalPy.RadialSolver` in its test.
+
+#### Documentation
+* README: the macOS source-build section no longer asks for brew's `llvm` and `libomp`; each platform's default compiler works.
+
+#### Refactors
+
+##### Material Module
+* `eos.solver`: Updated the `baseline_cysolve_ivp_noreturn` call for CyRK 0.18's new analytic Jacobian argument (passed as null; TidalPy uses explicit methods).
+
+##### RadialSolver Module
+* `shooting`: Updated the `baseline_cysolve_ivp_noreturn` call for CyRK 0.18's new analytic Jacobian argument (passed as null).
+
 ### Version 0.7.4 (2026-03-27)
 
 #### Dependencies
