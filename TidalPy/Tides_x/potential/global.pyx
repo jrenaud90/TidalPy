@@ -18,7 +18,7 @@ def global_potential(
         int min_degree_l=2,
         int max_degree_l=2,
         object obliquity_truncation='gen',
-        int eccentricity_truncation=6
+        int eccentricity_truncation=3
     ):
 
     # Clean up non-C inputs
@@ -36,7 +36,13 @@ def global_potential(
     elif isinstance(obliquity_truncation, int):
         i_obliquity_truncation = obliquity_truncation
     if i_obliquity_truncation not in (0, 2, 4, 10):
-        raise NotImplementedError("Unsupported obliquity truncation encountered.")
+        raise NotImplementedError(
+            f"Obliquity truncation {i_obliquity_truncation} is not tabulated. "
+            "Supported levels: 0 ('off'), 2, 4, 10 ('gen', fully general).")
+    if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
+        raise NotImplementedError(
+            f'Eccentricity truncation {eccentricity_truncation} is not tabulated. '
+            'Supported levels: 1, 2, 3, 4, 5, 10, 15, 20.')
 
     # Run C++ code
     cdef c_GlobalPotentialStorage c_result = c_global_potential(

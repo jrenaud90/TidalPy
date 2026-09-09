@@ -99,6 +99,17 @@ for notebook in demo_src_dir.glob("*.ipynb"):
     dest_file = demo_dst_dir / new_name
     shutil.copy2(notebook, dest_file)
 
+# Copy the _x demos and benchmarks over, preserving their topic subfolders. Their file names already
+# use underscores, so no renaming is needed.
+for folder_name in ("Demos_x", "Benchmarks_x"):
+    x_src = Path(os.path.join(FILE_PATH, os.pardir, folder_name))
+    x_dst = Path(os.path.join(FILE_PATH, folder_name))
+    if x_src.is_dir():
+        for notebook in x_src.rglob("*.ipynb"):
+            dest_file = x_dst / notebook.relative_to(x_src)
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(notebook, dest_file)
+
 # Prep other theme and extension settings.
 extensions = []
 

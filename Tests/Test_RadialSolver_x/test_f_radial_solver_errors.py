@@ -35,8 +35,8 @@ def test_invalid_density_array_size():
     is_static_bylayer = (True,)
     is_incompressible_bylayer = (True,)
     upper_radius_bylayer_array = np.array([1000.0], dtype=np.float64)
-    
-    with pytest.raises(ArgumentException):
+
+    with pytest.raises(ArgumentException, match="match the radius array length"):
         radial_solver(
             radius_array, density_array, complex_bulk_modulus_array,
             complex_shear_modulus_array, 1.0, 3000.0, layer_types,

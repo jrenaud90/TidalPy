@@ -1,13 +1,13 @@
-// solver_.hpp - Top-level radial solver declarations
-// Ported from TidalPy/RadialSolver/solver.pyx
+// solver_.hpp - Radial solver entry point (standalone array-based API).
 //
-// NOTE: The actual solver (cf_radial_solver) and Python wrapper (radial_solver)
-// live in solver.pyx because they depend on:
-//   - CyRK's Cython-only API (ODEMethod, PreEvalFunc)
-//   - Material_x EOS solver (c_solve_eos via Cython)
-//   - The shooting method (cf_shooting_solver in shooting.pyx)
+// c_radial_solver: full pipeline (EOS→shooting/matrix→Love numbers) for callers
+// that supply raw arrays rather than a world object.  The world-class pathway
+// (c_LayeredWorld::solve_love_numbers) calls c_shooting_solver directly without
+// going through this function, but the standalone RadialSolver_x Python wrapper
+// (solver.pyx) still needs this function.
 //
-// This header exists as a placeholder for any future C++ helper functions.
+// Also contains:
+//   - c_validate_and_prep_radial_inputs: input validation + string→int mapping.
 #pragma once
 
 #include "constants_.hpp"
@@ -20,8 +20,8 @@
 
 // TidalPy imports
 #include "../constants_.hpp"
-#include "../utilities/math/numerics_.hpp"
-#include "../utilities/dimensions/nondimensional_.hpp"
+#include "../Utilities_x/math_x/numerics_.hpp"
+#include "../Utilities_x/dimensions/nondimensional_.hpp"
 
 // RadialSolver imports
 #include "rs_constants_.hpp"
@@ -45,7 +45,16 @@
 #include <cctype>
 
 
+// =================================================================================================
+// Constants
+// =================================================================================================
+
 constexpr int C_EOS_INTERPOLATE_METHOD_INT = 0;
+
+
+// =================================================================================================
+// Full radial solver (standalone array-based entry point).
+// =================================================================================================
 
 int c_radial_solver(
     c_RadialSolutionStorage* solution_storage_ptr,
@@ -88,7 +97,6 @@ int c_radial_solver(
     bool warnings
 ) noexcept
 {
-    // Check if we have configs.
     if (tidalpy_config_ptr == nullptr)
     {
         solution_storage_ptr->error_code = -999;
@@ -96,40 +104,27 @@ int c_radial_solver(
             "RadialSolver_x:: Fatal Error. TidalPyConfig pointer is uninitialized. "
             "initialize_tidalpy_config() must be called before the solver runs.\n"
         );
-        if (verbose)
-        {
-            printf("%s", solution_storage_ptr->message.c_str());
-        }
+        if (verbose) printf("%s", solution_storage_ptr->message.c_str());
         return solution_storage_ptr->error_code;
     }
 
-    // Figure out how many slices are in each layer
     std::vector<size_t> first_slice_index_by_layer_vec(num_layers);
     std::vector<size_t> num_slices_by_layer_vec(num_layers);
 
-    // Pull out raw pointer
     c_EOSSolution* eos_solution_storage_ptr = solution_storage_ptr->get_eos_solution_ptr();
 
-    // EOS variables
     size_t bottom_slice_index;
     std::vector<PreEvalFunc> eos_function_bylayer_vec(num_layers);
     c_EOS_ODEInput eos_input;
     std::vector<c_EOS_ODEInput> eos_inputs_bylayer_vec;
     eos_inputs_bylayer_vec.reserve(num_layers);
-    std::vector<c_InterpolateEOSInput> specific_eos_input_bylayer_vec;
-    specific_eos_input_bylayer_vec.reserve(num_layers);
     char* specific_eos_char_ptr = nullptr;
 
-    // Ensure there is at least one layer
     if (num_layers == 0)
     {
         solution_storage_ptr->error_code = -5;
-        solution_storage_ptr->message    =
-            std::string("RadialSolver_x:: requires at least one layer, zero provided.\n");
-        if (verbose)
-        {
-            printf("%s", solution_storage_ptr->message.c_str());
-        }
+        solution_storage_ptr->message    = std::string("RadialSolver_x:: requires at least one layer, zero provided.\n");
+        if (verbose) printf("%s", solution_storage_ptr->message.c_str());
         return solution_storage_ptr->error_code;
     }
 
@@ -138,36 +133,20 @@ int c_radial_solver(
         bool top_layer = false;
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
         {
-            if (layer_i == num_layers - 1)
-            {
-                top_layer = true;
-            }
-
-            // Determine starting slice index
-            if (layer_i == 0)
-            {
-                first_slice_index_by_layer_vec[layer_i] = 0;
-            }
-            else
-            {
-                first_slice_index_by_layer_vec[layer_i] = first_slice_index_by_layer_vec[layer_i - 1] + num_slices_by_layer_vec[layer_i - 1];
-            }
+            top_layer = (layer_i == num_layers - 1);
+            first_slice_index_by_layer_vec[layer_i] = (layer_i == 0)
+                ? 0
+                : first_slice_index_by_layer_vec[layer_i - 1] + num_slices_by_layer_vec[layer_i - 1];
 
             const double layer_upper_radius = eos_solution_storage_ptr->upper_radius_bylayer_vec[layer_i];
+            size_t layer_slices = 0, interface_check = 0;
 
-            size_t layer_slices    = 0;
-            size_t interface_check = 0;
             for (size_t slice_i = first_slice_index_by_layer_vec[layer_i]; slice_i < total_slices; ++slice_i)
             {
                 const double radius_check = radius_array_in_ptr[slice_i];
-
                 if (c_isclose(radius_check, layer_upper_radius, 1.0e-9, 0.0))
                 {
-                    interface_check += 1;
-                    if (interface_check > 1)
-                    {
-                        break;
-                    }
+                    if (++interface_check > 1) break;
                 }
                 else if (radius_check > layer_upper_radius)
                 {
@@ -180,20 +159,14 @@ int c_radial_solver(
             {
                 solution_storage_ptr->error_code = -5;
                 solution_storage_ptr->message    = std::string("RadialSolver_x:: At least five layer slices per layer are required.\n");
-                if (verbose)
-                {
-                    printf("%s", solution_storage_ptr->message.c_str());
-                }
+                if (verbose) printf("%s", solution_storage_ptr->message.c_str());
                 return solution_storage_ptr->error_code;
             }
-
             num_slices_by_layer_vec[layer_i] = layer_slices;
         }
     }
 
-    // Get other needed inputs
     const double radius_planet = radius_array_in_ptr[total_slices - 1];
-
     double G_to_use                = tidalpy_config_ptr->d_G;
     double radius_planet_to_use    = radius_planet;
     double bulk_density_to_use     = planet_bulk_density;
@@ -201,11 +174,7 @@ int c_radial_solver(
     double surface_pressure_to_use = surface_pressure;
     double starting_radius_to_use  = starting_radius;
 
-    c_NonDimensionalScales non_dim_scales(
-        frequency,
-        radius_planet,
-        planet_bulk_density
-    );
+    c_NonDimensionalScales non_dim_scales(frequency, radius_planet, planet_bulk_density);
 
     if (nondimensionalize && solution_storage_ptr->error_code == 0)
     {
@@ -216,13 +185,10 @@ int c_radial_solver(
             complex_bulk_modulus_in_ptr[slice_i]  /= non_dim_scales.pascal_conversion;
             complex_shear_modulus_in_ptr[slice_i] /= non_dim_scales.pascal_conversion;
         }
-
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
-        {
             eos_solution_storage_ptr->upper_radius_bylayer_vec[layer_i] /= non_dim_scales.length_conversion;
-        }
 
-        G_to_use                = tidalpy_config_ptr->d_G / (non_dim_scales.length3_conversion / 
+        G_to_use                = tidalpy_config_ptr->d_G / (non_dim_scales.length3_conversion /
             (non_dim_scales.mass_conversion * non_dim_scales.second2_conversion));
         radius_planet_to_use    = radius_planet / non_dim_scales.length_conversion;
         bulk_density_to_use     = planet_bulk_density / non_dim_scales.density_conversion;
@@ -233,33 +199,52 @@ int c_radial_solver(
         solution_storage_ptr->change_radius_array(radius_array_in_ptr, total_slices, true);
     }
 
-    // Solve the equation of state
     if (solution_storage_ptr->error_code == 0)
     {
+        // Persist the EOS input arrays (in the current solve units: non-dim when nondimensionalize is set, else SI)
+        // into the solution storage. The cysolver's dense extra-output re-invoke references the per-layer
+        // c_InterpolateEOSInput, which in turn references these arrays; persisting them here (rather than in
+        // c_radial_solver's locals, which dangled after return and corrupted get_eos_si) keeps that dense path valid
+        // and unit-correct for the life of the solution. See c_RadialSolutionStorage::p_eos_in_*_nd.
+        solution_storage_ptr->p_eos_in_radius_nd.assign(
+            radius_array_in_ptr,
+            radius_array_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_in_density_nd.assign(
+            density_array_in_ptr,
+            density_array_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_in_bulk_nd.assign(
+            complex_bulk_modulus_in_ptr,
+            complex_bulk_modulus_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_in_shear_nd.assign(
+            complex_shear_modulus_in_ptr,
+            complex_shear_modulus_in_ptr + total_slices
+        );
+        solution_storage_ptr->p_eos_interp_inputs.clear();
+        solution_storage_ptr->p_eos_interp_inputs.reserve(num_layers);   // reserve so the addresses below stay stable
+
+        double* persist_radius_ptr              = solution_storage_ptr->p_eos_in_radius_nd.data();
+        double* persist_density_ptr             = solution_storage_ptr->p_eos_in_density_nd.data();
+        std::complex<double>* persist_bulk_ptr  = solution_storage_ptr->p_eos_in_bulk_nd.data();
+        std::complex<double>* persist_shear_ptr = solution_storage_ptr->p_eos_in_shear_nd.data();
+
         for (size_t layer_i = 0; layer_i < num_layers; ++layer_i)
         {
             if (eos_integration_method_int_bylayer_ptr[layer_i] == C_EOS_INTERPOLATE_METHOD_INT)
             {
                 eos_function_bylayer_vec[layer_i] = c_preeval_interpolate;
                 bottom_slice_index                = first_slice_index_by_layer_vec[layer_i];
-
-                specific_eos_input_bylayer_vec.emplace_back(
+                solution_storage_ptr->p_eos_interp_inputs.emplace_back(
                     num_slices_by_layer_vec[layer_i],
-                    &radius_array_in_ptr[bottom_slice_index],
-                    &density_array_in_ptr[bottom_slice_index],
-                    &complex_bulk_modulus_in_ptr[bottom_slice_index],
-                    &complex_shear_modulus_in_ptr[bottom_slice_index]
+                    &persist_radius_ptr[bottom_slice_index],
+                    &persist_density_ptr[bottom_slice_index],
+                    &persist_bulk_ptr[bottom_slice_index],
+                    &persist_shear_ptr[bottom_slice_index]
                 );
-                specific_eos_char_ptr = reinterpret_cast<char*>(&specific_eos_input_bylayer_vec.back());
-
-                eos_inputs_bylayer_vec.emplace_back(
-                    G_to_use,
-                    radius_planet_to_use,
-                    specific_eos_char_ptr,
-                    false,
-                    false,
-                    false
-                );
+                specific_eos_char_ptr = reinterpret_cast<char*>(&solution_storage_ptr->p_eos_interp_inputs.back());
+                eos_inputs_bylayer_vec.emplace_back(G_to_use, radius_planet_to_use, specific_eos_char_ptr, false, false, false);
             }
             else
             {
@@ -287,65 +272,69 @@ int c_radial_solver(
         );
     }
 
-    // Run requested radial solver method
     int sub_process_error_code = 0;
     if (eos_solution_storage_ptr->success && solution_storage_ptr->error_code == 0)
     {
         if (use_prop_matrix)
         {
             sub_process_error_code = c_matrix_propagate(
-                solution_storage_ptr,
-                frequency_to_use,
-                bulk_density_to_use,
-                first_slice_index_by_layer_vec.data(),
-                num_slices_by_layer_vec.data(),
-                num_layers,
-                num_bc_models,
-                bc_models_ptr,
-                G_to_use,
-                degree_l,
-                starting_radius_to_use,
-                start_radius_tolerance,
-                core_model,
-                verbose
+                solution_storage_ptr, frequency_to_use, bulk_density_to_use,
+                first_slice_index_by_layer_vec.data(), num_slices_by_layer_vec.data(),
+                num_layers, num_bc_models, bc_models_ptr, G_to_use, degree_l,
+                starting_radius_to_use, start_radius_tolerance, core_model, verbose
             );
         }
         else
         {
             sub_process_error_code = c_shooting_solver(
-                solution_storage_ptr,
-                frequency_to_use,
-                bulk_density_to_use,
-                layer_types_ptr,
-                is_static_bylayer_ptr,
-                is_incompressible_bylayer_ptr,
-                first_slice_index_by_layer_vec,
-                num_slices_by_layer_vec,
-                num_bc_models,
-                bc_models_ptr,
-                G_to_use,
-                degree_l,
-                use_kamata,
-                starting_radius_to_use,
-                start_radius_tolerance,
-                integration_method_int,
-                integration_rtol,
-                integration_atol,
-                scale_rtols_bylayer_type,
-                max_num_steps,
-                expected_size,
-                max_ram_MB,
-                max_step,
-                verbose
+                solution_storage_ptr, frequency_to_use, bulk_density_to_use,
+                layer_types_ptr, is_static_bylayer_ptr, is_incompressible_bylayer_ptr,
+                first_slice_index_by_layer_vec, num_slices_by_layer_vec,
+                num_bc_models, bc_models_ptr, G_to_use, degree_l, use_kamata,
+                starting_radius_to_use, start_radius_tolerance, integration_method_int,
+                integration_rtol, integration_atol, scale_rtols_bylayer_type,
+                max_num_steps, expected_size, max_ram_MB, max_step, verbose, warnings
             );
         }
     }
 
-    // Finalize
+    // Hand the storage its dimensional context so get_radial_solution can map SI radii into solve units and
+    // re-dimensionalize the solve-unit y-solution to SI. The EOS arrays are still non-dim at this point.
+    if (solution_storage_ptr->success)
+    {
+        if (nondimensionalize)
+        {
+            const double length_conv = non_dim_scales.length_conversion;
+            const double sec2_conv   = non_dim_scales.second2_conversion;
+            solution_storage_ptr->set_dimensional_context(
+                length_conv,
+                sec2_conv / length_conv,
+                non_dim_scales.mass_conversion / non_dim_scales.length3_conversion,
+                1.0 / length_conv,
+                /*eos_is_nondim=*/true,
+                length_conv / sec2_conv,
+                non_dim_scales.density_conversion);
+        }
+        else
+        {
+            solution_storage_ptr->set_dimensional_context(1.0, 1.0, 1.0, 1.0, /*eos_is_nondim=*/false, 1.0, 1.0);
+        }
+
+        // Love numbers first (scale-invariant), while the EOS arrays are still non-dim.
+        solution_storage_ptr->find_love();
+
+        // Snapshot the SI y-grid from the dense interpolants so the legacy array-returning API keeps working
+        // (shooting only; the matrix method fills the grid itself and re-dimensionalizes it below).
+        if (solution_storage_ptr->p_uses_interpolants)
+            solution_storage_ptr->sample_onto_grid();
+    }
+
     if (nondimensionalize)
     {
+        // Re-dimensionalize the matrix y-grid (the shooting grid is already SI and skipped) plus the EOS arrays.
         solution_storage_ptr->dimensionalize_data(&non_dim_scales, true);
-
+        if (solution_storage_ptr->success)
+            solution_storage_ptr->p_eos_is_nondim = false;   // EOS arrays are now SI
         for (size_t slice_i = 0; slice_i < total_slices; ++slice_i)
         {
             radius_array_in_ptr[slice_i]          *= non_dim_scales.length_conversion;
@@ -355,20 +344,13 @@ int c_radial_solver(
         }
     }
 
-    if (solution_storage_ptr->success)
-    {
-        solution_storage_ptr->find_love();
-    }
-
     return solution_storage_ptr->error_code;
 }
 
 
 // =================================================================================================
-// MOVED FROM `DEF` FUNC
+// Input validation / string-to-int mapping helper (used by the standalone Python wrapper).
 // =================================================================================================
-// This helper function captures the input validation, string mapping, and sanity checks originally 
-// performed in the `radial_solver` Python wrapper.
 
 std::string to_lower(const std::string& input)
 {
@@ -527,13 +509,23 @@ void c_validate_and_prep_radial_inputs(
     if (int_method_lower == "rk45")        integration_method_out = ODEMethod::RK45;
     else if (int_method_lower == "rk23")   integration_method_out = ODEMethod::RK23;
     else if (int_method_lower == "dop853") integration_method_out = ODEMethod::DOP853;
-    else throw std::invalid_argument("Unsupported integration method provided: " + int_method_lower);
+    else if (int_method_lower == "bdf")    integration_method_out = ODEMethod::BDF;
+    else if (int_method_lower == "lsoda")  integration_method_out = ODEMethod::LSODA;
+    else if (int_method_lower == "radau")  integration_method_out = ODEMethod::RADAU;
+    else throw std::invalid_argument(
+        "Unsupported integration method provided: " + int_method_lower +
+        ". Supported: rk23, rk45, dop853, bdf, lsoda, radau.");
 
     std::string eos_int_method_lower = to_lower(eos_integration_method);
     if (eos_int_method_lower == "rk45")        eos_integration_method_out = ODEMethod::RK45;
     else if (eos_int_method_lower == "rk23")   eos_integration_method_out = ODEMethod::RK23;
     else if (eos_int_method_lower == "dop853") eos_integration_method_out = ODEMethod::DOP853;
-    else throw std::invalid_argument("Unsupported EOS integration method provided: " + eos_int_method_lower);
+    else if (eos_int_method_lower == "bdf")    eos_integration_method_out = ODEMethod::BDF;
+    else if (eos_int_method_lower == "lsoda")  eos_integration_method_out = ODEMethod::LSODA;
+    else if (eos_int_method_lower == "radau")  eos_integration_method_out = ODEMethod::RADAU;
+    else throw std::invalid_argument(
+        "Unsupported EOS integration method provided: " + eos_int_method_lower +
+        ". Supported: rk23, rk45, dop853, bdf, lsoda, radau.");
 
     // EOS integration methods by layer
     eos_integration_method_int_bylayer_out.resize(num_layers);

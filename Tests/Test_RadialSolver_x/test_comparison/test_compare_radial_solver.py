@@ -53,6 +53,16 @@ def test_compare_radial_solver_1layer_solid(
         verbose=False, nondimensionalize=nondimensionalize, starting_radius=starting_radius,
         raise_on_fail=True,
     )
+    # Dynamic incompressible degree 3 solves started 0.1 m from the center are not converged at
+    # rtol 1e-7 with RK45: the shooting basis is nearly degenerate by the surface, so the boundary
+    # condition solve amplifies integration error into the leading digits of the Love numbers
+    # (k = 0.045 at rtol 1e-7 versus the converged 0.1374, and a 0.001% rtol perturbation moves k
+    # by 50%). Tighten the tolerance in that regime so both solvers are converged before their
+    # outputs are compared.
+    if degree_l == 3 and starting_radius == 0.1 and integration_method == 'RK45' \
+            and not is_static and is_incompressible:
+        common_kwargs['integration_rtol'] = 1.0e-9
+        common_kwargs['integration_atol'] = 1.0e-12
 
     try:
         old_out = radial_solver_old(
@@ -89,9 +99,11 @@ def test_compare_radial_solver_1layer_solid(
     # small floating-point differences, but physics should agree to ~1e-4 relative.
     np.testing.assert_allclose(new_out.result[:, :-1], old_out.result[:, :-1], rtol=1e-4, atol=1e-6,
                                err_msg="Interior radial solution arrays differ.")
-    # Surface (last radius): the linear-solve BC residuals (y2, y4) are theoretically zero but
-    # differ between LAPACK (old) and Eigen PartialPivLU (new) at the ~1e-2 level for extreme
-    # starting_radius; non-BC y values should still agree well. Use loose tolerance here.
+    # Surface (last radius): the y rows pinned to homogeneous boundary conditions (y2 and y4 for
+    # the tidal solve) are cancellation residuals. For an extreme starting radius the solution
+    # constants reach ~1e11 and cancel to ~1e-4, so these values are pure roundoff and legitimately
+    # differ between LAPACK (old) and Eigen PartialPivLU (new). Compare with an absolute tolerance
+    # above that roundoff floor; the physical rows agree far more tightly.
     np.testing.assert_allclose(new_out.result[:, -1], old_out.result[:, -1], rtol=1e-2, atol=1e-2,
                                err_msg="Surface radial solution values differ.")
     # Compare Love numbers (both return ndarray of shape (num_solve_for, 3)).

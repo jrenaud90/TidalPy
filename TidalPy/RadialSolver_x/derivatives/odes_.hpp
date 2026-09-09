@@ -49,7 +49,10 @@ static inline void c_read_eos(
         std::complex<double>& bulk_modulus
         ) noexcept
 {
-    double eos_array[9];
+    // Must be sized C_EOS_DY_VALUES: the EOS dense `call` writes all EOS ODE outputs (4 primary y-values +
+    // extra density/moduli/viscosity), i.e. C_EOS_DY_VALUES doubles. A smaller buffer (e.g. 9) is overrun by
+    // the dense re-evaluation and corrupts the stack.
+    double eos_array[C_EOS_DY_VALUES];
     rs_args_ptr->eos_solution_ptr->call(rs_args_ptr->layer_index, radius, &eos_array[0]);
 
     gravity       = eos_array[0];

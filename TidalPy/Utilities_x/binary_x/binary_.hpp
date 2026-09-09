@@ -53,17 +53,24 @@ inline constexpr std::size_t TIDALPY_BINARY_HEADER_BYTES = 20;
 
 enum class BinaryClassID : uint32_t {
     Unknown          = 0,
+    // 01-09: Base Structure classes
     TidalPyBase      = 1,
     StructureBase    = 2,
     PhysicsBase      = 3,
+    // 010-99: Other utility classes
+    // 1XX: Layer structures
     BaseLayer        = 100,
     PhysicsLayer     = 101,
     SolidLiquidLayer = 102,
     GasLayer         = 103,
+    // 2XX: World structures
     BaseWorld        = 200,
     LayeredWorld     = 201,
     GasGiantWorld    = 202,
     StarWorld        = 203,
+
+    System           = 210,
+    // 3XX: Rheological models to convert static moduli and viscosities into complex ones.
     RheologyBase     = 300,
     Elastic          = 301,
     Viscous          = 302,
@@ -72,14 +79,44 @@ enum class BinaryClassID : uint32_t {
     Burgers          = 305,
     Andrade          = 306,
     Sundberg         = 307,
+    // 4XX: Thermodynamic cooling models
     CoolingBase        = 400,
     OffCooling         = 401,
     ConvectiveCooling  = 402,
     ConductiveCooling  = 403,
+    // 5XX: Radiogenic heating models.
     RadiogenicsBase    = 500,
     OffRadiogenics     = 501,
     IsotopeRadiogenics = 502,
     FixedRadiogenics   = 503,
+    // 6XX: Material equation of state models
+    MaterialEOSBase    = 600,
+    ConstantDensityEOS = 601,
+    BirchMurnaghanEOS  = 602,
+    VinetEOS           = 603,
+    InterpolatedEOS    = 604,
+    // 7XX Partial melting models - used to weaken viscosity and shear as a function of melt fraction.
+    PartialMeltBase    = 700,
+    OffPartialMelt     = 701,
+    SpohnPartialMelt   = 702,
+    HenningPartialMelt = 703,
+    // 8XX Viscosity models - used to calculate pre-melt viscosity(T, P)
+    ViscosityBase      = 800,
+    ArrheniusViscosity = 801,
+    ReferenceViscosity = 802,
+    ConstantViscosity  = 803,
+    // 9XX Tidal dissipation models - convert mode Love numbers into global tidal heating + torque.
+    TideBase           = 900,
+    RheologyTide       = 901,
+    FixedQTide         = 902,
+    FixedLagTide       = 903,
+    CTLQTide           = 904,
+
+    // 10XX Stellar luminosity models - a star's luminosity / effective temperature.
+    LuminosityBase     = 1000,
+    FixedLuminosity    = 1001,
+    MassToLuminosity   = 1002,
+    PowerLawLuminosity = 1003
 };
 
 // ---------------------------------------------------------------------------

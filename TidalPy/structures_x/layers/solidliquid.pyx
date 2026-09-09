@@ -18,7 +18,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.cooling_x.cooling cimport CoolingBase
@@ -43,8 +43,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     - Melt-fraction-reduced shear modulus.
     - Thermal conductivity, diffusivity, and adiabatic temperature gradient.
     - Conductive heat flux through the layer.
-    - Radiogenic heating via an optional RadiogenicsBase sub-model (Phase 7).
-    - Convective/conductive cooling via an optional CoolingBase sub-model (Phase 6).
+    - Radiogenic heating via an optional RadiogenicsBase sub-model.
+    - Convective/conductive cooling via an optional CoolingBase sub-model.
 
     Parameters
     ----------
@@ -105,7 +105,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     -----------
     - Spherically symmetric layer geometry.
     - All values in MKS units.
-    - Solidus/liquidus pressure dependence deferred to Phase 9.
+    - Solidus/liquidus temperatures are constant (no pressure dependence).
     """
 
     def __cinit__(self, *args, **kwargs):
@@ -119,7 +119,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double radius_outer_m,
             double mass_kg,
             str    material_name                   = "",
-            bint   is_tidal                        = True,
+            cpp_bool   is_tidal                        = True,
             double tidal_scale                     = 1.0,
             double shear_modulus_static_pa         = 0.0,
             double bulk_modulus_static_pa          = 0.0,
@@ -138,7 +138,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             double melt_fraction_exponent          = 1.0,
             double reference_density_kg_m3         = 3500.0,
             double reference_temperature_k         = 1600.0,
-            double melt_viscosity_reduction        = 25.0):
+            double melt_viscosity_reduction        = 25.0,
+            str    tidal_scale_method              = "user_provided"):
         cdef c_SolidLiquidConfig config
         config.name                          = name.encode("utf-8")
         config.layer_index                   = layer_index
@@ -148,6 +149,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         config.material_name                 = material_name.encode("utf-8")
         config.is_tidal                      = is_tidal
         config.tidal_scale                   = tidal_scale
+        config.tidal_scale_method            = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         config.shear_modulus_static_pa       = shear_modulus_static_pa
         config.bulk_modulus_static_pa        = bulk_modulus_static_pa
         config.shear_viscosity_static_pas    = shear_viscosity_static_pas
@@ -176,6 +178,14 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def __dealloc__(self):
         self._solidliquid_ptr = NULL  # base's unique_ptr owns the C++ object
         self._physics_ptr     = NULL
+
+    @staticmethod
+    cdef SolidLiquidLayer _view(c_SolidLiquidLayer* ptr, object world):
+        cdef SolidLiquidLayer v = SolidLiquidLayer.__new__(SolidLiquidLayer)
+        v._solidliquid_ptr = ptr
+        v._physics_ptr     = <c_PhysicsLayer*>ptr
+        v._init_view(<c_BaseLayer*>ptr, world)
+        return v
 
     # ------------------------------------------------------------------------------------------------------------------
     # Thermal property properties
@@ -357,7 +367,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def calc_thermal_conductivity(self, double temperature_k) -> float:
         """Thermal conductivity [W/(m·K)].
 
-        Returns the reference value (temperature dependence deferred to later phases).
+        Returns the reference value (temperature dependence is not modeled).
 
         Parameters
         ----------
@@ -430,7 +440,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     def calc_radiogenic_heating(self, double time_s, double mass_kg) -> float:
         """Radiogenic heating [W] from the attached sub-model.
 
-        Returns 0.0 when no radiogenics sub-model has been attached (Phase 7).
+        Returns 0.0 when no radiogenics sub-model has been attached.
 
         Parameters
         ----------

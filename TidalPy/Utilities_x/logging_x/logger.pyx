@@ -125,7 +125,7 @@ def init_logger(dict config = None):
     ----------
     config : dict, optional
         Sub-dict from TidalPy's global config containing logging settings.
-        Recognised keys:
+        Recognized keys:
 
         ``console_level`` : str or int, default ``"info"``
             Log level for console output.

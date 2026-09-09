@@ -46,6 +46,7 @@
 #include <vector>
 
 #include "radiogenics_base_.hpp"
+#include "../Utilities_x/math_x/numerics_.hpp"  // c_safe_exp
 
 namespace tidalpy {
 
@@ -110,9 +111,11 @@ struct c_Isotope {
     }
 
     // Specific radiogenic heating per unit layer mass [W/kg] at the given time.
+    // The guarded exponential returns NaN (rather than inf) if the requested time is so far
+    // before the reference time that the back-extrapolated heating overflows.
     double specific_heating(double time_s, double ref_time_s) const noexcept {
         const double q_ref = this->mass_frac * this->concentration * this->heat_production_w_kg;
-        return q_ref * std::exp(this->decay_constant() * (time_s - ref_time_s));
+        return q_ref * c_safe_exp(this->decay_constant() * (time_s - ref_time_s));
     }
 };
 
@@ -135,7 +138,7 @@ struct c_RadiogenicsConfig {
 // =====================================================================================================================
 // Built-in isotope datasets
 //
-// Convenience catalogs of well-characterised radiogenic isotope sets from the
+// Convenience catalogs of well-characterized radiogenic isotope sets from the
 // literature, so a caller can build a realistic c_IsotopeRadiogenics without
 // hand-entering abundances. Half lives and reference times are quoted in Myr in
 // the source literature and converted to seconds here (MKS).
@@ -151,7 +154,7 @@ inline std::vector<std::string> c_isotope_dataset_names() {
 }
 
 // Build a named built-in isotope dataset. Throws std::invalid_argument on an
-// unknown name. Recognised names (case-insensitive):
+// unknown name. Recognized names (case-insensitive):
 //
 //   "modern_day_chondritic"
 //       Present-day chondritic abundances of the four long-lived heat producers
@@ -172,8 +175,10 @@ inline std::vector<std::string> c_isotope_dataset_names() {
 //       Source: McDonough and Sun (1995) (concentrations); heat production rates
 //       and half lives from Turcotte and Schubert (2002).
 //
-// All reference times are 4600 Myr (i.e. concentrations are quoted at the present
-// epoch, 4.6 Gyr after solar-system formation).
+// Reference times: "modern_day_chondritic" and "bulk_silicate_earth" quote present-epoch
+// concentrations (ref_time = 4600 Myr after solar-system formation). "llri_and_slri" quotes
+// formation (CAI) abundances (ref_time = 0), so time is measured from solar-system formation
+// and the short-lived isotopes decay away over the first ~10 Myr.
 inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name);
 
 // =====================================================================================================================
@@ -245,7 +250,10 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
         return dataset;
     }
     if (key == "llri_and_slri") {
-        // Castillo-Rogez et al. (2007).
+        // Castillo-Rogez et al. (2007). Abundances are formation (CAI) values, including the
+        // canonical 26Al/27Al = 5e-5 and the elevated (undecayed) long-lived concentrations,
+        // so the reference time is solar-system formation, not the present epoch.
+        dataset.ref_time_s = 0.0;
         dataset.isotopes = {
             c_Isotope("U238",  9.465e-5, 4468.0   * myr, 0.9928,   0.026e-6),
             c_Isotope("U235",  5.687e-4, 703.81   * myr, 0.0071,   0.0082e-6),
@@ -438,7 +446,7 @@ enum class c_RadiogenicsModel : uint8_t {
 // c_radiogenics_model_from_name — map a (case-insensitive) model name or alias to
 // a c_RadiogenicsModel enum value.
 //
-// Recognised names and aliases:
+// Recognized names and aliases:
 //   "off" / "none"
 //   "isotope" / "isotopes"
 //   "fixed" / "constant"
@@ -486,7 +494,7 @@ inline std::unique_ptr<c_RadiogenicsBase> c_find_radiogenics(
 // c_radiogenics_from_binary — reconstruct a radiogenics model from a binary stream.
 //
 // Peeks the upcoming record's BinaryClassID (without consuming the header),
-// constructs the matching default-initialised concrete model, then delegates to
+// constructs the matching default-initialized concrete model, then delegates to
 // its read_binary to restore the model name and parameters. Used by the layer
 // recursive deserialization (see structures_x/layers). Throws std::runtime_error
 // if the class id is not a known radiogenics model.

@@ -12,7 +12,7 @@
  * dissipation at the tidal forcing frequency.
  *
  * This header provides only the data container.  Computation of Love numbers
- * from material properties is handled by the radial solver (Phase 10+).
+ * from material properties is handled by the radial solver.
  */
 
 #include <complex>

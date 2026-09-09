@@ -1,12 +1,12 @@
 cdef extern from "interp_.hpp" nogil:
-    size_t cf_binary_search_with_guess(
+    size_t c_binary_search_with_guess(
         double key,
         double* array,
         size_t length,
         size_t guess
         )
 
-    void cf_interp(
+    void c_interp(
         double* desired_x_ptr,
         double* x_domain_ptr,
         double* dependent_values_ptr,
@@ -15,7 +15,7 @@ cdef extern from "interp_.hpp" nogil:
         double* result_ptr
         )
 
-    void cf_interp_complex(
+    void c_interp_complex(
         double desired_x,
         double* x_domain_ptr,
         double* dependent_values_ptr,

@@ -58,7 +58,7 @@ def test_init_logger_idempotent():
 
 
 def test_shutdown_logger_idempotent():
-    """Calling shutdown_logger when not initialised should not raise."""
+    """Calling shutdown_logger when not initialized should not raise."""
     mod = _import_logger()
     mod.shutdown_logger()
     mod.shutdown_logger()  # second shutdown → no-op

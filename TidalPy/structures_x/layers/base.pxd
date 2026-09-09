@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 base.pxd
-Cython declarations for TidalPy's base layer class (Phase 1).
+Cython declarations for TidalPy's base layer class.
 
 Exports c_LayerEOSData, c_BaseLayerConfig, c_BaseLayer, and the Python
 wrapper BaseLayer so other extensions can cimport and use C-speed access.
@@ -12,6 +12,7 @@ Usage::
         BaseLayer, c_BaseLayer, c_LayerEOSData)
 """
 
+from libc.stdint cimport uint32_t
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.vector cimport vector
@@ -22,6 +23,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
     StructureBase,
     c_StructureBase,
 )
+from TidalPy.Material_x.eos.material_eos cimport c_MaterialEOSBase
 
 
 # =====================================================================================================================
@@ -42,15 +44,24 @@ cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
+    cdef enum class c_TidalScaleMethod:
+        user_provided
+        volume_fraction
+        tidal_timescale
+
+    c_TidalScaleMethod c_tidal_scale_method_from_name(const string& name) except +
+    const char* c_tidal_scale_method_name(c_TidalScaleMethod method)
+
     cdef cppclass c_BaseLayerConfig:
-        string   name
-        int      layer_index
-        double   radius_inner_m
-        double   radius_outer_m
-        double   mass_kg
-        string   material_name
-        cpp_bool is_tidal
-        double   tidal_scale
+        string             name
+        int                layer_index
+        double             radius_inner_m
+        double             radius_outer_m
+        double             mass_kg
+        string             material_name
+        cpp_bool           is_tidal
+        double             tidal_scale
+        c_TidalScaleMethod tidal_scale_method
 
     cdef cppclass c_BaseLayer(c_StructureBase):
         c_BaseLayer()
@@ -66,11 +77,27 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         const string& get_material_name()      const
         cpp_bool get_is_tidal()                const
         double   get_tidal_scale()             const
+        c_TidalScaleMethod get_tidal_scale_method() const
+        void     set_tidal_scale_method(c_TidalScaleMethod method)
+        uint32_t get_layer_class_id()          const
+        double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
         double   get_density(double radius_m)  const
         double   get_gravity(double radius_m)  const
         double   get_pressure(double radius_m) const
         void     update_eos_data(const c_LayerEOSData& data)
+        void     set_eos(unique_ptr[c_MaterialEOSBase] eos)
+        c_MaterialEOSBase* get_eos() const
+        cpp_bool get_eos_set() const
+        cpp_bool get_viscoelastic_populated() const
+        double   get_shear_modulus(double radius_m) const
+        double   get_bulk_modulus(double radius_m) const
+        double   get_shear_viscosity(double radius_m) const
+        double   get_bulk_viscosity(double radius_m) const
+        double   get_premelt_shear_modulus(double radius_m) const
+        double   get_premelt_bulk_modulus(double radius_m) const
+        double   get_premelt_shear_viscosity(double radius_m) const
+        double   get_premelt_bulk_viscosity(double radius_m) const
 
 
 # =====================================================================================================================
@@ -78,4 +105,13 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class BaseLayer(StructureBase):
     cdef unique_ptr[c_BaseLayer] _layer_ptr   # owns the most-derived C++ layer object
+    cdef cpp_bool _is_view                    # True => non-owning view into a world-owned layer
+    cdef object   _world_ref                  # keep-alive ref to the owning world (views only)
     cpdef dict get_config_dict(self)
+    # Scalar kernel behind the vectorized real-valued radius getters (see _apply_real in base.pyx).
+    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil
+    # Initialize this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
+    # pointers + keep-alive ref; subclass `_view` factories set their own typed pointer first).
+    cdef void _init_view(self, c_BaseLayer* ptr, object world)
+    @staticmethod
+    cdef BaseLayer _view(c_BaseLayer* ptr, object world)

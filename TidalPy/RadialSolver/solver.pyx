@@ -25,6 +25,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 from TidalPy.utilities.math.numerics cimport c_isclose
 from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales, cf_build_nondimensional_scales
 from TidalPy.RadialSolver.rs_solution cimport RadialSolverSolution
+from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 from TidalPy.RadialSolver.shooting cimport cf_shooting_solver
 from TidalPy.RadialSolver.matrix cimport cf_matrix_propagate
 
@@ -318,7 +319,7 @@ cdef int cf_radial_solver(
                 use_kamata,                     # Flag to use Kamata+ (2015)'s starting conditions vs. Takeuchi+Saito (1972) [cpp_bool]
                 starting_radius_to_use,         # Starting radius for solver. For higher degree solutions you generally want to start higher up in the planet. [double]
                 start_radius_tolerance,         # Tolerance used if `starting_radius` is not provided. [double]
-                integration_method_int,         # Integration method int (0=RK23, 1=RK45, 2=DOP853) [unsigned char]
+                integration_method_int,         # Integration method [CyRK ODEMethod enum]
                 integration_rtol,               # Integration relative tolerance [double]
                 integration_atol,               # Integration absolute tolerance [double]
                 scale_rtols_bylayer_type,       # Flag for if tolerances should vary with layer type (using pre-defined scaling) [cpp_bool]
@@ -327,6 +328,7 @@ cdef int cf_radial_solver(
                 max_ram_MB,                     # Maximum amount of ram allowed for each layer's integration (note if parallelized then radial solver will exceed this value; there is also overhead of other functions) [size_t]
                 max_step,                       # Maximum allowed step size per layer [double]
                 verbose,                        # Verbose flag [cpp_bool]
+                warnings,                       # Warnings flag; enables the surface conditioning diagnostic [cpp_bool]
                 )
 
     # Finalize solution storage
@@ -456,11 +458,14 @@ def radial_solver(
     use_kamata : bool, default=False
         If True, then the starting solution at the core will be based on equations from Kamata et al (2015; JGR:P)
         Otherwise, starting solution will be based on Takeuchi and Saito (1972)
-    integration_method : int32, default="DOP853"
+    integration_method : str, default="DOP853"
         Which CyRK integration protocol should be used. Options that are currently available are:
-            - 0: Runge-Kutta 2(3)
-            - 1: Runge-Kutta 4(5)
-            - 2: Runge-Kutta / DOP 8(5/3)
+            - "RK23": Runge-Kutta 2(3)
+            - "RK45": Runge-Kutta 4(5)
+            - "DOP853": Runge-Kutta / DOP 8(5/3)
+            - "BDF": Implicit multi-step method (good for stiff problems)
+            - "LSODA": Adams/BDF method with automatic stiffness detection
+            - "Radau": Implicit Runge-Kutta method of the Radau IIA family, order 5
     integration_rtol : float64, default=1.0e-5
         Relative integration tolerance. Lower tolerance will lead to more precise results at increased computation.
     integration_atol : float64, default=1.0e-8
@@ -541,6 +546,25 @@ def radial_solver(
     cdef double last_layer_r = 0.
     cdef size_t total_slices = radius_array.size
     cdef size_t num_layers   = len(layer_types)
+
+    # Every radial array must match the radius array's length; the solver reads and writes all
+    # of them over the radius-derived slice count, so a shorter array would be accessed out of
+    # bounds (heap corruption).
+    if total_slices == 0:
+        raise ArgumentException('radius_array must not be empty.')
+    if (<size_t>density_array.size != total_slices
+            or <size_t>complex_bulk_modulus_array.size != total_slices
+            or <size_t>complex_shear_modulus_array.size != total_slices):
+        raise ArgumentException(
+            'density, complex bulk modulus, and complex shear modulus arrays must all match '
+            f'the radius array length ({total_slices}); got {density_array.size}, '
+            f'{complex_bulk_modulus_array.size}, {complex_shear_modulus_array.size}.')
+    if <size_t>upper_radius_bylayer_array.size != num_layers:
+        raise ArgumentException(
+            f'upper_radius_bylayer_array length ({upper_radius_bylayer_array.size}) must match '
+            f'the number of layers ({num_layers}).')
+    if len(is_static_bylayer) != num_layers or len(is_incompressible_bylayer) != num_layers:
+        raise ArgumentException('layer_types, is_static_bylayer, and is_incompressible_bylayer must have equal lengths.')
     cdef size_t layer_check, slice_check
     cdef cpp_bool top_layer
     cdef double last_layer_radius
@@ -693,9 +717,17 @@ def radial_solver(
         integration_method_int = ODEMethod.RK23
     elif integration_method_lower == 'dop853':
         integration_method_int = ODEMethod.DOP853
+    elif integration_method_lower == 'bdf':
+        integration_method_int = ODEMethod.BDF
+    elif integration_method_lower == 'lsoda':
+        integration_method_int = ODEMethod.LSODA
+    elif integration_method_lower == 'radau':
+        integration_method_int = ODEMethod.RADAU
     else:
-        raise UnknownModelError(f"Unsupported integration method provided: {integration_method_lower}.")
-    
+        raise UnknownModelError(
+            f"Unsupported integration method provided: {integration_method_lower}. "
+            "Supported: rk23, rk45, dop853, bdf, lsoda, radau.")
+
     cdef str eos_integration_method_lower = eos_integration_method.lower()
     cdef ODEMethod eos_integration_method_int = ODEMethod.NO_METHOD_SET
     if eos_integration_method_lower == 'rk45':
@@ -704,8 +736,16 @@ def radial_solver(
         eos_integration_method_int = ODEMethod.RK23
     elif eos_integration_method_lower == 'dop853':
         eos_integration_method_int = ODEMethod.DOP853
+    elif eos_integration_method_lower == 'bdf':
+        eos_integration_method_int = ODEMethod.BDF
+    elif eos_integration_method_lower == 'lsoda':
+        eos_integration_method_int = ODEMethod.LSODA
+    elif eos_integration_method_lower == 'radau':
+        eos_integration_method_int = ODEMethod.RADAU
     else:
-        raise UnknownModelError(f"Unsupported EOS integration method provided: {eos_integration_method_lower}.")
+        raise UnknownModelError(
+            f"Unsupported EOS integration method provided: {eos_integration_method_lower}. "
+            "Supported: rk23, rk45, dop853, bdf, lsoda, radau.")
 
     # Convert EOS methods from string to int
     cdef str eos_method_str
@@ -744,6 +784,10 @@ def radial_solver(
                 '   ("tidal", "loading")  # If you just want tidal and loading Love numbers.'
                 )
         num_bc_models = len(solve_for)
+        # The boundary-condition models are written into a fixed int[5] buffer.
+        if num_bc_models > 5:
+            raise ArgumentException(
+                f'radial_solver supports at most 5 simultaneous solve_for entries; got {num_bc_models}.')
         for i in range(num_bc_models):
             solve_for_tmp = solve_for[i]
             if solve_for_tmp == "free":
@@ -834,5 +878,6 @@ def radial_solver(
     if warnings:
         if np.any(solution.steps_taken > 7_000):
             log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}). Recommend checking for instabilities (a good method is looking at `<solution>.plot_ys()`).")
+        check_surface_solve_conditioning(solution.surface_solve_amplification, integration_rtol)
 
     return solution

@@ -1,6 +1,8 @@
 # Love Numbers
 
-`TidalPy.Tides_x.love` — Phase 2 placeholder; full computation via RadialSolver in later phases.
+`TidalPy.Tides_x.love`: the Love-number storage type. Full computation from material
+properties is performed by the radial solver (`RadialSolver_x` or
+`LayeredWorld.solve_love_numbers`), which populates these values.
 
 ## Overview
 
@@ -99,6 +101,9 @@ l = pl.love_number_l
 
 Love numbers are serialized in `c_PhysicsLayer::write_binary` as six consecutive `double` values (re, im for each of k, h, l), contributing `6 × 8 = 48 bytes` to the payload.
 
-## Future Work
+## Computing Love Numbers
 
-In Phase 5+ the Love numbers will be computed from the radial solver output (`RadialSolver_x`) rather than being set as static placeholders. The `c_LoveNumbers` struct is designed to accommodate this cleanly — the solver will populate the three fields after integration.
+Solved Love numbers come from the radial solver (`RadialSolver_x.radial_solver` for the
+standalone array API, or `LayeredWorld.solve_love_numbers` on a built world). The
+`c_LoveNumbers` struct is the storage target: the solver populates the three fields
+after integration.

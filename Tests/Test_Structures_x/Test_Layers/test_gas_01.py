@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.structures_x.layers.gas — GasLayer (Phase 4).
+Tests for TidalPy.structures_x.layers.gas — GasLayer.
 
 Covers construction, geometry/EOS/tidal inheritance (via _layer_ptr), gas
 property getters, thermodynamic calculations, binary round-trip, TOML config

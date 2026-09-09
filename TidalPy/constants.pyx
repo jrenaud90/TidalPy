@@ -86,18 +86,20 @@ au = d_NAN
 sbc = d_NAN
 R = d_NAN
 k_boltzman = d_NAN
+year = d_NAN
 
 # Dynamic Aliases
 SBC = sbc
 Au = au
 k = k_boltzman
 newtons_constant = G
+yr = year
 
 
 def update_constants():
     """Use the current TidalPy configurations to load in certain parameters/constants that are not Read-Only."""
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness, test_constant
-    global G, au, sbc, R, k_boltzman, SBC, Au, k, newtons_constant
+    global G, au, sbc, R, k_boltzman, year, SBC, Au, k, newtons_constant, yr
 
     # Update dynamic properties from TidalPy
     tidalpy_config_ptr.d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
@@ -105,8 +107,6 @@ def update_constants():
     tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF = TidalPy.config['tides']['modes']['min_spin_orbit_diff']
     tidalpy_config_ptr.d_MIN_VISCOSITY = TidalPy.config['physics']['materials']['minimum_viscosity']
     tidalpy_config_ptr.d_MIN_MODULUS = TidalPy.config['physics']['materials']['minimum_modulus']
-    tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
-
     tidalpy_config_ptr.d_MIN_THICKNESS = TidalPy.config['layers']['minimum_layer_thickness']
     tidalpy_config_ptr.d_TEST_CONST = TidalPy.config['debug']['test_constant']
 
@@ -133,7 +133,48 @@ def update_constants():
     sbc = tidalpy_config_ptr.d_SBC
     R = tidalpy_config_ptr.d_R
     k_boltzman = tidalpy_config_ptr.d_K_BOLTZMAN
+    year = scipy.constants.Julian_year
     SBC = sbc
     Au = au
     k = k_boltzman
     newtons_constant = G
+    yr = year
+
+
+def update_constants_x():
+    """Populate the shared C++ config singleton from the new `_x` configuration.
+
+    The rebuilt `_x` class system reads its numerical settings (frequency/viscosity/
+    modulus/thickness floors and the debug test constant) from ``TidalPy.config_x``
+    (loaded from ``TidalPy_Configs_x.toml``) rather than the legacy config. This
+    function copies the ``[numerical]`` section of that config into the process-wide
+    ``tidalpy_config_ptr`` that every `_x` C++ module observes.
+
+    There is a single process-wide C++ config singleton shared by the legacy and
+    `_x` code, so this is called after :func:`update_constants` during
+    initialization: the `_x` values win for the shared numerical fields. The
+    universal physical constants (G, AU, SBC, R, k_boltzman) are set by
+    :func:`update_constants` from SciPy and are not overridden here.
+    """
+    global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
+
+    numerical = TidalPy.config_x['numerical']
+
+    tidalpy_config_ptr.d_MIN_FREQUENCY = numerical['minimum_frequency']
+    tidalpy_config_ptr.d_MAX_FREQUENCY = numerical['maximum_frequency']
+    tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF = numerical['min_spin_orbit_diff']
+    tidalpy_config_ptr.d_MIN_VISCOSITY = numerical['minimum_viscosity']
+    tidalpy_config_ptr.d_MIN_MODULUS = numerical['minimum_modulus']
+    tidalpy_config_ptr.d_MIN_THICKNESS = numerical['minimum_layer_thickness']
+    # test_constant is intentionally not set here. It is a debug knob whose user-facing override is the
+    # legacy config's `debug.test_constant`, applied by update_constants (which runs just before this).
+    # Re-reading it from config_x would clobber a user override supplied through reinit(). Both configs
+    # default it to the same value, so the _x config check still holds.
+
+    # Update the module-level mirrors of these dynamic parameters.
+    min_frequency = tidalpy_config_ptr.d_MIN_FREQUENCY
+    max_frequency = tidalpy_config_ptr.d_MAX_FREQUENCY
+    min_spin_orbit_diff = tidalpy_config_ptr.d_MIN_SPIN_ORBIT_DIFF
+    min_viscosity = tidalpy_config_ptr.d_MIN_VISCOSITY
+    min_modulus = tidalpy_config_ptr.d_MIN_MODULUS
+    min_thickness = tidalpy_config_ptr.d_MIN_THICKNESS

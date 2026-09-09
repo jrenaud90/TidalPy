@@ -19,7 +19,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 
@@ -104,7 +104,7 @@ cdef class GasLayer(PhysicsLayer):
             double radius_outer_m,
             double mass_kg,
             str    material_name                = "",
-            bint   is_tidal                     = True,
+            cpp_bool is_tidal                   = True,
             double tidal_scale                  = 1.0,
             double shear_modulus_static_pa      = 0.0,
             double bulk_modulus_static_pa       = 0.0,
@@ -116,7 +116,8 @@ cdef class GasLayer(PhysicsLayer):
             double mean_molecular_weight_kg_mol = 2.0e-3,
             double adiabatic_index              = 1.4,
             double reference_temperature_k      = 300.0,
-            double reference_density_kg_m3      = 1.0):
+            double reference_density_kg_m3      = 1.0,
+            str    tidal_scale_method           = "user_provided"):
         cdef c_GasConfig config
         config.name                          = name.encode("utf-8")
         config.layer_index                   = layer_index
@@ -126,6 +127,7 @@ cdef class GasLayer(PhysicsLayer):
         config.material_name                 = material_name.encode("utf-8")
         config.is_tidal                      = is_tidal
         config.tidal_scale                   = tidal_scale
+        config.tidal_scale_method            = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         config.shear_modulus_static_pa       = shear_modulus_static_pa
         config.bulk_modulus_static_pa        = bulk_modulus_static_pa
         config.shear_viscosity_static_pas    = shear_viscosity_static_pas
@@ -147,6 +149,14 @@ cdef class GasLayer(PhysicsLayer):
     def __dealloc__(self):
         self._gas_ptr     = NULL  # base's unique_ptr owns the C++ object
         self._physics_ptr = NULL
+
+    @staticmethod
+    cdef GasLayer _view(c_GasLayer* ptr, object world):
+        cdef GasLayer v = GasLayer.__new__(GasLayer)
+        v._gas_ptr      = ptr
+        v._physics_ptr  = <c_PhysicsLayer*>ptr
+        v._init_view(<c_BaseLayer*>ptr, world)
+        return v
 
     # ------------------------------------------------------------------------------------------------------------------
     # Gas property properties

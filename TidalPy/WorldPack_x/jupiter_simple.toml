@@ -1,0 +1,16 @@
+# Simple single-layer gas-giant world for the structures_x world builder.
+# A single gas-class layer of material type "gas"; its EOS and other parameter
+# defaults come from the [layers.gas] block of TidalPy_Configs_x.toml.
+schema_version = "0.2.0"
+name = "Jupiter-Simple"
+type = "gasgiant"
+radius_m = 69911000.0
+mass_kg = 1.898e27
+spin_frequency_rad_s = 1.7585e-4
+
+[layers.envelope]
+class = "gas"
+type = "gas"
+layer_index = 0
+radius_fraction = 1.0   # single layer spanning the whole world
+is_tidal = true

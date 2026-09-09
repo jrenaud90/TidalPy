@@ -6,10 +6,15 @@ Cython/Python wrapper for TidalPy's physics layer class.
 
 PhysicsLayer: extends BaseLayer with static mechanical properties (shear
 modulus, bulk modulus, shear and bulk viscosity) and three complex Love
-numbers (k, h, l).  Optional rheology objects (Phase 5) enable
+numbers (k, h, l).  Optional rheology objects enable
 frequency-dependent complex moduli; until then the static modulus is
 returned as a real-valued complex number.
 """
+
+cimport numpy as cnp
+cnp.import_array()
+
+import numpy as np
 
 from libcpp.complex cimport complex as cpp_complex
 from libcpp cimport bool as cpp_bool
@@ -21,9 +26,11 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport RheologyBase
+from TidalPy.viscosity_x.viscosity cimport ViscosityBase
+from TidalPy.partial_melt_x.partial_melt cimport PartialMeltBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
@@ -38,7 +45,7 @@ cdef class PhysicsLayer(BaseLayer):
     """Mechanical-properties layer: static shear/bulk modulus, viscosities, Love numbers, and optional rheology.
 
     Extends BaseLayer with material-mechanical parameters needed for tidal
-    calculations.  Rheology objects (Phase 5) can be attached to enable
+    calculations.  Rheology objects can be attached to enable
     frequency-dependent complex moduli; until then the static modulus is
     returned as a real-valued complex number.
 
@@ -93,7 +100,7 @@ cdef class PhysicsLayer(BaseLayer):
             double radius_outer_m,
             double mass_kg,
             str    material_name                = "",
-            bint   is_tidal                     = True,
+            cpp_bool is_tidal                   = True,
             double tidal_scale                  = 1.0,
             double shear_modulus_static_pa      = 0.0,
             double bulk_modulus_static_pa       = 0.0,
@@ -101,7 +108,8 @@ cdef class PhysicsLayer(BaseLayer):
             double bulk_viscosity_static_pas    = 0.0,
             complex love_number_k               = 0+0j,
             complex love_number_h               = 0+0j,
-            complex love_number_l               = 0+0j):
+            complex love_number_l               = 0+0j,
+            str    tidal_scale_method           = "user_provided"):
         cdef c_PhysicsConfig config
         config.name                       = name.encode("utf-8")
         config.layer_index                = layer_index
@@ -111,6 +119,7 @@ cdef class PhysicsLayer(BaseLayer):
         config.material_name              = material_name.encode("utf-8")
         config.is_tidal                   = is_tidal
         config.tidal_scale                = tidal_scale
+        config.tidal_scale_method         = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
         config.shear_modulus_static_pa    = shear_modulus_static_pa
         config.bulk_modulus_static_pa     = bulk_modulus_static_pa
         config.shear_viscosity_static_pas = shear_viscosity_static_pas
@@ -126,6 +135,13 @@ cdef class PhysicsLayer(BaseLayer):
 
     def __dealloc__(self):
         self._physics_ptr = NULL  # base's unique_ptr owns the C++ object
+
+    @staticmethod
+    cdef PhysicsLayer _view(c_PhysicsLayer* ptr, object world):
+        cdef PhysicsLayer v = PhysicsLayer.__new__(PhysicsLayer)
+        v._physics_ptr = ptr
+        v._init_view(<c_BaseLayer*>ptr, world)
+        return v
 
     # ------------------------------------------------------------------------------------------------------------------
     # Static mechanical property properties
@@ -159,19 +175,19 @@ cdef class PhysicsLayer(BaseLayer):
 
     @property
     def love_number_k(self) -> complex:
-        """Complex potential Love number k (placeholder; computed in later phases)."""
+        """Complex potential Love number k (stored value; zero until assigned)."""
         cdef cpp_complex[double] k = self._physics_ptr.get_love_number_k()
         return complex(k.real(), k.imag())
 
     @property
     def love_number_h(self) -> complex:
-        """Complex radial displacement Love number h (placeholder; computed in later phases)."""
+        """Complex radial displacement Love number h (stored value; zero until assigned)."""
         cdef cpp_complex[double] h = self._physics_ptr.get_love_number_h()
         return complex(h.real(), h.imag())
 
     @property
     def love_number_l(self) -> complex:
-        """Complex tangential displacement Love number l (placeholder; computed in later phases)."""
+        """Complex tangential displacement Love number l (stored value; zero until assigned)."""
         cdef cpp_complex[double] l = self._physics_ptr.get_love_number_l()
         return complex(l.real(), l.imag())
 
@@ -184,6 +200,36 @@ cdef class PhysicsLayer(BaseLayer):
     def bulk_rheology_set(self) -> bool:
         """True if a bulk rheology model has been attached."""
         return self._physics_ptr.get_bulk_rheology_set()
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Radial-solver layer classification flags
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def is_solid(self) -> bool:
+        """True if this layer is solid; False for liquid.  Used by the radial Love-number solver."""
+        return bool(self._physics_ptr.get_is_solid())
+
+    @is_solid.setter
+    def is_solid(self, value: bool):
+        self._physics_ptr.set_is_solid(<cpp_bool>bool(value))
+
+    @property
+    def is_static(self) -> bool:
+        """True if the static (no-dynamic-terms) approximation is used.  Used by the radial solver."""
+        return bool(self._physics_ptr.get_is_static())
+
+    @is_static.setter
+    def is_static(self, value: bool):
+        self._physics_ptr.set_is_static(<cpp_bool>bool(value))
+
+    @property
+    def is_incompressible(self) -> bool:
+        """True if the incompressible approximation is used.  Used by the radial solver."""
+        return bool(self._physics_ptr.get_is_incompressible())
+
+    @is_incompressible.setter
+    def is_incompressible(self, value: bool):
+        self._physics_ptr.set_is_incompressible(<cpp_bool>bool(value))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Rheology attachment
@@ -233,6 +279,72 @@ cdef class PhysicsLayer(BaseLayer):
         self._physics_ptr.set_bulk_rheology(move(rheology._rheology_ptr))
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Viscosity + partial-melt attachment
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def shear_viscosity_set(self) -> bool:
+        """True if a shear viscosity model has been attached."""
+        return self._physics_ptr.get_shear_viscosity_set()
+
+    @property
+    def bulk_viscosity_set(self) -> bool:
+        """True if a bulk viscosity model has been attached."""
+        return self._physics_ptr.get_bulk_viscosity_set()
+
+    @property
+    def partial_melt_set(self) -> bool:
+        """True if a partial-melt model has been attached."""
+        return self._physics_ptr.get_partial_melt_set()
+
+    def set_shear_viscosity(self, ViscosityBase viscosity not None):
+        """Attach a viscosity model supplying the pre-melt shear viscosity.
+
+        Ownership of the C++ model transfers into this layer; the passed
+        ``ViscosityBase`` becomes an empty, non-owning shell and must not be reused.
+
+        Raises
+        ------
+        ValueError
+            If ``viscosity`` has already been attached or otherwise moved.
+        """
+        if viscosity._visc_ptr.get() == NULL:
+            raise ValueError(
+                "This viscosity model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_shear_viscosity(move(viscosity._visc_ptr))
+
+    def set_bulk_viscosity(self, ViscosityBase viscosity not None):
+        """Attach a viscosity model supplying the pre-melt bulk viscosity.
+
+        Ownership of the C++ model transfers into this layer; the passed
+        ``ViscosityBase`` becomes an empty, non-owning shell and must not be reused.
+
+        Raises
+        ------
+        ValueError
+            If ``viscosity`` has already been attached or otherwise moved.
+        """
+        if viscosity._visc_ptr.get() == NULL:
+            raise ValueError(
+                "This viscosity model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_bulk_viscosity(move(viscosity._visc_ptr))
+
+    def set_partial_melt(self, PartialMeltBase partial_melt not None):
+        """Attach a partial-melt model that weakens the static moduli and viscosities.
+
+        Ownership of the C++ model transfers into this layer; the passed
+        ``PartialMeltBase`` becomes an empty, non-owning shell and must not be reused.
+
+        Raises
+        ------
+        ValueError
+            If ``partial_melt`` has already been attached or otherwise moved.
+        """
+        if partial_melt._melt_ptr.get() == NULL:
+            raise ValueError(
+                "This partial-melt model holds no C++ object (already attached or moved).")
+        self._physics_ptr.set_partial_melt(move(partial_melt._melt_ptr))
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
     def calc_tidal_susceptibility(self) -> float:
@@ -245,7 +357,7 @@ cdef class PhysicsLayer(BaseLayer):
         -------
         float
             Tidal susceptibility [m^3].  Returns 0.0 when config is not
-            initialised or mass is zero.
+            initialized or mass is zero.
 
         Assumptions
         -----------
@@ -254,53 +366,98 @@ cdef class PhysicsLayer(BaseLayer):
         """
         return self._physics_ptr.calc_tidal_susceptibility()
 
-    def calc_complex_shear_modulus(self, double frequency_rad_s) -> complex:
-        """Complex shear modulus at the given tidal forcing frequency [Pa].
+    def _apply_complex(self, radius_m, double frequency_rad_s, cpp_bool is_shear):
+        # Radius-resolved complex modulus: float -> complex; np.ndarray -> complex np.ndarray (same shape).
+        cdef cnp.ndarray in_arr
+        cdef cnp.ndarray out_arr
+        cdef double[::1] flat_in
+        cdef double complex[::1] flat_out
+        cdef cpp_complex[double] value
+        cdef Py_ssize_t i, n
+        if isinstance(radius_m, np.ndarray):
+            in_arr   = np.ascontiguousarray(radius_m, dtype=np.float64)
+            out_arr  = np.empty_like(in_arr, dtype=np.complex128)
+            flat_in  = in_arr.reshape(-1)
+            flat_out = out_arr.reshape(-1)
+            n = flat_in.shape[0]
+            for i in range(n):
+                if is_shear:
+                    value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency_rad_s)
+                else:
+                    value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency_rad_s)
+                flat_out[i] = value.real() + 1j * value.imag()
+            return out_arr
+        if is_shear:
+            value = self._physics_ptr.calc_complex_shear_modulus(<double>radius_m, frequency_rad_s)
+        else:
+            value = self._physics_ptr.calc_complex_bulk_modulus(<double>radius_m, frequency_rad_s)
+        return complex(value.real(), value.imag())
 
-        When a shear rheology model is attached (Phase 5), the result is
-        computed from the model's complex compliance.  Until then the static
-        shear modulus is returned as a real-valued complex number.
+    def calc_complex_shear_modulus(self, first_arg, frequency_rad_s=None):
+        """Complex shear modulus [Pa]: layer-constant or radius-resolved.
+
+        With one argument, ``calc_complex_shear_modulus(frequency_rad_s)`` applies the shear
+        rheology to the layer-constant static shear modulus and viscosity. With two arguments,
+        ``calc_complex_shear_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
+        static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
+        surface the world exposes); ``radius_m`` may be a float or np.ndarray.
 
         Parameters
         ----------
-        frequency_rad_s : float
-            Tidal forcing frequency [rad/s].
+        first_arg : float or np.ndarray
+            Tidal forcing frequency [rad/s] (one-argument form), or query radius [m]
+            (two-argument form; float or np.ndarray).
+        frequency_rad_s : float, optional
+            Tidal forcing frequency [rad/s] for the radius-resolved form.
 
         Returns
         -------
-        complex
-            Complex shear modulus [Pa].
+        complex or np.ndarray
+            Complex shear modulus [Pa]; a complex ndarray for an array of radii.
 
         Assumptions
         -----------
         - Linear viscoelastic response (single forcing frequency).
+        - The radius-resolved form returns NaN before the world EOS solve populates the layer.
         """
-        cdef cpp_complex[double] result = self._physics_ptr.calc_complex_shear_modulus(frequency_rad_s)
-        return complex(result.real(), result.imag())
+        cdef cpp_complex[double] result
+        if frequency_rad_s is None:
+            result = self._physics_ptr.calc_complex_shear_modulus(<double>first_arg)
+            return complex(result.real(), result.imag())
+        return self._apply_complex(first_arg, <double>frequency_rad_s, True)
 
-    def calc_complex_bulk_modulus(self, double frequency_rad_s) -> complex:
-        """Complex bulk modulus at the given tidal forcing frequency [Pa].
+    def calc_complex_bulk_modulus(self, first_arg, frequency_rad_s=None):
+        """Complex bulk modulus [Pa]: layer-constant or radius-resolved.
 
-        When a bulk rheology model is attached (Phase 5), the result is
-        computed from the model's complex compliance.  Until then the static
-        bulk modulus is returned as a real-valued complex number.
+        With one argument, ``calc_complex_bulk_modulus(frequency_rad_s)`` applies the bulk
+        rheology to the layer-constant static bulk modulus and viscosity. With two arguments,
+        ``calc_complex_bulk_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
+        static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
+        surface the world exposes); ``radius_m`` may be a float or np.ndarray.
 
         Parameters
         ----------
-        frequency_rad_s : float
-            Tidal forcing frequency [rad/s].
+        first_arg : float or np.ndarray
+            Tidal forcing frequency [rad/s] (one-argument form), or query radius [m]
+            (two-argument form; float or np.ndarray).
+        frequency_rad_s : float, optional
+            Tidal forcing frequency [rad/s] for the radius-resolved form.
 
         Returns
         -------
-        complex
-            Complex bulk modulus [Pa].
+        complex or np.ndarray
+            Complex bulk modulus [Pa]; a complex ndarray for an array of radii.
 
         Assumptions
         -----------
         - Linear viscoelastic response (single forcing frequency).
+        - The radius-resolved form returns NaN before the world EOS solve populates the layer.
         """
-        cdef cpp_complex[double] result = self._physics_ptr.calc_complex_bulk_modulus(frequency_rad_s)
-        return complex(result.real(), result.imag())
+        cdef cpp_complex[double] result
+        if frequency_rad_s is None:
+            result = self._physics_ptr.calc_complex_bulk_modulus(<double>first_arg)
+            return complex(result.real(), result.imag())
+        return self._apply_complex(first_arg, <double>frequency_rad_s, False)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

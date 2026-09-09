@@ -3,157 +3,116 @@
 ## Version 0.8.X
 
 ### Version 0.8.0 (2026-NNN)
-_The `_x` in module and function names indicates experimental versions. This suffix will be dropped in future releases._
+
+**TidalPy 0.8.0 is the first release to ship TidalPy's new C++ backend.** The new backend lives alongside the classic
+one in modules suffixed `_x` (`structures_x`, `RadialSolver_x`, `Tides_x`, `rheology_x`, `Material_x`, ...). In version
+0.9.0 (a future release) the new backend will become TidalPy's *only* backend: the classic modules will be removed and
+the `_x` suffix will be dropped. The 0.8.X series will live on for a while after that with bug fixes only, no new
+features. If you use TidalPy today, please check out the migration guide in the documentation
+(https://tidalpy.readthedocs.io/en/latest/future_structure.html) and plan for a full transition. Importing TidalPy now
+announces this transition once per session via the new `TidalPy.exceptions.TidalPyDeprecationWarning` category (a
+`FutureWarning` subclass, so it is visible by default and silenceable with a single `warnings.filterwarnings` call).
+
+#### The New C++ Backend (`_x` modules)
+A high-level summary only; the full API, design notes, and porting examples live in the documentation's
+"Future Structure" section, and every module has its own documentation page there.
+
+* New compiled foundations (`TidalPy.Utilities_x`): a C++ base-class hierarchy with schema-versioned binary save/load
+  and TOML config round-trip on every object; C++ logging via a vendored `spdlog`; 1D interpolation and integer-keyed
+  lookup utilities; non-dimensionalization scales (`Utilities_x.dimensions`) and unit/orbital-element conversions
+  (`Utilities_x.conversions`), ported from the classic utilities so the new backend no longer imports them; and
+  closed-form associated Legendre tables for degrees 2..10 (plus a generic evaluator via the vendored `xsf`).
+* New physics model hierarchies, each with case-insensitive name/alias factories, vectorized (ndarray) calls, direct
+  convenience functions, config-dict round-trip, and binary serialization: rheology (7 models), viscosity (3), partial
+  melt (3), cooling (3), radiogenics (3, plus built-in literature isotope datasets), stellar luminosity (3), and
+  material equations of state (constant density, Birch-Murnaghan, Vinet, interpolated table - the analytic EOS models
+  are validated against BurnMan to ~1e-8 on the bare pressure-density relation).
+* New world, layer, and system classes (`TidalPy.structures_x`): TOML-driven world building against a validated,
+  versioned schema (bundled example worlds, PREM-style data-file worlds, per-material defaults); layer stacks with
+  pluggable physics models; a whole-planet EOS solve with radius-continuous profile getters; whole-planet Love numbers
+  as a world method (shooting or propagation-matrix, tidal/loading/free boundary conditions, cached for repeated
+  solves, with a surface-conditioning diagnostic); global (1D) tidal dissipation for every world type (rheology-driven
+  through the radial solver, or analytic cpl/ctl/ctl_q models); 3D tidal stress/strain/heating (secular or
+  instantaneous, full 4D grids or analytically collapsed totals/profiles, latitude bands); spin and orbital rate
+  engines (`dynamics_x`); stellar luminosity models (`stellar_x`); and a `System` class linking worlds (insolation,
+  single- and dual-body tidal evolution with machine-precision energy-balance checks, TOML and binary round-trips).
+* A rebuilt standalone radial solver (`TidalPy.RadialSolver_x.radial_solver`), call-compatible with the classic one,
+  using CyRK dense output so the radial solution is evaluated exactly at any radius instead of interpolated from a
+  fixed grid. Adds dense post-solve evaluation (`get_radial_solution`, `eos_call_si`), per-Love-number quality factors
+  and phase lags, and a homogeneous-sphere convenience helper (`homogeneous_love_numbers`).
+* A rebuilt tides engine (`TidalPy.Tides_x`): unsquared eccentricity functions for degrees 2..10 at truncation levels
+  e^1..e^5, e^10, e^15, e^20, and unsquared obliquity functions (off, o^2, o^4, and fully general), driving one
+  truncation-based Kaula potential engine in place of the classic per-scenario potential modules. Note the convention
+  change: the classic eccentricity/inclination functions were the SQUARED G^2/F^2; the new ones are unsquared G/F.
+* 12 executed tutorial notebooks (`Demos_x/`), validation benchmarks against published Love numbers and BurnMan plus a
+  performance-tracking harness (`Benchmarks_x/`), end-to-end tests (`Tests/Test_E2E_x/`), and a documentation page for
+  every module under the "Future Structure" section.
 
 #### Fixes
-* `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting conditions were not affected.
-
-#### Package
-* Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the build process of dependent packages (similar to `numpy.get_include`).
-
-#### `TidalPy.Tides_x`
-* Created a new module called "Tides_x" where cythonized C++ code related to tide functions will be stored.
-  * In a future release we will remove the old `TidalPy.tides` module in favor of this one (refactoring it to `Tides` to follow the same capitalization scheme as `RadialSolver`).
-* Created C++ obliquity functions in `TidalPy.Tides_x.obliquity` a helper function is available in Python to call these `TidalPy.Tides_x.obliquity.obliquity_func`. See documentation for more details.
-* Created C++ eccentricity functions in `TidalPy.Tides_x.eccentricity` a helper function is available in Python to call these `TidalPy.Tides_x.eccentricity.eccentricity_func`. See documentation for more details.
-
-#### `TidalPy.RadialSolver_x`
-
-#### `TidalPy.Material_x`
-* Created a Cython-wrapped C++ module that duplicates the functionality of `TidalPy.Material` (TidalPy's EOS solver).
+* `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting
+  conditions were not affected.
+* `RadialSolver` (classic and new): `radial_solver` wrote one boundary-condition model per `solve_for` entry into a
+  fixed 5-slot buffer without a length check, so a `solve_for` tuple with more than 5 entries overflowed the stack.
+  Both solvers now reject more than 5 entries with a clear error.
+* `RadialSolver` (classic and new): Neither solver validated that the density and complex modulus arrays match the
+  radius array's length (or that the per-layer tuples agree with the layer count). A shorter density array was written
+  past its end during non-dimensionalization, corrupting the heap. Both solvers now validate every input length up
+  front with a clear error.
+* `TidalPy.constants`: A user override of `debug.test_constant` supplied through `reinit()` was being lost (the new
+  `_x` constants loader re-read and clobbered it during initialization). The debug knob is again owned solely by the
+  classic config path, so `reinit({'debug': {'test_constant': ...}})` propagates correctly.
+* `TidalPy.utilities.arrays`: Fixed several short-array bugs in the C++ interpolation helpers (`interp_.hpp`): an
+  unsigned-underflow out-of-bounds read in `c_binary_search_with_guess` for short domains (the source of an
+  intermittently wrong scalar interpolation), a cache-window read past the end for arrays shorter than 9, missing
+  length 0..2 guards, non-`inline` definitions in a header, and an initial-index-guess formula that always produced 0.
+  The header is now a thin front end over the shared implementation in `Utilities_x/arrays/interp_.hpp`.
 
 #### New Features
+* `TidalPy.RadialSolver.radial_solver` (the classic solver) now accepts CyRK's implicit (stiff) integration methods
+  `BDF`, `LSODA`, and `Radau` alongside the explicit `RK23`/`RK45`/`DOP853`, for both `integration_method` and
+  `eos_integration_method` (requires CyRK >= 0.18). Method names are case-insensitive; an unknown name lists the
+  supported set. One caveat: the whole-planet EOS integration starts at the planet's singular center, where LSODA's
+  startup can fail to take its first step (a clean failure); BDF and Radau handle the singular start.
+* The classic solver's shooting method now measures how strongly its surface boundary-condition solve amplifies error
+  (deep starting radii and high harmonic degrees can make the collapse constants grow enormous and cancel, amplifying
+  integration error into the Love numbers). The factor is recorded on the returned solution
+  (`surface_solve_amplification`) and a warning is logged when the resulting roundoff floor exceeds the requested
+  `integration_rtol` (computed only when the solve runs with `warnings` enabled).
+* Numerical note - manual starting radii deep in the planet: starting the shooting integration essentially at the
+  center (e.g., `starting_radius=0.1` m on a 6000 km planet) at degree 3 with a dynamic incompressible layer leaves the
+  surface solve so ill-conditioned that the solver can report success with a badly wrong Love number (this is inherent
+  conditioning, present in all versions, not a regression). Prefer the automatic starting radius (`starting_radius=0`);
+  if a deep manual start is required, tighten `integration_rtol` and take head of the new conditioning warning.
+* Numerical note - dynamic liquid layers and long forcing periods: a dynamic liquid layer sandwiched between solids is
+  well-conditioned only at short forcing periods; at long periods the `1/omega^2` terms make the solve unstable (also
+  inherent, present in all versions). Use the static liquid assumption for long-period forcing.
 
-##### `TidalPy.structures_x` Module (new)
-* Created `TidalPy/structures_x/` as the new C++/Cython module for world, layer, and system classes.
-* Added `TidalPy.structures_x.layers.GasLayer` — C++ ideal-gas/fluid layer class (`c_GasLayer`, inherits `c_PhysicsLayer`).
-  * Constructor adds `mean_molecular_weight_kg_mol`, `adiabatic_index`, `reference_temperature_k`, `reference_density_kg_m3`.
-  * `calc_adiabatic_lapse_rate(g)` — dry adiabatic lapse rate: g·(γ−1)·M/(γ·R) [K/m].
-  * `calc_scale_height(T, g)` — barometric scale height: R·T/(g·M) [m].
-  * `calc_pressure_ideal_gas(T, rho)` — ideal-gas pressure: ρ·R·T/M [Pa].
-  * `calc_sound_speed(T)` — adiabatic sound speed: sqrt(γ·R·T/M) [m/s].
-  * No phase changes, cooling, or radiogenics sub-models.
-  * Binary serialization includes all parent fields plus the 4 gas-property doubles; binary class ID 103.
-* Added `TidalPy.structures_x.layers.SolidLiquidLayer` — C++ thermo-mechanical layer with phase-change tracking (`c_SolidLiquidLayer`, inherits `c_PhysicsLayer`).
-  * Constructor adds 11 thermal/melt parameters: `thermal_conductivity_ref_w_mk`, `thermal_expansion_ref_1_k`, `heat_capacity_ref_j_kgk`, `activation_energy_j_mol`, `activation_volume_m3_mol`, `solidus_temperature_k`, `liquidus_temperature_k`, `melt_fraction_exponent`, `reference_density_kg_m3`, `reference_temperature_k`, `melt_viscosity_reduction`.
-  * `calc_melt_fraction(T, P)` — power-law interpolation between solidus and liquidus [0, 1].
-  * `calc_viscosity(T, P)` — Arrhenius temperature/pressure dependence with partial-melt exponential reduction.
-  * `calc_shear_modulus(T, P)` — melt-fraction-reduced shear modulus: G_static·(1−φ).
-  * `calc_thermal_conductivity(T)`, `calc_thermal_diffusivity(T)` — thermal transport properties.
-  * `calc_adiabatic_temperature_gradient(T, P)` — uses EOS surface gravity when available.
-  * `calc_heat_flux_conductive(T_base, T_top)` — conductive heat flux through the layer.
-  * `calc_radiogenic_heating(time_s, mass_kg)` — delegates to optional `c_RadiogenicsBase` sub-model (Phase 7).
-  * Optional cooling (`c_CoolingBase`) and radiogenics (`c_RadiogenicsBase`) sub-models attached via C++-level `set_cooling` / `set_radiogenics`; full concrete models arrive in Phases 6 and 7.
-  * Binary serialization includes all parent fields plus the 11 thermal doubles; sub-models and EOS data excluded. Binary class ID 102.
-* Added `TidalPy.structures_x.layers.PhysicsLayer` — C++ mechanical-properties layer class (`c_PhysicsLayer`, inherits `c_BaseLayer`).
-  * Constructor adds `shear_modulus_static_pa`, `bulk_modulus_static_pa`, `viscosity_static_pas`, `love_number_re`, `love_number_im` to the `BaseLayer` constructor parameters.
-  * `love_number` property returns a Python `complex` (was `love_number_real: float`); `get_config_dict` now emits `love_number_re` and `love_number_im` keys.
-  * `calc_tidal_susceptibility()` — geometrical tidal susceptibility (3/2)·r⁵/(G·m²) [m³].
-  * `calc_complex_shear_modulus(freq)` / `calc_complex_bulk_modulus(freq)` — returns static modulus as real complex when no rheology is attached.
-  * Rheology objects (`c_RheologyBase` subclasses, Phase 5) attach via C++-level `set_shear/bulk_rheology`.
-  * Binary serialization includes all `BaseLayer` fields plus the four mechanical-property doubles; rheology and EOS data are excluded.
-* Added `TidalPy.structures_x.layers.BaseLayer` — C++ geometry-only layer class (`c_BaseLayer`, inherits `c_StructureBase`).
-  * Constructor: `BaseLayer(name, layer_index, radius_inner_m, radius_outer_m, mass_kg, material_name, is_tidal, tidal_scale)`.
-  * Read-only geometry properties: `radius_inner`, `radius_outer`, `thickness`, `volume`, `surface_area_inner`, `surface_area_outer`.
-  * EOS profile: `eos_data_populated`, `update_eos_data(r, rho, g, p)`, `get_density(r)`, `get_gravity(r)`, `get_pressure(r)`.
-  * Binary serialization and TOML config save inherited from `TidalPyBaseClass`.
-  * Added `c_LayerEOSData` (header-only, `eos_data_.hpp`) for per-layer EOS interpolation data.
-
-##### Recursive Binary Serialization (`_x` layers + physics models)
-* Layers now serialize their attached physics sub-models recursively in `save_binary` / `load_binary`. A saved layer fully round-trips with its rheology, cooling, and radiogenics models attached; no Python/Cython reconstruction step is needed after `load_binary`.
-  * `PhysicsLayer` and `GasLayer` serialize their shear and bulk rheology models; `SolidLiquidLayer` additionally serializes its cooling and radiogenics models.
-  * Optional owned sub-objects are encoded as a one-byte presence flag followed (when present) by the sub-model's own binary record. New `binary_x` helpers: `write_optional_binary`, `read_optional_binary`, `optional_binary_flag_bytes` (alongside the existing `write_binary_string` / `read_binary_string`).
-  * Each physics module gained a binary-dispatch factory (`c_rheology_from_binary`, `c_cooling_from_binary`, `c_radiogenics_from_binary`) that peeks the record's `BinaryClassID` and reconstructs the correct concrete model. Every concrete model already carries a unique `BinaryClassID` (rheology 301–307, cooling 401–403, radiogenics 501–503).
-* Added Python-level methods to attach sub-models to layers (ownership of the C++ model is transferred into the layer):
-  * `PhysicsLayer.set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)` (inherited by `SolidLiquidLayer` and `GasLayer`).
-  * `SolidLiquidLayer.set_cooling(cooling)` / `set_radiogenics(radiogenics)`.
-
-##### `TidalPy.cooling_x` Module (new)
-* Created `TidalPy/cooling_x/` as the new C++/Cython module for cooling (heat-transport) models.
-* Added the abstract base `c_CoolingBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_cooling(c_CoolingInputs)` returning a `c_CoolingResult` (heat flux [W/m²], boundary-layer thickness [m], Rayleigh and Nusselt numbers). The eight physical inputs are bundled in a `c_CoolingInputs` struct (per the >5-argument style rule).
-* Added the three cooling models, each exposed as a Cython/Python class:
-  * `OffCooling` (alias `none`) — cooling disabled (zero flux; boundary layer = half thickness).
-  * `ConductiveCooling` (alias `conductive`) — conduction: `q = k · ΔT / thickness`.
-  * `ConvectiveCooling` (alias `convective`) — parameterized boundary-layer convection via the Rayleigh number; params `convection_alpha`, `convection_beta`, `critical_rayleigh` (Nusselt floor of 2). Uses the shared `minimum_layer_thickness` config floor.
-  * Physics matches TidalPy's legacy `cooling.cooling_models` formulas.
-* Added a rich `CoolingResult` container (`cooling_flux`, `boundary_layer_thickness`, `rayleigh`, `nusselt`; `to_dict`, iteration) whose fields are floats for scalar input or `float64` ndarrays for vectorized input.
-* Added an enum-based C++ factory: `c_CoolingModel`, `c_cooling_model_from_name(name)` (alias-aware), and `c_find_cooling(model, config)` returning a `unique_ptr<c_CoolingBase>`. A name overload is also provided.
-* Added `make_cooling(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`.
-* Added vectorized cooling methods on `c_CoolingBase` (inherited by all models): `calc_cooling_vectorize_temperature`, `..._vectorize_viscosity`, and `..._vectorize_all` (the two "live" inputs are the temperature drop and viscosity). The Cython wrappers return a `CoolingResult` of `float64` ndarrays.
-* Added lower-case direct convenience functions (`cooling_off`, `conductive`, `convective`) that build a stack-allocated model, solve, and return a `CoolingResult`; `delta_temp_k` (and, for convection, `viscosity_pas`) accept floats or NumPy arrays (broadcast together).
-* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 401–403).
-
-##### `TidalPy.rheology_x` Module (new)
-* Created `TidalPy/rheology_x/` as the new C++/Cython module for rheology (complex-compliance) models.
-* Added the abstract base `c_RheologyBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_complex_modulus(modulus, viscosity, frequency)` returning the complex (shear/bulk) modulus `μ*` [Pa] directly. Simple models are analytic; series composites (Burgers, Andrade, Sundberg) invert the sum of their element compliances internally (compliance is never exposed to Python).
-* Added the seven rheology models, each exposed as a Cython/Python class:
-  * `Elastic` (alias `off`) — purely elastic, no dissipation.
-  * `Viscous` (alias `newton`) — purely viscous (Newtonian fluid).
-  * `Voigt` (alias `voigt-kelvin`) — Voigt-Kelvin element; params `voigt_modulus_frac`, `voigt_viscosity_frac`.
-  * `Maxwell` — standard Maxwell body.
-  * `Burgers` — Maxwell + Voigt in series; params `voigt_modulus_frac`, `voigt_viscosity_frac`.
-  * `Andrade` — Maxwell + Andrade transient term (∝ ω^{−α}); params `alpha`, `zeta`.
-  * `Sundberg` (alias `sundberg-cooper`) — Andrade + Voigt; params `alpha`, `zeta`, `voigt_modulus_frac`, `voigt_viscosity_frac`.
-  * Physics matches TidalPy's legacy `rheology.complex_compliance` formulas.
-* Added an enum-based C++ factory: `c_RheologyModel` (one value per model), `c_rheology_model_from_name(name)` (alias-aware name → enum), and `c_find_rheology(model, config)` returning a `unique_ptr<c_RheologyBase>` to a heap-allocated model. A name overload `c_find_rheology(name, config)` is also provided.
-* Added `make_rheology(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`. It wraps the C++ enum factory (`c_rheology_model_from_name` → `c_find_rheology`) and adopts the returned `unique_ptr` into the matching rich Python wrapper.
-* Added vectorized complex-modulus methods on `c_RheologyBase` (inherited by all models): `calc_complex_modulus_vectorize_modulus`, `..._vectorize_frequency`, and `..._vectorize_all`. Each writes into a caller-supplied `std::vector<std::complex<double>>&`; the Cython wrappers accept array-likes and return `complex128` NumPy arrays.
-* Added lower-case direct convenience functions (`elastic`, `viscous`, `voigt`, `maxwell`, `burgers`, `andrade`, `sundberg`) that build a stack-allocated model, solve, and return. `frequency`, `modulus`, and `viscosity` accept floats or NumPy arrays (broadcast together); a scalar returns a Python `complex`, arrays return a `complex128` `ndarray`.
-* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 301–307).
-* Refactored the `PhysicsBase` Cython wrapper to be subclassable: subclasses own their most-derived C++ object via a `unique_ptr`, and `model_name` reads through the inherited `_ptr`.
-
-##### `TidalPy.radiogenics_x` Module (new)
-* Created `TidalPy/radiogenics_x/` as the new C++/Cython module for radiogenic-heating models.
-* Added the abstract base `c_RadiogenicsBase` (inherits `c_PhysicsBase`) with pure-virtual `calc_heating(time_s, mass_kg)` returning the radiogenic heating `Q` [W] directly. All inputs/outputs are MKS (time and half-lives in seconds).
-* Added a lightweight `c_Isotope` value type (no base class) describing one isotope (`name`, `heat_production_w_kg`, `half_life_s`, `mass_frac`, `concentration`) with `decay_constant()` and `specific_heating(time, ref_time)` helpers. `c_RadiogenicsConfig`/`c_IsotopeRadiogenics` carry a `std::vector<c_Isotope>`.
-* Added the three radiogenics models, each exposed as a Cython/Python class:
-  * `OffRadiogenics` (alias `none`) — radiogenics disabled, heating == 0.
-  * `IsotopeRadiogenics` — sum of decaying isotopes; constructed from parallel arrays (`heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, optional `names`) plus `ref_time_s`, or via `IsotopeRadiogenics.from_dataset(name)`.
-  * `FixedRadiogenics` (alias `constant`) — single lumped rate with optional exponential decay; params `fixed_heat_production_w_kg`, `average_half_life_s` (≤0 disables decay), `ref_time_s`.
-  * Physics matches TidalPy's legacy `radiogenics.radiogenic_models` formulas. The decay factor ln(0.5) is a module-level `constexpr` (`d_LN_HALF`).
-* Added built-in literature isotope datasets (C++ `c_get_isotope_dataset` / `c_isotope_dataset_names`, exposed as Python `available_isotope_datasets()` and `isotope_dataset(name)`): `modern_day_chondritic` (Hussmann & Spohn 2004; Turcotte & Schubert 2001), `llri_and_slri` (Castillo-Rogez et al. 2007, adds short-lived Mn53/Fe60/Al26), and `bulk_silicate_earth` (McDonough & Sun 1995). All defined in MKS (Myr converted to seconds).
-* Added an enum-based C++ factory: `c_RadiogenicsModel` (one value per model), `c_radiogenics_model_from_name(name)` (alias-aware name → enum), and `c_find_radiogenics(model, config)` returning a `unique_ptr<c_RadiogenicsBase>` to a heap-allocated model. A name overload is also provided.
-* Added `make_radiogenics(model_name, config=None)` — case-insensitive, alias-aware Python factory; unknown names raise `ValueError`. For the isotope model it accepts a built-in dataset name (`isotopes`), explicit MKS arrays, or a global-config/inline dataset (stored in Myr and converted to seconds).
-* Added vectorized heating methods on `c_RadiogenicsBase` (inherited by all models): `calc_heating_vectorize_time`, `..._vectorize_mass`, and `..._vectorize_all`. Each writes into a caller-supplied `std::vector<double>&`; the Cython wrappers accept array-likes and return `float64` NumPy arrays.
-* Added lower-case direct convenience functions (`off`, `isotope`, `fixed`) that build a stack-allocated model, solve, and return. `time` and `mass` accept floats or NumPy arrays (broadcast together); a scalar returns a Python `float`, arrays return a `float64` `ndarray`.
-* Each model supports `get_config_dict`, `save_config` (TOML), and `save_binary`/`load_binary` (binary class IDs 501–503; the Isotope model serializes its variable-length isotope list, including per-isotope names).
-
-##### `TidalPy.Utilities_x` Module (new)
-* Created `TidalPy/Utilities_x/` as the new C++/Cython foundation module housing base classes, logging, and binary I/O.
-* Added `TidalPy.Utilities_x.logging_x` — C++ logging via [spdlog v1.15.3](https://github.com/gabime/spdlog) with a Cython/Python wrapper.
-  * `init_logger(config)`, `set_log_level(level)`, `shutdown_logger()` are available from Python.
-  * C++ code uses `TIDALPY_LOG_DEBUG/INFO/WARN/ERROR/CRITICAL(...)` macros from `logger_.hpp`.
-  * Added `spdlog` as a git submodule at `Dependencies/spdlog` (header-only, cross-platform).
-* Added `TidalPy.Utilities_x.binary_x` — custom TidalPy binary file format with a fixed 20-byte header.
-  * `check_binary_file(path)` and `get_current_schema_version()` available from Python.
-  * C++ utilities in `binary_.hpp`: `write_binary_header`, `read_binary_header`, `check_binary_schema_version`, and `BinaryClassID` enum.
-  * Added shared length-prefixed string serialization helpers `write_binary_string`, `read_binary_string`, and `binary_string_bytes` (used for model names and any variable-length text — one encoding in one place).
-  * Schema version `0.2.0` (separate from package version); same `major.minor` required for compatibility.
-* Added `TidalPy.Utilities_x.classes_x` — C++ base class hierarchy with Cython/Python wrappers.
-  * `TidalPyBaseClass`: abstract base; provides `save_binary`, `load_binary`, `get_schema_version_str`, `get_config_dict`, `save_config`.
-  * `StructureBase(radius_m, mass_kg)`: spherical geometry base with `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity` (all MKS).
-  * `PhysicsBase(model_name)`: physics model base with `model_name` property and binary serialization. Provides shared `write_physics_binary(out, class_id, params)` / `read_physics_binary(in, force, n_params)` helpers so every physics model serializes uniformly (header + model name + scalar params) and a model's `write_binary`/`read_binary` reduce to one call each.
+#### Package
+* Added helper function `TidalPy.get_include` to get paths to cpp/hpp source files so they can be included in the
+  build process of dependent packages (similar to `numpy.get_include`).
+* `TidalPy.constants` now exposes `year` (the Julian year in seconds, from SciPy) with the alias `yr`, joining `au`
+  and the other third-party-sourced constants.
+* The TidalPy data/config directories are now scoped to the package's `<major>.<minor>.X` version (e.g.
+  `.../TidalPy/0.8.X/`) instead of the full patch version, so user configs and downloaded data are not duplicated (or
+  lost) on each bugfix release. New helper `TidalPy.paths.get_data_version()` returns the scoped label.
+* Drops support for Python 3.9.
 
 #### Utilities
-* Added a new lookup structure `TidalPy.utilities.lookups.IntMapN` where `N=1,2,3,4` that stores a double floating point number by a unique `N` integer(s) key.
-  * Complex versions are also available as `IntMapNComplex`.
-* Converted `math.numerics` to c++.
-* Implemented a new constant/parameter backend that can be accessed in C++ but modified in Python/cython.
+* Converted `math.numerics` to C++.
+* Implemented a new constant/parameter backend that can be accessed in C++ but modified in Python/Cython.
   * Refactored `constants.d_DBL_MANT_DIG` to `constants.d_DBL_MANT_DIGITS` for readability.
-  * Refactored `constants.d_PI_DBL` to `constants.d_PI`
-  * Refactored `constants.d_NAN_DBL` to `constants.d_NAN`
+  * Refactored `constants.d_PI_DBL` to `constants.d_PI`.
+  * Refactored `constants.d_NAN_DBL` to `constants.d_NAN`.
 
 #### Tests
 * Added tests for `TidalPy.get_include`.
-* Added tests for the new `IntMap`.
-* Added tests for the new `obliquity` functions.
-* Added tests for the new `eccentricity` functions.
+* Extensive new test suites for the `_x` backend (every module, plus old-vs-new comparison tests that pin the new
+  radial solver and physics models against the classic implementations).
 
 #### Documentation
-* Added documentation for `IntMap` in the Utilities module section.
-* Added a note about `TidalPy.get_include` in the readme.
-* Added documentation for `obliquity` functions in the Tides module section.
-* Added documentation for `eccentricity` functions in the Tides module section.
+* New "Future Structure" documentation section: a landing page explaining the backend transition with a
+  classic-to-`_x` module map and verified porting examples, plus a documentation page for every `_x` module, the
+  tutorial notebooks, and the benchmarks.
 
 #### Repository
 * Fixes incorrect license url in codemeta.json.
@@ -163,16 +122,21 @@ _The `_x` in module and function names indicates experimental versions. This suf
 * Bumped version of `ipympl` to `<=0.11.0`.
 * Bumped version of `CyRK` to `>=0.17.1, <0.18.1`.
 * Increased numpy's max pinnings to `<2.5`.
+* `pandas` is now a core dependency (it drives the performance-benchmark trend views).
+
+##### `spdlog` Submodule
+* Adds [spdlog](https://github.com/gabime/spdlog) (header-only C++ logging) as a submodule at `Dependencies/spdlog`;
+  it backs the new backend's logging.
 
 ##### `XSF` Submodule
-* Adds [xsf]() package as a submodule to TidalPy. We use the spherical bessel function headers in various RadialSolver
-  calculations.
+* Adds the [xsf](https://github.com/scipy/xsf) package as a submodule to TidalPy. We use the spherical bessel function
+  headers in various RadialSolver calculations.
   * Adds cython wrappers for spherical bessel functions to `TidalPy.utilities.math.special`.
 
 ##### `Eigen` Submodule
-* Adds [Eigen]](https://gitlab.com/libeigen/eigen) package as a submodule to TidalPy.
-  This provides much of the functionality of LAPACK without us having to compile it or find its symbols. Specifically
-  we use it to do a LU-Decomp in `RadialSolver_x` module.
+* Adds the [Eigen](https://gitlab.com/libeigen/eigen) package as a submodule to TidalPy. This provides much of the
+  functionality of LAPACK without us having to compile it or find its symbols. Specifically we use it to do a
+  LU-Decomp in the new radial solver's propagation-matrix method.
 
 ### Version 0.7.0 (2025-12-02)
 

@@ -25,7 +25,7 @@ struct c_InterpolateEOSInput
 // The function signature matches CyRK's PreEvalFunc:
 //   void(char* preeval_output, double radius, double* radial_solutions, char* preeval_input)
 
-void c_preeval_interpolate(
+inline void c_preeval_interpolate(
         // Values that will be updated by the function
         char* preeval_output,
         // Input that is used by the pre-eval
@@ -42,7 +42,7 @@ void c_preeval_interpolate(
     c_EOSOutput* output = reinterpret_cast<c_EOSOutput*>(preeval_output);
 
     // Find the shared index_j to use across all three interpolations.
-    // We do this explicitly because the provided cf_interp functions read the pointer but don't output the new j.
+    // We do this explicitly because the provided c_interp functions read the pointer but don't output the new j.
     int b_search_code = 0;
     
     // Formulate the initial guess to pass to the binary search
@@ -53,8 +53,9 @@ void c_preeval_interpolate(
     size_t j_guess = static_cast<size_t>(
         eos_data->num_slices * std::fabs(std::floor(radius / (right_x - left_x)))
     );
-    j_guess = std::max<size_t>(std::min<size_t>(j_guess, eos_data->num_slices), 0);
-    size_t index_j = cf_binary_search_with_guess(
+    // Clamp the guess to a valid index (num_slices - 1, not num_slices, to avoid reading one past the end).
+    j_guess = (eos_data->num_slices > 0) ? std::min<size_t>(j_guess, eos_data->num_slices - 1) : 0;
+    size_t index_j = c_binary_search_with_guess(
         radius, 
         eos_data->radius_array_ptr, 
         eos_data->num_slices, 
@@ -64,7 +65,7 @@ void c_preeval_interpolate(
 
     // Interpolate Density
     double density_result = 0.0;
-    cf_interp(
+    c_interp(
         &radius,
         eos_data->radius_array_ptr,
         eos_data->density_array_ptr,
@@ -80,11 +81,11 @@ void c_preeval_interpolate(
     {
         double bulk_result[2] = {0.0, 0.0};
         
-        // Cast the complex array to a double array (interleaved real/imag) for cf_interp_complex
+        // Cast the complex array to a double array (interleaved real/imag) for c_interp_complex
         auto* bulk_ptr = reinterpret_cast<double*>(eos_data->bulk_modulus_array_ptr);
         
-        cf_interp_complex(
-            radius,                      // Note: cf_interp_complex takes double
+        c_interp_complex(
+            radius,                      // Note: c_interp_complex takes double
             eos_data->radius_array_ptr,
             bulk_ptr,
             eos_data->num_slices,
@@ -106,7 +107,7 @@ void c_preeval_interpolate(
         
         auto* shear_ptr = reinterpret_cast<double*>(eos_data->shear_modulus_array_ptr);
         
-        cf_interp_complex(
+        c_interp_complex(
             radius,
             eos_data->radius_array_ptr,
             shear_ptr,

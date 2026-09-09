@@ -145,3 +145,67 @@ inline void c_apply_surface_bc(
         }
     }
 }
+
+
+// Estimate how strongly the surface boundary condition solve amplifies error.
+//
+// The collapsed surface solution is y_k = sum_s c_s y_{k,s} over the independent solutions s. When the
+// solution constants c_s are large and cancel (deep starting radii, high harmonic degrees), roundoff and
+// integration error in the y_{k,s} are amplified into the collapsed values by roughly the returned factor:
+// the largest cancellation scale sum_s |c_s| |y_{k,s}| across the y rows divided by the largest collapsed
+// magnitude |y_k|. The relative accuracy of the surface solution, and of the Love numbers derived from it,
+// is then floor limited to about (returned factor) * machine epsilon regardless of integration tolerance.
+//
+// Parameters
+// ----------
+// constant_vector_ptr : complex*
+//     Solution constants from the surface boundary condition solve.
+// uppermost_y_per_solution_ptr : complex*
+//     Y values at the surface for each independent solution.
+// num_sols : size_t
+//     Number of independent solutions (1, 2, or 3).
+// num_ys : size_t
+//     Number of y values per solution.
+// max_num_y : size_t
+//     Stride between solutions in uppermost_y_per_solution_ptr.
+//
+// Returns
+// -------
+// double
+//     Amplification factor (1 when a single solution leaves no room for cancellation).
+inline double c_estimate_surface_amplification(
+        const std::complex<double>* constant_vector_ptr,
+        const std::complex<double>* uppermost_y_per_solution_ptr,
+        size_t num_sols,
+        size_t num_ys,
+        size_t max_num_y) noexcept
+{
+    double max_cancellation_scale = 0.0;
+    double max_collapsed_mag      = 0.0;
+    for (size_t y_i = 0; y_i < num_ys; ++y_i)
+    {
+        double cancellation_scale = 0.0;
+        std::complex<double> collapsed_value(0.0, 0.0);
+        for (size_t solution_i = 0; solution_i < num_sols; ++solution_i)
+        {
+            const std::complex<double> constant = constant_vector_ptr[solution_i];
+            const std::complex<double> y_value  = uppermost_y_per_solution_ptr[solution_i * max_num_y + y_i];
+            cancellation_scale += std::abs(constant) * std::abs(y_value);
+            collapsed_value    += constant * y_value;
+        }
+        max_cancellation_scale = std::fmax(max_cancellation_scale, cancellation_scale);
+        max_collapsed_mag      = std::fmax(max_collapsed_mag, std::abs(collapsed_value));
+    }
+
+    if (max_cancellation_scale <= 0.0)
+    {
+        // Degenerate all-zero surface; no cancellation information.
+        return 1.0;
+    }
+    if (max_collapsed_mag <= TidalPyConstants::d_EPS * max_cancellation_scale)
+    {
+        // Every y row cancels completely; cap at the largest meaningful amplification.
+        return 1.0 / TidalPyConstants::d_EPS;
+    }
+    return max_cancellation_scale / max_collapsed_mag;
+}

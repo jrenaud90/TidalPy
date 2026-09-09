@@ -4,6 +4,8 @@ results). While Python dictionaries are great, they don't work in C++ where some
 The package provides the following lookup structures that can be used in C++. However, many of these are wrapped via
 Cython so they can also be accessed in Cython or Python.
 
+These structures live in `TidalPy.Utilities_x.lookups`.
+
 ## `IntMap`
 `IntMap` is a lookup array (based off C++ vectors) that takes in 1 to 4 integers (`l,m,p,q`; Different numbers of
 integers require specific `IntMap1`, `IntMap2`, so on) and stores a double or a double complex. The C++ versions 
@@ -16,7 +18,7 @@ into a single 64-bit integer. This is then used as a key that is mapped to the p
 
 Example usage in Python:
 ```python
-from TidalPy.utilities.lookups.intmap import IntMap3, IntMap3Complex
+from TidalPy.Utilities_x.lookups.intmap import IntMap3, IntMap3Complex
 
 my_map = IntMap3()
 

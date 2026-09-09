@@ -81,7 +81,7 @@ m = Maxwell()
 # complex shear modulus [Pa]
 G = m.calc_complex_modulus(modulus, viscosity, frequency)
 
-# Parameterised model
+# Parameterized model
 a = Andrade(alpha=0.25, zeta=2.0)
 
 # Name/alias-based factory (case-insensitive), config keys are model-dependent

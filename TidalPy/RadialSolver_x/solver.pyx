@@ -22,6 +22,7 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 from TidalPy.exceptions import SolutionFailedError
 from TidalPy.RadialSolver_x.rs_solution cimport RadialSolverSolution
+from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
 
 log = get_logger("TidalPy")
 
@@ -107,7 +108,7 @@ def radial_solver(
     use_kamata : bool, default=False
         Use Kamata+ (2015) starting conditions.
     integration_method : str, default='DOP853'
-        CyRK integration method ('RK23', 'RK45', 'DOP853').
+        CyRK integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', 'Radau'.
     integration_rtol : float64, default=1.0e-5
         Relative integration tolerance.
     integration_atol : float64, default=1.0e-8
@@ -131,7 +132,7 @@ def radial_solver(
     surface_pressure : float64, default=0.0
         Planet surface pressure [Pa].
     eos_integration_method : str, default='DOP853'
-        EOS integration method.
+        EOS integration method: 'RK23', 'RK45', 'DOP853', 'BDF', 'LSODA', or 'Radau'.
     eos_rtol : float64, default=1.0e-3
         EOS relative tolerance.
     eos_atol : float64, default=1.0e-5
@@ -159,6 +160,25 @@ def radial_solver(
     cdef size_t total_slices = radius_array.shape[0]
     cdef size_t num_layers   = len(layer_types)
 
+    # Every radial array must match the radius array's length; the C++ pipeline reads and
+    # writes all of them over the radius-derived slice count, so a shorter array would be
+    # accessed out of bounds.
+    if total_slices == 0:
+        raise ValueError('radius_array must not be empty.')
+    if (<size_t>density_array.shape[0] != total_slices
+            or <size_t>complex_bulk_modulus_array.shape[0] != total_slices
+            or <size_t>complex_shear_modulus_array.shape[0] != total_slices):
+        raise ValueError(
+            'density, complex bulk modulus, and complex shear modulus arrays must all match '
+            f'the radius array length ({total_slices}); got {density_array.shape[0]}, '
+            f'{complex_bulk_modulus_array.shape[0]}, {complex_shear_modulus_array.shape[0]}.')
+    if <size_t>upper_radius_bylayer_array.shape[0] != num_layers:
+        raise ValueError(
+            f'upper_radius_bylayer_array length ({upper_radius_bylayer_array.shape[0]}) must match '
+            f'the number of layers ({num_layers}).')
+    if len(is_static_bylayer) != num_layers or len(is_incompressible_bylayer) != num_layers:
+        raise ValueError('layer_types, is_static_bylayer, and is_incompressible_bylayer must have equal lengths.')
+
     # Convert Python tuples into C++ std::vectors of strings
     cdef vector[cpp_string] c_layer_types
     for lt in layer_types:
@@ -166,6 +186,10 @@ def radial_solver(
 
     cdef vector[cpp_string] c_solve_for
     if solve_for is not None:
+        # The validator writes one boundary-condition model per entry into a fixed int[5] buffer.
+        if len(solve_for) > 5:
+            raise ValueError(
+                f'radial_solver supports at most 5 simultaneous solve_for entries; got {len(solve_for)}.')
         for sf in solve_for:
             c_solve_for.push_back(sf.encode('utf-8'))
 
@@ -301,5 +325,6 @@ def radial_solver(
     if warnings:
         if np.any(solution.steps_taken > 7_000):
             log.warning(f"Large number of steps taken found in radial solver solution (max = {np.max(solution.steps_taken)}).")
+        check_surface_solve_conditioning(solution.surface_solve_amplification, integration_rtol)
 
     return solution

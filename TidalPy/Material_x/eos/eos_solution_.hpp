@@ -10,39 +10,12 @@
 
 #include "cysolution.hpp"  // Part of the CyRK python package. Header should be included in setup using CyRK.get_include()
 
-#include "nondimensional_.hpp" // Part of the TidalPy.utilities module
+#include "../../Utilities_x/dimensions/nondimensional_.hpp" // c_NonDimensionalScales
 #include "constants_.hpp"      // Part of the TidalPy
 
 #include "ode_.hpp" // For C_EOS_Y_VALUES, C_EOS_EXTRA_VALUES, C_EOS_DY_VALUES
-
-
-/// Helper: Check if two doubles are approximately equal.
-inline bool c_eos_isclose(double a, double b)
-{
-    // TODO: Make the numerics.pyx utility a C header that we can import here instead of reimplementing it.
-    const double rtol = 1.0e-9;
-    const double atol = 0.0;
-
-    if (std::isnan(a))
-    {
-        return false;
-    }
-
-    if (std::isnan(b))
-    {
-        return false;
-    }
-
-    if (a == b)
-    {
-        return true;
-    }
-
-    const double lhs = std::fabs(a - b);
-    const double rhs = std::fmax(rtol * std::fmax(std::fabs(a), std::fabs(b)), atol);
-
-    return lhs <= rhs;
-}
+#include "../../utilities/arrays/interp_.hpp"  // c_binary_search_with_guess, c_interp, c_interp_complex
+#include "../../Utilities_x/math_x/numerics_.hpp"  // c_isclose
 
 
 /// C++ class storing the equation of state integration results for a layered planet.
@@ -62,8 +35,24 @@ public:
     int solution_nondim_status = 0;
     bool success          = false;
     bool max_iters_hit    = false;
-    bool radius_array_set = false;
-    bool other_vecs_set   = false;
+    bool radius_array_set  = false;
+    bool other_vecs_set    = false;
+    bool p_use_array_interp = false;  // set by inject_from_world_eos; call() uses array interpolation
+
+    // Optional dense structure source (non-owning). When set together with p_use_array_interp, the solved structure
+    // dependent variables (gravity/pressure/mass/moi) are read from this external dense EOS solution rather than the
+    // stored arrays, preserving the dense (polynomial) accuracy of the integrated EOS structure. Density and the
+    // complex moduli remain array-interpolated (density is algebraic; the complex moduli come from the rheology, not
+    // the EOS solve). Used by the world Love-number solve, which reuses the world's already-solved (dense) EOS while
+    // supplying frequency-dependent complex moduli. The source is dimensional (SI); the scales convert to this
+    // solution's (non-dim) units: source_radius = this_radius * p_structure_length_scale; this_value = source_value /
+    // p_structure_*_scale.
+    const c_EOSSolution* p_structure_dense_source = nullptr;
+    double p_structure_length_scale  = 1.0;
+    double p_structure_gravity_scale = 1.0;
+    double p_structure_pascal_scale  = 1.0;
+    double p_structure_mass_scale    = 1.0;
+    double p_structure_moi_scale     = 1.0;
 
     std::string message         = "No Message Set.";
     size_t current_layers_saved = 0;
@@ -102,6 +91,9 @@ public:
     std::vector<double> density_array_vec  = std::vector<double>();
     std::vector<std::complex<double>> complex_shear_array_vec = std::vector<std::complex<double>>();
     std::vector<std::complex<double>> complex_bulk_array_vec  = std::vector<std::complex<double>>();
+    // Static (real) shear/bulk viscosity [Pa s] vs radius (EOS-model extra outputs).
+    std::vector<double> shear_viscosity_array_vec = std::vector<double>();
+    std::vector<double> bulk_viscosity_array_vec  = std::vector<double>();
 
 // Methods
 protected:
@@ -128,6 +120,8 @@ public:
         this->density_array_vec.clear();
         this->complex_shear_array_vec.clear();
         this->complex_bulk_array_vec.clear();
+        this->shear_viscosity_array_vec.clear();
+        this->bulk_viscosity_array_vec.clear();
     }
 
     c_EOSSolution()
@@ -171,12 +165,109 @@ public:
     }
 
 
+    /// Fallback: interpolate all EOS outputs directly from the stored array vectors.
+    /// Used when p_use_array_interp is true (set by inject_from_world_eos).
+    /// Arrays must already be in the units the caller expects; no nondim scaling is applied.
+    void _call_interp_arrays(const double radius_val, double* y_interp_ptr) const noexcept
+    {
+        const size_t n  = this->radius_array_size;
+        if (n == 0)
+        {
+            // No stored arrays to interpolate; make the failure visible rather than reading
+            // uninitialized memory.
+            for (size_t value_i = 0; value_i < C_EOS_DY_VALUES; ++value_i)
+            {
+                y_interp_ptr[value_i] = TidalPyConstants::d_NAN;
+            }
+            return;
+        }
+        // c_interp/c_binary_search_with_guess take non-const double* but only read the data.
+        double* radius_data_ptr = const_cast<double*>(this->radius_array_vec.data());
+        double  radius_query = radius_val;   // mutable copy for c_interp's desired_x_ptr arg
+
+        // Initial index guess from normalized position in the radius range.
+        const double r_left  = radius_data_ptr[0];
+        const double r_right = radius_data_ptr[n - 1];
+        size_t j = 0;
+        if (r_right > r_left)
+        {
+            const double frac = (radius_val - r_left) / (r_right - r_left);
+            const double clamped = frac < 0.0 ? 0.0 : (frac > 1.0 ? 1.0 : frac);
+            j = static_cast<size_t>(static_cast<double>(n) * clamped);
+            if (j >= n) j = n - 1;
+        }
+        int b_code = 0;
+        j = c_binary_search_with_guess(radius_val, radius_data_ptr, n, j, &b_code);
+
+        // Interpolate each quantity in the order that matches the CySolverResult layout:
+        //   [0] gravity, [1] pressure, [2] mass, [3] moi, [4] density,
+        //   [5] shear_real, [6] shear_imag, [7] bulk_real, [8] bulk_imag
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->gravity_array_vec.data()),  n, &j, &y_interp_ptr[0]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->pressure_array_vec.data()), n, &j, &y_interp_ptr[1]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->mass_array_vec.data()),     n, &j, &y_interp_ptr[2]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->moi_array_vec.data()),      n, &j, &y_interp_ptr[3]);
+        c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->density_array_vec.data()),  n, &j, &y_interp_ptr[4]);
+
+        double shear_result[2] = {0.0, 0.0};
+        c_interp_complex(
+            radius_val, radius_data_ptr,
+            const_cast<double*>(reinterpret_cast<const double*>(this->complex_shear_array_vec.data())),
+            n, &j, shear_result);
+        y_interp_ptr[5] = shear_result[0];
+        y_interp_ptr[6] = shear_result[1];
+
+        double bulk_result[2] = {0.0, 0.0};
+        c_interp_complex(
+            radius_val, radius_data_ptr,
+            const_cast<double*>(reinterpret_cast<const double*>(this->complex_bulk_array_vec.data())),
+            n, &j, bulk_result);
+        y_interp_ptr[7] = bulk_result[0];
+        y_interp_ptr[8] = bulk_result[1];
+
+        // The dense path writes C_EOS_DY_VALUES (11) outputs including the shear/bulk
+        // viscosities at [9]/[10]; interpolate them when stored, else mark them NaN so
+        // consumers never read uninitialized memory.
+        if (this->shear_viscosity_array_vec.size() == n && this->bulk_viscosity_array_vec.size() == n)
+        {
+            c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->shear_viscosity_array_vec.data()), n, &j, &y_interp_ptr[9]);
+            c_interp(&radius_query, radius_data_ptr, const_cast<double*>(this->bulk_viscosity_array_vec.data()),  n, &j, &y_interp_ptr[10]);
+        }
+        else
+        {
+            y_interp_ptr[9]  = TidalPyConstants::d_NAN;
+            y_interp_ptr[10] = TidalPyConstants::d_NAN;
+        }
+    }
+
+
     /// Interpolate at a single radius using the CySolverResult from a specific layer.
     void call(
         const size_t layer_index,
         const double radius_val,
         double* y_interp_ptr) const
     {
+        if (this->p_use_array_interp) [[unlikely]]
+        {
+            // EOS was injected from a pre-solved world; use simple array interpolation.
+            // Arrays are already in the units inject_from_world_eos provided.
+            this->_call_interp_arrays(radius_val, y_interp_ptr);
+
+            // Override the SOLVED structure dependent variables (gravity/pressure/mass/moi) with the dense-output
+            // values from the source EOS solution, preserving the polynomial accuracy of the integrated structure.
+            // Density (y[4]) and the complex moduli (y[5..8]) keep their array-interpolated values.
+            if (this->p_structure_dense_source) [[unlikely]]
+            {
+                double src_out[C_EOS_DY_VALUES];
+                const double src_radius = radius_val * this->p_structure_length_scale;
+                this->p_structure_dense_source->call(layer_index, src_radius, src_out);
+                y_interp_ptr[0] = src_out[0] / this->p_structure_gravity_scale;   // gravity
+                y_interp_ptr[1] = src_out[1] / this->p_structure_pascal_scale;    // pressure
+                y_interp_ptr[2] = src_out[2] / this->p_structure_mass_scale;      // mass
+                y_interp_ptr[3] = src_out[3] / this->p_structure_moi_scale;       // moment of inertia
+            }
+            return;
+        }
+
         if (layer_index < this->current_layers_saved) [[likely]]
         {
             this->cysolver_results_uptr_bylayer_vec[layer_index]->call(radius_val, y_interp_ptr);
@@ -256,6 +347,8 @@ public:
             this->density_array_vec.clear();
             this->complex_shear_array_vec.clear();
             this->complex_bulk_array_vec.clear();
+            this->shear_viscosity_array_vec.clear();
+            this->bulk_viscosity_array_vec.clear();
             for (size_t i = 0; i < this->cysolver_results_uptr_bylayer_vec.size(); i++)
             {
                 this->cysolver_results_uptr_bylayer_vec[i]->dense_vec.clear();
@@ -277,6 +370,8 @@ public:
         this->density_array_vec.reserve(this->radius_array_size);
         this->complex_shear_array_vec.reserve(this->radius_array_size);
         this->complex_bulk_array_vec.reserve(this->radius_array_size);
+        this->shear_viscosity_array_vec.reserve(this->radius_array_size);
+        this->bulk_viscosity_array_vec.reserve(this->radius_array_size);
 
         // Copy over the radius array values
         this->radius_array_vec.resize(this->radius_array_size);
@@ -310,7 +405,7 @@ public:
         {
             const double radius_val = this->radius_array_vec[radius_i];
 
-            if (c_eos_isclose(radius_val, current_layer_upper_radius))
+            if (c_isclose(radius_val, current_layer_upper_radius))
             {
                 // At the layer's radius. We want to capture it once at interfaces
                 // (there will be two of the same radii for interface layers)
@@ -358,6 +453,10 @@ public:
             this->complex_shear_array_vec.push_back(std::complex<double>(y_interp_ptr[5], y_interp_ptr[6]));
             this->complex_bulk_array_vec.push_back(std::complex<double>(y_interp_ptr[7], y_interp_ptr[8]));
 
+            // Static viscosities (real) carried as EOS extra outputs 9 and 10.
+            this->shear_viscosity_array_vec.push_back(y_interp_ptr[9]);
+            this->bulk_viscosity_array_vec.push_back(y_interp_ptr[10]);
+
             // Record central pressure
             if (current_layer_index == 0 && radius_i == 0)
             {
@@ -374,6 +473,55 @@ public:
         // Finished
         this->other_vecs_set = true;
     }
+
+    /// Populate all structure arrays directly from pre-solved world EOS data.
+    ///
+    /// Bypasses CySolverResult — use when a LayeredWorld has already run solve_eos
+    /// and the result needs to be handed into a c_RadialSolutionStorage without
+    /// re-integrating the ODE.  All arrays are assumed to be in SI (MKS) units.
+    void inject_from_world_eos(
+        const double* radius_ptr,
+        const double* gravity_ptr,
+        const double* pressure_ptr,
+        const double* mass_ptr,
+        const double* moi_ptr,
+        const double* density_ptr,
+        const std::complex<double>* complex_shear_ptr,
+        const std::complex<double>* complex_bulk_ptr,
+        size_t n)
+    {
+        if (n == 0)
+        {
+            throw std::invalid_argument("inject_from_world_eos: array length n must be > 0.");
+        }
+
+        this->radius_array_size = n;
+
+        this->radius_array_vec.assign(radius_ptr,        radius_ptr        + n);
+        this->gravity_array_vec.assign(gravity_ptr,      gravity_ptr       + n);
+        this->pressure_array_vec.assign(pressure_ptr,    pressure_ptr      + n);
+        this->mass_array_vec.assign(mass_ptr,            mass_ptr          + n);
+        this->moi_array_vec.assign(moi_ptr,              moi_ptr           + n);
+        this->density_array_vec.assign(density_ptr,      density_ptr       + n);
+        this->complex_shear_array_vec.assign(complex_shear_ptr, complex_shear_ptr + n);
+        this->complex_bulk_array_vec.assign(complex_bulk_ptr,   complex_bulk_ptr  + n);
+
+        this->radius           = radius_ptr[n - 1];
+        this->surface_gravity  = gravity_ptr[n - 1];
+        this->surface_pressure = pressure_ptr[n - 1];
+        this->mass             = mass_ptr[n - 1];
+        this->moi              = moi_ptr[n - 1];
+        this->central_pressure = pressure_ptr[0];
+
+        this->nondim_status          = 0;
+        this->solution_nondim_status = 0;
+        this->success                = true;
+        this->error_code             = 0;
+        this->radius_array_set       = true;
+        this->other_vecs_set         = true;
+        this->p_use_array_interp     = true;
+    }
+
 
     /// Handle dimensionalization/redimensionalization of solution data.
     void dimensionalize_data(
@@ -405,7 +553,7 @@ public:
         }
         else
         {
-            // TODO: Deal with this case! For now push the problem to the user when they try to call...
+            // TODO: Handle repeated same-direction dimensionalization requests instead of raising.
             throw std::runtime_error("Unsupported dimensionalization encountered.");
         }
 

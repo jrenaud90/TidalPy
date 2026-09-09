@@ -91,6 +91,11 @@ inline int c_matrix_propagate(
 
     solution_storage_ptr->message = "RadialSolver.PropMatrixMethod:: Propagator Matrix Method Called.\n";
 
+    // The matrix method serves its solution from the gridded full_solution_vec (filled below), not from dense
+    // interpolants. Clear any interpolant state left over from a prior shooting solve on this reused storage so
+    // get_radial_solution dispatches to the matrix (linear-interpolation) branch.
+    solution_storage_ptr->reset_interpolant_storage();
+
     // Pull out key information
     const size_t num_layers     = eos_solution_storage_ptr->num_layers;
     const size_t total_slices   = eos_solution_storage_ptr->radius_array_size;

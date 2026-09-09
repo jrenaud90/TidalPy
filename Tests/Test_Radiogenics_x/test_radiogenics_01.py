@@ -284,22 +284,50 @@ def test_available_isotope_datasets():
     assert set(names) == {"modern_day_chondritic", "llri_and_slri", "bulk_silicate_earth"}
 
 
-@pytest.mark.parametrize("name,n_isotopes", [
-    ("modern_day_chondritic", 4),
-    ("llri_and_slri", 7),
-    ("bulk_silicate_earth", 4),
+_MYR_S = 1.0e6 * 365.25 * 24.0 * 3600.0
+
+
+@pytest.mark.parametrize("name,n_isotopes,ref_time_s", [
+    ("modern_day_chondritic", 4, 4600.0 * _MYR_S),
+    ("llri_and_slri", 7, 0.0),
+    ("bulk_silicate_earth", 4, 4600.0 * _MYR_S),
 ])
-def test_isotope_dataset_contents(name, n_isotopes):
-    """Each built-in dataset returns an MKS dict with the expected isotope count."""
+def test_isotope_dataset_contents(name, n_isotopes, ref_time_s):
+    """Each built-in dataset returns an MKS dict with the expected isotope count.
+
+    The present-epoch datasets quote concentrations 4600 Myr after formation; the
+    LLRI+SLRI dataset quotes formation (CAI) abundances, so its reference time is 0.
+    """
     mod = _import_radiogenics()
     ds = mod.isotope_dataset(name)
     assert set(ds) == {
         "heat_production_w_kg", "half_lives_s", "mass_fracs",
         "concentrations", "isotope_names", "ref_time_s"}
     assert len(ds["isotope_names"]) == n_isotopes
-    # ref_time and half lives are MKS seconds (4600 Myr -> ~1.45e17 s).
-    assert ds["ref_time_s"] == pytest.approx(4600.0 * 1.0e6 * 365.25 * 24.0 * 3600.0)
+    assert ds["ref_time_s"] == pytest.approx(ref_time_s, abs=1.0)
     assert all(hl > 0.0 for hl in ds["half_lives_s"])
+
+
+def test_llri_heating_finite_at_formation():
+    """The LLRI+SLRI dataset gives finite, decaying heating from formation onward.
+
+    The short-lived isotopes (Al26 with a 0.72 Myr half life, Fe60, Mn53) contribute
+    roughly half the formation-epoch heating and are gone within a few tens of Myr;
+    the long-lived isotopes persist, so the total decays substantially (the SLRI
+    share dies off) but not by orders of magnitude.
+    """
+    import math
+    mod = _import_radiogenics()
+    model = mod.IsotopeRadiogenics.from_dataset("llri_and_slri")
+    heating_formation = model.calc_heating(0.0, _MASS)
+    heating_10myr = model.calc_heating(10.0 * _MYR_S, _MASS)
+    heating_100myr = model.calc_heating(100.0 * _MYR_S, _MASS)
+    assert math.isfinite(heating_formation)
+    assert heating_formation > 0.0
+    # Monotonic decay, with the SLRI share (about half the formation total) gone by 100 Myr.
+    assert heating_10myr < heating_formation
+    assert heating_100myr < heating_10myr
+    assert heating_100myr < 0.6 * heating_formation
 
 
 def test_isotope_dataset_unknown_raises():

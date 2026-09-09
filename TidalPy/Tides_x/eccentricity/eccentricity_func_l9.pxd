@@ -1,7 +1,7 @@
 from libcpp.pair cimport pair
 
 from TidalPy.Tides_x.eccentricity.eccentricity_common cimport EccentricityFuncOutput
-from TidalPy.utilities.lookups cimport c_IntMap, c_Key3, c_Key2, c_Key1
+from TidalPy.Utilities_x.lookups cimport c_IntMap, c_Key3, c_Key2, c_Key1
 
 cdef extern from "eccentricity_func_l9_.hpp" nogil:
     ctypedef pair[c_IntMap[c_Key3, double], c_IntMap[c_Key2, c_IntMap[c_Key1, double]]] EccentricityFuncOutput

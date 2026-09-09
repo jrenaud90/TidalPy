@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 solidliquid.pxd
-Cython declarations for TidalPy's solid/liquid layer class (Phase 3).
+Cython declarations for TidalPy's solid/liquid layer class.
 
 Exports c_SolidLiquidConfig, c_SolidLiquidLayer, and the Python wrapper
 SolidLiquidLayer so other extensions can cimport and use C-speed access.
@@ -18,6 +18,7 @@ from libcpp.memory cimport unique_ptr
 from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport c_TidalScaleMethod
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 from TidalPy.cooling_x.cooling cimport c_CoolingBase
 from TidalPy.radiogenics_x.radiogenics cimport c_RadiogenicsBase
@@ -38,6 +39,7 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         string              material_name
         cpp_bool            is_tidal
         double              tidal_scale
+        c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
         double              shear_modulus_static_pa
         double              bulk_modulus_static_pa
@@ -95,3 +97,6 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
 cdef class SolidLiquidLayer(PhysicsLayer):
     cdef c_SolidLiquidLayer* _solidliquid_ptr   # non-owning; ownership via BaseLayer._layer_ptr
     cpdef dict get_config_dict(self)
+    
+    @staticmethod
+    cdef SolidLiquidLayer _view(c_SolidLiquidLayer* ptr, object world)

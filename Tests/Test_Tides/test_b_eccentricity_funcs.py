@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from TidalPy.Tides_x.eccentricity import eccentricity_func
-from TidalPy.utilities.lookups import IntMap3
+from TidalPy.Utilities_x.lookups import IntMap3
 
 
 @pytest.mark.parametrize('degree_l', (2, 3, 4, 5, 6, 7, 8, 9, 10))

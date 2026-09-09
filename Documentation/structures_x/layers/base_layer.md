@@ -12,10 +12,11 @@ All spatial data is stored and returned in **MKS units** (meters, kilograms,
 seconds). Derived geometry (thickness, volume, surface areas) is computed at
 construction and accessible via read-only properties.
 
-An **EOS profile** (density, gravity, and pressure as a function of radius) can
-be attached to the layer by calling `update_eos_data`. In normal workflow this is
-done automatically by `EOSHandler` (Phase 8). Until populated, all EOS getters
-return `NaN`.
+A **material EOS model** (the layer's density source) is attached with `set_eos`.
+An **EOS profile** (density, gravity, and pressure as a function of radius) is then
+populated by the world-level EOS solve
+([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly via
+`update_eos_data`. Until populated, all EOS getters return `NaN`.
 
 ---
 
@@ -86,15 +87,37 @@ BaseLayer(
 
 | Property | Description |
 |----------|-------------|
-| `eos_data_populated` | `True` after `update_eos_data` has been called. |
+| `eos_data_populated` | `True` after the EOS profile has been populated (by the world EOS solve or `update_eos_data`). |
+| `eos_set` | `True` after a material EOS model has been attached via `set_eos`. |
 
 ---
 
 ## Methods
 
+### `set_eos(model)`
+
+Attach a [material EOS model](../../material_x/material_eos.md) (the per-layer
+density source). Ownership of the C++ model transfers into the layer; the passed
+wrapper becomes an empty shell. The model is consumed by the world-level
+[`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet
+structure and populates this layer's EOS profile.
+
+```python
+from TidalPy.Material_x.eos import make_material_eos
+
+layer.set_eos(make_material_eos("birch_murnaghan", {
+    "reference_density_kg_m3": 4500.0,
+    "reference_bulk_modulus_pa": 2.5e11,
+    "bulk_modulus_derivative": 4.0,
+}))
+```
+
+Raises `ValueError` if the model has already been attached or moved.
+
 ### `update_eos_data(radius_m, density_kgm3, gravity_ms2, pressure_pa)`
 
-Populate the EOS profile from sorted radius arrays.
+Populate the EOS profile directly from sorted radius arrays (normally done for you
+by the world EOS solve; useful for tests or manual construction).
 
 ```python
 import numpy as np
@@ -108,21 +131,41 @@ layer.update_eos_data(r, rho, g, p)
 ```
 
 **Notes:**
-- In normal workflow this is called automatically by `EOSHandler` (Phase 8).
+- In normal workflow this is called automatically by the world EOS solve
+  ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
 - All sequences must be the same length and `radius_m` must be sorted ascending.
 - Linear interpolation is used; values are clamped at the layer boundaries.
 
-### `get_density(radius_m)` → float
+### `get_density(radius_m)` → float or ndarray
 
 Density at `radius_m` [kg/m³]. Returns `NaN` if EOS data not populated.
 
-### `get_gravity(radius_m)` → float
+### `get_gravity(radius_m)` → float or ndarray
 
 Gravitational acceleration at `radius_m` [m/s²]. Returns `NaN` if not populated.
 
-### `get_pressure(radius_m)` → float
+### `get_pressure(radius_m)` → float or ndarray
 
 Pressure at `radius_m` [Pa]. Returns `NaN` if not populated.
+
+### Viscoelastic profile getters → float or ndarray
+
+After the world EOS solve populates the layer, the radius-resolved viscoelastic state is
+readable through the same getter names the world exposes: `get_shear_modulus`,
+`get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their
+`get_premelt_*` counterparts (before the partial-melt step), and the shorthand bundles
+`get_static_viscoelastics(radius_m)` (the post-melt 4-tuple) and `get_state(radius_m)`
+(all profiles as a dict). All return `NaN` before the profile is populated.
+
+**Vectorization:** every profile getter on this page accepts a float or an `np.ndarray`
+of radii and returns a matching scalar or same-shape array (evaluated in a C loop):
+
+```python
+import numpy as np
+radii = np.linspace(3.5e6, 6.3e6, 100)
+rho = mantle.get_density(radii)        # ndarray, shape (100,)
+mu, eta_mu, kk, eta_k = mantle.get_static_viscoelastics(radii)
+```
 
 ### Inherited geometry calculations (from `StructureBase`)
 

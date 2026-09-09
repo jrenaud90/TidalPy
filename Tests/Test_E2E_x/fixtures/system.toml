@@ -1,0 +1,15 @@
+# End-to-end fixture: a star-planet system built from bundled world configs.
+schema_version = "0.2.0"
+name = "E2E-System"
+
+[worlds.sun]
+world = "sol"
+is_host = true
+is_star = true
+
+[worlds.planet]
+world = "earth_simple"
+semi_major_axis_m = 1.0e11
+eccentricity = 0.05
+stellar_semi_major_axis_m = 1.0e11
+stellar_eccentricity = 0.05

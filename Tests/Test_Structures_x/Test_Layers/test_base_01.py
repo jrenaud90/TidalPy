@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.structures_x.layers.base — BaseLayer (Phase 1).
+Tests for TidalPy.structures_x.layers.base — BaseLayer.
 
 Covers construction, geometry properties, EOS profile lifecycle, binary
 round-trip, and TOML config save.

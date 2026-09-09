@@ -176,7 +176,8 @@ cdef void solve_eos(
                 atols_vec,         # Absolute Tolerance vector[double]
                 max_step,          # Maximum step size [double]
                 first_step,        # Initial step size (0 = find good value) [double]
-                True               # Force retain solver
+                True,              # Force retain solver
+                NULL               # Analytic jacobian (null = numerical; used by implicit methods) [JacobianFuncType]
                 )
             #########################################################
             last_solution_size = integration_result_ptr.size

@@ -9,9 +9,9 @@ cnp.import_array()
 
 from CyRK cimport CySolverResult
 
-from TidalPy.utilities.dimensions.nondimensional cimport c_NonDimensionalScales
+from TidalPy.Utilities_x.dimensions.nondimensional cimport c_NonDimensionalScales
 
-cdef extern from "nondimensional_.hpp" nogil:
+cdef extern from "../../Utilities_x/dimensions/nondimensional_.hpp" nogil:
     pass
 
 cdef extern from "eos_solution_.hpp" nogil:

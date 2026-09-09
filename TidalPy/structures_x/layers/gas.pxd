@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 gas.pxd
-Cython declarations for TidalPy's gas layer class (Phase 4).
+Cython declarations for TidalPy's gas layer class.
 
 Exports c_GasConfig, c_GasLayer, and the Python wrapper GasLayer so other
 extensions can cimport and use C-speed access.
@@ -17,6 +17,7 @@ from libcpp.string cimport string
 from libcpp.complex cimport complex as cpp_complex
 
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base cimport c_TidalScaleMethod
 from TidalPy.Tides_x.love.love cimport c_LoveNumbers
 
 
@@ -35,6 +36,7 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         string              material_name
         cpp_bool            is_tidal
         double              tidal_scale
+        c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
         double              shear_modulus_static_pa
         double              bulk_modulus_static_pa
@@ -67,4 +69,7 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class GasLayer(PhysicsLayer):
     cdef c_GasLayer* _gas_ptr   # non-owning; ownership via BaseLayer._layer_ptr
+    
+    @staticmethod
+    cdef GasLayer _view(c_GasLayer* ptr, object world)
     cpdef dict get_config_dict(self)

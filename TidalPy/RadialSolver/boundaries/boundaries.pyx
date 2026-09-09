@@ -1,9 +1,11 @@
 # distutils: language = c++
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 
+from libc.math cimport fmax
+
 from scipy.linalg.cython_lapack cimport zgesv
 
-from TidalPy.constants cimport d_PI, d_NAN
+from TidalPy.constants cimport d_PI, d_NAN, d_EPS
 
 cdef void cf_apply_surface_bc(
         double complex* constant_vector_ptr,
@@ -184,3 +186,69 @@ cdef void cf_apply_surface_bc(
         num_sols_int_ptr,     # (Input)
         bc_solution_info_ptr  # (Output)
         )
+
+
+cdef double cf_estimate_surface_amplification(
+        double complex* constant_vector_ptr,
+        double complex* uppermost_y_per_solution_ptr,
+        size_t num_sols,
+        size_t num_ys,
+        size_t max_num_y
+        ) noexcept nogil:
+    """
+    cf_estimate_surface_amplification
+
+    Estimate how strongly the surface boundary condition solve amplifies error.
+
+    The collapsed surface solution is y_k = sum_s c_s * y_ks over the independent solutions s. When the
+    solution constants c_s are large and cancel (deep starting radii, high harmonic degrees), roundoff and
+    integration error in the y_ks are amplified into the collapsed values by roughly the returned factor:
+    the largest cancellation scale sum_s |c_s| |y_ks| across the y rows divided by the largest collapsed
+    magnitude |y_k|. The relative accuracy of the surface solution, and of the Love numbers derived from it,
+    is then floor limited to about (returned factor) * machine epsilon regardless of integration tolerance.
+
+    Parameters
+    ----------
+    constant_vector_ptr : double complex*
+        Solution constants found by `cf_apply_surface_bc`.
+    uppermost_y_per_solution_ptr : double complex*
+        Y values at the surface for each independent solution.
+    num_sols : size_t
+        Number of independent solutions (1, 2, or 3).
+    num_ys : size_t
+        Number of y values per solution.
+    max_num_y : size_t
+        Stride between solutions in `uppermost_y_per_solution_ptr`.
+
+    Returns
+    -------
+    double
+        Amplification factor (1 when a single solution leaves no room for cancellation).
+    """
+    cdef size_t y_i
+    cdef size_t solution_i
+    cdef double cancellation_scale
+    cdef double max_cancellation_scale = 0.0
+    cdef double max_collapsed_mag      = 0.0
+    cdef double complex collapsed_value
+    cdef double complex constant
+    cdef double complex y_value
+
+    for y_i in range(num_ys):
+        cancellation_scale = 0.0
+        collapsed_value    = 0.0
+        for solution_i in range(num_sols):
+            constant = constant_vector_ptr[solution_i]
+            y_value  = uppermost_y_per_solution_ptr[solution_i * max_num_y + y_i]
+            cancellation_scale = cancellation_scale + abs(constant) * abs(y_value)
+            collapsed_value    = collapsed_value + constant * y_value
+        max_cancellation_scale = fmax(max_cancellation_scale, cancellation_scale)
+        max_collapsed_mag      = fmax(max_collapsed_mag, abs(collapsed_value))
+
+    if max_cancellation_scale <= 0.0:
+        # Degenerate all-zero surface; no cancellation information.
+        return 1.0
+    if max_collapsed_mag <= d_EPS * max_cancellation_scale:
+        # Every y row cancels completely; cap at the largest meaningful amplification.
+        return 1.0 / d_EPS
+    return max_cancellation_scale / max_collapsed_mag

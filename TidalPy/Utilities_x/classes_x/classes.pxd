@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 classes.pxd
-Cython declarations for TidalPy's base class hierarchy (Phase 0d).
+Cython declarations for TidalPy's base class hierarchy.
 
 Declares C++ classes and Cython extension types so other modules can cimport
 the types and call C-speed methods without going through Python dispatch.
@@ -28,7 +28,7 @@ from libc.stdint cimport uint8_t
 cdef extern from "tidalpy_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_TidalPyBaseClass:
         string get_schema_version_str() const
-        bool check_schema_compatibility(uint8_t major, uint8_t minor) const
+        cpp_bool check_schema_compatibility(uint8_t major, uint8_t minor) const
         void save_binary(const string& path) except +
         void load_binary(const string& path, cpp_bool force) except +
 

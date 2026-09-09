@@ -1,5 +1,5 @@
 """
-Tests for TidalPy.Tides_x.love.love — LoveNumbers (Phase 2).
+Tests for TidalPy.Tides_x.love.love — LoveNumbers.
 
 Covers construction, property access, equality, iteration/tuple unpacking,
 to_dict, repr, and integration with PhysicsLayer.

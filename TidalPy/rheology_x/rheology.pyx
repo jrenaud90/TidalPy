@@ -2,7 +2,7 @@
 # cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, initializedcheck=False
 """
 rheology.pyx
-Cython/Python wrappers for TidalPy's rheology model hierarchy (Phase 5).
+Cython/Python wrappers for TidalPy's rheology model hierarchy.
 
 Exposes the seven complex-compliance rheology models:
 
@@ -26,6 +26,7 @@ References
 - Renaud and Henning (2018), ApJ, DOI: 10.3847/1538-4357/aab784
 """
 
+from libcpp cimport bool as cpp_bool
 from libcpp.complex cimport complex as cpp_complex
 from libcpp.memory cimport unique_ptr
 from libcpp.utility cimport move
@@ -82,9 +83,9 @@ cdef object _solve_complex_modulus(
     Returns a Python ``complex`` for all-scalar input, else an ``np.ndarray``
     (complex128) broadcast to the common shape.
     """
-    cdef bint f_arr = isinstance(frequency, np.ndarray)
-    cdef bint m_arr = isinstance(modulus, np.ndarray)
-    cdef bint v_arr = isinstance(viscosity, np.ndarray)
+    cdef cpp_bool f_arr = isinstance(frequency, np.ndarray)
+    cdef cpp_bool m_arr = isinstance(modulus, np.ndarray)
+    cdef cpp_bool v_arr = isinstance(viscosity, np.ndarray)
 
     cdef cpp_complex[double] scalar_result
     cdef vector[double] vmod, vvisc, vfreq
@@ -343,8 +344,8 @@ cdef class Voigt(RheologyBase):
     Parameters
     ----------
     voigt_modulus_frac : float, optional
-        Voigt compliance fraction relative to the layer compliance.
-        Default ``0.2``.
+        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
+        Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -368,7 +369,7 @@ cdef class Voigt(RheologyBase):
 
     @property
     def voigt_modulus_frac(self) -> float:
-        """Voigt compliance fraction [dimensionless]."""
+        """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         return self._voigt_ptr.get_voigt_modulus_frac()
 
     @property
@@ -393,8 +394,8 @@ cdef class Burgers(RheologyBase):
     Parameters
     ----------
     voigt_modulus_frac : float, optional
-        Voigt compliance fraction relative to the layer compliance.
-        Default ``0.2``.
+        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
+        Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -418,7 +419,7 @@ cdef class Burgers(RheologyBase):
 
     @property
     def voigt_modulus_frac(self) -> float:
-        """Voigt compliance fraction [dimensionless]."""
+        """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         return self._burgers_ptr.get_voigt_modulus_frac()
 
     @property
@@ -494,8 +495,8 @@ cdef class Sundberg(RheologyBase):
     zeta : float, optional
         Andrade timescale ratio [dimensionless]. Default ``1.0``.
     voigt_modulus_frac : float, optional
-        Voigt compliance fraction relative to the layer compliance.
-        Default ``0.2``.
+        Voigt modulus fraction: the Voigt element modulus as a multiple of the layer modulus (its compliance is the layer compliance divided by this).
+        Default ``5.0``.
     voigt_viscosity_frac : float, optional
         Voigt viscosity fraction relative to the layer viscosity.
         Default ``0.02``.
@@ -532,7 +533,7 @@ cdef class Sundberg(RheologyBase):
 
     @property
     def voigt_modulus_frac(self) -> float:
-        """Voigt compliance fraction [dimensionless]."""
+        """Voigt modulus fraction [dimensionless] (Voigt modulus as a multiple of the layer modulus)."""
         return self._sundberg_ptr.get_voigt_modulus_frac()
 
     @property
@@ -566,11 +567,11 @@ def make_rheology(str model_name, dict config=None):
     Parameters
     ----------
     model_name : str
-        Model name or alias. Recognised names: ``elastic`` (``off``),
+        Model name or alias. Recognized names: ``elastic`` (``off``),
         ``viscous`` (``newton``), ``voigt`` (``voigt-kelvin``), ``maxwell``,
         ``burgers``, ``andrade``, ``sundberg`` (``sundberg-cooper``).
     config : dict, optional
-        Model parameters. Recognised keys (model-dependent):
+        Model parameters. Recognized keys (model-dependent):
         ``alpha``, ``zeta``, ``voigt_modulus_frac``, ``voigt_viscosity_frac``.
         Unused keys are ignored; missing keys fall back to model defaults.
 
@@ -582,7 +583,7 @@ def make_rheology(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognised.
+        If the model name is not recognized.
     """
     if config is None:
         config = {}
@@ -701,7 +702,12 @@ def burgers(frequency, modulus, viscosity,
     return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
 
 
-def andrade(frequency, modulus, viscosity, double alpha=0.3, double zeta=1.0):
+def andrade(
+        frequency,
+        modulus,
+        viscosity,
+        double alpha=0.3,
+        double zeta=1.0):
     """Complex shear/bulk modulus for the Andrade model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.alpha = alpha

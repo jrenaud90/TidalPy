@@ -1,0 +1,21 @@
+# End-to-end fixture: a two-layer terrestrial world (iron core, rocky mantle).
+schema_version = "0.2.0"
+name = "E2E-Terrestrial"
+type = "terrestrial"
+radius_m = 6.0e6
+mass_kg = 5.0e24
+spin_frequency_rad_s = 2.0e-5
+
+[layers.core]
+class = "physics"
+type = "iron"
+layer_index = 0
+radius_outer_m = 3.0e6
+is_tidal = false
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 1
+radius_fraction = 1.0
+is_tidal = true

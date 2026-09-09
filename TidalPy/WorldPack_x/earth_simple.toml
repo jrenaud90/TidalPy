@@ -1,0 +1,30 @@
+# Simple two-layer terrestrial world for the structures_x world builder.
+# A non-tidal iron core under a tidally active rocky mantle. Each layer names a
+# `class` (which layer class to build) and a material `type`; the per-material
+# parameter defaults (EOS, rheology, viscosity, melt, cooling, radiogenics) are
+# pulled from the matching [layers.<type>] block of TidalPy_Configs_x.toml. Any of
+# those can be overridden here by adding the corresponding key or [..] sub-table.
+#
+# Layers are built inner-to-outer: the inner radius is derived from the previous
+# layer (0 for the innermost), and each layer's outer radius is set by exactly one of
+# radius_outer_m, radius_fraction (* world radius), or volume_fraction (* world volume).
+schema_version = "0.2.0"
+name = "Earth-Simple"
+type = "terrestrial"
+radius_m = 6371000.0
+mass_kg = 5.972e24
+spin_frequency_rad_s = 7.292e-5
+
+[layers.core]
+class = "physics"
+type = "iron"
+layer_index = 0
+radius_outer_m = 3480000.0
+is_tidal = false
+
+[layers.mantle]
+class = "solidliquid"
+type = "mantle_rock"
+layer_index = 1
+radius_fraction = 1.0   # outer radius = full world radius
+is_tidal = true

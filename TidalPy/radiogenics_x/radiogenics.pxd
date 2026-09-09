@@ -1,7 +1,7 @@
 # distutils: language = c++
 """
 radiogenics.pxd
-Cython declarations for TidalPy's radiogenics model hierarchy (Phase 7).
+Cython declarations for TidalPy's radiogenics model hierarchy.
 
 Exports the three C++ radiogenics models, the combined config struct, and the
 Python wrapper classes so other extensions can cimport and build/attach

@@ -20,6 +20,7 @@ References
 - Castillo-Rogez et al. (2007) — long- and short-lived radiogenic isotopes.
 """
 
+from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport unique_ptr
 from libcpp.string cimport string
 from libcpp.utility cimport move
@@ -135,8 +136,8 @@ cdef object _solve_heating(c_RadiogenicsBase* model, object time, object mass):
     Returns a Python ``float`` for all-scalar input, else an ``np.ndarray``
     (float64) broadcast to the common shape.
     """
-    cdef bint t_arr = isinstance(time, np.ndarray)
-    cdef bint m_arr = isinstance(mass, np.ndarray)
+    cdef cpp_bool t_arr = isinstance(time, np.ndarray)
+    cdef cpp_bool m_arr = isinstance(mass, np.ndarray)
 
     cdef vector[double] vtime, vmass
     cdef vector[double] vout
@@ -620,7 +621,7 @@ def make_radiogenics(str model_name, dict config=None):
     Parameters
     ----------
     model_name : str
-        Model name or alias. Recognised names: ``off`` (``none``), ``isotope``
+        Model name or alias. Recognized names: ``off`` (``none``), ``isotope``
         (``isotopes``), ``fixed`` (``constant``).
     config : dict, optional
         Model parameters. For ``isotope``: either explicit MKS arrays
@@ -638,7 +639,7 @@ def make_radiogenics(str model_name, dict config=None):
     Raises
     ------
     ValueError
-        If the model name is not recognised.
+        If the model name is not recognized.
     """
     if config is None:
         config = {}
@@ -656,7 +657,7 @@ def make_radiogenics(str model_name, dict config=None):
     # (explicit MKS arrays, global-config dataset, inline dict) goes through the
     # Python resolver (which converts Myr -> s where needed).
     isotopes = config.get("isotopes", None)
-    cdef bint built_in = (
+    cdef cpp_bool built_in = (
         isinstance(isotopes, str)
         and isotopes.lower() in {name.decode("utf-8") for name in c_isotope_dataset_names()}
     )
