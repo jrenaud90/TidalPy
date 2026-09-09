@@ -15,6 +15,7 @@ Also check out the GitHub page to see the code.
 :caption: TidalPy
 
 Overview <Overview/index.md>
+Style Guide <Overview/style.md>
 ```
 
 ```{toctree}
