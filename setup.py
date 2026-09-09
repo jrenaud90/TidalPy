@@ -1,85 +1,139 @@
+""" Build script for TidalPy's Cython extensions.
+
+Package metadata lives in "pyproject.toml". Setuptools can only take extension modules from a "setup.py", and it
+decides whether a wheel is platform specific from the extensions handed to `setup()`, so they are declared here. The
+extension list itself is kept in "cython_extensions.json" so it can be read without importing this file.
+"""
 import os
-import platform
-import json
 import sys
-from setuptools import Extension, setup
+import json
+import platform
 
 import numpy as np
+import Cython
+from Cython.Build import cythonize
+from setuptools import Extension, setup
+from setuptools.command.build_ext import build_ext as _build_ext
 import CyRK
 
 DEBUG_MODE = False
 
-install_platform = platform.system()
+# ======================================================================================================================
+# Compiler and Linker Flags
+# ======================================================================================================================
+install_platform = platform.system().lower()
 
-if install_platform.lower() == 'windows':
-    # /utf-8: required by spdlog's bundled fmtlib Unicode support
-    extra_compile_args = ['/openmp', '/utf-8']
+if install_platform == 'windows':
+    # Setuptools already passes MSVC's /O2. spdlog's bundled fmtlib needs /utf-8 for its Unicode support.
+    extra_compile_args = ['/utf-8']
     extra_link_args = []
     if DEBUG_MODE:
-        extra_compile_args.append('/Ox')
-        extra_compile_args.append('/Zi')
-        extra_link_args.append("/debug:full")
-elif install_platform.lower() == 'darwin':
-    extra_compile_args = ['-O3', '-Wno-error=incompatible-function-pointer-types', '-fopenmp']
-    extra_link_args = ['-lomp']
+        extra_compile_args += ['/Ox', '/Zi']
+        extra_link_args.append('/debug:full')
+    cpp_standard_flag = '/std:c++20'
 else:
-    extra_compile_args = ['-fopenmp', '-O3']
-    extra_link_args = ['-fopenmp', '-O3']
-macro_list = [("NPY_NO_DEPRECATED_API", "NPY_1_9_API_VERSION")]
+    extra_compile_args = ['-O3']
+    extra_link_args = []
+    if install_platform == 'darwin':
+        # Cython-generated code trips this warning, which recent Apple clang treats as an error.
+        extra_compile_args.append('-Wno-error=incompatible-function-pointer-types')
+    cpp_standard_flag = '-std=c++20'
 
-# Load TidalPy's cython extensions
-absolute_path = os.path.dirname(__file__)
-cython_ext_path = os.path.join(absolute_path, 'cython_extensions.json')
-with open(cython_ext_path, 'r') as cython_ext_file:
+macro_list = [('NPY_NO_DEPRECATED_API', 'NPY_1_9_API_VERSION')]
+
+# ======================================================================================================================
+# Header-only Dependencies (git submodules)
+# ======================================================================================================================
+setup_dir = os.path.dirname(os.path.abspath(__file__))
+dependencies_dir = os.path.join(setup_dir, 'Dependencies')
+
+
+def find_submodule_include(submodule_name: str, include_subdirs: tuple, marker_subdirs: tuple) -> str:
+    """ Returns a submodule's include directory, exiting with instructions if the submodule was never checked out. """
+    include_dir = os.path.join(dependencies_dir, submodule_name, *include_subdirs)
+    if not os.path.isdir(os.path.join(include_dir, *marker_subdirs)):
+        sys.exit(f'{submodule_name} submodule not initialized. Run:\n  git submodule update --init\n')
+    return include_dir
+
+
+submodule_includes = [
+    find_submodule_include('xsf', ('include',), ('xsf',)),
+    find_submodule_include('eigen', (), ('Eigen', 'src')),
+    find_submodule_include('spdlog', ('include',), ('spdlog',)),
+    ]
+
+# ======================================================================================================================
+# Extension Modules
+# ======================================================================================================================
+with open(os.path.join(setup_dir, 'cython_extensions.json'), 'r') as cython_ext_file:
     cython_ext_dict = json.load(cython_ext_file)
 
-# Setup sub-dependencies pathing
-submod_includes = list()
-xsf_include = os.path.join(absolute_path, 'Dependencies', 'xsf', 'include')
-if not os.path.isdir(os.path.join(xsf_include, 'xsf')):
-    sys.exit("xsf submodule not initialized. Run:\n"
-             "  git submodule update --init\n")
-submod_includes.append(xsf_include)
-
-eigen_include = os.path.join(absolute_path, 'Dependencies', 'eigen')
-if not os.path.isdir(os.path.join(eigen_include, 'Eigen', 'src')):
-    sys.exit("Eigen submodule not initialized. Run:\n"
-             "  git submodule update --init\n")
-submod_includes.append(eigen_include)
-
-spdlog_include = os.path.join(absolute_path, 'Dependencies', 'spdlog', 'include')
-if not os.path.isdir(os.path.join(spdlog_include, 'spdlog')):
-    sys.exit("spdlog submodule not initialized. Run:\n"
-             "  git submodule update --init\n")
-submod_includes.append(spdlog_include)
-
 tidalpy_cython_extensions = list()
-for cython_ext, ext_data in cython_ext_dict.items():
-
+for ext_data in cython_ext_dict.values():
+    specific_compile_args = extra_compile_args + ext_data['compile_args']
     if ext_data['is_cpp']:
-        if install_platform.lower() == 'windows':
-            specific_compile_args = extra_compile_args + ext_data['compile_args'] + ["/std:c++20"]
-        else:
-            specific_compile_args = extra_compile_args + ext_data['compile_args'] + ["-std=c++20"]
-    else:
-        specific_compile_args = extra_compile_args + ext_data['compile_args']
-
-    # Make sure all files get the TidalPy constants cpp as a source.
-    sources = [os.path.join(*tuple(source_path)) for source_path in ext_data['sources']]
+        specific_compile_args.append(cpp_standard_flag)
 
     tidalpy_cython_extensions.append(
         Extension(
             name=ext_data['name'],
-            sources=sources,
-            # Always add numpy to any includes
-            include_dirs=[os.path.join(*tuple(dir_path)) for dir_path in ext_data['include_dirs']] + [np.get_include()] + CyRK.get_include() + submod_includes,
+            sources=[os.path.join(*source_path) for source_path in ext_data['sources']],
+            # Every extension can see NumPy's, CyRK's, and the submodules' headers.
+            include_dirs=(
+                [os.path.join(*dir_path) for dir_path in ext_data['include_dirs']]
+                + [np.get_include()]
+                + CyRK.get_include()
+                + submodule_includes
+                ),
             extra_compile_args=specific_compile_args,
             define_macros=macro_list,
             extra_link_args=ext_data['link_args'] + extra_link_args,
             )
         )
 
-# Cython extensions require a setup.py in addition to pyproject.toml in order to create platform-specific wheels.
+# ======================================================================================================================
+# Build Command
+# ======================================================================================================================
+num_threads = 1 if DEBUG_MODE else max(1, (os.cpu_count() or 2) - 1)
+
+
+class build_ext(_build_ext):
+    """ Cythonizes the extensions right before they are compiled, then compiles them in parallel.
+
+    Cythonizing here rather than at `setup()` time keeps commands that only inspect the extensions (`egg_info`,
+    `sdist`) from paying for a full Cython pass, while the un-cythonized extensions handed to `setup()` still mark
+    the wheel as platform specific.
+    """
+
+    def run(self):
+        print(f'!-- Cythonizing TidalPy (Python v{sys.version}; NumPy v{np.__version__}; '
+              f'Cython v{Cython.__version__}; CyRK v{CyRK.__version__})')
+        cythonized_extensions = cythonize(
+            self.extensions,
+            compiler_directives={'language_level': '3'},
+            include_path=['.', np.get_include()],
+            nthreads=num_threads,
+            emit_linenums=DEBUG_MODE,
+            )
+        if len(cythonized_extensions) != len(self.extensions):
+            raise RuntimeError('Cython returned a different number of extensions than it was given.')
+
+        # `cythonize` returns new Extension objects (with the .pyx sources swapped for .cpp and any `# distutils:`
+        # directives applied). Setuptools has already annotated the original objects in `finalize_options`, so
+        # copy the results onto them instead of replacing them.
+        for extension, cythonized_extension in zip(self.extensions, cythonized_extensions):
+            for attribute, value in vars(cythonized_extension).items():
+                if not attribute.startswith('_'):
+                    setattr(extension, attribute, value)
+        print('!-- Finished Cythonizing TidalPy')
+
+        # Compile the extensions in parallel unless the caller asked for a specific worker count.
+        if not self.parallel:
+            self.parallel = num_threads
+        super().run()
+
+
 setup(
-    ext_modules=tidalpy_cython_extensions
-)
+    ext_modules=tidalpy_cython_extensions,
+    cmdclass={'build_ext': build_ext},
+    )

@@ -89,7 +89,7 @@
     "identifier": "https://doi.org/10.5281/zenodo.7017475"
   },
   "softwareRequirements": [
-    "Python >= 3.8"
+    "Python >= 3.9, < 3.15"
   ],
   "downloadUrl": [
     "https://pypi.org/project/TidalPy/",

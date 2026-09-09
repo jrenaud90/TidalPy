@@ -95,7 +95,6 @@ A high-level summary only; the full API, design notes, and porting examples live
 * The TidalPy data/config directories are now scoped to the package's `<major>.<minor>.X` version (e.g.
   `.../TidalPy/0.8.X/`) instead of the full patch version, so user configs and downloaded data are not duplicated (or
   lost) on each bugfix release. New helper `TidalPy.paths.get_data_version()` returns the scoped label.
-* Drops support for Python 3.9.
 
 #### Utilities
 * Converted `math.numerics` to C++.
@@ -118,11 +117,11 @@ A high-level summary only; the full API, design notes, and porting examples live
 * Fixes incorrect license url in codemeta.json.
 
 #### Dependencies
-* TidalPy now works on Python 3.14.
-* Bumped version of `ipympl` to `<=0.11.0`.
-* Bumped version of `CyRK` to `>=0.17.1, <0.18.1`.
-* Increased numpy's max pinnings to `<2.5`.
-* `pandas` is now a core dependency (it drives the performance-benchmark trend views).
+* Supported Python versions are 3.9 through 3.14, the same range as 0.7.5.
+* The new backend builds against CyRK's C++ API and relies on the `cyrk>=0.19.0, <0.20.0` pin introduced in
+  0.7.5; its implicit (stiff) integration methods need CyRK 0.18 or newer.
+* `pandas>=1.5` joins the `dev` extra; it drives the performance-benchmark trend views in
+  `Benchmarks_x/Performance`.
 
 ##### `spdlog` Submodule
 * Adds [spdlog](https://github.com/gabime/spdlog) (header-only C++ logging) as a submodule at `Dependencies/spdlog`;
@@ -137,6 +136,80 @@ A high-level summary only; the full API, design notes, and porting examples live
 * Adds the [Eigen](https://gitlab.com/libeigen/eigen) package as a submodule to TidalPy. This provides much of the
   functionality of LAPACK without us having to compile it or find its symbols. Specifically we use it to do a
   LU-Decomp in the new radial solver's propagation-matrix method.
+
+## Version 0.7.X
+
+### Version 0.7.5 (2026-09-08)
+
+#### Fixes
+* Fixed the macOS wheels on PyPI, which could not be imported unless an OpenMP run time happened to exist at the path used on the build machine (`Library not loaded: @rpath/libomp.dylib`). CyRK's macOS wheels had the same defect, which CyRK v0.19.0 fixes (see new pin below).
+* Fixed the `SyntaxWarning: invalid escape sequence` (Python 3.12+) raised the first time `rheology.complex_compliance.compliance_models` was compiled: the Andrade docstrings contain LaTeX backslashes and are now raw strings.
+
+#### Dependencies
+* Bumped Python version pinning to >=3.9, <3.15.
+* Updated the pinning of CyRK to >=0.19.0, <0.20.0.
+* Updated the pinning of numpy >=1.22, <2.6.
+* Added `matplotlib>=3.4.2` back to the core dependencies. `TidalPy.structures` imports the plotting tools, so since v0.7.4 (which moved matplotlib into the optional extras) a minimal install could not import `TidalPy.structures` or build worlds.
+
+#### Build
+* Dropped the OpenMP compile and link flags. None of TidalPy's Cython uses `prange`, and CyRK no longer needs OpenMP either, so the flags only added a run time library that had to be bundled (or, on macOS, was not). Each platform's default compiler now works, including clang.
+* Merged `_build_tidalpy.py` into `setup.py`. The cmdclass hook dated from the pyproject.toml conversion; `setup.py` already declared the extensions (the only way setuptools can mark a wheel as platform specific), so the hook was redundant and, through `py-modules`, was installing `_build_tidalpy` as a top-level module in users' site-packages.
+* The macOS arm64 wheels are now built by `cibuildwheel` alongside the Linux and Windows wheels. Every wheel is installed into a fresh environment and the compiled `RadialSolver` entry points are imported before the upload job can start. Free-threaded CPython wheels are skipped because numba does not ship them.
+* Classifiers now list Python 3.9 and 3.14 to match `requires-python`.
+* `MANIFEST.in` prunes `Dependencies/` so third-party checkouts under it can never reach the sdist (a stale, git-ignored `TidalPy.egg-info/SOURCES.txt` from another branch had been seeding them in).
+
+#### Tests
+* The macOS test workflow now installs TidalPy with clang through `setup-python`, the same way the Ubuntu and Windows workflows do (and the same toolchain the wheels are built with). The conda environment and the brew `llvm`/`libomp` steps are gone.
+
+#### Conda-Forge
+* The recipe pins `cyrk >=0.19.0,<0.20.0`, no longer lists `vcomp14`, `llvm-openmp`, or `libgomp`, drops the no-op `--no-binary cyrk`, and imports `TidalPy.RadialSolver` in its test.
+
+#### Documentation
+* README: the macOS source-build section no longer asks for brew's `llvm` and `libomp`; each platform's default compiler works.
+
+#### Refactors
+
+##### Material Module
+* `eos.solver`: Updated the `baseline_cysolve_ivp_noreturn` call for CyRK 0.18's new analytic Jacobian argument (passed as null; TidalPy uses explicit methods).
+
+##### RadialSolver Module
+* `shooting`: Updated the `baseline_cysolve_ivp_noreturn` call for CyRK 0.18's new analytic Jacobian argument (passed as null).
+
+### Version 0.7.4 (2026-03-27)
+
+#### Dependencies
+* Moved non-critical dependencies out of main requirements.
+
+### Version 0.7.3 (2026-03-27)
+
+#### Fixes
+* `RadialSolver`: Fixed bug in Takeuchi starting conditions where y6 was pulling the incorrect value. Kamata starting conditions were not affected.
+
+#### Performance
+* The changes introduced in this release led to around 25% improvement in TidalPy's RadialSolver Love Number Calculator speed.
+
+#### Dependencies
+* TidalPy now works on Python 3.14.
+* Bumped version of `ipympl` to `<=0.11.0`.
+* Bumped version of `CyRK` to `>=0.17.1, <0.18.1`.
+* Increased numpy's max pinnings to `<2.5`.
+
+#### Other
+* Changed `TidalPy.constants.d_PI_DBL` to `TidalPy.constants.d_PI` since the "DBL" is redundant with the "d_".
+  * Same for `d_INF`, `d_EPS_10`, `d_EPS_100`, `d_EPS`, `d_NAN`
+
+
+### Version 0.7.2 (2026-03-27)
+
+**Version 0.7.2 was skipped! It was never released!**
+
+### Version 0.7.1 (2026-02-05)
+
+#### Fixes
+* Fixed surface boundary condition bug where dynamic liquid layers were using too small of a struct and could cause crashes (and wrong results).
+
+#### Package
+* Removes support for MacOS 13 builds.
 
 ### Version 0.7.0 (2025-12-02)
 

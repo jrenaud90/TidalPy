@@ -5,13 +5,14 @@ description='Tidal Dynamics and Thermal-Orbital Evolution Software Suite Impleme
 authors= [ 
     {name = 'Joe P. Renaud', email = 'TidalPy@gmail.com'}
     ]
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.9,<3.15"
 dependencies = [
     # Scientific and computing resources
     "numba>=0.54.1",
-    'numpy >= 1.22, <2.5',
+    'numpy >= 1.22, <2.6',
     "scipy>=1.9.3",
-    "pandas>=1.5",
+    # Plotting
+    "matplotlib>=3.4.2",
     # Configuration file resources
     "platformdirs>=3.11.0",
     "toml>=0.10.2",
@@ -20,14 +21,10 @@ dependencies = [
     "psutil>=5.8.0",
     "pathos>=0.2.0",
     # Install CyRK requirements
-    "cyrk>=0.18.0,<0.19.0",
+    "cyrk>=0.19.0,<0.20.0",
     # Exoplanet data archive
     "astropy",
-    "astroquery",
-    # Graphics
-    "ipympl>=0.9.6,<0.11.0",
-    "matplotlib>=3.4.2,<4.0.0",
-    "cmcrameri"
+    "astroquery"
 ]
 license = "Apache-2.0"
 license-files = ["LICEN[CS]E*"]
@@ -83,8 +80,8 @@ classifiers = [
 dev = [
     "jupyter",
     "pytest",
+    "pandas>=1.5",
     "cmcrameri>=1.4, <2.0",
-    "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
 ]
@@ -101,21 +98,13 @@ docs = [
     "nbconvert",
     "jupyter",
     "sphinx-autodoc-typehints",
-    "breathe",
-    # We also need to install TidalPy and its deps so that auto-doc's works.
-    "jupyter",
-    "pytest",
-    "cmcrameri>=1.4, <2.0",
-    "matplotlib>=3.4.2",
-    "palettable>=3.3.0",
-    "ipympl>=0.8.7",
+    "breathe"
 ]
 
 # Recommended (sometimes required) graphics packages
 graphics = [
     "jupyter",
     "cmcrameri>=1.4,<2.0",
-    "matplotlib>=3.4.2",
     "palettable>=3.3.0",
     "ipympl>=0.8.7",
     "cartopy>=0.22.0"
@@ -132,19 +121,19 @@ julia = [
     "diffeqpy>=1.2.0"
 ]
 
+# The extension modules are declared in setup.py (setuptools has no pyproject.toml equivalent for them).
 [build-system]
 requires = [
     'setuptools>=64.0.0',
-    'numpy >= 1.22, <2.5',
+    'numpy >= 1.22, <2.6',
     "scipy>=1.9.3",
     'cython>=3.0.0',
     'wheel>=0.38',
-    "cyrk>=0.18.0,<0.19.0",
+    "cyrk>=0.19.0,<0.20.0"
 ]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["_build_tidalpy"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
@@ -163,10 +152,6 @@ exclude = [
     "Documentation*"
 ]
 
-[tool.setuptools.cmdclass]
-build_py = "_build_tidalpy.build_tidalpy"
-build_ext = "_build_tidalpy.build_ext"
-
 # TODO: Get rid of the below once the numba-scipy package is updated. See the note in the module's folder.
 [project.entry-points.numba_extensions]
 init = "TidalPy.numba_scipy:_init_extension"
@@ -178,10 +163,19 @@ testpaths = [
     "Tests"
 ]
 
+# Binary wheel builds (see .github/workflows/build_wheels_main_pypi.yml). Each wheel is built, repaired (auditwheel,
+# delvewheel, or delocate bundle any non-system libraries it links to), and then tested in a fresh environment.
 [tool.cibuildwheel]
 build = "*"
-# Disable building PyPy wheels on all platforms. Also having issue with musllinux.
-skip = ["pp*", "*musl*"]
+# No PyPy or musl wheels. Free-threaded CPython (the "t" builds) is skipped because numba, a hard dependency, does
+# not ship free-threaded wheels.
+skip = ["pp*", "*musl*", "cp3??t-*"]
 # Having issues with SciPy install during wheel build on 32-bit systems.
 archs = ["auto64"]
+# Import the installed wheel, including the compiled RadialSolver modules that failed to load from the v0.7.4 macOS
+# wheels.
+test-command = 'python -c "import TidalPy; from TidalPy.RadialSolver import radial_solver, build_rs_input_homogeneous_layers; from TidalPy.rheology import Maxwell; from TidalPy.structures import build_world; print(TidalPy.__version__)"'
 
+[tool.cibuildwheel.macos]
+# The oldest macOS supported by numba's and scipy's arm64 wheels; also what the previous TidalPy wheels targeted.
+environment = { MACOSX_DEPLOYMENT_TARGET = "12.0" }

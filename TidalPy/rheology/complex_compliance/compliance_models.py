@@ -379,7 +379,7 @@ def andrade(
     frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     alpha: float = 0.3, zeta: float = 1.
     ) -> ComplexArray:
-    """ Calculates the complex compliance utilizing the model: Andrade
+    r""" Calculates the complex compliance utilizing the model: Andrade
 
     !TPY_args live: self.compliance, self.viscosity
     !TPY_args const: alpha, zeta
@@ -447,7 +447,7 @@ def andrade_freq(
     frequency: 'FloatArray', compliance: 'FloatArray', viscosity: 'FloatArray',
     alpha: float = 0.3, zeta: float = 1., critical_freq: float = 7.27221e-7, critical_freq_falloff: float = 30
     ) -> ComplexArray:
-    """ Calculates the complex compliance utilizing the model: Andrade with a frequency-dependent zeta
+    r""" Calculates the complex compliance utilizing the model: Andrade with a frequency-dependent zeta
 
     !TPY_args live: self.compliance, self.viscosity
     !TPY_args const: alpha, zeta, critical_freq, critical_freq_falloff

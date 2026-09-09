@@ -547,7 +547,7 @@ cdef void cf_liquid_dynamic_compressible(
     # cdef double complex y3_sum = (y2 + density * y5)
     # y3_sum -= density_gravity * y1
 
-    # if cf_cabs(y3_sum) < d_EPS_DBL:
+    # if cf_cabs(y3_sum) < d_EPS:
     #     y3 = cf_build_dblcmplx(0.0, 0.0)
     #     y1_y3_term = 2. * y1
     # else:

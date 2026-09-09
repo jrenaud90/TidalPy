@@ -6,7 +6,7 @@
     <a href="https://app.readthedocs.org/projects/tidalpy/builds/?version__slug=latest"><img src="https://app.readthedocs.org/projects/tidalpy/badge/?version=latest&style=flat" alt="TidalPy Documentation" /></a>
     <a href="https://doi.org/10.5281/zenodo.7017475"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7017475.svg" alt="DOI: 10.5281/zenodo.7017475"></a>
     <a href="https://github.com/jrenaud90/TidalPy/releases"><img src="https://img.shields.io/badge/TidalPy-0.7.0a0.dev7-orange" alt="TidalPy Version 0.7.0a0.dev7" /></a><br />
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13-blue" alt="Python Version 3.9-3.13" /></a>
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.9|3.10|3.11|3.12|3.13|3.14-blue" alt="Python Version 3.9-3.14" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_win.yml/badge.svg?branch=main" alt="Windows Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_mac.yml/badge.svg?branch=main" alt="MacOS Tests" /></a>
     <a href="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml"><img src="https://github.com/jrenaud90/TidalPy/actions/workflows/push_tests_ubun.yml/badge.svg?branch=main" alt="Ubuntu Tests" /></a><br />
@@ -121,7 +121,8 @@ version does not have pre-built binaries or if you are running into problems wit
 TidalPy from its source code.
 
 To do so, you will need to make sure that your environment has access to a C and C++ compiler that supports
-C++20 standards, a recent version of Python, and has Cython 3.0+ installed. 
+C++20 standards, a recent version of Python, and has Cython 3.0+ installed. Each platform's default compiler
+works (MSVC on Windows, GCC on Linux, Apple's clang on MacOS via `xcode-select --install`).
 
 #### PyPI Build from Source
 Using the source code uploaded to PyPI by running,
@@ -141,38 +142,10 @@ This is also the approach you would take to build TidalPy if you plan to edit it
 developing TidalPy [here](https://tidalpy.readthedocs.io/en/latest/Overview/Contributing.html).
 
 #### Special consideration for MacOS
-On MacOS, If you run into problems installing TidalPy then reinstall using the verbose flag (`pip install -v .`) to
-look at the installation log. If you see an error that looks like "clang: error: unsupported option '-fopenmp'" then
-you are likely using the default compiler or other compiler that does not support OpenMP. Read more about this issue
-[here](https://github.com/facebookresearch/xformers/issues/157) and the steps taken
-[here](https://github.com/jrenaud90/CyRK/blob/main/.github/workflows/push_tests_mac.yml). A fix for this issue is to
-use `llvm`'s clang compiler. This can be done by doing the following in your terminal before installing TidalPy.
-
-_Note this error can also occur when installing "CyRK" a critical dependency of TidalPy. The fix is the same as below,
-just swap out "TidalPy" for "CyRK"._
-
-```bash
-brew install llvm
-brew install libomp
-
-# If on ARM64 (Apple Silicon) then do:
-export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
-export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
-export CC=/opt/homebrew/opt/llvm/bin/clang
-export CXX=/opt/homebrew/opt/llvm/bin/clang++
-
-# Otherwise change these directories to:
-export LDFLAGS="-L/usr/local/opt/llvm/lib"
-export CPPFLAGS="-I/usr/local/opt/llvm/include"
-export LDFLAGS="-L/usr/local/opt/libomp/lib"
-export CPPFLAGS="-I/usr/local/opt/libomp/include"
-export CC=/usr/local/opt/llvm/bin/clang
-export CXX=/usr/local/opt/llvm/bin/clang++
-
-pip install CyRK --no-binary="CyRK"
-```
+TidalPy v0.7.5 and later (and CyRK v0.19.0 and later) compile with Apple's default clang. Earlier versions linked to
+OpenMP and needed Homebrew's `llvm` and `libomp`; those steps are no longer required. If a source build picks up an
+unexpected compiler, check your shell profile for leftover `CC`, `CXX`, `LDFLAGS`, or `CPPFLAGS` exports from that
+older recipe and remove them.
 
 #### Including TidalPy C++ Files
 TidalPy includes several C++ source files (.cpp/.hpp). You may find some of the code in them useful and want to 
