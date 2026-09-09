@@ -4,10 +4,19 @@
 
 ### Version 0.7.5 (2026-09-08)
 
+#### Fixes
+* Fixed the macOS wheels on PyPI, which could not be imported unless an OpenMP run time happened to exist at the path used on the build machine (`Library not loaded: @rpath/libomp.dylib`). CyRK's macOS wheels had the same defect, which CyRK v0.19.0 fixes (see new pin below).
+
 #### Dependencies
 * Bumped Python version pinning to >=3.9, <3.15.
-* Updated the pinning of CyRK to >=0.18.0, <0.19.0.
+* Updated the pinning of CyRK to >=0.19.0, <0.20.0.
 * Updated the pinning of numpy >=1.22, <2.6.
+
+#### Build
+* Dropped the OpenMP compile and link flags. None of TidalPy's Cython uses `prange`, and CyRK no longer needs OpenMP either, so the flags only added a run time library that had to be bundled (or, on macOS, was not). Each platform's default compiler now works, including clang.
+* Merged `_build_tidalpy.py` into `setup.py`. The cmdclass hook dated from the pyproject.toml conversion; `setup.py` already declared the extensions (the only way setuptools can mark a wheel as platform specific), so the hook was redundant and, through `py-modules`, was installing `_build_tidalpy` as a top-level module in users' site-packages.
+* The macOS arm64 wheels are now built by `cibuildwheel` alongside the Linux and Windows wheels. Every wheel is installed into a fresh environment and the compiled `RadialSolver` entry points are imported before the upload job can start. Free-threaded CPython wheels are skipped because numba does not ship them.
+* Classifiers now list Python 3.9 and 3.14 to match `requires-python`.
 
 #### Refactors
 
