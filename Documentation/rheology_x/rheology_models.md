@@ -1,11 +1,12 @@
 # Rheology Models (`rheology_x`)
 
+_Updated: 2026-09-09_
+
 `TidalPy.rheology_x` provides the C++ rheology model hierarchy that maps a
 material's static (background) mechanical properties to a frequency-dependent
-**complex (shear/bulk) modulus** `μ*` [Pa]. This is the single quantity the
-models compute and expose (`calc_complex_modulus`); the imaginary part controls
-tidal dissipation. Element compliances appear only as internal intermediates for
-the series composites (see below).
+**complex (shear/bulk) modulus** `μ*` [Pa]. This is what the models compute and
+expose (`calc_complex_modulus`); the imaginary part controls dissipation.
+Element compliances appear only as internal intermediates for the series composites (see below).
 
 Each `PhysicsLayer` (and its subclasses) can hold up to two rheology models, one
 for the shear response and one for the bulk response. `PhysicsLayer.calc_complex_shear_modulus(frequency)`
@@ -17,7 +18,7 @@ and `calc_complex_bulk_modulus(frequency)` delegate to the attached models'
 ```
 c_TidalPyBaseClass
   └── c_PhysicsBase
-        └── c_RheologyBase        (abstract)
+        └── c_RheologyBase  (abstract)
               ├── c_Elastic       alias "off"
               ├── c_Viscous       alias "newton"
               ├── c_Voigt         alias "voigt-kelvin"
@@ -29,12 +30,12 @@ c_TidalPyBaseClass
 
 The abstract base declares `calc_complex_modulus(modulus, viscosity, frequency)`
 as pure virtual; every model returns the complex modulus `μ*` [Pa]
-directly. (Argument order is **modulus, viscosity, frequency** — modulus first.) Simple models
+directly. (Argument order is **modulus, viscosity, frequency**) Simple models
 (Elastic, Viscous, Maxwell, Voigt) are evaluated analytically.
 The series composites (Burgers, Andrade, Sundberg) combine their
 constituent elements *in series*, which means the element **compliances** add
 and the resulting modulus is `μ* = 1 / Σ Jᵢ`. Those element compliances are kept
-as internal intermediates and are never exposed to Python.
+as internal intermediates but are not directly exposed.
 
 ## The seven models
 
@@ -66,7 +67,8 @@ compliance (the layer compliance divided by the modulus fraction),
 `η_v = voigt_viscosity_frac · η` is its viscosity, `J = 1/μ`, and
 `Γ` is the gamma function. Defaults are `voigt_modulus_frac = 5.0`,
 `voigt_viscosity_frac = 0.02`, `alpha = 0.3`, `zeta = 1.0`. The Andrade and
-Sundberg families assume a positive forcing frequency.
+Sundberg families assume a positive forcing frequency (forcing frequency is
+assumed to be the absolute value of the inverse forcing period).
 
 ## Usage
 
@@ -98,7 +100,7 @@ At the C++ level the factory is enum-based. `c_RheologyModel` names one value pe
 model, `c_rheology_model_from_name(name)` maps a (case-insensitive) name or alias
 to that enum (throwing `std::invalid_argument` on an unknown name), and
 `c_find_rheology(model, config)` returns a `std::unique_ptr<c_RheologyBase>` to a
-freshly heap-allocated rheology model. This is the canonical C++ factory used by
+freshly heap-allocated rheology model. This is the C++ factory used by
 all C++ consumers (layers attaching rheology, future binary reconstruction). The
 Python `make_rheology` wraps it: it builds the `c_RheologyConfig`, calls
 `c_rheology_model_from_name` then `c_find_rheology`, and adopts the returned
@@ -120,10 +122,10 @@ At the C++ level each fills a caller-supplied `std::vector<std::complex<double>>
 output; mismatched input lengths throw `std::invalid_argument`. The Cython
 wrappers accept array-likes and return a `complex128` NumPy array.
 
-## Direct convenience functions
+## Convenience functions
 
-For one-shot evaluation without explicitly constructing a model object, each
-model has a lower-case module function:
+For quick evaluation without explicitly constructing a model object, each
+model has functions:
 
 ```python
 from TidalPy.rheology_x import maxwell, andrade
