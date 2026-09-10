@@ -9,6 +9,10 @@ cimport numpy as cnp
 cnp.import_array()
 
 from TidalPy.RadialSolver_x.matrix_types.solid_matrix cimport c_fundamental_matrix
+from TidalPy.constants cimport TidalPyConfig, tidalpy_config_ptr, get_shared_config_address, set_tidalpy_config_ptr
+
+# Wire this DLL's shared pointer to the process-wide TidalPy config singleton.
+set_tidalpy_config_ptr(get_shared_config_address())
 
 
 def fundamental_matrix(
@@ -17,7 +21,7 @@ def fundamental_matrix(
         double[::1] gravity_array_view,
         double complex[::1] complex_shear_array_view,
         int degree_l = 2,
-        double G_to_use = 6.67430e-11,
+        double G_to_use = -1.0,
         cpp_bool perform_checks = True
         ):
     """ Construct the fundamental matrix and its inverse using harmonic degree l.
@@ -40,11 +44,15 @@ def fundamental_matrix(
         Array of complex shear modulus at each radius [Pa].
     degree_l : int, default=2
         Harmonic degree.
-    G_to_use : double, default=6.67430e-11
-        Gravitational constant.
+    G_to_use : double, default=-1.0
+        Gravitational constant [m3 kg-1 s-2]. A negative value selects the shared TidalPy config's value
+        (SciPy's G).
     perform_checks : bool, default=True
         If True, checks will be performed on input arguments.
     """
+
+    if G_to_use < 0.0:
+        G_to_use = tidalpy_config_ptr.d_G
 
     cdef size_t num_radial_slices = radius_array_view.size
 

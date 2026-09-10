@@ -36,7 +36,7 @@ inline void c_BaseWorld::calc_tides(const c_TideSolveConfig& state) {
     }
 
     const double planet_radius = this->get_radius();
-    const double G_to_use = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.674015e-11;
+    const double G_to_use = c_get_G();
     const c_TideConfig& tcfg = this->p_tide_config;
 
     c_GlobalPotentialStorage potential = c_global_potential(

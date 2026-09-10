@@ -47,7 +47,7 @@ cdef extern from "constants_.hpp" nogil:
         double d_AU
         double d_SBC
         double d_R
-        double d_K_BOLTZMAN
+        double d_K_BOLTZMANN
         double d_TEST_CONST
     
     cdef TidalPyConfig* tidalpy_config_ptr

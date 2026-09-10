@@ -36,7 +36,8 @@
 /// surface_pressure : double
 ///     Expected surface pressure [Pa] (default: 0.0).
 /// G_to_use : double
-///     Gravitational constant [m3 kg-1 s-2].
+///     Gravitational constant [m3 kg-1 s-2]. A negative value (the default) selects the shared runtime config's
+///     value, the same convention as the world-level EOS solve.
 /// integration_method : ODEMethod
 ///     CyRK integration method (default: DOP853).
 /// rtol : double
@@ -55,7 +56,7 @@ inline void c_solve_eos(
         std::vector<c_EOS_ODEInput>& eos_input_bylayer_vec,
         double planet_bulk_density,
         double surface_pressure = 0.0,
-        double G_to_use = 6.674015e-11,
+        double G_to_use = -1.0,
         ODEMethod integration_method = ODEMethod::DOP853,
         double rtol = 1.0e-6,
         double atol = 1.0e-10,
@@ -66,6 +67,8 @@ inline void c_solve_eos(
 {
     // Set the message assuming success, it will be updated if we run into failure
     eos_solution_ptr->message = std::string("Equation of state solver finished without issue.");
+
+    if (G_to_use < 0.0) { G_to_use = c_get_G(); }
 
     // We will just use one rtol and one atol for all y's but still need to provide it as a vector.
     std::vector<double> rtols_vec = {rtol};

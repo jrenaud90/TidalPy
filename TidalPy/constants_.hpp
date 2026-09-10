@@ -29,12 +29,12 @@ struct TidalPyConstants
     // Sun
     static constexpr double d_MASS_SOLAR = 1.988435e30;
     static constexpr double d_RADIUS_SOLAR = 6.957e8;
-    static constexpr double d_LUMINOSITY_SOLAR = 3.848e26;
+    static constexpr double d_LUMINOSITY_SOLAR = 3.828e26;  // IAU 2015 nominal [W]
 
     // TRAPPIST-1: So we have small M-dwarf parameter at hand. Set with Agol+ 2021 data
-    static constexpr double d_MASS_TRAP1 = 0.0898 * 1.988435e30;
-    static constexpr double d_RADIUS_TRAP1 = 0.1192 * 6.957e8;
-    static constexpr double d_LUMINOSITY_TRAP1 = 0.000553 * 3.848e26;
+    static constexpr double d_MASS_TRAP1 = 0.0898 * d_MASS_SOLAR;
+    static constexpr double d_RADIUS_TRAP1 = 0.1192 * d_RADIUS_SOLAR;
+    static constexpr double d_LUMINOSITY_TRAP1 = 0.000553 * d_LUMINOSITY_SOLAR;
 
     // Earth
     static constexpr double d_MASS_EARTH = 5.9721986e24;
@@ -42,7 +42,7 @@ struct TidalPyConstants
 
     // Jupiter
     static constexpr double d_MASS_JUPITER = 1.898125e27;
-    static constexpr double d_RADIUS_JUPITER = 69.8860e6;
+    static constexpr double d_RADIUS_JUPITER = 69.911e6;  // IAU nominal mean radius [m]
 
     // Pluto
     static constexpr double d_MASS_PLUTO = 1.309e22;
@@ -74,7 +74,7 @@ struct TidalPyConfig
     double d_AU;
     double d_SBC;
     double d_R;
-    double d_K_BOLTZMAN;
+    double d_K_BOLTZMANN;
     
     double d_TEST_CONST;
 
@@ -91,7 +91,7 @@ struct TidalPyConfig
         d_AU = nan;
         d_SBC = nan;
         d_R = nan;
-        d_K_BOLTZMAN = nan;
+        d_K_BOLTZMANN = nan;
         d_TEST_CONST = nan;
     }
 };
@@ -103,4 +103,12 @@ inline TidalPyConfig* tidalpy_config_ptr = nullptr;
 inline void set_tidalpy_config_ptr(TidalPyConfig* ptr)
 {
     tidalpy_config_ptr = ptr;
+}
+
+// Newton's constant from the shared runtime config (populated from SciPy at package initialization). Returns NaN
+// when the pointer was never wired so a missing initialization shows up in results instead of being masked by a
+// hard-coded literal.
+inline double c_get_G() noexcept
+{
+    return (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : TidalPyConstants::d_NAN;
 }

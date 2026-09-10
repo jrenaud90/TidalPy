@@ -14,7 +14,7 @@ from TidalPy.stellar_x import make_luminosity, MassToLuminosity, FixedLuminosity
 
 MASS_SOLAR = 1.988435e30
 RADIUS_SOLAR = 6.957e8
-LUM_SOLAR = 3.848e26
+LUM_SOLAR = 3.828e26
 
 
 def test_no_model_raises():
@@ -54,7 +54,7 @@ def test_effective_temperature_from_mass():
     expected_t = star.calc_temperature_from_luminosity(lum)
     assert math.isclose(star.calc_effective_temperature_from_mass(), expected_t, rel_tol=1e-14)
     # A solar-mass, solar-radius blackbody with L=Lsun is ~5772 K.
-    assert math.isclose(star.calc_effective_temperature_from_mass(), 5772.0, rel_tol=2e-3)
+    assert math.isclose(star.calc_effective_temperature_from_mass(), 5772.0, rel_tol=1e-3)
 
 
 def test_update_luminosity_from_mass():

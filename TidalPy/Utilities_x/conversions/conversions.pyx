@@ -18,11 +18,11 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 cdef inline double cf_m2Au(double meters) noexcept nogil:
 
-    return meters / 149597870700.0
+    return meters / tidalpy_config_ptr.d_AU
 
 cdef inline double cf_Au2m(double astronomical_units) noexcept nogil:
 
-    return astronomical_units * 149597870700.0
+    return astronomical_units * tidalpy_config_ptr.d_AU
 
 cdef inline double cf_rads2days(double radians_per_second) noexcept nogil:
 

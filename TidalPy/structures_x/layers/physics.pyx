@@ -397,7 +397,9 @@ cdef class PhysicsLayer(BaseLayer):
         """Complex shear modulus [Pa]: layer-constant or radius-resolved.
 
         With one argument, ``calc_complex_shear_modulus(frequency_rad_s)`` applies the shear
-        rheology to the layer-constant static shear modulus and viscosity. With two arguments,
+        rheology to the layer-constant static shear modulus and viscosity. That static viscosity
+        is zero unless it was given at construction, so for viscous rheologies either set it
+        explicitly or use the radius-resolved form after the world EOS solve. With two arguments,
         ``calc_complex_shear_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
         static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
         surface the world exposes); ``radius_m`` may be a float or np.ndarray.
@@ -430,7 +432,9 @@ cdef class PhysicsLayer(BaseLayer):
         """Complex bulk modulus [Pa]: layer-constant or radius-resolved.
 
         With one argument, ``calc_complex_bulk_modulus(frequency_rad_s)`` applies the bulk
-        rheology to the layer-constant static bulk modulus and viscosity. With two arguments,
+        rheology to the layer-constant static bulk modulus and viscosity. That static viscosity
+        is zero unless it was given at construction, so for viscous rheologies either set it
+        explicitly or use the radius-resolved form after the world EOS solve. With two arguments,
         ``calc_complex_bulk_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
         static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
         surface the world exposes); ``radius_m`` may be a float or np.ndarray.

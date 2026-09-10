@@ -26,7 +26,7 @@ from TidalPy.stellar_x import (
 
 # Solar anchors used by the C++ models (TidalPyConstants::d_MASS_SOLAR / d_LUMINOSITY_SOLAR).
 MASS_SOLAR = 1.988435e30
-LUM_SOLAR = 3.848e26
+LUM_SOLAR = 3.828e26
 SIGMA = scipy.constants.Stefan_Boltzmann
 
 

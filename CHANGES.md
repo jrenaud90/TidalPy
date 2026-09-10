@@ -66,6 +66,10 @@ A high-level summary only; the full API, design notes, and porting examples live
   intermittently wrong scalar interpolation), a cache-window read past the end for arrays shorter than 9, missing
   length 0..2 guards, non-`inline` definitions in a header, and an initial-index-guess formula that always produced 0.
   The header is now a thin front end over the shared implementation in `Utilities_x/arrays/interp_.hpp`.
+* `TidalPy.constants`: The bundled reference-body constants now carry the IAU 2015 nominal values. Boltzmann's constant is
+  now spelled `k_boltzmann`; `k_boltzman` stays as an alias.
+* Newton's constant in the new backend always comes from the shared runtime config (SciPy's value). A config that was never
+  initialized now yields NaN instead of a silently substituted literal.
 
 #### New Features
 * `TidalPy.RadialSolver.radial_solver` (the classic solver) now accepts CyRK's implicit (stiff) integration methods

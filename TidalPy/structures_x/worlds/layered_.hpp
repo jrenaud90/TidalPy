@@ -294,7 +294,7 @@ public:
 
         double G_to_use = cfg.G_to_use;
         if (G_to_use < 0.0) {
-            G_to_use = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.674015e-11;
+            G_to_use = c_get_G();
         }
 
         const std::size_t slices       = cfg.slices_per_layer;

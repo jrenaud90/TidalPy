@@ -308,7 +308,7 @@ public:
         const double density_conv  = this->p_non_dim_uptr->density_conversion;
         const double gravity_conv  = length_conv / sec2_conv;
         const double moi_conv       = mass_conv * length_conv * length_conv;
-        const double G_si           = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.6743e-11;
+        const double G_si           = c_get_G();
 
         // Non-dim upper radii.
         this->p_upper_radii_nd.assign(upper_radii_si.begin(), upper_radii_si.end());

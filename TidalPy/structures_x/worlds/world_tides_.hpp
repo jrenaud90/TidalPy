@@ -38,7 +38,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
     }
 
     const double planet_radius = this->get_radius();
-    const double G_to_use = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.674015e-11;
+    const double G_to_use = c_get_G();
     const c_TideConfig& tcfg = this->p_tide_config;
 
     // Model-independent per-mode terms + the unique-frequency maps.
@@ -202,8 +202,7 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         double colatitude) const {
     const c_TideConfig& tide_cfg = world.get_tide_config();
     const double surface_radius = world.get_radius();
-    const double G_to_use =
-        (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.67430e-11;
+    const double G_to_use = c_get_G();
 
     int engine_error = 0;
     const std::vector<c_TidalPotential3DMode> modes = c_tidal_potential_3d_modes(
@@ -334,8 +333,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         double* out_heating) const {
     const c_TideConfig& tide_cfg = world.get_tide_config();
     const double surface_radius = world.get_radius();
-    const double G_to_use =
-        (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.67430e-11;
+    const double G_to_use = c_get_G();
 
     int engine_error = 0;
     const std::vector<c_TidalPotential3DModeCoeff> modes = c_tidal_potential_3d_mode_coeffs(
@@ -496,7 +494,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
         const c_Heating3DCollapseConfig& cfg) const {
     c_Heating3DCollapsed result;
     const double two_pi = 2.0 * TidalPyConstants::d_PI;
-    const double G_to_use = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_G : 6.67430e-11;
+    const double G_to_use = c_get_G();
     const double min_freq = (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF : 1.0e-9;
     const double surface_radius = world.get_radius();
     const c_TideConfig& tide_cfg = world.get_tide_config();

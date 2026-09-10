@@ -85,13 +85,14 @@ G = d_NAN
 au = d_NAN
 sbc = d_NAN
 R = d_NAN
-k_boltzman = d_NAN
+k_boltzmann = d_NAN
 year = d_NAN
 
 # Dynamic Aliases
 SBC = sbc
 Au = au
-k = k_boltzman
+k = k_boltzmann
+k_boltzman = k_boltzmann  # Earlier misspelling kept as an alias.
 newtons_constant = G
 yr = year
 
@@ -99,7 +100,7 @@ yr = year
 def update_constants():
     """Use the current TidalPy configurations to load in certain parameters/constants that are not Read-Only."""
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness, test_constant
-    global G, au, sbc, R, k_boltzman, year, SBC, Au, k, newtons_constant, yr
+    global G, au, sbc, R, k_boltzmann, k_boltzman, year, SBC, Au, k, newtons_constant, yr
 
     # Update dynamic properties from TidalPy
     tidalpy_config_ptr.d_MIN_FREQUENCY = TidalPy.config['tides']['modes']['minimum_frequency']
@@ -125,18 +126,19 @@ def update_constants():
     tidalpy_config_ptr.d_AU = scipy.constants.au
     tidalpy_config_ptr.d_SBC = scipy.constants.Stefan_Boltzmann
     tidalpy_config_ptr.d_R = scipy.constants.R
-    tidalpy_config_ptr.d_K_BOLTZMAN = scipy.constants.k
+    tidalpy_config_ptr.d_K_BOLTZMANN = scipy.constants.k
 
     # Update globals/aliases for the dynamic TidalPy parameters
     G = tidalpy_config_ptr.d_G
     au = tidalpy_config_ptr.d_AU
     sbc = tidalpy_config_ptr.d_SBC
     R = tidalpy_config_ptr.d_R
-    k_boltzman = tidalpy_config_ptr.d_K_BOLTZMAN
+    k_boltzmann = tidalpy_config_ptr.d_K_BOLTZMANN
     year = scipy.constants.Julian_year
     SBC = sbc
     Au = au
-    k = k_boltzman
+    k = k_boltzmann
+    k_boltzman = k_boltzmann
     newtons_constant = G
     yr = year
 
@@ -153,7 +155,7 @@ def update_constants_x():
     There is a single process-wide C++ config singleton shared by the legacy and
     `_x` code, so this is called after :func:`update_constants` during
     initialization: the `_x` values win for the shared numerical fields. The
-    universal physical constants (G, AU, SBC, R, k_boltzman) are set by
+    universal physical constants (G, AU, SBC, R, k_boltzmann) are set by
     :func:`update_constants` from SciPy and are not overridden here.
     """
     global min_frequency, max_frequency, min_spin_orbit_diff, min_viscosity, min_modulus, min_thickness
