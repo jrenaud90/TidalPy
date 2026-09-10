@@ -155,14 +155,6 @@ def test_solidliquid_inherits_eos():
     assert sl.get_density(_R_INNER_M) == pytest.approx(5000.0)
 
 
-def test_solidliquid_inherits_tidal_susceptibility():
-    """calc_tidal_susceptibility inherited from PhysicsLayer works correctly."""
-    sl = _make_layer()
-    G  = 6.674e-11
-    expected = (1.5 * _R_OUTER_M**5) / (G * _MASS_KG**2)
-    assert sl.calc_tidal_susceptibility() == pytest.approx(expected, rel=1e-3)
-
-
 def test_solidliquid_inherits_love_numbers():
     """love_numbers property inherited from PhysicsLayer returns LoveNumbers object."""
     mod = _import_solidliquid()

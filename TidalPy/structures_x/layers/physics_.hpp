@@ -147,21 +147,6 @@ public:
     void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
 
     // -----------------------------------------------------------------------
-    // Tidal susceptibility [m^3]
-    //
-    // Purely geometric: (3/2) * r^5 / (G * m^2).
-    // Uses the TidalPy global config pointer for Newton's G.
-    // Returns 0.0 when the config pointer is null or mass is zero.
-    // -----------------------------------------------------------------------
-    double calc_tidal_susceptibility() const noexcept {
-        if (tidalpy_config_ptr == nullptr || this->p_mass == 0.0) { return 0.0; }
-        const double G = tidalpy_config_ptr->d_G;
-        const double r = this->p_radius;
-        const double m = this->p_mass;
-        return (1.5 * r * r * r * r * r) / (G * m * m);
-    }
-
-    // -----------------------------------------------------------------------
     // Complex shear modulus [Pa] at forcing frequency frequency_rad_s.
     //
     // Delegates to p_shear_rheology->calc_complex_modulus when a rheology

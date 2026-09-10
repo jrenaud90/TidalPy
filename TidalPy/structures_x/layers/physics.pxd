@@ -62,7 +62,6 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double] get_love_number_k()                      const
         cpp_complex[double] get_love_number_h()                      const
         cpp_complex[double] get_love_number_l()                      const
-        double              calc_tidal_susceptibility()              const
         cpp_complex[double] calc_complex_shear_modulus(double freq)  const
         cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
         cpp_complex[double] calc_complex_shear_modulus(double radius_m, double freq) const

@@ -244,7 +244,7 @@ Returns `0.0` when no radiogenics sub-model has been attached.
 
 ### Inherited from PhysicsLayer / BaseLayer
 
-`calc_tidal_susceptibility`, `calc_complex_shear_modulus`,
+`calc_complex_shear_modulus`,
 `calc_complex_bulk_modulus`, `update_eos_data`, `get_density`, `get_gravity`,
 `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`,
 `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`,

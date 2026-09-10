@@ -2,7 +2,7 @@
 Tests for TidalPy.structures_x.layers.physics — PhysicsLayer.
 
 Covers construction, geometry inheritance, mechanical property getters,
-tidal susceptibility, complex modulus calculations (no rheology), binary
+complex modulus calculations (no rheology), binary
 round-trip, TOML config save, and isinstance checks.
 
 Requires the Cython extension to be compiled first::
@@ -153,26 +153,6 @@ def test_physics_layer_eos_inherited():
     )
     assert pl.eos_data_populated is True
     assert pl.get_density(_MANTLE_R_INNER_M) == pytest.approx(5000.0)
-
-
-# =====================================================================================================================
-# Tidal susceptibility
-# =====================================================================================================================
-def test_tidal_susceptibility_formula():
-    """calc_tidal_susceptibility matches (3/2) * r^5 / (G * m^2) analytically."""
-    pl = _make_mantle()
-    r  = _MANTLE_R_OUTER_M
-    m  = _MANTLE_MASS_KG
-    expected = (1.5 * r**5) / (_G * m**2)
-    # Allow 0.1 % relative tolerance to account for the G value in TidalPy config.
-    assert pl.calc_tidal_susceptibility() == pytest.approx(expected, rel=1e-3)
-
-
-def test_tidal_susceptibility_zero_mass():
-    """calc_tidal_susceptibility returns 0.0 when mass is zero."""
-    mod = _import_physics()
-    pl  = mod.PhysicsLayer("test", 0, 0.0, 1e6, 0.0)
-    assert pl.calc_tidal_susceptibility() == pytest.approx(0.0)
 
 
 # =====================================================================================================================

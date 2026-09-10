@@ -117,14 +117,6 @@ def test_gas_inherits_eos():
     assert gl.get_density(0.0) == pytest.approx(5.0)
 
 
-def test_gas_inherits_tidal_susceptibility():
-    """calc_tidal_susceptibility inherited from PhysicsLayer works correctly."""
-    gl = _make_layer()
-    G  = 6.674e-11
-    expected = (1.5 * _R_OUTER_M**5) / (G * _MASS_KG**2)
-    assert gl.calc_tidal_susceptibility() == pytest.approx(expected, rel=1e-3)
-
-
 # =====================================================================================================================
 # Adiabatic lapse rate
 # =====================================================================================================================

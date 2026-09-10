@@ -347,25 +347,6 @@ cdef class PhysicsLayer(BaseLayer):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_tidal_susceptibility(self) -> float:
-        """Tidal susceptibility (3/2) * r^5 / (G * m^2) [m^3].
-
-        A purely geometrical quantity; Newton's G is taken from the TidalPy
-        global config pointer.
-
-        Returns
-        -------
-        float
-            Tidal susceptibility [m^3].  Returns 0.0 when config is not
-            initialized or mass is zero.
-
-        Assumptions
-        -----------
-        - Spherically symmetric layer geometry.
-        - G sourced from TidalPy global configuration (set at package init).
-        """
-        return self._physics_ptr.calc_tidal_susceptibility()
-
     def _apply_complex(self, radius_m, double frequency_rad_s, cpp_bool is_shear):
         # Radius-resolved complex modulus: float -> complex; np.ndarray -> complex np.ndarray (same shape).
         cdef cnp.ndarray in_arr

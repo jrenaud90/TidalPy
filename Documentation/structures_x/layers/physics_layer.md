@@ -100,20 +100,6 @@ See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`,
 
 ## Methods
 
-### `calc_tidal_susceptibility()` → float
-
-Geometrical tidal susceptibility [m³]: (3/2) · r⁵ / (G · m²).
-
-Newton's G is sourced from the TidalPy global configuration. Returns `0.0`
-if the config is uninitialised or mass is zero.
-
-```python
-chi = mantle.calc_tidal_susceptibility()
-print(f"Tidal susceptibility: {chi:.3e} m³")
-```
-
-**References:** Kaula (1964); Eggleton et al. (1998).
-
 ### `set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)`
 
 Attach a rheology model (a `RheologyBase` subclass such as `Maxwell()` or
@@ -216,10 +202,8 @@ mantle = PhysicsLayer(
 
 freq = 2.0 * math.pi / (1.77 * 86400.0)   # Io's orbital frequency [rad/s]
 mu   = mantle.calc_complex_shear_modulus(freq)
-chi  = mantle.calc_tidal_susceptibility()
 
 print(f"Thickness:              {mantle.thickness / 1e3:.0f} km")
-print(f"Tidal susceptibility:   {chi:.3e} m³")
 print(f"Complex shear modulus:  {mu.real:.3e} + {mu.imag:.3e}j Pa")
 # Rheology not yet set, so imaginary part is 0.0
 ```
