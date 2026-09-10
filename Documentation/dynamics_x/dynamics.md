@@ -1,8 +1,10 @@
 # Dynamics (`dynamics_x`)
 
-The `dynamics_x` module holds the spin and orbital rate equations that turn a tidal solve into the
+_Updated: 2026-09-09_
+
+The `dynamics_x` module holds the spin and orbital rate equations that turn tidal dissipation into the
 instantaneous evolution of a body's rotation and orbit. It computes **rates only** (no time
-integration; the System class or manual scripts can perform integrations). All quantities are MKS.
+integration; the System class or manual scripts can perform integrations).
 
 The tidal solve (`world.calc_tides`) produces, per the global mode collapse, the tidal heating and the
 three tidal-potential derivatives `dU/dM`, `dU/dw`, `dU/dO` (with respect to the mean anomaly, argument
@@ -17,13 +19,15 @@ formula:
 ```python
 from TidalPy.dynamics_x import Spin
 
-world.set_spin_model(Spin(moment_of_inertia_factor=1.0))   # factor is the pre-EOS fallback
+world.set_spin_model(
+  Spin(moment_of_inertia_factor=1.0)  # factor is the pre-EOS fallback
+)
 world.solve_eos()
 world.calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)
 
-moi = world.get_moment_of_inertia()                       # [kg m2] EOS value once solved, else uniform fallback
-dspin_dt = world.calc_spin_derivative(host_mass)          # [rad s-2]
-n_sync = world.calc_synchronous_spin(orbital_frequency)   # [rad s-1]
+moi      = world.get_moment_of_inertia()                   # [kg m2] EOS value once solved, else uniform fallback
+dspin_dt = world.calc_spin_derivative(host_mass)           # [rad s-2]
+n_sync   = world.calc_synchronous_spin(orbital_frequency)  # [rad s-1]
 ```
 
 * **Moment of inertia** — `world.get_moment_of_inertia()` returns the EOS-integrated moment of inertia
@@ -60,7 +64,7 @@ rates = orbit.calc_derivatives(n, a, e, target_mass, host_mass, dU_dM, dU_dw)  #
 * `de/dt = (sqrt(1-e^2) / (n a^2 e)) ( sqrt(1-e^2) dR/dM - dR/dw )` (0 for a circular orbit)
 * `dn/dt = -(3/2)(n / a) da/dt` (Kepler's third law)
 
-For a dual-dissipation system the two bodies' rates are additive in the disturbing-function
+For a dual-body dissipation system the two bodies' rates are additive in the disturbing-function
 derivatives; the System sums the per-body contributions.
 
 ## Energy conservation

@@ -1,5 +1,7 @@
 # Material EOS Models (`Material_x.eos.material_eos`)
 
+_Updated: 2026-09-09_
+
 A **material equation-of-state (EOS) model** returns a material's mass density
 [kg/m³] as a function of the local pressure [Pa] (analytic models) or radius [m]
 (interpolated model). EOS models are attached to a layer and supply the per-layer
@@ -9,12 +11,12 @@ EOS models follow the same class pattern as the rheology / cooling / radiogenics
 hierarchies: a `MaterialEOSBase` (a `PhysicsBase`) with concrete subclasses, a
 name-based factory (`make_material_eos`), and shared binary serialization.
 
-All quantities are **MKS**. The analytic models are **isothermal** (temperature is
-accepted for API uniformity but currently unused; thermal expansion is deferred).
+The analytic models are, currently, **isothermal** (temperature is accepted for API uniformity
+but are unused right now).
 
 ---
 
-## Why density-from-pressure works inline
+## Density from Pressure
 
 The radial structure solve integrates over **radius**, carrying pressure as one of
 its ODE state variables. The density callback is evaluated at each radial step
@@ -49,9 +51,9 @@ bisection fallback) and returns `ρ₀·η`.
 safeguarded Newton iteration with two numerical knobs, both config fields so they
 can be tuned per material:
 
-- `invert_rtol` — relative convergence tolerance on the compression `η` (default
+- `invert_rtol`: relative convergence tolerance on the compression `η` (default
   `1e-13`).
-- `invert_max_iters` — hard iteration cap; a termination safeguard only, since the
+- `invert_max_iters`: hard iteration cap; a termination safeguard only, since the
   iteration normally converges in well under ~10 steps (default `60`).
 
 ```python
@@ -60,7 +62,7 @@ bm.invert_rtol, bm.invert_max_iters   # (1e-9, 80)
 ```
 
 Both are carried in `get_config_dict` and the binary round-trip. Their defaults
-live in one place — the C++ `c_MaterialEOSConfig` (`d_EOS_INVERT_RTOL` /
+live in one place: the C++ `c_MaterialEOSConfig` (`d_EOS_INVERT_RTOL` /
 `d_EOS_INVERT_MAX_ITERS`); the Python wrappers only override them when a value is
 explicitly supplied.
 
@@ -77,10 +79,12 @@ inverted the same way as Birch-Murnaghan.
 ### Interpolated
 
 Linear interpolation of a sorted `(radius_m → density_kg_m3)` table, clamped at the
-boundaries.
+boundaries. This method is an excellent way to utilize a more complex EOS solver of your
+choice, convert those results to arrays (.csv, .npy, etc.), and then load them 
+is as inputs to the EOS interpolator.
 
 In addition to density, `InterpolatedEOS` optionally carries radius-varying
-**static shear modulus**, **bulk modulus**, **shear viscosity**, and **bulk
+**static shear modulus**, **static bulk modulus**, **shear viscosity**, and **bulk
 viscosity** tables (constructor arguments `shear_modulus_pa`, `bulk_modulus_pa`,
 `shear_viscosity_pas`, `bulk_viscosity_pas`, each the same length as `radius_m`).
 These are exposed via `calc_static_shear_modulus(radius)`,
@@ -88,9 +92,8 @@ These are exposed via `calc_static_shear_modulus(radius)`,
 `calc_bulk_viscosity(radius)` (all on `MaterialEOSBase`; the analytic models return
 NaN). During a whole-planet EOS solve these interpolated viscoelastic values are
 used in preference to a layer's constant when present, so an interpolated (e.g. PREM)
-layer's moduli and viscosities vary with radius. This mirrors the old non-`_x`
-interpolation EOS. The PREM world builder (`data_file` in a world TOML) populates
-these tables automatically; see
+layer's moduli and viscosities vary with radius. The PREM world builder (`data_file`
+in a world TOML) populates these tables automatically; see
 [`structures_x/config/toml_schema.md`](../structures_x/config/toml_schema.md).
 
 ---
@@ -99,7 +102,10 @@ these tables automatically; see
 
 ```python
 from TidalPy.Material_x.eos import (
-    ConstantDensityEOS, BirchMurnaghanEOS, VinetEOS, InterpolatedEOS,
+    ConstantDensityEOS,
+    BirchMurnaghanEOS,
+    VinetEOS,
+    InterpolatedEOS,
     make_material_eos,
 )
 
@@ -134,7 +140,7 @@ Binary class ids: `ConstantDensityEOS` 601, `BirchMurnaghanEOS` 602, `VinetEOS`
 ## C++ API
 
 The models live in `material_eos_.hpp` (namespace `tidalpy`, header-only). The C++
-layer is the canonical one — the Cython wrappers above are thin adapters over it,
+layer is the canonical one, the Cython wrappers above are wrappers over them,
 and other C++ consumers (layers attaching an EOS, the whole-planet EOS solve, binary
 reconstruction) use these types directly.
 
