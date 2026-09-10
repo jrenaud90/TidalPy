@@ -54,6 +54,12 @@ cdef extern from "logger_.hpp" namespace "tidalpy" nogil:
     # Update log level on logger and all sinks.
     void cy_set_log_level(int level) except +
 
+    # Emit one message at the given level through the shared logger (no-op when the pointer is unset).
+    void cy_log_message(int level, const string& message) except +
+
+    # Flush every sink (file sinks buffer their output).
+    void cy_flush_logger() except +
+
     # Flush logger and set tidalpy_logger_ptr to nullptr (macros become no-ops).
     void cy_shutdown_logger() except +
 

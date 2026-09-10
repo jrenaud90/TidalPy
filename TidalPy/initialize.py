@@ -16,6 +16,54 @@ def is_notebook() -> bool:
     except NameError:
         return False      # Probably standard Python interpreter
 
+def build_logging_x_config() -> dict:
+    """Map the classic ``[logging]`` settings onto the new backend's C++ (spdlog) logger configuration.
+
+    Both loggers read the same section: the console and file levels carry over, the console is silenced in a
+    notebook unless ``print_log_notebook`` is set, and the file sink is enabled only when ``write_log_to_disk``
+    is set (and ``write_log_notebook`` in a notebook) outside test mode. The file is a separate, timestamped
+    ``TidalPy_x`` log in the classic log directory, so the two loggers never share a file.
+
+    Returns
+    -------
+    dict
+        Keys accepted by ``TidalPy.Utilities_x.logging_x.init_logger`` (empty when no configuration is loaded).
+    """
+    import TidalPy
+    from TidalPy.paths import get_log_dir, timestamped_str
+
+    if not TidalPy.config or TidalPy.config.get('logging') is None:
+        return {}
+    logging_config = TidalPy.config['logging']
+    in_notebook = is_notebook()
+
+    console_level = logging_config['console_level']
+    if in_notebook and not logging_config['print_log_notebook']:
+        console_level = 'off'
+
+    log_to_file = bool(logging_config['write_log_to_disk']) and not TidalPy._test_mode
+    if in_notebook and not logging_config['write_log_notebook']:
+        log_to_file = False
+
+    log_file_path = ''
+    if log_to_file:
+        if logging_config['use_cwd']:
+            log_dir = os.path.join(TidalPy._output_dir, 'Logs')
+        else:
+            log_dir = get_log_dir()
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        log_name = timestamped_str('TidalPy_x', date=True, time=True, second=True, millisecond=False,
+                                   preappend=False) + '.log'
+        log_file_path = os.path.join(log_dir, log_name)
+
+    return {
+        'console_level': console_level,
+        'file_level': logging_config['file_level'],
+        'log_to_file': log_to_file,
+        'log_file_path': log_file_path,
+    }
+
+
 def initialize(provided_config_file = None):
     """ Initialize (or reinitialize) TidalPy based on information stored in TidalPy.config
 
@@ -75,6 +123,9 @@ def initialize(provided_config_file = None):
     from TidalPy.logger import initialize_handlers, get_logger
     initialize_handlers()
     log = get_logger("TidalPy")
+
+    from TidalPy.Utilities_x.logging_x.logger import init_logger
+    init_logger(build_logging_x_config())
     # Reset initialization status
     if TidalPy._tidalpy_init:
         TidalPy._tidalpy_init = False

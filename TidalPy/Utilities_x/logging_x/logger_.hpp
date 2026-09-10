@@ -158,7 +158,8 @@ inline void cy_create_default_logger() {
 
 /**
  * cy_init_logger
- * Reconfigure the TidalPy logger's sinks with the user-provided config.
+ * Reconfigure the TidalPy logger's sinks with the user-provided config and reset the
+ * logger-level filter to trace (the sinks filter by level).
  * Replaces the sinks vector on the existing logger so that all DLLs holding
  * the raw pointer immediately see the new configuration.
  * If the logger does not exist yet, cy_create_default_logger() is called first.
@@ -194,6 +195,9 @@ inline void cy_init_logger(const c_LoggerConfig& config) {
     }
 
     tidalpy_logger_ptr->sinks() = std::move(new_sinks);
+    // The sinks do the level filtering; reset the logger's own level so an earlier cy_set_log_level cannot
+    // keep dropping messages below the new sink levels.
+    tidalpy_logger_ptr->set_level(spdlog::level::trace);
     tidalpy_logger_ptr->flush_on(spdlog::level::err);
 }
 
@@ -214,6 +218,34 @@ inline void cy_set_log_level(int level) {
     for (auto& sink : tidalpy_logger_ptr->sinks()) {
         sink->set_level(lvl);
     }
+}
+
+/**
+ * cy_log_message
+ *
+ * Emit one message at the given spdlog level through the shared TidalPy logger, so Cython and Python code log
+ * through the same sinks as the TIDALPY_LOG_* macros. No-op when the logger pointer is not set.
+ *
+ * Parameters
+ * ----------
+ * level : int
+ *     spdlog level enum value (0=trace, 1=debug, 2=info, 3=warning, 4=error, 5=critical).
+ * message : const std::string&
+ *     Text to log (UTF-8).
+ */
+inline void cy_log_message(int level, const std::string& message) {
+    if (!tidalpy_logger_ptr) { return; }
+    tidalpy_logger_ptr->log(static_cast<spdlog::level::level_enum>(level), message);
+}
+
+/**
+ * cy_flush_logger
+ *
+ * Flush every sink of the shared TidalPy logger (file sinks buffer their output). No-op when the logger
+ * pointer is not set.
+ */
+inline void cy_flush_logger() {
+    if (tidalpy_logger_ptr) { tidalpy_logger_ptr->flush(); }
 }
 
 /**

@@ -49,11 +49,11 @@ def test_init_logger_with_config():
 
 
 def test_init_logger_idempotent():
-    """Calling init_logger twice does not raise (second call is a no-op)."""
+    """Calling init_logger twice does not raise; each call replaces the sinks with the new configuration."""
     mod = _import_logger()
     mod.shutdown_logger()
     mod.init_logger({"console_level": "info"})
-    mod.init_logger({"console_level": "debug"})  # second call → no-op
+    mod.init_logger({"console_level": "debug"})  # second call reconfigures the sinks
     mod.shutdown_logger()
 
 
@@ -114,3 +114,51 @@ def test_init_logger_bad_console_level(bad_level):
     with pytest.raises((ValueError, TypeError)):
         mod.init_logger({"console_level": bad_level})
     mod.shutdown_logger()
+
+
+# =====================================================================================================================
+# Message emission
+# =====================================================================================================================
+def test_log_message_reaches_the_file_sink(tmp_path):
+    """log_message and the level helpers write through the configured sinks (checked with a file sink)."""
+    mod = _import_logger()
+    log_path = tmp_path / "logging_x.log"
+    mod.init_logger({"console_level": "off", "file_level": "trace", "log_to_file": True,
+                     "log_file_path": str(log_path)})
+    try:
+        mod.log_message("warning", "message one")
+        mod.log_info("message two")
+        mod.log_debug("message three")
+        mod.flush_logger()
+        text = log_path.read_text(encoding="utf-8")
+    finally:
+        mod.init_logger()   # restore the default console-only sinks
+    assert "message one" in text
+    assert "[warning]" in text
+    assert "message two" in text
+    assert "message three" in text
+
+
+def test_file_sink_honors_its_level(tmp_path):
+    """Messages below the file level are dropped."""
+    mod = _import_logger()
+    log_path = tmp_path / "logging_x_level.log"
+    mod.init_logger({"console_level": "off", "file_level": "warning", "log_to_file": True,
+                     "log_file_path": str(log_path)})
+    try:
+        mod.log_info("quiet")
+        mod.log_error("loud")
+        mod.flush_logger()
+        text = log_path.read_text(encoding="utf-8")
+    finally:
+        mod.init_logger()
+    assert "quiet" not in text
+    assert "loud" in text
+
+
+@pytest.mark.parametrize("bad_level", ["loud", "7", 7, -1])
+def test_log_message_bad_level(bad_level):
+    """log_message rejects unknown level names and out-of-range integers."""
+    mod = _import_logger()
+    with pytest.raises((ValueError, TypeError)):
+        mod.log_message(bad_level, "text")

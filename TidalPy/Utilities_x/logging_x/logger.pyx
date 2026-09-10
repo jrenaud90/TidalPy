@@ -21,6 +21,8 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     cy_create_default_logger,
     cy_init_logger,
     cy_set_log_level,
+    cy_log_message,
+    cy_flush_logger,
     cy_shutdown_logger,
     cy_get_logger_ptr,
 )
@@ -182,6 +184,58 @@ def set_log_level(level):
     """
     cdef int int_level = _resolve_level(level)
     cy_set_log_level(int_level)
+
+
+def flush_logger():
+    """Flush every sink of the TidalPy C++ logger (file sinks buffer their output)."""
+    cy_flush_logger()
+
+
+def log_message(level, str message):
+    """Emit ``message`` through the TidalPy C++ logger at ``level``.
+
+    Cython and Python code in the new backend log through this function (or the level helpers below) so
+    their messages reach the same sinks as the C++ ``TIDALPY_LOG_*`` macros.
+
+    Parameters
+    ----------
+    level : str or int
+        Log level name (case-insensitive) or integer 0-6; see :func:`set_log_level`.
+    message : str
+        Text to log.
+    """
+    cdef int c_level = _resolve_level(level)
+    cy_log_message(c_level, message.encode("utf-8"))
+
+
+def log_trace(str message):
+    """Emit ``message`` at the trace level."""
+    cy_log_message(0, message.encode("utf-8"))
+
+
+def log_debug(str message):
+    """Emit ``message`` at the debug level."""
+    cy_log_message(1, message.encode("utf-8"))
+
+
+def log_info(str message):
+    """Emit ``message`` at the info level."""
+    cy_log_message(2, message.encode("utf-8"))
+
+
+def log_warning(str message):
+    """Emit ``message`` at the warning level."""
+    cy_log_message(3, message.encode("utf-8"))
+
+
+def log_error(str message):
+    """Emit ``message`` at the error level."""
+    cy_log_message(4, message.encode("utf-8"))
+
+
+def log_critical(str message):
+    """Emit ``message`` at the critical level."""
+    cy_log_message(5, message.encode("utf-8"))
 
 
 def shutdown_logger():

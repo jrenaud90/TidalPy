@@ -13,6 +13,8 @@ cimport numpy as cnp
 import numpy as np
 cnp.import_array()
 
+from TidalPy.Utilities_x.logging_x.logger import log_info, log_warning
+
 # Surface boundary condition conditioning thresholds (see RadialSolverSolution.surface_solve_amplification).
 # The severe threshold sits well above the ~1e6 amplification of a healthy automatic-starting-radius solve.
 DBL_EPSILON = np.finfo(np.float64).eps
@@ -41,9 +43,7 @@ def check_surface_solve_conditioning(double surface_amplification, double integr
     """
     if (surface_amplification * DBL_EPSILON > integration_rtol) or \
             (surface_amplification > SEVERE_SURFACE_AMPLIFICATION):
-        from TidalPy.logger import get_logger
-        log = get_logger("TidalPy")
-        log.warning(
+        log_warning(
             f"Radial solver surface boundary condition solve is poorly conditioned (error amplification "
             f"~{surface_amplification:0.1e}; achievable relative accuracy "
             f"~{surface_amplification * DBL_EPSILON:0.1e} vs requested integration rtol "
@@ -358,9 +358,7 @@ cdef class RadialSolverSolution:
             return None
         
         if log_diagnostics:
-            from TidalPy.logger import get_logger
-            log = get_logger("TidalPy")
-            log.info(log_message)
+            log_info(log_message)
             return None
             
         if not print_diagnostics and not log_diagnostics:

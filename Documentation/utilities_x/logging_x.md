@@ -23,9 +23,12 @@ TidalPy.__init__
 ## Python API
 
 ```python
-from TidalPy.Utilities_x.logging_x import init_logger, set_log_level, shutdown_logger
+from TidalPy.Utilities_x.logging_x import (
+    init_logger, set_log_level, shutdown_logger, flush_logger,
+    log_message, log_debug, log_info, log_warning, log_error,
+)
 
-# Called automatically at package startup; can be called again to reconfigure.
+# Called automatically at package startup (from the classic [logging] settings); each call reconfigures.
 init_logger({
     "console_level": "info",   # or "trace", "debug", "warning", "error", "critical", "off"
     "file_level":    "debug",
@@ -36,12 +39,17 @@ init_logger({
 set_log_level("debug")   # adjust verbosity at runtime
 
 shutdown_logger()        # flush + release file handles (called via atexit)
+
+# Cython and Python code in the new backend log through the same sinks as the C++ macros:
+log_warning("Radial solver surface solve is poorly conditioned ...")
+log_message("debug", "free-form level name or integer 0-6")
+flush_logger()           # file sinks buffer their output
 ```
 
 ### `init_logger(config: dict = None)`
 
-Initialize the TidalPy C++ logger. Safe to call multiple times; only the first
-call has any effect.
+Initialize the TidalPy C++ logger. Safe to call multiple times; each call replaces the
+sinks with the new configuration (`TidalPy.reinit()` re-applies the package settings).
 
 | Config key | Type | Default | Description |
 |---|---|---|---|
@@ -55,7 +63,20 @@ Level names (case-insensitive): `trace`, `debug`, `info`, `warning`/`warn`,
 
 ### `set_log_level(level: str | int)`
 
-Adjust the active log level at runtime. Updates both the logger and all sinks.
+Adjust the active log level at runtime. Updates both the logger and all sinks. A later
+`init_logger` resets the logger-level filter, so the configured sink levels apply again.
+
+### `log_message(level, message)` and the level helpers
+
+`log_trace`, `log_debug`, `log_info`, `log_warning`, `log_error`, `log_critical` (each takes the message only).
+
+Emit one message through the shared logger, so Cython and Python code in the new backend
+reach the same sinks as the C++ macros. `level` follows the same names and integers as
+`set_log_level`. The new radial solver's warnings and diagnostics use these.
+
+### `flush_logger()`
+
+Flush every sink. File sinks buffer their output, so call this before reading a log file.
 
 ### `shutdown_logger()`
 
@@ -118,13 +139,21 @@ first, which guarantees the logger exists before the pointer is fetched.
 
 ## Configuration in `TidalPy_Configs.toml`
 
+Package initialization (`TidalPy.initialize.build_logging_x_config`) maps the classic
+`[logging]` section onto this logger, so both loggers follow one set of settings:
+
 ```toml
 [logging]
-console_level = "info"
-file_level    = "info"
-log_to_file   = false
-log_file_path = ""
+use_cwd = true               # log directory: <output dir>/Logs (true) or the TidalPy data path
+write_log_to_disk = false    # enables this logger's own TidalPy_x_<timestamp>.log file
+file_level = "DEBUG"
+console_level = "INFO"
+print_log_notebook = false   # console silenced in a Jupyter notebook unless true
+write_log_notebook = false   # no log file from a notebook unless true
 ```
+
+The classic Python logger and this C++ logger run side by side and never share a file; test
+mode (`TIDALPY_TEST_MODE`) disables the file sink.
 
 ---
 
