@@ -25,7 +25,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
 from TidalPy.rheology_x.rheology cimport RheologyBase
@@ -457,7 +457,9 @@ cdef class PhysicsLayer(BaseLayer):
             ``bulk_modulus_static_pa``, ``shear_viscosity_static_pas``,
             ``bulk_viscosity_static_pas``, and Love number components
             ``love_number_k_re``, ``love_number_k_im``, ``love_number_h_re``,
-            ``love_number_h_im``, ``love_number_l_re``, ``love_number_l_im``.
+            ``love_number_h_im``, ``love_number_l_re``, ``love_number_l_im``; plus one
+            sub-table per attached model: ``shear_rheology``, ``bulk_rheology``,
+            ``shear_viscosity``, ``bulk_viscosity``, ``partial_melt``.
         """
         d = BaseLayer.get_config_dict(self)
         d["shear_modulus_static_pa"]      = self._physics_ptr.get_shear_modulus_static()
@@ -471,4 +473,21 @@ cdef class PhysicsLayer(BaseLayer):
         d["love_number_h_im"] = ln.h.imag()
         d["love_number_l_re"] = ln.l.real()
         d["love_number_l_im"] = ln.l.imag()
+        # Attached models, keyed the way the world builder reads them.
+        cdef const c_PhysicsBase* model_ptr
+        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_shear_rheology_model()
+        if model_ptr != NULL:
+            d["shear_rheology"] = cy_physics_model_config(model_ptr)
+        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_bulk_rheology_model()
+        if model_ptr != NULL:
+            d["bulk_rheology"] = cy_physics_model_config(model_ptr)
+        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_shear_viscosity_model()
+        if model_ptr != NULL:
+            d["shear_viscosity"] = cy_physics_model_config(model_ptr)
+        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_bulk_viscosity_model()
+        if model_ptr != NULL:
+            d["bulk_viscosity"] = cy_physics_model_config(model_ptr)
+        model_ptr = <const c_PhysicsBase*>self._physics_ptr.get_partial_melt_model()
+        if model_ptr != NULL:
+            d["partial_melt"] = cy_physics_model_config(model_ptr)
         return d

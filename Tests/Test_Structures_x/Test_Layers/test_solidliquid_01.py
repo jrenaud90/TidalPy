@@ -632,3 +632,19 @@ def test_solidliquid_is_structure_base():
 def test_solidliquid_is_tidalpy_base():
     from TidalPy.Utilities_x.classes_x.classes import TidalPyBaseClass
     assert isinstance(_make_layer(), TidalPyBaseClass)
+
+
+def test_get_config_dict_class_and_thermal_model_tables():
+    """Cooling and radiogenics models appear as sub-tables once attached."""
+    from TidalPy.cooling_x.cooling import ConvectiveCooling
+    from TidalPy.radiogenics_x.radiogenics import FixedRadiogenics
+    sl = _make_layer()
+    cfg = sl.get_config_dict()
+    assert cfg["class"] == "solidliquid"
+    assert "cooling" not in cfg
+    assert "radiogenics" not in cfg
+    sl.set_cooling(ConvectiveCooling(convection_alpha=0.9))
+    sl.set_radiogenics(FixedRadiogenics(fixed_heat_production_w_kg=3.0e-11))
+    cfg = sl.get_config_dict()
+    assert cfg["cooling"]["convection_alpha"] == pytest.approx(0.9)
+    assert cfg["radiogenics"]["fixed_heat_production_w_kg"] == pytest.approx(3.0e-11)

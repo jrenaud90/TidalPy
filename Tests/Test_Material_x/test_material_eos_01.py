@@ -243,3 +243,20 @@ def test_isinstance_chain():
     assert isinstance(eos, mod.MaterialEOSBase)
     assert isinstance(eos, PhysicsBase)
     assert isinstance(eos, TidalPyBaseClass)
+
+
+def test_config_dict_interpolated_roundtrip():
+    """An interpolated EOS emits its tables (optional ones only when supplied) and rebuilds through the factory."""
+    mod = _import_eos()
+    radii = [0.0, 1.0e6, 2.0e6]
+    densities = [5000.0, 4000.0, 3000.0]
+    eos = mod.InterpolatedEOS(radii, densities)
+    cfg = eos.get_config_dict()
+    assert cfg["model"] == eos.model_name
+    assert cfg["radius_m"] == pytest.approx(radii)
+    assert cfg["density_kg_m3"] == pytest.approx(densities)
+    for optional_key in ("shear_modulus_pa", "bulk_modulus_pa", "shear_viscosity_pas", "bulk_viscosity_pas"):
+        assert optional_key not in cfg
+    rebuilt = mod.make_material_eos(cfg["model"], {key: value for key, value in cfg.items() if key != "model"})
+    assert rebuilt.num_points == 3
+    assert rebuilt.get_config_dict() == cfg

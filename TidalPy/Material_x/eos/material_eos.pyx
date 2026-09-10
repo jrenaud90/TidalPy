@@ -94,10 +94,6 @@ cdef class MaterialEOSBase(PhysicsBase):
         """Bulk viscosity [Pa s] at radius_m [m]; NaN if the model has no bulk-viscosity table."""
         return self._eos_ptr.get().calc_bulk_viscosity(radius_m)
 
-    cpdef dict get_config_dict(self):
-        """Return the model name as a config dict (subclasses add parameters)."""
-        return {"model": self.model_name}
-
 
 # =====================================================================================================================
 # EOS Models
@@ -125,11 +121,6 @@ cdef class ConstantDensityEOS(MaterialEOSBase):
     def reference_density(self) -> float:
         """Reference (uniform) density [kg/m^3]."""
         return self._constant_ptr.get_reference_density()
-
-    cpdef dict get_config_dict(self):
-        d = MaterialEOSBase.get_config_dict(self)
-        d["reference_density_kg_m3"] = self._constant_ptr.get_reference_density()
-        return d
 
 
 cdef class BirchMurnaghanEOS(MaterialEOSBase):
@@ -187,15 +178,6 @@ cdef class BirchMurnaghanEOS(MaterialEOSBase):
         """Hard iteration cap (termination safeguard) for the inversion."""
         return self._bm_ptr.get_invert_max_iters()
 
-    cpdef dict get_config_dict(self):
-        d = MaterialEOSBase.get_config_dict(self)
-        d["reference_density_kg_m3"]   = self._bm_ptr.get_reference_density()
-        d["reference_bulk_modulus_pa"] = self._bm_ptr.get_reference_bulk_modulus()
-        d["bulk_modulus_derivative"]   = self._bm_ptr.get_bulk_modulus_derivative()
-        d["invert_rtol"]               = self._bm_ptr.get_invert_rtol()
-        d["invert_max_iters"]          = self._bm_ptr.get_invert_max_iters()
-        return d
-
 
 cdef class VinetEOS(MaterialEOSBase):
     """Vinet (universal) EOS; density from pressure."""
@@ -252,15 +234,6 @@ cdef class VinetEOS(MaterialEOSBase):
         """Hard iteration cap (termination safeguard) for the inversion."""
         return self._vinet_ptr.get_invert_max_iters()
 
-    cpdef dict get_config_dict(self):
-        d = MaterialEOSBase.get_config_dict(self)
-        d["reference_density_kg_m3"]   = self._vinet_ptr.get_reference_density()
-        d["reference_bulk_modulus_pa"] = self._vinet_ptr.get_reference_bulk_modulus()
-        d["bulk_modulus_derivative"]   = self._vinet_ptr.get_bulk_modulus_derivative()
-        d["invert_rtol"]               = self._vinet_ptr.get_invert_rtol()
-        d["invert_max_iters"]          = self._vinet_ptr.get_invert_max_iters()
-        return d
-
 
 cdef class InterpolatedEOS(MaterialEOSBase):
     """density(radius) lookup table (e.g. PREM-style profiles)."""
@@ -312,11 +285,6 @@ cdef class InterpolatedEOS(MaterialEOSBase):
     def num_points(self) -> int:
         """Number of (radius, density) table points."""
         return self._interp_ptr.get_num_points()
-
-    cpdef dict get_config_dict(self):
-        d = MaterialEOSBase.get_config_dict(self)
-        d["num_points"] = self._interp_ptr.get_num_points()
-        return d
 
 
 # =====================================================================================================================

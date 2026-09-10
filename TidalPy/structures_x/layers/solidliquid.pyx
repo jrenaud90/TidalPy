@@ -17,7 +17,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass, c_PhysicsBase, cy_physics_model_config
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.Tides_x.love.love cimport LoveNumbers, c_LoveNumbers
@@ -466,7 +466,8 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         -------
         dict
             All BaseLayer + PhysicsLayer keys plus the 11 SolidLiquidLayer
-            thermal/melt parameters.
+            thermal/melt parameters, and the ``cooling`` and ``radiogenics``
+            sub-tables when those models are attached.
         """
         d = PhysicsLayer.get_config_dict(self)
         d["thermal_conductivity_ref_w_mk"] = self._solidliquid_ptr.get_thermal_conductivity_ref()
@@ -480,4 +481,11 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         d["reference_density_kg_m3"]       = self._solidliquid_ptr.get_reference_density()
         d["reference_temperature_k"]       = self._solidliquid_ptr.get_reference_temperature()
         d["melt_viscosity_reduction"]      = self._solidliquid_ptr.get_melt_viscosity_reduction()
+        cdef const c_PhysicsBase* model_ptr
+        model_ptr = <const c_PhysicsBase*>self._solidliquid_ptr.get_cooling_model()
+        if model_ptr != NULL:
+            d["cooling"] = cy_physics_model_config(model_ptr)
+        model_ptr = <const c_PhysicsBase*>self._solidliquid_ptr.get_radiogenics_model()
+        if model_ptr != NULL:
+            d["radiogenics"] = cy_physics_model_config(model_ptr)
         return d

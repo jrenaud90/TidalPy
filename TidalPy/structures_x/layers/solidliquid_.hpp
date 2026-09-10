@@ -272,6 +272,10 @@ public:
     bool get_cooling_set()     const noexcept { return this->p_cooling     != nullptr; }
     bool get_radiogenics_set() const noexcept { return this->p_radiogenics != nullptr; }
 
+    // Non-owning observer pointers (nullptr if unset).
+    c_CoolingBase*     get_cooling_model()     const noexcept { return this->p_cooling.get(); }
+    c_RadiogenicsBase* get_radiogenics_model() const noexcept { return this->p_radiogenics.get(); }
+
     // -----------------------------------------------------------------------
     // Binary I/O
     // -----------------------------------------------------------------------

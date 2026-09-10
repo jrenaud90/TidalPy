@@ -51,6 +51,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
 
     c_TidalScaleMethod c_tidal_scale_method_from_name(const string& name) except +
     const char* c_tidal_scale_method_name(c_TidalScaleMethod method)
+    const char* c_layer_class_name(uint32_t class_id)
 
     cdef cppclass c_BaseLayerConfig:
         string             name

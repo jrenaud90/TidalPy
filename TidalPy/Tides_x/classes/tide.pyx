@@ -65,15 +65,6 @@ cdef c_TideModelConfig _build_tide_config(dict config) except *:
     return cfg
 
 
-cdef list _per_degree_list(object getter):
-    """Build a per-degree list [l=2 .. l=10] from a C++ get_fixed_*(degree_l) callable."""
-    cdef list out = []
-    cdef int degree_l
-    for degree_l in range(C_TIDE_MIN_DEGREE, C_TIDE_MAX_DEGREE + 1):
-        out.append(getter(degree_l))
-    return out
-
-
 # =====================================================================================================================
 # TideBase
 # =====================================================================================================================
@@ -118,10 +109,6 @@ cdef class TideBase(PhysicsBase):
     def needs_radial_solve(self) -> bool:
         """Whether this model requires the radial solver to supply k_l (rheology)."""
         return bool(self._tide_ptr.get().needs_radial_solve())
-
-    cpdef dict get_config_dict(self):
-        """Return the model name as a config dict (subclasses add parameters)."""
-        return {"model": self.model_name}
 
 
 # =====================================================================================================================
@@ -170,12 +157,6 @@ cdef class FixedQTide(TideBase):
         """Tidal quality factor Q_l at the given degree."""
         return self._fixedq_ptr.get_fixed_q(degree_l)
 
-    cpdef dict get_config_dict(self):
-        d = TideBase.get_config_dict(self)
-        d["fixed_k"] = _per_degree_list(self.get_fixed_k)
-        d["fixed_q"] = _per_degree_list(self.get_fixed_q)
-        return d
-
 
 cdef class FixedLagTide(TideBase):
     """Constant time lag (CTL): k_l(omega) = k_l * (1 - i * omega * dt_l)."""
@@ -202,12 +183,6 @@ cdef class FixedLagTide(TideBase):
     def get_fixed_dt(self, int degree_l) -> float:
         """Tidal time lag dt_l [s] at the given degree."""
         return self._fixedlag_ptr.get_fixed_dt(degree_l)
-
-    cpdef dict get_config_dict(self):
-        d = TideBase.get_config_dict(self)
-        d["fixed_k"]  = _per_degree_list(self.get_fixed_k)
-        d["fixed_dt"] = _per_degree_list(self.get_fixed_dt)
-        return d
 
 
 cdef class CTLQTide(TideBase):
@@ -240,13 +215,6 @@ cdef class CTLQTide(TideBase):
     def get_fixed_q(self, int degree_l) -> float:
         """Tidal quality factor Q_l at the given degree."""
         return self._ctlq_ptr.get_fixed_q(degree_l)
-
-    cpdef dict get_config_dict(self):
-        d = TideBase.get_config_dict(self)
-        d["fixed_k"]  = _per_degree_list(self.get_fixed_k)
-        d["fixed_dt"] = _per_degree_list(self.get_fixed_dt)
-        d["fixed_q"]  = _per_degree_list(self.get_fixed_q)
-        return d
 
 
 # =====================================================================================================================

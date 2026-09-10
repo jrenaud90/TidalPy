@@ -222,6 +222,10 @@ public:
     bool get_shear_rheology_set() const noexcept { return this->p_shear_rheology != nullptr; }
     bool get_bulk_rheology_set()  const noexcept { return this->p_bulk_rheology  != nullptr; }
 
+    // Non-owning observer pointers (nullptr if unset).
+    c_RheologyBase* get_shear_rheology_model() const noexcept { return this->p_shear_rheology.get(); }
+    c_RheologyBase* get_bulk_rheology_model()  const noexcept { return this->p_bulk_rheology.get(); }
+
     // -----------------------------------------------------------------------
     // Viscosity + partial-melt setters (non-const; transfer ownership).
     // The shear/bulk viscosity models supply the pre-melt viscosities at (T, P);

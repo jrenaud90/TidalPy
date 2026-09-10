@@ -236,7 +236,8 @@ new radiogenics model named `Foo`:
 6. Declare `c_Foo` (constructors + getters) in `radiogenics.pxd` and add the enum
    value to the `c_RadiogenicsModel` cimport.
 7. Add the `cdef class Foo(RadiogenicsBase)` wrapper in `radiogenics.pyx` (with
-   param properties and a `get_config_dict` override), the adoption branch in
+   param properties; the config dict comes from the C++ `append_config_entries`
+   override), the adoption branch in
    `make_radiogenics`, and the lower-case `foo(time, mass, ...)` convenience
    function.
 

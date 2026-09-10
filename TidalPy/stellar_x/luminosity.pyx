@@ -154,9 +154,6 @@ cdef class LuminosityBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
-    cpdef dict get_config_dict(self):
-        """Return configuration dict with the model name."""
-        return PhysicsBase.get_config_dict(self)
 
 
 # =====================================================================================================================
@@ -189,12 +186,6 @@ cdef class FixedLuminosity(LuminosityBase):
     def luminosity(self) -> float:
         """The stored luminosity [W]."""
         return self._fixed_ptr.get_luminosity()
-
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and the fixed luminosity."""
-        d = LuminosityBase.get_config_dict(self)
-        d["luminosity_w"] = self._fixed_ptr.get_luminosity()
-        return d
 
 
 # =====================================================================================================================
@@ -254,13 +245,6 @@ cdef class PowerLawLuminosity(LuminosityBase):
     def exponent(self) -> float:
         """Dimensionless exponent."""
         return self._power_law_ptr.get_exponent()
-
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and the power-law parameters."""
-        d = LuminosityBase.get_config_dict(self)
-        d["power_law_coeff"]    = self._power_law_ptr.get_coeff()
-        d["power_law_exponent"] = self._power_law_ptr.get_exponent()
-        return d
 
 
 # =====================================================================================================================

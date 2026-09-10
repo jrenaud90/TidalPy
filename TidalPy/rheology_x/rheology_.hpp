@@ -383,6 +383,12 @@ public:
     double get_voigt_modulus_frac() const noexcept { return this->p_voigt_modulus_frac; }
     double get_voigt_viscosity_frac() const noexcept { return this->p_voigt_viscosity_frac; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RheologyBase::append_config_entries(out);
+        out.push_back(c_config_double("voigt_modulus_frac", this->p_voigt_modulus_frac));
+        out.push_back(c_config_double("voigt_viscosity_frac", this->p_voigt_viscosity_frac));
+    }
+
     c_ComplexModulus calc_complex_modulus(
             double modulus_pa,
             double viscosity_pas,
@@ -425,6 +431,12 @@ public:
     double get_voigt_modulus_frac()   const noexcept { return this->p_voigt_modulus_frac; }
     double get_voigt_viscosity_frac() const noexcept { return this->p_voigt_viscosity_frac; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RheologyBase::append_config_entries(out);
+        out.push_back(c_config_double("voigt_modulus_frac", this->p_voigt_modulus_frac));
+        out.push_back(c_config_double("voigt_viscosity_frac", this->p_voigt_viscosity_frac));
+    }
+
     c_ComplexModulus calc_complex_modulus(
             double modulus_pa, 
             double viscosity_pas,
@@ -466,6 +478,12 @@ public:
 
     double get_alpha() const noexcept { return this->p_alpha; }
     double get_zeta()  const noexcept { return this->p_zeta; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RheologyBase::append_config_entries(out);
+        out.push_back(c_config_double("alpha", this->p_alpha));
+        out.push_back(c_config_double("zeta", this->p_zeta));
+    }
 
     c_ComplexModulus calc_complex_modulus(
             double modulus_pa,
@@ -512,6 +530,14 @@ public:
     double get_zeta()                  const noexcept { return this->p_zeta; }
     double get_voigt_modulus_frac() const noexcept { return this->p_voigt_modulus_frac; }
     double get_voigt_viscosity_frac()  const noexcept { return this->p_voigt_viscosity_frac; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RheologyBase::append_config_entries(out);
+        out.push_back(c_config_double("alpha", this->p_alpha));
+        out.push_back(c_config_double("zeta", this->p_zeta));
+        out.push_back(c_config_double("voigt_modulus_frac", this->p_voigt_modulus_frac));
+        out.push_back(c_config_double("voigt_viscosity_frac", this->p_voigt_viscosity_frac));
+    }
 
     c_ComplexModulus calc_complex_modulus(
             double modulus_pa,

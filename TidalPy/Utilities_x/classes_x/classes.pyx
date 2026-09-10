@@ -14,6 +14,7 @@ import os as _os
 from libcpp cimport bool as cpp_bool
 from libcpp.memory cimport make_unique
 from libcpp.string cimport string
+from libcpp.vector cimport vector
 
 from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
@@ -249,6 +250,48 @@ cdef class StructureBase(TidalPyBaseClass):
 # =====================================================================================================================
 # PhysicsBase
 # =====================================================================================================================
+cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries):
+    """Convert the typed config entries a C++ physics model reports into a Python dict."""
+    cdef dict out = {}
+    cdef size_t i, j
+    cdef str key
+    cdef list values
+    for i in range(entries.size()):
+        key = entries[i].key.decode("utf-8")
+        if entries[i].kind == c_ConfigEntryKind.Double:
+            out[key] = entries[i].value_double
+        elif entries[i].kind == c_ConfigEntryKind.Int:
+            out[key] = entries[i].value_int
+        elif entries[i].kind == c_ConfigEntryKind.Bool:
+            out[key] = True if entries[i].value_bool else False
+        elif entries[i].kind == c_ConfigEntryKind.String:
+            out[key] = entries[i].value_string.decode("utf-8")
+        elif entries[i].kind == c_ConfigEntryKind.DoubleList:
+            values = []
+            for j in range(entries[i].value_double_list.size()):
+                values.append(entries[i].value_double_list[j])
+            out[key] = values
+        else:
+            values = []
+            for j in range(entries[i].value_string_list.size()):
+                values.append(entries[i].value_string_list[j].decode("utf-8"))
+            out[key] = values
+    return out
+
+
+cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr):
+    """Config dict of any C++ physics model (an empty dict for a null pointer).
+
+    Used by the Cython wrappers and by the layer and world writers, which hold their attached models through
+    raw pointers.
+    """
+    cdef vector[c_ConfigEntry] entries
+    if model_ptr == NULL:
+        return {}
+    entries = model_ptr.get_config_entries()
+    return cy_config_entries_to_dict(entries)
+
+
 cdef class PhysicsBase(TidalPyBaseClass):
     """Physics model base class.
 
@@ -300,10 +343,11 @@ cdef class PhysicsBase(TidalPyBaseClass):
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
-        """Return the configuration dict; the base entry is the ``model`` name (the key the world builder
-        reads for every physics-model table).
+        """Return the configuration dict reported by the C++ model.
+
+        The base entry is the ``model`` name (the key the world builder reads for every physics-model table);
+        each C++ subclass appends its own parameters through ``append_config_entries``, so wrapper classes
+        never override this method.
         """
         self._check_ptr()
-        return {
-            "model": (<c_PhysicsBase*>self._ptr).get_model_name().decode("utf-8"),
-        }
+        return cy_physics_model_config(<const c_PhysicsBase*>self._ptr)

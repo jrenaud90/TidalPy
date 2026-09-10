@@ -108,7 +108,17 @@ PhysicsBase(model_name: str)
 | Property/Method | Returns | Description |
 |----------------|---------|-------------|
 | `.model_name` | `str` | Physics model name (read/write) |
-| `get_config_dict()` | `dict` | `{"model": "..."}` (the key the world builder reads) |
+| `get_config_dict()` | `dict` | `{"model": "..."}` plus the model's parameters (see below) |
+
+Every physics model's configuration comes from one place. The C++ base declares the virtual
+`append_config_entries(std::vector<c_ConfigEntry>&)`, which pushes the `model` name; each concrete C++ model
+calls its parent and then appends its own parameters with the `c_config_double` / `c_config_int` /
+`c_config_bool` / `c_config_string` / `c_config_doubles` / `c_config_strings` builders from
+`config_entry_.hpp`. The Cython `PhysicsBase.get_config_dict` converts the entries to a dict, so the wrapper
+classes never override it, and the layer and world writers can read the configuration of any attached model
+through its raw pointer (`cy_physics_model_config`). The keys are exactly what the matching `make_<family>`
+factory accepts, so `make_<family>(cfg["model"], cfg)` rebuilds the model. The entries are not part of the
+binary format.
 
 The layer observer pointer (`p_layer_ptr`) is a C++ only field set by the owning
 layer after construction. It is not serialized and not exposed to Python.
@@ -146,6 +156,20 @@ Key methods on `c_TidalPyBaseClass`:
 | `read_binary(istream&, force=false)` | Virtual; base reads/validates header |
 | `save_binary(path) const` | Opens file, calls `write_binary` |
 | `load_binary(path, force=false)` | Opens file, calls `read_binary` |
+
+### `config_entry_.hpp`
+
+```cpp
+// A concrete model reports its parameters by extending the parent's entries:
+void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+    c_RheologyBase::append_config_entries(out);   // pushes {"model": "andrade"}
+    out.push_back(c_config_double("alpha", this->p_alpha));
+    out.push_back(c_config_double("zeta", this->p_zeta));
+}
+```
+
+`c_ConfigEntry` carries a key, a `c_ConfigEntryKind`, and one payload (double, 64-bit int, bool, string,
+double list, or string list). `c_PhysicsBase::get_config_entries()` returns the filled vector.
 
 ### `structure_base_.hpp`
 

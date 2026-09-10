@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "config_entry_.hpp"
 #include "tidalpy_base_.hpp"
 
 namespace tidalpy {
@@ -54,6 +55,23 @@ public:
     // -----------------------------------------------------------------------
     const c_BaseLayer* get_layer_ptr() const noexcept { return p_layer_ptr; }
     void set_layer_ptr(c_BaseLayer* layer_ptr) noexcept { p_layer_ptr = layer_ptr; }
+
+    // -----------------------------------------------------------------------
+    // Configuration entries (see config_entry_.hpp)
+    //
+    // The Cython base wrapper turns these into the get_config_dict() dict, so a
+    // subclass only overrides append_config_entries: call the parent, then push
+    // its own parameters with the c_config_* builders.
+    // -----------------------------------------------------------------------
+    virtual void append_config_entries(std::vector<c_ConfigEntry>& out) const {
+        out.push_back(c_config_string("model", this->p_model_name));
+    }
+
+    std::vector<c_ConfigEntry> get_config_entries() const {
+        std::vector<c_ConfigEntry> entries;
+        this->append_config_entries(entries);
+        return entries;
+    }
 
     // -----------------------------------------------------------------------
     // Shared physics-model binary helpers

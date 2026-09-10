@@ -249,6 +249,11 @@ public:
 
     double get_reference_density() const noexcept { return this->p_reference_density; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_MaterialEOSBase::append_config_entries(out);
+        out.push_back(c_config_double("reference_density_kg_m3", this->p_reference_density));
+    }
+
     double calc_density(
             double /*pressure_pa*/,
             double /*temperature_k*/,
@@ -289,6 +294,15 @@ public:
     double get_bulk_modulus_derivative() const noexcept { return this->p_bulk_modulus_derivative; }
     double get_invert_rtol()             const noexcept { return this->p_invert_rtol; }
     int    get_invert_max_iters()        const noexcept { return this->p_invert_max_iters; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_MaterialEOSBase::append_config_entries(out);
+        out.push_back(c_config_double("reference_density_kg_m3", this->p_reference_density));
+        out.push_back(c_config_double("reference_bulk_modulus_pa", this->p_reference_bulk_modulus));
+        out.push_back(c_config_double("bulk_modulus_derivative", this->p_bulk_modulus_derivative));
+        out.push_back(c_config_double("invert_rtol", this->p_invert_rtol));
+        out.push_back(c_config_int("invert_max_iters", this->p_invert_max_iters));
+    }
 
     double calc_density(
             double pressure_pa,
@@ -348,6 +362,15 @@ public:
     double get_bulk_modulus_derivative() const noexcept { return this->p_bulk_modulus_derivative; }
     double get_invert_rtol()             const noexcept { return this->p_invert_rtol; }
     int    get_invert_max_iters()        const noexcept { return this->p_invert_max_iters; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_MaterialEOSBase::append_config_entries(out);
+        out.push_back(c_config_double("reference_density_kg_m3", this->p_reference_density));
+        out.push_back(c_config_double("reference_bulk_modulus_pa", this->p_reference_bulk_modulus));
+        out.push_back(c_config_double("bulk_modulus_derivative", this->p_bulk_modulus_derivative));
+        out.push_back(c_config_double("invert_rtol", this->p_invert_rtol));
+        out.push_back(c_config_int("invert_max_iters", this->p_invert_max_iters));
+    }
 
     double calc_density(
             double pressure_pa,
@@ -417,6 +440,25 @@ public:
     bool has_bulk_modulus()    const noexcept { return !this->p_bulk_modulus_pa.empty(); }
     bool has_shear_viscosity() const noexcept { return !this->p_shear_viscosity_pas.empty(); }
     bool has_bulk_viscosity()  const noexcept { return !this->p_bulk_viscosity_pas.empty(); }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_MaterialEOSBase::append_config_entries(out);
+        out.push_back(c_config_doubles("radius_m", this->p_radius_m));
+        out.push_back(c_config_doubles("density_kg_m3", this->p_density_kg_m3));
+        // The optional tables are emitted only when they were supplied.
+        if (this->has_shear_modulus()) {
+            out.push_back(c_config_doubles("shear_modulus_pa", this->p_shear_modulus_pa));
+        }
+        if (this->has_bulk_modulus()) {
+            out.push_back(c_config_doubles("bulk_modulus_pa", this->p_bulk_modulus_pa));
+        }
+        if (this->has_shear_viscosity()) {
+            out.push_back(c_config_doubles("shear_viscosity_pas", this->p_shear_viscosity_pas));
+        }
+        if (this->has_bulk_viscosity()) {
+            out.push_back(c_config_doubles("bulk_viscosity_pas", this->p_bulk_viscosity_pas));
+        }
+    }
 
     double calc_density(
             double /*pressure_pa*/,

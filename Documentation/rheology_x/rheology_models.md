@@ -201,7 +201,8 @@ new rheology model named `Foo`:
 7. Declare `c_Foo` (constructors + getters) in `rheology.pxd` and add the enum
    value to the `c_RheologyModel` cimport.
 8. Add the `cdef class Foo(RheologyBase)` wrapper in `rheology.pyx` (with param
-   properties and a `get_config_dict` override), the adoption branch in
+   properties; the config dict comes from the C++ `append_config_entries` override,
+   so no Cython override is needed), the adoption branch in
    `make_rheology`, and the lower-case `foo(modulus, viscosity, frequency, ...)`
    convenience function.
 

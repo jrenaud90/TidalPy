@@ -115,7 +115,6 @@ cdef extern from "rheology_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class RheologyBase(PhysicsBase):
     cdef unique_ptr[c_RheologyBase] _rheology_ptr   # owns the most-derived C++ model object
-    cpdef dict get_config_dict(self)
 
 
 cdef class Elastic(RheologyBase):
@@ -132,19 +131,15 @@ cdef class Maxwell(RheologyBase):
 
 cdef class Voigt(RheologyBase):
     cdef c_Voigt* _voigt_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class Burgers(RheologyBase):
     cdef c_Burgers* _burgers_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class Andrade(RheologyBase):
     cdef c_Andrade* _andrade_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class Sundberg(RheologyBase):
     cdef c_Sundberg* _sundberg_ptr   # non-owning; ownership via RheologyBase._rheology_ptr
-    cpdef dict get_config_dict(self)

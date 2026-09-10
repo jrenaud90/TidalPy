@@ -337,9 +337,6 @@ cdef class CoolingBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
-    cpdef dict get_config_dict(self):
-        """Return configuration dict with the model name."""
-        return PhysicsBase.get_config_dict(self)
 
 
 # =====================================================================================================================
@@ -417,14 +414,6 @@ cdef class ConvectiveCooling(CoolingBase):
     def critical_rayleigh(self) -> float:
         """Critical Rayleigh number [dimensionless]."""
         return self._convective_ptr.get_critical_rayleigh()
-
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and convection parameters."""
-        d = CoolingBase.get_config_dict(self)
-        d["convection_alpha"]  = self._convective_ptr.get_convection_alpha()
-        d["convection_beta"]   = self._convective_ptr.get_convection_beta()
-        d["critical_rayleigh"] = self._convective_ptr.get_critical_rayleigh()
-        return d
 
 
 # =====================================================================================================================

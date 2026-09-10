@@ -199,6 +199,17 @@ layer.save_config("layer.toml")
 cfg = layer.get_config_dict()  # → dict with all construction parameters
 ```
 
+The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`,
+`solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model
+is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner_m` belong
+to a standalone layer only; a world drops them when it nests the layer under its name
+(`LAYER_STANDALONE_CONFIG_KEYS`).
+
+```python
+layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=4400.0))
+layer.get_config_dict()["eos"]  # {'model': 'constant', 'reference_density_kg_m3': 4400.0}
+```
+
 ---
 
 ## Example

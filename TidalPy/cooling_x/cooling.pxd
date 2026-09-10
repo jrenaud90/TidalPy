@@ -109,7 +109,6 @@ cdef class CoolingResult:
 
 cdef class CoolingBase(PhysicsBase):
     cdef unique_ptr[c_CoolingBase] _cooling_ptr   # owns the most-derived C++ model object
-    cpdef dict get_config_dict(self)
 
 
 cdef class OffCooling(CoolingBase):
@@ -122,4 +121,3 @@ cdef class ConductiveCooling(CoolingBase):
 
 cdef class ConvectiveCooling(CoolingBase):
     cdef c_ConvectiveCooling* _convective_ptr   # non-owning; ownership via CoolingBase._cooling_ptr
-    cpdef dict get_config_dict(self)

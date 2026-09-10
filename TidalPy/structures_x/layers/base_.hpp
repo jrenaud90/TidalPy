@@ -87,6 +87,17 @@ inline const char* c_tidal_scale_method_name(c_TidalScaleMethod method) noexcept
     }
 }
 
+// Builder class name for a layer's BinaryClassID (the "class" key of a layer config table).
+inline const char* c_layer_class_name(uint32_t class_id) noexcept {
+    switch (class_id) {
+        case static_cast<uint32_t>(BinaryClassID::PhysicsLayer):     return "physics";
+        case static_cast<uint32_t>(BinaryClassID::SolidLiquidLayer): return "solidliquid";
+        case static_cast<uint32_t>(BinaryClassID::GasLayer):         return "gas";
+        case static_cast<uint32_t>(BinaryClassID::BaseLayer):
+        default:                                                     return "base";
+    }
+}
+
 // ---------------------------------------------------------------------------
 // c_BaseLayerConfig — construction parameters for c_BaseLayer.
 // Using a config struct avoids a long constructor argument list.

@@ -92,6 +92,11 @@ public:
 
     double get_reference_viscosity() const noexcept { return this->p_reference_viscosity; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_ViscosityBase::append_config_entries(out);
+        out.push_back(c_config_double("reference_viscosity", this->p_reference_viscosity));
+    }
+
     double calc_viscosity(double /*temperature_k*/, double /*pressure_pa*/) const override {
         return this->p_reference_viscosity;
     }
@@ -129,6 +134,14 @@ public:
     double get_reference_temperature()    const noexcept { return this->p_reference_temperature; }
     double get_molar_activation_energy()  const noexcept { return this->p_molar_activation_energy; }
     double get_molar_activation_volume()  const noexcept { return this->p_molar_activation_volume; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_ViscosityBase::append_config_entries(out);
+        out.push_back(c_config_double("reference_viscosity", this->p_reference_viscosity));
+        out.push_back(c_config_double("reference_temperature", this->p_reference_temperature));
+        out.push_back(c_config_double("molar_activation_energy", this->p_molar_activation_energy));
+        out.push_back(c_config_double("molar_activation_volume", this->p_molar_activation_volume));
+    }
 
     double calc_viscosity(double temperature_k, double pressure_pa) const override {
         const double R = tidalpy_config_ptr->d_R;
@@ -195,6 +208,18 @@ public:
     double get_molar_activation_energy()    const noexcept { return this->p_molar_activation_energy; }
     double get_molar_activation_volume()    const noexcept { return this->p_molar_activation_volume; }
     bool   get_additional_temp_dependence() const noexcept { return this->p_additional_temp_dependence; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_ViscosityBase::append_config_entries(out);
+        out.push_back(c_config_double("arrhenius_coeff", this->p_arrhenius_coeff));
+        out.push_back(c_config_double("stress", this->p_stress));
+        out.push_back(c_config_double("stress_expo", this->p_stress_expo));
+        out.push_back(c_config_double("grain_size", this->p_grain_size));
+        out.push_back(c_config_double("grain_size_expo", this->p_grain_size_expo));
+        out.push_back(c_config_double("molar_activation_energy", this->p_molar_activation_energy));
+        out.push_back(c_config_double("molar_activation_volume", this->p_molar_activation_volume));
+        out.push_back(c_config_bool("additional_temp_dependence", this->p_additional_temp_dependence));
+    }
 
     double calc_viscosity(double temperature_k, double pressure_pa) const override {
         const double R = tidalpy_config_ptr->d_R;

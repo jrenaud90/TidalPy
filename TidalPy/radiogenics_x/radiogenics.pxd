@@ -109,7 +109,6 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class RadiogenicsBase(PhysicsBase):
     cdef unique_ptr[c_RadiogenicsBase] _radiogenics_ptr   # owns the most-derived C++ model object
-    cpdef dict get_config_dict(self)
 
 
 cdef class OffRadiogenics(RadiogenicsBase):
@@ -118,9 +117,7 @@ cdef class OffRadiogenics(RadiogenicsBase):
 
 cdef class IsotopeRadiogenics(RadiogenicsBase):
     cdef c_IsotopeRadiogenics* _isotope_ptr   # non-owning; ownership via RadiogenicsBase._radiogenics_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class FixedRadiogenics(RadiogenicsBase):
     cdef c_FixedRadiogenics* _fixed_ptr   # non-owning; ownership via RadiogenicsBase._radiogenics_ptr
-    cpdef dict get_config_dict(self)

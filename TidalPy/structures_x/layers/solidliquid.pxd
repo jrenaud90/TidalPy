@@ -86,6 +86,8 @@ cdef extern from "solidliquid_.hpp" namespace "tidalpy" nogil:
         # Sub-model flags
         cpp_bool get_cooling_set()      const
         cpp_bool get_radiogenics_set()  const
+        c_CoolingBase*     get_cooling_model()     const
+        c_RadiogenicsBase* get_radiogenics_model() const
         # Sub-model setters (transfer ownership)
         void     set_cooling(unique_ptr[c_CoolingBase] cooling)
         void     set_radiogenics(unique_ptr[c_RadiogenicsBase] radiogenics)

@@ -254,8 +254,10 @@ Returns `0.0` when no radiogenics sub-model has been attached.
 
 ## `get_config_dict()` → dict
 
-Returns all configuration values as a Python dictionary (MKS).  Includes all
-`BaseLayer` + `PhysicsLayer` keys plus the 11 SolidLiquidLayer parameters.
+Returns all configuration values as a Python dictionary (MKS). Includes all
+`BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables)
+plus the 11 SolidLiquidLayer parameters, and the `cooling` and `radiogenics` sub-tables when those
+models are attached.
 
 | Key | Units | Description |
 |-----|-------|-------------|

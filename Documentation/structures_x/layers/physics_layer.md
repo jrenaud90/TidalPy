@@ -156,6 +156,10 @@ logic as `calc_complex_shear_modulus`.
 `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`,
 `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
+`get_config_dict()` adds the four static moduli and viscosities, the Love-number components, and one
+sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`,
+`partial_melt`), each keyed by `model` exactly as the world builder reads it.
+
 ---
 
 ## Binary serialization

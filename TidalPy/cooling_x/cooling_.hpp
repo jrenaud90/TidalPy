@@ -212,6 +212,13 @@ public:
     double get_convection_beta()   const noexcept { return this->p_convection_beta; }
     double get_critical_rayleigh() const noexcept { return this->p_critical_rayleigh; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_CoolingBase::append_config_entries(out);
+        out.push_back(c_config_double("convection_alpha", this->p_convection_alpha));
+        out.push_back(c_config_double("convection_beta", this->p_convection_beta));
+        out.push_back(c_config_double("critical_rayleigh", this->p_critical_rayleigh));
+    }
+
     c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const override {
         c_CoolingConfig cfg;
         cfg.convection_alpha  = this->p_convection_alpha;

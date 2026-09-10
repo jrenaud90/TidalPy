@@ -396,3 +396,8 @@ def test_gas_is_structure_base():
 def test_gas_is_tidalpy_base():
     from TidalPy.Utilities_x.classes_x.classes import TidalPyBaseClass
     assert isinstance(_make_layer(), TidalPyBaseClass)
+
+
+def test_get_config_dict_class_name():
+    """A gas layer names the builder class it was built from."""
+    assert _make_layer().get_config_dict()["class"] == "gas"

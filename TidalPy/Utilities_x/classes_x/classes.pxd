@@ -19,6 +19,7 @@ Never call bool() as a function in the importing .pyx; use `True if x else False
 from libcpp cimport bool as cpp_bool
 from libcpp.string cimport string
 from libcpp.memory cimport unique_ptr
+from libcpp.vector cimport vector
 from libc.stdint cimport uint8_t
 
 
@@ -47,11 +48,39 @@ cdef extern from "structure_base_.hpp" namespace "tidalpy" nogil:
         double calc_escape_velocity(double mass, double radius) const
 
 
+cdef extern from "config_entry_.hpp" namespace "tidalpy" nogil:
+    # Typed configuration entry reported by a C++ physics model (converted to a dict in Cython).
+    cdef enum class c_ConfigEntryKind:
+        Double
+        Int
+        Bool
+        String
+        DoubleList
+        StringList
+
+    cdef cppclass c_ConfigEntry:
+        string            key
+        c_ConfigEntryKind kind
+        double            value_double
+        long long         value_int
+        cpp_bool          value_bool
+        string            value_string
+        vector[double]    value_double_list
+        vector[string]    value_string_list
+
+
 cdef extern from "physics_base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_PhysicsBase(c_TidalPyBaseClass):
         c_PhysicsBase(const string& model_name) except +
         const string& get_model_name() const
         void set_model_name(const string& name)
+        vector[c_ConfigEntry] get_config_entries() const
+
+
+# Convert a C++ physics model's typed config entries into the dict returned by get_config_dict. Shared by the
+# Cython wrappers and by the layer and world writers, which reach attached models through raw pointers.
+cdef dict cy_config_entries_to_dict(const vector[c_ConfigEntry]& entries)
+cdef dict cy_physics_model_config(const c_PhysicsBase* model_ptr)
 
 
 # =====================================================================================================================

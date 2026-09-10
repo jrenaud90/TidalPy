@@ -486,3 +486,27 @@ def test_physics_layer_is_tidalpy_base():
     """PhysicsLayer is an instance of TidalPyBaseClass."""
     from TidalPy.Utilities_x.classes_x.classes import TidalPyBaseClass
     assert isinstance(_make_mantle(), TidalPyBaseClass)
+
+
+def test_get_config_dict_class_and_model_tables():
+    """Attached physics models appear as builder-style sub-tables, each keyed by its model name."""
+    from TidalPy.viscosity_x import make_viscosity
+    from TidalPy.partial_melt_x import make_partial_melt
+    rheo = _import_rheology()
+    pl = _make_mantle()
+    cfg = pl.get_config_dict()
+    assert cfg["class"] == "physics"
+    for key in ("shear_rheology", "bulk_rheology", "shear_viscosity", "bulk_viscosity", "partial_melt"):
+        assert key not in cfg
+    elastic_name = rheo.Elastic().model_name
+    pl.set_shear_rheology(rheo.Andrade(0.4, 1.5))
+    pl.set_bulk_rheology(rheo.Elastic())
+    pl.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e20}))
+    pl.set_partial_melt(make_partial_melt("henning"))
+    cfg = pl.get_config_dict()
+    assert cfg["shear_rheology"]["model"] == "andrade"
+    assert cfg["shear_rheology"]["alpha"] == pytest.approx(0.4)
+    assert cfg["bulk_rheology"] == {"model": elastic_name}
+    assert cfg["shear_viscosity"]["reference_viscosity"] == pytest.approx(1.0e20)
+    assert "bulk_viscosity" not in cfg
+    assert cfg["partial_melt"]["model"] == "henning"

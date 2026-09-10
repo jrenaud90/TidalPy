@@ -26,12 +26,30 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport StructureBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes cimport (
+    StructureBase,
+    c_TidalPyBaseClass,
+    c_PhysicsBase,
+    cy_physics_model_config,
+)
 from TidalPy.Material_x.eos.material_eos cimport MaterialEOSBase
 
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
+
+# Layer config keys that are constructor parameters of a standalone layer but not part of the world
+# builder's layer schema: the world writer drops them when nesting a layer under its name.
+LAYER_STANDALONE_CONFIG_KEYS = (
+    "name",
+    "radius_inner_m",
+    "love_number_k_re",
+    "love_number_k_im",
+    "love_number_h_re",
+    "love_number_h_im",
+    "love_number_l_re",
+    "love_number_l_im",
+)
 
 
 # Selectors for the vectorized real-valued radius getters (see _eval_real). Mirrors the world-level
@@ -451,16 +469,24 @@ cdef class BaseLayer(StructureBase):
     cpdef dict get_config_dict(self):
         """Return all configuration values as a Python dict (MKS).
 
+        The dict follows the world builder's layer schema: ``class`` names the layer class, the
+        scalar keys are the constructor parameters, and each attached physics model appears as
+        its own sub-table keyed by ``model`` (here only ``eos``; subclasses add their models).
+        ``name`` and ``radius_inner_m`` are construction parameters of a standalone layer that a
+        world drops when it nests the layer (see ``LAYER_STANDALONE_CONFIG_KEYS``).
+
         Returns
         -------
         dict
-            Keys: ``name``, ``layer_index``, ``radius_inner_m``,
+            Keys: ``class``, ``name``, ``layer_index``, ``radius_inner_m``,
             ``radius_outer_m``, ``mass_kg``, ``material_name``,
-            ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``.
+            ``is_tidal``, ``tidal_scale``, ``tidal_scale_method``, and ``eos`` when set.
         """
         cdef c_BaseLayer* p = self._layer_ptr.get()
         cdef bytes method_bytes = c_tidal_scale_method_name(p.get_tidal_scale_method())
-        return {
+        cdef bytes class_bytes = c_layer_class_name(p.get_layer_class_id())
+        cdef dict config = {
+            "class":              class_bytes.decode("utf-8"),
             "name":               p.get_name().decode("utf-8"),
             "layer_index":        p.get_layer_index(),
             "radius_inner_m":     p.get_radius_inner(),
@@ -471,3 +497,6 @@ cdef class BaseLayer(StructureBase):
             "tidal_scale":        p.get_tidal_scale(),
             "tidal_scale_method": method_bytes.decode("utf-8"),
         }
+        if p.get_eos_set():
+            config["eos"] = cy_physics_model_config(<const c_PhysicsBase*>p.get_eos())
+        return config

@@ -195,6 +195,15 @@ public:
     double get_fixed_k(int degree_l) const { return tide_degree_value(this->p_fixed_k, degree_l); }
     double get_fixed_q(int degree_l) const { return tide_degree_value(this->p_fixed_q, degree_l); }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_TideBase::append_config_entries(out);
+        // Per-degree slots for l = 2..10.
+        out.push_back(c_config_doubles(
+            "fixed_k", std::vector<double>(this->p_fixed_k.begin(), this->p_fixed_k.end())));
+        out.push_back(c_config_doubles(
+            "fixed_q", std::vector<double>(this->p_fixed_q.begin(), this->p_fixed_q.end())));
+    }
+
     c_LoveNumbers calc_love_numbers(
             int degree_l, double /*frequency*/, const c_LoveNumbers& /*solver_love*/) const override {
         const double k_l = tide_degree_value(this->p_fixed_k, degree_l);
@@ -253,6 +262,15 @@ public:
     double get_fixed_k(int degree_l) const  { return tide_degree_value(this->p_fixed_k, degree_l); }
     double get_fixed_dt(int degree_l) const { return tide_degree_value(this->p_fixed_dt, degree_l); }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_TideBase::append_config_entries(out);
+        // Per-degree slots for l = 2..10.
+        out.push_back(c_config_doubles(
+            "fixed_k", std::vector<double>(this->p_fixed_k.begin(), this->p_fixed_k.end())));
+        out.push_back(c_config_doubles(
+            "fixed_dt", std::vector<double>(this->p_fixed_dt.begin(), this->p_fixed_dt.end())));
+    }
+
     c_LoveNumbers calc_love_numbers(
             int degree_l, double frequency, const c_LoveNumbers& /*solver_love*/) const override {
         const double k_l  = tide_degree_value(this->p_fixed_k, degree_l);
@@ -306,6 +324,17 @@ public:
     double get_fixed_k(int degree_l) const  { return tide_degree_value(this->p_fixed_k, degree_l); }
     double get_fixed_dt(int degree_l) const { return tide_degree_value(this->p_fixed_dt, degree_l); }
     double get_fixed_q(int degree_l) const  { return tide_degree_value(this->p_fixed_q, degree_l); }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_TideBase::append_config_entries(out);
+        // Per-degree slots for l = 2..10.
+        out.push_back(c_config_doubles(
+            "fixed_k", std::vector<double>(this->p_fixed_k.begin(), this->p_fixed_k.end())));
+        out.push_back(c_config_doubles(
+            "fixed_dt", std::vector<double>(this->p_fixed_dt.begin(), this->p_fixed_dt.end())));
+        out.push_back(c_config_doubles(
+            "fixed_q", std::vector<double>(this->p_fixed_q.begin(), this->p_fixed_q.end())));
+    }
 
     c_LoveNumbers calc_love_numbers(
             int degree_l, double frequency, const c_LoveNumbers& /*solver_love*/) const override {

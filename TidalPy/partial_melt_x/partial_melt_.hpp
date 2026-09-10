@@ -137,6 +137,14 @@ public:
     double get_shear_power_slope() const noexcept { return this->p_fs_shear_power_slope; }
     double get_shear_power_phase() const noexcept { return this->p_fs_shear_power_phase; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_PartialMeltBase::append_config_entries(out);
+        out.push_back(c_config_double("fs_visc_power_slope", this->p_fs_visc_power_slope));
+        out.push_back(c_config_double("fs_visc_power_phase", this->p_fs_visc_power_phase));
+        out.push_back(c_config_double("fs_shear_power_slope", this->p_fs_shear_power_slope));
+        out.push_back(c_config_double("fs_shear_power_phase", this->p_fs_shear_power_phase));
+    }
+
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
         result.melt_fraction = this->calc_melt_fraction(in.temperature_k);
@@ -208,6 +216,17 @@ public:
     double get_shear_param_1()         const noexcept { return this->p_hn_shear_param_1; }
     double get_shear_param_2()         const noexcept { return this->p_hn_shear_param_2; }
     double get_shear_falloff_slope()   const noexcept { return this->p_hn_shear_falloff_slope; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_PartialMeltBase::append_config_entries(out);
+        out.push_back(c_config_double("crit_melt_frac", this->p_crit_melt_frac));
+        out.push_back(c_config_double("crit_melt_frac_width", this->p_crit_melt_frac_width));
+        out.push_back(c_config_double("hn_visc_slope_1", this->p_hn_visc_slope_1));
+        out.push_back(c_config_double("hn_visc_falloff_slope", this->p_hn_visc_falloff_slope));
+        out.push_back(c_config_double("hn_shear_param_1", this->p_hn_shear_param_1));
+        out.push_back(c_config_double("hn_shear_param_2", this->p_hn_shear_param_2));
+        out.push_back(c_config_double("hn_shear_falloff_slope", this->p_hn_shear_falloff_slope));
+    }
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;

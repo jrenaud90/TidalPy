@@ -138,6 +138,11 @@ public:
 
     double get_luminosity() const noexcept { return this->p_luminosity_w; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_LuminosityBase::append_config_entries(out);
+        out.push_back(c_config_double("luminosity_w", this->p_luminosity_w));
+    }
+
     double calc_luminosity(double mass_kg) const override {
         return lum_from_fixed(mass_kg, this->p_luminosity_w);
     }
@@ -191,6 +196,12 @@ public:
 
     double get_coeff()    const noexcept { return this->p_coeff; }
     double get_exponent() const noexcept { return this->p_exponent; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_LuminosityBase::append_config_entries(out);
+        out.push_back(c_config_double("power_law_coeff", this->p_coeff));
+        out.push_back(c_config_double("power_law_exponent", this->p_exponent));
+    }
 
     double calc_luminosity(double mass_kg) const override {
         return lum_from_power_law(mass_kg, this->p_coeff, this->p_exponent);

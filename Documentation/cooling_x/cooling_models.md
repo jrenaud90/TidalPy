@@ -196,7 +196,8 @@ cooling model named `Foo`:
 6. Declare `c_Foo` (constructors + getters) in `cooling.pxd` and add the enum
    value to the `c_CoolingModel` cimport.
 7. Add the `cdef class Foo(CoolingBase)` wrapper in `cooling.pyx` (with param
-   properties and a `get_config_dict` override), the adoption branch in
+   properties; the config dict comes from the C++ `append_config_entries` override),
+   the adoption branch in
    `make_cooling`, and a lower-case `foo(...)` convenience function.
 
 **Package + tests + docs**

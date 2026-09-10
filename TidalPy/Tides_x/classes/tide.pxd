@@ -73,7 +73,6 @@ cdef extern from "tide_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class TideBase(PhysicsBase):
     cdef unique_ptr[c_TideBase] _tide_ptr   # owns the most-derived C++ model object
-    cpdef dict get_config_dict(self)
 
 
 cdef class RheologyTide(TideBase):
@@ -82,14 +81,11 @@ cdef class RheologyTide(TideBase):
 
 cdef class FixedQTide(TideBase):
     cdef c_FixedQTide* _fixedq_ptr           # non-owning; ownership via TideBase._tide_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class FixedLagTide(TideBase):
     cdef c_FixedLagTide* _fixedlag_ptr       # non-owning; ownership via TideBase._tide_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class CTLQTide(TideBase):
     cdef c_CTLQTide* _ctlq_ptr               # non-owning; ownership via TideBase._tide_ptr
-    cpdef dict get_config_dict(self)

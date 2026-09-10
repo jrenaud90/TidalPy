@@ -301,9 +301,6 @@ cdef class RadiogenicsBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
-    cpdef dict get_config_dict(self):
-        """Return configuration dict with the model name."""
-        return PhysicsBase.get_config_dict(self)
 
 
 # =====================================================================================================================
@@ -415,18 +412,6 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
         """Per-isotope element concentration [kg/kg]."""
         return _isotopes_to_arrays(self._isotope_ptr.get_isotopes())[3]
 
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and isotope arrays (as lists)."""
-        d = RadiogenicsBase.get_config_dict(self)
-        hpr, half, frac, conc, names = _isotopes_to_arrays(self._isotope_ptr.get_isotopes())
-        d["heat_production_w_kg"] = list(hpr)
-        d["half_lives_s"]         = list(half)
-        d["mass_fracs"]           = list(frac)
-        d["concentrations"]       = list(conc)
-        d["isotope_names"]        = names
-        d["ref_time_s"]           = self._isotope_ptr.get_ref_time()
-        return d
-
 
 # =====================================================================================================================
 # FixedRadiogenics (alias "constant")
@@ -476,14 +461,6 @@ cdef class FixedRadiogenics(RadiogenicsBase):
     def ref_time(self) -> float:
         """Reference time [s]."""
         return self._fixed_ptr.get_ref_time()
-
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and fixed-rate parameters."""
-        d = RadiogenicsBase.get_config_dict(self)
-        d["fixed_heat_production_w_kg"] = self._fixed_ptr.get_fixed_heat_production()
-        d["average_half_life_s"]        = self._fixed_ptr.get_average_half_life()
-        d["ref_time_s"]                 = self._fixed_ptr.get_ref_time()
-        return d
 
 
 # =====================================================================================================================

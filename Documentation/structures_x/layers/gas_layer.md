@@ -118,7 +118,7 @@ Binary class ID: `103` (`BinaryClassID::GasLayer`).
 
 ```python
 layer.save_config("gas_layer.toml")
-cfg = layer.get_config_dict()   # returns Python dict of all fields (MKS)
+cfg = layer.get_config_dict()   # dict of all fields (MKS); class = "gas" plus attached-model sub-tables
 ```
 
 ## Literature

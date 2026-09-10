@@ -389,3 +389,17 @@ def test_base_layer_is_tidalpy_base():
     from TidalPy.Utilities_x.classes_x.classes import TidalPyBaseClass
     bl = _make_mantle()
     assert isinstance(bl, TidalPyBaseClass)
+
+
+def test_get_config_dict_class_and_eos_table():
+    """The dict names its builder class and carries an eos sub-table only once an EOS is attached."""
+    from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS
+    bl = _make_mantle()
+    assert bl.get_config_dict()["class"] == "base"
+    assert "eos" not in bl.get_config_dict()
+    eos = ConstantDensityEOS(reference_density_kg_m3=4400.0)
+    expected_model = eos.model_name
+    bl.set_eos(eos)
+    eos_cfg = bl.get_config_dict()["eos"]
+    assert eos_cfg["model"] == expected_model
+    assert eos_cfg["reference_density_kg_m3"] == pytest.approx(4400.0)

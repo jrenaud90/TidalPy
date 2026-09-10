@@ -54,10 +54,6 @@ cdef class ViscosityBase(PhysicsBase):
         """Dynamic viscosity [Pa·s] at the given temperature [K] and pressure [Pa]."""
         return self._visc_ptr.get().calc_viscosity(temperature_k, pressure_pa)
 
-    cpdef dict get_config_dict(self):
-        """Return the model name as a config dict (subclasses add parameters)."""
-        return {"model": self.model_name}
-
 
 # =====================================================================================================================
 # Viscosity models
@@ -83,11 +79,6 @@ cdef class ConstantViscosity(ViscosityBase):
     def reference_viscosity(self) -> float:
         """Reference (constant) viscosity [Pa·s]."""
         return self._constant_ptr.get_reference_viscosity()
-
-    cpdef dict get_config_dict(self):
-        d = ViscosityBase.get_config_dict(self)
-        d["reference_viscosity"] = self._constant_ptr.get_reference_viscosity()
-        return d
 
 
 cdef class ReferenceViscosity(ViscosityBase):
@@ -134,14 +125,6 @@ cdef class ReferenceViscosity(ViscosityBase):
     def molar_activation_volume(self) -> float:
         """Molar activation volume V_a [m^3/mol]."""
         return self._ref_ptr.get_molar_activation_volume()
-
-    cpdef dict get_config_dict(self):
-        d = ViscosityBase.get_config_dict(self)
-        d["reference_viscosity"]     = self._ref_ptr.get_reference_viscosity()
-        d["reference_temperature"]   = self._ref_ptr.get_reference_temperature()
-        d["molar_activation_energy"] = self._ref_ptr.get_molar_activation_energy()
-        d["molar_activation_volume"] = self._ref_ptr.get_molar_activation_volume()
-        return d
 
 
 cdef class ArrheniusViscosity(ViscosityBase):
@@ -191,18 +174,6 @@ cdef class ArrheniusViscosity(ViscosityBase):
     def additional_temp_dependence(self) -> bool:
         """Whether the law is multiplied by an additional factor of T."""
         return self._arr_ptr.get_additional_temp_dependence()
-
-    cpdef dict get_config_dict(self):
-        d = ViscosityBase.get_config_dict(self)
-        d["arrhenius_coeff"]            = self._arr_ptr.get_arrhenius_coeff()
-        d["stress"]                     = self._arr_ptr.get_stress()
-        d["stress_expo"]                = self._arr_ptr.get_stress_expo()
-        d["grain_size"]                 = self._arr_ptr.get_grain_size()
-        d["grain_size_expo"]            = self._arr_ptr.get_grain_size_expo()
-        d["molar_activation_energy"]    = self._arr_ptr.get_molar_activation_energy()
-        d["molar_activation_volume"]    = self._arr_ptr.get_molar_activation_volume()
-        d["additional_temp_dependence"] = bool(self._arr_ptr.get_additional_temp_dependence())
-        return d
 
 
 # =====================================================================================================================

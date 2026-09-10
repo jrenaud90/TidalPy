@@ -96,19 +96,15 @@ cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
 # =====================================================================================================================
 cdef class PartialMeltBase(PhysicsBase):
     cdef unique_ptr[c_PartialMeltBase] _melt_ptr   # owns the most-derived C++ model object
-    cpdef dict get_config_dict(self)
 
 
 cdef class OffPartialMelt(PartialMeltBase):
     cdef c_OffPartialMelt* _off_ptr                # non-owning; ownership via PartialMeltBase._melt_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class SpohnPartialMelt(PartialMeltBase):
     cdef c_SpohnPartialMelt* _spohn_ptr            # non-owning; ownership via PartialMeltBase._melt_ptr
-    cpdef dict get_config_dict(self)
 
 
 cdef class HenningPartialMelt(PartialMeltBase):
     cdef c_HenningPartialMelt* _henning_ptr        # non-owning; ownership via PartialMeltBase._melt_ptr
-    cpdef dict get_config_dict(self)

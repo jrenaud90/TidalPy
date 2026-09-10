@@ -89,6 +89,13 @@ public:
     double get_liquidus()     const noexcept { return this->p_liquidus_k; }
     double get_liquid_shear() const noexcept { return this->p_liquid_shear_pa; }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_PhysicsBase::append_config_entries(out);
+        out.push_back(c_config_double("solidus_k", this->p_solidus_k));
+        out.push_back(c_config_double("liquidus_k", this->p_liquidus_k));
+        out.push_back(c_config_double("liquid_shear_pa", this->p_liquid_shear_pa));
+    }
+
     // -----------------------------------------------------------------------
     // Volumetric melt fraction φ ∈ [0, 1] from temperature (model-independent):
     //

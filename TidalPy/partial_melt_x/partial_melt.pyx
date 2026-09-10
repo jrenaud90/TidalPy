@@ -89,16 +89,6 @@ cdef class PartialMeltBase(PhysicsBase):
         cdef c_PartialMeltResult result = self._melt_ptr.get().calc_partial_melt(inputs)
         return (result.melt_fraction, result.postmelt_viscosity, result.postmelt_shear_modulus)
 
-    cpdef dict get_config_dict(self):
-        """Return the model name as a config dict (subclasses add parameters)."""
-        cdef c_PartialMeltBase* p = self._melt_ptr.get()
-        return {
-            "model":           self.model_name,
-            "solidus_k":       p.get_solidus(),
-            "liquidus_k":      p.get_liquidus(),
-            "liquid_shear_pa": p.get_liquid_shear(),
-        }
-
 
 # =====================================================================================================================
 # Partial-melt models
@@ -156,14 +146,6 @@ cdef class SpohnPartialMelt(PartialMeltBase):
     def __dealloc__(self):
         self._spohn_ptr = NULL
 
-    cpdef dict get_config_dict(self):
-        d = PartialMeltBase.get_config_dict(self)
-        d["fs_visc_power_slope"]  = self._spohn_ptr.get_visc_power_slope()
-        d["fs_visc_power_phase"]  = self._spohn_ptr.get_visc_power_phase()
-        d["fs_shear_power_slope"] = self._spohn_ptr.get_shear_power_slope()
-        d["fs_shear_power_phase"] = self._spohn_ptr.get_shear_power_phase()
-        return d
-
 
 cdef class HenningPartialMelt(PartialMeltBase):
     """Henning (2009/2010) three-regime melt weakening."""
@@ -201,17 +183,6 @@ cdef class HenningPartialMelt(PartialMeltBase):
 
     def __dealloc__(self):
         self._henning_ptr = NULL
-
-    cpdef dict get_config_dict(self):
-        d = PartialMeltBase.get_config_dict(self)
-        d["crit_melt_frac"]         = self._henning_ptr.get_crit_melt_frac()
-        d["crit_melt_frac_width"]   = self._henning_ptr.get_crit_melt_frac_width()
-        d["hn_visc_slope_1"]        = self._henning_ptr.get_visc_slope_1()
-        d["hn_visc_falloff_slope"]  = self._henning_ptr.get_visc_falloff_slope()
-        d["hn_shear_param_1"]       = self._henning_ptr.get_shear_param_1()
-        d["hn_shear_param_2"]       = self._henning_ptr.get_shear_param_2()
-        d["hn_shear_falloff_slope"] = self._henning_ptr.get_shear_falloff_slope()
-        return d
 
 
 # =====================================================================================================================

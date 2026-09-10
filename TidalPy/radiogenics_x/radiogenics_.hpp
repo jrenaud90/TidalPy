@@ -327,6 +327,25 @@ public:
     double get_ref_time()          const noexcept { return this->p_ref_time_s; }
     std::size_t get_num_isotopes() const noexcept { return this->p_isotopes.size(); }
 
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RadiogenicsBase::append_config_entries(out);
+        std::vector<double> heat_production, half_lives, mass_fracs, concentrations;
+        std::vector<std::string> names;
+        for (const c_Isotope& isotope : this->p_isotopes) {
+            heat_production.push_back(isotope.heat_production_w_kg);
+            half_lives.push_back(isotope.half_life_s);
+            mass_fracs.push_back(isotope.mass_frac);
+            concentrations.push_back(isotope.concentration);
+            names.push_back(isotope.name);
+        }
+        out.push_back(c_config_doubles("heat_production_w_kg", heat_production));
+        out.push_back(c_config_doubles("half_lives_s", half_lives));
+        out.push_back(c_config_doubles("mass_fracs", mass_fracs));
+        out.push_back(c_config_doubles("concentrations", concentrations));
+        out.push_back(c_config_strings("isotope_names", names));
+        out.push_back(c_config_double("ref_time_s", this->p_ref_time_s));
+    }
+
     double calc_heating(double time_s, double mass_kg) const override {
         return rad_heating_isotope(time_s, mass_kg, this->p_isotopes, this->p_ref_time_s);
     }
@@ -399,6 +418,13 @@ public:
     double get_fixed_heat_production() const noexcept { return this->p_fixed_heat_production_w_kg; }
     double get_average_half_life()     const noexcept { return this->p_average_half_life_s; }
     double get_ref_time()              const noexcept { return this->p_ref_time_s; }
+
+    void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
+        c_RadiogenicsBase::append_config_entries(out);
+        out.push_back(c_config_double("fixed_heat_production_w_kg", this->p_fixed_heat_production_w_kg));
+        out.push_back(c_config_double("average_half_life_s", this->p_average_half_life_s));
+        out.push_back(c_config_double("ref_time_s", this->p_ref_time_s));
+    }
 
     double calc_heating(double time_s, double mass_kg) const override {
         return rad_heating_fixed(

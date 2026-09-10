@@ -281,9 +281,6 @@ cdef class RheologyBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
-    cpdef dict get_config_dict(self):
-        """Return configuration dict with the model name."""
-        return PhysicsBase.get_config_dict(self)
 
 
 # =====================================================================================================================
@@ -377,13 +374,6 @@ cdef class Voigt(RheologyBase):
         """Voigt viscosity fraction [dimensionless]."""
         return self._voigt_ptr.get_voigt_viscosity_frac()
 
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and Voigt parameters."""
-        d = RheologyBase.get_config_dict(self)
-        d["voigt_modulus_frac"]   = self._voigt_ptr.get_voigt_modulus_frac()
-        d["voigt_viscosity_frac"] = self._voigt_ptr.get_voigt_viscosity_frac()
-        return d
-
 
 # =====================================================================================================================
 # Burgers
@@ -427,13 +417,6 @@ cdef class Burgers(RheologyBase):
         """Voigt viscosity fraction [dimensionless]."""
         return self._burgers_ptr.get_voigt_viscosity_frac()
 
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and Voigt parameters."""
-        d = RheologyBase.get_config_dict(self)
-        d["voigt_modulus_frac"]   = self._burgers_ptr.get_voigt_modulus_frac()
-        d["voigt_viscosity_frac"] = self._burgers_ptr.get_voigt_viscosity_frac()
-        return d
-
 
 # =====================================================================================================================
 # Andrade
@@ -473,13 +456,6 @@ cdef class Andrade(RheologyBase):
     def zeta(self) -> float:
         """Andrade timescale ratio [dimensionless]."""
         return self._andrade_ptr.get_zeta()
-
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and Andrade parameters."""
-        d = RheologyBase.get_config_dict(self)
-        d["alpha"] = self._andrade_ptr.get_alpha()
-        d["zeta"]  = self._andrade_ptr.get_zeta()
-        return d
 
 
 # =====================================================================================================================
@@ -540,15 +516,6 @@ cdef class Sundberg(RheologyBase):
     def voigt_viscosity_frac(self) -> float:
         """Voigt viscosity fraction [dimensionless]."""
         return self._sundberg_ptr.get_voigt_viscosity_frac()
-
-    cpdef dict get_config_dict(self):
-        """Return config dict with model name and all Sundberg parameters."""
-        d = RheologyBase.get_config_dict(self)
-        d["alpha"]                = self._sundberg_ptr.get_alpha()
-        d["zeta"]                 = self._sundberg_ptr.get_zeta()
-        d["voigt_modulus_frac"]   = self._sundberg_ptr.get_voigt_modulus_frac()
-        d["voigt_viscosity_frac"] = self._sundberg_ptr.get_voigt_viscosity_frac()
-        return d
 
 
 # =====================================================================================================================

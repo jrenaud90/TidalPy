@@ -229,8 +229,9 @@ To add a model `Foo`:
    `c_find_material_eos`, and add a `case` to `c_material_eos_from_binary` (so a
    `Foo` attached to a layer can be reconstructed on load).
 4. **`material_eos.pxd` / `material_eos.pyx`** — declare `c_FooEOS` and the enum
-   value; add the `cdef class FooEOS(MaterialEOSBase)` wrapper (params, getters,
-   `get_config_dict`) and an adoption branch in `make_material_eos`.
+   value; add the `cdef class FooEOS(MaterialEOSBase)` wrapper (params, getters; the
+   config dict comes from the C++ `append_config_entries` override) and an adoption
+   branch in `make_material_eos`.
 5. **`__init__.py`** — export `FooEOS`.
 6. **Tests** (`Tests/Test_Material_x/test_material_eos_01.py`) — density evaluation,
    an inversion cross-check (analytic models), factory/alias, config dict, binary
