@@ -1,5 +1,7 @@
 # Cooling (`cooling_x`)
 
+_Updated: 2026-09-09_
+
 `TidalPy.cooling_x` provides the C++ cooling (heat-transport) model hierarchy that
 maps a layer's physical state to a **cooling result**: the surface heat flux `q`
 [W/m²], the thermal boundary-layer thickness [m], and the Rayleigh and Nusselt
@@ -13,7 +15,7 @@ Each `SolidLiquidLayer` can hold one cooling model.
 ```
 c_TidalPyBaseClass
   └── c_PhysicsBase
-        └── c_CoolingBase          (abstract)
+        └── c_CoolingBase   (abstract)
               ├── c_OffCooling         alias "none"
               ├── c_ConvectiveCooling  alias "convective"
               └── c_ConductiveCooling  alias "conductive"
@@ -43,12 +45,13 @@ The result is a `CoolingResult` with `cooling_flux` [W/m²],
 `boundary_layer_thickness` [m], `rayleigh`, and `nusselt`. Each field is a Python
 `float` for scalar evaluations or a `float64` ndarray for vectorized ones.
 `CoolingResult` supports `to_dict()` and iteration
-(`flux, blt, ray, nu = result`).
+
+```python
+result = Cooling.calc_cooling(...)
+flux, blt, ray, nu = result
+```
 
 ## The three models
-
-All quantities are MKS. The math mirrors TidalPy's validated legacy
-`cooling.cooling_models` functions.
 
 | Model | Cooling flux `q` [W/m²] | Boundary layer | Ra / Nu |
 |-------|-------------------------|----------------|---------|
@@ -76,13 +79,15 @@ legacy edge behavior (`Ra = 0`, `Nu = 2`).
 ```python
 from TidalPy.cooling_x import ConvectiveCooling, make_cooling
 
+# Build cooling class with constant parameters
+convective_cooling = ConvectiveCooling(convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)
+
 # delta_temp, thickness, gravity, density, viscosity, conductivity, diffusivity, expansion
-cv = ConvectiveCooling(convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)
-result = cv.calc_cooling(1000.0, 1.0e6, 9.8, 3300.0, 1.0e21, 4.0, 1.0e-6, 3.0e-5)
+result = convective_cooling.calc_cooling(1000.0, 1.0e6, 9.8, 3300.0, 1.0e21, 4.0, 1.0e-6, 3.0e-5)
 print(result.cooling_flux, result.nusselt)   # [W/m^2], [dimensionless]
 
 # Name/alias-based factory (case-insensitive).
-g = make_cooling("conductive")
+conductive_cooling = make_cooling("conductive")
 ```
 
 `make_cooling(model_name, config=None)` resolves aliases case-insensitively and
@@ -105,12 +110,9 @@ all models inherit them via virtual dispatch). The two "live" inputs that change
 during thermal evolution are the temperature drop and the viscosity; the
 remaining inputs are held constant:
 
-- `calc_cooling_vectorize_temperature(delta_temp[], <other 7 scalars>)` — a
-  temperature-drop sweep.
-- `calc_cooling_vectorize_viscosity(<delta_temp>, ..., viscosity[], ...)` — a
-  viscosity sweep.
-- `calc_cooling_vectorize_all(delta_temp[], ..., viscosity[], ...)` — element-wise
-  over two equal-length arrays.
+- `calc_cooling_vectorize_temperature(delta_temp[], <other 7 scalars>)`: a temperature-drop sweep.
+- `calc_cooling_vectorize_viscosity(<delta_temp>, ..., viscosity[], ...)`: a viscosity sweep.
+- `calc_cooling_vectorize_all(delta_temp[], ..., viscosity[], ...)`: element-wise over two equal-length arrays.
 
 At the C++ level each fills a caller-supplied `std::vector<c_CoolingResult>&`
 (copying the base `c_CoolingInputs` and overriding the swept field per element);
@@ -126,7 +128,7 @@ from TidalPy.cooling_x import convective, conductive, cooling_off
 import numpy as np
 
 # Scalar in -> CoolingResult of floats.
-r = convective(1000.0, 1.0e21, 1.0e6, 9.8, 3300.0, 4.0, 1.0e-6, 3.0e-5)
+result = convective(1000.0, 1.0e21, 1.0e6, 9.8, 3300.0, 4.0, 1.0e-6, 3.0e-5)
 
 # delta_temp and viscosity may be floats or arrays (broadcast together);
 # the remaining inputs are scalar constants.
@@ -205,7 +207,7 @@ cooling model named `Foo`:
    factory/alias, vectorization, config dict, binary round-trip, isinstance).
 10. Document the model here (formula, parameters, references).
 
-No build-system change is needed — `cooling_x.cooling` is already registered in
+No build-system change is needed, `cooling_x.cooling` is already registered in
 `cython_extensions.json`.
 
 ## References
