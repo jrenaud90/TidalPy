@@ -227,9 +227,9 @@ each mode's degree, signed frequency, and the **complex** angular-factor amplitu
 ```python
 from TidalPy.Tides_x.potential import tidal_potential_3d_modes
 degrees, freqs, pots = tidal_potential_3d_modes(
-  orbital_frequency, spin_frequency, eccentricity, obliquity, host_mass, semi_major_axis,
-  planet_radius, colatitude, longitude, G,
-  max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
+  planet_radius, orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis,
+  host_mass, G, colatitude, longitude,
+  min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=0)
 # pots[i] = complex (U, dU/dtheta, dU/dphi, d2U/dtheta2, d2U/dphi2, d2U/dtheta_dphi) for mode i
 ```
 

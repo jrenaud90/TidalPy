@@ -8,19 +8,33 @@ from TidalPy.Tides_x.potential.potential_common import ModeMap, UniqueFrequencyM
 
 def global_potential(
         double planet_radius,
-        double semi_major_axis,
         double orbital_frequency,
         double spin_frequency,
-        double obliquity,
         double eccentricity,
+        double obliquity,
+        double semi_major_axis,
         double host_mass,
         double G_to_use,
         int min_degree_l=2,
         int max_degree_l=2,
-        object obliquity_truncation='gen',
-        int eccentricity_truncation=3
+        int eccentricity_truncation=3,
+        object obliquity_truncation='gen'
     ):
+    """Build the global (1D) tidal potential mode tables for one orbital state.
 
+    The body radius comes first, then the orbital state in the same order as the world's
+    ``calc_tides`` (orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis,
+    host mass), then Newton's constant.
+
+    Returns
+    -------
+    tuple
+        The mode map and unique-frequency map used by the global collapse.
+
+    Assumptions
+    -----------
+    - All inputs MKS; frequencies in rad s-1; angles in radians.
+    """
     # Clean up non-C inputs
     cdef int i_obliquity_truncation = 0
     if isinstance(obliquity_truncation, str):

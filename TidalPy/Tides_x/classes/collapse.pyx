@@ -119,35 +119,39 @@ cdef c_TideModelConfig _build_tide_config(dict config) except *:
 # =====================================================================================================================
 def collapse_global_tides(
         double planet_radius,
-        double semi_major_axis,
         double orbital_frequency,
         double spin_frequency,
-        double obliquity,
         double eccentricity,
+        double obliquity,
+        double semi_major_axis,
         double host_mass,
         double G_to_use,
         str tide_model,
         dict tide_config=None,
         int min_degree_l=2,
         int max_degree_l=2,
-        object obliquity_truncation='gen',
-        int eccentricity_truncation=3) -> dict:
+        int eccentricity_truncation=3,
+        object obliquity_truncation='gen') -> dict:
     """Collapse the global tidal modes into heating and orbital potential derivatives.
+
+    The body radius comes first, then the orbital state in the same order as the world's
+    ``calc_tides`` (orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis,
+    host mass), then Newton's constant.
 
     Parameters
     ----------
     planet_radius : float
         Radius of the tidally deformed body [m].
-    semi_major_axis : float
-        Orbital semi-major axis [m].
     orbital_frequency : float
         Orbital mean motion [rad s-1].
     spin_frequency : float
         Spin rate of the deformed body [rad s-1].
-    obliquity : float
-        Axial tilt [radians].
     eccentricity : float
         Orbital eccentricity [dimensionless].
+    obliquity : float
+        Axial tilt [radians].
+    semi_major_axis : float
+        Orbital semi-major axis [m].
     host_mass : float
         Mass of the tidal host [kg].
     G_to_use : float
@@ -163,10 +167,10 @@ def collapse_global_tides(
         from degree l = 2).
     min_degree_l, max_degree_l : int
         Tidal harmonic degree range (2..10).
-    obliquity_truncation : str or int
-        Obliquity truncation: ``"off"`` (0), 2, 4, or ``"gen"``/``"general"`` (10).
     eccentricity_truncation : int
         Eccentricity truncation level. Tabulated levels: 1..5, 10, 15, 20.
+    obliquity_truncation : str or int
+        Obliquity truncation: ``"off"`` (0), 2, 4, or ``"gen"``/``"general"`` (10).
 
     Returns
     -------

@@ -33,21 +33,26 @@ set_tidalpy_config_ptr(get_shared_config_address())
 
 
 def tidal_potential_3d_modes(
+        double planet_radius,
         double orbital_frequency,
         double spin_frequency,
         double eccentricity,
         double obliquity,
-        double host_mass,
         double semi_major_axis,
-        double planet_radius,
+        double host_mass,
+        double G_to_use,
         double colatitude,
         double longitude,
-        double G_to_use,
+        int min_degree_l=2,
         int max_degree_l=2,
         int eccentricity_truncation=3,
-        int obliquity_truncation=0,
-        int min_degree_l=2):
+        int obliquity_truncation=0):
     """Active tidal modes with complex potential angular-factor amplitudes at one point.
+
+    The body radius comes first, then the orbital state in the same order as the world's
+    ``calc_tides`` (orbital frequency, spin frequency, eccentricity, obliquity, semi-major axis,
+    host mass), then Newton's constant.
+    The point's colatitude and longitude [radians] follow, then the degree range and truncations.
 
     Returns
     -------

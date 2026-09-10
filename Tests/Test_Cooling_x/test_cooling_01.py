@@ -260,7 +260,7 @@ def test_save_config_writes_toml():
 def test_convenience_scalar_matches_class():
     """The convenience function matches the class for scalar input."""
     mod = _import_cooling()
-    got = mod.convective(_DT, _VISC, _THICK, _G, _RHO, _K, _DIFF, _EXP)
+    got = mod.convective(_DT, _THICK, _G, _RHO, _VISC, _K, _DIFF, _EXP)
     expected = mod.ConvectiveCooling().calc_cooling(*_inputs())
     assert isinstance(got.cooling_flux, float)
     assert got.cooling_flux == pytest.approx(expected.cooling_flux)
@@ -272,7 +272,7 @@ def test_convenience_vectorize_temperature():
     mod = _import_cooling()
     inst = mod.ConvectiveCooling()
     temps = np.array([100.0, 500.0, 1000.0, 2000.0])
-    got = mod.convective(temps, _VISC, _THICK, _G, _RHO, _K, _DIFF, _EXP)
+    got = mod.convective(temps, _THICK, _G, _RHO, _VISC, _K, _DIFF, _EXP)
     assert isinstance(got.cooling_flux, np.ndarray)
     assert got.cooling_flux.shape == (4,)
     assert got.cooling_flux.dtype == np.float64
@@ -287,7 +287,7 @@ def test_convenience_vectorize_viscosity():
     mod = _import_cooling()
     inst = mod.ConvectiveCooling()
     viscs = np.array([1.0e19, 1.0e20, 1.0e21])
-    got = mod.convective(_DT, viscs, _THICK, _G, _RHO, _K, _DIFF, _EXP)
+    got = mod.convective(_DT, _THICK, _G, _RHO, viscs, _K, _DIFF, _EXP)
     assert got.cooling_flux.shape == (3,)
     for i in range(3):
         single = inst.calc_cooling(_DT, _THICK, _G, _RHO, viscs[i], _K, _DIFF, _EXP)
@@ -299,7 +299,7 @@ def test_convenience_vectorize_all_and_broadcast():
     mod = _import_cooling()
     temps = np.array([500.0, 1000.0, 2000.0])
     viscs = np.array([1.0e20, 1.0e21, 1.0e22])
-    got_all = mod.convective(temps, viscs, _THICK, _G, _RHO, _K, _DIFF, _EXP)
+    got_all = mod.convective(temps, _THICK, _G, _RHO, viscs, _K, _DIFF, _EXP)
     assert got_all.cooling_flux.shape == (3,)
     inst = mod.ConvectiveCooling()
     for i in range(3):
@@ -311,7 +311,7 @@ def test_convenience_preserves_2d_shape():
     """A 2-D input shape is preserved in the output arrays."""
     mod = _import_cooling()
     temps = np.array([[100.0, 500.0], [1000.0, 2000.0]])
-    got = mod.convective(temps, _VISC, _THICK, _G, _RHO, _K, _DIFF, _EXP)
+    got = mod.convective(temps, _THICK, _G, _RHO, _VISC, _K, _DIFF, _EXP)
     assert got.cooling_flux.shape == (2, 2)
     assert got.nusselt.shape == (2, 2)
 

@@ -81,13 +81,14 @@ neg_imk = tide.calc_neg_imk(degree_l=2, frequency=4.1e-5)     # 0.006
 #   make_tide("rheology").calc_love_numbers(2, w, solver_love) -> solver_love (k, h, l)
 
 # Standalone global collapse for an analytic model:
+# The orbital-state arguments follow the world's calc_tides order.
 result = collapse_global_tides(
     planet_radius=1.82e6,
-    semi_major_axis=4.22e8,
     orbital_frequency=4.11e-5,
     spin_frequency=4.11e-5,   # synchronous
-    obliquity=0.0,
     eccentricity=0.0041,
+    obliquity=0.0,
+    semi_major_axis=4.22e8,
     host_mass=1.898e27,
     G_to_use=G,
     tide_model="cpl",

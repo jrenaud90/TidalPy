@@ -527,10 +527,10 @@ def conductive(
 
 def convective(
         delta_temp_k,
-        viscosity_pas,
         double thickness_m,
         double gravity_m_s2,
         double density_kg_m3,
+        viscosity_pas,
         double thermal_conductivity_w_mk,
         double thermal_diffusivity_m2_s,
         double thermal_expansion_1_k,
@@ -540,7 +540,8 @@ def convective(
     """Cooling result for the parameterized Convection model.
 
     ``delta_temp_k`` and ``viscosity_pas`` may be floats or arrays (broadcast
-    together); the remaining inputs are scalar constants.
+    together); the remaining inputs are scalar constants. The argument order is the
+    same as ``calc_cooling``.
     """
     cdef c_CoolingConfig cfg
     cfg.convection_alpha  = convection_alpha

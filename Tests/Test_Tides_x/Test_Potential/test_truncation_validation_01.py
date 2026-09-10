@@ -45,19 +45,19 @@ def test_set_tide_config_accepts_tabulated(good_level):
 
 def test_potential_3d_rejects_untabulated():
     with pytest.raises(NotImplementedError, match="Obliquity truncation"):
-        tidal_potential_3d_modes(_N, 1.5 * _N, 0.1, 0.05, mass_trap1, _SMA, _R,
-                                 1.0, 0.0, G, obliquity_truncation=3)
+        tidal_potential_3d_modes(_R, _N, 1.5 * _N, 0.1, 0.05, _SMA, mass_trap1, G,
+                                 1.0, 0.0, obliquity_truncation=3)
 
 
 def test_global_potential_rejects_untabulated():
     with pytest.raises(NotImplementedError, match="Obliquity truncation"):
-        global_potential(_R, _SMA, _N, 1.5 * _N, 0.1, 0.05, mass_trap1, G,
+        global_potential(_R, _N, 1.5 * _N, 0.05, 0.1, _SMA, mass_trap1, G,
                          obliquity_truncation=6)
 
 
 def test_collapse_rejects_untabulated():
     with pytest.raises(NotImplementedError, match="Obliquity truncation"):
-        collapse_global_tides(_R, _SMA, _N, 1.5 * _N, 0.1, 0.05, mass_trap1, G,
+        collapse_global_tides(_R, _N, 1.5 * _N, 0.05, 0.1, _SMA, mass_trap1, G,
                               "cpl", obliquity_truncation=3)
 
 

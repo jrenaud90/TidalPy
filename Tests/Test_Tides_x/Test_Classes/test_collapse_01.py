@@ -76,8 +76,8 @@ def test_rheology_model_rejected():
     from TidalPy.Tides_x.classes import collapse_global_tides
     with pytest.raises(NotImplementedError):
         collapse_global_tides(
-            PLANET_RADIUS, SEMI_MAJOR_AXIS, ORBITAL_FREQUENCY, ORBITAL_FREQUENCY,
-            0.0, ECCENTRICITY, HOST_MASS, G, "rheology")
+            PLANET_RADIUS, ORBITAL_FREQUENCY, ORBITAL_FREQUENCY, ECCENTRICITY, 0.0,
+            SEMI_MAJOR_AXIS, HOST_MASS, G, "rheology")
 
 
 @pytest.mark.parametrize("model,config", [

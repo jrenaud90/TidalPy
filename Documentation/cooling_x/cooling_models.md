@@ -128,22 +128,23 @@ from TidalPy.cooling_x import convective, conductive, cooling_off
 import numpy as np
 
 # Scalar in -> CoolingResult of floats.
-result = convective(1000.0, 1.0e21, 1.0e6, 9.8, 3300.0, 4.0, 1.0e-6, 3.0e-5)
+result = convective(1000.0, 1.0e6, 9.8, 3300.0, 1.0e21, 4.0, 1.0e-6, 3.0e-5)
 
 # delta_temp and viscosity may be floats or arrays (broadcast together);
 # the remaining inputs are scalar constants.
-sweep = convective(np.linspace(100.0, 2000.0, 50), 1.0e21,
-                   1.0e6, 9.8, 3300.0, 4.0, 1.0e-6, 3.0e-5)
+sweep = convective(np.linspace(100.0, 2000.0, 50), 1.0e6, 9.8, 3300.0,
+                   1.0e21, 4.0, 1.0e-6, 3.0e-5)
 ```
 
 Signatures:
 `cooling_off(delta_temp_k, thickness_m)`,
 `conductive(delta_temp_k, thickness_m, thermal_conductivity_w_mk)`,
-`convective(delta_temp_k, viscosity_pas, thickness_m, gravity_m_s2, density_kg_m3, thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k, convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)`.
+`convective(delta_temp_k, thickness_m, gravity_m_s2, density_kg_m3, viscosity_pas, thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k, convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)`.
 
 Each builds a *stack-allocated* C++ model, solves (picking the most specific
-vectorized routine for the input pattern), and returns a `CoolingResult`. The off
-and conduction functions only take the inputs they actually use.
+vectorized routine for the input pattern), and returns a `CoolingResult`. The argument
+order matches `calc_cooling`; the off and conduction functions only take the inputs they
+actually use.
 
 > **Note on argument order:** the class method `calc_cooling` takes all eight
 > physical inputs in a fixed order (`delta_temp, thickness, gravity, density,
