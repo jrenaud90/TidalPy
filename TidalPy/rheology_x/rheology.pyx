@@ -70,7 +70,7 @@ cdef object _complex_vector_to_ndarray(vector[cpp_complex[double]]& src, tuple s
 
 
 cdef object _solve_complex_modulus(
-        c_RheologyBase* model, object frequency, object modulus, object viscosity):
+        c_RheologyBase* model, object modulus, object viscosity, object frequency):
     """Solve the complex modulus for float and/or np.ndarray inputs.
 
     Picks the most specific C++ vectorized routine for the input pattern:
@@ -661,51 +661,51 @@ def make_rheology(str model_name, dict config=None):
 # result is returned for all-scalar inputs, otherwise a complex128 ``ndarray``.
 # =====================================================================================================================
 
-def elastic(frequency, modulus, viscosity):
+def elastic(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Elastic model [Pa]. See module notes."""
     cdef c_RheologyConfig cfg
     cdef c_Elastic model = c_Elastic(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def viscous(frequency, modulus, viscosity):
+def viscous(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Viscous (Newton) model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Viscous model = c_Viscous(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def maxwell(frequency, modulus, viscosity):
+def maxwell(modulus, viscosity, frequency):
     """Complex shear/bulk modulus for the Maxwell model [Pa]."""
     cdef c_RheologyConfig cfg
     cdef c_Maxwell model = c_Maxwell(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def voigt(frequency, modulus, viscosity,
+def voigt(modulus, viscosity, frequency,
           double voigt_modulus_frac=5.0, double voigt_viscosity_frac=0.02):
     """Complex shear/bulk modulus for the Voigt-Kelvin model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Voigt model = c_Voigt(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def burgers(frequency, modulus, viscosity,
+def burgers(modulus, viscosity, frequency,
             double voigt_modulus_frac=5.0, double voigt_viscosity_frac=0.02):
     """Complex shear/bulk modulus for the Burgers model [Pa]."""
     cdef c_RheologyConfig cfg
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Burgers model = c_Burgers(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
 def andrade(
-        frequency,
         modulus,
         viscosity,
+        frequency,
         double alpha=0.3,
         double zeta=1.0):
     """Complex shear/bulk modulus for the Andrade model [Pa]."""
@@ -713,10 +713,10 @@ def andrade(
     cfg.alpha = alpha
     cfg.zeta  = zeta
     cdef c_Andrade model = c_Andrade(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)
 
 
-def sundberg(frequency, modulus, viscosity, double alpha=0.3, double zeta=1.0,
+def sundberg(modulus, viscosity, frequency, double alpha=0.3, double zeta=1.0,
              double voigt_modulus_frac=5.0, double voigt_viscosity_frac=0.02):
     """Complex shear/bulk modulus for the Sundberg-Cooper model [Pa]."""
     cdef c_RheologyConfig cfg
@@ -725,4 +725,4 @@ def sundberg(frequency, modulus, viscosity, double alpha=0.3, double zeta=1.0,
     cfg.voigt_modulus_frac   = voigt_modulus_frac
     cfg.voigt_viscosity_frac = voigt_viscosity_frac
     cdef c_Sundberg model = c_Sundberg(cfg)
-    return _solve_complex_modulus(<c_RheologyBase*>&model, frequency, modulus, viscosity)
+    return _solve_complex_modulus(<c_RheologyBase*>&model, modulus, viscosity, frequency)

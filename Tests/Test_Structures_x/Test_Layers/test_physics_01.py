@@ -384,7 +384,7 @@ def test_attach_shear_rheology_changes_complex_modulus():
     freq = 1.0e-5
     pl.set_shear_rheology(rheo.Maxwell())
     mu       = pl.calc_complex_shear_modulus(freq)
-    expected = rheo.maxwell(freq, _SHEAR_MOD_PA, _VISCOSITY_PAS)
+    expected = rheo.maxwell(_SHEAR_MOD_PA, _VISCOSITY_PAS, freq)
     assert mu.real == pytest.approx(expected.real, rel=1e-9)
     assert mu.imag == pytest.approx(expected.imag, rel=1e-9)
     # A dissipative Maxwell body has a non-zero loss modulus at this frequency.

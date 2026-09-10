@@ -132,27 +132,24 @@ from TidalPy.rheology_x import maxwell, andrade
 import numpy as np
 
 # Scalar in -> Python complex out.
-G = maxwell(omega, mu, eta)
+G = maxwell(mu, eta, omega)
 
-# Arrays in -> complex128 ndarray out (frequency, modulus, viscosity may each be
+# Arrays in -> complex128 ndarray out (modulus, viscosity, frequency may each be
 # a float or an ndarray; they are broadcast together).
-G_profile = maxwell(omega, np.array([1e10, 5e10]), np.array([1e19, 1e20]))
-G_sweep   = andrade(np.logspace(-7, -4, 50), mu, eta, alpha=0.3, zeta=1.0)
+G_profile = maxwell(np.array([1e10, 5e10]), np.array([1e19, 1e20]), omega)
+G_sweep   = andrade(mu, eta, np.logspace(-7, -4, 50), alpha=0.3, zeta=1.0)
 ```
 
-Signatures: `elastic/viscous/maxwell(frequency, modulus, viscosity)`,
-`voigt/burgers(frequency, modulus, viscosity, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`,
-`andrade(frequency, modulus, viscosity, alpha=0.3, zeta=1.0)`,
-`sundberg(frequency, modulus, viscosity, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`.
+Signatures: `elastic/viscous/maxwell(modulus, viscosity, frequency)`,
+`voigt/burgers(modulus, viscosity, frequency, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`,
+`andrade(modulus, viscosity, frequency, alpha=0.3, zeta=1.0)`,
+`sundberg(modulus, viscosity, frequency, alpha=0.3, zeta=1.0, voigt_modulus_frac=5.0, voigt_viscosity_frac=0.02)`.
 
 Each builds a *stack-allocated* C++ model, solves (picking the most specific
-vectorized routine for the input pattern), and returns. `frequency`, `modulus`
-and `viscosity` accept floats or NumPy arrays; the model parameters
-(`alpha`, `zeta`, `voigt_*`) are always scalar constants.
-
-> **Note on argument order:** these convenience functions take `frequency` first
-> (`func(frequency, modulus, viscosity, ...)`), whereas the class methods
-> `calc_complex_modulus*` take `modulus` first (`(modulus, viscosity, frequency)`).
+vectorized routine for the input pattern), and returns. `modulus`, `viscosity`
+and `frequency` accept floats or NumPy arrays; the model parameters
+(`alpha`, `zeta`, `voigt_*`) are always scalar constants. The argument order is the
+same as the class methods `calc_complex_modulus*`: modulus, viscosity, frequency.
 
 ## Serialization
 
@@ -205,7 +202,7 @@ new rheology model named `Foo`:
    value to the `c_RheologyModel` cimport.
 8. Add the `cdef class Foo(RheologyBase)` wrapper in `rheology.pyx` (with param
    properties and a `get_config_dict` override), the adoption branch in
-   `make_rheology`, and the lower-case `foo(frequency, modulus, viscosity, ...)`
+   `make_rheology`, and the lower-case `foo(modulus, viscosity, frequency, ...)`
    convenience function.
 
 **Package + tests + docs**

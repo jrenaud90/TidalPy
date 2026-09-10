@@ -336,7 +336,7 @@ def test_convenience_scalar_matches_class(name, cls):
     mod = _import_rheology()
     func = getattr(mod, name)            # e.g. mod.maxwell
     inst = _make(name)                   # corresponding class instance, default params
-    got = func(_OMEGA, _MU, _ETA)        # convenience order: (frequency, modulus, viscosity)
+    got = func(_MU, _ETA, _OMEGA)        # same order as the class method: (modulus, viscosity, frequency)
     expected = inst.calc_complex_modulus(_MU, _ETA, _OMEGA)
     assert isinstance(got, complex)
     assert got == pytest.approx(expected)
@@ -350,7 +350,7 @@ def test_convenience_vectorize_modulus(name, cls):
     inst = _make(name)
     mods  = np.array([1.0e10, 5.0e10, 1.0e11])
     viscs = np.array([1.0e19, 1.0e20, 1.0e21])
-    got = func(_OMEGA, mods, viscs)
+    got = func(mods, viscs, _OMEGA)
     assert isinstance(got, np.ndarray)
     assert got.shape == (3,)
     assert got.dtype == np.complex128
@@ -364,7 +364,7 @@ def test_convenience_vectorize_frequency():
     mod = _import_rheology()
     inst = mod.Andrade(0.3, 1.0)
     freqs = np.array([1.0e-7, 1.0e-6, 1.0e-5, 1.0e-4])
-    got = mod.andrade(freqs, _MU, _ETA, alpha=0.3, zeta=1.0)
+    got = mod.andrade(_MU, _ETA, freqs, alpha=0.3, zeta=1.0)
     assert got.shape == (4,)
     for i in range(4):
         assert got[i] == pytest.approx(
@@ -377,10 +377,10 @@ def test_convenience_vectorize_all_and_broadcast():
     freqs = np.array([1.0e-6, 1.0e-5, 1.0e-4])
     mods  = np.array([1.0e10, 5.0e10, 1.0e11])
     viscs = np.array([1.0e19, 1.0e20, 1.0e21])
-    got_all = mod.maxwell(freqs, mods, viscs)
+    got_all = mod.maxwell(mods, viscs, freqs)
     assert got_all.shape == (3,)
-    # Mixed: frequency array, modulus array, viscosity scalar -> broadcast.
-    got_mixed = mod.maxwell(freqs, mods, _ETA)
+    # Mixed: modulus array, viscosity scalar, frequency array -> broadcast.
+    got_mixed = mod.maxwell(mods, _ETA, freqs)
     assert got_mixed.shape == (3,)
     m = mod.Maxwell()
     for i in range(3):
@@ -393,7 +393,7 @@ def test_convenience_preserves_2d_shape():
     mod = _import_rheology()
     mods  = np.array([[1.0e10, 2.0e10], [3.0e10, 4.0e10]])
     viscs = np.full((2, 2), 1.0e20)
-    got = mod.maxwell(_OMEGA, mods, viscs)
+    got = mod.maxwell(mods, viscs, _OMEGA)
     assert got.shape == (2, 2)
 
 
@@ -401,7 +401,7 @@ def test_convenience_params_forwarded():
     """Model parameters reach the stack-allocated C++ model."""
     mod = _import_rheology()
     inst = mod.Andrade(0.42, 1.7)
-    got = mod.andrade(_OMEGA, _MU, _ETA, alpha=0.42, zeta=1.7)
+    got = mod.andrade(_MU, _ETA, _OMEGA, alpha=0.42, zeta=1.7)
     assert got == pytest.approx(inst.calc_complex_modulus(_MU, _ETA, _OMEGA))
 
 
