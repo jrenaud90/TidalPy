@@ -108,7 +108,7 @@ def test_base_world_setters():
 def test_base_world_config_dict():
     w   = _make_earth(albedo=0.25, emissivity=0.9)
     cfg = w.get_config_dict()
-    for key in ("name", "world_type", "radius_m", "mass_kg", "albedo",
+    for key in ("schema_version", "name", "type", "radius_m", "mass_kg", "albedo",
                 "emissivity", "obliquity_rad", "spin_frequency_rad_s"):
         assert key in cfg
     assert cfg["name"]       == "Earth"

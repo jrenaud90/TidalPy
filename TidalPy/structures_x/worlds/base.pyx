@@ -18,7 +18,12 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     get_tidalpy_logger_address,
 )
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
-from TidalPy.Utilities_x.classes_x.classes cimport StructureBase, c_TidalPyBaseClass
+from TidalPy.Utilities_x.classes_x.classes cimport (
+    StructureBase,
+    c_TidalPyBaseClass,
+    c_PhysicsBase,
+    cy_physics_model_config,
+)
 from TidalPy.Tides_x.classes.tide cimport TideBase
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides (the analytic global tidal
@@ -29,6 +34,10 @@ cdef extern from "world_tides_base_.hpp" nogil:
 # Wire this DLL's shared pointers to the process-wide TidalPy singletons.
 set_tidalpy_logger_ptr_void(get_tidalpy_logger_address())
 set_tidalpy_config_ptr(get_shared_config_address())
+
+# World ``type`` values the TOML builder accepts (kept in step with configs.toml_loader.WORLD_TYPES, which
+# cannot be imported here at module load without a circular import).
+BUILDER_WORLD_TYPES = ("star", "gasgiant", "terrestrial", "layered")
 
 
 # =====================================================================================================================
@@ -377,12 +386,46 @@ cdef class BaseWorld(StructureBase):
         """The normalized configuration dict the world was built from (None if built directly)."""
         return self.source_config
 
+    def family_world_type(self) -> str:
+        """Builder world ``type`` for this class family, used when the stored label is not a builder type."""
+        return "layered"
+
+    def get_builder_world_type(self) -> str:
+        """World ``type`` as the TOML builder names it.
+
+        The stored ``world_type`` label is used when it is one of ``BUILDER_WORLD_TYPES``; otherwise the
+        class family's default applies (``layered``, ``gasgiant``, or ``star``).
+        """
+        stored = self.world_type
+        if stored in BUILDER_WORLD_TYPES:
+            return stored
+        return self.family_world_type()
+
+    def get_tide_config(self) -> dict:
+        """Return the stored ``[tides]`` degree and truncation settings under the builder's key names.
+
+        Returns
+        -------
+        dict
+            ``min_degree_l``, ``max_degree_l``, ``eccentricity_trunc_lvl``, ``obliquity_trunc_lvl``,
+            ``tidal_timescale_width_decades``.
+        """
+        cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
+        return {
+            "min_degree_l":                  cfg.min_degree_l,
+            "max_degree_l":                  cfg.max_degree_l,
+            "eccentricity_trunc_lvl":        cfg.eccentricity_truncation,
+            "obliquity_trunc_lvl":           cfg.obliquity_truncation,
+            "tidal_timescale_width_decades": cfg.tidal_timescale_width_decades,
+        }
+
     def save_to_toml(self, str file_path, overwrite=True):
         """Write this world's configuration to a TOML file.
 
         Uses the retained build configuration (:attr:`source_config`) when present
         for a faithful round-trip, otherwise falls back to the world-level
-        :meth:`get_config_dict`.
+        :meth:`get_config_dict`, which is validated against the world schema first so a
+        directly constructed world either writes a buildable file or raises ``ValueError``.
 
         Parameters
         ----------
@@ -392,23 +435,34 @@ cdef class BaseWorld(StructureBase):
             Overwrite an existing file. Default True.
         """
         from TidalPy.structures_x.configs.config_writer import save_world_to_toml
-        config = self.source_config if self.source_config is not None else self.get_config_dict()
+        if self.source_config is not None:
+            config = self.source_config
+        else:
+            from TidalPy.structures_x.configs.toml_loader import validate_world_config
+            config = self.get_config_dict()
+            validate_world_config(config)
         return save_world_to_toml(config, file_path, overwrite=overwrite)
 
     cpdef dict get_config_dict(self):
-        """Return all world-level configuration values as a Python dict (MKS).
+        """Return the world configuration as the TOML builder's world table (MKS).
+
+        The dict validates against the world schema: ``schema_version``, ``name``, ``type`` (see
+        :meth:`get_builder_world_type`), the world scalars, and a ``tides`` table when a tide model is
+        attached (``global_tidal_model`` plus the model's per-degree parameters and the stored degree
+        and truncation settings). Subclasses add their layers or stellar values.
 
         Returns
         -------
         dict
-            Keys: ``name``, ``world_type``, ``radius_m``, ``mass_kg``,
-            ``albedo``, ``emissivity``, ``obliquity_rad``,
-            ``spin_frequency_rad_s``.
+            Keys: ``schema_version``, ``name``, ``type``, ``radius_m``, ``mass_kg``, ``albedo``,
+            ``emissivity``, ``obliquity_rad``, ``spin_frequency_rad_s``, and ``tides`` when set.
         """
+        from TidalPy.structures_x.configs.toml_loader import SCHEMA_VERSION
         cdef c_BaseWorld* p = self._world_ptr.get()
-        return {
+        cdef dict config = {
+            "schema_version":       SCHEMA_VERSION,
             "name":                 p.get_name().decode("utf-8"),
-            "world_type":           p.get_world_type().decode("utf-8"),
+            "type":                 self.get_builder_world_type(),
             "radius_m":             p.get_radius(),
             "mass_kg":              p.get_mass(),
             "albedo":               p.get_albedo(),
@@ -416,3 +470,10 @@ cdef class BaseWorld(StructureBase):
             "obliquity_rad":        p.get_obliquity(),
             "spin_frequency_rad_s": p.get_spin_frequency(),
         }
+        cdef dict tides
+        if p.get_tide_model_set():
+            tides = cy_physics_model_config(<const c_PhysicsBase*>p.get_tide_model())
+            tides["global_tidal_model"] = tides.pop("model")
+            tides.update(self.get_tide_config())
+            config["tides"] = tides
+        return config

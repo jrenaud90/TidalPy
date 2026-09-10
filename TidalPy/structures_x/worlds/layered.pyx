@@ -28,7 +28,8 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
 from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
-from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_name
+from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
+from TidalPy.structures_x.layers.base import LAYER_STANDALONE_CONFIG_KEYS
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
@@ -1340,34 +1341,34 @@ cdef class LayeredWorld(BaseWorld):
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
-        """Return the world config plus a list of per-layer base config dicts.
+        """Return the world config with a ``layers`` table keyed by layer name.
+
+        Each entry is the layer's own ``get_config_dict`` (``class``, scalars, attached-model
+        sub-tables) minus the standalone-only keys the builder derives itself (``name``,
+        ``radius_inner_m``, the Love-number components). The result validates against the world
+        schema and rebuilds the same structure through ``build_world``.
 
         Returns
         -------
         dict
-            All :class:`BaseWorld` keys plus ``num_layers`` and ``layers`` (a
-            list of geometry-level dicts for each layer, in index order).
+            All :class:`BaseWorld` keys plus ``layers``.
+
+        Raises
+        ------
+        ValueError
+            If two layers share a name (the table needs unique keys).
         """
-        d = BaseWorld.get_config_dict(self)
-        cdef size_t n = self._layered_ptr.get_num_layers()
-        cdef size_t i
-        cdef c_BaseLayer* layer_ptr
-        cdef bytes method_bytes
-        layers = []
-        for i in range(n):
-            layer_ptr = self._layered_ptr.get_layer(i)
-            method_bytes = c_tidal_scale_method_name(layer_ptr.get_tidal_scale_method())
-            layers.append({
-                "name":               layer_ptr.get_name().decode("utf-8"),
-                "layer_index":        layer_ptr.get_layer_index(),
-                "radius_inner_m":     layer_ptr.get_radius_inner(),
-                "radius_outer_m":     layer_ptr.get_radius_outer(),
-                "mass_kg":            layer_ptr.get_mass(),
-                "material_name":      layer_ptr.get_material_name().decode("utf-8"),
-                "is_tidal":           True if layer_ptr.get_is_tidal() else False,
-                "tidal_scale":        layer_ptr.get_tidal_scale(),
-                "tidal_scale_method": method_bytes.decode("utf-8"),
-            })
-        d["num_layers"] = n
-        d["layers"] = layers
-        return d
+        cdef dict config = BaseWorld.get_config_dict(self)
+        cdef dict layers = {}
+        cdef dict layer_config
+        for view in self._ensure_layer_views():
+            layer_config = view.get_config_dict()
+            layer_name = layer_config.pop("name")
+            for key in LAYER_STANDALONE_CONFIG_KEYS:
+                layer_config.pop(key, None)
+            if layer_name in layers:
+                raise ValueError(
+                    f"Layer name '{layer_name}' is not unique; the world config table needs unique layer names.")
+            layers[layer_name] = layer_config
+        config["layers"] = layers
+        return config

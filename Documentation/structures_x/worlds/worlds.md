@@ -56,9 +56,12 @@ w = BaseWorld(
 | `set_spin_frequency(ω)` | — | Set rotation rate [rad/s]. |
 | `set_obliquity(θ)` | — | Set axial obliquity [rad]. |
 
-`get_config_dict()` returns `name`, `world_type`, `radius_m`, `mass_kg`, `albedo`,
-`emissivity`, `obliquity_rad`, `spin_frequency_rad_s`. `save_config` /
-`save_binary` / `load_binary` are inherited from `TidalPyBaseClass`.
+`get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`,
+`type` (the builder's world type, from `get_builder_world_type()`), `radius_m`, `mass_kg`, `albedo`,
+`emissivity`, `obliquity_rad`, `spin_frequency_rad_s`, and a `tides` table when a tide model is
+attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`).
+`save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`; `save_to_toml`
+validates the dict against the schema before writing when no build configuration is retained.
 
 Binary class id: **200** (`BinaryClassID::BaseWorld`).
 
@@ -106,8 +109,9 @@ once and cached (rebuilt only when a layer is added), so repeated access returns
 (`world.mantle is world.mantle`). Attribute access by name is only consulted after normal attribute
 lookup (defined members win) and ignores names starting with `_`.
 
-`get_config_dict()` adds `num_layers` and a `layers` list (each a geometry-level
-dict, in index order) to the `BaseWorld` keys.
+`get_config_dict()` adds a `layers` table keyed by layer name to the `BaseWorld` keys. Each entry is the
+layer's own config dict (`class`, scalars, attached-model sub-tables) without the standalone-only keys
+the builder derives itself, so `build_world(world.get_config_dict())` rebuilds the same structure.
 
 Binary class id: **201** (`BinaryClassID::LayeredWorld`). See
 [Binary serialization](#binary-serialization) below.
@@ -431,6 +435,7 @@ solved, or if a per-frequency radial solve fails.
 | `set_tide_model(tide)` | — | Attach a tide model (transfers ownership). |
 | `tide_model_set` | bool | Whether a model is attached. |
 | `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10)` | — | Set the stored `[tides]` truncation/degree. |
+| `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |
 | `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | — | Run the global tidal solve. |
 | `tides_solved` | bool | Whether a solve has succeeded. |
 | `get_tidal_heating()` | float [W] | Total global tidal heating (NaN if unsolved). |

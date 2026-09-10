@@ -62,6 +62,10 @@ cdef class GasGiantWorld(LayeredWorld):
         self._gasgiant_ptr = raw
         self._ptr          = <c_TidalPyBaseClass*>raw
 
+    def family_world_type(self) -> str:
+        """Builder world ``type`` for gas giants."""
+        return "gasgiant"
+
     def __dealloc__(self):
         self._gasgiant_ptr = NULL  # base's unique_ptr owns the C++ object
         self._layered_ptr  = NULL

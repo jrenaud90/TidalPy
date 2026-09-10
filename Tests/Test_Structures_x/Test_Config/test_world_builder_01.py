@@ -239,7 +239,7 @@ def test_incompatible_class_and_material_type_is_safe():
 # =====================================================================================================================
 def _layer_outer_radii(world):
     """Outer radii [m] of a built world's layers, in order (from the C++ geometry)."""
-    return [layer["radius_outer_m"] for layer in world.get_config_dict()["layers"]]
+    return [layer["radius_outer_m"] for layer in world.get_config_dict()["layers"].values()]
 
 
 def test_radius_outer_m_spec():

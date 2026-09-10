@@ -173,6 +173,10 @@ cdef class StarWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     # Config
     # ------------------------------------------------------------------------------------------------------------------
+    def family_world_type(self) -> str:
+        """Builder world ``type`` for stars."""
+        return "star"
+
     cpdef dict get_config_dict(self):
         """Return the world config plus stellar fields.
 

@@ -171,10 +171,10 @@ def test_layered_world_binary_roundtrip():
         assert w2.calc_internal_heating(0.0) == pytest.approx(heating_before, rel=1e-12)
         # Per-layer config (geometry level) is restored in order.
         cfg = w2.get_config_dict()
-        assert cfg["num_layers"] == 2
-        assert cfg["layers"][0]["name"] == "core"
-        assert cfg["layers"][1]["name"] == "mantle"
-        assert cfg["layers"][1]["radius_outer_m"] == pytest.approx(_R_SURF)
+        assert list(cfg["layers"]) == ["core", "mantle"]
+        assert cfg["layers"]["mantle"]["radius_outer_m"] == pytest.approx(_R_SURF)
+        assert "radius_inner_m" not in cfg["layers"]["mantle"]
+        assert "radiogenics" in cfg["layers"]["mantle"]
     finally:
         os.unlink(path)
 

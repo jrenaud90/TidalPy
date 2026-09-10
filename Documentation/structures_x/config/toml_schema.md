@@ -419,7 +419,10 @@ All entry points are re-exported from `TidalPy.structures_x` and from
   `world.solve_love_numbers(...)`, `world.get_density(r)`, etc.
 * `world.save_to_toml(path, overwrite=True)`: write the retained build configuration
   (stamped with the current `schema_version`); falls back to `get_config_dict()` if
-  the world was constructed directly rather than via `build_world`.
+  the world was constructed directly rather than via `build_world`. The fallback is
+  validated against this schema first, so it writes a buildable file or raises `ValueError`.
+* `world.get_config_dict()`: the live world as a builder-valid table (`type`, name-keyed
+  `layers` with `class` and attached-model sub-tables, `tides`, `schema_version`).
 * `world.config` (alias of `world.source_config`): the normalized configuration dict
   the world was built from (`None` if constructed directly).
 * `available_worlds() -> list[str]`: names of the bundled example worlds (data dir
@@ -461,5 +464,15 @@ world = build_world("earth_simple")
 world.save_to_toml("earth_copy.toml")
 reloaded = build_world("earth_copy.toml")   # identical structure
 ```
+
+A world assembled directly in Python round-trips the same way through its live configuration:
+
+```python
+cfg = world.get_config_dict()          # builder-valid: type, layers by name, tides, schema_version
+twin = build_world(cfg)                # or world.save_to_toml(path) then build_world(path)
+```
+
+The live dict carries every scalar and every attached model explicitly, so the material `type` defaults
+are not needed and are not written; the file is a frozen snapshot of the world as configured.
 
 ---

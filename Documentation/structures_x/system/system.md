@@ -97,8 +97,9 @@ system.get_config_dict()                 # the self-contained live-state expansi
 ```
 
 `save_to_toml` writes the retained `source_config` when present (the original world references), falling
-back to `get_config_dict` — the self-contained expansion that inlines each world's full config together
-with its roles and orbital elements — for a system assembled directly in Python.
+back to `get_config_dict`, the self-contained expansion that inlines each world's full config together
+with its roles and orbital elements, for a system assembled directly in Python. Each inlined world is
+its live `get_config_dict()`, which is builder-valid, so the expansion rebuilds through `build_system`.
 
 ## Worlds, Host, and Identification
 
