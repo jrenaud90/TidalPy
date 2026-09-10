@@ -51,8 +51,11 @@ def test_loading_matches_standalone_solver():
     result = world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='loading', verbose=False)
     assert result["success"] is True
 
-    mu_complex = layer.calc_complex_shear_modulus(_FREQ)
-    bulk_complex = layer.calc_complex_bulk_modulus(_FREQ)
+    # The world's Love solve uses the radius-resolved moduli populated by the EOS solve, so query the
+    # layer the same way (the layer is uniform, so any interior radius returns the layer's moduli).
+    query_radius = 0.5 * _PLANET_RADIUS
+    mu_complex = layer.calc_complex_shear_modulus(query_radius, _FREQ)
+    bulk_complex = layer.calc_complex_bulk_modulus(query_radius, _FREQ)
     solution = homogeneous_love_numbers(
         _PLANET_RADIUS, _DENSITY, mu_complex, _FREQ,
         complex_bulk_modulus=bulk_complex,
@@ -62,9 +65,9 @@ def test_loading_matches_standalone_solver():
         solve_for=('loading',))
     assert solution.success
 
-    assert cmath.isclose(result["love_number_k"], solution.k[0], rel_tol=1e-4, abs_tol=1e-8)
-    assert cmath.isclose(result["love_number_h"], solution.h[0], rel_tol=1e-4, abs_tol=1e-8)
-    assert cmath.isclose(result["love_number_l"], solution.l[0], rel_tol=1e-4, abs_tol=1e-8)
+    assert cmath.isclose(result["love_number_k"], solution.k, rel_tol=1e-4, abs_tol=1e-8)
+    assert cmath.isclose(result["love_number_h"], solution.h, rel_tol=1e-4, abs_tol=1e-8)
+    assert cmath.isclose(result["love_number_l"], solution.l, rel_tol=1e-4, abs_tol=1e-8)
 
 
 def test_loading_differs_from_tidal():
