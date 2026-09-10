@@ -167,9 +167,9 @@ inline double c_LayeredWorld::effective_tidal_scale(
             const double shear_modulus  = phys->get_shear_modulus_static();
             const double shear_viscosity = phys->get_shear_viscosity_static();
             const double orbital_freq   = std::abs(state.orbital_frequency);
-            if (shear_modulus  <= TidalPyConstants::d_EPS
-             || shear_viscosity <= TidalPyConstants::d_EPS
-             || orbital_freq    <= TidalPyConstants::d_EPS) {
+            if (!std::isfinite(shear_modulus) || shear_modulus <= TidalPyConstants::d_EPS
+             || !std::isfinite(shear_viscosity) || shear_viscosity <= TidalPyConstants::d_EPS
+             || orbital_freq <= TidalPyConstants::d_EPS) {
                 return 0.0;
             }
             const double maxwell_time   = shear_viscosity / shear_modulus;          // [s]

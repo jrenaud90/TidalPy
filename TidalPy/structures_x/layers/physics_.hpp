@@ -60,8 +60,8 @@ namespace tidalpy {
 struct c_PhysicsConfig : public c_BaseLayerConfig {
     double        shear_modulus_static_pa    = 0.0;   // [Pa]
     double        bulk_modulus_static_pa     = 0.0;   // [Pa]
-    double        shear_viscosity_static_pas = 0.0;   // [Pa·s]
-    double        bulk_viscosity_static_pas  = 0.0;   // [Pa·s]
+    double        shear_viscosity_static_pas = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
+    double        bulk_viscosity_static_pas  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
     c_LoveNumbers love_numbers;                       // k, h, l [dimensionless] placeholder
     // Radial-solver layer classification flags.
     bool          is_solid          = true;   // false for liquid layers
@@ -166,7 +166,9 @@ public:
     //
     // Delegates to p_shear_rheology->calc_complex_modulus when a rheology
     // object is set; otherwise returns the static shear modulus as a purely
-    // real complex value.
+    // real complex value. The static viscosity is NaN until set, so a viscous
+    // rheology returns NaN until the caller supplies it (the radius-resolved
+    // overload below uses the EOS-populated profile instead).
     // -----------------------------------------------------------------------
     std::complex<double> calc_complex_shear_modulus(double frequency_rad_s) const noexcept {
         if (this->p_shear_rheology) {
@@ -180,7 +182,8 @@ public:
     // Complex bulk modulus [Pa] at forcing frequency frequency_rad_s.
     //
     // Delegates to p_bulk_rheology->calc_complex_modulus when set; otherwise
-    // returns the static bulk modulus as a purely real complex value.
+    // returns the static bulk modulus as a purely real complex value. Same NaN
+    // rule as the shear overload.
     // -----------------------------------------------------------------------
     std::complex<double> calc_complex_bulk_modulus(double frequency_rad_s) const noexcept {
         if (this->p_bulk_rheology) {
@@ -459,8 +462,8 @@ protected:
 
     double        p_shear_modulus_static_pa    = 0.0;   // [Pa]
     double        p_bulk_modulus_static_pa     = 0.0;   // [Pa]
-    double        p_shear_viscosity_static_pas = 0.0;   // [Pa·s]
-    double        p_bulk_viscosity_static_pas  = 0.0;   // [Pa·s]
+    double        p_shear_viscosity_static_pas = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
+    double        p_bulk_viscosity_static_pas  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
     c_LoveNumbers p_love_numbers;                       // k, h, l [dimensionless] placeholder
     // Radial-solver layer classification.
     bool          p_is_solid          = true;

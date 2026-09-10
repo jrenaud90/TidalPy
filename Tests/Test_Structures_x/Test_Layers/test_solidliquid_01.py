@@ -121,8 +121,8 @@ def test_solidliquid_defaults():
     assert sl.melt_fraction_exponent    == pytest.approx(1.0)
     assert sl.reference_density         == pytest.approx(3500.0)
     assert sl.melt_viscosity_reduction  == pytest.approx(25.0)
-    assert sl.shear_viscosity_static    == pytest.approx(0.0)
-    assert sl.bulk_viscosity_static     == pytest.approx(0.0)
+    assert math.isnan(sl.shear_viscosity_static)
+    assert math.isnan(sl.bulk_viscosity_static)
 
 
 # =====================================================================================================================

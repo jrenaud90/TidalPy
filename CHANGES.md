@@ -109,6 +109,8 @@ A high-level summary only; the full API, design notes, and porting examples live
 
 #### Tests
 * Added tests for `TidalPy.get_include`.
+* `Tests/Test_Tides_x/Test_Classes/test_collapse_vs_legacy_01.py` pins the new global collapse (cpl) against frozen
+  results from the classic `toolbox.quick_tides` for synchronous and non-synchronous cases at degrees 2 and 3.
 * Extensive new test suites for the `_x` backend (every module, plus old-vs-new comparison tests that pin the new
   radial solver and physics models against the classic implementations).
 

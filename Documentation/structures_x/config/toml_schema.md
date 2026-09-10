@@ -134,8 +134,10 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `tidal_scale` | optional | all | Tidal scaling factor. |
 | `shear_modulus_static_pa` | optional | physics, solidliquid, gas | Static shear modulus [Pa]. |
 | `bulk_modulus_static_pa` | optional | physics, solidliquid, gas | Static bulk modulus [Pa]. |
-| `shear_viscosity_static_pas` | optional | physics, solidliquid, gas | Static shear viscosity [Pa s]. |
-| `bulk_viscosity_static_pas` | optional | physics, solidliquid, gas | Static bulk viscosity [Pa s]. |
+| `shear_viscosity_static_pas` | optional | physics, solidliquid, gas | Static shear viscosity [Pa s]; NaN (unset)
+  when omitted and no material default applies. |
+| `bulk_viscosity_static_pas` | optional | physics, solidliquid, gas | Static bulk viscosity [Pa s]; NaN (unset)
+  when omitted and no material default applies. |
 | solidliquid thermal/melt params | optional | solidliquid | See below. |
 | gas params | optional | gas | See below. |
 

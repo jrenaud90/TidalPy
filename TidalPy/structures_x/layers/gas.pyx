@@ -17,7 +17,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address
+from TidalPy.constants cimport d_NAN, set_tidalpy_config_ptr, get_shared_config_address
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer, c_tidal_scale_method_from_name
 from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
@@ -67,9 +67,9 @@ cdef class GasLayer(PhysicsLayer):
     bulk_modulus_static_pa : float, optional
         Unrelaxed bulk modulus [Pa]. Default ``0.0``.
     shear_viscosity_static_pas : float, optional
-        Reference dynamic shear viscosity [Pa·s]. Default ``0.0``.
+        Reference dynamic shear viscosity [Pa·s]. Default NaN (unset).
     bulk_viscosity_static_pas : float, optional
-        Reference dynamic bulk viscosity [Pa·s]. Default ``0.0``.
+        Reference dynamic bulk viscosity [Pa·s]. Default NaN (unset).
     love_number_k : complex, optional
         Potential Love number k (placeholder). Default ``0+0j``.
     love_number_h : complex, optional
@@ -108,8 +108,8 @@ cdef class GasLayer(PhysicsLayer):
             double tidal_scale                  = 1.0,
             double shear_modulus_static_pa      = 0.0,
             double bulk_modulus_static_pa       = 0.0,
-            double shear_viscosity_static_pas   = 0.0,
-            double bulk_viscosity_static_pas    = 0.0,
+            double shear_viscosity_static_pas   = d_NAN,
+            double bulk_viscosity_static_pas    = d_NAN,
             complex love_number_k               = 0+0j,
             complex love_number_h               = 0+0j,
             complex love_number_l               = 0+0j,

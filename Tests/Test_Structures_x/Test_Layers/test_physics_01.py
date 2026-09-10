@@ -38,7 +38,6 @@ _MANTLE_MASS_KG   = 4.043e24     # [kg]
 _SHEAR_MOD_PA     = 1.67e11      # [Pa]  (perovskite, lower mantle)
 _BULK_MOD_PA      = 3.57e11      # [Pa]
 _VISCOSITY_PAS    = 1.0e21       # [Pa·s]
-_G                = 6.674e-11    # [m^3 kg^-1 s^-2]
 
 
 def _make_mantle(shear=_SHEAR_MOD_PA, bulk=_BULK_MOD_PA, shear_visc=_VISCOSITY_PAS, bulk_visc=_VISCOSITY_PAS):
@@ -86,14 +85,26 @@ def test_physics_layer_construction_basic():
 
 
 def test_physics_layer_defaults():
-    """PhysicsLayer optional mechanical parameters default to 0.0."""
+    """PhysicsLayer moduli default to 0.0 and the static viscosities to NaN (unset)."""
     mod = _import_physics()
     pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20)
     assert pl.shear_modulus_static   == pytest.approx(0.0)
     assert pl.bulk_modulus_static    == pytest.approx(0.0)
-    assert pl.shear_viscosity_static == pytest.approx(0.0)
-    assert pl.bulk_viscosity_static  == pytest.approx(0.0)
+    assert math.isnan(pl.shear_viscosity_static)
+    assert math.isnan(pl.bulk_viscosity_static)
     assert pl.love_number_k          == pytest.approx(0.0 + 0.0j)
+
+
+def test_unset_static_viscosity_fails_loudly():
+    """Without a static viscosity, a viscous rheology's layer-constant modulus is NaN; elastic is unaffected."""
+    from TidalPy.rheology_x.rheology import Elastic, Maxwell
+    mod = _import_physics()
+    pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20, shear_modulus_static_pa=_SHEAR_MOD_PA)
+    pl.set_shear_rheology(Elastic())
+    assert pl.calc_complex_shear_modulus(1e-5) == pytest.approx(_SHEAR_MOD_PA + 0.0j)
+    pl.set_shear_rheology(Maxwell())
+    mu = pl.calc_complex_shear_modulus(1e-5)
+    assert math.isnan(mu.real) and math.isnan(mu.imag)
     assert pl.love_number_h          == pytest.approx(0.0 + 0.0j)
     assert pl.love_number_l          == pytest.approx(0.0 + 0.0j)
 

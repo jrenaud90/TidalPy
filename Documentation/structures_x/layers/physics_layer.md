@@ -42,8 +42,8 @@ PhysicsLayer(
     tidal_scale:                float   = 1.0,
     shear_modulus_static_pa:    float   = 0.0,
     bulk_modulus_static_pa:     float   = 0.0,
-    shear_viscosity_static_pas: float   = 0.0,
-    bulk_viscosity_static_pas:  float   = 0.0,
+    shear_viscosity_static_pas: float   = nan,
+    bulk_viscosity_static_pas:  float   = nan,
     love_number_k:              complex = 0+0j,
     love_number_h:              complex = 0+0j,
     love_number_l:              complex = 0+0j,
@@ -64,8 +64,8 @@ PhysicsLayer(
 | `tidal_scale` | `float` | — | Dimensionless tidal heating scale. Default `1.0`. |
 | `shear_modulus_static_pa` | `float` | Pa | Unrelaxed shear modulus. Default `0.0`. |
 | `bulk_modulus_static_pa` | `float` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
-| `shear_viscosity_static_pas` | `float` | Pa·s | Reference shear viscosity. Default `0.0`. |
-| `bulk_viscosity_static_pas` | `float` | Pa·s | Reference bulk viscosity. Default `0.0`. |
+| `shear_viscosity_static_pas` | `float` | Pa·s | Reference shear viscosity. Default NaN (unset). |
+| `bulk_viscosity_static_pas` | `float` | Pa·s | Reference bulk viscosity. Default NaN (unset). |
 | `love_number_k` | `complex` | — | Potential Love number k (placeholder). Default `0+0j`. |
 | `love_number_h` | `complex` | — | Radial displacement Love number h (placeholder). Default `0+0j`. |
 | `love_number_l` | `complex` | — | Tangential displacement Love number l (placeholder). Default `0+0j`. |
