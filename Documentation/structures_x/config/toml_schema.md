@@ -1,11 +1,13 @@
 # World Configuration & TOML Schema (`structures_x.configs`)
 
+_Updated: 2026-09-09_
+
 The `structures_x` configuration system builds a fully wired world (the world
 object, its inner-to-outer stack of layers, and each layer's attached physics
 models) from a single TOML file or an equivalent Python `dict`, and writes a world
 back out to TOML. It is the user-facing entry point to TidalPy's class system.
 
-Following the `structures_x` design, **C++ never touches TOML**. Files are read and
+Following the `structures_x` design, C++ never touches TOML. Files are read and
 written at the Python/Cython level with the `toml` package, converted to a `dict`,
 validated against the schema, and handed to the builder, which calls the layer/world
 constructors and the physics-model factories.
@@ -101,7 +103,7 @@ World `type` maps to a class as follows:
 | `gasgiant` | `GasGiantWorld` |
 | `star` | `StarWorld` (no layers) |
 
-Optional physical keys that are omitted are **not** passed to the constructor, so
+Optional physical keys that are omitted are not passed to the constructor, so
 the constructor's own default applies. Defaults live in exactly one place (the C++
 class or the physics-model factory) and are never duplicated in the loader.
 

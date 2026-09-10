@@ -1,8 +1,9 @@
 # Stellar Luminosity (`stellar_x`)
 
+_Updated: 2026-09-09_
+
 The `stellar_x` module holds the stellar physics models. The luminosity hierarchy turns a star's mass
-into its luminosity and effective temperature. All quantities are MKS: mass [kg], radius [m],
-temperature [K], luminosity [W].
+into its luminosity and effective temperature.
 
 Every model shares the Stefan-Boltzmann conversions between a star's effective surface temperature and
 its luminosity (both need the stellar radius) and implements a mass-to-luminosity relation:
@@ -42,7 +43,7 @@ returns the matching rich subclass. Config keys: `luminosity_w` (fixed), `power_
 `power_law_exponent` (power law). Each model round-trips through `save_binary` / `load_binary` and
 reports its parameters via `get_config_dict()`.
 
-### On a star
+### On a `Star` Class
 
 `StarWorld` can hold a luminosity model and derive its luminosity and effective temperature from its
 own mass and radius:
@@ -52,10 +53,10 @@ from TidalPy.structures_x.worlds.stellar import StarWorld
 from TidalPy.stellar_x import MassToLuminosity
 
 star = StarWorld("sun", radius_m, mass_kg)
-star.set_luminosity_model(MassToLuminosity())     # transfers ownership of the model
-lum = star.calc_luminosity_from_mass()            # [W]
-temp = star.calc_effective_temperature_from_mass()# [K]
-star.update_luminosity_from_mass()                # writes L and T onto the star's scalar fields
+star.set_luminosity_model(MassToLuminosity())       # transfers ownership of the model
+lum  = star.calc_luminosity_from_mass()             # [W]
+temp = star.calc_effective_temperature_from_mass()  # [K]
+star.update_luminosity_from_mass()                  # writes L and T onto the star's scalar fields
 ```
 
 `set_luminosity_model` moves ownership of the C++ model into the star; the passed wrapper becomes an
