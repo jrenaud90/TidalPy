@@ -1,17 +1,19 @@
 # Partial-Melt Models (`partial_melt_x`)
 
+_Updated: 2026-09-09_
+
 A **partial-melt** model maps a material's pre-melt (solid) viscosity and shear
 modulus, plus its temperature, to the **post-melt** viscosity and shear modulus
 (i.e. it applies melt weakening), and reports the volumetric **melt fraction**.
 
-These quantities are **frequency-independent**, they depend only on the
+These quantities are frequency-independent, they depend only on the
 temperature/pressure state fixed by the EOS solve, so in the whole-planet
-love-number pipeline they are computed once and cached; only the downstream
+Love-number pipeline they are computed once and cached. Only the downstream
 [rheology](../rheology_x/rheology_models.md) (complex modulus) step is recomputed
 per forcing frequency.
 
-All quantities are **MKS**. The math mirrors the validated legacy implementation
-in `TidalPy/rheology/partial_melt/melting_models.py`.
+The math mirrors the validated legacy implementation in
+`TidalPy/rheology/partial_melt/melting_models.py`.
 
 ---
 
@@ -60,8 +62,9 @@ Three regimes in the melt fraction `φ`, with the transition band
 
 All branches are floored at the liquid limits.
 
-**References:** Fischer and Spohn (1990), *Icarus* 83, 39; Henning, O'Connell &
-Sasselov (2009); Renaud & Henning (2018), *ApJ* 857, 98.
+**References:**
+- Fischer and Spohn (1990), *Icarus* 83, 39
+- Henning, O'Connell & Sasselov (2009); Renaud & Henning (2018), *ApJ* 857, 98.
 
 ---
 
@@ -69,7 +72,11 @@ Sasselov (2009); Renaud & Henning (2018), *ApJ* 857, 98.
 
 ```python
 from TidalPy.partial_melt_x import (
-    OffPartialMelt, SpohnPartialMelt, HenningPartialMelt, make_partial_melt)
+   OffPartialMelt,
+   SpohnPartialMelt,
+   HenningPartialMelt,
+   make_partial_melt
+)
 
 melt = HenningPartialMelt(solidus_k=1600.0, liquidus_k=2000.0, liquid_shear_pa=1.0e-5)
 
@@ -85,7 +92,7 @@ phi, post_visc, post_shear = melt.calc_partial_melt(
 melt = make_partial_melt("fischer", {"solidus_k": 1500.0})
 ```
 
-**Constructors / parameters**
+**Constructors / Parameters**
 
 - `OffPartialMelt(solidus_k=1600, liquidus_k=2000, liquid_shear_pa=1e-5)`
 - `SpohnPartialMelt(..., fs_visc_power_slope=27000, fs_visc_power_phase=1.0,
@@ -94,7 +101,7 @@ melt = make_partial_melt("fischer", {"solidus_k": 1500.0})
   hn_visc_slope_1=13.5, hn_visc_falloff_slope=370, hn_shear_param_1=40000,
   hn_shear_param_2=25, hn_shear_falloff_slope=700)`
 
-**Methods / properties**
+**Methods / Properties**
 
 | Member | Returns | Description |
 |--------|---------|-------------|
@@ -111,8 +118,6 @@ config keys fall back to the C++ defaults. Unknown names raise `ValueError`.
 
 ## C++ API
 
-The C++ layer is canonical; the Cython classes are thin adapters.
-
 **Config struct** `tidalpy::c_PartialMeltConfig` (defaults in parentheses):
 `solidus_k` (1600), `liquidus_k` (2000), `liquid_shear_pa` (1e-5);
 Spohn: `fs_visc_power_slope` (27000), `fs_visc_power_phase` (1.0),
@@ -122,7 +127,7 @@ Henning: `crit_melt_frac` (0.5), `crit_melt_frac_width` (0.05),
 `hn_shear_param_1` (40000), `hn_shear_param_2` (25),
 `hn_shear_falloff_slope` (700).
 
-**Input / result** `c_PartialMeltInputs { temperature_k, premelt_viscosity,
+**Input / Result** `c_PartialMeltInputs { temperature_k, premelt_viscosity,
 premelt_shear, liquid_viscosity }` → `c_PartialMeltResult { melt_fraction,
 postmelt_viscosity, postmelt_shear_modulus }`.
 

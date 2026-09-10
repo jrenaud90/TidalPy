@@ -1,10 +1,12 @@
-# RadialSolver_x: the dense radial-solution calling system
+# RadialSolver_x: 1D Love Number Calculator
 
-This document explains how `TidalPy.RadialSolver_x` computes the viscoelastic-gravitational radial
-solution (`y1..y6`) at a given radius, and how that differs from previous versions of the radial
-solver.
+_Updated: 2026-09-09_
 
-## Background: how the shooting method builds a solution
+`TidalPy.RadialSolver_x` computes the viscoelastic-gravitational radial solution (`y1..y6`)
+at a given radius utilizing either a shooting method or propagation matrix approach. The
+result are 1-dimensional Love numbers (either "loading" or "tidal" Love numbers).
+
+## Shooting Method
 
 For the shooting method the planet is integrated layer by layer from a starting radius up to the
 surface. Each layer contributes a fixed number of independent solutions depending on its assumptions:
@@ -18,28 +20,28 @@ surface. Each layer contributes a fixed number of independent solutions dependin
 The physical solution in each layer is a linear combination of that layer's independent solutions.
 The combination coefficients ("constants of integration") are fixed by:
 
-1. applying the surface boundary condition (a small matrix solve at the planet surface), then
-2. propagating those constants downward through every interface (`reversed_.hpp`), one layer at a
+1. Applying the surface boundary condition (a small matrix solve at the planet surface), then
+2. Propagating those constants downward through every interface (`reversed_.hpp`), one layer at a
    time, so each layer below inherits a consistent set of constants.
 
-## What changed: dense interpolants instead of a fixed grid
+## Dense Interpolants (no fixed grid)
 
-**Previous behavior.** Each independent solution was integrated and **sampled onto a fixed radial
-grid** (the EOS radius array). The constants were then applied at every grid slice to build a single
-gridded `y1..y6` solution. To obtain the solution at a radius that was *not* a grid point - for
-example, a stress evaluation at `r = 300 m` when the grid only stored `r = 100 m` and `r = 500 m` -
-the gridded solution was **linearly interpolated**. For coarse grids this interpolation could be
-noticeably inaccurate.
+**Previous behavior:** Earlier versions of TidalPy integrated each independent solution
+on to a sampled and fixed radial grid (the EOS radius array). The constants were then applied
+at every grid slice to build a single gridded `y1..y6` solution. To obtain the solution at a radius
+that was *not* a grid point; for example, a stress evaluation at `r = 300 m` when the grid only
+stored `r = 100 m` and `r = 500 m`, the gridded solution was **linearly interpolated**.
+For coarse grids this interpolation could be noticeably inaccurate.
 
-**Current behavior.** Each independent solution is integrated with **dense (continuous) output** and
+**New approach:** Each independent solution is integrated with **dense (continuous) output** and
 the whole interpolant is retained. The per-layer collapse constants are stored alongside. The
 solution at *any* radius is then produced on demand:
 
-1. locate the layer containing the requested radius,
-2. evaluate that layer's 1-3 dense interpolants at the radius,
-3. multiply by the stored constants and sum (the collapse),
-4. reconstruct `y3` for dynamic-liquid layers from the other components and the EOS gravity/density,
-5. re-dimensionalize from the solver's internal (non-dimensional) units to SI.
+1. Locate the layer containing the requested radius,
+2. Evaluate that layer's 1-3 dense interpolants at the radius,
+3. Multiply by the stored constants and sum (the collapse),
+4. Reconstruct `y3` for dynamic-liquid layers from the other components and the EOS gravity/density,
+5. Re-dimensionalize from the solver's internal (non-dimensional) units to SI.
 
 Improved interpolation *between* grid slices is involved, the dense interpolant is the integrated
 solution with complex interpolation (not linear). The radial solver therefore no
@@ -49,14 +51,15 @@ density, moduli) remain owned by the EOS class and are queried as needed.
 The **surface** solution (and the Love numbers derived from it) is always required, so it is computed
 once per solve and cached for both methods. Interior radii are evaluated on demand.
 
-## The propagation-matrix method is different by construction
+## Propagation Matrix Method
 
 The propagation-matrix method does not use a shooting integration and has no dense interpolant: by
-definition it builds its solution on the **provided grid** and can only represent it there. For
+definition it builds its solution on the provided grid and can only represent it there. For
 consistency it exposes the same `get_radial_solution(r)` entry point, but for the matrix method that
-call performs a **linear interpolation of its constructed grid** (the same, less-accurate behavior
-the shooting method used to have). So the two methods deliberately differ: the shooting method serves
-an accurate dense evaluation, the matrix method serves a linear interpolation of its grid.
+call does perform a **linear interpolation of its constructed grid** (the same, less-accurate behavior
+the shooting method used to have in earlier version of TidalPy). So the two methods deliberately
+differ: the shooting method serves an accurate dense evaluation, the matrix method serves a linear
+interpolation of its grid (with performance improvements as the trade off).
 
 ## Python API
 
@@ -64,11 +67,11 @@ an accurate dense evaluation, the matrix method serves a linear interpolation of
 rs = radial_solver(...)            # RadialSolverSolution
 
 # Arbitrary-radius evaluation (SI complex y1..y6):
-y = rs.get_radial_solution(300.0)              # length-6 complex128 array at r = 300 m, ytype 0
-ys = rs.get_radial_solution_array(r_array)     # (N, 6) complex128, evaluated in vectorized C++
+y  = rs.get_radial_solution(300.0)           # length-6 complex128 array at r = 300 m, ytype 0
+ys = rs.get_radial_solution_array(r_array)   # (N, 6) complex128, evaluated in vectorized C++
 
 # Arbitrary-radius EOS / material state (SI), via the same dense interpolant:
-eos = rs.eos_call_si(300.0)                    # length-11 float64 array at r = 300 m
+eos = rs.eos_call_si(300.0)  # length-11 float64 array at r = 300 m
 #   [0] gravity [1] pressure [2] mass [3] moment of inertia [4] density
 #   [5,6] complex shear (re, im) [7,8] complex bulk (re, im) [9,10] shear/bulk viscosity
 shear = complex(eos[5], eos[6])
@@ -102,7 +105,7 @@ dynamic-liquid / solid planet at a short forcing period. The dense and original 
 well at the surface and at layer boundaries and the Love numbers agree tightly; between grid slices
 the dense evaluation is the more accurate one.
 
-## Numerical limitation: dynamic liquid layers at long forcing periods
+## Dynamic Liquid Layers at Long Forcing Periods
 
 A **dynamic** liquid layer carries inertial (`1/omega^2`) terms that are only significant at short
 forcing periods. When a dynamic liquid layer is sandwiched between solid layers and forced at a

@@ -1,5 +1,7 @@
 # Radiogenics (`radiogenics_x`)
 
+_Updated: 2026-09-09_
+
 `TidalPy.radiogenics_x` provides the C++ radiogenics model hierarchy that maps a
 layer's mass and elapsed time to the **radiogenic heating** `Q` [W] produced by
 the decay of radioactive isotopes. This is the single quantity the models compute
@@ -25,9 +27,9 @@ model returns the heating `Q` [W] directly.
 
 ## Radiogenic Models
 
-All inputs are MKS: time and half-lives in seconds `[s]`, mass in `[kg]`, heat
-production rates in `[W/kg]`, and heating in `[W]`. Each model decays from a
-shared reference time so times can be expressed relative to any fixed epoch.
+Time and half-lives in seconds `[s]`, mass in `[kg]`, heat production rates in `[W/kg]`,
+and heating in `[W]`. Each model decays from a shared reference time so times can be expressed
+relative to any fixed epoch.
 
 | Model | Heating `Q` [W] | Parameters |
 |-------|-----------------|------------|
@@ -37,14 +39,12 @@ shared reference time so times can be expressed relative to any fixed epoch.
 
 where the decay constant for a half life `t½` is `γ = ln(0.5) / t½` (`d_LN_HALF`
 is a module-level `constexpr`). The Fixed model treats `average_half_life_s ≤ 0`
-as "no decay" (a constant heating rate). This math mirrors TidalPy's validated
-legacy `radiogenics.radiogenic_models` functions.
+as "no decay" (a constant heating rate).
 
 ### The `c_Isotope` value type
 
-A single radioactive isotope is described by the lightweight `c_Isotope` struct
-(C++) / per-isotope fields (Python). It is a plain value type (no base class, no
-virtuals) carrying:
+A single radioactive isotope is described by the `c_Isotope` struct (C++) / per-isotope fields (Python).
+It is a plain value type (no base class, no virtuals) carrying:
 
 | Field | Meaning |
 |-------|---------|
@@ -67,8 +67,8 @@ them back through the `heat_production`, `half_lives`, `mass_fracs`,
 ```python
 from TidalPy.radiogenics_x import IsotopeRadiogenics, FixedRadiogenics, make_radiogenics
 
-mass = 1.0e22       # kg
-time = 1.0e17       # s (relative to the reference time)
+mass = 1.0e22  # kg
+time = 1.0e17  # s (relative to the reference time)
 
 # Fixed lumped rate, no decay.
 f = FixedRadiogenics(fixed_heat_production_w_kg=1.0e-11)
@@ -199,7 +199,7 @@ Every model supports the standard TidalPy interfaces:
 
 ## Adding a new radiogenics model
 
-The hierarchy is designed so a new model is a small, local addition. To add a
+The hierarchy is designed so a new model is a small addition. To add a
 new radiogenics model named `Foo`:
 
 **C++ (`TidalPy/radiogenics_x/radiogenics_.hpp`)**
