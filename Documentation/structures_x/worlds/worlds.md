@@ -430,7 +430,7 @@ solved, or if a per-frequency radial solve fails.
 |--------|---------|-------------|
 | `set_tide_model(tide)` | — | Attach a tide model (transfers ownership). |
 | `tide_model_set` | bool | Whether a model is attached. |
-| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=6, obliquity_truncation=10)` | — | Set the stored `[tides]` truncation/degree. |
+| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10)` | — | Set the stored `[tides]` truncation/degree. |
 | `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | — | Run the global tidal solve. |
 | `tides_solved` | bool | Whether a solve has succeeded. |
 | `get_tidal_heating()` | float [W] | Total global tidal heating (NaN if unsolved). |

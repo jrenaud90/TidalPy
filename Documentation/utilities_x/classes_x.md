@@ -108,7 +108,7 @@ PhysicsBase(model_name: str)
 | Property/Method | Returns | Description |
 |----------------|---------|-------------|
 | `.model_name` | `str` | Physics model name (read/write) |
-| `get_config_dict()` | `dict` | `{"model_name": "..."}` |
+| `get_config_dict()` | `dict` | `{"model": "..."}` (the key the world builder reads) |
 
 The layer observer pointer (`p_layer_ptr`) is a C++ only field set by the owning
 layer after construction. It is not serialized and not exposed to Python.

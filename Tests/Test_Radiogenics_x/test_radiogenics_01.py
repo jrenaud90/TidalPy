@@ -397,11 +397,11 @@ def test_make_radiogenics_adopted_object_is_usable():
 def test_config_dict_keys():
     """Each model's config dict carries the expected keys."""
     mod = _import_radiogenics()
-    assert set(mod.OffRadiogenics().get_config_dict()) == {"model_name"}
+    assert set(mod.OffRadiogenics().get_config_dict()) == {"model"}
     assert set(mod.FixedRadiogenics().get_config_dict()) == {
-        "model_name", "fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"}
+        "model", "fixed_heat_production_w_kg", "average_half_life_s", "ref_time_s"}
     assert set(mod.IsotopeRadiogenics(_HPR, _HALF, _FRAC, _CONC).get_config_dict()) == {
-        "model_name", "heat_production_w_kg", "half_lives_s",
+        "model", "heat_production_w_kg", "half_lives_s",
         "mass_fracs", "concentrations", "isotope_names", "ref_time_s"}
 
 
@@ -414,7 +414,7 @@ def test_save_config_writes_toml():
         path = os.path.join(d, "radio.toml")
         f.save_config(path)
         loaded = toml.load(path)
-    assert loaded["model_name"] == "fixed"
+    assert loaded["model"] == "fixed"
     assert loaded["fixed_heat_production_w_kg"] == pytest.approx(2.5e-11)
     assert loaded["average_half_life_s"] == pytest.approx(1.0e18)
 

@@ -258,8 +258,8 @@ cdef class PowerLawLuminosity(LuminosityBase):
     cpdef dict get_config_dict(self):
         """Return config dict with model name and the power-law parameters."""
         d = LuminosityBase.get_config_dict(self)
-        d["coeff"]    = self._power_law_ptr.get_coeff()
-        d["exponent"] = self._power_law_ptr.get_exponent()
+        d["power_law_coeff"]    = self._power_law_ptr.get_coeff()
+        d["power_law_exponent"] = self._power_law_ptr.get_exponent()
         return d
 
 

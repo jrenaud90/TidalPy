@@ -234,10 +234,10 @@ def test_make_cooling_adopted_object_is_usable():
 def test_config_dict_keys():
     """Each model's config dict carries the expected keys."""
     mod = _import_cooling()
-    assert set(mod.OffCooling().get_config_dict()) == {"model_name"}
-    assert set(mod.ConductiveCooling().get_config_dict()) == {"model_name"}
+    assert set(mod.OffCooling().get_config_dict()) == {"model"}
+    assert set(mod.ConductiveCooling().get_config_dict()) == {"model"}
     assert set(mod.ConvectiveCooling().get_config_dict()) == {
-        "model_name", "convection_alpha", "convection_beta", "critical_rayleigh"}
+        "model", "convection_alpha", "convection_beta", "critical_rayleigh"}
 
 
 def test_save_config_writes_toml():
@@ -249,7 +249,7 @@ def test_save_config_writes_toml():
         path = os.path.join(d, "cool.toml")
         cv.save_config(path)
         loaded = toml.load(path)
-    assert loaded["model_name"] == "convection"
+    assert loaded["model"] == "convection"
     assert loaded["convection_alpha"] == pytest.approx(0.6)
     assert loaded["critical_rayleigh"] == pytest.approx(1600.0)
 

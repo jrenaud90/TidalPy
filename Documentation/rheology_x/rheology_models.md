@@ -155,7 +155,7 @@ same as the class methods `calc_complex_modulus*`: modulus, viscosity, frequency
 
 Every model supports the standard TidalPy interfaces:
 
-- `get_config_dict()` → dict of `model_name` plus any model parameters.
+- `get_config_dict()` → dict of `model` plus any model parameters.
 - `save_config(path)` → TOML config file.
 - `save_binary(path)` / `load_binary(path, force=False)` → TidalPy binary format
   (preserves the model name and parameters; the layer observer pointer is not

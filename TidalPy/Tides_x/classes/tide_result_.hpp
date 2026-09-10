@@ -26,7 +26,7 @@
 struct c_TideConfig {
     int min_degree_l            = 2;    // lowest tidal harmonic degree (>= 2)
     int max_degree_l            = 2;    // highest tidal harmonic degree (<= 10)
-    int eccentricity_truncation = 6;    // eccentricity-function truncation level
+    int eccentricity_truncation = 3;    // eccentricity-function truncation level (e^3 in G, e^6 in G^2)
     int obliquity_truncation    = 10;   // obliquity-function truncation (0=off, 2, 4, 10=general)
     // Width [decades] of the log-Gaussian bell used by the tidal_timescale layer scale method
     // (scale = exp(-0.5*(log10(maxwell_time/forcing_period)/width)^2)).

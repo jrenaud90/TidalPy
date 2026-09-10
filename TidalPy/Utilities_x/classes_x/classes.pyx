@@ -300,8 +300,10 @@ cdef class PhysicsBase(TidalPyBaseClass):
     # Config
     # ------------------------------------------------------------------------------------------------------------------
     cpdef dict get_config_dict(self):
-        """Return configuration dict with model_name."""
+        """Return the configuration dict; the base entry is the ``model`` name (the key the world builder
+        reads for every physics-model table).
+        """
         self._check_ptr()
         return {
-            "model_name": (<c_PhysicsBase*>self._ptr).get_model_name().decode("utf-8"),
+            "model": (<c_PhysicsBase*>self._ptr).get_model_name().decode("utf-8"),
         }

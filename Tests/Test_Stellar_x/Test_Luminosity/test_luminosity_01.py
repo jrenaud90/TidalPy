@@ -216,14 +216,14 @@ def test_direct_function_broadcast():
 # =====================================================================================================================
 def test_config_dict():
     fixed_model = make_luminosity("fixed", {"luminosity_w": 3.0e26})
-    assert fixed_model.get_config_dict()["model_name"] == "fixed"
+    assert fixed_model.get_config_dict()["model"] == "fixed"
     assert fixed_model.get_config_dict()["luminosity_w"] == 3.0e26
 
     power = make_luminosity("power_law", {"power_law_coeff": 1.4, "power_law_exponent": 3.5})
     d = power.get_config_dict()
-    assert d["model_name"] == "power_law"
-    assert d["coeff"] == 1.4
-    assert d["exponent"] == 3.5
+    assert d["model"] == "power_law"
+    assert d["power_law_coeff"] == 1.4
+    assert d["power_law_exponent"] == 3.5
 
 
 @pytest.mark.parametrize("model, config", [

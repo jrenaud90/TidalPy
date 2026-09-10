@@ -301,13 +301,13 @@ def test_make_rheology_adopted_object_is_usable():
 def test_config_dict_keys():
     """Each model's config dict carries the expected keys."""
     mod = _import_rheology()
-    assert set(mod.Elastic().get_config_dict()) == {"model_name"}
-    assert set(mod.Maxwell().get_config_dict()) == {"model_name"}
+    assert set(mod.Elastic().get_config_dict()) == {"model"}
+    assert set(mod.Maxwell().get_config_dict()) == {"model"}
     assert set(mod.Voigt().get_config_dict()) == {
-        "model_name", "voigt_modulus_frac", "voigt_viscosity_frac"}
-    assert set(mod.Andrade().get_config_dict()) == {"model_name", "alpha", "zeta"}
+        "model", "voigt_modulus_frac", "voigt_viscosity_frac"}
+    assert set(mod.Andrade().get_config_dict()) == {"model", "alpha", "zeta"}
     assert set(mod.Sundberg().get_config_dict()) == {
-        "model_name", "alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"}
+        "model", "alpha", "zeta", "voigt_modulus_frac", "voigt_viscosity_frac"}
 
 
 def test_save_config_writes_toml():
@@ -319,7 +319,7 @@ def test_save_config_writes_toml():
         path = os.path.join(d, "rheo.toml")
         s.save_config(path)
         loaded = toml.load(path)
-    assert loaded["model_name"] == "sundberg"
+    assert loaded["model"] == "sundberg"
     assert loaded["alpha"] == pytest.approx(0.4)
     assert loaded["voigt_modulus_frac"] == pytest.approx(0.15)
 

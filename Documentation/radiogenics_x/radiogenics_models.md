@@ -187,7 +187,7 @@ always constants.
 
 Every model supports the standard TidalPy interfaces:
 
-- `get_config_dict()` → dict of `model_name` plus any model parameters (isotope
+- `get_config_dict()` → dict of `model` plus any model parameters (isotope
   arrays are returned as lists).
 - `save_config(path)` → TOML config file.
 - `save_binary(path)` / `load_binary(path, force=False)` → TidalPy binary format

@@ -216,12 +216,12 @@ def test_physics_base_model_name_setter():
 
 
 def test_physics_base_get_config_dict():
-    """get_config_dict returns correct model_name key."""
+    """get_config_dict returns the builder's model key."""
     mod = _import_classes()
     pb = mod.PhysicsBase("voigt")
     cfg = pb.get_config_dict()
-    assert "model_name" in cfg
-    assert cfg["model_name"] == "voigt"
+    assert "model" in cfg
+    assert cfg["model"] == "voigt"
 
 
 @pytest.mark.parametrize("name", [
