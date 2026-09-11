@@ -6,8 +6,7 @@ modules with identical inputs and compares Love numbers and radial solutions.
 import pytest
 import numpy as np
 
-from TidalPy.rheology.models import Maxwell
-from TidalPy.utilities.spherical_helper import calculate_mass_gravity_arrays
+from TidalPy.rheology_x import Maxwell
 
 from TidalPy.RadialSolver import radial_solver as radial_solver_old
 from TidalPy.RadialSolver_x.solver import radial_solver as radial_solver_new
@@ -22,9 +21,7 @@ bulk_modulus_array = 1.0e11 * np.ones(N, dtype=np.complex128, order='C')
 viscosity_array = 1.0e20 * np.ones_like(radius_array)
 shear_array = 5.0e10 * np.ones_like(radius_array)
 
-max_rho = Maxwell()
-complex_shear_modulus_array = np.empty(N, dtype=np.complex128)
-max_rho.vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear_modulus_array)
+complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
 upper_radius_by_layer = np.asarray((radius_array[-1],))
 
 

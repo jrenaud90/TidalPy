@@ -2,7 +2,7 @@
 import pytest
 import numpy as np
 
-from TidalPy.rheology.models import Maxwell
+from TidalPy.rheology_x import Maxwell
 
 from TidalPy.RadialSolver.shooting import find_num_shooting_solutions as find_num_old
 from TidalPy.RadialSolver.starting.driver import find_starting_conditions as find_starting_old
@@ -17,7 +17,7 @@ bulk_modulus  = 100.0e9
 shear         = 50.0e9
 viscosity     = 1.0e20
 rheo_inst     = Maxwell()
-complex_shear = rheo_inst(frequency, shear, viscosity)
+complex_shear = rheo_inst.calc_complex_modulus(shear, viscosity, frequency)
 G_to_use      = 6.67430e-11
 
 

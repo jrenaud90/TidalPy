@@ -83,13 +83,33 @@ The array-based `radial_solver` call is nearly identical between the two systems
 # Classic
 from TidalPy.RadialSolver import radial_solver
 
-# New (same call signature, same helper builders, new dense-output solution class)
+# New
 from TidalPy.RadialSolver_x import radial_solver
 ```
 
 The new solver adds dense radial evaluation at arbitrary radii (`get_radial_solution`), implicit CyRK integrators
 (`BDF`, `LSODA`, `Radau`), and a surface conditioning diagnostic (`surface_solve_amplification`). See
 [dense radial solutions](RadialSolver_x/dense_radial_solution.md).
+
+The input builders keep the classic argument names but take `rheology_x` models (classic `TidalPy.rheology`
+models raise `TypeError`), and a single model can stand in for the per-layer tuple:
+
+```python
+# Classic
+from TidalPy.RadialSolver import build_rs_input_homogeneous_layers
+from TidalPy.rheology.models import Elastic, Maxwell
+build_data = build_rs_input_homogeneous_layers(
+    ..., shear_rheology_model_tuple=(Maxwell(), Maxwell(), Maxwell()),
+    bulk_rheology_model_tuple=(Elastic(), Elastic(), Elastic()), ...)
+
+# New (one model applies to every layer; per-layer tuples still work)
+from TidalPy.RadialSolver_x import build_rs_input_homogeneous_layers
+from TidalPy.rheology_x import Elastic, Maxwell
+build_data = build_rs_input_homogeneous_layers(
+    ..., shear_rheology_model_tuple=Maxwell(), bulk_rheology_model_tuple=Elastic(), ...)
+```
+
+See [input builders](RadialSolver_x/build_inputs.md).
 
 ### Rheology models
 

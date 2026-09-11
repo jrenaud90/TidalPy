@@ -12,16 +12,10 @@ bulk_modulus_array = 1.0e14 * np.ones(radius_array.size, dtype=np.complex128, or
 viscosity_array = 1.0e20 * np.ones_like(radius_array)
 shear_array = 5.0e10 * np.ones_like(radius_array)
 
-from TidalPy.rheology.models import Maxwell
-complex_shear_modulus_array = np.empty(N, dtype=np.complex128)
-max_rho = Maxwell()
-max_rho.vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear_modulus_array)
+from TidalPy.rheology_x import Maxwell
+complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
 
-
-from TidalPy.utilities.spherical_helper import calculate_mass_gravity_arrays
-volume_array, mass_array, gravity_array = calculate_mass_gravity_arrays(radius_array, density_array)
-
-planet_bulk_density = np.sum(mass_array) / np.sum(volume_array)
+planet_bulk_density = float(density_array[0])  # uniform density
 upper_radius_by_layer = np.asarray((radius_array[-1],))
 
 layer_type_by_layer = ('solid',)

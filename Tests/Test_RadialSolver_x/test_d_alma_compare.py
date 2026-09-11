@@ -8,7 +8,7 @@ import pytest
 
 
 
-from TidalPy.rheology import Newton, Maxwell
+from TidalPy.rheology_x import Viscous, Maxwell
 from TidalPy.RadialSolver_x.solver import radial_solver
 
 
@@ -83,18 +83,15 @@ crust_density = 0.950e3
 density_array[core_index]  = core_density
 density_array[ocean_index] = ocean_density
 density_array[crust_index] = crust_density
-complex_shear = np.empty(radius_array.size, dtype=np.complex128)
 maxwell_inst = Maxwell()
-maxwell_inst.vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear)
-complex_shear_propmat = np.empty(radius_array.size, dtype=np.complex128)
-maxwell_inst.vectorize_modulus_viscosity(frequency, shear_array_propmat, viscosity_array, complex_shear_propmat)
-newton_inst = Newton()
-complex_shear_liq = np.empty(density_array[ocean_index].size, dtype=np.complex128)
-newton_inst.vectorize_modulus_viscosity(frequency, shear_array[ocean_index], viscosity_array[ocean_index], complex_shear_liq)
-complex_shear[ocean_index] = complex_shear_liq
-complex_shear_liq_propmat = np.empty(density_array[ocean_index].size, dtype=np.complex128)
-newton_inst.vectorize_modulus_viscosity(frequency, shear_array_propmat[ocean_index], viscosity_array[ocean_index], complex_shear_liq_propmat)
-complex_shear_propmat[ocean_index] = complex_shear_liq_propmat
+complex_shear = maxwell_inst.calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
+complex_shear_propmat = maxwell_inst.calc_complex_modulus_vectorize_modulus(shear_array_propmat, viscosity_array, frequency)
+# The ocean is purely viscous (the classic tests used the `Newton` alias of this model).
+viscous_inst = Viscous()
+complex_shear[ocean_index] = viscous_inst.calc_complex_modulus_vectorize_modulus(
+    shear_array[ocean_index], viscosity_array[ocean_index], frequency)
+complex_shear_propmat[ocean_index] = viscous_inst.calc_complex_modulus_vectorize_modulus(
+    shear_array_propmat[ocean_index], viscosity_array[ocean_index], frequency)
 
 # ALMA using an incompressible model. Fake that with a high bulk.
 bulk_array = 1.0e15 * np.ones(radius_array.size, dtype=np.complex128, order='C')

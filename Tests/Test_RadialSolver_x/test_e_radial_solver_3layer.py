@@ -39,10 +39,8 @@ shear_array[mantle_index] = 5.0e10
 shear_array[oc_index]     = 0.0
 shear_array[ic_index]     = 1.0e11
 
-from TidalPy.rheology.models import Maxwell
-complex_shear_modulus_array = np.empty(radius_array.size, dtype=np.complex128)
-max_rho = Maxwell()
-max_rho.vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear_modulus_array)
+from TidalPy.rheology_x import Maxwell
+complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
 
 planet_bulk_density = np.average(density_array)
 upper_radius_by_layer = np.asarray((icb_r, cmb_r, planet_r))

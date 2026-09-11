@@ -16,7 +16,8 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.rheology.models import Maxwell
+from TidalPy.rheology_x import Maxwell
+# NOTE (0.9.0): compares against the classic solver (TidalPy.RadialSolver); drop or freeze when the legacy tree is removed.
 from TidalPy.RadialSolver import radial_solver as radial_solver_old
 from TidalPy.RadialSolver_x.solver import radial_solver as radial_solver_new
 
@@ -29,8 +30,7 @@ density_array = density * np.ones_like(radius_array)
 bulk_modulus_array = 1.0e14 * np.ones(N, dtype=np.complex128, order='C')
 viscosity_array = 1.0e20 * np.ones_like(radius_array)
 shear_array = 5.0e10 * np.ones_like(radius_array)
-complex_shear_modulus_array = np.empty(N, dtype=np.complex128)
-Maxwell().vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear_modulus_array)
+complex_shear_modulus_array = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
 planet_radius = radius_array[-1]
 upper_radius_by_layer = np.asarray((planet_radius,))
 surface_gravity = 4.0 * np.pi * G * density * planet_radius / 3.0

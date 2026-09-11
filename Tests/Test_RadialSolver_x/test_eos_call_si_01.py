@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G
-from TidalPy.rheology.models import Maxwell, Elastic
+from TidalPy.rheology_x import Maxwell, Elastic
 from TidalPy.RadialSolver_x.solver import radial_solver as rs_x
 
 
@@ -28,10 +28,8 @@ def _build_homogeneous(nondimensionalize=True):
     bulk_array = 1.0e11 * np.ones(n_slices)
     viscosity_array = 1.0e19 * np.ones(n_slices)
 
-    complex_shear = np.empty(n_slices, np.complex128)
-    Maxwell().vectorize_modulus_viscosity(frequency, shear_array, viscosity_array, complex_shear)
-    complex_bulk = np.empty(n_slices, np.complex128)
-    Elastic().vectorize_modulus_viscosity(frequency, bulk_array, viscosity_array, complex_bulk)
+    complex_shear = Maxwell().calc_complex_modulus_vectorize_modulus(shear_array, viscosity_array, frequency)
+    complex_bulk = Elastic().calc_complex_modulus_vectorize_modulus(bulk_array, viscosity_array, frequency)
 
     shell_volume = (4.0 / 3.0) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
     bulk_density = float(np.sum(shell_volume * density_array[1:]) / np.sum(shell_volume))
@@ -97,10 +95,8 @@ def test_eos_call_si_two_layers_distinct_moduli():
     shear_si = np.where(radius_array <= interface, 8.0e10, 3.0e10)
     bulk_si = np.where(radius_array <= interface, 2.0e11, 1.0e11)
     viscosity_array = 1.0e19 * np.ones_like(radius_array)
-    complex_shear = np.empty(radius_array.size, np.complex128)
-    Maxwell().vectorize_modulus_viscosity(frequency, shear_si, viscosity_array, complex_shear)
-    complex_bulk = np.empty(radius_array.size, np.complex128)
-    Elastic().vectorize_modulus_viscosity(frequency, bulk_si, viscosity_array, complex_bulk)
+    complex_shear = Maxwell().calc_complex_modulus_vectorize_modulus(shear_si, viscosity_array, frequency)
+    complex_bulk = Elastic().calc_complex_modulus_vectorize_modulus(bulk_si, viscosity_array, frequency)
 
     shell_volume = (4.0 / 3.0) * np.pi * (radius_array[1:]**3 - radius_array[:-1]**3)
     weights = np.clip(shell_volume, 0.0, None)
