@@ -1,8 +1,10 @@
 # Love Numbers
 
-`TidalPy.Tides_x.love`: the Love-number storage type. Full computation from material
-properties is performed by the radial solver (`RadialSolver_x` or
-`LayeredWorld.solve_love_numbers`), which populates these values.
+
+`TidalPy.Tides_x.love`: the Love-number storage type, the names of the Love-number solution methods, and
+the closed-form homogeneous-sphere Love numbers. Full computation from a layered interior is performed by
+the radial solver (`RadialSolver_x` or `LayeredWorld.solve_love_numbers`), which populates these values;
+`LayeredWorld.solve_love_numbers(love_method=...)` can also use the homogeneous-sphere formulas below.
 
 ## Overview
 
@@ -107,3 +109,62 @@ Solved Love numbers come from the radial solver (`RadialSolver_x.radial_solver` 
 standalone array API, or `LayeredWorld.solve_love_numbers` on a built world). The
 `c_LoveNumbers` struct is the storage target: the solver populates the three fields
 after integration.
+
+## Love-number methods
+
+A world obtains its Love numbers by one of these methods (`LayeredWorld.solve_love_numbers(love_method=...)`
+per call, `set_tide_config(love_method=...)` or the `[tides]` key `love_method` for the default that
+`calc_tides` uses). `love_method_name(alias)` returns the canonical name.
+
+| Canonical name | Aliases | Source of k, h, l |
+|---|---|---|
+| `radial_solver` | `shooting`, `rs` | Shooting-method radial solve (default). |
+| `propagation_matrix` | `prop_matrix`, `pm`, `prop` | Propagation-matrix radial solve (single solid, static, incompressible layer). |
+| `homogeneous` | `homogen` | Homogeneous-sphere formulas with the volume-averaged complex shear modulus of the tidal layers. |
+| `cpl` | | Homogeneous-sphere formulas on the static modulus, then `(1 - i/Q)`. |
+| `ctl` | | Homogeneous-sphere formulas on the static modulus, then `(1 - i omega dt)`. |
+| `laterally_inhomogeneous` | `3d`, `lat_inhom` | Reserved for the 3D Love solver (`NotImplementedError`). |
+
+## Homogeneous-sphere formulas
+
+For a homogeneous incompressible sphere of radius `R`, bulk density `rho`, surface gravity `g`, and shear
+modulus `mu` (Love 1911; Munk & MacDonald 1960):
+
+```
+mu_eff_l = (2 l^2 + 4 l + 3) / l * mu / (rho g R)          # 19/2 * mu / (rho g R) at l = 2
+k_l = 3 / (2 (l - 1))      / (1 + mu_eff_l)
+h_l = (2 l + 1) / (2 (l - 1)) / (1 + mu_eff_l)
+l_l = 3 / (2 l (l - 1))    / (1 + mu_eff_l)
+```
+
+In the fluid limit (`mu -> 0`) these give `k_2 = 3/2`, `h_2 = 5/2`, `l_2 = 3/4`. With a complex, frequency
+dependent shear modulus from a rheology model the Love numbers are complex; with the real static modulus they
+are the static (elastic) Love numbers.
+
+```python
+from TidalPy.rheology_x import Maxwell
+from TidalPy.Tides_x.love import (
+    apply_fixed_dt, apply_fixed_q, calc_effective_rigidity, calc_homogeneous_love_numbers)
+
+mu = Maxwell().calc_complex_modulus(60.0e9, 1.0e19, 1.0e-5)          # complex shear modulus [Pa]
+love = calc_homogeneous_love_numbers(mu, 4000.0, 6.7, 6.0e6)          # LoveNumbers(k, h, l), degree 2
+mu_eff = calc_effective_rigidity(60.0e9, 4000.0, 6.7, 6.0e6, degree_l=2)
+
+static = calc_homogeneous_love_numbers(60.0e9, 4000.0, 6.7, 6.0e6)
+cpl = apply_fixed_q(static, 50.0)            # k, h, l times (1 - i/50):     -Im[k] = Re[k] / 50
+ctl = apply_fixed_dt(static, 1.0e-5, 600.0)  # k, h, l times (1 - i omega dt)
+```
+
+| Function | Returns |
+|---|---|
+| `calc_effective_rigidity(shear_modulus, density, gravity, radius, degree_l=2)` | `mu_eff_l` (complex for a complex modulus). |
+| `calc_homogeneous_love_numbers(complex_shear_modulus, density, gravity, radius, degree_l=2)` | `LoveNumbers` k, h, l. |
+| `apply_fixed_q(love_numbers, fixed_q)` | Constant phase lag applied to k, h, and l. |
+| `apply_fixed_dt(love_numbers, frequency, fixed_dt)` | Constant time lag applied to k, h, and l. |
+| `love_method_name(method)` | Canonical method name for an alias. |
+
+The classic `TidalPy.tides.love1d` helpers (`complex_love`, `static_love`, `effective_rigidity`, and their
+`_general` forms) map onto these: `effective_rigidity_general` in the classic code evaluated
+`2 l^2 + 4 l + 3/l` (a precedence slip; correct at `l = 2` only through the dedicated degree-2 function), the
+new functions use `(2 l^2 + 4 l + 3)/l` at every degree. Numerical Love numbers of a homogeneous sphere on
+a radial grid are still available from `TidalPy.RadialSolver_x.homogeneous_love_numbers`.

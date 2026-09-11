@@ -25,7 +25,7 @@ from TidalPy.Utilities_x.logging_x.logger cimport (
     set_tidalpy_logger_ptr_void,
     get_tidalpy_logger_address,
 )
-from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI
+from TidalPy.constants cimport set_tidalpy_config_ptr, get_shared_config_address, d_PI, d_NAN
 from TidalPy.Utilities_x.classes_x.classes cimport c_TidalPyBaseClass
 from TidalPy.structures_x.worlds.base cimport BaseWorld, c_BaseWorld, c_WorldConfig
 from TidalPy.structures_x.layers.base cimport BaseLayer, c_BaseLayer
@@ -34,6 +34,7 @@ from TidalPy.structures_x.layers.physics cimport PhysicsLayer, c_PhysicsLayer
 from TidalPy.structures_x.layers.solidliquid cimport SolidLiquidLayer, c_SolidLiquidLayer
 from TidalPy.structures_x.layers.gas cimport GasLayer, c_GasLayer
 from TidalPy.RadialSolver_x.rs_solution import check_surface_solve_conditioning
+from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
 
 
 # Build the matching layer wrapper as a NON-owning view onto a layer the world owns, dispatched
@@ -102,6 +103,22 @@ cdef int _resolve_solve_for(str solve_for) except? -999:
         return 0
     raise ValueError(
         f"Unsupported solve_for: {solve_for}. Supported: 'tidal', 'loading', 'free'.")
+
+cdef int _resolve_love_method(str love_method, cpp_bool use_prop_matrix) except? -999:
+    # Map a Love-number method name (or alias) to its c_LoveMethod index. `use_prop_matrix` is the
+    # shorthand for the propagation-matrix method and may not contradict an explicit method.
+    cdef int method = c_parse_love_method_int(love_method.encode('utf-8'))
+    if use_prop_matrix:
+        if method == 0:
+            method = 1
+        elif method != 1:
+            raise ValueError(
+                f"use_prop_matrix=True conflicts with love_method='{love_method}'; drop one of them.")
+    if method == 5:
+        raise NotImplementedError(
+            "The laterally_inhomogeneous Love-number method is reserved for the 3D Love solver and is not "
+            "implemented.")
+    return method
 
 # Selectors for the vectorized real-valued radius getters (see _eval_real).
 cdef enum:
@@ -758,8 +775,11 @@ cdef class LayeredWorld(BaseWorld):
             double eos_rtol            = 1.0e-6,
             double eos_atol            = 1.0e-10,
             double eos_pressure_tol    = 1.0e-3,
-            int eos_max_iters          = 100) -> dict:
-        """Solve for whole-planet tidal Love numbers using the shooting method.
+            int eos_max_iters          = 100,
+            str love_method            = 'radial_solver',
+            fixed_q                    = None,
+            fixed_dt                   = None) -> dict:
+        """Solve for whole-planet tidal Love numbers (radial solver, propagation matrix, or analytic methods).
 
         Requires :meth:`solve_eos` to have been called first.  For each radial
         slice the layer's attached rheology model is evaluated at
@@ -778,11 +798,10 @@ cdef class LayeredWorld(BaseWorld):
             ``'loading'`` (load Love numbers k', h', l'), or ``'free'`` (free-surface
             response). Same names as the standalone ``radial_solver``.
         use_prop_matrix : bool, optional
-            Select the radial-solve method: ``False`` (default) uses the shooting
-            method; ``True`` uses the propagation-matrix method. The propagation
-            matrix is only valid for a single solid, static, incompressible layer;
-            an incompatible world fails the solve gracefully (``love_success`` is
-            ``False`` with a non-zero ``love_error_code``).
+            Shorthand for ``love_method='propagation_matrix'`` (kept for compatibility); it may
+            not contradict an explicit ``love_method``. The propagation matrix is only valid for
+            a single solid, static, incompressible layer; an incompatible world fails the solve
+            gracefully (``love_success`` is ``False`` with a non-zero ``love_error_code``).
         core_model : int, optional
             Propagation-matrix core starting condition (0-4). Ignored by the
             shooting method. Default 0.
@@ -816,12 +835,27 @@ cdef class LayeredWorld(BaseWorld):
             Tolerances for the internal EOS re-solve. Default 1e-6 / 1e-10 / 1e-3.
         eos_max_iters : int, optional
             Maximum iterations for the EOS pressure loop. Default 100.
+        love_method : str, optional
+            How the Love numbers are obtained. ``'radial_solver'`` (aliases ``'shooting'``,
+            ``'rs'``; default) integrates the radial ODEs from the center to the surface;
+            ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``) uses the matrix
+            method; ``'homogeneous'`` (``'homogen'``) applies the homogeneous-sphere formulas with
+            the volume-averaged complex shear modulus of the tidal layers (``is_tidal``), the
+            planet's bulk density, surface gravity, and radius; ``'cpl'`` and ``'ctl'`` apply them
+            to the static shear modulus and impose a constant phase lag ``(1 - i/Q)`` or time lag
+            ``(1 - i*omega*dt)`` on k, h, and l; ``'laterally_inhomogeneous'`` (``'3d'``,
+            ``'lat_inhom'``) is reserved and raises ``NotImplementedError``.
+        fixed_q, fixed_dt : float, optional
+            Quality factor for ``'cpl'`` and time lag [s] for ``'ctl'``. Left unset, the ``[tides]``
+            config values (``set_tide_config(love_fixed_q=..., love_fixed_dt=...)``) are used, then the
+            attached tide model's fixed Q / time lag for this degree (``ValueError`` when none is
+            available).
 
         Returns
         -------
         dict
-            ``success`` (bool), ``love_number_k``, ``love_number_h``,
-            ``love_number_l`` (complex).
+            ``success`` (bool), ``error_code``, ``message``, ``love_method`` (canonical name),
+            ``love_number_k``, ``love_number_h``, ``love_number_l`` (complex).
 
         Raises
         ------
@@ -839,7 +873,9 @@ cdef class LayeredWorld(BaseWorld):
         cfg.frequency_rad_s   = frequency_rad_s
         cfg.degree_l          = degree_l
         cfg.bc_model          = _resolve_solve_for(solve_for)
-        cfg.use_prop_matrix   = <cpp_bool>use_prop_matrix
+        cfg.love_method       = _resolve_love_method(love_method, use_prop_matrix)
+        cfg.fixed_q           = d_NAN if fixed_q is None else <double>fixed_q
+        cfg.fixed_dt          = d_NAN if fixed_dt is None else <double>fixed_dt
         cfg.core_model        = core_model
         cfg.use_kamata        = <cpp_bool>use_kamata
         cfg.nondimensionalize = <cpp_bool>nondimensionalize
@@ -863,7 +899,7 @@ cdef class LayeredWorld(BaseWorld):
         with nogil:
             self._layered_ptr.solve_love_numbers(cfg)
 
-        if warnings:
+        if warnings and cfg.love_method <= 1:   # the conditioning diagnostic belongs to the radial solvers
             check_surface_solve_conditioning(self._layered_ptr.get_love_surface_amplification(), rtol)
         return self._build_love_result()
 
@@ -890,12 +926,14 @@ cdef class LayeredWorld(BaseWorld):
             size_t max_ram_MB          = 500,
             double max_step            = 0.0,
             cpp_bool verbose           = False,
-            cpp_bool warnings          = True) -> dict:
+            cpp_bool warnings          = True,
+            str love_method            = 'radial_solver') -> dict:
         """Solve Love numbers from externally-supplied complex moduli arrays (instead of layer rheology).
 
         The supplied shear/bulk moduli [Pa] are defined at ``radius_array`` [m] and are linearly interpolated onto
         the world's internal EOS radius grid. Used by the standalone ``RadialSolver_x.radial_solver`` API.
-        ``solve_eos`` must be called first.
+        ``solve_eos`` must be called first. Only the radial-solver methods (``love_method``
+        ``'radial_solver'`` or ``'propagation_matrix'``, or ``use_prop_matrix``) are available here.
         """
         if radius_array.shape[0] == 0:
             raise ValueError("radius_array must not be empty")
@@ -909,7 +947,7 @@ cdef class LayeredWorld(BaseWorld):
         cfg.frequency_rad_s    = frequency_rad_s
         cfg.degree_l           = degree_l
         cfg.bc_model           = _resolve_solve_for(solve_for)
-        cfg.use_prop_matrix    = <cpp_bool>use_prop_matrix
+        cfg.love_method        = _resolve_love_method(love_method, use_prop_matrix)
         cfg.core_model         = core_model
         cfg.use_kamata         = <cpp_bool>use_kamata
         cfg.nondimensionalize  = <cpp_bool>nondimensionalize
@@ -946,6 +984,7 @@ cdef class LayeredWorld(BaseWorld):
             'success':       bool(self._layered_ptr.get_love_solved()),
             'error_code':    self._layered_ptr.get_love_error_code(),
             'message':       self._layered_ptr.get_love_message().decode('utf-8'),
+            'love_method':   self.love_method,
             'love_number_k': complex(k.real(), k.imag()),
             'love_number_h': complex(h.real(), h.imag()),
             'love_number_l': complex(l.real(), l.imag()),
@@ -985,6 +1024,26 @@ cdef class LayeredWorld(BaseWorld):
         matrix method does not use the shooting surface collapse.
         """
         return self._layered_ptr.get_love_surface_amplification()
+
+    @property
+    def love_method(self) -> str:
+        """Canonical name of the Love-number method used by the last solve (``'radial_solver'`` before any)."""
+        return c_love_method_name_int(self._layered_ptr.get_love_method_last_int()).decode('utf-8')
+
+    @property
+    def love_effective_shear_modulus(self) -> complex:
+        """Volume-averaged shear modulus [Pa] of the tidal layers used by the last analytic Love solve.
+
+        NaN after a radial-solver solve. Complex for the ``homogeneous`` method (evaluated at the forcing
+        frequency); real (static) for ``cpl`` and ``ctl``.
+        """
+        cdef cpp_complex[double] v = self._layered_ptr.get_love_analytic_shear()
+        return complex(v.real(), v.imag())
+
+    @property
+    def love_tidal_volume(self) -> float:
+        """Volume [m3] of the tidal layers averaged by the last analytic Love solve (NaN otherwise)."""
+        return self._layered_ptr.get_love_analytic_tidal_volume()
 
     @property
     def love_num_ytypes(self) -> int:

@@ -33,6 +33,9 @@ cdef extern from "tide_result_.hpp" nogil:
         int eccentricity_truncation
         int obliquity_truncation
         double tidal_timescale_width_decades
+        int love_method
+        double love_fixed_q
+        double love_fixed_dt
 
     cdef cppclass c_TideSolveConfig:
         double orbital_frequency

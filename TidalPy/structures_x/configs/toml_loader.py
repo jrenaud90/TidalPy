@@ -252,6 +252,9 @@ ALLOWED_TIDES_KEYS = frozenset((
     "obliquity_trunc_lvl",
     "obliquity_truncation",
     "tidal_timescale_width_decades",
+    "love_method",
+    "love_fixed_q",
+    "love_fixed_dt",
 ))
 
 # Some parameters are required for world construction

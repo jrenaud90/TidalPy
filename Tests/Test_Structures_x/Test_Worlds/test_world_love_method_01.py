@@ -31,9 +31,9 @@ FREQ = 1.0e-5
 
 
 def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, is_tidal=True, rheology=None, viscosity=VISCOSITY,
-           incompressible=True):
+           incompressible=True, bulk=BULK):
     layer = PhysicsLayer(name, index, r_inner, r_outer, mass, is_tidal=is_tidal,
-                         shear_modulus_static_pa=shear, bulk_modulus_static_pa=BULK)
+                         shear_modulus_static_pa=shear, bulk_modulus_static_pa=bulk)
     layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": viscosity}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
@@ -43,12 +43,23 @@ def _layer(name, index, r_inner, r_outer, mass, shear=SHEAR, is_tidal=True, rheo
     return layer
 
 
-def _uniform_world(rheology=None, viscosity=VISCOSITY):
-    """Single solid, static, incompressible uniform sphere (closed-form Love numbers)."""
+def _uniform_world(rheology=None, viscosity=VISCOSITY, incompressible=True, bulk=BULK):
+    """Single solid, static uniform sphere (closed-form Love numbers when incompressible).
+
+    The propagation matrix needs the incompressible flag, while the shooting solver has no starting condition
+    for a static incompressible solid layer; shooting solves therefore use `_stiff_world`, a compressible
+    sphere whose bulk modulus (1e15 Pa) makes it incompressible to about one part in 1e4.
+    """
     world = LayeredWorld("uniform", RADIUS, MASS)
-    world.add_layer(_layer("mantle", 0, 0.0, RADIUS, MASS, rheology=rheology, viscosity=viscosity))
+    world.add_layer(_layer("mantle", 0, 0.0, RADIUS, MASS, rheology=rheology, viscosity=viscosity,
+                           incompressible=incompressible, bulk=bulk))
     world.solve_eos()
     return world
+
+
+def _stiff_world(rheology=None, viscosity=VISCOSITY):
+    """Compressible uniform sphere with a very large bulk modulus (usable by the shooting solver)."""
+    return _uniform_world(rheology=rheology, viscosity=viscosity, incompressible=False, bulk=1.0e15)
 
 
 def _two_layer_world(core_tidal):
@@ -79,7 +90,7 @@ def _reference_love(world, shear, degree_l=2):
     ("homogen", "homogeneous"), ("CPL", "cpl"), ("ctl", "ctl"),
 ))
 def test_method_aliases_and_result_key(alias, canonical):
-    world = _uniform_world()
+    world = _uniform_world() if canonical == "propagation_matrix" else _stiff_world()
     result = world.solve_love_numbers(frequency_rad_s=FREQ, love_method=alias, fixed_q=50.0, fixed_dt=100.0)
     assert result["success"], result["message"]
     assert result["love_method"] == canonical
@@ -88,10 +99,10 @@ def test_method_aliases_and_result_key(alias, canonical):
 
 
 def test_default_method_is_radial_solver():
-    world = _uniform_world()
+    world = _stiff_world()
     assert world.love_method == "radial_solver"
     result = world.solve_love_numbers(frequency_rad_s=FREQ)
-    assert result["love_method"] == "radial_solver"
+    assert result["success"] and result["love_method"] == "radial_solver"
     assert math.isnan(world.love_effective_shear_modulus.real)
     assert math.isnan(world.love_tidal_volume)
 
@@ -124,15 +135,18 @@ def test_unknown_and_reserved_methods():
 
 @pytest.mark.parametrize("degree_l", (2, 3))
 def test_homogeneous_matches_radial_solvers_for_uniform_sphere(degree_l):
-    """All three methods agree on a static incompressible uniform Maxwell sphere."""
+    """All three methods agree on a static uniform Maxwell sphere (incompressible for the matrix, stiff for shooting)."""
     world = _uniform_world()
     analytic = world.solve_love_numbers(frequency_rad_s=FREQ, degree_l=degree_l, love_method="homogeneous")
     matrix = world.solve_love_numbers(frequency_rad_s=FREQ, degree_l=degree_l, love_method="propagation_matrix")
-    shooting = world.solve_love_numbers(frequency_rad_s=FREQ, degree_l=degree_l, love_method="radial_solver",
+    assert matrix["success"], matrix["message"]
+    stiff = _stiff_world()
+    shooting = stiff.solve_love_numbers(frequency_rad_s=FREQ, degree_l=degree_l, love_method="radial_solver",
                                         rtol=1e-9, atol=1e-12)
+    assert shooting["success"], shooting["message"]
     for key in ("love_number_k", "love_number_h", "love_number_l"):
         np.testing.assert_allclose(analytic[key], matrix[key], rtol=1e-8)
-        np.testing.assert_allclose(analytic[key], shooting[key], rtol=1e-5)
+        np.testing.assert_allclose(analytic[key], shooting[key], rtol=1e-3)   # bulk 1e15 Pa: ~1e-4 compressibility
     # The averaged modulus is the layer's Maxwell modulus at the forcing frequency.
     mu = Maxwell().calc_complex_modulus(SHEAR, VISCOSITY, FREQ)
     world.solve_love_numbers(frequency_rad_s=FREQ, degree_l=degree_l, love_method="homogeneous")
@@ -146,15 +160,15 @@ def test_homogeneous_matches_radial_solvers_for_uniform_sphere(degree_l):
 
 def test_analytic_getters_do_not_leak_radial_results():
     """After an analytic solve the radial-only getters report NaN instead of the previous radial solution."""
-    world = _uniform_world()
-    world.solve_love_numbers(frequency_rad_s=FREQ, love_method="radial_solver")
+    world = _stiff_world()
+    assert world.solve_love_numbers(frequency_rad_s=FREQ, love_method="radial_solver")["success"]
     assert world.love_surface_amplification > 0.0
     world.solve_love_numbers(frequency_rad_s=FREQ, love_method="homogeneous")
     assert world.love_surface_amplification == 0.0
     assert world.love_num_ytypes == 1
-    assert math.isnan(world.get_radial_solution_y(0.5 * RADIUS, 0, 0).real)
+    assert math.isnan(world.get_love_surface_y(0, 0).real)
     world.solve_love_numbers(frequency_rad_s=FREQ, love_method="radial_solver")
-    assert not math.isnan(world.get_radial_solution_y(0.5 * RADIUS, 0, 0).real)
+    assert not math.isnan(world.get_love_surface_y(0, 0).real)
 
 
 def test_volume_average_excludes_non_tidal_layers():
@@ -231,7 +245,7 @@ def test_tide_config_love_method():
 
 def test_calc_tides_uses_configured_method():
     """With the rheology tide model, calc_tides takes k_l from the configured Love method."""
-    world = _uniform_world()
+    world = _stiff_world()
     world.set_tide_model(make_tide("rheology"))
     orbit = dict(orbital_frequency=2.0e-5, spin_frequency=1.0e-5, eccentricity=0.01, obliquity=0.0,
                  semi_major_axis=4.0e8, host_mass=1.9e27)
@@ -243,7 +257,7 @@ def test_calc_tides_uses_configured_method():
     heating_analytic = world.get_tidal_heating()
     assert world.love_method == "homogeneous"
     assert heating_analytic > 0.0
-    np.testing.assert_allclose(heating_analytic, heating_radial, rtol=1e-4)   # uniform sphere: same physics
+    np.testing.assert_allclose(heating_analytic, heating_radial, rtol=1e-3)   # same physics; bulk = 1e15 Pa
     # The analytic methods have no depth-resolved solution, so the 3D path refuses with a pointed error.
     with pytest.raises(RuntimeError, match="homogeneous"):
         world.get_3d_tidal_heating(radius=0.9 * RADIUS, colatitude=1.0, **orbit)

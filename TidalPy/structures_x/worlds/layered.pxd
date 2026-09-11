@@ -41,7 +41,9 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         double    frequency_rad_s
         int       degree_l
         int       bc_model
-        cpp_bool  use_prop_matrix
+        int       love_method
+        double    fixed_q
+        double    fixed_dt
         int       core_model
         cpp_bool  use_kamata
         cpp_bool  nondimensionalize
@@ -116,6 +118,9 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_l(size_t ytype_idx) const
         cpp_complex[double]  get_love_surface_y(size_t ytype_idx, size_t y_idx) const
+        int                  get_love_method_last_int() const
+        cpp_complex[double]  get_love_analytic_shear() const
+        double               get_love_analytic_tidal_volume() const
         # Global (1D) tidal dissipation: the model/config/result accessors are inherited from
         # c_BaseWorld; c_LayeredWorld only adds the rheology-capable calc_tides + layer heating.
         void                 calc_tides(const c_TideSolveConfig& state) except +

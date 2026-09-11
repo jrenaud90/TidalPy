@@ -15,6 +15,7 @@
  */
 
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 #include "constants_.hpp"   // TidalPyConstants::d_PI (colatitude band default)
@@ -31,6 +32,12 @@ struct c_TideConfig {
     // Width [decades] of the log-Gaussian bell used by the tidal_timescale layer scale method
     // (scale = exp(-0.5*(log10(maxwell_time/forcing_period)/width)^2)).
     double tidal_timescale_width_decades = 1.0;
+    // How the world obtains its Love numbers when the tide model asks for them (c_LoveMethod as an int:
+    // 0 radial_solver, 1 propagation_matrix, 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous).
+    int love_method = 0;
+    // Fixed quality factor / time lag [s] for the cpl / ctl Love methods (NaN: take them from the tide model).
+    double love_fixed_q  = std::numeric_limits<double>::quiet_NaN();
+    double love_fixed_dt = std::numeric_limits<double>::quiet_NaN();
 };
 
 // -------------------------------------------------------------------------------

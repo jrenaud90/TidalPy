@@ -25,6 +25,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport (
     cy_physics_model_config,
 )
 from TidalPy.Tides_x.classes.tide cimport TideBase
+from TidalPy.Tides_x.love.love cimport c_parse_love_method_int, c_love_method_name_int
 
 # Pull in the out-of-line definition of c_BaseWorld::calc_tides (the analytic global tidal
 # path) plus the heavy global-potential engine it uses, so they compile into this extension.
@@ -233,8 +234,11 @@ cdef class BaseWorld(StructureBase):
             int max_degree_l=2,
             int eccentricity_truncation=3,
             int obliquity_truncation=10,
-            double tidal_timescale_width_decades=1.0):
-        """Set the stored ``[tides]`` truncation/degree configuration.
+            double tidal_timescale_width_decades=1.0,
+            str love_method='radial_solver',
+            love_fixed_q=None,
+            love_fixed_dt=None):
+        """Set the stored ``[tides]`` truncation/degree configuration and the world's Love-number method.
 
         Parameters
         ----------
@@ -247,6 +251,15 @@ cdef class BaseWorld(StructureBase):
         tidal_timescale_width_decades : float
             Width [decades] of the log-Gaussian bell used by the ``tidal_timescale`` layer
             scale method.
+        love_method : str
+            How the world obtains Love numbers when its tide model asks for them (and the default for
+            ``solve_love_numbers``): ``'radial_solver'`` (``'shooting'``, ``'rs'``; default),
+            ``'propagation_matrix'`` (``'prop_matrix'``, ``'pm'``, ``'prop'``), ``'homogeneous'``
+            (``'homogen'``), ``'cpl'``, ``'ctl'``, or ``'laterally_inhomogeneous'`` (``'3d'``,
+            ``'lat_inhom'``; reserved, not implemented).
+        love_fixed_q, love_fixed_dt : float, optional
+            Quality factor for the ``'cpl'`` method and time lag [s] for the ``'ctl'`` method. Left unset,
+            the attached tide model's per-degree fixed Q / time lag is used.
         """
         if eccentricity_truncation not in (1, 2, 3, 4, 5, 10, 15, 20):
             raise NotImplementedError(
@@ -262,6 +275,9 @@ cdef class BaseWorld(StructureBase):
         cfg.eccentricity_truncation       = eccentricity_truncation
         cfg.obliquity_truncation          = obliquity_truncation
         cfg.tidal_timescale_width_decades = tidal_timescale_width_decades
+        cfg.love_method                   = c_parse_love_method_int(love_method.encode('utf-8'))
+        cfg.love_fixed_q                  = float('nan') if love_fixed_q is None else <double>love_fixed_q
+        cfg.love_fixed_dt                 = float('nan') if love_fixed_dt is None else <double>love_fixed_dt
         self._world_ptr.get().set_tide_config(cfg)
 
     def calc_tides(
@@ -408,16 +424,23 @@ cdef class BaseWorld(StructureBase):
         -------
         dict
             ``min_degree_l``, ``max_degree_l``, ``eccentricity_trunc_lvl``, ``obliquity_trunc_lvl``,
-            ``tidal_timescale_width_decades``.
+            ``tidal_timescale_width_decades``, ``love_method``, and ``love_fixed_q`` / ``love_fixed_dt``
+            when set.
         """
         cdef c_TideConfig cfg = self._world_ptr.get().get_tide_config()
-        return {
+        out = {
             "min_degree_l":                  cfg.min_degree_l,
             "max_degree_l":                  cfg.max_degree_l,
             "eccentricity_trunc_lvl":        cfg.eccentricity_truncation,
             "obliquity_trunc_lvl":           cfg.obliquity_truncation,
             "tidal_timescale_width_decades": cfg.tidal_timescale_width_decades,
+            "love_method":                   c_love_method_name_int(cfg.love_method).decode('utf-8'),
         }
+        if cfg.love_fixed_q == cfg.love_fixed_q:      # not NaN
+            out["love_fixed_q"] = cfg.love_fixed_q
+        if cfg.love_fixed_dt == cfg.love_fixed_dt:
+            out["love_fixed_dt"] = cfg.love_fixed_dt
+        return out
 
     def save_to_toml(self, str file_path, overwrite=True):
         """Write this world's configuration to a TOML file.

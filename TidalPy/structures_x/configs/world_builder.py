@@ -608,6 +608,9 @@ def _attach_tides(world, config: dict) -> None:
             merged.get("obliquity_trunc_lvl",
                        merged.get("obliquity_truncation", "off"))),
         tidal_timescale_width_decades=float(merged.get("tidal_timescale_width_decades", 1.0)),
+        love_method=str(merged.get("love_method", "radial_solver")),
+        love_fixed_q=merged.get("love_fixed_q"),
+        love_fixed_dt=merged.get("love_fixed_dt"),
     )
 
 

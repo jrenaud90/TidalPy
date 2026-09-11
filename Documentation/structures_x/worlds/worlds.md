@@ -226,23 +226,36 @@ array inputs return an `np.ndarray` of the same shape.
 
 ---
 
-### RadialSolver (Calculating Love Numbers)
+### Calculating Love Numbers
 
 `LayeredWorld.solve_love_numbers(...)` computes the viscoelastic-gravitational Love
-tidal or loading numbers k, h, l for a given tidal forcing frequency. `solve_eos`
+tidal or loading numbers $k$, $h$, $l$ for a given tidal forcing frequency. `solve_eos`
 must be called first.
 
-Two radial-solve methods are available behind the same call, selected by
-`use_prop_matrix`:
+The `love_method` argument selects how the Love numbers are obtained (names are case-insensitive;
+aliases in parentheses):
 
-* **Shooting method** (`use_prop_matrix=False`, default) — numerically integrates
-  the radial ODEs from the center to the surface. Works for arbitrary multi-layer,
-  solid/liquid, static/dynamic, compressible/incompressible worlds.
-* **Propagation-matrix method** (`use_prop_matrix=True`) — a quasi-analytic
-  matrix-propagation technique restricted to a **single solid, static,
-  incompressible layer** (the classic homogeneous-sphere case). An incompatible
-  world fails the solve gracefully (`love_success` is `False`, `love_error_code`
-  non-zero) rather than raising. `core_model` selects the core starting condition.
+| `love_method` | What it does |
+|---|---|
+| `radial_solver` (`shooting`, `rs`; default) | Numerically integrates the radial ODEs from the center to the surface. Works for arbitrary multi-layer, solid/liquid, static/dynamic, compressible/incompressible worlds. |
+| `propagation_matrix` (`prop_matrix`, `pm`, `prop`) | Quasi-analytic matrix propagation, restricted to a **single solid, static, incompressible layer**. An incompatible world fails the solve gracefully (`love_success` is `False`, `love_error_code` non-zero). `core_model` selects the core starting condition. `use_prop_matrix=True` is a shorthand for this method. |
+| `homogeneous` (`homogen`) | The homogeneous incompressible-sphere formulas, `k_l = 3/(2(l-1)) / (1 + mu_eff)`, `h_l = (2l+1)/(2(l-1)) / (1 + mu_eff)`, `l_l = 3/(2l(l-1)) / (1 + mu_eff)` with `mu_eff = (2l^2 + 4l + 3)/l * mu / (rho g R)`, evaluated with the volume-averaged **complex** shear modulus of the layers flagged `is_tidal` (each layer's radius-resolved modulus and rheology at the forcing frequency), the planet's bulk density, EOS surface gravity, and radius. Fast; no radial functions. |
+| `cpl` | The same formulas are used on the volume-averaged **static** (unrelaxed) shear modulus, then a constant phase lag is aplied: k, h, l are multiplied by `(1 - i/Q)` so `-Im[k] = Re[k]/Q`. `Q` is `fixed_q` (argument or `[tides]` config) or, when unset, the attached tide model's fixed Q for the degree. |
+| `ctl` | Similar to `cpl` but with a constant time lag `(1 - i omega dt)`; `dt` is `fixed_dt` or the tide model's fixed time lag. |
+| `laterally_inhomogeneous` (`3d`, `lat_inhom`) | Reserved for a future 3D Love solver; raises `NotImplementedError`. |
+
+The analytic methods report the volume-averaged modulus and volume they used through
+`love_effective_shear_modulus` and `love_tidal_volume`, return `love_surface_amplification = 0`, and give
+NaN for the radial-function getters (`get_radial_solution_y`, ...). They have no depth-resolved solution,
+so the 3D stress/strain/heating path (`calc_3d_tides`, `get_3d_tidal_heating`) raises `RuntimeError`
+while an analytic method is the world's configured method. Free-function versions of the formulas live in
+`TidalPy.Tides_x.love` (`calc_homogeneous_love_numbers`, `calc_effective_rigidity`, `apply_fixed_q`,
+`apply_fixed_dt`; see [Love numbers](../../Tides_x/love/love_numbers.md)).
+
+The world's **default** method, used whenever its tide model asks for Love numbers inside `calc_tides`,
+is set with `set_tide_config(love_method=..., love_fixed_q=..., love_fixed_dt=...)` or the matching
+`[tides]` keys `love_method`, `love_fixed_q`, `love_fixed_dt` in a world TOML file; `solve_love_numbers`
+takes the method per call.
 
 ```python
 from TidalPy.structures_x.worlds import LayeredWorld
@@ -287,10 +300,14 @@ print(world.love_l2)   # complex l₂
    eos_rtol=1e-6,
    eos_atol=1e-10,
    eos_pressure_tol=1e-3,
-   eos_max_iters=100) -> None`**
+   eos_max_iters=100,
+   love_method='radial_solver',
+   fixed_q=None,
+   fixed_dt=None) -> dict`**
 
-Raises `RuntimeError` if the EOS has not yet been solved. Results are stored
-internally and accessed through the properties below.
+Raises `ValueError` if the EOS has not yet been solved. Returns a dict (`success`, `error_code`,
+`message`, `love_method`, `love_number_k/h/l`); the results are also stored internally and accessed
+through the properties below.
 
 `solve_for` selects the surface boundary condition, with the same names as the standalone
 `radial_solver`: `'tidal'` (default) yields the tidal Love numbers k, h, l; `'loading'` yields the
@@ -434,7 +451,7 @@ solved, or if a per-frequency radial solve fails.
 |--------|---------|-------------|
 | `set_tide_model(tide)` | — | Attach a tide model (transfers ownership). |
 | `tide_model_set` | bool | Whether a model is attached. |
-| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10)` | — | Set the stored `[tides]` truncation/degree. |
+| `set_tide_config(min_degree_l=2, max_degree_l=2, eccentricity_truncation=3, obliquity_truncation=10, tidal_timescale_width_decades=1.0, love_method='radial_solver', love_fixed_q=None, love_fixed_dt=None)` | — | Set the stored `[tides]` truncation/degree and the world's default Love-number method (see the RadialSolver section). |
 | `get_tide_config()` | dict | The stored settings under the builder's `[tides]` key names (`*_trunc_lvl`). |
 | `calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)` | — | Run the global tidal solve. |
 | `tides_solved` | bool | Whether a solve has succeeded. |

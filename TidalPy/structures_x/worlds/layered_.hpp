@@ -51,6 +51,7 @@
 // eccentricity/obliquity tables compile into only the one extension that includes it.
 #include "../../Tides_x/classes/tide_base_.hpp"     // tidalpy::c_TideBase
 #include "../../Tides_x/classes/tide_result_.hpp"   // c_TideConfig, c_TideSolveConfig, c_GlobalTideResult
+#include "../../Tides_x/love/love_method_.hpp"    // c_LoveMethod, homogeneous-sphere Love numbers
 // Relative paths (not bare names) so every extension that includes layered_.hpp resolves
 // these without needing Utilities_x/lookups on its include path. Light headers, no tables.
 #include "../../Utilities_x/lookups/keys_.hpp"     // c_Key4, c_Key2
@@ -82,7 +83,10 @@ struct c_LoveSolveConfig {
     double    frequency_rad_s    = 1.0e-5;            // [rad/s]; tidal forcing frequency
     int       degree_l           = 2;                  // harmonic degree
     int       bc_model           = 1;                  // surface boundary condition: 1 = tidal, 2 = loading, 0 = free
-    bool      use_prop_matrix    = false;              // false = shooting method, true = propagation matrix
+    int       love_method        = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
+                                                       // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
+    double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
+    double    fixed_dt           = TidalPyConstants::d_NAN;   // ctl time lag [s] (NaN: from the tide model)
     int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
     bool      use_kamata         = true;
     bool      nondimensionalize  = true;
@@ -573,7 +577,7 @@ public:
         c_LoveSolveRuntimeConfig rt;
         rt.frequency_rad_s    = cfg.frequency_rad_s;
         rt.bc_model           = cfg.bc_model;
-        rt.use_prop_matrix    = cfg.use_prop_matrix;
+        rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
         rt.core_model         = cfg.core_model;
         rt.use_kamata         = cfg.use_kamata;
         rt.starting_radius    = cfg.starting_radius;
@@ -592,6 +596,17 @@ public:
     }
 
     void solve_love_numbers(const c_LoveSolveConfig& cfg) {
+        const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
+        this->p_love_method_last = method;
+        if (c_love_method_is_homogeneous(method)) {
+            this->solve_love_numbers_homogeneous(cfg, method);
+            return;
+        }
+        if (method == c_LoveMethod::LaterallyInhomogeneous) {
+            throw std::logic_error(
+                "TidalPy: the laterally_inhomogeneous Love-number method is reserved for the 3D Love solver and is "
+                "not implemented.");
+        }
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver  = this->p_radial_solver.get();
         const std::size_t total_slices = solver->total_slices();
@@ -621,6 +636,13 @@ public:
             const std::complex<double>* bulk_in,
             const double* radius_in,
             std::size_t n_in) {
+        const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
+        if (!c_love_method_uses_radial_solver(method)) {
+            throw std::invalid_argument(
+                "TidalPy: solve_love_numbers_supplied supports only the radial_solver and propagation_matrix "
+                "Love-number methods.");
+        }
+        this->p_love_method_last = method;
         if (!this->ensure_radial_cache(cfg)) { this->p_love_solved = false; return; }
         ::c_WorldRadialSolver* solver  = this->p_radial_solver.get();
         const std::size_t total_slices = solver->total_slices();
@@ -667,6 +689,169 @@ public:
     // The world is the sole interface — c_RadialSolutionStorage is internal.
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // Analytic Love numbers (homogeneous, cpl, ctl)
+    //
+    // The world is treated as a homogeneous incompressible sphere with the planet's bulk density, EOS surface
+    // gravity, and radius, and the volume-averaged shear modulus of the layers flagged is_tidal (composite Simpson
+    // rule in radius with the r^2 volume weight, using each layer's radius-resolved moduli and rheology). The
+    // homogeneous method averages the complex modulus at the forcing frequency; cpl and ctl average the static
+    // (unrelaxed) modulus and then impose the constant phase lag (1 - i/Q) or time lag (1 - i omega dt), taking
+    // Q or dt from the solve config or, when unset, from the attached tide model.
+    //
+    // Assumptions
+    // -----------
+    // - Incompressible homogeneous-sphere response; layered structure enters only through the volume average.
+    // - Gas layers carry no shear modulus and are skipped; liquid layers contribute their (zero) shear modulus.
+    // -----------------------------------------------------------------------
+    void solve_love_numbers_homogeneous(const c_LoveSolveConfig& cfg, c_LoveMethod method) {
+        this->p_love_solved = false;
+        this->p_love_analytic_success = false;
+        this->p_love_analytic = c_LoveNumbers();
+        this->p_love_analytic_shear = std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        this->p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;
+        if (!this->p_eos_solved || !this->p_eos_solution) {
+            throw std::invalid_argument("TidalPy: solve_eos() must be called before solve_love_numbers().");
+        }
+        if (cfg.degree_l < 2) {
+            throw std::invalid_argument("TidalPy: the homogeneous Love-number methods need degree_l >= 2.");
+        }
+        const bool use_static = (method != c_LoveMethod::Homogeneous);
+
+        // Volume-weighted shear modulus over the tidal layers.
+        constexpr std::size_t n_intervals = 128;   // even, for the composite Simpson rule
+        std::complex<double> shear_integral(0.0, 0.0);
+        double tidal_volume = 0.0;
+        for (const auto& layer_ptr : this->p_layers) {
+            const c_BaseLayer* layer = layer_ptr.get();
+            if (!layer->get_is_tidal()) {
+                continue;
+            }
+            const auto* physics = dynamic_cast<const c_PhysicsLayer*>(layer);
+            if (physics == nullptr) {
+                continue;   // gas layers: no shear modulus
+            }
+            const double r_inner = layer->get_radius_inner();
+            const double r_outer = layer->get_radius_outer();
+            if (!(r_outer > r_inner)) {
+                continue;
+            }
+            const double dr = (r_outer - r_inner) / static_cast<double>(n_intervals);
+            std::complex<double> layer_sum(0.0, 0.0);
+            for (std::size_t i = 0; i <= n_intervals; ++i) {
+                const double r = (i == n_intervals) ? r_outer : r_inner + static_cast<double>(i) * dr;
+                const double weight = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
+                const std::complex<double> mu = use_static
+                    ? std::complex<double>(physics->get_shear_modulus(r), 0.0)
+                    : physics->calc_complex_shear_modulus(r, cfg.frequency_rad_s);
+                if (!std::isfinite(mu.real()) || !std::isfinite(mu.imag())) {
+                    this->p_love_analytic_error_code = -41;
+                    this->p_love_analytic_message =
+                        "TidalPy: layer '" + layer->get_name() + "' returned a non-finite shear modulus at r = "
+                        + std::to_string(r) + " m (viscosity or rheology not set?); the homogeneous Love-number "
+                        "methods need finite moduli in every tidal layer.";
+                    return;
+                }
+                layer_sum += weight * mu * (r * r);
+            }
+            shear_integral += layer_sum * (dr / 3.0) * (4.0 * TidalPyConstants::d_PI);
+            tidal_volume += layer->get_volume();
+        }
+        if (!(tidal_volume > 0.0)) {
+            this->p_love_analytic_error_code = -40;
+            this->p_love_analytic_message =
+                "TidalPy: the homogeneous Love-number methods need at least one tidal layer (is_tidal) with a shear "
+                "modulus.";
+            return;
+        }
+        const std::complex<double> shear_avg = shear_integral / tidal_volume;
+
+        const double radius = this->get_radius();
+        const double density_bulk = this->get_mass() / ((4.0 / 3.0) * TidalPyConstants::d_PI * radius * radius * radius);
+        const double gravity = this->p_surface_gravity_eos;
+        if (!(gravity > 0.0) || !std::isfinite(gravity)) {
+            this->p_love_analytic_error_code = -42;
+            this->p_love_analytic_message =
+                "TidalPy: the EOS surface gravity is not finite and positive; re-run solve_eos() before the "
+                "homogeneous Love-number methods.";
+            return;
+        }
+
+        c_LoveNumbers love = c_calc_homogeneous_love_numbers(shear_avg, density_bulk, gravity, radius, cfg.degree_l);
+        if (method == c_LoveMethod::HomogeneousCPL) {
+            // Precedence: the solve config, then the [tides] config, then the attached tide model.
+            double fixed_q = cfg.fixed_q;
+            if (!std::isfinite(fixed_q)) {
+                fixed_q = this->get_tide_config().love_fixed_q;
+            }
+            if (!std::isfinite(fixed_q) && this->p_tide) {
+                fixed_q = this->p_tide->get_fixed_q(cfg.degree_l);
+            }
+            if (!(fixed_q > 0.0) || !std::isfinite(fixed_q)) {
+                throw std::invalid_argument(
+                    "TidalPy: the cpl Love-number method needs a positive fixed_q for degree "
+                    + std::to_string(cfg.degree_l) + " (pass fixed_q, set it in the tides config, or attach a tide "
+                    "model that carries a fixed Q).");
+            }
+            love = c_apply_fixed_q(love, fixed_q);
+        } else if (method == c_LoveMethod::HomogeneousCTL) {
+            double fixed_dt = cfg.fixed_dt;
+            if (!std::isfinite(fixed_dt)) {
+                fixed_dt = this->get_tide_config().love_fixed_dt;
+            }
+            if (!std::isfinite(fixed_dt) && this->p_tide) {
+                fixed_dt = this->p_tide->get_fixed_dt(cfg.degree_l);
+            }
+            if (!(fixed_dt >= 0.0) || !std::isfinite(fixed_dt)) {
+                throw std::invalid_argument(
+                    "TidalPy: the ctl Love-number method needs a non-negative fixed_dt for degree "
+                    + std::to_string(cfg.degree_l) + " (pass fixed_dt, set it in the tides config, or attach a tide "
+                    "model that carries a fixed time lag).");
+            }
+            love = c_apply_fixed_dt(love, cfg.frequency_rad_s, fixed_dt);
+        }
+
+        this->p_love_analytic = love;
+        this->p_love_analytic_shear = shear_avg;
+        this->p_love_analytic_tidal_volume = tidal_volume;
+        this->p_love_analytic_success = true;
+        this->p_love_analytic_error_code = 0;
+        this->p_love_analytic_message = std::string("Homogeneous-sphere Love numbers (") + c_love_method_name(method) + ").";
+        this->p_love_solved = true;
+    }
+
+    // Love-solve config carrying the world's configured method and its cpl / ctl parameters (from the [tides]
+    // config); the tide paths start from this so the configured method drives every Love-number solve.
+    c_LoveSolveConfig make_love_solve_config() const {
+        c_LoveSolveConfig cfg;
+        const c_TideConfig& tide_cfg = this->get_tide_config();
+        cfg.love_method = tide_cfg.love_method;
+        cfg.fixed_q     = tide_cfg.love_fixed_q;
+        cfg.fixed_dt    = tide_cfg.love_fixed_dt;
+        return cfg;
+    }
+
+    // Same, for paths that need the depth-resolved radial solution (3D stress/strain/heating): the analytic methods
+    // have no radial y-functions, so they are rejected with an explanatory error.
+    c_LoveSolveConfig make_radial_love_solve_config() const {
+        c_LoveSolveConfig cfg = this->make_love_solve_config();
+        const c_LoveMethod method = c_love_method_from_int(cfg.love_method);
+        if (!c_love_method_uses_radial_solver(method)) {
+            throw std::runtime_error(
+                std::string("TidalPy: 3D tidal stress/strain/heating needs a depth-resolved radial solution, but the "
+                            "world's Love-number method is '") + c_love_method_name(method)
+                + "'. Use radial_solver or propagation_matrix (set_tide_config(love_method=...)).");
+        }
+        return cfg;
+    }
+
+    bool love_is_analytic() const noexcept { return c_love_method_is_homogeneous(this->p_love_method_last); }
+    int  get_love_method_last_int() const noexcept { return static_cast<int>(this->p_love_method_last); }
+    // Diagnostics of the last analytic solve: the volume-averaged shear modulus [Pa] and the averaged volume [m3]
+    // (NaN after a radial-solver solve).
+    std::complex<double> get_love_analytic_shear() const noexcept { return this->p_love_analytic_shear; }
+    double get_love_analytic_tidal_volume() const noexcept { return this->p_love_analytic_tidal_volume; }
+
     // Non-owning pointer to the internal solution storage (owned by the cached
     // radial solver). Null until solve_love_numbers has built the cache.
     const ::c_RadialSolutionStorage* get_love_storage() const noexcept {
@@ -674,62 +859,73 @@ public:
     }
 
     bool get_love_solved() const noexcept { return this->p_love_solved; }
-
     bool get_love_success() const noexcept {
+        if (this->love_is_analytic()) return this->p_love_analytic_success;
         const auto* s = this->get_love_storage();
         return s ? s->success : false;
     }
-
     int get_love_error_code() const noexcept {
+        if (this->love_is_analytic()) return this->p_love_analytic_error_code;
         const auto* s = this->get_love_storage();
         return s ? s->error_code : -100;
     }
-
     const std::string& get_love_message() const noexcept {
         static const std::string no_msg = "No love-number solve has been run.";
+        if (this->love_is_analytic()) return this->p_love_analytic_message;
         const auto* s = this->get_love_storage();
         return s ? s->message : no_msg;
     }
-
     std::size_t get_love_num_ytypes() const noexcept {
+        if (this->love_is_analytic()) return this->p_love_analytic_success ? 1 : 0;
         const auto* s = this->get_love_storage();
         return s ? s->num_ytypes : 0;
     }
-
     // Worst-case error amplification of the surface boundary condition solve (shooting method; 0 until a
-    // solve has run). See c_estimate_surface_amplification in RadialSolver_x/boundaries/boundaries_.hpp.
+    // solve has run, and 0 for the analytic methods). See c_estimate_surface_amplification in
+    // RadialSolver_x/boundaries/boundaries_.hpp.
     double get_love_surface_amplification() const noexcept {
+        if (this->love_is_analytic()) return 0.0;
         const auto* s = this->get_love_storage();
         return s ? s->surface_amplification : 0.0;
     }
-
-    // Primary Love numbers (k, h, l) for the given boundary-condition ytype index.
+    // Primary Love numbers (k, h, l) for the given boundary-condition ytype index (the analytic methods hold a
+    // single tidal set at index 0).
     std::complex<double> get_love_number_k(std::size_t ytype_idx = 0) const noexcept {
+        if (this->love_is_analytic()) {
+            return (this->p_love_analytic_success && ytype_idx == 0)
+                ? this->p_love_analytic.k : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        }
         const auto* s = this->get_love_storage();
         if (!s || ytype_idx >= s->complex_love_vec.size())
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].k;
     }
-
     std::complex<double> get_love_number_h(std::size_t ytype_idx = 0) const noexcept {
+        if (this->love_is_analytic()) {
+            return (this->p_love_analytic_success && ytype_idx == 0)
+                ? this->p_love_analytic.h : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        }
         const auto* s = this->get_love_storage();
         if (!s || ytype_idx >= s->complex_love_vec.size())
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].h;
     }
-
     std::complex<double> get_love_number_l(std::size_t ytype_idx = 0) const noexcept {
+        if (this->love_is_analytic()) {
+            return (this->p_love_analytic_success && ytype_idx == 0)
+                ? this->p_love_analytic.l : std::complex<double>(TidalPyConstants::d_NAN, 0.0);
+        }
         const auto* s = this->get_love_storage();
         if (!s || ytype_idx >= s->complex_love_vec.size())
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return s->complex_love_vec[ytype_idx].l;
     }
-
     // Full radial solution y-value (SI) at the surface for a given ytype and y-index (0..5 -> y1..y6).
-    // Returns NaN if not solved. Evaluated from the radial solver's dense calling system (shooting) or the
-    // gridded solution (matrix) via get_surface_y; no longer reads the gridded buffer directly.
+    // Returns NaN if not solved or after an analytic solve (no radial functions). Evaluated from the radial
+    // solver's dense calling system (shooting) or the gridded solution (matrix) via get_surface_y.
     std::complex<double> get_love_surface_y(
             std::size_t ytype_idx, std::size_t y_idx) const noexcept {
+        if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         const auto* s = this->get_love_storage();
         if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
@@ -738,19 +934,18 @@ public:
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return surface_y[y_idx];
     }
-
     // Full radial solution y-value (SI) at an arbitrary radius [m] for a given ytype and y-index. The shooting
     // method evaluates its dense per-layer interpolants at this radius (accurate anywhere, including between EOS
     // grid slices); the matrix method linearly interpolates its constructed grid. Returns NaN if not solved,
-    // out of range, or below the solver's starting radius.
+    // after an analytic solve, out of range, or below the solver's starting radius.
     std::complex<double> get_radial_solution_y(
             double radius_m,
             std::size_t ytype_idx,
             std::size_t y_idx) const noexcept {
+        if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         const auto* s = this->get_love_storage();
         if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
-
         std::complex<double> y_at_r[C_MAX_NUM_Y];
         if (!s->get_radial_solution(radius_m, ytype_idx, y_at_r))
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
@@ -1050,6 +1245,15 @@ protected:
     // not serialized). Holds the frequency-independent setup + the reused solution
     // storage; rebuilt only when the EOS grid/assumptions change.
     bool p_love_solved = false;
+    c_LoveMethod  p_love_method_last = c_LoveMethod::RadialSolver;   // method of the most recent Love solve
+    // Result store for the analytic (homogeneous / cpl / ctl) methods; the radial-solver methods report from the
+    // cached solver's storage instead.
+    bool          p_love_analytic_success = false;
+    int           p_love_analytic_error_code = -100;
+    std::string   p_love_analytic_message = "No love-number solve has been run.";
+    c_LoveNumbers p_love_analytic;
+    std::complex<double> p_love_analytic_shear = {TidalPyConstants::d_NAN, 0.0};   // volume-averaged shear [Pa]
+    double        p_love_analytic_tidal_volume = TidalPyConstants::d_NAN;          // averaged volume [m3]
     std::unique_ptr<::c_WorldRadialSolver> p_radial_solver;
 
     // Global (1D) tidal dissipation: the model/config/result state lives on c_BaseWorld;

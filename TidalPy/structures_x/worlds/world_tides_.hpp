@@ -80,7 +80,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
         // pair so modes that share a degree and frequency reuse one radial solve. Then record
         // each active mode's Love numbers keyed by its (l, m, p, q).
         c_IntMap<c_Key2, tidalpy::c_LoveNumbers> love_by_l_freq;
-        c_LoveSolveConfig love_cfg;
+        c_LoveSolveConfig love_cfg = this->make_love_solve_config();
         for (const auto& mode_entry : potential.potential_map) {
             const c_Key4& lmpq_key = mode_entry.first;
             const int degree_l     = static_cast<int>(lmpq_key.a);
@@ -229,7 +229,7 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF : 1.0e-9;
 
     double heating = 0.0;
-    c_LoveSolveConfig love_cfg;
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     for (const c_TidalPotential3DMode& mode : modes) {
         const double frequency = std::abs(mode.mode_frequency);
         if (frequency <= min_freq) {
@@ -356,7 +356,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
     const double min_freq =
         (tidalpy_config_ptr != nullptr) ? tidalpy_config_ptr->d_MIN_SPIN_ORBIT_DIFF : 1.0e-9;
 
-    c_LoveSolveConfig love_cfg;
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     int last_degree_l = -1;
     double last_frequency = -1.0;
     for (const c_TidalPotential3DModeCoeff& mode : modes) {
@@ -663,7 +663,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
     std::vector<std::vector<tides::c_StrainRadialCoeffs>> group_coeffs(
         groups.size(), std::vector<tides::c_StrainRadialCoeffs>(nr));
     std::vector<unsigned char> radius_solve_failed(nr, 0);  // no depth-resolved solution at this radius
-    c_LoveSolveConfig love_cfg;
+    c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     for (size_t g = 0; g < groups.size(); ++g) {
         love_cfg.degree_l = groups[g].degree_l;
         love_cfg.frequency_rad_s = groups[g].frequency;

@@ -27,6 +27,7 @@
  */
 
 #include <complex>
+#include <limits>
 #include <string>
 
 // Explicit relative path (not bare "love_.hpp"): the layered/world extension also has
@@ -73,6 +74,12 @@ public:
     // false for the analytic models. The world uses this to decide whether to run a radial
     // solve.
     virtual bool needs_radial_solve() const = 0;
+
+    // Fixed per-degree quality factor / time lag [s] when the model carries them (FixedQ, FixedLag,
+    // CTLQ); NaN otherwise. The world's cpl / ctl Love-number methods fall back on these when no
+    // explicit value is configured.
+    virtual double get_fixed_q(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
+    virtual double get_fixed_dt(int /*degree_l*/) const { return std::numeric_limits<double>::quiet_NaN(); }
 };
 
 } // namespace tidalpy

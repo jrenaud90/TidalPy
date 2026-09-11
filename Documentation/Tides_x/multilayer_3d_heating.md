@@ -1,18 +1,18 @@
-# On-demand 3D tidal stress, strain, and heating (`Tides_x.multilayer`)
+# 3D Tidal stress, strain, and heating (`Tides_x.multilayer`)
 
 This module computes the depth- and direction-resolved tidal response (the complex strain and stress
-tensors and the volumetric heating) of a layered world. The system here is **callable**: it returns
+tensors and the volumetric heating) of a layered world. It utilizes a **callable** system where it returns
 the response at a single point on demand, so a map is built only if the caller explicitly evaluates a set of points.
 
 ## What it combines
 
 At a point `(r, colatitude θ, longitude φ, time t)` the response factorizes into
 
-* the **radial** part — the viscoelastic-gravitational `y1..y6` from the radial solver, evaluated at `r`
+* the **radial** part: the viscoelastic-gravitational `y1..y6` from the radial solver, evaluated at `r`
   through the **dense calling system** (`RadialSolverSolution.get_radial_solution`), plus the complex
   (viscoelastic) shear/bulk moduli at `r` read through the dense EOS path
   (`RadialSolverSolution.eos_call_si`); and
-* the **angular/time** part — a 2D tidal potential `U(θ, φ, t)` and its first/second θ,φ derivatives.
+* the **angular/time** part: a 2D tidal potential `U(θ, φ, t)` and its first/second θ,φ derivatives.
 
 The strain kernel uses the exact Tobie+2005 forms with the Kervazo+2021 (A&A App. D) correction to the
 θφ / φφ components, complex moduli, and a layer-type-dependent `dy1/dr`; it is a solid-layer computation
@@ -22,31 +22,34 @@ constitutive law. The volumetric heating is
 (Europa-book Eq. 42). The potential's `r²` coefficient is taken at the **surface** radius; all radial
 dependence is carried by `y(r)` and the `1/r` factors in the kernel.
 
-## Tidal potential — dynamic Kaula engine
+## Tidal Potential: The Dynamic Kaula Engine
 
-The tidal potential is built by a **class-free dynamic engine** driven purely by the user's truncation
-levels — there is no per-scenario potential-model object. Following Kaula (1964) / Efroimsky &
-Williams (2009) Eq. 18, the engine (`c_tidal_potential_3d_modes`, wrapped as
-`TidalPy.Tides_x.potential.tidal_potential_3d_modes`) enumerates the active `(l, m, p, q)` modes from
-the same eccentricity (`G_lpq`) and inclination/obliquity (`F_lmp`) functions the global (1D) path
-uses, times the associated Legendre functions `P_lm` (from `TidalPy.Utilities_x.legendre`). For each
-active mode it returns the degree `l`, the signed forcing frequency
+The tidal potential is built by a dynamic engine driven purely by the user's truncation
+levels. Following Kaula (1964) / Efroimsky & Williams (2009) Eq. 18, the engine
+(`c_tidal_potential_3d_modes`, wrapped as `TidalPy.Tides_x.potential.tidal_potential_3d_modes`)
+enumerates the active `(l, m, p, q)` modes from the same eccentricity (`G_lpq`) and
+inclination/obliquity (`F_lmp`) functions the global (1D) path uses, times the associated
+Legendre functions `P_lm` (from `TidalPy.Utilities_x.legendre`). For each active mode it returns
+the degree `l`, the signed forcing frequency
 
 ```
 omega_lmpq = (l - 2p + q) n - m * spin
 ```
 
-(`n` = orbital mean motion, `spin` = rotation rate; periapse/node precession dropped), and the
-potential angular factor `U` with its first/second colatitude/longitude derivatives. The potential is
-linear in `F_lmp`, `G_lpq`, and `P_lm` (the global 1D path squares `F`, `G` because global heating goes
-as the potential squared). A mode whose `|frequency|` does not exceed `min_spin_orbit_diff` is switched
-off downstream.
+> [!warning]
+> This assumes no periapse or node precession. It also assumes that the change in the
+> mean anomaly can be approximated by the mean motion. 
+
+(`n` = orbital mean motion, `spin` = rotation rate), and the potential angular factor `U` with its
+first/second colatitude/longitude derivatives. The potential is linear in `F_lmp`, `G_lpq`, and
+`P_lm` (the global 1D path squares `F`, `G` because global heating goes as the potential squared).
+A mode whose `|frequency|` does not exceed `min_spin_orbit_diff` is switched off downstream.
 
 The user selects the truncation via three knobs (on the world's `[tides]` config): `max_degree_l`
 (2..10), `eccentricity_trunc_lvl`, and `obliquity_trunc_lvl` (0 = off). A nonzero obliquity truncation
 turns on the odd-`m` (`P_21`, ...) harmonics automatically.
 
-## Secular (cycle/orbit-averaged) heating — the physical quantity
+## Secular (cycle/orbit-averaged) Heating
 
 `get_3d_tidal_heating` returns the **secular** (cycle/orbit-averaged) tidal volumetric heating: the
 physically time-averaged dissipated-power density. It is built from the mode's **complex** potential
@@ -57,27 +60,27 @@ h_bar(r, theta) = sum_modes (omega_mode / 2) * Im( sigma_c : conj(eps_c) )
 ```
 
 Per mode this uses a **single** `omega/2` (the cycle-average factor), the complex stress/strain
-amplitudes, and **no** `abs()` — it is inherently non-negative for a dissipative material and modes sum
+amplitudes, it is inherently non-negative for a dissipative material and modes sum
 with sign (distinct-frequency cross terms average to zero over the orbit, so they are omitted). The
 `e^{i m phi}` cancels per mode, so `h_bar` is **longitude- and time-independent** (a function of `r` and
 `colatitude` only).
 
 **Consistency with the 1D path:** the volume integral of `h_bar` equals the 1D global tidal heating
-(`get_tidal_heating`) — both are the same total dissipated power. This is the authoritative correctness
-check (validated to ~0.1% for a homogeneous Maxwell sphere; see
-`Tests/Test_Structures_x/Test_Worlds/test_world_1d_vs_3d_tides_01.py`).
+(`get_tidal_heating`). Both describe the same total dissipated power. A benchmark test showing this
+can be found in `Tests/Test_Structures_x/Test_Worlds/test_world_1d_vs_3d_tides_01.py`.
 
-At each point the path: (1) builds the active modes from the truncation config; (2) solves the world
-radial response once per mode `(l, frequency)` (the radial ODEs depend on `l` and `omega` only, not
-`m`); (3) accumulates each mode's `(omega/2) Im(sigma_c : conj(eps_c))`.
+At each point the path the machinery: 
+- Builds the active modes from the truncation config
+- Solves the world radial response once per mode `(l, frequency)` (the radial ODEs depend on `l` and `omega` only, not
+`m`)
+- Then accumulates each mode's `(omega/2) Im(sigma_c : conj(eps_c))`.
 
 ## Python API
 
-### World method
+### World Method
 
-For a built world this is the canonical entry point. The orchestration lives on the rheology tide model
-(`c_RheologyTide`); the world delegates to it and everything runs in C++ (the tide model calls the
-world's radial-solver/EOS members directly).
+For a built world, the api lives on the rheology tide model (`c_RheologyTide`); the world delegates
+to it and everything runs in C++ (the tide model calls the world's radial-solver/EOS members directly).
 
 ```python
 world = build_world(...)  # a LayeredWorld
@@ -95,7 +98,7 @@ as they have no depth-resolved solution). When a world is built from a TOML/dict
 truncation levels flow automatically from the `[tides]` table (`max_degree_l`, `eccentricity_trunc_lvl`,
 `obliquity_trunc_lvl`).
 
-#### Building a map: the vectorized batch form
+#### Building the Map
 
 Evaluating a heating map point-by-point through `get_3d_tidal_heating` re-solves the world radial
 response at every point, which is wasteful: the radial (Love-number) solve depends only on the tidal
@@ -236,7 +239,10 @@ degrees, freqs, pots = tidal_potential_3d_modes(
 The compiled strain/stress/heating kernel is in `Tides_x.multilayer.stress_strain`
 (`strain_stress_heating_point`, `volumetric_heating`) — low-level helpers that take a real potential
 row (a snapshot at one time) and return the raw bilinear magnitude; the physical secular heating uses
-the complex/signed form above.
+the complex/signed form above. The same module's `displacement_point(y, potential6, colatitude)` returns
+the tidal displacements `(u_r, u_theta, u_phi)` [m] at a point from the radial functions and a real
+potential row: `u_r = y1 U`, `u_theta = y3 dU/dtheta`, `u_phi = y3 dU/dphi / sin(theta)` (the classic
+`calculate_displacements`, evaluated point-wise).
 
 ## Feature summary
 
