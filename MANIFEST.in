@@ -7,6 +7,7 @@ exclude **/*.cpp
 
 # Include data files used for plotting and benchmarking
 include TidalPy/utilities/graphics/multilayer/*.csv
+include TidalPy/Utilities_x/graphics_x/data/*.csv
 
 # Include World Configuration Files
 include TidalPy/WorldPack/*.zip

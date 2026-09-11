@@ -272,61 +272,66 @@ cdef class RadialSolverSolution:
                 &radius_array[0], n, ytype_index, <cpp_complex[double]*><void*>&out[0, 0])
         return out
 
-    def plot_ys(self):
+    def plot_ys(self, cpp_bool show_plot = True, **plot_kwargs):
+        """Plot the radial functions y1..y6 against radius for every solved boundary-condition type.
+
+        Wraps :func:`TidalPy.Utilities_x.graphics_x.plot_ys`; extra keyword arguments (``depth_plot``,
+        ``plot_imaginary``, ``benchmarks``, ``use_tobie_limits``, ...) are passed through. Returns the
+        matplotlib ``(figure, axes)``. Large spikes or non-smooth curves indicate an unstable solve.
+        """
         cdef list result_list
         cdef list radius_list
         cdef list labels
         cdef size_t ytype_i
-        cdef size_t stored_ytypes = 0
         cdef str ytype_name
 
-        if self.success:
-            from TidalPy.utilities.graphics.multilayer import yplot
-            if self.num_ytypes <= 0:
-                raise AttributeError("`RadialSolverSolution` can not plot ys because number of ytypes is less than 1.")
-            elif self.num_ytypes == 1:
-                if self.result is not None:
-                    return yplot(self.result, self.radius_array)
-                else:
-                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
-            else:
-                result_list = list()
-                radius_list = list()
-                labels      = list()
-                for ytype_i in range(self.num_ytypes):
-                    ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
-                    if self.get_result_by_ytype_name(ytype_name) is not None:
-                        result_list.append(self.get_result_by_ytype_name(ytype_name))
-                        radius_list.append(self.radius_array)
-                        labels.append(ytype_name.title())
-                        stored_ytypes += 1
-                if stored_ytypes > 1:
-                    return yplot(result_list, radius_list, labels=labels)
-                else:
-                    raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
-        else:
-            raise AttributeError("`RadialSolverSolution` can not plot ys because result was not successful.")
-        
-    def plot_interior(self):
-        if self.eos_success:
-            from TidalPy.utilities.graphics.planet_plot import planet_plot
+        if not self.success:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because the solve was not successful.")
+        if self.num_ytypes <= 0:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because number of ytypes is less than 1.")
+        from TidalPy.Utilities_x.graphics_x import plot_ys
 
-            return planet_plot(
-                self.radius_array,
-                self.gravity_array,
-                self.pressure_array,
-                self.density_array,
-                None,
-                self.shear_modulus_array,
-                self.bulk_modulus_array,
-                self.radius,
-                self.density_bulk,
-                planet_name=None,
-                use_scatter=False,
-                depth_plot=False,
-                auto_show=True,
-                annotate=True)
-    
+        if self.num_ytypes == 1:
+            if self.result is None:
+                raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+            return plot_ys(self.result, self.radius_array, show_plot=show_plot, **plot_kwargs)
+
+        result_list = list()
+        radius_list = list()
+        labels      = list()
+        for ytype_i in range(self.num_ytypes):
+            ytype_name = str(self.ytypes[ytype_i], 'UTF-8')
+            if self.get_result_by_ytype_name(ytype_name) is not None:
+                result_list.append(self.get_result_by_ytype_name(ytype_name))
+                radius_list.append(self.radius_array)
+                labels.append(ytype_name.title())
+        if len(result_list) == 0:
+            raise AttributeError("`RadialSolverSolution` can not plot ys because result is None (perhaps failed solution?).")
+        plot_kwargs.setdefault("labels", labels)
+        return plot_ys(result_list, radius_list, show_plot=show_plot, **plot_kwargs)
+
+    def plot_interior(self, cpp_bool show_plot = True, **plot_kwargs):
+        """Plot the interior profiles found by the equation-of-state solve (gravity, density, pressure, moduli).
+
+        Wraps :func:`TidalPy.Utilities_x.graphics_x.plot_interior`; extra keyword arguments (``depth_plot``,
+        ``use_scatter``, ``planet_name``, ...) are passed through. Returns the matplotlib ``(figure, axes)``.
+        """
+        if not self.eos_success:
+            raise AttributeError("`RadialSolverSolution` can not plot the interior because the EOS solve was not successful.")
+        from TidalPy.Utilities_x.graphics_x import plot_interior
+
+        return plot_interior(
+            self.radius_array,
+            self.gravity_array,
+            self.pressure_array,
+            self.density_array,
+            shear_modulus=self.shear_modulus_array,
+            bulk_modulus=self.bulk_modulus_array,
+            planet_radius=self.radius,
+            bulk_density=self.density_bulk,
+            show_plot=show_plot,
+            **plot_kwargs)
+
     def print_diagnostics(self, cpp_bool print_diagnostics = True, cpp_bool log_diagnostics = False):
         cdef str log_message = ""
         log_message += "\n\tEquation of State Solver:"
