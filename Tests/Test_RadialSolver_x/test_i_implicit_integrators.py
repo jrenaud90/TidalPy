@@ -12,6 +12,7 @@ import pytest
 from TidalPy.constants import G
 from TidalPy.rheology_x.rheology import Maxwell
 
+# NOTE (0.9.0): compares against the classic solver (TidalPy.RadialSolver); drop or freeze when the legacy tree is removed.
 from TidalPy.RadialSolver.solver import radial_solver as radial_solver_old
 from TidalPy.RadialSolver_x.solver import radial_solver as radial_solver_new
 

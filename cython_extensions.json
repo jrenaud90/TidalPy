@@ -1687,6 +1687,52 @@
     "link_args": [],
     "is_cpp": true
   },
+  "RadialSolver_x.build_inputs": {
+    "name": "TidalPy.RadialSolver_x.build_inputs",
+    "sources": [
+      [
+        "TidalPy",
+        "RadialSolver_x",
+        "build_inputs.pyx"
+      ]
+    ],
+    "include_dirs": [
+      [
+        "TidalPy",
+        "RadialSolver_x"
+      ],
+      [
+        "TidalPy",
+        "rheology_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "classes_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "binary_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "logging_x"
+      ],
+      [
+        "TidalPy",
+        "Utilities_x",
+        "math_x"
+      ],
+      [
+        "TidalPy"
+      ]
+    ],
+    "compile_args": [],
+    "link_args": [],
+    "is_cpp": true
+  },
   "RadialSolver_x.derivatives.odes": {
     "name": "TidalPy.RadialSolver_x.derivatives.odes",
     "sources": [

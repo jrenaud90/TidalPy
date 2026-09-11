@@ -58,6 +58,7 @@ Cooling <cooling_x/cooling_models.md>
 Radiogenics <radiogenics_x/radiogenics_models.md>
 Tides <Tides_x/index.md>
 RadialSolver Dense Solutions <RadialSolver_x/dense_radial_solution.md>
+RadialSolver Input Builders <RadialSolver_x/build_inputs.md>
 Dynamics <dynamics_x/dynamics.md>
 Stellar <stellar_x/luminosity.md>
 Utilities <utilities_x/index.md>
