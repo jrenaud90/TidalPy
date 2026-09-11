@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G, mass_trap1
-from TidalPy.utilities.conversions import orbital_motion2semi_a
+from TidalPy.Utilities_x.conversions import orbital_motion2semi_a
 from TidalPy.structures_x.worlds.layered import LayeredWorld
 from TidalPy.structures_x.layers.physics import PhysicsLayer
 from TidalPy.Material_x.eos.material_eos import ConstantDensityEOS

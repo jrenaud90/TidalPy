@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from TidalPy.constants import G, mass_trap1
-from TidalPy.utilities.conversions import orbital_motion2semi_a
+from TidalPy.Utilities_x.conversions import orbital_motion2semi_a
 
 
 # Homogeneous Maxwell (shear) / Elastic (bulk) sphere, non-synchronous rotation (several active modes).

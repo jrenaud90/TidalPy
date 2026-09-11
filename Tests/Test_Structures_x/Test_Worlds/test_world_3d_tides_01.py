@@ -31,7 +31,7 @@ _SMA = None  # filled below
 
 
 def _semi_major_axis():
-    from TidalPy.utilities.conversions import orbital_motion2semi_a
+    from TidalPy.Utilities_x.conversions import orbital_motion2semi_a
     return orbital_motion2semi_a(_N, _HOST, _MASS)
 
 
