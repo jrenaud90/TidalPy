@@ -25,3 +25,9 @@ cdef extern from "multilayer_bind_.hpp" namespace "tidalpy::tides" nogil:
         int degree_l,
         int order_m,
         double* gram36)
+
+    void c_displacements_flat(
+        const double* y_ri,
+        const double* pot6,
+        double colatitude,
+        double* disp6)

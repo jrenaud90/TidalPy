@@ -73,5 +73,24 @@ inline void c_strain_stress_heating(
     *heating1 = c_volumetric_heating(stress, strain);
 }
 
+// Displacements at one point. y_ri = 12 doubles (y1re, y1im, ..., y6re, y6im; only y1 and y3 used), pot6 = the
+// 6 real potential values, disp6 = 6 doubles (3 complex: radial, polar, azimuthal) [m].
+inline void c_displacements_flat(
+        const double* y_ri,
+        const double* pot6,
+        double colatitude,
+        double* disp6) noexcept
+{
+    const std::complex<double> y1(y_ri[0], y_ri[1]);
+    const std::complex<double> y3(y_ri[4], y_ri[5]);
+    c_PotentialPoint P{pot6[0], pot6[1], pot6[2], pot6[3], pot6[4], pot6[5]};
+    c_Vector3 u;
+    c_compute_displacements(y1, y3, P, colatitude, u);
+    for (std::size_t k = 0; k < 3; ++k)
+    {
+        disp6[2 * k] = u.c[k].real(); disp6[2 * k + 1] = u.c[k].imag();
+    }
+}
+
 }  // namespace tides
 }  // namespace tidalpy

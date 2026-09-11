@@ -92,3 +92,38 @@ def strain_stress_heating_point(
         strain[k] = complex(strain12[2 * k], strain12[2 * k + 1])
         stress[k] = complex(stress12[2 * k], stress12[2 * k + 1])
     return strain, stress, heating
+
+
+def displacement_point(
+        double complex[::1] y not None,
+        tuple potential6,
+        double colatitude):
+    """Tidal displacements (radial, polar, azimuthal) [m] at one point.
+
+    y holds the radial-solver y-functions (only y1 and y3 are used). potential6 is one mode's real potential
+    row (U + 5 derivatives; a snapshot at one time) from a tidal-potential model. Returns a length-3
+    complex128 array: ``u_r = y1 U``, ``u_theta = y3 dU/dtheta``, ``u_phi = y3 dU/dphi / sin(colatitude)``
+    (at a pole u_phi is 0 for a zonal potential and NaN otherwise).
+
+    Assumptions
+    -----------
+    - The y-functions and the potential are in SI (y1, y3 in s^2 m^-1, U in m^2 s^-2).
+    """
+    cdef double[12] y_ri
+    cdef Py_ssize_t k
+    for k in range(6):
+        if k < y.shape[0]:
+            y_ri[2 * k]     = y[k].real
+            y_ri[2 * k + 1] = y[k].imag
+        else:
+            y_ri[2 * k] = 0.0
+            y_ri[2 * k + 1] = 0.0
+    cdef double[6] pot6
+    for k in range(6):
+        pot6[k] = potential6[k]
+    cdef double[6] disp6
+    c_displacements_flat(&y_ri[0], &pot6[0], colatitude, &disp6[0])
+    cdef cnp.ndarray[cnp.complex128_t, ndim=1] displacement = np.empty(3, dtype=np.complex128)
+    for k in range(3):
+        displacement[k] = complex(disp6[2 * k], disp6[2 * k + 1])
+    return displacement

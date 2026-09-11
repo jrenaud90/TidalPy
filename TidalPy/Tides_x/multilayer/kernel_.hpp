@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <complex>
+#include <limits>
 
 #include "strain_radial_.hpp"
 #include "../potential/potential_point_.hpp"   // tidalpy::c_PotentialPoint (shared with the potential models)
@@ -121,6 +122,46 @@ inline double c_volumetric_heating_signed(const c_Tensor6& stress, const c_Tenso
         h += (k < 3) ? term : 2.0 * term;
     }
     return h;
+}
+
+// The 3 complex displacement components at a point: [0]=radial u_r, [1]=polar u_theta, [2]=azimuthal u_phi.
+struct c_Vector3
+{
+    std::array<std::complex<double>, 3> c { };
+};
+
+// Tidal displacements at one point from the radial functions y1 (radial) and y3 (tangential) and the
+// potential point (TB05 Eq. 9; SVC16):
+//   u_r     = y1 * U
+//   u_theta = y3 * dU/dtheta
+//   u_phi   = y3 * dU/dphi / sin(theta)
+// y1, y3 [s^2 m^-1] times U [m^2 s^-2] give metres. Templated like c_compute_strain_stress so the real
+// (instantaneous) and complex-phasor potential points both work. At a pole (sin theta = 0) u_phi is 0 when
+// dU/dphi is 0 (every m = 0 mode) and NaN otherwise.
+template <typename PotentialPointT>
+inline void c_compute_displacements(
+        const std::complex<double>& y1,
+        const std::complex<double>& y3,
+        const PotentialPointT& P,
+        double colatitude,
+        c_Vector3& out) noexcept
+{
+    out.c[0] = y1 * P.U;
+    out.c[1] = y3 * P.dU_dtheta;
+    const double sin_theta = std::sin(colatitude);
+    if (std::abs(sin_theta) > 1.0e-15)
+    {
+        out.c[2] = y3 * P.dU_dphi / sin_theta;
+    }
+    else if (std::abs(P.dU_dphi) == 0.0)
+    {
+        out.c[2] = std::complex<double>(0.0, 0.0);
+    }
+    else
+    {
+        const double nan_val = std::numeric_limits<double>::quiet_NaN();
+        out.c[2] = std::complex<double>(nan_val, nan_val);
+    }
 }
 
 }  // namespace tides
