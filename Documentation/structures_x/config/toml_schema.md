@@ -98,7 +98,7 @@ _Most layers for rocky or icy planets and moons should use the `solidliquid` cla
 | `radius_outer_m` | one-of | all | Outer radius [m] (absolute). |
 | `radius_fraction` | one-of | all | Outer radius as a fraction of the world radius (`radius_outer_m = radius_fraction * world radius_m`). |
 | `volume_fraction` | one-of | all | Layer shell volume as a fraction of the whole-world volume; the outer radius is solved from it. |
-| `mass_kg` | optional | all | Layer mass [kg]. Defaults to 0.0; the EOS solve recomputes the structure. |
+| `mass_kg` | optional | all | Layer mass [kg]. Defaults to 0.0; every successful EOS solve overwrites it with the solved layer mass. |
 | `material_name` | optional | all | Free-form material label. |
 | `is_tidal` | optional | all | Whether the layer participates in tides. |
 | `tidal_scale` | optional | all | Tidal scaling factor. |

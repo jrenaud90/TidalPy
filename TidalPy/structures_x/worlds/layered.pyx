@@ -366,7 +366,9 @@ cdef class LayeredWorld(BaseWorld):
         density source. A convergence loop on the surface pressure determines the
         central pressure. On success, every layer's EOS profile is populated so
         that :meth:`get_density`, :meth:`get_gravity`, and :meth:`get_pressure`
-        (on this world or on the individual layers) become available.
+        (on this world or on the individual layers) become available, and every
+        layer's mass (and so its density_bulk) is set to the mass the solved
+        density profile places between its inner and outer radii.
 
         Parameters
         ----------
@@ -729,7 +731,7 @@ cdef class LayeredWorld(BaseWorld):
 
     def get_moment_of_inertia(self) -> float:
         """Moment of inertia [kg m^2]: the EOS-solved value when the EOS has been solved, else the spin
-        model's uniform-density fallback from the world mass and radius."""
+        model's ``moment_of_inertia_factor * M R^2`` estimate from the world mass and radius."""
         return self._layered_ptr.get_moment_of_inertia()
 
     def calc_spin_derivative(self, double host_mass) -> float:

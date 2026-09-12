@@ -258,8 +258,8 @@ def construct_layer(
     # previous layer; outer radius is resolved from the specifier).
     ctor_kwargs["radius_inner"] = radius_inner
     ctor_kwargs["radius_outer"] = radius_outer
-    # The mass has no constructor default; the EOS solve recomputes it, so default
-    # to 0.0 when neither the user nor the material block supplies it.
+    # The mass has no constructor default. Every successful EOS solve overwrites it with the
+    # solved layer mass, so 0.0 stands in when neither the user nor the material block supplies it.
     ctor_kwargs.setdefault("mass", 0.0)
 
     layer = layer_class(name=layer_name, layer_index=layer_index, **ctor_kwargs)

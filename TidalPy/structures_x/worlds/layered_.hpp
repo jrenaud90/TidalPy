@@ -270,7 +270,7 @@ public:
     // Integrates the planet's radial structure (gravity, pressure, enclosed mass,
     // moment of inertia) from center to surface, using each layer's attached
     // material EOS model as the local density source, and populates every layer's
-    // c_LayerEOSData on success. Reuses the Material_x/eos c_solve_eos machinery
+    // c_LayerEOSData and mass on success. Reuses the Material_x/eos c_solve_eos machinery
     // via the c_preeval_material_eos pre-eval. All quantities MKS.
     //
     // Throws std::invalid_argument if the world has no layers, any layer lacks an
@@ -397,6 +397,11 @@ public:
                 if (slice_end > total_slices) { break; }
                 c_BaseLayer* layer = this->p_layers[layer_index].get();
 
+                // The layer's mass is the enclosed mass gained across its slices. Adjacent layers share the
+                // interface slice, so the layer masses sum exactly to the planet mass.
+                layer->set_mass(
+                    solution->mass_array_vec[slice_end - 1] - solution->mass_array_vec[slice_start]);
+
                 c_LayerEOSData eos_data;
                 eos_data.populate(
                     std::vector<double>(solution->radius_array_vec.begin()   + slice_start, solution->radius_array_vec.begin()   + slice_end),
@@ -461,12 +466,12 @@ public:
     const c_Spin&  get_spin_model() const noexcept { return this->p_spin; }
 
     // Moment of inertia [kg m2]: the EOS-solved value (get_planet_moi_eos) when the EOS has been solved,
-    // otherwise the spin model's uniform-density fallback from the world mass and radius.
+    // otherwise the spin model's factor * M R^2 estimate from the world mass and radius.
     double get_moment_of_inertia() const noexcept {
         if (this->p_eos_solved && std::isfinite(this->p_planet_moi_eos)) {
             return this->p_planet_moi_eos;
         }
-        return this->p_spin.calc_moment_of_inertia(this->get_mass(), this->get_radius(), 0.0);
+        return this->p_spin.calc_moment_of_inertia(this->get_mass(), this->get_radius());
     }
 
     // Tidal spin-rate change [rad s-2] = M_host * dU/dO / I, using the world's stored dU/dO (from the

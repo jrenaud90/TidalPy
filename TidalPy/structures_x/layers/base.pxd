@@ -73,6 +73,7 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         double   get_radius_outer()            const
         double   get_thickness()               const
         double   get_volume()                  const
+        double   get_density_bulk()            const
         double   get_surface_area_inner()      const
         double   get_surface_area_outer()      const
         const string& get_material_name()      const

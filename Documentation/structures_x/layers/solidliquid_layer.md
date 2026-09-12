@@ -81,7 +81,7 @@ SolidLiquidLayer(
 | `layer_index` | — | Zero-based index; innermost layer = 0. |
 | `radius_inner` | m | Inner boundary radius. |
 | `radius_outer` | m | Outer boundary radius. |
-| `mass` | kg | Total layer mass. |
+| `mass` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
 | `material_name` | — | Material identifier. Default `""`. |
 | `is_tidal` | — | Tidal dissipation flag. Default `True`. |
 | `tidal_scale` | — | Dimensionless tidal heating scale. Default `1.0`. |
@@ -112,7 +112,7 @@ See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_stat
 
 ### Inherited from BaseLayer
 
-See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
+See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `density_bulk`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
 
 ### Thermal / melt (read-only)
 

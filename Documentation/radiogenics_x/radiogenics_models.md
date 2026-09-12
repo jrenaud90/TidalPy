@@ -155,7 +155,7 @@ world.calc_internal_heating(time)             # [W] summed over all layers
 
 `set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. Only `SolidLiquidLayer` accepts one. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one.
 
-The mass is an argument rather than something the layer looks up, because the heating scales with whichever mass the caller considers radiogenic. That is usually the layer's own mass, but it can be the mass of a single differentiated component. The world-level sum has no such freedom and uses each layer's `mass` attribute, which is whatever the layer was constructed with.
+The mass is an argument rather than something the layer looks up, because the heating scales with whichever mass the caller considers radiogenic. That is usually the layer's own mass, but it can be the mass of a single differentiated component. The world-level sum has no such freedom and uses each layer's `mass` attribute. The equation-of-state solve sets that attribute, so solve the world's structure before asking for its internal heating: a layer built without a mass reports zero until then.
 
 ## Vectorized evaluation
 

@@ -198,7 +198,19 @@ public:
     // NaN until a tidal solve has run.
     // -----------------------------------------------------------------------
     double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
-    void   set_tidal_heating(double heating)   noexcept { this->p_tidal_heating = heating; }
+    void set_tidal_heating(double heating)   noexcept { this->p_tidal_heating = heating; }
+
+    // -----------------------------------------------------------------------
+    // Mass and bulk density. Each successful world EOS solve sets the mass to the enclosed-mass gain across
+    // the layer; before a solve it is whatever the layer was constructed with (0.0 when unspecified).
+    // -----------------------------------------------------------------------
+    void set_mass(double mass) noexcept { this->p_mass = mass; }
+
+    // Bulk density [kg m-3] = mass / shell volume; NaN for a zero-volume layer.
+    double get_density_bulk() const noexcept {
+        if (this->p_volume <= TidalPyConstants::d_EPS) { return TidalPyConstants::d_NAN; }
+        return this->p_mass / this->p_volume;
+    }
 
     // -----------------------------------------------------------------------
     // EOS profile (mutable; populated by the world's EOS solve)

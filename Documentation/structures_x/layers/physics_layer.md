@@ -54,7 +54,7 @@ PhysicsLayer(
 | `layer_index` | `int` | — | Zero-based index; innermost layer = 0. |
 | `radius_inner` | `float` | m | Inner boundary radius. |
 | `radius_outer` | `float` | m | Outer boundary radius. |
-| `mass` | `float` | kg | Total layer mass. |
+| `mass` | `float` | kg | Total layer mass. Overwritten by each successful world EOS solve. |
 | `material_name` | `str` | — | Material identifier. Optional. |
 | `is_tidal` | `bool` | — | Tidal dissipation flag. Default `True`. |
 | `tidal_scale` | `float` | — | Dimensionless tidal heating scale. Default `1.0`. |
@@ -72,7 +72,7 @@ PhysicsLayer(
 
 ### Inherited from BaseLayer (read-only, MKS)
 
-See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
+See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `density_bulk`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
 
 ### Mechanical (read-only, MKS)
 

@@ -39,6 +39,7 @@ def _import():
 _N             = 100
 _PLANET_RADIUS = 6000.0e3      # [m]
 _DENSITY       = 3500.0        # [kg/m^3]
+LAYER_MASS_RTOL = 1e-12  # constant-density layer mass versus rho V after the solve
 
 
 def _uniform_world():
@@ -182,6 +183,72 @@ def test_two_layer_constant_density():
     assert math.isclose(world.get_density(r_cmb + (_PLANET_RADIUS - r_cmb) * 0.5), rho_m, rel_tol=0.05)
     # Gravity is non-negative and the enclosed mass matches.
     assert math.isclose(world.planet_mass_eos, mass, rel_tol=0.03)
+
+
+# =====================================================================================================================
+# Layer mass and bulk density (set by every successful solve)
+# =====================================================================================================================
+_R_CMB = _PLANET_RADIUS / 2.0
+
+
+def _two_layer_world(rho_core=5000.0, rho_mantle=3000.0):
+    """Two constant-density layers built without layer masses (as the TOML builder does)."""
+    LayeredWorld, BaseLayer, ConstantDensityEOS, _ = _import()
+    mass = (4.0 / 3.0) * math.pi * (rho_core * _R_CMB ** 3 + rho_mantle * (_PLANET_RADIUS ** 3 - _R_CMB ** 3))
+    world = LayeredWorld("TwoLayer", _PLANET_RADIUS, mass)
+    core = BaseLayer("core", 0, 0.0, _R_CMB, 0.0, material_name="iron")
+    mantle = BaseLayer("mantle", 1, _R_CMB, _PLANET_RADIUS, 0.0, material_name="rock")
+    core.set_eos(ConstantDensityEOS(reference_density=rho_core))
+    mantle.set_eos(ConstantDensityEOS(reference_density=rho_mantle))
+    world.add_layer(core)
+    world.add_layer(mantle)
+    return world
+
+
+def test_solve_sets_layer_mass_and_bulk_density():
+    """Constant-density layers get mass = rho V and bulk density = rho from the solve."""
+    world = _two_layer_world()
+    core, mantle = world.layers
+    assert core.mass == 0.0 and mantle.mass == 0.0
+    assert world.solve_eos(G_to_use=G, verbose=False)["success"]
+    core_volume = (4.0 / 3.0) * math.pi * _R_CMB ** 3
+    mantle_volume = (4.0 / 3.0) * math.pi * (_PLANET_RADIUS ** 3 - _R_CMB ** 3)
+    assert math.isclose(core.mass, 5000.0 * core_volume, rel_tol=LAYER_MASS_RTOL)
+    assert math.isclose(mantle.mass, 3000.0 * mantle_volume, rel_tol=LAYER_MASS_RTOL)
+    assert math.isclose(core.density_bulk, 5000.0, rel_tol=LAYER_MASS_RTOL)
+    assert math.isclose(mantle.density_bulk, 3000.0, rel_tol=LAYER_MASS_RTOL)
+
+
+def test_layer_masses_sum_to_planet_mass():
+    """Adjacent layers share the interface slice, so the layer masses telescope to the planet mass."""
+    world = _two_layer_world()
+    world.solve_eos(G_to_use=G, verbose=False)
+    assert math.isclose(world.calc_total_mass(), world.planet_mass_eos, rel_tol=1e-14)
+
+
+def test_resolve_overwrites_layer_mass():
+    """Each successful solve sets the layer masses again, so a changed EOS changes them."""
+    _, _, ConstantDensityEOS, _ = _import()
+    world = _two_layer_world()
+    world.solve_eos(G_to_use=G, verbose=False)
+    mantle = world.layers[1]
+    mass_before = mantle.mass
+    mantle.set_eos(ConstantDensityEOS(reference_density=4500.0))
+    world.solve_eos(G_to_use=G, verbose=False)
+    assert math.isclose(mantle.mass / mass_before, 4500.0 / 3000.0, rel_tol=LAYER_MASS_RTOL)
+
+
+def test_bundled_world_internal_heating_after_solve():
+    """A bundled world has no per-layer masses; its radiogenic heating becomes nonzero once the EOS is solved."""
+    from TidalPy.structures_x import build_world
+    world = build_world("earth_simple")
+    assert world.calc_internal_heating(0.0) == 0.0
+    assert world.solve_eos(verbose=False)["success"]
+    heating = world.calc_internal_heating(0.0)
+    assert heating > 0.0
+    expected = sum(layer.calc_radiogenic_heating(0.0, layer.mass)
+                   for layer in world.layers if hasattr(layer, "calc_radiogenic_heating"))
+    assert math.isclose(heating, expected, rel_tol=1e-12)
 
 
 # =====================================================================================================================

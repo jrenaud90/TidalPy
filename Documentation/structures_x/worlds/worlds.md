@@ -76,8 +76,8 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 |--------|-------------|
 | `add_layer(layer)` | Add a layer inner-to-outer. **Ownership of the layer (and its attached physics models) transfers into the world**; the passed wrapper becomes an empty shell. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is *not* consumed. |
 | `num_layers` | Number of layers (property). |
-| `calc_total_mass()` | Σ layer masses [kg]. |
-| `calc_internal_heating(time)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. |
+| `calc_total_mass()` | Σ layer masses [kg]; equals `planet_mass_eos` after a successful EOS solve. |
+| `calc_internal_heating(time)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. Uses each layer's `mass`, so solve the EOS first when the layers were built without one. |
 | `validate_layers()` | `True` if every boundary is continuous and the innermost starts at 0. |
 
 **Accessing layers.** A built world owns its layers, you can reach them with wrappers:
@@ -98,7 +98,7 @@ Binary class id: **201** (`BinaryClassID::LayeredWorld`). See [Binary serializat
 
 ### Equation of state
 
-Each layer carries a [material EOS model](../../material_x/material_eos.md) (its density source), attached with `BaseLayer.set_eos(model)`. Once every layer has one, `LayeredWorld.solve_eos(...)` integrates the planet's radial structure from center to surface and populates every layer's density/gravity/pressure profile.
+Each layer carries a [material EOS model](../../material_x/material_eos.md) (its density source), attached with `BaseLayer.set_eos(model)`. Once every layer has one, `LayeredWorld.solve_eos(...)` integrates the planet's radial structure from center to surface populates every layer's density/gravity/pressure profile, and sets each layer's `mass` (and so its `density_bulk`) to the mass the solved profile places between the layer's radii. Until then a layer's mass is whatever it was constructed with; the TOML builder uses 0.0 when a file gives none, which is the usual case.
 
 ```python
 from TidalPy.structures_x.worlds import LayeredWorld
@@ -355,7 +355,7 @@ The remaining public surface, grouped by what it is for.
 
 **Geometry.** `calc_surface_area(radius)`, `calc_volume_sphere(radius)`, and `calc_volume_shell(outer, inner)` are the shared spherical helpers every structure inherits.
 
-**Spin and orbit.** `set_spin_model(spin)` attaches a spin model; `get_moment_of_inertia()` returns the EOS-solved moment of inertia [kg m2] (or the uniform-sphere estimate before a solve); `calc_spin_derivative(host_mass)` gives the spin rate of change [rad s-2] from the current tidal solution; `calc_synchronous_spin(orbital_frequency)` returns the synchronous rate [rad s-1]. See [Dynamics](../../dynamics_x/dynamics.md).
+**Spin and orbit.** `set_spin_model(spin)` attaches a spin model; `get_moment_of_inertia()` returns the EOS-solved moment of inertia [kg m2] (or the spin model's `moment_of_inertia_factor * M R^2` estimate before a solve); `calc_spin_derivative(host_mass)` gives the spin rate of change [rad s-2] from the current tidal solution; `calc_synchronous_spin(orbital_frequency)` returns the synchronous rate [rad s-1]. See [Dynamics](../../dynamics_x/dynamics.md).
 
 **State.** `get_state()` returns the world's current scalar state as a dict, and `calc_state()` recomputes it. `get_state()` is the cheap read.
 

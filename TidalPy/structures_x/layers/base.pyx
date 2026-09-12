@@ -179,7 +179,11 @@ cdef class BaseLayer(StructureBase):
 
     @property
     def mass(self) -> float:
-        """Total layer mass [kg]."""
+        """Total layer mass [kg].
+
+        Set at construction, then overwritten by each successful world EOS solve with the mass the solved
+        density profile places between the layer's inner and outer radii.
+        """
         return self._layer_ptr.get().get_mass()
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -214,6 +218,11 @@ cdef class BaseLayer(StructureBase):
     def volume(self) -> float:
         """Layer volume [m^3] (spherical shell)."""
         return self._layer_ptr.get().get_volume()
+
+    @property
+    def density_bulk(self) -> float:
+        """Bulk density [kg/m^3] = mass / volume, NaN for a zero-volume layer; follows the EOS-set mass."""
+        return self._layer_ptr.get().get_density_bulk()
 
     @property
     def surface_area_inner(self) -> float:
