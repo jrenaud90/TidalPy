@@ -4,28 +4,24 @@
 
 ## Overview
 
-`SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behavior:
-phase-change tracking, Arrhenius viscosity, dynamic shear modulus, thermal
-transport, and optional sub-model hooks for radiogenic heating and
-convective/conductive cooling.
+`SolidLiquidLayer` extends `PhysicsLayer` with thermomechanical behavior: phase-change tracking, Arrhenius viscosity, dynamic shear modulus, thermal transport, and optional sub-model hooks for radiogenic heating and convective/conductive cooling.
 
 Key physics:
 
 - **Melt fraction** — power-law interpolation between solidus and liquidus:
-  φ = clamp((T − T_s) / (T_l − T_s), 0, 1)^n
+φ = clamp((T − T_s) / (T_l − T_s), 0, 1)^n
 
 - **Arrhenius viscosity** with pressure correction and partial-melt reduction:
-  η = η_ref · exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref)) · exp(−C · φ)
+η = η_ref · exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref)) · exp(−C · φ)
 
 - **Dynamic shear modulus** — G_eff = G_static · (1 − φ)
 
 - **Thermal transport** — constant-k conductivity; diffusivity κ = k/(ρ_ref·c_p);
-  adiabatic gradient α·T·g/c_p (requires EOS data for gravity).
+adiabatic gradient α·T·g/c_p (requires EOS data for gravity).
 
 - **Conductive heat flux** — F = k · (T_base − T_top) / h.
 
-The solidus/liquidus temperatures are constant: the melt curve carries no
-pressure dependence.
+The solidus/liquidus temperatures are constant: the melt curve carries no pressure dependence.
 
 All values are in **MKS units** (meters, kilograms, seconds, pascals, kelvin).
 
@@ -47,30 +43,33 @@ TidalPyBaseClass
 
 ```python
 SolidLiquidLayer(
-    name:                          str,
-    layer_index:                   int,
-    radius_inner:                float,
-    radius_outer:                float,
-    mass:                       float,
-    material_name:                 str   = "",
-    is_tidal:                      bool  = True,
-    tidal_scale:                   float = 1.0,
-    shear_modulus_static:       float = 0.0,
-    bulk_modulus_static:        float = 0.0,
-    viscosity_static_pas:          float = 0.0,
-    love_number_re:                float = 0.0,
-    love_number_im:                float = 0.0,
-    thermal_conductivity_ref: float = 4.0,
-    thermal_expansion_ref:     float = 3e-5,
-    heat_capacity_ref:       float = 1200.0,
-    activation_energy:       float = 300e3,
-    activation_volume:      float = 5e-6,
-    solidus_temperature:         float = 1600.0,
-    liquidus_temperature:        float = 2000.0,
-    melt_fraction_exponent:        float = 1.0,
-    reference_density:       float = 3500.0,
-    reference_temperature:       float = 1600.0,
-    melt_viscosity_reduction:      float = 25.0,
+    name:                     str,
+    layer_index:              int,
+    radius_inner:             float,
+    radius_outer:             float,
+    mass:                     float,
+    material_name:            str     = "",
+    is_tidal:                 bool    = True,
+    tidal_scale:              float   = 1.0,
+    shear_modulus_static:     float   = 0.0,
+    bulk_modulus_static:      float   = 0.0,
+    shear_viscosity_static:   float   = nan,
+    bulk_viscosity_static:    float   = nan,
+    love_number_k:            complex = 0+0j,
+    love_number_h:            complex = 0+0j,
+    love_number_l:            complex = 0+0j,
+    thermal_conductivity_ref: float   = 4.0,
+    thermal_expansion_ref:    float   = 3.0e-5,
+    heat_capacity_ref:        float   = 1200.0,
+    activation_energy:        float   = 300.0e3,
+    activation_volume:        float   = 5.0e-6,
+    solidus_temperature:      float   = 1600.0,
+    liquidus_temperature:     float   = 2000.0,
+    melt_fraction_exponent:   float   = 1.0,
+    reference_density:        float   = 3500.0,
+    reference_temperature:    float   = 1600.0,
+    melt_viscosity_reduction: float   = 25.0,
+    tidal_scale_method:       str     = "user_provided",
 )
 ```
 
@@ -88,9 +87,9 @@ SolidLiquidLayer(
 | `tidal_scale` | — | Dimensionless tidal heating scale. Default `1.0`. |
 | `shear_modulus_static` | Pa | Unrelaxed shear modulus. Default `0.0`. |
 | `bulk_modulus_static` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
-| `viscosity_static_pas` | Pa·s | Reference dynamic viscosity (at `reference_temperature`, P=0). Default `0.0`. |
-| `love_number_re` | — | Real part of complex Love number (placeholder). Default `0.0`. |
-| `love_number_im` | — | Imaginary part of complex Love number (placeholder). Default `0.0`. |
+| `shear_viscosity_static` | Pa·s | Reference shear viscosity (at `reference_temperature`, P=0). Default `nan`, meaning unset: attach a viscosity model instead, or a viscous rheology returns NaN. |
+| `bulk_viscosity_static` | Pa·s | Reference bulk viscosity. Default `nan`, as above. |
+| `love_number_k`, `love_number_h`, `love_number_l` | — | Per-layer complex Love numbers, if you want to carry them on the layer. Default `0+0j`. |
 | `thermal_conductivity_ref` | W/(m·K) | Reference thermal conductivity. Default `4.0`. |
 | `thermal_expansion_ref` | 1/K | Reference thermal expansion coefficient α. Default `3e-5`. |
 | `heat_capacity_ref` | J/(kg·K) | Reference specific heat capacity c_p. Default `1200.0`. |
@@ -109,15 +108,11 @@ SolidLiquidLayer(
 
 ### Inherited from PhysicsLayer
 
-See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`,
-`viscosity_static`, `love_number`, `shear_rheology_set`, `bulk_rheology_set`.
+See [PhysicsLayer](physics_layer.md): `shear_modulus_static`, `bulk_modulus_static`, `viscosity_static`, `love_number`, `shear_rheology_set`, `bulk_rheology_set`.
 
 ### Inherited from BaseLayer
 
-See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`,
-`radius_outer`, `thickness`, `mass`, `volume`, `surface_area_inner`,
-`surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`,
-`eos_data_populated`.
+See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
 
 ### Thermal / melt (read-only)
 
@@ -150,8 +145,7 @@ Volumetric melt fraction φ ∈ [0, 1]:
 φ = τ^n
 ```
 
-`pressure` is accepted for interface uniformity and is unused: the melt
-curve carries no pressure dependence.
+`pressure` is accepted for interface uniformity and is unused: the melt curve carries no pressure dependence.
 
 ```python
 phi = layer.calc_melt_fraction(3200.0)        # T = 3200 K, P = 0
@@ -166,8 +160,7 @@ Effective dynamic viscosity [Pa·s]:
           · exp(clamp(−C · φ, −100, 0))
 ```
 
-The Arrhenius exponent is clamped to [−100, 100] to prevent overflow.
-Returns `η_ref` when T = 0 K.
+The Arrhenius exponent is clamped to [−100, 100] to prevent overflow. Returns `η_ref` when T = 0 K.
 
 ```python
 eta = layer.calc_viscosity(3000.0, 1e11)      # T = 3000 K, P = 100 GPa
@@ -187,8 +180,7 @@ G = layer.calc_shear_modulus(3000.0)
 
 ### `calc_thermal_conductivity(temperature)` → float
 
-Returns the reference thermal conductivity k [W/(m·K)].
-Temperature dependence is not modeled.
+Returns the reference thermal conductivity k [W/(m·K)]. Temperature dependence is not modeled.
 
 ### `calc_thermal_diffusivity(temperature)` → float
 
@@ -198,15 +190,14 @@ Thermal diffusivity [m²/s] = k / (ρ_ref · c_p).
 
 Adiabatic temperature gradient [K/m] = α · T · g / c_p.
 
-Gravity g is read from the EOS profile at the outer radius. Returns `0.0`
-when EOS data has not been populated via `update_eos_data`.
+Gravity g is read from the EOS profile at the outer radius. Returns `0.0` when EOS data has not been populated via `update_eos_data`.
 
 ```python
 layer.update_eos_data(radii, densities, gravities, pressures)
 grad = layer.calc_adiabatic_temperature_gradient(3000.0)
 ```
 
-### `calc_heat_flux_conductive(temperature_base_k, temperature_top_k)` → float
+### `calc_heat_flux_conductive(temperature_base, temperature_top)` → float
 
 Conductive heat flux [W/m²]:
 
@@ -217,17 +208,13 @@ F = k · (T_base − T_top) / h
 where h is the layer thickness. Returns `0.0` for zero-thickness layers.
 
 ```python
-flux = layer.calc_heat_flux_conductive(T_base=3500.0, T_top=1500.0)
+flux = layer.calc_heat_flux_conductive(temperature_base=3500.0, temperature_top=1500.0)
 ```
 
 
 ### `set_cooling(cooling)` / `set_radiogenics(radiogenics)`
 
-Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model.
-Ownership of the underlying C++ model is **transferred** into the layer; the passed
-Python wrapper becomes an empty, non-owning shell and must not be reused (raises
-`ValueError` if re-attached). Shear/bulk rheology are attached via the inherited
-`set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)).
+Attach a cooling (`CoolingBase`) or radiogenics (`RadiogenicsBase`) sub-model. Ownership of the underlying C++ model is **transferred** into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (raises `ValueError` if re-attached). Shear/bulk rheology are attached via the inherited `set_shear_rheology` / `set_bulk_rheology` (see [PhysicsLayer](physics_layer.md)).
 
 ```python
 from TidalPy.cooling_x import make_cooling
@@ -239,25 +226,17 @@ layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
 
 ### `calc_radiogenic_heating(time, mass)` → float
 
-Radiogenic heating power [W] from the attached sub-model.
-Returns `0.0` when no radiogenics sub-model has been attached.
+Radiogenic heating power [W] from the attached sub-model. Returns `0.0` when no radiogenics sub-model has been attached.
 
 ### Inherited from PhysicsLayer / BaseLayer
 
-`calc_complex_shear_modulus`,
-`calc_complex_bulk_modulus`, `update_eos_data`, `get_density`, `get_gravity`,
-`get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`,
-`calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`,
-`save_binary`, `load_binary`, `save_config`, `get_config_dict`.
+`calc_complex_shear_modulus`, `calc_complex_bulk_modulus`, `update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
 ---
 
 ## `get_config_dict()` → dict
 
-Returns all configuration values as a Python dictionary (MKS). Includes all
-`BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables)
-plus the 11 SolidLiquidLayer parameters, and the `cooling` and `radiogenics` sub-tables when those
-models are attached.
+Returns all configuration values as a Python dictionary (MKS). Includes all `BaseLayer` + `PhysicsLayer` keys (with `class = "solidliquid"` and the attached model sub-tables) plus the 11 SolidLiquidLayer parameters, and the `cooling` and `radiogenics` sub-tables when those models are attached.
 
 | Key | Units | Description |
 |-----|-------|-------------|
@@ -283,19 +262,13 @@ models are attached.
 2. All `PhysicsLayer` mechanical fields (G, K, η, love number re+im).
 3. The 11 SolidLiquidLayer doubles in constructor order.
 4. An optional sub-model section: presence flags + recursive binary records for the
-   shear rheology, bulk rheology, cooling, and radiogenics models (in that order).
+shear rheology, bulk rheology, cooling, and radiogenics models (in that order).
 
-On load, every attached sub-model is reconstructed recursively via the
-rheology / cooling / radiogenics binary-dispatch factories, so a saved layer
-round-trips with all of its physics intact (verify with `shear_rheology_set`,
-`cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and
-`calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md)
-for the encoding.
+On load, every attached sub-model is reconstructed recursively via the rheology / cooling / radiogenics binary-dispatch factories, so a saved layer round-trips with all of its physics intact (verify with `shear_rheology_set`, `cooling_set`, `radiogenics_set`, `calc_complex_shear_modulus`, and `calc_radiogenic_heating`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
 Binary class ID: **102** (`BinaryClassID::SolidLiquidLayer`).
 
-**EOS profile data is NOT serialized** (repopulate it after loading by running the
-EOS handler).
+**EOS profile data is NOT serialized** (repopulate it after loading by running the EOS handler).
 
 ---
 
@@ -306,25 +279,25 @@ import math
 from TidalPy.structures_x.layers import SolidLiquidLayer
 
 mantle = SolidLiquidLayer(
-    name                          = "mantle",
-    layer_index                   = 1,
-    radius_inner                = 3.485e6,
-    radius_outer                = 6.371e6,
-    mass                       = 4.043e24,
-    material_name                 = "perovskite",
-    shear_modulus_static       = 1.67e11,
-    bulk_modulus_static        = 3.57e11,
-    viscosity_static_pas          = 1.0e21,
+    name                     = "mantle",
+    layer_index              = 1,
+    radius_inner             = 3.485e6,
+    radius_outer             = 6.371e6,
+    mass                     = 4.043e24,
+    material_name            = "perovskite",
+    shear_modulus_static     = 1.67e11,
+    bulk_modulus_static      = 3.57e11,
+    shear_viscosity_static   = 1.0e21,
     thermal_conductivity_ref = 4.5,
-    heat_capacity_ref       = 1200.0,
-    thermal_expansion_ref     = 2.0e-5,
-    activation_energy       = 300.0e3,
-    activation_volume      = 5.0e-6,
-    solidus_temperature         = 3000.0,
-    liquidus_temperature        = 4000.0,
-    reference_density       = 4000.0,
-    reference_temperature       = 3000.0,
-    melt_viscosity_reduction      = 25.0,
+    heat_capacity_ref        = 1200.0,
+    thermal_expansion_ref    = 2.0e-5,
+    activation_energy        = 300.0e3,
+    activation_volume        = 5.0e-6,
+    solidus_temperature      = 3000.0,
+    liquidus_temperature     = 4000.0,
+    reference_density        = 4000.0,
+    reference_temperature    = 3000.0,
+    melt_viscosity_reduction = 25.0,
 )
 
 T = 3200.0    # K — slightly above solidus
@@ -335,7 +308,7 @@ eta = mantle.calc_viscosity(T, P)
 G   = mantle.calc_shear_modulus(T, P)
 k   = mantle.calc_thermal_conductivity(T)
 kap = mantle.calc_thermal_diffusivity(T)
-F   = mantle.calc_heat_flux_conductive(T_base=3500.0, T_top=1500.0)
+F   = mantle.calc_heat_flux_conductive(temperature_base=3500.0, temperature_top=1500.0)
 
 print(f"Thickness:             {mantle.thickness / 1e3:.0f} km")
 print(f"Melt fraction:         {phi:.3f}")

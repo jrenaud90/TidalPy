@@ -4,19 +4,11 @@
 
 ## Overview
 
-`BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the
-inner and outer radii, total mass, and an optional material identifier for one
-spherically symmetric shell inside a planetary body.
+`BaseLayer` is the geometry-only base for all TidalPy layer types. It stores the inner and outer radii, total mass, and an optional material identifier for one spherically symmetric shell inside a planetary body.
 
-All spatial data is stored and returned in **MKS units** (meters, kilograms,
-seconds). Derived geometry (thickness, volume, surface areas) is computed at
-construction and accessible via read-only properties.
+All spatial data is stored and returned in **MKS units** (meters, kilograms, seconds). Derived geometry (thickness, volume, surface areas) is computed at construction and accessible via read-only properties.
 
-A **material EOS model** (the layer's density source) is attached with `set_eos`.
-An **EOS profile** (density, gravity, and pressure as a function of radius) is then
-populated by the world-level EOS solve
-([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly via
-`update_eos_data`. Until populated, all EOS getters return `NaN`.
+A **material EOS model** (the layer's density source) is attached with `set_eos`. An **EOS profile** (density, gravity, and pressure as a function of radius) is then populated by the world-level EOS solve ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)), or directly via `update_eos_data`. Until populated, all EOS getters return `NaN`.
 
 ---
 
@@ -28,9 +20,7 @@ TidalPyBaseClass
         └── BaseLayer
 ```
 
-`BaseLayer` inherits binary serialization (`save_binary`, `load_binary`) and TOML
-config saving (`save_config`, `get_config_dict`) from `TidalPyBaseClass` via
-`StructureBase`.
+`BaseLayer` inherits binary serialization (`save_binary`, `load_binary`) and TOML config saving (`save_config`, `get_config_dict`) from `TidalPyBaseClass` via `StructureBase`.
 
 ---
 
@@ -38,14 +28,15 @@ config saving (`save_config`, `get_config_dict`) from `TidalPyBaseClass` via
 
 ```python
 BaseLayer(
-    name:           str,
-    layer_index:    int,
-    radius_inner: float,
-    radius_outer: float,
-    mass:        float,
-    material_name:  str   = "",
-    is_tidal:       bool  = True,
-    tidal_scale:    float = 1.0,
+    name:               str,
+    layer_index:        int,
+    radius_inner:       float,
+    radius_outer:       float,
+    mass:               float,
+    material_name:      str   = "",
+    is_tidal:           bool  = True,
+    tidal_scale:        float = 1.0,
+    tidal_scale_method: str   = "user_provided",
 )
 ```
 
@@ -96,11 +87,7 @@ BaseLayer(
 
 ### `set_eos(model)`
 
-Attach a [material EOS model](../../material_x/material_eos.md) (the per-layer
-density source). Ownership of the C++ model transfers into the layer; the passed
-wrapper becomes an empty shell. The model is consumed by the world-level
-[`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet
-structure and populates this layer's EOS profile.
+Attach a [material EOS model](../../material_x/material_eos.md) (the per-layer density source). Ownership of the C++ model transfers into the layer; the passed wrapper becomes an empty shell. The model is consumed by the world-level [`solve_eos`](../worlds/worlds.md#equation-of-state), which integrates the planet structure and populates this layer's EOS profile.
 
 ```python
 from TidalPy.Material_x.eos import make_material_eos
@@ -116,8 +103,7 @@ Raises `ValueError` if the model has already been attached or moved.
 
 ### `update_eos_data(radius, density_kgm3, gravity_ms2, pressure)`
 
-Populate the EOS profile directly from sorted radius arrays (normally done for you
-by the world EOS solve; useful for tests or manual construction).
+Populate the EOS profile directly from sorted radius arrays (normally done for you by the world EOS solve; useful for tests or manual construction).
 
 ```python
 import numpy as np
@@ -132,7 +118,7 @@ layer.update_eos_data(r, rho, g, p)
 
 **Notes:**
 - In normal workflow this is called automatically by the world EOS solve
-  ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
+([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
 - All sequences must be the same length and `radius` must be sorted ascending.
 - Linear interpolation is used; values are clamped at the layer boundaries.
 
@@ -150,15 +136,20 @@ Pressure at `radius` [Pa]. Returns `NaN` if not populated.
 
 ### Viscoelastic profile getters → float or ndarray
 
-After the world EOS solve populates the layer, the radius-resolved viscoelastic state is
-readable through the same getter names the world exposes: `get_shear_modulus`,
-`get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their
-`get_premelt_*` counterparts (before the partial-melt step), and the shorthand bundles
-`get_static_viscoelastics(radius)` (the post-melt 4-tuple) and `get_state(radius)`
-(all profiles as a dict). All return `NaN` before the profile is populated.
+After the world EOS solve populates the layer, the radius-resolved viscoelastic state is readable through the same getter names the world exposes: `get_shear_modulus`, `get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their `get_premelt_*` counterparts (before the partial-melt step), and the shorthand bundles `get_static_viscoelastics(radius)` (the post-melt 4-tuple) and `get_state(radius)` (all profiles as a dict). All return `NaN` before the profile is populated.
 
-**Vectorization:** every profile getter on this page accepts a float or an `np.ndarray`
-of radii and returns a matching scalar or same-shape array (evaluated in a C loop):
+| Getter | Returns |
+|---|---|
+| `get_shear_modulus`, `get_bulk_modulus` | Static moduli [Pa] after melt weakening. |
+| `get_shear_viscosity`, `get_bulk_viscosity` | Viscosities [Pa s] after melt weakening. |
+| `get_premelt_shear_modulus`, `get_premelt_bulk_modulus` | The same moduli before the partial-melt step. |
+| `get_premelt_shear_viscosity`, `get_premelt_bulk_viscosity` | The same viscosities before the partial-melt step. |
+| `get_static_viscoelastics(radius)` | The post-melt four-tuple in one call. |
+| `get_state(radius)` | Every profile at that radius as a dict. |
+
+`viscoelastic_populated` says whether these are meaningful yet: it is `False` until the world's EOS solve fills the layer, and every getter returns NaN before then.
+
+**Vectorization:** every profile getter on this page accepts a float or an `np.ndarray` of radii and returns a matching scalar or same-shape array (evaluated in a C loop):
 
 ```python
 import numpy as np
@@ -189,8 +180,7 @@ restored = BaseLayer("placeholder", 0, 0.0, 1.0, 1.0)
 restored.load_binary("layer.tpyb")
 ```
 
-**Note:** EOS profile data is NOT included in the binary file. It must be
-repopulated after loading.
+**Note:** EOS profile data is NOT included in the binary file. It must be repopulated after loading.
 
 ### TOML config (inherited)
 
@@ -199,11 +189,7 @@ layer.save_config("layer.toml")
 cfg = layer.get_config_dict()  # → dict with all construction parameters
 ```
 
-The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`,
-`solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model
-is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner` belong
-to a standalone layer only; a world drops them when it nests the layer under its name
-(`LAYER_STANDALONE_CONFIG_KEYS`).
+The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`, `solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner` belong to a standalone layer only; a world drops them when it nests the layer under its name (`LAYER_STANDALONE_CONFIG_KEYS`).
 
 ```python
 layer.set_eos(ConstantDensityEOS(reference_density=4400.0))
@@ -212,14 +198,23 @@ layer.get_config_dict()["eos"]  # {'model': 'constant', 'reference_density_kg_m3
 
 ---
 
+### Tidal bookkeeping and identity
+
+| Member | Description |
+|---|---|
+| `get_tidal_heating()` | Tidal heating deposited in this layer [W], set by the world's tidal solve. |
+| `tidal_scale`, `tidal_scale_method` | The layer's share of the world's tidal heating, and how that share is chosen (`user_provided`, `volume_fraction`, `tidal_timescale`). Both are settable; see [Worlds](../worlds/worlds.md). |
+| `is_tidal` | Whether the layer takes any tidal heating at all. A non-tidal layer always gets zero. |
+| `get_schema_version_str()` | The schema version this class reads and writes, for configuration and binary compatibility. |
+
 ## Example
 
 ```python
 from TidalPy.structures_x.layers import BaseLayer
 
 mantle = BaseLayer(
-    name           = "mantle",
-    layer_index    = 1,
+    name        = "mantle",
+    layer_index = 1,
     radius_inner = 3.485e6,   # CMB radius [m]
     radius_outer = 6.371e6,   # Earth surface [m]
     mass        = 4.043e24,  # mantle mass [kg]
@@ -233,10 +228,10 @@ print(f"EOS populated: {mantle.eos_data_populated}")
 
 # After EOSHandler runs (or for testing):
 mantle.update_eos_data(
-    radius     = [3.485e6, 6.371e6],
+    radius       = [3.485e6, 6.371e6],
     density_kgm3 = [5560.0,  3300.0],
     gravity_ms2  = [10.68,    9.81],
-    pressure  = [1.36e11,  0.0],
+    pressure     = [1.36e11,  0.0],
 )
 print(f"EOS populated: {mantle.eos_data_populated}")
 # EOS populated: True

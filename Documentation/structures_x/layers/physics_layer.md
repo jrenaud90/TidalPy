@@ -4,14 +4,9 @@
 
 ## Overview
 
-`PhysicsLayer` extends `BaseLayer` with the static mechanical properties needed
-for tidal calculations: (shear/bulk) modulus and dynamic (shaer/bulk) viscosity.
+`PhysicsLayer` extends `BaseLayer` with the static mechanical properties needed for tidal calculations: (shear/bulk) modulus and dynamic (shaer/bulk) viscosity.
 
-When a rheology model (a `RheologyBase` subclass) is attached via the
-`set_shear_rheology` / `set_bulk_rheology` methods, `calc_complex_shear/bulk_modulus` returns
-the frequency-dependent complex modulus from the constitutive law. Until then
-(or when no rheology is set), the methods return the static modulus as a purely
-real complex number, equivalent to perfectly elastic behavior.
+When a rheology model (a `RheologyBase` subclass) is attached via the `set_shear_rheology` / `set_bulk_rheology` methods, `calc_complex_shear/bulk_modulus` returns the frequency-dependent complex modulus from the constitutive law. Until then (or when no rheology is set), the methods return the static modulus as a purely real complex number, equivalent to perfectly elastic behavior.
 
 All values are in **MKS units** (meters, kilograms, seconds, pascals).
 
@@ -32,21 +27,22 @@ TidalPyBaseClass
 
 ```python
 PhysicsLayer(
-    name:                       str,
-    layer_index:                int,
-    radius_inner:             float,
-    radius_outer:             float,
-    mass:                    float,
-    material_name:              str     = "",
-    is_tidal:                   bool    = True,
-    tidal_scale:                float   = 1.0,
-    shear_modulus_static:    float   = 0.0,
-    bulk_modulus_static:     float   = 0.0,
+    name:                   str,
+    layer_index:            int,
+    radius_inner:           float,
+    radius_outer:           float,
+    mass:                   float,
+    material_name:          str     = "",
+    is_tidal:               bool    = True,
+    tidal_scale:            float   = 1.0,
+    shear_modulus_static:   float   = 0.0,
+    bulk_modulus_static:    float   = 0.0,
     shear_viscosity_static: float   = nan,
     bulk_viscosity_static:  float   = nan,
-    love_number_k:              complex = 0+0j,
-    love_number_h:              complex = 0+0j,
-    love_number_l:              complex = 0+0j,
+    love_number_k:          complex = 0+0j,
+    love_number_h:          complex = 0+0j,
+    love_number_l:          complex = 0+0j,
+    tidal_scale_method:     str     = "user_provided",
 )
 ```
 
@@ -76,10 +72,7 @@ PhysicsLayer(
 
 ### Inherited from BaseLayer (read-only, MKS)
 
-See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`,
-`radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`,
-`surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`,
-`tidal_scale`, `eos_data_populated`.
+See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`, `radius`, `radius_inner`, `radius_outer`, `thickness`, `mass`, `volume`, `surface_area_inner`, `surface_area_outer`, `material_name`, `is_tidal`, `tidal_scale`, `eos_data_populated`.
 
 ### Mechanical (read-only, MKS)
 
@@ -93,8 +86,23 @@ See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`,
 | `love_number_k` | — | Potential Love number k. Returns `complex`. |
 | `love_number_h` | — | Radial displacement Love number h. Returns `complex`. |
 | `love_number_l` | — | Tangential displacement Love number l. Returns `complex`. |
-| `shear_rheology_set` | — | `True` after a shear rheology model is attached. |
-| `bulk_rheology_set` | — | `True` after a bulk rheology model is attached. |
+| `shear_rheology_set`, `bulk_rheology_set` | — | `True` after the corresponding rheology model is attached. |
+| `shear_viscosity_set`, `bulk_viscosity_set` | — | `True` after the corresponding viscosity model is attached. |
+| `partial_melt_set` | — | `True` after a partial-melt model is attached. |
+
+### Layer assumptions (read and write)
+
+These three flags decide which equations the radial solver uses inside this layer, and they are writable after construction.
+
+| Property | Meaning |
+|---|---|
+| `is_solid` | Solid rather than liquid. A liquid layer has no shear strength and contributes fewer independent solutions to the radial solve. |
+| `is_static` | The quasi-static assumption, dropping the inertial terms. See Beuthe (2015). |
+| `is_incompressible` | The incompressible assumption. |
+
+```python
+layer.is_incompressible = True    # e.g. to use the propagation-matrix method
+```
 
 ---
 
@@ -102,11 +110,7 @@ See [BaseLayer](base_layer.md) for the full list: `name`, `layer_index`,
 
 ### `set_shear_rheology(rheology)` / `set_bulk_rheology(rheology)`
 
-Attach a rheology model (a `RheologyBase` subclass such as `Maxwell()` or
-`make_rheology("andrade")`) used to compute the complex shear / bulk modulus.
-Ownership of the underlying C++ model is **transferred** into the layer; the
-passed Python wrapper becomes an empty, non-owning shell and must not be reused
-(attempting to attach it again raises `ValueError`).
+Attach a rheology model (a `RheologyBase` subclass such as `Maxwell()` or `make_rheology("andrade")`) used to compute the complex shear / bulk modulus. Ownership of the underlying C++ model is **transferred** into the layer; the passed Python wrapper becomes an empty, non-owning shell and must not be reused (attempting to attach it again raises `ValueError`).
 
 ```python
 from TidalPy.rheology_x import Maxwell, make_rheology
@@ -116,13 +120,9 @@ mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 
 ### `calc_complex_shear_modulus(frequency)` → complex
 
-Complex shear modulus [Pa] at the given tidal forcing frequency, from the
-layer-constant static properties.
+Complex shear modulus [Pa] at the given tidal forcing frequency, from the layer-constant static properties.
 
-When a shear rheology model is attached the result is the complex modulus μ*(ω)
-returned by that model (evaluated from the static shear modulus, shear viscosity,
-and frequency). Without a rheology model the return value is
-`shear_modulus_static + 0j`.
+When a shear rheology model is attached the result is the complex modulus μ*(ω) returned by that model (evaluated from the static shear modulus, shear viscosity, and frequency). Without a rheology model the return value is `shear_modulus_static + 0j`.
 
 ```python
 mu = mantle.calc_complex_shear_modulus(2.0 * math.pi / 86400.0)
@@ -131,11 +131,7 @@ print(f"Re(μ) = {mu.real:.3e} Pa,  Im(μ) = {mu.imag:.3e} Pa")
 
 ### `calc_complex_shear_modulus(radius, frequency)` → complex or ndarray
 
-Radius-resolved form: applies the shear rheology to the post-melt static modulus and
-viscosity stored at `radius` by the world EOS solve, exactly like the world-level
-[`LayeredWorld.calc_complex_shear_modulus`](../worlds/worlds.md). `radius` may be a
-float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex
-array). Returns `NaN` before the world EOS solve populates the layer.
+Radius-resolved form: applies the shear rheology to the post-melt static modulus and viscosity stored at `radius` by the world EOS solve, exactly like the world-level [`LayeredWorld.calc_complex_shear_modulus`](../worlds/worlds.md). `radius` may be a float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex array). Returns `NaN` before the world EOS solve populates the layer.
 
 ```python
 import numpy as np
@@ -145,43 +141,33 @@ mu_of_r = mantle.calc_complex_shear_modulus(radii, 2.0 * math.pi / 86400.0)
 
 ### `calc_complex_bulk_modulus(...)` → complex or ndarray
 
-Complex bulk modulus [Pa]; both the layer-constant `(frequency)` and the
-radius-resolved `(radius, frequency)` forms, with the same delegation
-logic as `calc_complex_shear_modulus`.
+Complex bulk modulus [Pa]; both the layer-constant `(frequency)` and the radius-resolved `(radius, frequency)` forms, with the same delegation logic as `calc_complex_shear_modulus`.
+
+### `set_shear_viscosity(model)` / `set_bulk_viscosity(model)`
+
+Attach a viscosity model from [`viscosity_x`](../../viscosity_x/viscosity_models.md). The model turns the layer's temperature and pressure into the viscosity the rheology then uses. A layer with a rheology but no viscosity model falls back to its static viscosity, which is NaN unless you supplied one at construction.
+
+### `set_partial_melt(model)`
+
+Attach a partial-melt model from [`partial_melt_x`](../../partial_melt_x/partial_melt_models.md). It weakens the modulus and the viscosity between the solidus and the liquidus; the unweakened values stay readable through the `get_premelt_*` getters.
 
 ### Inherited from BaseLayer
 
-`update_eos_data`, `get_density`, `get_gravity`, `get_pressure`,
-`calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`,
-`calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`,
-`save_binary`, `load_binary`, `save_config`, `get_config_dict`.
+`update_eos_data`, `get_density`, `get_gravity`, `get_pressure`, `calc_surface_area`, `calc_volume_sphere`, `calc_volume_shell`, `calc_surface_gravity`, `calc_mean_density`, `calc_escape_velocity`, `save_binary`, `load_binary`, `save_config`, `get_config_dict`.
 
-`get_config_dict()` adds the four static moduli and viscosities, the Love-number components, and one
-sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`,
-`partial_melt`), each keyed by `model` exactly as the world builder reads it.
+`get_config_dict()` adds the four static moduli and viscosities, the Love-number components, and one sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosity`, `bulk_viscosity`, `partial_melt`), each keyed by `model` exactly as the world builder reads it.
 
 ---
 
 ## Binary serialization
 
-`save_binary` / `load_binary` serialize all `BaseLayer` fields (see
-[BaseLayer](base_layer.md)) followed by ten doubles in order:
-`shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`,
-`bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im,
-`love_number_l` re+im (6 doubles total for the Love numbers).
+`save_binary` / `load_binary` serialize all `BaseLayer` fields (see [BaseLayer](base_layer.md)) followed by ten doubles in order: `shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`, `bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im, `love_number_l` re+im (6 doubles total for the Love numbers).
 
-Following the scalar payload, an optional sub-model section is written: a one-byte
-presence flag for the shear rheology and one for the bulk rheology, each followed
-(when set) by the rheology model's own binary record. On load, attached rheology
-models are reconstructed recursively via the rheology binary-dispatch factory, so a
-saved layer round-trips with its rheology intact (verify with `shear_rheology_set`
-/ `bulk_rheology_set` and `calc_complex_shear_modulus`). See
-[Binary serialization](../../utilities_x/binary_x.md) for the encoding.
+Following the scalar payload, an optional sub-model section is written: a one-byte presence flag for the shear rheology and one for the bulk rheology, each followed (when set) by the rheology model's own binary record. On load, attached rheology models are reconstructed recursively via the rheology binary-dispatch factory, so a saved layer round-trips with its rheology intact (verify with `shear_rheology_set` / `bulk_rheology_set` and `calc_complex_shear_modulus`). See [Binary serialization](../../utilities_x/binary_x.md) for the encoding.
 
 Binary class ID: **101** (`BinaryClassID::PhysicsLayer`).
 
-**EOS profile data is NOT serialized** (repopulate it after loading by running the
-EOS handler).
+**EOS profile data is NOT serialized** (repopulate it after loading by running the EOS handler).
 
 ---
 
@@ -192,16 +178,16 @@ import math
 from TidalPy.structures_x.layers import PhysicsLayer
 
 mantle = PhysicsLayer(
-    name                        = "mantle",
-    layer_index                 = 1,
-    radius_inner              = 3.485e6,
-    radius_outer              = 6.371e6,
-    mass                     = 4.043e24,
-    material_name               = "perovskite",
-    shear_modulus_static     = 1.67e11,
-    bulk_modulus_static      = 3.57e11,
-    shear_viscosity_static  = 1.0e21,
-    bulk_viscosity_static   = 2.0e21,
+    name                   = "mantle",
+    layer_index            = 1,
+    radius_inner           = 3.485e6,
+    radius_outer           = 6.371e6,
+    mass                   = 4.043e24,
+    material_name          = "perovskite",
+    shear_modulus_static   = 1.67e11,
+    bulk_modulus_static    = 3.57e11,
+    shear_viscosity_static = 1.0e21,
+    bulk_viscosity_static  = 2.0e21,
 )
 
 freq = 2.0 * math.pi / (1.77 * 86400.0)   # Io's orbital frequency [rad/s]

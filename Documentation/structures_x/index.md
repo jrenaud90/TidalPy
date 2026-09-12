@@ -1,8 +1,6 @@
 # Structures (`structures_x`)
 
-The world, layer, and system class hierarchy of the future TidalPy structure: worlds own layers and provide the
-whole-planet equation-of-state and Love number solves; the `System` class links worlds together for insolation and
-orbital/spin evolution.
+The world, layer, and system class hierarchy of the future TidalPy structure: worlds own layers and provide the whole-planet equation-of-state and Love number solves; the `System` class links worlds together for insolation and orbital/spin evolution.
 
 ```{toctree}
 :maxdepth: 1
