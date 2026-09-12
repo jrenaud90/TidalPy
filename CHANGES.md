@@ -14,7 +14,7 @@ announces this transition once per session via the new `TidalPy.exceptions.Tidal
 `FutureWarning` subclass, so it is visible by default and silenceable with a single `warnings.filterwarnings` call).
 
 #### The New C++ Backend (`_x` modules)
-A high-level summary only; the full API, design notes, and porting examples live in the documentation's
+A high-level summary only: the full API, design notes, and porting examples live in the documentation's
 "Future Structure" section, and every module has its own documentation page there.
 
 * New compiled foundations (`TidalPy.Utilities_x`): a C++ base-class hierarchy with schema-versioned binary save/load
@@ -82,7 +82,7 @@ A high-level summary only; the full API, design notes, and porting examples live
   integration error into the Love numbers). The factor is recorded on the returned solution
   (`surface_solve_amplification`) and a warning is logged when the resulting roundoff floor exceeds the requested
   `integration_rtol` (computed only when the solve runs with `warnings` enabled).
-* Numerical note - manual starting radii deep in the planet: starting the shooting integration essentially at the
+* Numerical note when manual starting radii deep in the planet: starting the shooting integration essentially at the
   center (e.g., `starting_radius=0.1` m on a 6000 km planet) at degree 3 with a dynamic incompressible layer leaves the
   surface solve so ill-conditioned that the solver can report success with a badly wrong Love number (this is inherent
   conditioning, present in all versions, not a regression). Prefer the automatic starting radius (`starting_radius=0`);
@@ -123,9 +123,7 @@ A high-level summary only; the full API, design notes, and porting examples live
 * Fixes incorrect license url in codemeta.json.
 
 #### Dependencies
-* Supported Python versions are 3.9 through 3.14, the same range as 0.7.5.
-* The new backend builds against CyRK's C++ API and relies on the `cyrk>=0.19.0, <0.20.0` pin introduced in
-  0.7.5; its implicit (stiff) integration methods need CyRK 0.18 or newer.
+* The new implicit (stiff) integration methods requires CyRK 0.18 or newer (pinned in TidalPy v0.7.5).
 * `pandas>=1.5` joins the `dev` extra; it drives the performance-benchmark trend views in
   `Benchmarks_x/Performance`.
 
