@@ -31,10 +31,10 @@ def test_load_prem_arrays_keys_and_shapes():
 
 def test_radius_converted_to_metres_and_ascending():
     arrays = prem.load_prem_arrays(_prem_path())
-    radius_m = arrays["radius_m"]
+    radius = arrays["radius_m"]
     # PREM surface is ~6.371e6 m.
-    assert radius_m[-1] == pytest.approx(6371.0e3)
-    assert np.all(np.diff(radius_m) >= 0.0)
+    assert radius[-1] == pytest.approx(6371.0e3)
+    assert np.all(np.diff(radius) >= 0.0)
 
 
 def test_derived_moduli_match_formulas():
@@ -52,9 +52,9 @@ def test_derived_moduli_match_formulas():
 
 def test_detect_four_layers_alternating():
     arrays = prem.load_prem_arrays(_prem_path())
-    radius_m = np.ascontiguousarray(arrays["radius_m"], dtype=np.float64)
+    radius = np.ascontiguousarray(arrays["radius_m"], dtype=np.float64)
     shear = np.ascontiguousarray(arrays["shear_modulus_pa"], dtype=np.float64)
-    layers = prem.detect_layer_boundaries(radius_m, shear)
+    layers = prem.detect_layer_boundaries(radius, shear)
     # PREM Earth: inner core (solid), outer core (liquid), mantle (solid), ocean (liquid).
     assert len(layers) == 4
     solidity = [is_solid for (_, _, is_solid) in layers]
@@ -62,9 +62,9 @@ def test_detect_four_layers_alternating():
     # Layers are non-degenerate (real radius span) and ordered inner-to-outer.
     prev_outer = -1.0
     for start, end, _ in layers:
-        assert radius_m[end] > radius_m[start]
-        assert radius_m[end] > prev_outer
-        prev_outer = radius_m[end]
+        assert radius[end] > radius[start]
+        assert radius[end] > prev_outer
+        prev_outer = radius[end]
 
 
 def test_no_data_file_handles_empty():

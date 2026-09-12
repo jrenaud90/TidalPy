@@ -55,7 +55,7 @@ not vary smoothly with radius mean the integration did not converge (see the rad
 
 ### Benchmark Data
 
-`load_benchmark_ys(name)` returns `{"y1": {"HG": (values, radius_m), ...}, ..., "y4": ...}` for the
+`load_benchmark_ys(name)` returns `{"y1": {"HG": (values, radius), ...}, ..., "y4": ...}` for the
 homogeneous (`HG`) and liquid-core (`LC`, `LC1`, `LC2`) Enceladus models digitized from Tobie, Mocquet &
 Sotin (2005, Icarus 177) and Roberts & Nimmo (2008, Icarus 194). The data files ship with the package
 (`Utilities_x/graphics_x/data/`). `Benchmarks_x/RadialSolver/Enceladus_Tobie_Roberts.ipynb` reproduces both

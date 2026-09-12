@@ -58,7 +58,7 @@ def test_terrestrial_rheology_love_e2e():
     assert world.eos_solved
 
     _configure_tide(world, "rheology", None)
-    world.solve_love_numbers(frequency_rad_s=1.0e-4)
+    world.solve_love_numbers(frequency=1.0e-4)
     assert world.love_solved
 
     k2 = world.love_number_k

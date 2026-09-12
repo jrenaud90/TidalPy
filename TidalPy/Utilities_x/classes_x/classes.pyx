@@ -134,9 +134,9 @@ cdef class StructureBase(TidalPyBaseClass):
 
     Parameters
     ----------
-    radius_m : float
+    radius : float
         Radius in meters (MKS).
-    mass_kg : float
+    mass : float
         Mass in kilograms (MKS).
     """
 
@@ -145,8 +145,8 @@ cdef class StructureBase(TidalPyBaseClass):
         # Subclasses override _ptr in their own __init__ after constructing a deeper object.
         self._ptr = &self._struct
 
-    def __init__(self, double radius_m, double mass_kg):
-        self._struct = c_StructureBase(radius_m, mass_kg)
+    def __init__(self, double radius, double mass):
+        self._struct = c_StructureBase(radius, mass)
 
     def __dealloc__(self):
         self._ptr = NULL
@@ -240,7 +240,7 @@ cdef class StructureBase(TidalPyBaseClass):
     # ------------------------------------------------------------------------------------------------------------------
 
     cpdef dict get_config_dict(self):
-        """Return configuration dict with radius_m and mass_kg [MKS]."""
+        """Return configuration dict with radius and mass [MKS]."""
         return {
             "radius_m": self._struct.get_radius(),
             "mass_kg":  self._struct.get_mass(),

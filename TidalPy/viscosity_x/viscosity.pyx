@@ -50,9 +50,9 @@ cdef class ViscosityBase(PhysicsBase):
         self._visc_ptr.reset()
         self._ptr = NULL
 
-    def calc_viscosity(self, double temperature_k, double pressure_pa=0.0) -> float:
+    def calc_viscosity(self, double temperature, double pressure=0.0) -> float:
         """Dynamic viscosity [Pa·s] at the given temperature [K] and pressure [Pa]."""
-        return self._visc_ptr.get().calc_viscosity(temperature_k, pressure_pa)
+        return self._visc_ptr.get().calc_viscosity(temperature, pressure)
 
 
 # =====================================================================================================================

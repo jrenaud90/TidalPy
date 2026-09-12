@@ -40,22 +40,22 @@ cdef class GasGiantWorld(LayeredWorld):
     def __init__(
             self,
             str    name,
-            double radius_m,
-            double mass_kg,
-            str    world_type           = "gasgiant",
-            double albedo               = 0.3,
-            double emissivity           = 1.0,
-            double obliquity_rad        = 0.0,
-            double spin_frequency_rad_s = 0.0):
+            double radius,
+            double mass,
+            str    world_type = "gasgiant",
+            double albedo     = 0.3,
+            double emissivity = 1.0,
+            double obliquity  = 0.0,
+            double spin_frequency = 0.0):
         cdef c_WorldConfig config
-        config.name                 = name.encode("utf-8")
-        config.world_type_str       = world_type.encode("utf-8")
-        config.radius_m             = radius_m
-        config.mass_kg              = mass_kg
-        config.albedo               = albedo
-        config.emissivity           = emissivity
-        config.obliquity_rad        = obliquity_rad
-        config.spin_frequency_rad_s = spin_frequency_rad_s
+        config.name           = name.encode("utf-8")
+        config.world_type_str = world_type.encode("utf-8")
+        config.radius     = radius
+        config.mass       = mass
+        config.albedo     = albedo
+        config.emissivity = emissivity
+        config.obliquity  = obliquity
+        config.spin_frequency = spin_frequency
         cdef c_GasGiantWorld* raw = new c_GasGiantWorld(config)
         self._world_ptr.reset(<c_BaseWorld*>raw)
         self._layered_ptr  = <c_LayeredWorld*>raw

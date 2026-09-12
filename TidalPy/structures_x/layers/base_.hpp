@@ -17,7 +17,7 @@
  *     name_len           (uint32_t, 4)
  *     name               (name_len bytes, UTF-8)
  *     layer_index        (int32_t, 4)
- *     radius_inner_m     (double, 8)
+ *     radius_inner     (double, 8)
  *     material_name_len  (uint32_t, 4)
  *     material_name      (material_name_len bytes, UTF-8)
  *     is_tidal           (uint8_t, 1)
@@ -104,13 +104,13 @@ inline const char* c_layer_class_name(uint32_t class_id) noexcept {
 // ---------------------------------------------------------------------------
 struct c_BaseLayerConfig {
     std::string        name;
-    int                layer_index        = 0;
-    double             radius_inner_m     = 0.0;   // [m]
-    double             radius_outer_m     = 0.0;   // [m]
-    double             mass_kg            = 0.0;   // [kg]
-    std::string        material_name      = "Unknown";
-    bool               is_tidal           = true;
-    double             tidal_scale        = 1.0;   // dimensionless
+    int                layer_index  = 0;
+    double             radius_inner = 0.0;   // [m]
+    double             radius_outer = 0.0;   // [m]
+    double             mass         = 0.0;   // [kg]
+    std::string        material_name = "Unknown";
+    bool               is_tidal    = true;
+    double             tidal_scale = 1.0;   // dimensionless
     c_TidalScaleMethod tidal_scale_method = c_TidalScaleMethod::user_provided;
 };
 
@@ -125,10 +125,10 @@ public:
     c_BaseLayer() = default;
 
     explicit c_BaseLayer(const c_BaseLayerConfig& cfg)
-        : c_StructureBase(cfg.radius_outer_m, cfg.mass_kg),
+        : c_StructureBase(cfg.radius_outer, cfg.mass),
           p_name(cfg.name),
           p_layer_index(cfg.layer_index),
-          p_radius_inner(cfg.radius_inner_m),
+          p_radius_inner(cfg.radius_inner),
           p_material_name(cfg.material_name),
           p_is_tidal(cfg.is_tidal),
           p_tidal_scale(cfg.tidal_scale),
@@ -198,15 +198,15 @@ public:
     // NaN until a tidal solve has run.
     // -----------------------------------------------------------------------
     double get_tidal_heating()                   const noexcept { return this->p_tidal_heating; }
-    void   set_tidal_heating(double heating_w)   noexcept { this->p_tidal_heating = heating_w; }
+    void   set_tidal_heating(double heating)   noexcept { this->p_tidal_heating = heating; }
 
     // -----------------------------------------------------------------------
     // EOS profile (mutable; populated by the world's EOS solve)
     // -----------------------------------------------------------------------
     bool   get_eos_data_populated()             const noexcept { return this->p_eos_data.is_populated(); }
-    double get_density(double radius_m)         const noexcept { return this->p_eos_data.get_density(radius_m); }
-    double get_gravity(double radius_m)         const noexcept { return this->p_eos_data.get_gravity(radius_m); }
-    double get_pressure(double radius_m)        const noexcept { return this->p_eos_data.get_pressure(radius_m); }
+    double get_density(double radius)         const noexcept { return this->p_eos_data.get_density(radius); }
+    double get_gravity(double radius)         const noexcept { return this->p_eos_data.get_gravity(radius); }
+    double get_pressure(double radius)        const noexcept { return this->p_eos_data.get_pressure(radius); }
     void   update_eos_data(const c_LayerEOSData& data) { this->p_eos_data = data; }
 
     // -----------------------------------------------------------------------
@@ -215,36 +215,36 @@ public:
     // its subclasses); NaN on a geometry-only BaseLayer or before the solve.
     // -----------------------------------------------------------------------
     bool   get_viscoelastic_populated()         const noexcept { return this->p_eos_data.is_viscoelastic_populated(); }
-    double get_shear_modulus(double radius_m)   const noexcept { return this->p_eos_data.get_shear_modulus(radius_m); }
-    double get_bulk_modulus(double radius_m)    const noexcept { return this->p_eos_data.get_bulk_modulus(radius_m); }
-    double get_shear_viscosity(double radius_m) const noexcept { return this->p_eos_data.get_shear_viscosity(radius_m); }
-    double get_bulk_viscosity(double radius_m)  const noexcept { return this->p_eos_data.get_bulk_viscosity(radius_m); }
-    double get_premelt_shear_modulus(double radius_m)   const noexcept {
-        return this->p_eos_data.get_premelt_shear_modulus(radius_m);
+    double get_shear_modulus(double radius)   const noexcept { return this->p_eos_data.get_shear_modulus(radius); }
+    double get_bulk_modulus(double radius)    const noexcept { return this->p_eos_data.get_bulk_modulus(radius); }
+    double get_shear_viscosity(double radius) const noexcept { return this->p_eos_data.get_shear_viscosity(radius); }
+    double get_bulk_viscosity(double radius)  const noexcept { return this->p_eos_data.get_bulk_viscosity(radius); }
+    double get_premelt_shear_modulus(double radius)   const noexcept {
+        return this->p_eos_data.get_premelt_shear_modulus(radius);
     }
-    double get_premelt_bulk_modulus(double radius_m)    const noexcept {
-        return this->p_eos_data.get_premelt_bulk_modulus(radius_m);
+    double get_premelt_bulk_modulus(double radius)    const noexcept {
+        return this->p_eos_data.get_premelt_bulk_modulus(radius);
     }
-    double get_premelt_shear_viscosity(double radius_m) const noexcept {
-        return this->p_eos_data.get_premelt_shear_viscosity(radius_m);
+    double get_premelt_shear_viscosity(double radius) const noexcept {
+        return this->p_eos_data.get_premelt_shear_viscosity(radius);
     }
-    double get_premelt_bulk_viscosity(double radius_m)  const noexcept {
-        return this->p_eos_data.get_premelt_bulk_viscosity(radius_m);
+    double get_premelt_bulk_viscosity(double radius)  const noexcept {
+        return this->p_eos_data.get_premelt_bulk_viscosity(radius);
     }
 
     // Store the pre/post-melt viscoelastic profiles (called by the world solve).
     void update_viscoelastic_data(
-            const std::vector<double>& premelt_shear_pa,
-            const std::vector<double>& premelt_bulk_pa,
-            const std::vector<double>& premelt_shear_visc_pas,
-            const std::vector<double>& premelt_bulk_visc_pas,
-            const std::vector<double>& postmelt_shear_pa,
-            const std::vector<double>& postmelt_bulk_pa,
-            const std::vector<double>& postmelt_shear_visc_pas,
-            const std::vector<double>& postmelt_bulk_visc_pas) {
+            const std::vector<double>& premelt_shear,
+            const std::vector<double>& premelt_bulk,
+            const std::vector<double>& premelt_shear_visc,
+            const std::vector<double>& premelt_bulk_visc,
+            const std::vector<double>& postmelt_shear,
+            const std::vector<double>& postmelt_bulk,
+            const std::vector<double>& postmelt_shear_visc,
+            const std::vector<double>& postmelt_bulk_visc) {
         this->p_eos_data.populate_viscoelastic(
-            premelt_shear_pa, premelt_bulk_pa, premelt_shear_visc_pas, premelt_bulk_visc_pas,
-            postmelt_shear_pa, postmelt_bulk_pa, postmelt_shear_visc_pas, postmelt_bulk_visc_pas);
+            premelt_shear, premelt_bulk, premelt_shear_visc, premelt_bulk_visc,
+            postmelt_shear, postmelt_bulk, postmelt_shear_visc, postmelt_bulk_visc);
     }
 
     // -----------------------------------------------------------------------
@@ -281,7 +281,7 @@ public:
             sizeof(double)   * 2 +           // p_radius, p_mass
             sizeof(uint32_t) + name_len +    // name length + bytes
             sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner_m
+            sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale

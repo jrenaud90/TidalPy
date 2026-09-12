@@ -31,8 +31,8 @@ def _world(solve=False):
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR, bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     world.add_layer(layer)
     if solve:

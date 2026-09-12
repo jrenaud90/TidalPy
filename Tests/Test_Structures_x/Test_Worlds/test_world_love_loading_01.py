@@ -32,9 +32,9 @@ def _maxwell_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("loading_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -48,7 +48,7 @@ def test_loading_matches_standalone_solver():
     """World-level load Love numbers agree with the standalone solver on the same structure."""
     world = _maxwell_world()
     layer = world.mantle
-    result = world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='loading', verbose=False)
+    result = world.solve_love_numbers(frequency=_FREQ, solve_for='loading', verbose=False)
     assert result["success"] is True
 
     # The world's Love solve uses the radius-resolved moduli populated by the EOS solve, so query the
@@ -73,8 +73,8 @@ def test_loading_matches_standalone_solver():
 def test_loading_differs_from_tidal():
     """Load Love numbers are a different quantity from tidal Love numbers (k' is negative)."""
     world = _maxwell_world()
-    tidal = world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='tidal', verbose=False)
-    loading = world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='loading', verbose=False)
+    tidal = world.solve_love_numbers(frequency=_FREQ, solve_for='tidal', verbose=False)
+    loading = world.solve_love_numbers(frequency=_FREQ, solve_for='loading', verbose=False)
     assert tidal["success"] and loading["success"]
     assert tidal["love_number_k"].real > 0.0
     assert loading["love_number_k"].real < 0.0
@@ -83,21 +83,21 @@ def test_loading_differs_from_tidal():
 
 def test_free_surface_runs():
     world = _maxwell_world()
-    result = world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='free', verbose=False)
+    result = world.solve_love_numbers(frequency=_FREQ, solve_for='free', verbose=False)
     assert result["success"] is True
 
 
 def test_supplied_path_accepts_solve_for():
     """The supplied-moduli path takes the same solve_for names and matches the rheology path."""
     world = _maxwell_world()
-    reference = world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='loading', verbose=False)
+    reference = world.solve_love_numbers(frequency=_FREQ, solve_for='loading', verbose=False)
 
     eos = world.solve_eos(G_to_use=G, verbose=False)
     radius = np.ascontiguousarray(eos["radius"], dtype=np.float64)
     shear = np.ascontiguousarray(world.calc_complex_shear_modulus(radius, _FREQ), dtype=np.complex128)
     bulk = np.ascontiguousarray(world.calc_complex_bulk_modulus(radius, _FREQ), dtype=np.complex128)
     supplied = world.solve_love_numbers_supplied(
-        shear, bulk, radius, frequency_rad_s=_FREQ, solve_for='loading')
+        shear, bulk, radius, frequency=_FREQ, solve_for='loading')
     assert supplied["success"] is True
     assert cmath.isclose(supplied["love_number_k"], reference["love_number_k"],
                          rel_tol=1e-6, abs_tol=1e-9)
@@ -106,4 +106,4 @@ def test_supplied_path_accepts_solve_for():
 def test_unknown_solve_for_raises():
     world = _maxwell_world()
     with pytest.raises(ValueError, match="solve_for"):
-        world.solve_love_numbers(frequency_rad_s=_FREQ, solve_for='pressure', verbose=False)
+        world.solve_love_numbers(frequency=_FREQ, solve_for='pressure', verbose=False)

@@ -44,9 +44,9 @@ def _solid_world(with_rheology: bool = True):
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("solid_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
     if with_rheology:
@@ -72,16 +72,16 @@ def _two_layer_solid_world():
     world = LayeredWorld("two_layer", _PLANET_RADIUS, mass)
 
     core = PhysicsLayer("core", 0, 0.0, r_core, 0.0,
-                        shear_modulus_static_pa=mu_c,
-                        bulk_modulus_static_pa=K_c)
-    core.set_eos(ConstantDensityEOS(reference_density_kg_m3=rho_c))
+                        shear_modulus_static=mu_c,
+                        bulk_modulus_static=K_c)
+    core.set_eos(ConstantDensityEOS(reference_density=rho_c))
     core.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e21}))
     core.set_shear_rheology(Maxwell())
 
     mantle = PhysicsLayer("mantle", 1, r_core, _PLANET_RADIUS, 0.0,
-                          shear_modulus_static_pa=mu_m,
-                          bulk_modulus_static_pa=K_m)
-    mantle.set_eos(ConstantDensityEOS(reference_density_kg_m3=rho_m))
+                          shear_modulus_static=mu_m,
+                          bulk_modulus_static=K_m)
+    mantle.set_eos(ConstantDensityEOS(reference_density=rho_m))
     mantle.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     mantle.set_shear_rheology(Maxwell())
 
@@ -101,7 +101,7 @@ def test_love_unsolved_before_any_solve():
 def test_solve_love_requires_eos_first():
     world = _solid_world()
     with pytest.raises((ValueError, RuntimeError)):
-        world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+        world.solve_love_numbers(frequency=_FREQ, verbose=False)
 
 
 # =====================================================================================================================
@@ -110,7 +110,7 @@ def test_solve_love_requires_eos_first():
 def test_single_solid_layer_love_succeeds():
     world = _solid_world()
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     assert world.love_solved is True
 
 
@@ -118,7 +118,7 @@ def test_love_k2_is_reasonable():
     """k2 real part for a uniform solid sphere must be in (0, 1.5)."""
     world = _solid_world()
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     k2 = world.love_number_k
     assert not cmath.isnan(k2)
     assert 0.0 < k2.real < 1.5
@@ -128,7 +128,7 @@ def test_love_h2_is_reasonable():
     """h2 real part for a uniform solid sphere must be in (0, 2.5)."""
     world = _solid_world()
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     h2 = world.love_number_h
     assert not cmath.isnan(h2)
     assert 0.0 < h2.real < 2.5
@@ -138,7 +138,7 @@ def test_love_l2_is_nonnegative():
     """l2 (Shida number) real part for a solid sphere must be non-negative."""
     world = _solid_world()
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     l2 = world.love_number_l
     assert not cmath.isnan(l2)
     assert l2.real >= 0.0
@@ -148,7 +148,7 @@ def test_love_elastic_limit_small_imag():
     """At high viscosity (elastic limit) |Im(k2)| must be much smaller than |Re(k2)|."""
     world = _solid_world(with_rheology=True)
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     k2 = world.love_number_k
     # eta = 1e21, mu = 6e10 => tau = 1.67e10 s, omega*tau ~ 1.67e5 >> 1 => elastic
     assert abs(k2.imag) < 0.1 * abs(k2.real)
@@ -160,7 +160,7 @@ def test_love_elastic_limit_small_imag():
 def test_two_layer_solid_love_succeeds():
     world = _two_layer_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     assert world.love_solved is True
 
 
@@ -168,7 +168,7 @@ def test_two_layer_love_k2_positive_real():
     """k2 real part must be positive for a two-layer solid planet."""
     world = _two_layer_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     k2 = world.love_number_k
     assert not cmath.isnan(k2)
     assert k2.real > 0.0
@@ -178,6 +178,6 @@ def test_two_layer_love_k2_less_than_fluid_limit():
     """k2 for any solid body must be below the fluid limit 1.5."""
     world = _two_layer_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     k2 = world.love_number_k
     assert k2.real < 1.5

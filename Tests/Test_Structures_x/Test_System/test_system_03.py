@@ -134,9 +134,9 @@ def _dissipating_moon():
     """A homogeneous Maxwell moon with tide + spin models attached and its EOS solved."""
     moon = LayeredWorld("moon", _EVO_RADIUS, _EVO_MOON_MASS)
     layer = PhysicsLayer("mantle", 0, 0.0, _EVO_RADIUS, _EVO_MOON_MASS,
-                         shear_modulus_static_pa=5.0e10, bulk_modulus_static_pa=1.0e11)
+                         shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_EVO_DENSITY))
+    layer.set_eos(ConstantDensityEOS(reference_density=_EVO_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _EVO_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _EVO_VISC}))
     layer.set_shear_rheology(Maxwell())
@@ -174,7 +174,7 @@ def test_loaded_system_orbital_evolution_matches(tmp_path):
     # The orbital elements survive the round trip; the material EOS model, tide/spin models, and
     # the EOS profile are reattached / re-solved per the documented reattach-after-load rule.
     moon = loaded["moon"]
-    moon.mantle.set_eos(ConstantDensityEOS(reference_density_kg_m3=_EVO_DENSITY))
+    moon.mantle.set_eos(ConstantDensityEOS(reference_density=_EVO_DENSITY))
     moon.set_tide_model(make_tide("rheology"))
     moon.set_tide_config(min_degree_l=2, max_degree_l=2,
                          eccentricity_truncation=3, obliquity_truncation=0)

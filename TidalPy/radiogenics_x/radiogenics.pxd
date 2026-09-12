@@ -27,18 +27,18 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 cdef extern from "radiogenics_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_RadiogenicsBase(c_PhysicsBase):
-        double calc_heating(double time_s, double mass_kg) const
+        double calc_heating(double time, double mass) const
         void calc_heating_vectorize_time(
-            const vector[double]& time_s,
-            double mass_kg,
+            const vector[double]& time,
+            double mass,
             vector[double]& out_heating) except +
         void calc_heating_vectorize_mass(
-            double time_s,
-            const vector[double]& mass_kg,
+            double time,
+            const vector[double]& mass,
             vector[double]& out_heating) except +
         void calc_heating_vectorize_all(
-            const vector[double]& time_s,
-            const vector[double]& mass_kg,
+            const vector[double]& time,
+            const vector[double]& mass,
             vector[double]& out_heating) except +
 
 
@@ -47,26 +47,26 @@ cdef extern from "radiogenics_.hpp" namespace "tidalpy" nogil:
     # A single radioactive isotope (value type; no base class).
     cdef cppclass c_Isotope:
         c_Isotope() except +
-        c_Isotope(string name, double hpr_w_kg, double half_life_s,
+        c_Isotope(string name, double hpr, double half_life,
                   double mass_frac, double concentration) except +
         string name
-        double heat_production_w_kg
-        double half_life_s
+        double heat_production
+        double half_life
         double mass_frac
         double concentration
         double decay_constant() const
-        double specific_heating(double time_s, double ref_time_s) const
+        double specific_heating(double time, double ref_time) const
 
     # A named, literature-sourced set of isotopes plus its reference time.
     cdef cppclass c_IsotopeDataset:
         vector[c_Isotope] isotopes
-        double ref_time_s
+        double ref_time
 
     cdef cppclass c_RadiogenicsConfig:
         vector[c_Isotope] isotopes
-        double fixed_heat_production_w_kg
-        double average_half_life_s
-        double ref_time_s
+        double fixed_heat_production
+        double average_half_life
+        double ref_time
 
     # Built-in isotope dataset catalog (raises ValueError on unknown name).
     c_IsotopeDataset c_get_isotope_dataset(const string& name) except +

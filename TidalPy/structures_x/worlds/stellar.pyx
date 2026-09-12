@@ -37,18 +37,18 @@ cdef class StarWorld(BaseWorld):
     ----------
     name : str
         Star name.
-    radius_m : float
+    radius : float
         Stellar radius [m].
-    mass_kg : float
+    mass : float
         Stellar mass [kg].
-    effective_temperature_k : float, optional
+    effective_temperature : float, optional
         Effective temperature [K]. Default ``5772.0`` (solar).
-    luminosity_w : float, optional
+    luminosity : float, optional
         Luminosity [W]. Default ``0.0`` => derived from the effective
         temperature via the Stefan-Boltzmann law.
     world_type : str, optional
         Type label. Default ``"star"``.
-    albedo, emissivity, obliquity_rad, spin_frequency_rad_s : float, optional
+    albedo, emissivity, obliquity, spin_frequency : float, optional
         See :class:`BaseWorld`.
     """
 
@@ -58,26 +58,26 @@ cdef class StarWorld(BaseWorld):
     def __init__(
             self,
             str    name,
-            double radius_m,
-            double mass_kg,
-            double effective_temperature_k = 5772.0,
-            double luminosity_w            = 0.0,
-            str    world_type              = "star",
-            double albedo                  = 0.0,
-            double emissivity              = 1.0,
-            double obliquity_rad           = 0.0,
-            double spin_frequency_rad_s    = 0.0):
+            double radius,
+            double mass,
+            double effective_temperature = 5772.0,
+            double luminosity = 0.0,
+            str    world_type = "star",
+            double albedo     = 0.0,
+            double emissivity = 1.0,
+            double obliquity  = 0.0,
+            double spin_frequency = 0.0):
         cdef c_StarConfig config
-        config.name                    = name.encode("utf-8")
-        config.world_type_str          = world_type.encode("utf-8")
-        config.radius_m                = radius_m
-        config.mass_kg                 = mass_kg
-        config.albedo                  = albedo
-        config.emissivity              = emissivity
-        config.obliquity_rad           = obliquity_rad
-        config.spin_frequency_rad_s    = spin_frequency_rad_s
-        config.effective_temperature_k = effective_temperature_k
-        config.luminosity_w            = luminosity_w
+        config.name           = name.encode("utf-8")
+        config.world_type_str = world_type.encode("utf-8")
+        config.radius     = radius
+        config.mass       = mass
+        config.albedo     = albedo
+        config.emissivity = emissivity
+        config.obliquity  = obliquity
+        config.spin_frequency = spin_frequency
+        config.effective_temperature = effective_temperature
+        config.luminosity            = luminosity
         cdef c_StarWorld* raw = new c_StarWorld(config)
         self._world_ptr.reset(<c_BaseWorld*>raw)
         self._star_ptr = raw
@@ -111,24 +111,24 @@ cdef class StarWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_luminosity_from_temperature(self, double temperature_k) -> float:
+    def calc_luminosity_from_temperature(self, double temperature) -> float:
         """Stefan-Boltzmann luminosity [W] = 4·pi·R²·sigma·T⁴."""
-        return self._star_ptr.calc_luminosity_from_temperature(temperature_k)
+        return self._star_ptr.calc_luminosity_from_temperature(temperature)
 
-    def calc_temperature_from_luminosity(self, double luminosity_w) -> float:
+    def calc_temperature_from_luminosity(self, double luminosity) -> float:
         """Effective temperature [K] from luminosity via Stefan-Boltzmann."""
-        return self._star_ptr.calc_temperature_from_luminosity(luminosity_w)
+        return self._star_ptr.calc_temperature_from_luminosity(luminosity)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Mutators (keep T and L consistent)
     # ------------------------------------------------------------------------------------------------------------------
-    def set_effective_temperature(self, double temperature_k):
+    def set_effective_temperature(self, double temperature):
         """Set effective temperature [K]; recomputes luminosity."""
-        self._star_ptr.set_effective_temperature(temperature_k)
+        self._star_ptr.set_effective_temperature(temperature)
 
-    def set_luminosity(self, double luminosity_w):
+    def set_luminosity(self, double luminosity):
         """Set luminosity [W]; recomputes effective temperature."""
-        self._star_ptr.set_luminosity(luminosity_w)
+        self._star_ptr.set_luminosity(luminosity)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Luminosity model (mass -> luminosity, using the star's own mass and radius)
@@ -183,8 +183,8 @@ cdef class StarWorld(BaseWorld):
         Returns
         -------
         dict
-            All :class:`BaseWorld` keys plus ``effective_temperature_k`` and
-            ``luminosity_w``.
+            All :class:`BaseWorld` keys plus ``effective_temperature`` and
+            ``luminosity``.
         """
         d = BaseWorld.get_config_dict(self)
         d["effective_temperature_k"] = self._star_ptr.get_effective_temperature()

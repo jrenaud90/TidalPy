@@ -10,7 +10,7 @@ Exposes the three luminosity models:
 - ``MassToLuminosity``   (aliases ``"cuntz_wang"``/``"cw"``) - piecewise main-sequence L(M) relation.
 - ``PowerLawLuminosity`` (alias ``"power_law"``)             - single power law L = Lsun*coeff*(M/Msun)^p.
 
-Each model computes a star's luminosity [W] from its mass via ``calc_luminosity(mass_kg)`` and shares
+Each model computes a star's luminosity [W] from its mass via ``calc_luminosity(mass)`` and shares
 the Stefan-Boltzmann effective-temperature conversions (``calc_luminosity_from_temperature`` /
 ``calc_temperature_from_luminosity``). All quantities are MKS: mass [kg], radius [m], temperature [K],
 luminosity [W].
@@ -109,12 +109,12 @@ cdef class LuminosityBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_luminosity(self, mass_kg):
+    def calc_luminosity(self, mass):
         """Stellar luminosity [W] from mass.
 
         Parameters
         ----------
-        mass_kg : float or numpy.ndarray
+        mass : float or numpy.ndarray
             Stellar mass [kg].
 
         Returns
@@ -128,28 +128,28 @@ cdef class LuminosityBase(PhysicsBase):
         - All inputs and outputs are MKS.
         """
         self._check_ptr()
-        return _solve_luminosity(self._luminosity_ptr.get(), mass_kg)
+        return _solve_luminosity(self._luminosity_ptr.get(), mass)
 
-    def calc_luminosity_from_temperature(self, double temperature_k, double radius_m) -> float:
+    def calc_luminosity_from_temperature(self, double temperature, double radius) -> float:
         """Stefan-Boltzmann luminosity [W] = 4*pi*R^2*sigma*T^4.
 
         Returns NaN for a non-positive temperature/radius.
         """
         self._check_ptr()
-        return self._luminosity_ptr.get().calc_luminosity_from_temperature(temperature_k, radius_m)
+        return self._luminosity_ptr.get().calc_luminosity_from_temperature(temperature, radius)
 
-    def calc_temperature_from_luminosity(self, double luminosity_w, double radius_m) -> float:
+    def calc_temperature_from_luminosity(self, double luminosity, double radius) -> float:
         """Effective temperature [K] from luminosity via Stefan-Boltzmann.
 
         ``T = (L / (4*pi*R^2*sigma))^(1/4)``. Returns NaN for a non-positive luminosity/radius.
         """
         self._check_ptr()
-        return self._luminosity_ptr.get().calc_temperature_from_luminosity(luminosity_w, radius_m)
+        return self._luminosity_ptr.get().calc_temperature_from_luminosity(luminosity, radius)
 
-    def calc_effective_temperature(self, double mass_kg, double radius_m) -> float:
+    def calc_effective_temperature(self, double mass, double radius) -> float:
         """Effective temperature [K] derived from the stellar mass (mass -> L -> T)."""
         self._check_ptr()
-        return self._luminosity_ptr.get().calc_effective_temperature(mass_kg, radius_m)
+        return self._luminosity_ptr.get().calc_effective_temperature(mass, radius)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config
@@ -164,16 +164,16 @@ cdef class FixedLuminosity(LuminosityBase):
 
     Parameters
     ----------
-    luminosity_w : float, optional
+    luminosity : float, optional
         The luminosity [W] to report regardless of mass. Default ``0.0``.
     """
 
     def __cinit__(self, *args, **kwargs):
         self._fixed_ptr = NULL
 
-    def __init__(self, double luminosity_w=0.0):
+    def __init__(self, double luminosity=0.0):
         cdef c_LuminosityConfig config
-        config.luminosity_w = luminosity_w
+        config.luminosity = luminosity
         cdef c_FixedLuminosity* raw = new c_FixedLuminosity(config)
         self._luminosity_ptr.reset(<c_LuminosityBase*>raw)
         self._fixed_ptr = raw
@@ -264,7 +264,7 @@ def make_luminosity(str model_name, dict config=None):
         Model name or alias. Recognized names: ``fixed`` (``constant``), ``mass_to_luminosity``
         (``cuntz_wang``, ``cw``), ``power_law`` (``powerlaw``).
     config : dict, optional
-        Model parameters. For ``fixed``: ``luminosity_w``. For ``power_law``: ``power_law_coeff``,
+        Model parameters. For ``fixed``: ``luminosity``. For ``power_law``: ``power_law_coeff``,
         ``power_law_exponent``. ``mass_to_luminosity`` takes no parameters.
 
     Returns
@@ -281,8 +281,8 @@ def make_luminosity(str model_name, dict config=None):
         config = {}
 
     cdef c_LuminosityConfig cfg
-    cfg.luminosity_w       = config.get("luminosity_w", 0.0)
-    cfg.power_law_coeff    = config.get("power_law_coeff", 1.0)
+    cfg.luminosity      = config.get("luminosity_w", 0.0)
+    cfg.power_law_coeff = config.get("power_law_coeff", 1.0)
     cfg.power_law_exponent = config.get("power_law_exponent", 3.5)
 
     # Map name/alias -> enum (raises ValueError on unknown name via except +),
@@ -323,10 +323,10 @@ def make_luminosity(str model_name, dict config=None):
 # otherwise a float64 ``ndarray``.
 # =====================================================================================================================
 
-def fixed(mass, double luminosity_w=0.0):
-    """Luminosity for the Fixed model [W] (returns ``luminosity_w`` regardless of mass)."""
+def fixed(mass, double luminosity=0.0):
+    """Luminosity for the Fixed model [W] (returns ``luminosity`` regardless of mass)."""
     cdef c_LuminosityConfig cfg
-    cfg.luminosity_w = luminosity_w
+    cfg.luminosity = luminosity
     cdef c_FixedLuminosity model = c_FixedLuminosity(cfg)
     return _solve_luminosity(<c_LuminosityBase*>&model, mass)
 

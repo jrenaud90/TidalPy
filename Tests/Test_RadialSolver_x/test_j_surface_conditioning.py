@@ -98,7 +98,7 @@ def test_world_level_amplification_property(spdlog_text):
     """The layered world records the diagnostic after a solve and stays silent when healthy."""
     world = build_world("earth_simple")
     world.solve_eos()
-    result = world.solve_love_numbers(frequency_rad_s=1.0e-5)
+    result = world.solve_love_numbers(frequency=1.0e-5)
     assert result['success']
     assert 0.0 < world.love_surface_amplification < SEVERE_SURFACE_AMPLIFICATION
     assert WARNING_TEXT not in spdlog_text()

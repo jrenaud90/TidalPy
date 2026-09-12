@@ -127,47 +127,47 @@ inline bool c_love_method_is_homogeneous(c_LoveMethod method) noexcept
 // (static rigidity) or complex (viscoelastic).
 template <typename ModulusT>
 inline ModulusT c_calc_effective_rigidity(
-        ModulusT shear_modulus_pa,
-        double density_kg_m3,
-        double gravity_m_s2,
-        double radius_m,
+        ModulusT shear_modulus,
+        double density,
+        double gravity,
+        double radius,
         int degree_l)
 {
     if (degree_l < 2) {
         throw std::invalid_argument("TidalPy: the homogeneous Love-number formulas need degree_l >= 2.");
     }
     const double l = static_cast<double>(degree_l);
-    const double structure = density_kg_m3 * gravity_m_s2 * radius_m;
+    const double structure = density * gravity * radius;
     if (!(structure > 0.0) || !std::isfinite(structure)) {
         throw std::invalid_argument(
             "TidalPy: the homogeneous Love-number formulas need positive, finite density, gravity, and radius.");
     }
-    return ((2.0 * l * l + 4.0 * l + 3.0) / l) * shear_modulus_pa / structure;
+    return ((2.0 * l * l + 4.0 * l + 3.0) / l) * shear_modulus / structure;
 }
 
 // Non-template spellings of the effective rigidity for the Cython layer.
 inline double c_calc_effective_rigidity_real(
-        double shear_modulus_pa, double density_kg_m3, double gravity_m_s2, double radius_m, int degree_l)
+        double shear_modulus, double density, double gravity, double radius, int degree_l)
 {
-    return c_calc_effective_rigidity(shear_modulus_pa, density_kg_m3, gravity_m_s2, radius_m, degree_l);
+    return c_calc_effective_rigidity(shear_modulus, density, gravity, radius, degree_l);
 }
 
 inline std::complex<double> c_calc_effective_rigidity_complex(
-        std::complex<double> shear_modulus_pa, double density_kg_m3, double gravity_m_s2, double radius_m, int degree_l)
+        std::complex<double> shear_modulus, double density, double gravity, double radius, int degree_l)
 {
-    return c_calc_effective_rigidity(shear_modulus_pa, density_kg_m3, gravity_m_s2, radius_m, degree_l);
+    return c_calc_effective_rigidity(shear_modulus, density, gravity, radius, degree_l);
 }
 
 // Love numbers k_l, h_l, l_l of a homogeneous incompressible sphere from its (complex) shear modulus.
 inline c_LoveNumbers c_calc_homogeneous_love_numbers(
-        std::complex<double> complex_shear_modulus_pa,
-        double density_kg_m3,
-        double gravity_m_s2,
-        double radius_m,
+        std::complex<double> complex_shear_modulus,
+        double density,
+        double gravity,
+        double radius,
         int degree_l)
 {
     const std::complex<double> mu_eff = c_calc_effective_rigidity(
-        complex_shear_modulus_pa, density_kg_m3, gravity_m_s2, radius_m, degree_l);
+        complex_shear_modulus, density, gravity, radius, degree_l);
     const double l = static_cast<double>(degree_l);
     const std::complex<double> response = 1.0 / (std::complex<double>(1.0, 0.0) + mu_eff);
     c_LoveNumbers love;
@@ -188,12 +188,12 @@ inline c_LoveNumbers c_apply_fixed_q(const c_LoveNumbers& love, double fixed_q)
 }
 
 // Constant time lag: every Love number is multiplied by (1 - i omega dt), so -Im[k] = Re[k] omega dt.
-inline c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequency_rad_s, double fixed_dt_s)
+inline c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequency, double fixed_dt)
 {
-    if (!(fixed_dt_s >= 0.0) || !std::isfinite(fixed_dt_s)) {
+    if (!(fixed_dt >= 0.0) || !std::isfinite(fixed_dt)) {
         throw std::invalid_argument("TidalPy: the ctl Love-number method needs a non-negative, finite fixed_dt.");
     }
-    const std::complex<double> lag(1.0, -std::abs(frequency_rad_s) * fixed_dt_s);
+    const std::complex<double> lag(1.0, -std::abs(frequency) * fixed_dt);
     return c_LoveNumbers(love.k * lag, love.h * lag, love.l * lag);
 }
 

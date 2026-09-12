@@ -97,7 +97,7 @@ public:
         out.push_back(c_config_double("reference_viscosity", this->p_reference_viscosity));
     }
 
-    double calc_viscosity(double /*temperature_k*/, double /*pressure_pa*/) const override {
+    double calc_viscosity(double /*temperature*/, double /*pressure*/) const override {
         return this->p_reference_viscosity;
     }
 
@@ -143,17 +143,17 @@ public:
         out.push_back(c_config_double("molar_activation_volume", this->p_molar_activation_volume));
     }
 
-    double calc_viscosity(double temperature_k, double pressure_pa) const override {
+    double calc_viscosity(double temperature, double pressure) const override {
         const double R = tidalpy_config_ptr->d_R;
         // A non-positive temperature is the cold limit: effectively rigid (infinite viscosity),
         // which the rheology models treat as a purely elastic response.
-        if (temperature_k <= TidalPyConstants::d_EPS
+        if (temperature <= TidalPyConstants::d_EPS
             || this->p_reference_temperature <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_INF;
         }
-        const double delta_inv_temp = (1.0 / temperature_k) - (1.0 / this->p_reference_temperature);
+        const double delta_inv_temp = (1.0 / temperature) - (1.0 / this->p_reference_temperature);
         const double exponent =
-            ((this->p_molar_activation_energy + pressure_pa * this->p_molar_activation_volume) / R)
+            ((this->p_molar_activation_energy + pressure * this->p_molar_activation_volume) / R)
             * delta_inv_temp;
         // Plain exp: an overflowing (very cold) exponent saturates to the same rigid limit.
         return this->p_reference_viscosity * std::exp(exponent);
@@ -221,23 +221,23 @@ public:
         out.push_back(c_config_bool("additional_temp_dependence", this->p_additional_temp_dependence));
     }
 
-    double calc_viscosity(double temperature_k, double pressure_pa) const override {
+    double calc_viscosity(double temperature, double pressure) const override {
         const double R = tidalpy_config_ptr->d_R;
         // A non-positive temperature is the cold limit: effectively rigid (infinite viscosity),
         // which the rheology models treat as a purely elastic response.
-        if (temperature_k <= TidalPyConstants::d_EPS) {
+        if (temperature <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_INF;
         }
         const double exponent =
-            (this->p_molar_activation_energy + pressure_pa * this->p_molar_activation_volume)
-            / (R * temperature_k);
+            (this->p_molar_activation_energy + pressure * this->p_molar_activation_volume)
+            / (R * temperature);
         // Plain exp: an overflowing (very cold) exponent saturates to the same rigid limit.
         double viscosity = this->p_arrhenius_coeff
                          * c_safe_pow(this->p_stress, 1.0 - this->p_stress_expo)
                          * c_safe_pow(this->p_grain_size, this->p_grain_size_expo)
                          * std::exp(exponent);
         if (this->p_additional_temp_dependence) {
-            viscosity *= temperature_k;
+            viscosity *= temperature;
         }
         return viscosity;
     }

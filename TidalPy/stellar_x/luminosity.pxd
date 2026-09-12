@@ -26,19 +26,19 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 cdef extern from "luminosity_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_LuminosityBase(c_PhysicsBase):
-        double calc_luminosity(double mass_kg) const
-        double calc_luminosity_from_temperature(double temperature_k, double radius_m) const
-        double calc_temperature_from_luminosity(double luminosity_w, double radius_m) const
-        double calc_effective_temperature(double mass_kg, double radius_m) const
+        double calc_luminosity(double mass) const
+        double calc_luminosity_from_temperature(double temperature, double radius) const
+        double calc_temperature_from_luminosity(double luminosity, double radius) const
+        double calc_effective_temperature(double mass, double radius) const
         void calc_luminosity_vectorize_mass(
-            const vector[double]& mass_kg,
+            const vector[double]& mass,
             vector[double]& out_luminosity) except +
 
 
 cdef extern from "luminosity_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_LuminosityConfig:
-        double luminosity_w
+        double luminosity
         double power_law_coeff
         double power_law_exponent
 

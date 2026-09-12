@@ -17,10 +17,10 @@
  *   header: class_id = BinaryClassID::PhysicsLayer (101)
  *   payload:
  *     [all c_BaseLayer fields — same byte layout as BaseLayer binary payload]
- *     shear_modulus_static_pa      (double, 8)
- *     bulk_modulus_static_pa       (double, 8)
- *     shear_viscosity_static_pas   (double, 8)
- *     bulk_viscosity_static_pas    (double, 8)
+ *     shear_modulus_static      (double, 8)
+ *     bulk_modulus_static       (double, 8)
+ *     shear_viscosity_static   (double, 8)
+ *     bulk_viscosity_static    (double, 8)
  *     love_number_k  re, im        (double×2, 16)
  *     love_number_h  re, im        (double×2, 16)
  *     love_number_l  re, im        (double×2, 16)
@@ -58,10 +58,10 @@ namespace tidalpy {
 // Extends c_BaseLayerConfig with mechanical property fields.
 // -------------------------------------------------------------------------------
 struct c_PhysicsConfig : public c_BaseLayerConfig {
-    double        shear_modulus_static_pa    = 0.0;   // [Pa]
-    double        bulk_modulus_static_pa     = 0.0;   // [Pa]
-    double        shear_viscosity_static_pas = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
-    double        bulk_viscosity_static_pas  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
+    double        shear_modulus_static = 0.0;   // [Pa]
+    double        bulk_modulus_static  = 0.0;   // [Pa]
+    double        shear_viscosity_static = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
+    double        bulk_viscosity_static  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
     c_LoveNumbers love_numbers;                       // k, h, l [dimensionless] placeholder
     // Radial-solver layer classification flags.
     bool          is_solid          = true;   // false for liquid layers
@@ -81,10 +81,10 @@ public:
 
     explicit c_PhysicsLayer(const c_PhysicsConfig& cfg)
         : c_BaseLayer(cfg),
-          p_shear_modulus_static_pa(cfg.shear_modulus_static_pa),
-          p_bulk_modulus_static_pa(cfg.bulk_modulus_static_pa),
-          p_shear_viscosity_static_pas(cfg.shear_viscosity_static_pas),
-          p_bulk_viscosity_static_pas(cfg.bulk_viscosity_static_pas),
+          p_shear_modulus_static(cfg.shear_modulus_static),
+          p_bulk_modulus_static(cfg.bulk_modulus_static),
+          p_shear_viscosity_static(cfg.shear_viscosity_static),
+          p_bulk_viscosity_static(cfg.bulk_viscosity_static),
           p_love_numbers(cfg.love_numbers),
           p_is_solid(cfg.is_solid),
           p_is_static(cfg.is_static),
@@ -99,14 +99,14 @@ public:
     c_PhysicsLayer& operator=(const c_PhysicsLayer& other) noexcept {
         if (this != &other) {
             c_BaseLayer::operator=(other);
-            this->p_shear_modulus_static_pa    = other.p_shear_modulus_static_pa;
-            this->p_bulk_modulus_static_pa     = other.p_bulk_modulus_static_pa;
-            this->p_shear_viscosity_static_pas = other.p_shear_viscosity_static_pas;
-            this->p_bulk_viscosity_static_pas  = other.p_bulk_viscosity_static_pas;
-            this->p_love_numbers               = other.p_love_numbers;
-            this->p_is_solid                   = other.p_is_solid;
-            this->p_is_static                  = other.p_is_static;
-            this->p_is_incompressible          = other.p_is_incompressible;
+            this->p_shear_modulus_static = other.p_shear_modulus_static;
+            this->p_bulk_modulus_static  = other.p_bulk_modulus_static;
+            this->p_shear_viscosity_static = other.p_shear_viscosity_static;
+            this->p_bulk_viscosity_static = other.p_bulk_viscosity_static;
+            this->p_love_numbers      = other.p_love_numbers;
+            this->p_is_solid          = other.p_is_solid;
+            this->p_is_static         = other.p_is_static;
+            this->p_is_incompressible = other.p_is_incompressible;
             // Owned model pointers cannot be copied; source temporaries always have null ptrs.
             this->p_shear_rheology.reset();
             this->p_bulk_rheology.reset();
@@ -125,10 +125,10 @@ public:
     // -----------------------------------------------------------------------
     // Static mechanical property getters (all const, MKS)
     // -----------------------------------------------------------------------
-    double        get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static_pa; }
-    double        get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static_pa; }
-    double        get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static_pas; }
-    double        get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static_pas; }
+    double        get_shear_modulus_static()   const noexcept { return this->p_shear_modulus_static; }
+    double        get_bulk_modulus_static()    const noexcept { return this->p_bulk_modulus_static; }
+    double        get_shear_viscosity_static() const noexcept { return this->p_shear_viscosity_static; }
+    double        get_bulk_viscosity_static()  const noexcept { return this->p_bulk_viscosity_static; }
 
     // Love number getters — full struct or individual components
     c_LoveNumbers        get_love_numbers()   const noexcept { return this->p_love_numbers; }
@@ -147,7 +147,7 @@ public:
     void set_is_incompressible(bool value) noexcept { this->p_is_incompressible = value; }
 
     // -----------------------------------------------------------------------
-    // Complex shear modulus [Pa] at forcing frequency frequency_rad_s.
+    // Complex shear modulus [Pa] at forcing frequency frequency.
     //
     // Delegates to p_shear_rheology->calc_complex_modulus when a rheology
     // object is set; otherwise returns the static shear modulus as a purely
@@ -155,52 +155,52 @@ public:
     // rheology returns NaN until the caller supplies it (the radius-resolved
     // overload below uses the EOS-populated profile instead).
     // -----------------------------------------------------------------------
-    std::complex<double> calc_complex_shear_modulus(double frequency_rad_s) const noexcept {
+    std::complex<double> calc_complex_shear_modulus(double frequency) const noexcept {
         if (this->p_shear_rheology) {
             return this->p_shear_rheology->calc_complex_modulus(
-                this->p_shear_modulus_static_pa, this->p_shear_viscosity_static_pas, frequency_rad_s);
+                this->p_shear_modulus_static, this->p_shear_viscosity_static, frequency);
         }
-        return std::complex<double>(this->p_shear_modulus_static_pa, 0.0);
+        return std::complex<double>(this->p_shear_modulus_static, 0.0);
     }
 
     // -----------------------------------------------------------------------
-    // Complex bulk modulus [Pa] at forcing frequency frequency_rad_s.
+    // Complex bulk modulus [Pa] at forcing frequency frequency.
     //
     // Delegates to p_bulk_rheology->calc_complex_modulus when set; otherwise
     // returns the static bulk modulus as a purely real complex value. Same NaN
     // rule as the shear overload.
     // -----------------------------------------------------------------------
-    std::complex<double> calc_complex_bulk_modulus(double frequency_rad_s) const noexcept {
+    std::complex<double> calc_complex_bulk_modulus(double frequency) const noexcept {
         if (this->p_bulk_rheology) {
             return this->p_bulk_rheology->calc_complex_modulus(
-                this->p_bulk_modulus_static_pa, this->p_bulk_viscosity_static_pas, frequency_rad_s);
+                this->p_bulk_modulus_static, this->p_bulk_viscosity_static, frequency);
         }
-        return std::complex<double>(this->p_bulk_modulus_static_pa, 0.0);
+        return std::complex<double>(this->p_bulk_modulus_static, 0.0);
     }
 
     // -----------------------------------------------------------------------
-    // Radius-resolved complex moduli [Pa] at frequency_rad_s, using the POST-MELT
-    // static modulus + viscosity stored at radius_m by the world EOS solve (rather
+    // Radius-resolved complex moduli [Pa] at frequency, using the POST-MELT
+    // static modulus + viscosity stored at radius by the world EOS solve (rather
     // than the single layer-constant static value). Feeds the radial Love-number
     // solve. Returns the real static modulus (zero dissipation) when no rheology is
     // attached; NaN if the viscoelastic state has not been populated.
     // -----------------------------------------------------------------------
     std::complex<double> calc_complex_shear_modulus(
-            double radius_m, double frequency_rad_s) const noexcept {
-        const double static_modulus = this->get_shear_modulus(radius_m);    // post-melt
-        const double viscosity      = this->get_shear_viscosity(radius_m);  // post-melt
+            double radius, double frequency) const noexcept {
+        const double static_modulus = this->get_shear_modulus(radius);    // post-melt
+        const double viscosity      = this->get_shear_viscosity(radius);  // post-melt
         if (this->p_shear_rheology) {
-            return this->p_shear_rheology->calc_complex_modulus(static_modulus, viscosity, frequency_rad_s);
+            return this->p_shear_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
         }
         return std::complex<double>(static_modulus, 0.0);
     }
 
     std::complex<double> calc_complex_bulk_modulus(
-            double radius_m, double frequency_rad_s) const noexcept {
-        const double static_modulus = this->get_bulk_modulus(radius_m);    // post-melt
-        const double viscosity      = this->get_bulk_viscosity(radius_m);  // post-melt
+            double radius, double frequency) const noexcept {
+        const double static_modulus = this->get_bulk_modulus(radius);    // post-melt
+        const double viscosity      = this->get_bulk_viscosity(radius);  // post-melt
         if (this->p_bulk_rheology) {
-            return this->p_bulk_rheology->calc_complex_modulus(static_modulus, viscosity, frequency_rad_s);
+            return this->p_bulk_rheology->calc_complex_modulus(static_modulus, viscosity, frequency);
         }
         return std::complex<double>(static_modulus, 0.0);
     }
@@ -273,7 +273,7 @@ public:
             sizeof(double)   * 2 +           // p_radius, p_mass
             sizeof(uint32_t) + name_len +    // name length + bytes
             sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner_m
+            sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
@@ -302,10 +302,10 @@ public:
         out.write(reinterpret_cast<const char*>(&scale_method_byte),   sizeof(uint8_t));
 
         // c_PhysicsLayer scalar fields
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static_pas), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static_pas),  sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static),    sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static),     sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static),  sizeof(double));
 
         // Love numbers k, h, l
         auto write_complex = [&](const std::complex<double>& c) {
@@ -368,10 +368,10 @@ public:
         this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         // c_PhysicsLayer scalar fields
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static_pas), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static_pas),  sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static),    sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static),     sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static),  sizeof(double));
 
         // Love numbers k, h, l
         auto read_complex = [&](std::complex<double>& c) {
@@ -449,10 +449,10 @@ protected:
         return 5 * optional_binary_flag_bytes();
     }
 
-    double        p_shear_modulus_static_pa    = 0.0;   // [Pa]
-    double        p_bulk_modulus_static_pa     = 0.0;   // [Pa]
-    double        p_shear_viscosity_static_pas = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
-    double        p_bulk_viscosity_static_pas  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
+    double        p_shear_modulus_static = 0.0;   // [Pa]
+    double        p_bulk_modulus_static  = 0.0;   // [Pa]
+    double        p_shear_viscosity_static = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
+    double        p_bulk_viscosity_static  = TidalPyConstants::d_NAN;   // [Pa·s], NaN until set
     c_LoveNumbers p_love_numbers;                       // k, h, l [dimensionless] placeholder
     // Radial-solver layer classification.
     bool          p_is_solid          = true;

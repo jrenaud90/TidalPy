@@ -110,8 +110,8 @@ def _cpl_timescale_world(shear_modulus, shear_viscosity, width=1.0):
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
     world = LayeredWorld("ts", _R, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _R, 0.0,
-                         shear_modulus_static_pa=shear_modulus,
-                         shear_viscosity_static_pas=shear_viscosity,
+                         shear_modulus_static=shear_modulus,
+                         shear_viscosity_static=shear_viscosity,
                          tidal_scale_method="tidal_timescale")
     world.add_layer(layer)
     world.set_tide_model(make_tide("cpl", {"fixed_k": [0.3], "fixed_q": [50.0]}))

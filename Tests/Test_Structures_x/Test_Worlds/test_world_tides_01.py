@@ -127,7 +127,7 @@ def test_terrestrial_default_model_is_rheology_requires_eos():
 
 
 def test_calc_tides_without_model_raises():
-    world = LayeredWorld(world_type="terrestrial", name="bare", radius_m=1.6e6, mass_kg=8.9e22)
+    world = LayeredWorld(world_type="terrestrial", name="bare", radius=1.6e6, mass=8.9e22)
     assert not world.tide_model_set
     with pytest.raises(RuntimeError):
         _solve(world)

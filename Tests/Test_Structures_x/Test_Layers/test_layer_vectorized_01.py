@@ -37,8 +37,8 @@ def _solved_world():
     """A homogeneous Maxwell world with its EOS solved (populates the layer profiles)."""
     world = LayeredWorld("world", _RADIUS, _MASS)
     layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS,
-                         shear_modulus_static_pa=_SHEAR, bulk_modulus_static_pa=_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _VISC}))
     layer.set_shear_rheology(Maxwell())
@@ -51,7 +51,7 @@ def _solved_world():
 def _standalone_layer():
     """A directly-populated layer (no world) for the base EOS-profile getters."""
     layer = PhysicsLayer("mantle", 0, 0.0, _RADIUS, _MASS,
-                         shear_modulus_static_pa=_SHEAR, bulk_modulus_static_pa=_BULK)
+                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
     radius = np.linspace(0.0, _RADIUS, 11)
     density = np.full(11, _DENSITY)
     gravity = np.linspace(0.0, 9.0, 11)

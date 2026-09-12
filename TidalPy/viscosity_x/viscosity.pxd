@@ -21,7 +21,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 cdef extern from "viscosity_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_ViscosityBase(c_PhysicsBase):
-        double calc_viscosity(double temperature_k, double pressure_pa) const
+        double calc_viscosity(double temperature, double pressure) const
 
 
 cdef extern from "viscosity_.hpp" namespace "tidalpy" nogil:

@@ -28,35 +28,35 @@ cdef extern from "cooling_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_CoolingInputs:
         c_CoolingInputs() except +
-        double delta_temp_k
-        double thickness_m
-        double gravity_m_s2
-        double density_kg_m3
-        double viscosity_pas
-        double thermal_conductivity_w_mk
-        double thermal_diffusivity_m2_s
-        double thermal_expansion_1_k
+        double delta_temp
+        double thickness
+        double gravity
+        double density
+        double viscosity
+        double thermal_conductivity
+        double thermal_diffusivity
+        double thermal_expansion
 
     cdef cppclass c_CoolingResult:
         c_CoolingResult() except +
-        double cooling_flux_w_m2
-        double blt_m
+        double cooling_flux
+        double blt
         double rayleigh_number
         double nusselt_number
 
     cdef cppclass c_CoolingBase(c_PhysicsBase):
         c_CoolingResult calc_cooling(const c_CoolingInputs& inputs) const
         void calc_cooling_vectorize_temperature(
-            const vector[double]& delta_temp_k,
+            const vector[double]& delta_temp,
             const c_CoolingInputs& base_inputs,
             vector[c_CoolingResult]& out_results) except +
         void calc_cooling_vectorize_viscosity(
-            const vector[double]& viscosity_pas,
+            const vector[double]& viscosity,
             const c_CoolingInputs& base_inputs,
             vector[c_CoolingResult]& out_results) except +
         void calc_cooling_vectorize_all(
-            const vector[double]& delta_temp_k,
-            const vector[double]& viscosity_pas,
+            const vector[double]& delta_temp,
+            const vector[double]& viscosity,
             const c_CoolingInputs& base_inputs,
             vector[c_CoolingResult]& out_results) except +
 

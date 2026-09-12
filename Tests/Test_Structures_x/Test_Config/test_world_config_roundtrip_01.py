@@ -85,16 +85,16 @@ def test_hand_built_world_rebuilds_from_config_dict():
     world = LayeredWorld("handmade", radius, mass)
     core = PhysicsLayer(
         "core", 0, 0.0, 0.5 * radius, 0.4 * mass,
-        shear_modulus_static_pa=1.0e11, bulk_modulus_static_pa=3.0e11,
-        shear_viscosity_static_pas=1.0e22, bulk_viscosity_static_pas=1.0e30)
-    core.set_eos(ConstantDensityEOS(reference_density_kg_m3=8000.0))
+        shear_modulus_static=1.0e11, bulk_modulus_static=3.0e11,
+        shear_viscosity_static=1.0e22, bulk_viscosity_static=1.0e30)
+    core.set_eos(ConstantDensityEOS(reference_density=8000.0))
     core.set_shear_rheology(Elastic())
     mantle = SolidLiquidLayer(
         "mantle", 1, 0.5 * radius, radius, 0.6 * mass,
-        shear_modulus_static_pa=6.0e10, bulk_modulus_static_pa=1.3e11,
-        shear_viscosity_static_pas=1.0e21, bulk_viscosity_static_pas=1.0e30)
+        shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11,
+        shear_viscosity_static=1.0e21, bulk_viscosity_static=1.0e30)
     mantle.set_eos(BirchMurnaghanEOS(
-        reference_density_kg_m3=3300.0, reference_bulk_modulus_pa=1.3e11, bulk_modulus_derivative=4.0))
+        reference_density=3300.0, reference_bulk_modulus=1.3e11, bulk_modulus_derivative=4.0))
     mantle.set_shear_rheology(Andrade(0.3, 1.0))
     mantle.set_bulk_rheology(Elastic())
     mantle.set_shear_viscosity(make_viscosity("reference", {"reference_viscosity": 1.0e21}))

@@ -287,12 +287,12 @@ def test_available_isotope_datasets():
 _MYR_S = 1.0e6 * 365.25 * 24.0 * 3600.0
 
 
-@pytest.mark.parametrize("name,n_isotopes,ref_time_s", [
+@pytest.mark.parametrize("name,n_isotopes,ref_time", [
     ("modern_day_chondritic", 4, 4600.0 * _MYR_S),
     ("llri_and_slri", 7, 0.0),
     ("bulk_silicate_earth", 4, 4600.0 * _MYR_S),
 ])
-def test_isotope_dataset_contents(name, n_isotopes, ref_time_s):
+def test_isotope_dataset_contents(name, n_isotopes, ref_time):
     """Each built-in dataset returns an MKS dict with the expected isotope count.
 
     The present-epoch datasets quote concentrations 4600 Myr after formation; the
@@ -304,7 +304,7 @@ def test_isotope_dataset_contents(name, n_isotopes, ref_time_s):
         "heat_production_w_kg", "half_lives_s", "mass_fracs",
         "concentrations", "isotope_names", "ref_time_s"}
     assert len(ds["isotope_names"]) == n_isotopes
-    assert ds["ref_time_s"] == pytest.approx(ref_time_s, abs=1.0)
+    assert ds["ref_time_s"] == pytest.approx(ref_time, abs=1.0)
     assert all(hl > 0.0 for hl in ds["half_lives_s"])
 
 
@@ -437,7 +437,7 @@ def test_convenience_vectorize_time():
     mod = _import_radiogenics()
     inst = mod.IsotopeRadiogenics(_HPR, _HALF, _FRAC, _CONC, 0.0)
     times = np.array([0.0, 1.0e17, 5.0e17, 1.0e18])
-    got = mod.isotope(times, _MASS, _HPR, _HALF, _FRAC, _CONC, ref_time_s=0.0)
+    got = mod.isotope(times, _MASS, _HPR, _HALF, _FRAC, _CONC, ref_time=0.0)
     assert isinstance(got, np.ndarray)
     assert got.shape == (4,)
     assert got.dtype == np.float64

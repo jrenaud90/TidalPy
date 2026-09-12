@@ -87,35 +87,35 @@ inline double rad_guard(double value) noexcept {
 // =====================================================================================================================
 struct c_Isotope {
     std::string name;                       // isotope label (e.g. "U238")
-    double heat_production_w_kg = 0.0;      // specific heat production of the pure isotope [W/kg]
-    double half_life_s          = 0.0;      // half life [s]
-    double mass_frac            = 0.0;      // isotopic mass fraction within its element [kg/kg]
-    double concentration        = 0.0;      // element concentration in the layer material [kg/kg]
+    double heat_production = 0.0;      // specific heat production of the pure isotope [W/kg]
+    double half_life = 0.0;      // half life [s]
+    double mass_frac = 0.0;      // isotopic mass fraction within its element [kg/kg]
+    double concentration = 0.0;      // element concentration in the layer material [kg/kg]
 
     c_Isotope() = default;
     c_Isotope(std::string isotope_name,
-              double hpr_w_kg,
+              double hpr,
               double half_life_seconds,
               double isotopic_mass_frac,
               double element_concentration)
         : name(std::move(isotope_name)),
-          heat_production_w_kg(hpr_w_kg),
-          half_life_s(half_life_seconds),
+          heat_production(hpr),
+          half_life(half_life_seconds),
           mass_frac(isotopic_mass_frac),
           concentration(element_concentration) {}
 
     // Decay constant gamma = ln(0.5) / half_life [1/s] (negative; magnitude grows
     // as the half life shortens).
     double decay_constant() const noexcept {
-        return d_LN_HALF / rad_guard(this->half_life_s);
+        return d_LN_HALF / rad_guard(this->half_life);
     }
 
     // Specific radiogenic heating per unit layer mass [W/kg] at the given time.
     // The guarded exponential returns NaN (rather than inf) if the requested time is so far
     // before the reference time that the back-extrapolated heating overflows.
-    double specific_heating(double time_s, double ref_time_s) const noexcept {
-        const double q_ref = this->mass_frac * this->concentration * this->heat_production_w_kg;
-        return q_ref * c_safe_exp(this->decay_constant() * (time_s - ref_time_s));
+    double specific_heating(double time, double ref_time) const noexcept {
+        const double q_ref = this->mass_frac * this->concentration * this->heat_production;
+        return q_ref * c_safe_exp(this->decay_constant() * (time - ref_time));
     }
 };
 
@@ -128,11 +128,11 @@ struct c_RadiogenicsConfig {
     std::vector<c_Isotope> isotopes;
 
     // Fixed model.
-    double fixed_heat_production_w_kg = 0.0;    // lumped specific rate    [W/kg]
-    double average_half_life_s        = 0.0;    // decay half life (<=0 => no decay) [s]
+    double fixed_heat_production = 0.0;    // lumped specific rate    [W/kg]
+    double average_half_life        = 0.0;    // decay half life (<=0 => no decay) [s]
 
     // Shared reference time at which the rates/concentrations were measured.
-    double ref_time_s = 0.0;                    // reference time          [s]
+    double ref_time = 0.0;                    // reference time          [s]
 };
 
 // =====================================================================================================================
@@ -145,7 +145,7 @@ struct c_RadiogenicsConfig {
 // =====================================================================================================================
 struct c_IsotopeDataset {
     std::vector<c_Isotope> isotopes;
-    double ref_time_s = 0.0;
+    double ref_time = 0.0;
 };
 
 // Names of the available built-in datasets (see c_get_isotope_dataset).
@@ -189,36 +189,36 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name);
 // =====================================================================================================================
 
 // Off: radiogenics disabled, heating == 0.
-inline double rad_heating_off(double /*time_s*/, double /*mass_kg*/) noexcept {
+inline double rad_heating_off(double /*time*/, double /*mass*/) noexcept {
     return 0.0;
 }
 
 // Isotope: sum each isotope's specific heating, then scale by the layer mass.
 inline double rad_heating_isotope(
-        double time_s,
-        double mass_kg,
+        double time,
+        double mass,
         const std::vector<c_Isotope>& isotopes,
-        double ref_time_s) noexcept {
+        double ref_time) noexcept {
     double specific_heating = 0.0;
     for (const c_Isotope& isotope : isotopes) {
-        specific_heating += isotope.specific_heating(time_s, ref_time_s);
+        specific_heating += isotope.specific_heating(time, ref_time);
     }
-    return specific_heating * mass_kg;
+    return specific_heating * mass;
 }
 
 // Fixed: single lumped rate with optional exponential decay.
-// average_half_life_s <= 0 disables decay (constant heating rate).
+// average_half_life <= 0 disables decay (constant heating rate).
 inline double rad_heating_fixed(
-        double time_s,
-        double mass_kg,
-        double fixed_heat_production_w_kg,
-        double average_half_life_s,
-        double ref_time_s) noexcept {
-    if (average_half_life_s <= 0.0) {
-        return mass_kg * fixed_heat_production_w_kg;
+        double time,
+        double mass,
+        double fixed_heat_production,
+        double average_half_life,
+        double ref_time) noexcept {
+    if (average_half_life <= 0.0) {
+        return mass * fixed_heat_production;
     }
-    const double gamma = d_LN_HALF / rad_guard(average_half_life_s);
-    return mass_kg * fixed_heat_production_w_kg * std::exp(gamma * (time_s - ref_time_s));
+    const double gamma = d_LN_HALF / rad_guard(average_half_life);
+    return mass * fixed_heat_production * std::exp(gamma * (time - ref_time));
 }
 
 // -------------------------------------------------------------------------------
@@ -237,7 +237,7 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
     const std::string key = rad_to_lower(name);
     const double myr = d_SECONDS_PER_MYR;
     c_IsotopeDataset dataset;
-    dataset.ref_time_s = 4600.0 * myr;
+    dataset.ref_time = 4600.0 * myr;
 
     if (key == "modern_day_chondritic") {
         // Hussmann and Spohn (2004); Turcotte and Schubert (2001).
@@ -253,7 +253,7 @@ inline c_IsotopeDataset c_get_isotope_dataset(const std::string& name) {
         // Castillo-Rogez et al. (2007). Abundances are formation (CAI) values, including the
         // canonical 26Al/27Al = 5e-5 and the elevated (undecayed) long-lived concentrations,
         // so the reference time is solar-system formation, not the present epoch.
-        dataset.ref_time_s = 0.0;
+        dataset.ref_time = 0.0;
         dataset.isotopes = {
             c_Isotope("U238",  9.465e-5, 4468.0   * myr, 0.9928,   0.026e-6),
             c_Isotope("U235",  5.687e-4, 703.81   * myr, 0.0071,   0.0082e-6),
@@ -299,8 +299,8 @@ public:
     explicit c_OffRadiogenics(const c_RadiogenicsConfig& /*cfg*/) : c_RadiogenicsBase("off") {}
     ~c_OffRadiogenics() override = default;
 
-    double calc_heating(double time_s, double mass_kg) const override {
-        return rad_heating_off(time_s, mass_kg);
+    double calc_heating(double time, double mass) const override {
+        return rad_heating_off(time, mass);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -320,11 +320,11 @@ public:
     explicit c_IsotopeRadiogenics(const c_RadiogenicsConfig& cfg)
         : c_RadiogenicsBase("isotope"),
           p_isotopes(cfg.isotopes),
-          p_ref_time_s(cfg.ref_time_s) {}
+          p_ref_time(cfg.ref_time) {}
     ~c_IsotopeRadiogenics() override = default;
 
     const std::vector<c_Isotope>& get_isotopes() const noexcept { return this->p_isotopes; }
-    double get_ref_time()          const noexcept { return this->p_ref_time_s; }
+    double get_ref_time()          const noexcept { return this->p_ref_time; }
     std::size_t get_num_isotopes() const noexcept { return this->p_isotopes.size(); }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
@@ -332,8 +332,8 @@ public:
         std::vector<double> heat_production, half_lives, mass_fracs, concentrations;
         std::vector<std::string> names;
         for (const c_Isotope& isotope : this->p_isotopes) {
-            heat_production.push_back(isotope.heat_production_w_kg);
-            half_lives.push_back(isotope.half_life_s);
+            heat_production.push_back(isotope.heat_production);
+            half_lives.push_back(isotope.half_life);
             mass_fracs.push_back(isotope.mass_frac);
             concentrations.push_back(isotope.concentration);
             names.push_back(isotope.name);
@@ -343,11 +343,11 @@ public:
         out.push_back(c_config_doubles("mass_fracs", mass_fracs));
         out.push_back(c_config_doubles("concentrations", concentrations));
         out.push_back(c_config_strings("isotope_names", names));
-        out.push_back(c_config_double("ref_time_s", this->p_ref_time_s));
+        out.push_back(c_config_double("ref_time_s", this->p_ref_time));
     }
 
-    double calc_heating(double time_s, double mass_kg) const override {
-        return rad_heating_isotope(time_s, mass_kg, this->p_isotopes, this->p_ref_time_s);
+    double calc_heating(double time, double mass) const override {
+        return rad_heating_isotope(time, mass, this->p_isotopes, this->p_ref_time);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -361,12 +361,12 @@ public:
         }
         write_binary_header(out, static_cast<uint32_t>(BinaryClassID::IsotopeRadiogenics), payload);
         write_binary_string(out, this->p_model_name);
-        out.write(reinterpret_cast<const char*>(&this->p_ref_time_s), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_ref_time), sizeof(double));
         out.write(reinterpret_cast<const char*>(&n), sizeof(uint64_t));
         for (const c_Isotope& iso : this->p_isotopes) {
             write_binary_string(out, iso.name);
-            out.write(reinterpret_cast<const char*>(&iso.heat_production_w_kg), sizeof(double));
-            out.write(reinterpret_cast<const char*>(&iso.half_life_s),          sizeof(double));
+            out.write(reinterpret_cast<const char*>(&iso.heat_production), sizeof(double));
+            out.write(reinterpret_cast<const char*>(&iso.half_life),          sizeof(double));
             out.write(reinterpret_cast<const char*>(&iso.mass_frac),            sizeof(double));
             out.write(reinterpret_cast<const char*>(&iso.concentration),        sizeof(double));
         }
@@ -378,7 +378,7 @@ public:
     void read_binary(std::istream& in, bool force = false) override {
         c_TidalPyBaseClass::read_binary(in, force);
         this->p_model_name = read_binary_string(in);
-        in.read(reinterpret_cast<char*>(&this->p_ref_time_s), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_ref_time), sizeof(double));
         uint64_t n = 0;
         in.read(reinterpret_cast<char*>(&n), sizeof(uint64_t));
         this->p_isotopes.clear();
@@ -386,8 +386,8 @@ public:
         for (uint64_t i = 0; i < n; ++i) {
             c_Isotope iso;
             iso.name = read_binary_string(in);
-            in.read(reinterpret_cast<char*>(&iso.heat_production_w_kg), sizeof(double));
-            in.read(reinterpret_cast<char*>(&iso.half_life_s),          sizeof(double));
+            in.read(reinterpret_cast<char*>(&iso.heat_production), sizeof(double));
+            in.read(reinterpret_cast<char*>(&iso.half_life),          sizeof(double));
             in.read(reinterpret_cast<char*>(&iso.mass_frac),            sizeof(double));
             in.read(reinterpret_cast<char*>(&iso.concentration),        sizeof(double));
             this->p_isotopes.push_back(std::move(iso));
@@ -399,7 +399,7 @@ public:
 
 protected:
     std::vector<c_Isotope> p_isotopes;
-    double p_ref_time_s = 0.0;
+    double p_ref_time = 0.0;
 };
 
 // -------------------------------------------------------------------------------
@@ -410,46 +410,46 @@ public:
     c_FixedRadiogenics() : c_RadiogenicsBase("fixed") {}
     explicit c_FixedRadiogenics(const c_RadiogenicsConfig& cfg)
         : c_RadiogenicsBase("fixed"),
-          p_fixed_heat_production_w_kg(cfg.fixed_heat_production_w_kg),
-          p_average_half_life_s(cfg.average_half_life_s),
-          p_ref_time_s(cfg.ref_time_s) {}
+          p_fixed_heat_production(cfg.fixed_heat_production),
+          p_average_half_life(cfg.average_half_life),
+          p_ref_time(cfg.ref_time) {}
     ~c_FixedRadiogenics() override = default;
 
-    double get_fixed_heat_production() const noexcept { return this->p_fixed_heat_production_w_kg; }
-    double get_average_half_life()     const noexcept { return this->p_average_half_life_s; }
-    double get_ref_time()              const noexcept { return this->p_ref_time_s; }
+    double get_fixed_heat_production() const noexcept { return this->p_fixed_heat_production; }
+    double get_average_half_life()     const noexcept { return this->p_average_half_life; }
+    double get_ref_time()              const noexcept { return this->p_ref_time; }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_RadiogenicsBase::append_config_entries(out);
-        out.push_back(c_config_double("fixed_heat_production_w_kg", this->p_fixed_heat_production_w_kg));
-        out.push_back(c_config_double("average_half_life_s", this->p_average_half_life_s));
-        out.push_back(c_config_double("ref_time_s", this->p_ref_time_s));
+        out.push_back(c_config_double("fixed_heat_production_w_kg", this->p_fixed_heat_production));
+        out.push_back(c_config_double("average_half_life_s", this->p_average_half_life));
+        out.push_back(c_config_double("ref_time_s", this->p_ref_time));
     }
 
-    double calc_heating(double time_s, double mass_kg) const override {
+    double calc_heating(double time, double mass) const override {
         return rad_heating_fixed(
-            time_s, mass_kg,
-            this->p_fixed_heat_production_w_kg,
-            this->p_average_half_life_s,
-            this->p_ref_time_s);
+            time, mass,
+            this->p_fixed_heat_production,
+            this->p_average_half_life,
+            this->p_ref_time);
     }
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::FixedRadiogenics),
-            {this->p_fixed_heat_production_w_kg, this->p_average_half_life_s, this->p_ref_time_s});
+            {this->p_fixed_heat_production, this->p_average_half_life, this->p_ref_time});
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 3);
-        this->p_fixed_heat_production_w_kg = params[0];
-        this->p_average_half_life_s        = params[1];
-        this->p_ref_time_s                 = params[2];
+        this->p_fixed_heat_production = params[0];
+        this->p_average_half_life = params[1];
+        this->p_ref_time          = params[2];
     }
 
 protected:
-    double p_fixed_heat_production_w_kg = 0.0;
-    double p_average_half_life_s        = 0.0;
-    double p_ref_time_s                 = 0.0;
+    double p_fixed_heat_production = 0.0;
+    double p_average_half_life = 0.0;
+    double p_ref_time          = 0.0;
 };
 
 // =====================================================================================================================

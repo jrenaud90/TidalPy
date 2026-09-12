@@ -27,10 +27,10 @@ def _two_layer_world():
     mass = (4.0 / 3.0) * math.pi * _R ** 3 * 4000.0
     world = LayeredWorld("planet", _R, mass)
     core = SolidLiquidLayer("core", 0, 0.0, _R_CORE, 0.0,
-                            shear_modulus_static_pa=8.0e10, bulk_modulus_static_pa=2.5e11,
+                            shear_modulus_static=8.0e10, bulk_modulus_static=2.5e11,
                             tidal_scale=0.3)
     mantle = PhysicsLayer("mantle", 1, _R_CORE, _R, 0.0,
-                          shear_modulus_static_pa=6.0e10, bulk_modulus_static_pa=2.0e11,
+                          shear_modulus_static=6.0e10, bulk_modulus_static=2.0e11,
                           tidal_scale=0.7)
     world.add_layer(core)
     world.add_layer(mantle)

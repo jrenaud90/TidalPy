@@ -39,7 +39,7 @@ visc = ReferenceViscosity(
     reference_viscosity=1.0e22, reference_temperature=1000.0,
     molar_activation_energy=3.0e5, molar_activation_volume=0.0)
 
-eta = visc.calc_viscosity(temperature_k=1500.0, pressure_pa=1.0e10)   # [Pa·s]
+eta = visc.calc_viscosity(temperature=1500.0, pressure=1.0e10)   # [Pa·s]
 
 # Name factory (aliases, case-insensitive):
 visc = make_viscosity("arr", {"arrhenius_coeff": 1.1e7, "grain_size_expo": 2.0,
@@ -79,7 +79,7 @@ The C++ layer is canonical; the Cython classes are thin adapters.
 `additional_temp_dependence` (false).
 
 **Base class** `c_ViscosityBase : c_PhysicsBase` (in `viscosity_base_.hpp`):
-pure virtual `calc_viscosity(double temperature_k, double pressure_pa) const`,
+pure virtual `calc_viscosity(double temperature, double pressure) const`,
 plus `calc_viscosity_vectorize(temperature, pressure, out_viscosity)` (the primary
 radial sweep — one entry per slice).
 

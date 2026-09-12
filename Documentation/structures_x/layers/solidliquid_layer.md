@@ -49,27 +49,27 @@ TidalPyBaseClass
 SolidLiquidLayer(
     name:                          str,
     layer_index:                   int,
-    radius_inner_m:                float,
-    radius_outer_m:                float,
-    mass_kg:                       float,
+    radius_inner:                float,
+    radius_outer:                float,
+    mass:                       float,
     material_name:                 str   = "",
     is_tidal:                      bool  = True,
     tidal_scale:                   float = 1.0,
-    shear_modulus_static_pa:       float = 0.0,
-    bulk_modulus_static_pa:        float = 0.0,
+    shear_modulus_static:       float = 0.0,
+    bulk_modulus_static:        float = 0.0,
     viscosity_static_pas:          float = 0.0,
     love_number_re:                float = 0.0,
     love_number_im:                float = 0.0,
-    thermal_conductivity_ref_w_mk: float = 4.0,
-    thermal_expansion_ref_1_k:     float = 3e-5,
-    heat_capacity_ref_j_kgk:       float = 1200.0,
-    activation_energy_j_mol:       float = 300e3,
-    activation_volume_m3_mol:      float = 5e-6,
-    solidus_temperature_k:         float = 1600.0,
-    liquidus_temperature_k:        float = 2000.0,
+    thermal_conductivity_ref: float = 4.0,
+    thermal_expansion_ref:     float = 3e-5,
+    heat_capacity_ref:       float = 1200.0,
+    activation_energy:       float = 300e3,
+    activation_volume:      float = 5e-6,
+    solidus_temperature:         float = 1600.0,
+    liquidus_temperature:        float = 2000.0,
     melt_fraction_exponent:        float = 1.0,
-    reference_density_kg_m3:       float = 3500.0,
-    reference_temperature_k:       float = 1600.0,
+    reference_density:       float = 3500.0,
+    reference_temperature:       float = 1600.0,
     melt_viscosity_reduction:      float = 25.0,
 )
 ```
@@ -80,27 +80,27 @@ SolidLiquidLayer(
 |-----------|-------|-------------|
 | `name` | — | Human-readable layer name. |
 | `layer_index` | — | Zero-based index; innermost layer = 0. |
-| `radius_inner_m` | m | Inner boundary radius. |
-| `radius_outer_m` | m | Outer boundary radius. |
-| `mass_kg` | kg | Total layer mass. |
+| `radius_inner` | m | Inner boundary radius. |
+| `radius_outer` | m | Outer boundary radius. |
+| `mass` | kg | Total layer mass. |
 | `material_name` | — | Material identifier. Default `""`. |
 | `is_tidal` | — | Tidal dissipation flag. Default `True`. |
 | `tidal_scale` | — | Dimensionless tidal heating scale. Default `1.0`. |
-| `shear_modulus_static_pa` | Pa | Unrelaxed shear modulus. Default `0.0`. |
-| `bulk_modulus_static_pa` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
-| `viscosity_static_pas` | Pa·s | Reference dynamic viscosity (at `reference_temperature_k`, P=0). Default `0.0`. |
+| `shear_modulus_static` | Pa | Unrelaxed shear modulus. Default `0.0`. |
+| `bulk_modulus_static` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
+| `viscosity_static_pas` | Pa·s | Reference dynamic viscosity (at `reference_temperature`, P=0). Default `0.0`. |
 | `love_number_re` | — | Real part of complex Love number (placeholder). Default `0.0`. |
 | `love_number_im` | — | Imaginary part of complex Love number (placeholder). Default `0.0`. |
-| `thermal_conductivity_ref_w_mk` | W/(m·K) | Reference thermal conductivity. Default `4.0`. |
-| `thermal_expansion_ref_1_k` | 1/K | Reference thermal expansion coefficient α. Default `3e-5`. |
-| `heat_capacity_ref_j_kgk` | J/(kg·K) | Reference specific heat capacity c_p. Default `1200.0`. |
-| `activation_energy_j_mol` | J/mol | Arrhenius activation energy E_a. Default `300e3`. |
-| `activation_volume_m3_mol` | m³/mol | Arrhenius activation volume V_a. Default `5e-6`. |
-| `solidus_temperature_k` | K | Solidus temperature T_s. Default `1600.0`. |
-| `liquidus_temperature_k` | K | Liquidus temperature T_l. Default `2000.0`. |
+| `thermal_conductivity_ref` | W/(m·K) | Reference thermal conductivity. Default `4.0`. |
+| `thermal_expansion_ref` | 1/K | Reference thermal expansion coefficient α. Default `3e-5`. |
+| `heat_capacity_ref` | J/(kg·K) | Reference specific heat capacity c_p. Default `1200.0`. |
+| `activation_energy` | J/mol | Arrhenius activation energy E_a. Default `300e3`. |
+| `activation_volume` | m³/mol | Arrhenius activation volume V_a. Default `5e-6`. |
+| `solidus_temperature` | K | Solidus temperature T_s. Default `1600.0`. |
+| `liquidus_temperature` | K | Liquidus temperature T_l. Default `2000.0`. |
 | `melt_fraction_exponent` | — | Exponent n in the melt-fraction formula. Default `1.0` (linear). |
-| `reference_density_kg_m3` | kg/m³ | Reference density ρ_ref for thermal diffusivity. Default `3500.0`. |
-| `reference_temperature_k` | K | Reference temperature T_ref for Arrhenius viscosity. Default `1600.0`. |
+| `reference_density` | kg/m³ | Reference density ρ_ref for thermal diffusivity. Default `3500.0`. |
+| `reference_temperature` | K | Reference temperature T_ref for Arrhenius viscosity. Default `1600.0`. |
 | `melt_viscosity_reduction` | — | Coefficient C in exp(−C·φ) melt-viscosity reduction. Default `25.0`. |
 
 ---
@@ -141,7 +141,7 @@ See [BaseLayer](base_layer.md): `name`, `layer_index`, `radius`, `radius_inner`,
 
 ## Methods
 
-### `calc_melt_fraction(temperature_k, pressure_pa=0.0)` → float
+### `calc_melt_fraction(temperature, pressure=0.0)` → float
 
 Volumetric melt fraction φ ∈ [0, 1]:
 
@@ -150,14 +150,14 @@ Volumetric melt fraction φ ∈ [0, 1]:
 φ = τ^n
 ```
 
-`pressure_pa` is accepted for interface uniformity and is unused: the melt
+`pressure` is accepted for interface uniformity and is unused: the melt
 curve carries no pressure dependence.
 
 ```python
 phi = layer.calc_melt_fraction(3200.0)        # T = 3200 K, P = 0
 ```
 
-### `calc_viscosity(temperature_k, pressure_pa=0.0)` → float
+### `calc_viscosity(temperature, pressure=0.0)` → float
 
 Effective dynamic viscosity [Pa·s]:
 
@@ -173,7 +173,7 @@ Returns `η_ref` when T = 0 K.
 eta = layer.calc_viscosity(3000.0, 1e11)      # T = 3000 K, P = 100 GPa
 ```
 
-### `calc_shear_modulus(temperature_k, pressure_pa=0.0)` → float
+### `calc_shear_modulus(temperature, pressure=0.0)` → float
 
 Effective shear modulus [Pa] accounting for partial melt:
 
@@ -185,16 +185,16 @@ G_eff = G_static · (1 − φ)
 G = layer.calc_shear_modulus(3000.0)
 ```
 
-### `calc_thermal_conductivity(temperature_k)` → float
+### `calc_thermal_conductivity(temperature)` → float
 
 Returns the reference thermal conductivity k [W/(m·K)].
 Temperature dependence is not modeled.
 
-### `calc_thermal_diffusivity(temperature_k)` → float
+### `calc_thermal_diffusivity(temperature)` → float
 
 Thermal diffusivity [m²/s] = k / (ρ_ref · c_p).
 
-### `calc_adiabatic_temperature_gradient(temperature_k, pressure_pa=0.0)` → float
+### `calc_adiabatic_temperature_gradient(temperature, pressure=0.0)` → float
 
 Adiabatic temperature gradient [K/m] = α · T · g / c_p.
 
@@ -237,7 +237,7 @@ layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
 ```
 
 
-### `calc_radiogenic_heating(time_s, mass_kg)` → float
+### `calc_radiogenic_heating(time, mass)` → float
 
 Radiogenic heating power [W] from the attached sub-model.
 Returns `0.0` when no radiogenics sub-model has been attached.
@@ -261,16 +261,16 @@ models are attached.
 
 | Key | Units | Description |
 |-----|-------|-------------|
-| `thermal_conductivity_ref_w_mk` | W/(m·K) | Reference thermal conductivity. |
-| `thermal_expansion_ref_1_k` | 1/K | Reference thermal expansion coefficient. |
-| `heat_capacity_ref_j_kgk` | J/(kg·K) | Reference specific heat capacity. |
-| `activation_energy_j_mol` | J/mol | Arrhenius activation energy. |
-| `activation_volume_m3_mol` | m³/mol | Arrhenius activation volume. |
-| `solidus_temperature_k` | K | Solidus temperature. |
-| `liquidus_temperature_k` | K | Liquidus temperature. |
+| `thermal_conductivity_ref` | W/(m·K) | Reference thermal conductivity. |
+| `thermal_expansion_ref` | 1/K | Reference thermal expansion coefficient. |
+| `heat_capacity_ref` | J/(kg·K) | Reference specific heat capacity. |
+| `activation_energy` | J/mol | Arrhenius activation energy. |
+| `activation_volume` | m³/mol | Arrhenius activation volume. |
+| `solidus_temperature` | K | Solidus temperature. |
+| `liquidus_temperature` | K | Liquidus temperature. |
 | `melt_fraction_exponent` | — | Melt-fraction exponent. |
-| `reference_density_kg_m3` | kg/m³ | Reference density. |
-| `reference_temperature_k` | K | Reference temperature. |
+| `reference_density` | kg/m³ | Reference density. |
+| `reference_temperature` | K | Reference temperature. |
 | `melt_viscosity_reduction` | — | Melt-viscosity reduction coefficient. |
 
 ---
@@ -308,22 +308,22 @@ from TidalPy.structures_x.layers import SolidLiquidLayer
 mantle = SolidLiquidLayer(
     name                          = "mantle",
     layer_index                   = 1,
-    radius_inner_m                = 3.485e6,
-    radius_outer_m                = 6.371e6,
-    mass_kg                       = 4.043e24,
+    radius_inner                = 3.485e6,
+    radius_outer                = 6.371e6,
+    mass                       = 4.043e24,
     material_name                 = "perovskite",
-    shear_modulus_static_pa       = 1.67e11,
-    bulk_modulus_static_pa        = 3.57e11,
+    shear_modulus_static       = 1.67e11,
+    bulk_modulus_static        = 3.57e11,
     viscosity_static_pas          = 1.0e21,
-    thermal_conductivity_ref_w_mk = 4.5,
-    heat_capacity_ref_j_kgk       = 1200.0,
-    thermal_expansion_ref_1_k     = 2.0e-5,
-    activation_energy_j_mol       = 300.0e3,
-    activation_volume_m3_mol      = 5.0e-6,
-    solidus_temperature_k         = 3000.0,
-    liquidus_temperature_k        = 4000.0,
-    reference_density_kg_m3       = 4000.0,
-    reference_temperature_k       = 3000.0,
+    thermal_conductivity_ref = 4.5,
+    heat_capacity_ref       = 1200.0,
+    thermal_expansion_ref     = 2.0e-5,
+    activation_energy       = 300.0e3,
+    activation_volume      = 5.0e-6,
+    solidus_temperature         = 3000.0,
+    liquidus_temperature        = 4000.0,
+    reference_density       = 4000.0,
+    reference_temperature       = 3000.0,
     melt_viscosity_reduction      = 25.0,
 )
 

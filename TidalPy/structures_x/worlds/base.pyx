@@ -52,9 +52,9 @@ cdef class BaseWorld(StructureBase):
     ----------
     name : str
         Human-readable world name.
-    radius_m : float
+    radius : float
         World radius [m].
-    mass_kg : float
+    mass : float
         World mass [kg].
     world_type : str, optional
         Free-form type label (e.g. ``"terrestrial"``). Default ``"world"``.
@@ -62,9 +62,9 @@ cdef class BaseWorld(StructureBase):
         Bond albedo [dimensionless]. Default ``0.3``.
     emissivity : float, optional
         Surface emissivity [dimensionless]. Default ``1.0``.
-    obliquity_rad : float, optional
+    obliquity : float, optional
         Axial obliquity [rad]. Default ``0.0``.
-    spin_frequency_rad_s : float, optional
+    spin_frequency : float, optional
         Rotation rate [rad/s]. Default ``0.0``.
 
     Assumptions
@@ -79,22 +79,22 @@ cdef class BaseWorld(StructureBase):
     def __init__(
             self,
             str    name,
-            double radius_m,
-            double mass_kg,
-            str    world_type           = "world",
-            double albedo               = 0.3,
-            double emissivity           = 1.0,
-            double obliquity_rad        = 0.0,
-            double spin_frequency_rad_s = 0.0):
+            double radius,
+            double mass,
+            str    world_type = "world",
+            double albedo     = 0.3,
+            double emissivity = 1.0,
+            double obliquity  = 0.0,
+            double spin_frequency = 0.0):
         cdef c_WorldConfig config
-        config.name                 = name.encode("utf-8")
-        config.world_type_str       = world_type.encode("utf-8")
-        config.radius_m             = radius_m
-        config.mass_kg              = mass_kg
-        config.albedo               = albedo
-        config.emissivity           = emissivity
-        config.obliquity_rad        = obliquity_rad
-        config.spin_frequency_rad_s = spin_frequency_rad_s
+        config.name           = name.encode("utf-8")
+        config.world_type_str = world_type.encode("utf-8")
+        config.radius     = radius
+        config.mass       = mass
+        config.albedo     = albedo
+        config.emissivity = emissivity
+        config.obliquity  = obliquity
+        config.spin_frequency = spin_frequency
         self._world_ptr.reset(new c_BaseWorld(config))
         self._ptr = <c_TidalPyBaseClass*>self._world_ptr.get()
 
@@ -175,14 +175,14 @@ cdef class BaseWorld(StructureBase):
         """Mean density [kg/m^3] = M / V_sphere(R)."""
         return self._world_ptr.get().calc_mean_density()
 
-    def calc_equilibrium_temperature(self, double insolation_flux_w_m2) -> float:
+    def calc_equilibrium_temperature(self, double insolation_flux) -> float:
         """Radiative-equilibrium temperature [K] for a given insolation flux.
 
         T_eq = [ (1 − A)·F / (4·ε·σ) ]^(1/4)
 
         Parameters
         ----------
-        insolation_flux_w_m2 : float
+        insolation_flux : float
             Incident stellar flux [W/m^2].
 
         Returns
@@ -194,18 +194,18 @@ cdef class BaseWorld(StructureBase):
         -----------
         - Fast-rotator, uniform-temperature surface.
         """
-        return self._world_ptr.get().calc_equilibrium_temperature(insolation_flux_w_m2)
+        return self._world_ptr.get().calc_equilibrium_temperature(insolation_flux)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Mutators
     # ------------------------------------------------------------------------------------------------------------------
-    def set_spin_frequency(self, double freq_rad_s):
+    def set_spin_frequency(self, double freq):
         """Set the rotation rate [rad/s]."""
-        self._world_ptr.get().set_spin_frequency(freq_rad_s)
+        self._world_ptr.get().set_spin_frequency(freq)
 
-    def set_obliquity(self, double obliq_rad):
+    def set_obliquity(self, double obliq):
         """Set the axial obliquity [rad]."""
-        self._world_ptr.get().set_obliquity(obliq_rad)
+        self._world_ptr.get().set_obliquity(obliq)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Global (1D) tidal dissipation (analytic path; common to all world types)
@@ -477,8 +477,8 @@ cdef class BaseWorld(StructureBase):
         Returns
         -------
         dict
-            Keys: ``schema_version``, ``name``, ``type``, ``radius_m``, ``mass_kg``, ``albedo``,
-            ``emissivity``, ``obliquity_rad``, ``spin_frequency_rad_s``, and ``tides`` when set.
+            Keys: ``schema_version``, ``name``, ``type``, ``radius``, ``mass``, ``albedo``,
+            ``emissivity``, ``obliquity``, ``spin_frequency``, and ``tides`` when set.
         """
         from TidalPy.structures_x.configs.toml_loader import SCHEMA_VERSION
         cdef c_BaseWorld* p = self._world_ptr.get()

@@ -37,9 +37,9 @@ def _maxwell_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("supplied_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -54,7 +54,7 @@ def test_supplied_matches_rheology():
     world = _maxwell_world()
 
     # Rheology-driven reference.
-    world.solve_love_numbers(frequency_rad_s=_FREQ, verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, verbose=False)
     k_ref = world.love_number_k
     h_ref = world.love_number_h
     l_ref = world.love_number_l
@@ -67,7 +67,7 @@ def test_supplied_matches_rheology():
     bulk = np.ascontiguousarray(
         world.calc_complex_bulk_modulus(radius, _FREQ), dtype=np.complex128)
 
-    res = world.solve_love_numbers_supplied(shear, bulk, radius, frequency_rad_s=_FREQ)
+    res = world.solve_love_numbers_supplied(shear, bulk, radius, frequency=_FREQ)
     assert res["success"] is True
     assert cmath.isclose(res["love_number_k"], k_ref, rel_tol=1e-6, abs_tol=1e-9)
     assert cmath.isclose(res["love_number_h"], h_ref, rel_tol=1e-6, abs_tol=1e-9)
@@ -82,7 +82,7 @@ def test_supplied_k2_reasonable():
         world.calc_complex_shear_modulus(radius, _FREQ), dtype=np.complex128)
     bulk = np.ascontiguousarray(
         world.calc_complex_bulk_modulus(radius, _FREQ), dtype=np.complex128)
-    res = world.solve_love_numbers_supplied(shear, bulk, radius, frequency_rad_s=_FREQ)
+    res = world.solve_love_numbers_supplied(shear, bulk, radius, frequency=_FREQ)
     k2 = res["love_number_k"]
     assert not cmath.isnan(k2)
     assert 0.0 < k2.real < 1.5
@@ -94,4 +94,4 @@ def test_supplied_length_mismatch_raises():
     shear = np.ones(50, dtype=np.complex128) * _STATIC_SHEAR
     bulk = np.ones(49, dtype=np.complex128) * _STATIC_BULK   # wrong length
     with pytest.raises(ValueError):
-        world.solve_love_numbers_supplied(shear, bulk, radius, frequency_rad_s=_FREQ)
+        world.solve_love_numbers_supplied(shear, bulk, radius, frequency=_FREQ)

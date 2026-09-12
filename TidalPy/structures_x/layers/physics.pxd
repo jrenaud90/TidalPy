@@ -33,18 +33,18 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         # Inherited from c_BaseLayerConfig:
         string              name
         int                 layer_index
-        double              radius_inner_m
-        double              radius_outer_m
-        double              mass_kg
+        double              radius_inner
+        double              radius_outer
+        double              mass
         string              material_name
         cpp_bool            is_tidal
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # PhysicsLayer additions:
-        double              shear_modulus_static_pa
-        double              bulk_modulus_static_pa
-        double              shear_viscosity_static_pas
-        double              bulk_viscosity_static_pas
+        double              shear_modulus_static
+        double              bulk_modulus_static
+        double              shear_viscosity_static
+        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         # Radial-solver layer classification flags:
         cpp_bool            is_solid
@@ -64,8 +64,8 @@ cdef extern from "physics_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double] get_love_number_l()                      const
         cpp_complex[double] calc_complex_shear_modulus(double freq)  const
         cpp_complex[double] calc_complex_bulk_modulus(double freq)   const
-        cpp_complex[double] calc_complex_shear_modulus(double radius_m, double freq) const
-        cpp_complex[double] calc_complex_bulk_modulus(double radius_m, double freq)  const
+        cpp_complex[double] calc_complex_shear_modulus(double radius, double freq) const
+        cpp_complex[double] calc_complex_bulk_modulus(double radius, double freq)  const
         cpp_bool            get_shear_rheology_set()                 const
         c_RheologyBase*     get_shear_rheology_model()               const
         c_RheologyBase*     get_bulk_rheology_model()                const

@@ -44,9 +44,9 @@ public:
     //
     // Parameters
     // ----------
-    // time_s : elapsed time [s] (must share its zero point with the reference
+    // time : elapsed time [s] (must share its zero point with the reference
     //          time stored on the model)
-    // mass_kg : mass of the radiogenic material [kg]
+    // mass : mass of the radiogenic material [kg]
     //
     // Returns
     // -------
@@ -57,7 +57,7 @@ public:
     // - Exponential radioactive decay from a reference time.
     // - All inputs and outputs are MKS.
     // -----------------------------------------------------------------------
-    virtual double calc_heating(double time_s, double mass_kg) const = 0;
+    virtual double calc_heating(double time, double mass) const = 0;
 
     // -----------------------------------------------------------------------
     // Vectorized heating — vary time at constant mass.
@@ -66,13 +66,13 @@ public:
     // out_heating is resized to the time vector length.
     // -----------------------------------------------------------------------
     void calc_heating_vectorize_time(
-            const std::vector<double>& time_s,
-            double mass_kg,
+            const std::vector<double>& time,
+            double mass,
             std::vector<double>& out_heating) const {
-        const std::size_t n = time_s.size();
+        const std::size_t n = time.size();
         out_heating.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
-            out_heating[i] = this->calc_heating(time_s[i], mass_kg);
+            out_heating[i] = this->calc_heating(time[i], mass);
         }
     }
 
@@ -83,13 +83,13 @@ public:
     // out_heating is resized to the mass vector length.
     // -----------------------------------------------------------------------
     void calc_heating_vectorize_mass(
-            double time_s,
-            const std::vector<double>& mass_kg,
+            double time,
+            const std::vector<double>& mass,
             std::vector<double>& out_heating) const {
-        const std::size_t n = mass_kg.size();
+        const std::size_t n = mass.size();
         out_heating.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
-            out_heating[i] = this->calc_heating(time_s, mass_kg[i]);
+            out_heating[i] = this->calc_heating(time, mass[i]);
         }
     }
 
@@ -100,18 +100,18 @@ public:
     // to N.  Throws std::invalid_argument if the input vectors differ in length.
     // -----------------------------------------------------------------------
     void calc_heating_vectorize_all(
-            const std::vector<double>& time_s,
-            const std::vector<double>& mass_kg,
+            const std::vector<double>& time,
+            const std::vector<double>& mass,
             std::vector<double>& out_heating) const {
-        if (time_s.size() != mass_kg.size()) {
+        if (time.size() != mass.size()) {
             throw std::invalid_argument(
                 "TidalPy: calc_heating_vectorize_all — time and mass vectors must "
                 "have the same length");
         }
-        const std::size_t n = time_s.size();
+        const std::size_t n = time.size();
         out_heating.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
-            out_heating[i] = this->calc_heating(time_s[i], mass_kg[i]);
+            out_heating[i] = this->calc_heating(time[i], mass[i]);
         }
     }
 };

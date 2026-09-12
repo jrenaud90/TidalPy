@@ -28,21 +28,21 @@ cdef extern from "rheology_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_RheologyBase(c_PhysicsBase):
         cpp_complex[double] calc_complex_modulus(
-            double modulus_pa, double viscosity_pas, double frequency_rad_s) const
+            double modulus, double viscosity, double frequency) const
         void calc_complex_modulus_vectorize_modulus(
-            const vector[double]& modulus_pa,
-            const vector[double]& viscosity_pas,
-            double frequency_rad_s,
+            const vector[double]& modulus,
+            const vector[double]& viscosity,
+            double frequency,
             vector[cpp_complex[double]]& out_complex_modulus) except +
         void calc_complex_modulus_vectorize_frequency(
-            double modulus_pa,
-            double viscosity_pas,
-            const vector[double]& frequency_rad_s,
+            double modulus,
+            double viscosity,
+            const vector[double]& frequency,
             vector[cpp_complex[double]]& out_complex_modulus) except +
         void calc_complex_modulus_vectorize_all(
-            const vector[double]& modulus_pa,
-            const vector[double]& viscosity_pas,
-            const vector[double]& frequency_rad_s,
+            const vector[double]& modulus,
+            const vector[double]& viscosity,
+            const vector[double]& frequency,
             vector[cpp_complex[double]]& out_complex_modulus) except +
 
 

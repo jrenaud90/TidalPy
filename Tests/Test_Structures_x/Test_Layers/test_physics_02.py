@@ -29,8 +29,8 @@ def _build_layer(cls):
     make_viscosity, make_partial_melt = _import_models()
     layer = cls(
         "mantle", 0, 0.0, 1.0e6, 1.0e22,
-        shear_modulus_static_pa=6.0e10,
-        bulk_modulus_static_pa=2.0e11,
+        shear_modulus_static=6.0e10,
+        bulk_modulus_static=2.0e11,
         tidal_scale_method="tidal_timescale")
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 3.0e19}))
     layer.set_bulk_viscosity(make_viscosity("reference", {

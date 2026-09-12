@@ -30,9 +30,9 @@ LUM_SOLAR = 3.828e26
 SIGMA = scipy.constants.Stefan_Boltzmann
 
 
-def _reference_mass_luminosity(mass_kg):
+def _reference_mass_luminosity(mass):
     """Independent Python re-implementation of the piecewise main-sequence L(M) relation."""
-    ratio = mass_kg / MASS_SOLAR
+    ratio = mass / MASS_SOLAR
     if ratio < 0.2:
         return LUM_SOLAR * 0.23 * ratio ** 2.3
     if ratio < 0.85:

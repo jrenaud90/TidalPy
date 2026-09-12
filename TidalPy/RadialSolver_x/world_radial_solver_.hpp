@@ -163,13 +163,13 @@ inline int c_matrix_solve(
 // Runtime (per-solve) configuration - the knobs that may legitimately change between calls.
 // =====================================================================================================================
 struct c_LoveSolveRuntimeConfig {
-    double    frequency_rad_s    = 1.0e-5;             // [rad/s]; the only physically per-call quantity
-    int       bc_model           = 1;                  // tidal = 1, free = 0, loading = 2
-    bool      use_prop_matrix    = false;              // false = shooting method, true = propagation matrix
-    int       core_model         = 0;                  // propagation-matrix core starting condition (0-4)
-    bool      use_kamata         = false;
-    double    starting_radius    = 0.0;                // [m]; 0 -> auto
-    double    start_radius_tol   = 1.0e-4;
+    double    frequency       = 1.0e-5;             // [rad/s]; the only physically per-call quantity
+    int       bc_model        = 1;                  // tidal = 1, free = 0, loading = 2
+    bool      use_prop_matrix = false;              // false = shooting method, true = propagation matrix
+    int       core_model      = 0;                  // propagation-matrix core starting condition (0-4)
+    bool      use_kamata      = false;
+    double    starting_radius = 0.0;                // [m]; 0 -> auto
+    double    start_radius_tol = 1.0e-4;
     ODEMethod integration_method = ODEMethod::DOP853;
     double    rtol               = 1.0e-5;
     double    atol               = 1.0e-7;
@@ -443,7 +443,7 @@ public:
 
     // -----------------------------------------------------------------------------------------------------------------
     // solve - frequency-dependent step. Expects the complex-moduli scratch buffers (shear_scratch_data /
-    // bulk_scratch_data) to have been filled (dimensional, SI) for rt.frequency_rad_s.
+    // bulk_scratch_data) to have been filled (dimensional, SI) for rt.frequency.
     // -----------------------------------------------------------------------------------------------------------------
     void solve(const c_LoveSolveRuntimeConfig& rt) {
         c_RadialSolutionStorage* storage = this->p_storage.get();
@@ -500,8 +500,8 @@ public:
 
         // Frequency does not enter non-dimensionalization, but pass the non-dim'd value through for any internal use.
         const double freq_nd = this->p_nondim
-            ? rt.frequency_rad_s * this->p_non_dim_uptr->second_conversion
-            : rt.frequency_rad_s;
+            ? rt.frequency * this->p_non_dim_uptr->second_conversion
+            : rt.frequency;
         const double start_r = this->p_nondim
             ? rt.starting_radius / this->p_non_dim_uptr->length_conversion
             : rt.starting_radius;

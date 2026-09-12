@@ -48,18 +48,18 @@ _GRAVITY     = 25.0      # [m/s²] — representative surface gravity
 def _make_layer(**kw):
     mod = _import_gas()
     defaults = dict(
-        name                         = "atmosphere",
-        layer_index                  = 0,
-        radius_inner_m               = _R_INNER_M,
-        radius_outer_m               = _R_OUTER_M,
-        mass_kg                      = _MASS_KG,
-        material_name                = "hydrogen",
-        is_tidal                     = False,
-        tidal_scale                  = 1.0,
-        mean_molecular_weight_kg_mol = _MW,
-        adiabatic_index              = _GAMMA,
-        reference_temperature_k      = _T_REF_K,
-        reference_density_kg_m3      = _RHO_REF,
+        name         = "atmosphere",
+        layer_index  = 0,
+        radius_inner = _R_INNER_M,
+        radius_outer = _R_OUTER_M,
+        mass         = _MASS_KG,
+        material_name = "hydrogen",
+        is_tidal    = False,
+        tidal_scale = 1.0,
+        mean_molecular_weight = _MW,
+        adiabatic_index       = _GAMMA,
+        reference_temperature = _T_REF_K,
+        reference_density     = _RHO_REF,
     )
     defaults.update(kw)
     return mod.GasLayer(**defaults)
@@ -94,7 +94,7 @@ def test_gas_defaults():
 # =====================================================================================================================
 def test_gas_inherits_geometry():
     """Thickness, volume, surface areas resolved correctly via _layer_ptr."""
-    gl = _make_layer(radius_inner_m=1e7, radius_outer_m=7e7)
+    gl = _make_layer(radius_inner=1e7, radius_outer=7e7)
     expected_t = 7e7 - 1e7
     expected_v = (4.0 / 3.0) * math.pi * (7e7**3 - 1e7**3)
     assert gl.thickness == pytest.approx(expected_t)
@@ -298,7 +298,7 @@ def test_binary_roundtrip_gas():
 def test_binary_roundtrip_derived_fields():
     """After load_binary, derived geometry fields are recomputed correctly."""
     mod = _import_gas()
-    gl1 = _make_layer(radius_inner_m=1e7, radius_outer_m=7e7)
+    gl1 = _make_layer(radius_inner=1e7, radius_outer=7e7)
     with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
         path = f.name
     try:
@@ -346,7 +346,7 @@ def _import_rheology():
 def test_gas_attach_rheology_sets_flag():
     """GasLayer inherits set_shear_rheology from PhysicsLayer."""
     rheo = _import_rheology()
-    gl = _make_layer(shear_modulus_static_pa=1.0e9, shear_viscosity_static_pas=1.0e18)
+    gl = _make_layer(shear_modulus_static=1.0e9, shear_viscosity_static=1.0e18)
     assert gl.shear_rheology_set is False
     gl.set_shear_rheology(rheo.Maxwell())
     assert gl.shear_rheology_set is True
@@ -357,7 +357,7 @@ def test_gas_binary_roundtrip_with_rheology():
     mod  = _import_gas()
     rheo = _import_rheology()
     freq = 1.0e-5
-    gl1  = _make_layer(shear_modulus_static_pa=1.0e9, shear_viscosity_static_pas=1.0e18)
+    gl1  = _make_layer(shear_modulus_static=1.0e9, shear_viscosity_static=1.0e18)
     gl1.set_shear_rheology(rheo.Maxwell())
     mu_before = gl1.calc_complex_shear_modulus(freq)
 

@@ -55,11 +55,11 @@ cdef class PhysicsLayer(BaseLayer):
         Human-readable layer name.
     layer_index : int
         Zero-based position; innermost layer = 0.
-    radius_inner_m : float
+    radius_inner : float
         Inner boundary radius [m].
-    radius_outer_m : float
+    radius_outer : float
         Outer boundary radius [m].
-    mass_kg : float
+    mass : float
         Total layer mass [kg].
     material_name : str, optional
         Material identifier (e.g. ``"perovskite"``). Default ``""``.
@@ -67,13 +67,13 @@ cdef class PhysicsLayer(BaseLayer):
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
         Dimensionless tidal heating scale. Default ``1.0``.
-    shear_modulus_static_pa : float, optional
+    shear_modulus_static : float, optional
         Unrelaxed shear modulus [Pa]. Default ``0.0``.
-    bulk_modulus_static_pa : float, optional
+    bulk_modulus_static : float, optional
         Unrelaxed bulk modulus [Pa]. Default ``0.0``.
-    shear_viscosity_static_pas : float, optional
+    shear_viscosity_static : float, optional
         Reference dynamic shear viscosity [Pa·s]. Default NaN (unset).
-    bulk_viscosity_static_pas : float, optional
+    bulk_viscosity_static : float, optional
         Reference dynamic bulk viscosity [Pa·s]. Default NaN (unset).
     love_number_k : complex, optional
         Potential Love number (placeholder). Default ``0+0j``.
@@ -85,7 +85,7 @@ cdef class PhysicsLayer(BaseLayer):
     Assumptions
     -----------
     - Layer geometry is spherically symmetric.
-    - radius_inner_m <= radius_outer_m.
+    - radius_inner <= radius_outer.
     - All values are in MKS units.
     """
 
@@ -96,34 +96,34 @@ cdef class PhysicsLayer(BaseLayer):
             self,
             str    name,
             int    layer_index,
-            double radius_inner_m,
-            double radius_outer_m,
-            double mass_kg,
-            str    material_name                = "",
-            cpp_bool is_tidal                   = True,
-            double tidal_scale                  = 1.0,
-            double shear_modulus_static_pa      = 0.0,
-            double bulk_modulus_static_pa       = 0.0,
-            double shear_viscosity_static_pas   = d_NAN,
-            double bulk_viscosity_static_pas    = d_NAN,
-            complex love_number_k               = 0+0j,
-            complex love_number_h               = 0+0j,
-            complex love_number_l               = 0+0j,
-            str    tidal_scale_method           = "user_provided"):
+            double radius_inner,
+            double radius_outer,
+            double mass,
+            str    material_name        = "",
+            cpp_bool is_tidal           = True,
+            double tidal_scale          = 1.0,
+            double shear_modulus_static = 0.0,
+            double bulk_modulus_static  = 0.0,
+            double shear_viscosity_static = d_NAN,
+            double bulk_viscosity_static = d_NAN,
+            complex love_number_k        = 0+0j,
+            complex love_number_h        = 0+0j,
+            complex love_number_l        = 0+0j,
+            str    tidal_scale_method    = "user_provided"):
         cdef c_PhysicsConfig config
-        config.name                       = name.encode("utf-8")
-        config.layer_index                = layer_index
-        config.radius_inner_m             = radius_inner_m
-        config.radius_outer_m             = radius_outer_m
-        config.mass_kg                    = mass_kg
-        config.material_name              = material_name.encode("utf-8")
-        config.is_tidal                   = is_tidal
-        config.tidal_scale                = tidal_scale
-        config.tidal_scale_method         = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
-        config.shear_modulus_static_pa    = shear_modulus_static_pa
-        config.bulk_modulus_static_pa     = bulk_modulus_static_pa
-        config.shear_viscosity_static_pas = shear_viscosity_static_pas
-        config.bulk_viscosity_static_pas  = bulk_viscosity_static_pas
+        config.name               = name.encode("utf-8")
+        config.layer_index        = layer_index
+        config.radius_inner       = radius_inner
+        config.radius_outer       = radius_outer
+        config.mass               = mass
+        config.material_name      = material_name.encode("utf-8")
+        config.is_tidal           = is_tidal
+        config.tidal_scale        = tidal_scale
+        config.tidal_scale_method = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
+        config.shear_modulus_static = shear_modulus_static
+        config.bulk_modulus_static  = bulk_modulus_static
+        config.shear_viscosity_static = shear_viscosity_static
+        config.bulk_viscosity_static  = bulk_viscosity_static
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
@@ -347,7 +347,7 @@ cdef class PhysicsLayer(BaseLayer):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def _apply_complex(self, radius_m, double frequency_rad_s, cpp_bool is_shear):
+    def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
         # Radius-resolved complex modulus: float -> complex; np.ndarray -> complex np.ndarray (same shape).
         cdef cnp.ndarray in_arr
         cdef cnp.ndarray out_arr
@@ -355,42 +355,42 @@ cdef class PhysicsLayer(BaseLayer):
         cdef double complex[::1] flat_out
         cdef cpp_complex[double] value
         cdef Py_ssize_t i, n
-        if isinstance(radius_m, np.ndarray):
-            in_arr   = np.ascontiguousarray(radius_m, dtype=np.float64)
-            out_arr  = np.empty_like(in_arr, dtype=np.complex128)
-            flat_in  = in_arr.reshape(-1)
+        if isinstance(radius, np.ndarray):
+            in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
+            out_arr = np.empty_like(in_arr, dtype=np.complex128)
+            flat_in = in_arr.reshape(-1)
             flat_out = out_arr.reshape(-1)
             n = flat_in.shape[0]
             for i in range(n):
                 if is_shear:
-                    value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency_rad_s)
+                    value = self._physics_ptr.calc_complex_shear_modulus(flat_in[i], frequency)
                 else:
-                    value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency_rad_s)
+                    value = self._physics_ptr.calc_complex_bulk_modulus(flat_in[i], frequency)
                 flat_out[i] = value.real() + 1j * value.imag()
             return out_arr
         if is_shear:
-            value = self._physics_ptr.calc_complex_shear_modulus(<double>radius_m, frequency_rad_s)
+            value = self._physics_ptr.calc_complex_shear_modulus(<double>radius, frequency)
         else:
-            value = self._physics_ptr.calc_complex_bulk_modulus(<double>radius_m, frequency_rad_s)
+            value = self._physics_ptr.calc_complex_bulk_modulus(<double>radius, frequency)
         return complex(value.real(), value.imag())
 
-    def calc_complex_shear_modulus(self, first_arg, frequency_rad_s=None):
+    def calc_complex_shear_modulus(self, first_arg, frequency=None):
         """Complex shear modulus [Pa]: layer-constant or radius-resolved.
 
-        With one argument, ``calc_complex_shear_modulus(frequency_rad_s)`` applies the shear
+        With one argument, ``calc_complex_shear_modulus(frequency)`` applies the shear
         rheology to the layer-constant static shear modulus and viscosity. That static viscosity
         is NaN unless it was given at construction (a viscous rheology then returns NaN), so
         either set it explicitly or use the radius-resolved form after the world EOS solve. With two arguments,
-        ``calc_complex_shear_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
-        static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
-        surface the world exposes); ``radius_m`` may be a float or np.ndarray.
+        ``calc_complex_shear_modulus(radius, frequency)`` applies it to the post-melt
+        static modulus and viscosity stored at ``radius`` by the world EOS solve (the same
+        surface the world exposes); ``radius`` may be a float or np.ndarray.
 
         Parameters
         ----------
         first_arg : float or np.ndarray
             Tidal forcing frequency [rad/s] (one-argument form), or query radius [m]
             (two-argument form; float or np.ndarray).
-        frequency_rad_s : float, optional
+        frequency : float, optional
             Tidal forcing frequency [rad/s] for the radius-resolved form.
 
         Returns
@@ -404,28 +404,28 @@ cdef class PhysicsLayer(BaseLayer):
         - The radius-resolved form returns NaN before the world EOS solve populates the layer.
         """
         cdef cpp_complex[double] result
-        if frequency_rad_s is None:
+        if frequency is None:
             result = self._physics_ptr.calc_complex_shear_modulus(<double>first_arg)
             return complex(result.real(), result.imag())
-        return self._apply_complex(first_arg, <double>frequency_rad_s, True)
+        return self._apply_complex(first_arg, <double>frequency, True)
 
-    def calc_complex_bulk_modulus(self, first_arg, frequency_rad_s=None):
+    def calc_complex_bulk_modulus(self, first_arg, frequency=None):
         """Complex bulk modulus [Pa]: layer-constant or radius-resolved.
 
-        With one argument, ``calc_complex_bulk_modulus(frequency_rad_s)`` applies the bulk
+        With one argument, ``calc_complex_bulk_modulus(frequency)`` applies the bulk
         rheology to the layer-constant static bulk modulus and viscosity. That static viscosity
         is NaN unless it was given at construction (a viscous rheology then returns NaN), so
         either set it explicitly or use the radius-resolved form after the world EOS solve. With two arguments,
-        ``calc_complex_bulk_modulus(radius_m, frequency_rad_s)`` applies it to the post-melt
-        static modulus and viscosity stored at ``radius_m`` by the world EOS solve (the same
-        surface the world exposes); ``radius_m`` may be a float or np.ndarray.
+        ``calc_complex_bulk_modulus(radius, frequency)`` applies it to the post-melt
+        static modulus and viscosity stored at ``radius`` by the world EOS solve (the same
+        surface the world exposes); ``radius`` may be a float or np.ndarray.
 
         Parameters
         ----------
         first_arg : float or np.ndarray
             Tidal forcing frequency [rad/s] (one-argument form), or query radius [m]
             (two-argument form; float or np.ndarray).
-        frequency_rad_s : float, optional
+        frequency : float, optional
             Tidal forcing frequency [rad/s] for the radius-resolved form.
 
         Returns
@@ -439,10 +439,10 @@ cdef class PhysicsLayer(BaseLayer):
         - The radius-resolved form returns NaN before the world EOS solve populates the layer.
         """
         cdef cpp_complex[double] result
-        if frequency_rad_s is None:
+        if frequency is None:
             result = self._physics_ptr.calc_complex_bulk_modulus(<double>first_arg)
             return complex(result.real(), result.imag())
-        return self._apply_complex(first_arg, <double>frequency_rad_s, False)
+        return self._apply_complex(first_arg, <double>frequency, False)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config
@@ -453,9 +453,9 @@ cdef class PhysicsLayer(BaseLayer):
         Returns
         -------
         dict
-            Keys: all BaseLayer keys plus ``shear_modulus_static_pa``,
-            ``bulk_modulus_static_pa``, ``shear_viscosity_static_pas``,
-            ``bulk_viscosity_static_pas``, and Love number components
+            Keys: all BaseLayer keys plus ``shear_modulus_static``,
+            ``bulk_modulus_static``, ``shear_viscosity_static``,
+            ``bulk_viscosity_static``, and Love number components
             ``love_number_k_re``, ``love_number_k_im``, ``love_number_h_re``,
             ``love_number_h_im``, ``love_number_l_re``, ``love_number_l_im``; plus one
             sub-table per attached model: ``shear_rheology``, ``bulk_rheology``,

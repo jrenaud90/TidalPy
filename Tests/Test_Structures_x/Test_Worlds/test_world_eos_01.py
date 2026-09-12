@@ -46,7 +46,7 @@ def _uniform_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("Uniform", _PLANET_RADIUS, mass, world_type="terrestrial")
     layer = BaseLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass, material_name="rock")
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     world.add_layer(layer)
     return world
 
@@ -58,7 +58,7 @@ def test_set_eos_flags():
     _, BaseLayer, ConstantDensityEOS, _ = _import()
     layer = BaseLayer("rock", 0, 0.0, 1.0e6, 1.0e20)
     assert layer.eos_set is False
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     assert layer.eos_set is True
 
 
@@ -66,7 +66,7 @@ def test_set_eos_consumes_model():
     """Attaching an EOS model leaves the Python wrapper an empty shell."""
     _, BaseLayer, ConstantDensityEOS, _ = _import()
     layer = BaseLayer("rock", 0, 0.0, 1.0e6, 1.0e20)
-    eos = ConstantDensityEOS(reference_density_kg_m3=_DENSITY)
+    eos = ConstantDensityEOS(reference_density=_DENSITY)
     layer.set_eos(eos)
     with pytest.raises(ValueError):
         layer.set_eos(eos)
@@ -169,8 +169,8 @@ def test_two_layer_constant_density():
     world = LayeredWorld("TwoLayer", _PLANET_RADIUS, mass)
     core   = BaseLayer("core", 0, 0.0, r_cmb, 0.0, material_name="iron")
     mantle = BaseLayer("mantle", 1, r_cmb, _PLANET_RADIUS, 0.0, material_name="rock")
-    core.set_eos(ConstantDensityEOS(reference_density_kg_m3=rho_c))
-    mantle.set_eos(ConstantDensityEOS(reference_density_kg_m3=rho_m))
+    core.set_eos(ConstantDensityEOS(reference_density=rho_c))
+    mantle.set_eos(ConstantDensityEOS(reference_density=rho_m))
     world.add_layer(core)
     world.add_layer(mantle)
 

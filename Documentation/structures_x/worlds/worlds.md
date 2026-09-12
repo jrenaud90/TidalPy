@@ -36,9 +36,9 @@ TidalPyBaseClass
 from TidalPy.structures_x.worlds import BaseWorld
 
 w = BaseWorld(
-    name="Earth", radius_m=6.371e6, mass_kg=5.972e24,
+    name="Earth", radius=6.371e6, mass=5.972e24,
     world_type="terrestrial", albedo=0.3, emissivity=1.0,
-    obliquity_rad=0.41, spin_frequency_rad_s=7.29e-5,
+    obliquity=0.41, spin_frequency=7.29e-5,
 )
 ```
 
@@ -57,8 +57,8 @@ w = BaseWorld(
 | `set_obliquity(θ)` | — | Set axial obliquity [rad]. |
 
 `get_config_dict()` returns the world as the TOML builder's world table: `schema_version`, `name`,
-`type` (the builder's world type, from `get_builder_world_type()`), `radius_m`, `mass_kg`, `albedo`,
-`emissivity`, `obliquity_rad`, `spin_frequency_rad_s`, and a `tides` table when a tide model is
+`type` (the builder's world type, from `get_builder_world_type()`), `radius`, `mass`, `albedo`,
+`emissivity`, `obliquity`, `spin_frequency`, and a `tides` table when a tide model is
 attached (`global_tidal_model`, its per-degree parameters, and the settings from `get_tide_config()`).
 `save_config` / `save_binary` / `load_binary` are inherited from `TidalPyBaseClass`; `save_to_toml`
 validates the dict against the schema before writing when no build configuration is retained.
@@ -87,7 +87,7 @@ world.add_layer(SolidLiquidLayer("mantle", 1, 3.485e6, 6.371e6, 4.040e24))
 | `add_layer(layer)` | Add a layer inner-to-outer. **Ownership of the layer (and its attached physics models) transfers into the world**; the passed wrapper becomes an empty shell. Raises `ValueError` if the layer was already added or if its inner radius is not continuous with the current outermost radius (innermost must start at 0). A rejected layer is *not* consumed. |
 | `num_layers` | Number of layers (property). |
 | `calc_total_mass()` | Σ layer masses [kg]. |
-| `calc_internal_heating(time_s)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. |
+| `calc_internal_heating(time)` | Σ radiogenic heating [W]; only `SolidLiquidLayer`s with an attached radiogenics model contribute. |
 | `validate_layers()` | `True` if every boundary is continuous and the innermost starts at 0. |
 
 **Accessing layers.** A built world owns its layers, you can reach them with wrappers:
@@ -272,7 +272,7 @@ layer.set_shear_rheology(make_rheology("maxwell", {
 world.add_layer(layer)
 
 world.solve_eos()
-world.solve_love_numbers(frequency_rad_s=1e-5)
+world.solve_love_numbers(frequency=1e-5)
 
 print(world.love_k2)   # complex k₂
 print(world.love_h2)   # complex h₂
@@ -280,7 +280,7 @@ print(world.love_l2)   # complex l₂
 ```
 
 **`solve_love_numbers(
-   frequency_rad_s=1e-5,
+   frequency=1e-5,
    degree_l=2,
    solve_for='tidal',
    use_kamata=True,
@@ -341,7 +341,7 @@ index `y_idx` (0–5).
 
 ```cpp
 tidalpy::c_LoveSolveConfig cfg;
-cfg.frequency_rad_s   = 1.0e-5;          // [rad/s]
+cfg.frequency   = 1.0e-5;          // [rad/s]
 cfg.degree_l          = 2;
 cfg.nondimensionalize = true;
 cfg.integration_method = ODEMethod::DOP853;
@@ -490,8 +490,8 @@ consistent through the Stefan-Boltzmann law `L = 4·π·R²·σ·T⁴`.
 ```python
 from TidalPy.structures_x.worlds import StarWorld
 
-sun = StarWorld("Sun", 6.957e8, 1.989e30, effective_temperature_k=5772.0)
-sun.luminosity            # ~3.83e26 W (derived from T if luminosity_w == 0)
+sun = StarWorld("Sun", 6.957e8, 1.989e30, effective_temperature=5772.0)
+sun.luminosity            # ~3.83e26 W (derived from T if luminosity == 0)
 sun.set_luminosity(3.828e26)  # recomputes effective_temperature
 ```
 

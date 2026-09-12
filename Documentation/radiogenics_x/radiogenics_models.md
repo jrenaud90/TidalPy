@@ -34,11 +34,11 @@ relative to any fixed epoch.
 | Model | Heating `Q` [W] | Parameters |
 |-------|-----------------|------------|
 | `OffRadiogenics` (`none`) | `0` | — |
-| `IsotopeRadiogenics` | `m · Σᵢ hprᵢ · fracᵢ · concᵢ · exp(γᵢ(t − t_ref))` | a list of isotopes, `ref_time_s` |
-| `FixedRadiogenics` (`constant`) | `m · q · exp(γ(t − t_ref))` | `fixed_heat_production_w_kg`, `average_half_life_s`, `ref_time_s` |
+| `IsotopeRadiogenics` | `m · Σᵢ hprᵢ · fracᵢ · concᵢ · exp(γᵢ(t − t_ref))` | a list of isotopes, `ref_time` |
+| `FixedRadiogenics` (`constant`) | `m · q · exp(γ(t − t_ref))` | `fixed_heat_production`, `average_half_life`, `ref_time` |
 
 where the decay constant for a half life `t½` is `γ = ln(0.5) / t½` (`d_LN_HALF`
-is a module-level `constexpr`). The Fixed model treats `average_half_life_s ≤ 0`
+is a module-level `constexpr`). The Fixed model treats `average_half_life ≤ 0`
 as "no decay" (a constant heating rate).
 
 ### The `c_Isotope` value type
@@ -49,16 +49,16 @@ It is a plain value type (no base class, no virtuals) carrying:
 | Field | Meaning |
 |-------|---------|
 | `name` | isotope label (e.g. `"U238"`) |
-| `heat_production_w_kg` | specific heat production of the pure isotope [W/kg] |
-| `half_life_s` | half life [s] |
+| `heat_production` | specific heat production of the pure isotope [W/kg] |
+| `half_life` | half life [s] |
 | `mass_frac` | isotopic mass fraction within its element [kg/kg] |
 | `concentration` | element concentration in the layer material [kg/kg] |
 
-It provides `decay_constant()` [1/s] and `specific_heating(time_s, ref_time_s)`
+It provides `decay_constant()` [1/s] and `specific_heating(time, ref_time)`
 [W/kg]. `c_IsotopeRadiogenics` holds a `std::vector<c_Isotope>` and sums each
 isotope's specific heating before scaling by the layer mass. At the Python level,
-`IsotopeRadiogenics` accepts parallel arrays (`heat_production_w_kg`,
-`half_lives_s`, `mass_fracs`, `concentrations`) plus optional `names`, and exposes
+`IsotopeRadiogenics` accepts parallel arrays (`heat_production`,
+`half_lives`, `mass_fracs`, `concentrations`) plus optional `names`, and exposes
 them back through the `heat_production`, `half_lives`, `mass_fracs`,
 `concentrations`, and `isotope_names` properties.
 
@@ -71,16 +71,16 @@ mass = 1.0e22  # kg
 time = 1.0e17  # s (relative to the reference time)
 
 # Fixed lumped rate, no decay.
-f = FixedRadiogenics(fixed_heat_production_w_kg=1.0e-11)
+f = FixedRadiogenics(fixed_heat_production=1.0e-11)
 Q = f.calc_heating(time, mass)   # heating [W]
 
 # Explicit isotope set (all MKS).
 iso = IsotopeRadiogenics(
-    heat_production_w_kg=[9.48e-5, 2.69e-5],
-    half_lives_s=[4.47e17, 1.40e18],
+    heat_production=[9.48e-5, 2.69e-5],
+    half_lives=[4.47e17, 1.40e18],
     mass_fracs=[0.9928, 0.9998],
     concentrations=[0.012e-6, 0.04e-6],
-    ref_time_s=0.0,
+    ref_time=0.0,
     names=["U238", "Th232"])
 
 # Built-in literature dataset (no hand-entered abundances needed).
@@ -132,8 +132,8 @@ under `TidalPy.config['physics']['radiogenics']['known_isotope_data']` if the na
 is not a built-in; those config datasets (and inline dataset dicts) store half
 lives and reference times in **mega-years (Myr)** and are converted to seconds by
 the Python factory. Alternatively, supply explicit MKS arrays
-(`heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`,
-`ref_time_s`, optional `isotope_names`) directly.
+(`heat_production`, `half_lives`, `mass_fracs`, `concentrations`,
+`ref_time`, optional `isotope_names`) directly.
 
 ## Vectorized evaluation
 
@@ -159,20 +159,20 @@ from TidalPy.radiogenics_x import fixed, isotope
 import numpy as np
 
 # Scalar in -> float out.
-Q = fixed(time, mass, fixed_heat_production_w_kg=1.0e-11)
+Q = fixed(time, mass, fixed_heat_production=1.0e-11)
 
 # Arrays in -> float64 ndarray out (time and mass may each be a float or an
 # ndarray; they are broadcast together).
 Q_decay = fixed(np.linspace(0.0, 1.0e18, 50), mass,
-                fixed_heat_production_w_kg=1.0e-11, average_half_life_s=4.47e17)
+                fixed_heat_production=1.0e-11, average_half_life=4.47e17)
 Q_iso   = isotope(np.array([0.0, 5.0e17]), mass,
-                  heat_production_w_kg=[9.48e-5], half_lives_s=[4.47e17],
+                  heat_production=[9.48e-5], half_lives=[4.47e17],
                   mass_fracs=[0.9928], concentrations=[0.012e-6])
 ```
 
 Signatures: `off(time, mass)`,
-`isotope(time, mass, heat_production_w_kg, half_lives_s, mass_fracs, concentrations, ref_time_s=0.0, names=None)`,
-`fixed(time, mass, fixed_heat_production_w_kg=0.0, average_half_life_s=0.0, ref_time_s=0.0)`.
+`isotope(time, mass, heat_production, half_lives, mass_fracs, concentrations, ref_time=0.0, names=None)`,
+`fixed(time, mass, fixed_heat_production=0.0, average_half_life=0.0, ref_time=0.0)`.
 
 Each builds a *stack-allocated* C++ model, solves (picking the most specific
 vectorized routine for the input pattern), and returns. `time` and `mass` accept

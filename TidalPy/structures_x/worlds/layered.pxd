@@ -38,7 +38,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_bool  verbose
 
     cdef cppclass c_LoveSolveConfig:
-        double    frequency_rad_s
+        double    frequency
         int       degree_l
         int       bc_model
         int       love_method
@@ -72,22 +72,22 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         c_BaseLayer* get_layer(size_t index) except +
         size_t       get_num_layers() const
         double       calc_total_mass() const
-        double       calc_internal_heating(double time_s) const
+        double       calc_internal_heating(double time) const
         cpp_bool     validate_layers() const
         void         solve_eos(const c_WorldEOSSolveConfig& cfg) except +
-        double       get_density(double radius_m) const
-        double       get_gravity(double radius_m) const
-        double       get_pressure(double radius_m) const
-        double       get_shear_modulus(double radius_m) const
-        double       get_bulk_modulus(double radius_m) const
-        double       get_shear_viscosity(double radius_m) const
-        double       get_bulk_viscosity(double radius_m) const
-        double       get_premelt_shear_modulus(double radius_m) const
-        double       get_premelt_bulk_modulus(double radius_m) const
-        double       get_premelt_shear_viscosity(double radius_m) const
-        double       get_premelt_bulk_viscosity(double radius_m) const
-        cpp_complex[double] calc_complex_shear_modulus(double radius_m, double frequency_rad_s) const
-        cpp_complex[double] calc_complex_bulk_modulus(double radius_m, double frequency_rad_s) const
+        double       get_density(double radius) const
+        double       get_gravity(double radius) const
+        double       get_pressure(double radius) const
+        double       get_shear_modulus(double radius) const
+        double       get_bulk_modulus(double radius) const
+        double       get_shear_viscosity(double radius) const
+        double       get_bulk_viscosity(double radius) const
+        double       get_premelt_shear_modulus(double radius) const
+        double       get_premelt_bulk_modulus(double radius) const
+        double       get_premelt_shear_viscosity(double radius) const
+        double       get_premelt_bulk_viscosity(double radius) const
+        cpp_complex[double] calc_complex_shear_modulus(double radius, double frequency) const
+        cpp_complex[double] calc_complex_bulk_modulus(double radius, double frequency) const
         cpp_bool     get_eos_solved() const
         cpp_bool     get_all_eos_set() const
         cpp_bool     get_eos_success() const
@@ -118,7 +118,7 @@ cdef extern from "layered_.hpp" namespace "tidalpy" nogil:
         cpp_complex[double]  get_love_number_h(size_t ytype_idx) const
         cpp_complex[double]  get_love_number_l(size_t ytype_idx) const
         cpp_complex[double]  get_love_surface_y(size_t ytype_idx, size_t y_idx) const
-        cpp_complex[double]  get_radial_solution_y(double radius_m, size_t ytype_idx, size_t y_idx) const
+        cpp_complex[double]  get_radial_solution_y(double radius, size_t ytype_idx, size_t y_idx) const
         int                  get_love_method_last_int() const
         cpp_complex[double]  get_love_analytic_shear() const
         double               get_love_analytic_tidal_volume() const
@@ -174,6 +174,6 @@ cdef class LayeredWorld(BaseWorld):
     cdef dict _layer_view_by_name
     # Scalar dispatch for the vectorized real-valued radius getters (nogil-callable
     # so the float-or-ndarray wrappers can loop without the GIL).
-    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil
+    cdef double _eval_real(self, int kind, double radius) noexcept nogil
     cpdef dict get_config_dict(self)
     cdef list _ensure_layer_views(self)

@@ -196,16 +196,16 @@ cdef object _build_outputs(
         tuple is_incompressible_bylayer):
     """Convert the C++ result into a `PlanetBuildData` namedtuple of numpy arrays."""
     return PlanetBuildData(
-        _vector_to_f64_array(inputs.radius_m),
-        _vector_to_f64_array(inputs.density_kg_m3),
-        _vector_to_c128_array(inputs.complex_bulk_modulus_pa),
-        _vector_to_c128_array(inputs.complex_shear_modulus_pa),
-        inputs.forcing_frequency_rad_s,
-        inputs.planet_bulk_density_kg_m3,
+        _vector_to_f64_array(inputs.radius),
+        _vector_to_f64_array(inputs.density),
+        _vector_to_c128_array(inputs.complex_bulk_modulus),
+        _vector_to_c128_array(inputs.complex_shear_modulus),
+        inputs.forcing_frequency,
+        inputs.planet_bulk_density,
         layer_types,
         is_static_bylayer,
         is_incompressible_bylayer,
-        _vector_to_f64_array(inputs.upper_radius_bylayer_m),
+        _vector_to_f64_array(inputs.upper_radius_bylayer),
     )
 
 

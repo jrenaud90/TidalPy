@@ -41,13 +41,13 @@ def _melt_fraction(T, solidus=_SOLIDUS, liquidus=_LIQUIDUS):
 # =====================================================================================================================
 @pytest.mark.parametrize("T", [1400.0, 1600.0, 1700.0, 1800.0, 2000.0, 2200.0])
 def test_melt_fraction_formula(T):
-    m = _import().OffPartialMelt(solidus_k=_SOLIDUS, liquidus_k=_LIQUIDUS)
+    m = _import().OffPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS)
     assert m.calc_melt_fraction(T) == pytest.approx(_melt_fraction(T))
 
 
 def test_melt_fraction_degenerate_envelope():
     # solidus >= liquidus -> fully solid (phi = 0).
-    m = _import().OffPartialMelt(solidus_k=2000.0, liquidus_k=2000.0)
+    m = _import().OffPartialMelt(solidus=2000.0, liquidus=2000.0)
     assert m.calc_melt_fraction(1900.0) == 0.0
 
 
@@ -55,7 +55,7 @@ def test_melt_fraction_degenerate_envelope():
 # Off model
 # =====================================================================================================================
 def test_off_returns_premelt():
-    m = _import().OffPartialMelt(solidus_k=_SOLIDUS, liquidus_k=_LIQUIDUS, liquid_shear_pa=_LIQ_SHEAR)
+    m = _import().OffPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
     phi, visc, shear = m.calc_partial_melt(1800.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
     assert phi == pytest.approx(_melt_fraction(1800.0))
     assert visc == pytest.approx(_PREMELT_VISC)
@@ -67,7 +67,7 @@ def test_off_returns_premelt():
 # =====================================================================================================================
 @pytest.mark.parametrize("T", [1700.0, 1900.0, 2100.0])
 def test_spohn_formula(T):
-    m = _import().SpohnPartialMelt(solidus_k=_SOLIDUS, liquidus_k=_LIQUIDUS, liquid_shear_pa=_LIQ_SHEAR)
+    m = _import().SpohnPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
     phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
     exp_visc  = max(_LIQ_VISC,  10.0 ** ((27000.0 / T) - 1.0))
     exp_shear = max(_LIQ_SHEAR, 10.0 ** ((82000.0 / T) - 40.6))
@@ -100,7 +100,7 @@ def _henning_expected(T):
 
 @pytest.mark.parametrize("T", [1500.0, 1700.0, 1810.0, 1900.0])
 def test_henning_regimes(T):
-    m = _import().HenningPartialMelt(solidus_k=_SOLIDUS, liquidus_k=_LIQUIDUS, liquid_shear_pa=_LIQ_SHEAR)
+    m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
     phi, visc, shear = m.calc_partial_melt(T, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
     exp_visc, exp_shear = _henning_expected(T)
     assert visc == pytest.approx(exp_visc, rel=1e-9)
@@ -108,14 +108,14 @@ def test_henning_regimes(T):
 
 
 def test_henning_liquid_regime_floors():
-    m = _import().HenningPartialMelt(solidus_k=_SOLIDUS, liquidus_k=_LIQUIDUS, liquid_shear_pa=_LIQ_SHEAR)
+    m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
     _, visc, shear = m.calc_partial_melt(1950.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
     assert visc == pytest.approx(_LIQ_VISC)
     assert shear == pytest.approx(_LIQ_SHEAR)
 
 
 def test_henning_weakens_with_temperature():
-    m = _import().HenningPartialMelt(solidus_k=_SOLIDUS, liquidus_k=_LIQUIDUS, liquid_shear_pa=_LIQ_SHEAR)
+    m = _import().HenningPartialMelt(solidus=_SOLIDUS, liquidus=_LIQUIDUS, liquid_shear=_LIQ_SHEAR)
     _, v1, s1 = m.calc_partial_melt(1650.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
     _, v2, s2 = m.calc_partial_melt(1750.0, _PREMELT_VISC, _PREMELT_SHEAR, _LIQ_VISC)
     assert v2 < v1

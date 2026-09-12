@@ -52,11 +52,11 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Human-readable layer name.
     layer_index : int
         Zero-based position; innermost layer = 0.
-    radius_inner_m : float
+    radius_inner : float
         Inner boundary radius [m].
-    radius_outer_m : float
+    radius_outer : float
         Outer boundary radius [m].
-    mass_kg : float
+    mass : float
         Total layer mass [kg].
     material_name : str, optional
         Material identifier. Default ``""``.
@@ -64,13 +64,13 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
         Dimensionless tidal heating scale. Default ``1.0``.
-    shear_modulus_static_pa : float, optional
+    shear_modulus_static : float, optional
         Unrelaxed (zero-temperature) shear modulus [Pa]. Default ``0.0``.
-    bulk_modulus_static_pa : float, optional
+    bulk_modulus_static : float, optional
         Unrelaxed bulk modulus [Pa]. Default ``0.0``.
-    shear_viscosity_static_pas : float, optional
-        Reference shear viscosity at reference_temperature_k and P=0 [Pa·s]. Default NaN (unset).
-    bulk_viscosity_static_pas : float, optional
+    shear_viscosity_static : float, optional
+        Reference shear viscosity at reference_temperature and P=0 [Pa·s]. Default NaN (unset).
+    bulk_viscosity_static : float, optional
         Reference bulk viscosity [Pa·s]. Default NaN (unset).
     love_number_k : complex, optional
         Potential Love number k (placeholder). Default ``0+0j``.
@@ -78,25 +78,25 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         Radial displacement Love number h (placeholder). Default ``0+0j``.
     love_number_l : complex, optional
         Tangential displacement Love number l (placeholder). Default ``0+0j``.
-    thermal_conductivity_ref_w_mk : float, optional
+    thermal_conductivity_ref : float, optional
         Reference thermal conductivity [W/(m·K)]. Default ``4.0``.
-    thermal_expansion_ref_1_k : float, optional
+    thermal_expansion_ref : float, optional
         Reference thermal expansion coefficient [1/K]. Default ``3e-5``.
-    heat_capacity_ref_j_kgk : float, optional
+    heat_capacity_ref : float, optional
         Reference specific heat capacity [J/(kg·K)]. Default ``1200.0``.
-    activation_energy_j_mol : float, optional
+    activation_energy : float, optional
         Arrhenius activation energy [J/mol]. Default ``300e3``.
-    activation_volume_m3_mol : float, optional
+    activation_volume : float, optional
         Arrhenius activation volume [m³/mol]. Default ``5e-6``.
-    solidus_temperature_k : float, optional
+    solidus_temperature : float, optional
         Solidus temperature [K]. Default ``1600.0``.
-    liquidus_temperature_k : float, optional
+    liquidus_temperature : float, optional
         Liquidus temperature [K]. Default ``2000.0``.
     melt_fraction_exponent : float, optional
         Exponent in melt-fraction parameterization. Default ``1.0``.
-    reference_density_kg_m3 : float, optional
+    reference_density : float, optional
         Reference density for thermal diffusivity [kg/m³]. Default ``3500.0``.
-    reference_temperature_k : float, optional
+    reference_temperature : float, optional
         Reference temperature for Arrhenius viscosity [K]. Default ``1600.0``.
     melt_viscosity_reduction : float, optional
         Exponential melt-viscosity reduction coefficient. Default ``25.0``.
@@ -115,60 +115,60 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             self,
             str    name,
             int    layer_index,
-            double radius_inner_m,
-            double radius_outer_m,
-            double mass_kg,
-            str    material_name                   = "",
-            cpp_bool   is_tidal                        = True,
-            double tidal_scale                     = 1.0,
-            double shear_modulus_static_pa         = 0.0,
-            double bulk_modulus_static_pa          = 0.0,
-            double shear_viscosity_static_pas      = d_NAN,
-            double bulk_viscosity_static_pas       = d_NAN,
-            complex love_number_k                  = 0+0j,
-            complex love_number_h                  = 0+0j,
-            complex love_number_l                  = 0+0j,
-            double thermal_conductivity_ref_w_mk   = 4.0,
-            double thermal_expansion_ref_1_k       = 3.0e-5,
-            double heat_capacity_ref_j_kgk         = 1200.0,
-            double activation_energy_j_mol         = 300.0e3,
-            double activation_volume_m3_mol        = 5.0e-6,
-            double solidus_temperature_k           = 1600.0,
-            double liquidus_temperature_k          = 2000.0,
-            double melt_fraction_exponent          = 1.0,
-            double reference_density_kg_m3         = 3500.0,
-            double reference_temperature_k         = 1600.0,
-            double melt_viscosity_reduction        = 25.0,
-            str    tidal_scale_method              = "user_provided"):
+            double radius_inner,
+            double radius_outer,
+            double mass,
+            str    material_name          = "",
+            cpp_bool   is_tidal           = True,
+            double tidal_scale            = 1.0,
+            double shear_modulus_static   = 0.0,
+            double bulk_modulus_static    = 0.0,
+            double shear_viscosity_static = d_NAN,
+            double bulk_viscosity_static  = d_NAN,
+            complex love_number_k         = 0+0j,
+            complex love_number_h         = 0+0j,
+            complex love_number_l         = 0+0j,
+            double thermal_conductivity_ref = 4.0,
+            double thermal_expansion_ref    = 3.0e-5,
+            double heat_capacity_ref        = 1200.0,
+            double activation_energy        = 300.0e3,
+            double activation_volume        = 5.0e-6,
+            double solidus_temperature      = 1600.0,
+            double liquidus_temperature     = 2000.0,
+            double melt_fraction_exponent   = 1.0,
+            double reference_density        = 3500.0,
+            double reference_temperature    = 1600.0,
+            double melt_viscosity_reduction = 25.0,
+            str    tidal_scale_method       = "user_provided"):
         cdef c_SolidLiquidConfig config
-        config.name                          = name.encode("utf-8")
-        config.layer_index                   = layer_index
-        config.radius_inner_m                = radius_inner_m
-        config.radius_outer_m                = radius_outer_m
-        config.mass_kg                       = mass_kg
-        config.material_name                 = material_name.encode("utf-8")
-        config.is_tidal                      = is_tidal
-        config.tidal_scale                   = tidal_scale
-        config.tidal_scale_method            = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
-        config.shear_modulus_static_pa       = shear_modulus_static_pa
-        config.bulk_modulus_static_pa        = bulk_modulus_static_pa
-        config.shear_viscosity_static_pas    = shear_viscosity_static_pas
-        config.bulk_viscosity_static_pas     = bulk_viscosity_static_pas
+        config.name                 = name.encode("utf-8")
+        config.layer_index          = layer_index
+        config.radius_inner         = radius_inner
+        config.radius_outer         = radius_outer
+        config.mass                 = mass
+        config.material_name        = material_name.encode("utf-8")
+        config.is_tidal             = is_tidal
+        config.tidal_scale          = tidal_scale
+        config.tidal_scale_method   = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
+        config.shear_modulus_static = shear_modulus_static
+        config.bulk_modulus_static  = bulk_modulus_static
+        config.shear_viscosity_static = shear_viscosity_static
+        config.bulk_viscosity_static  = bulk_viscosity_static
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
             cpp_complex[double](love_number_l.real, love_number_l.imag))
-        config.thermal_conductivity_ref_w_mk = thermal_conductivity_ref_w_mk
-        config.thermal_expansion_ref_1_k     = thermal_expansion_ref_1_k
-        config.heat_capacity_ref_j_kgk       = heat_capacity_ref_j_kgk
-        config.activation_energy_j_mol       = activation_energy_j_mol
-        config.activation_volume_m3_mol      = activation_volume_m3_mol
-        config.solidus_temperature_k         = solidus_temperature_k
-        config.liquidus_temperature_k        = liquidus_temperature_k
-        config.melt_fraction_exponent        = melt_fraction_exponent
-        config.reference_density_kg_m3       = reference_density_kg_m3
-        config.reference_temperature_k       = reference_temperature_k
-        config.melt_viscosity_reduction      = melt_viscosity_reduction
+        config.thermal_conductivity_ref = thermal_conductivity_ref
+        config.thermal_expansion_ref = thermal_expansion_ref
+        config.heat_capacity_ref     = heat_capacity_ref
+        config.activation_energy     = activation_energy
+        config.activation_volume = activation_volume
+        config.solidus_temperature    = solidus_temperature
+        config.liquidus_temperature   = liquidus_temperature
+        config.melt_fraction_exponent = melt_fraction_exponent
+        config.reference_density      = reference_density
+        config.reference_temperature  = reference_temperature
+        config.melt_viscosity_reduction = melt_viscosity_reduction
         cdef c_SolidLiquidLayer* raw = new c_SolidLiquidLayer(config)
         self._layer_ptr.reset(<c_BaseLayer*>raw)
         self._physics_ptr     = <c_PhysicsLayer*>raw
@@ -305,17 +305,17 @@ cdef class SolidLiquidLayer(PhysicsLayer):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_melt_fraction(self, double temperature_k, double pressure_pa = 0.0) -> float:
-        """Volumetric melt fraction [0, 1] at temperature_k and pressure_pa.
+    def calc_melt_fraction(self, double temperature, double pressure = 0.0) -> float:
+        """Volumetric melt fraction [0, 1] at temperature and pressure.
 
         Uses a power-law interpolation between solidus and liquidus:
         φ = clamp((T - T_solidus)/(T_liquidus - T_solidus), 0, 1)^n
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
-        pressure_pa : float, optional
+        pressure : float, optional
             Pressure [Pa]. Reserved for future pressure-dependent melt curve;
             currently unused. Default ``0.0``.
 
@@ -324,18 +324,18 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Melt fraction [0, 1].
         """
-        return self._solidliquid_ptr.calc_melt_fraction(temperature_k, pressure_pa)
+        return self._solidliquid_ptr.calc_melt_fraction(temperature, pressure)
 
-    def calc_viscosity(self, double temperature_k, double pressure_pa = 0.0) -> float:
+    def calc_viscosity(self, double temperature, double pressure = 0.0) -> float:
         """Effective viscosity [Pa·s] via Arrhenius + partial-melt reduction.
 
         η(T,P) = η_ref · exp((E_a + P·V_a)/(R·T) - E_a/(R·T_ref)) · exp(-C·φ)
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
-        pressure_pa : float, optional
+        pressure : float, optional
             Pressure [Pa]. Default ``0.0``.
 
         Returns
@@ -343,18 +343,18 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Effective viscosity [Pa·s]; NaN when the reference shear viscosity was never set.
         """
-        return self._solidliquid_ptr.calc_viscosity(temperature_k, pressure_pa)
+        return self._solidliquid_ptr.calc_viscosity(temperature, pressure)
 
-    def calc_shear_modulus(self, double temperature_k, double pressure_pa = 0.0) -> float:
+    def calc_shear_modulus(self, double temperature, double pressure = 0.0) -> float:
         """Effective shear modulus [Pa] accounting for melt fraction.
 
         G_eff = G_static · (1 - φ)
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
-        pressure_pa : float, optional
+        pressure : float, optional
             Pressure [Pa]. Default ``0.0``.
 
         Returns
@@ -362,16 +362,16 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Effective shear modulus [Pa].
         """
-        return self._solidliquid_ptr.calc_shear_modulus(temperature_k, pressure_pa)
+        return self._solidliquid_ptr.calc_shear_modulus(temperature, pressure)
 
-    def calc_thermal_conductivity(self, double temperature_k) -> float:
+    def calc_thermal_conductivity(self, double temperature) -> float:
         """Thermal conductivity [W/(m·K)].
 
         Returns the reference value (temperature dependence is not modeled).
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
 
         Returns
@@ -379,14 +379,14 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Thermal conductivity [W/(m·K)].
         """
-        return self._solidliquid_ptr.calc_thermal_conductivity(temperature_k)
+        return self._solidliquid_ptr.calc_thermal_conductivity(temperature)
 
-    def calc_thermal_diffusivity(self, double temperature_k) -> float:
+    def calc_thermal_diffusivity(self, double temperature) -> float:
         """Thermal diffusivity [m²/s] = k / (ρ_ref · c_p).
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
 
         Returns
@@ -394,10 +394,10 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Thermal diffusivity [m²/s].
         """
-        return self._solidliquid_ptr.calc_thermal_diffusivity(temperature_k)
+        return self._solidliquid_ptr.calc_thermal_diffusivity(temperature)
 
-    def calc_adiabatic_temperature_gradient(self, double temperature_k,
-                                            double pressure_pa = 0.0) -> float:
+    def calc_adiabatic_temperature_gradient(self, double temperature,
+                                            double pressure = 0.0) -> float:
         """Adiabatic temperature gradient [K/m] = α · T · g / c_p.
 
         Gravity is taken from the EOS profile at the outer boundary if
@@ -405,9 +405,9 @@ cdef class SolidLiquidLayer(PhysicsLayer):
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
-        pressure_pa : float, optional
+        pressure : float, optional
             Pressure [Pa] (reserved; currently unused). Default ``0.0``.
 
         Returns
@@ -416,17 +416,17 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             Adiabatic temperature gradient [K/m].
         """
         return self._solidliquid_ptr.calc_adiabatic_temperature_gradient(
-            temperature_k, pressure_pa)
+            temperature, pressure)
 
-    def calc_heat_flux_conductive(self, double temperature_base_k,
-                                  double temperature_top_k) -> float:
+    def calc_heat_flux_conductive(self, double temperature_base,
+                                  double temperature_top) -> float:
         """Conductive heat flux [W/m²] = k · (T_base - T_top) / thickness.
 
         Parameters
         ----------
-        temperature_base_k : float
+        temperature_base : float
             Temperature at the base (inner boundary) [K].
-        temperature_top_k : float
+        temperature_top : float
             Temperature at the top (outer boundary) [K].
 
         Returns
@@ -435,18 +435,18 @@ cdef class SolidLiquidLayer(PhysicsLayer):
             Conductive heat flux [W/m²].  Positive when T_base > T_top.
         """
         return self._solidliquid_ptr.calc_heat_flux_conductive(
-            temperature_base_k, temperature_top_k)
+            temperature_base, temperature_top)
 
-    def calc_radiogenic_heating(self, double time_s, double mass_kg) -> float:
+    def calc_radiogenic_heating(self, double time, double mass) -> float:
         """Radiogenic heating [W] from the attached sub-model.
 
         Returns 0.0 when no radiogenics sub-model has been attached.
 
         Parameters
         ----------
-        time_s : float
+        time : float
             Elapsed time since reference epoch [s].
-        mass_kg : float
+        mass : float
             Radiogenic mass [kg].
 
         Returns
@@ -454,7 +454,7 @@ cdef class SolidLiquidLayer(PhysicsLayer):
         float
             Radiogenic heating power [W].
         """
-        return self._solidliquid_ptr.calc_radiogenic_heating(time_s, mass_kg)
+        return self._solidliquid_ptr.calc_radiogenic_heating(time, mass)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

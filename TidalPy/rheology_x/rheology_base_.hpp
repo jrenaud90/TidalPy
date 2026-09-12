@@ -51,9 +51,9 @@ public:
     //
     // Parameters
     // ----------
-    // modulus_pa      : unrelaxed (shear/bulk) modulus [Pa]
-    // viscosity_pas   : reference dynamic (shear/bulk) viscosity [Pa·s]
-    // frequency_rad_s : tidal forcing frequency [rad/s]
+    // modulus      : unrelaxed (shear/bulk) modulus [Pa]
+    // viscosity   : reference dynamic (shear/bulk) viscosity [Pa·s]
+    // frequency : tidal forcing frequency [rad/s]
     //
     // Returns
     // -------
@@ -67,11 +67,11 @@ public:
     // - All inputs are reference (background) values at the layer mid-point.
     // -----------------------------------------------------------------------
     virtual c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const {
+            double modulus,
+            double viscosity,
+            double frequency) const {
         // Base constructor will act like a off model.
-        return c_ComplexModulus(modulus_pa, 0.0);
+        return c_ComplexModulus(modulus, 0.0);
 
     };
 
@@ -79,26 +79,26 @@ public:
     // Vectorized complex modulus — vary (modulus, viscosity) at one frequency.
     //
     // Evaluates calc_complex_modulus element-wise over the (viscosity, modulus)
-    // pairs at a single constant frequency.  viscosity_pas and modulus_pa must
+    // pairs at a single constant frequency.  viscosity and modulus must
     // have the same length N; out_complex_modulus is resized to N.
     //
     // Throws std::invalid_argument if the two input vectors differ in length.
     // -----------------------------------------------------------------------
     void calc_complex_modulus_vectorize_modulus(
-            const std::vector<double>& modulus_pa,
-            const std::vector<double>& viscosity_pas,
-            double frequency_rad_s,
+            const std::vector<double>& modulus,
+            const std::vector<double>& viscosity,
+            double frequency,
             std::vector<c_ComplexModulus>& out_complex_modulus) const {
-        if (viscosity_pas.size() != modulus_pa.size()) {
+        if (viscosity.size() != modulus.size()) {
             throw std::invalid_argument(
                 "TidalPy: calc_complex_modulus_vectorize_modulus — viscosity and "
                 "modulus vectors must have the same length");
         }
-        const std::size_t n = modulus_pa.size();
+        const std::size_t n = modulus.size();
         out_complex_modulus.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
             out_complex_modulus[i] =
-                this->calc_complex_modulus(modulus_pa[i], viscosity_pas[i], frequency_rad_s);
+                this->calc_complex_modulus(modulus[i], viscosity[i], frequency);
         }
     }
 
@@ -110,15 +110,15 @@ public:
     // vector length.
     // -----------------------------------------------------------------------
     void calc_complex_modulus_vectorize_frequency(
-            double modulus_pa,    
-            double viscosity_pas,
-            const std::vector<double>& frequency_rad_s,
+            double modulus,    
+            double viscosity,
+            const std::vector<double>& frequency,
             std::vector<c_ComplexModulus>& out_complex_modulus) const {
-        const std::size_t n = frequency_rad_s.size();
+        const std::size_t n = frequency.size();
         out_complex_modulus.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
             out_complex_modulus[i] =
-                this->calc_complex_modulus(modulus_pa, viscosity_pas, frequency_rad_s[i]);
+                this->calc_complex_modulus(modulus, viscosity, frequency[i]);
         }
     }
 
@@ -131,21 +131,21 @@ public:
     // Throws std::invalid_argument if the input vectors differ in length.
     // -----------------------------------------------------------------------
     void calc_complex_modulus_vectorize_all(
-            const std::vector<double>& modulus_pa,
-            const std::vector<double>& viscosity_pas,
-            const std::vector<double>& frequency_rad_s,
+            const std::vector<double>& modulus,
+            const std::vector<double>& viscosity,
+            const std::vector<double>& frequency,
             std::vector<c_ComplexModulus>& out_complex_modulus) const {
-        if (viscosity_pas.size() != modulus_pa.size() ||
-            viscosity_pas.size() != frequency_rad_s.size()) {
+        if (viscosity.size() != modulus.size() ||
+            viscosity.size() != frequency.size()) {
             throw std::invalid_argument(
                 "TidalPy: calc_complex_modulus_vectorize_all — viscosity, modulus, "
                 "and frequency vectors must all have the same length");
         }
-        const std::size_t n = modulus_pa.size();
+        const std::size_t n = modulus.size();
         out_complex_modulus.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
             out_complex_modulus[i] =
-                this->calc_complex_modulus(modulus_pa[i], viscosity_pas[i], frequency_rad_s[i]);
+                this->calc_complex_modulus(modulus[i], viscosity[i], frequency[i]);
         }
     }
 };

@@ -50,11 +50,11 @@ cdef class GasLayer(PhysicsLayer):
         Human-readable layer name.
     layer_index : int
         Zero-based position; innermost layer = 0.
-    radius_inner_m : float
+    radius_inner : float
         Inner boundary radius [m].
-    radius_outer_m : float
+    radius_outer : float
         Outer boundary radius [m].
-    mass_kg : float
+    mass : float
         Total layer mass [kg].
     material_name : str, optional
         Material identifier. Default ``""``.
@@ -62,13 +62,13 @@ cdef class GasLayer(PhysicsLayer):
         Whether this layer contributes to tidal dissipation. Default ``True``.
     tidal_scale : float, optional
         Dimensionless tidal heating scale. Default ``1.0``.
-    shear_modulus_static_pa : float, optional
+    shear_modulus_static : float, optional
         Unrelaxed shear modulus [Pa]. Default ``0.0``.
-    bulk_modulus_static_pa : float, optional
+    bulk_modulus_static : float, optional
         Unrelaxed bulk modulus [Pa]. Default ``0.0``.
-    shear_viscosity_static_pas : float, optional
+    shear_viscosity_static : float, optional
         Reference dynamic shear viscosity [Pa·s]. Default NaN (unset).
-    bulk_viscosity_static_pas : float, optional
+    bulk_viscosity_static : float, optional
         Reference dynamic bulk viscosity [Pa·s]. Default NaN (unset).
     love_number_k : complex, optional
         Potential Love number k (placeholder). Default ``0+0j``.
@@ -76,13 +76,13 @@ cdef class GasLayer(PhysicsLayer):
         Radial displacement Love number h (placeholder). Default ``0+0j``.
     love_number_l : complex, optional
         Tangential displacement Love number l (placeholder). Default ``0+0j``.
-    mean_molecular_weight_kg_mol : float, optional
+    mean_molecular_weight : float, optional
         Mean molecular weight of the gas [kg/mol]. Default ``2e-3`` (H₂).
     adiabatic_index : float, optional
         Ratio of specific heats γ = c_p/c_v [dimensionless]. Default ``1.4``.
-    reference_temperature_k : float, optional
+    reference_temperature : float, optional
         Reference temperature [K]. Default ``300.0``.
-    reference_density_kg_m3 : float, optional
+    reference_density : float, optional
         Reference density [kg/m³]. Default ``1.0``.
 
     Assumptions
@@ -100,46 +100,46 @@ cdef class GasLayer(PhysicsLayer):
             self,
             str    name,
             int    layer_index,
-            double radius_inner_m,
-            double radius_outer_m,
-            double mass_kg,
-            str    material_name                = "",
-            cpp_bool is_tidal                   = True,
-            double tidal_scale                  = 1.0,
-            double shear_modulus_static_pa      = 0.0,
-            double bulk_modulus_static_pa       = 0.0,
-            double shear_viscosity_static_pas   = d_NAN,
-            double bulk_viscosity_static_pas    = d_NAN,
-            complex love_number_k               = 0+0j,
-            complex love_number_h               = 0+0j,
-            complex love_number_l               = 0+0j,
-            double mean_molecular_weight_kg_mol = 2.0e-3,
-            double adiabatic_index              = 1.4,
-            double reference_temperature_k      = 300.0,
-            double reference_density_kg_m3      = 1.0,
-            str    tidal_scale_method           = "user_provided"):
+            double radius_inner,
+            double radius_outer,
+            double mass,
+            str    material_name        = "",
+            cpp_bool is_tidal           = True,
+            double tidal_scale          = 1.0,
+            double shear_modulus_static = 0.0,
+            double bulk_modulus_static  = 0.0,
+            double shear_viscosity_static = d_NAN,
+            double bulk_viscosity_static = d_NAN,
+            complex love_number_k        = 0+0j,
+            complex love_number_h        = 0+0j,
+            complex love_number_l        = 0+0j,
+            double mean_molecular_weight = 2.0e-3,
+            double adiabatic_index       = 1.4,
+            double reference_temperature = 300.0,
+            double reference_density  = 1.0,
+            str    tidal_scale_method = "user_provided"):
         cdef c_GasConfig config
-        config.name                          = name.encode("utf-8")
-        config.layer_index                   = layer_index
-        config.radius_inner_m                = radius_inner_m
-        config.radius_outer_m                = radius_outer_m
-        config.mass_kg                       = mass_kg
-        config.material_name                 = material_name.encode("utf-8")
-        config.is_tidal                      = is_tidal
-        config.tidal_scale                   = tidal_scale
-        config.tidal_scale_method            = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
-        config.shear_modulus_static_pa       = shear_modulus_static_pa
-        config.bulk_modulus_static_pa        = bulk_modulus_static_pa
-        config.shear_viscosity_static_pas    = shear_viscosity_static_pas
-        config.bulk_viscosity_static_pas     = bulk_viscosity_static_pas
+        config.name                 = name.encode("utf-8")
+        config.layer_index          = layer_index
+        config.radius_inner         = radius_inner
+        config.radius_outer         = radius_outer
+        config.mass                 = mass
+        config.material_name        = material_name.encode("utf-8")
+        config.is_tidal             = is_tidal
+        config.tidal_scale          = tidal_scale
+        config.tidal_scale_method   = c_tidal_scale_method_from_name(tidal_scale_method.encode("utf-8"))
+        config.shear_modulus_static = shear_modulus_static
+        config.bulk_modulus_static  = bulk_modulus_static
+        config.shear_viscosity_static = shear_viscosity_static
+        config.bulk_viscosity_static  = bulk_viscosity_static
         config.love_numbers = c_LoveNumbers(
             cpp_complex[double](love_number_k.real, love_number_k.imag),
             cpp_complex[double](love_number_h.real, love_number_h.imag),
             cpp_complex[double](love_number_l.real, love_number_l.imag))
-        config.mean_molecular_weight_kg_mol  = mean_molecular_weight_kg_mol
-        config.adiabatic_index               = adiabatic_index
-        config.reference_temperature_k       = reference_temperature_k
-        config.reference_density_kg_m3       = reference_density_kg_m3
+        config.mean_molecular_weight = mean_molecular_weight
+        config.adiabatic_index       = adiabatic_index
+        config.reference_temperature = reference_temperature
+        config.reference_density     = reference_density
         cdef c_GasLayer* raw = new c_GasLayer(config)
         self._layer_ptr.reset(<c_BaseLayer*>raw)
         self._physics_ptr = <c_PhysicsLayer*>raw
@@ -184,12 +184,12 @@ cdef class GasLayer(PhysicsLayer):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_adiabatic_lapse_rate(self, double gravity_m_s2) -> float:
+    def calc_adiabatic_lapse_rate(self, double gravity) -> float:
         """Dry adiabatic lapse rate [K/m] = g * (γ-1) * M / (γ * R).
 
         Parameters
         ----------
-        gravity_m_s2 : float
+        gravity : float
             Gravitational acceleration [m/s²].
 
         Returns
@@ -202,17 +202,17 @@ cdef class GasLayer(PhysicsLayer):
         - Ideal gas.
         - R from TidalPy global configuration.
         """
-        return self._gas_ptr.calc_adiabatic_lapse_rate(gravity_m_s2)
+        return self._gas_ptr.calc_adiabatic_lapse_rate(gravity)
 
-    def calc_scale_height(self, double temperature_k,
-                          double gravity_m_s2) -> float:
+    def calc_scale_height(self, double temperature,
+                          double gravity) -> float:
         """Barometric scale height [m] = R * T / (g * M).
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
-        gravity_m_s2 : float
+        gravity : float
             Gravitational acceleration [m/s²].
 
         Returns
@@ -225,17 +225,17 @@ cdef class GasLayer(PhysicsLayer):
         - Ideal gas.
         - R from TidalPy global configuration.
         """
-        return self._gas_ptr.calc_scale_height(temperature_k, gravity_m_s2)
+        return self._gas_ptr.calc_scale_height(temperature, gravity)
 
-    def calc_pressure_ideal_gas(self, double temperature_k,
-                                double density_kg_m3) -> float:
+    def calc_pressure_ideal_gas(self, double temperature,
+                                double density) -> float:
         """Ideal-gas pressure [Pa] = ρ * R * T / M.
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
-        density_kg_m3 : float
+        density : float
             Gas density [kg/m³].
 
         Returns
@@ -248,14 +248,14 @@ cdef class GasLayer(PhysicsLayer):
         - Ideal gas.
         - R from TidalPy global configuration.
         """
-        return self._gas_ptr.calc_pressure_ideal_gas(temperature_k, density_kg_m3)
+        return self._gas_ptr.calc_pressure_ideal_gas(temperature, density)
 
-    def calc_sound_speed(self, double temperature_k) -> float:
+    def calc_sound_speed(self, double temperature) -> float:
         """Adiabatic sound speed [m/s] = sqrt(γ * R * T / M).
 
         Parameters
         ----------
-        temperature_k : float
+        temperature : float
             Temperature [K].
 
         Returns
@@ -268,7 +268,7 @@ cdef class GasLayer(PhysicsLayer):
         - Ideal gas.
         - R from TidalPy global configuration.
         """
-        return self._gas_ptr.calc_sound_speed(temperature_k)
+        return self._gas_ptr.calc_sound_speed(temperature)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Config

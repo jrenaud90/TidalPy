@@ -163,18 +163,18 @@ cdef class RheologyBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_complex_modulus(self, double modulus_pa,
-                             double viscosity_pas,
-                             double frequency_rad_s) -> complex:
+    def calc_complex_modulus(self, double modulus,
+                             double viscosity,
+                             double frequency) -> complex:
         """Complex (shear/bulk) modulus mu* [Pa] at the given forcing frequency.
 
         Parameters
         ----------
-        modulus_pa : float
+        modulus : float
             Unrelaxed (static) modulus [Pa].
-        viscosity_pas : float
+        viscosity : float
             Reference dynamic viscosity [Pa·s].
-        frequency_rad_s : float
+        frequency : float
             Tidal forcing frequency [rad/s].
 
         Returns
@@ -190,19 +190,19 @@ cdef class RheologyBase(PhysicsBase):
         """
         self._check_ptr()
         cdef cpp_complex[double] result = self._rheology_ptr.get().calc_complex_modulus(
-            modulus_pa, viscosity_pas, frequency_rad_s)
+            modulus, viscosity, frequency)
         return complex(result.real(), result.imag())
 
-    def calc_complex_modulus_vectorize_modulus(self, modulus_pa, viscosity_pas,
-                                               double frequency_rad_s):
+    def calc_complex_modulus_vectorize_modulus(self, modulus, viscosity,
+                                               double frequency):
         """Complex modulus over (modulus, viscosity) pairs at one frequency.
 
         Parameters
         ----------
-        modulus_pa, viscosity_pas : array_like
+        modulus, viscosity : array_like
             Equal-length 1-D sequences of unrelaxed modulus [Pa] and reference
             viscosity [Pa·s].
-        frequency_rad_s : float
+        frequency : float
             Constant forcing frequency [rad/s].
 
         Returns
@@ -214,25 +214,25 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[double] vmod, vvisc
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
-        mod_c  = np.ascontiguousarray(modulus_pa,    dtype=np.float64).ravel()
-        visc_c = np.ascontiguousarray(viscosity_pas, dtype=np.float64).ravel()
+        mod_c  = np.ascontiguousarray(modulus,    dtype=np.float64).ravel()
+        visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         mv = mod_c;  _fill_vector(mv, vmod)
         mv = visc_c; _fill_vector(mv, vvisc)
         self._rheology_ptr.get().calc_complex_modulus_vectorize_modulus(
-            vmod, vvisc, frequency_rad_s, vout)
+            vmod, vvisc, frequency, vout)
         return _complex_vector_to_ndarray(vout, mod_c.shape)
 
-    def calc_complex_modulus_vectorize_frequency(self, double modulus_pa,
-                                                 double viscosity_pas, frequency_rad_s):
+    def calc_complex_modulus_vectorize_frequency(self, double modulus,
+                                                 double viscosity, frequency):
         """Complex modulus over a frequency sweep at constant modulus/viscosity.
 
         Parameters
         ----------
-        modulus_pa : float
+        modulus : float
             Constant unrelaxed modulus [Pa].
-        viscosity_pas : float
+        viscosity : float
             Constant reference viscosity [Pa·s].
-        frequency_rad_s : array_like
+        frequency : array_like
             1-D sequence of forcing frequencies [rad/s].
 
         Returns
@@ -244,19 +244,19 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[double] vfreq
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
-        freq_c = np.ascontiguousarray(frequency_rad_s, dtype=np.float64).ravel()
+        freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
         mv = freq_c; _fill_vector(mv, vfreq)
         self._rheology_ptr.get().calc_complex_modulus_vectorize_frequency(
-            modulus_pa, viscosity_pas, vfreq, vout)
+            modulus, viscosity, vfreq, vout)
         return _complex_vector_to_ndarray(vout, freq_c.shape)
 
-    def calc_complex_modulus_vectorize_all(self, modulus_pa, viscosity_pas,
-                                           frequency_rad_s):
+    def calc_complex_modulus_vectorize_all(self, modulus, viscosity,
+                                           frequency):
         """Complex modulus over element-wise (modulus, viscosity, frequency).
 
         Parameters
         ----------
-        modulus_pa, viscosity_pas, frequency_rad_s : array_like
+        modulus, viscosity, frequency : array_like
             Equal-length 1-D sequences (MKS units).
 
         Returns
@@ -268,9 +268,9 @@ cdef class RheologyBase(PhysicsBase):
         cdef vector[double] vmod, vvisc, vfreq
         cdef vector[cpp_complex[double]] vout
         cdef double[::1] mv
-        mod_c  = np.ascontiguousarray(modulus_pa,      dtype=np.float64).ravel()
-        visc_c = np.ascontiguousarray(viscosity_pas,   dtype=np.float64).ravel()
-        freq_c = np.ascontiguousarray(frequency_rad_s, dtype=np.float64).ravel()
+        mod_c  = np.ascontiguousarray(modulus,      dtype=np.float64).ravel()
+        visc_c = np.ascontiguousarray(viscosity,   dtype=np.float64).ravel()
+        freq_c = np.ascontiguousarray(frequency, dtype=np.float64).ravel()
         mv = mod_c;  _fill_vector(mv, vmod)
         mv = visc_c; _fill_vector(mv, vvisc)
         mv = freq_c; _fill_vector(mv, vfreq)

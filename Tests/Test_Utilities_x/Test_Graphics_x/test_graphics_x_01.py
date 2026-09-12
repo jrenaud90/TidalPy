@@ -89,10 +89,10 @@ def test_load_benchmark_ys(name):
     assert set(curves) == {"y1", "y2", "y3", "y4"}
     for series in curves.values():
         assert set(series) == set(BENCHMARK_YS[name]["markers"])
-        for values, radius_m in series.values():
-            assert values.shape == radius_m.shape and values.size > 5
-            assert np.all(np.isfinite(values)) and np.all(np.isfinite(radius_m))
-            assert 0.0 <= radius_m.min() and radius_m.max() <= 1.7e6      # Enceladus radii [m]
+        for values, radius in series.values():
+            assert values.shape == radius.shape and values.size > 5
+            assert np.all(np.isfinite(values)) and np.all(np.isfinite(radius))
+            assert 0.0 <= radius.min() and radius.max() <= 1.7e6      # Enceladus radii [m]
 
 
 def test_load_benchmark_ys_aliases_and_errors():

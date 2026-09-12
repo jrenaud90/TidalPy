@@ -38,9 +38,9 @@ def _solid_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("solid_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -69,9 +69,9 @@ def _assert_close(a, b, rel=1.0e-12):
 def test_repeated_same_frequency_is_identical():
     """Two back-to-back solves at the same frequency must agree bit-for-bit."""
     world = _solved_world()
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)
     first = _klh(world)
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)
     second = _klh(world)
     for a, b in zip(first, second):
         _assert_close(a, b)
@@ -84,11 +84,11 @@ def test_interleaved_frequency_sweep_returns_same_value():
     non-dim arrays must leave no state behind that perturbs a repeated solve.
     """
     world = _solved_world()
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)
     a_first = _klh(world)
-    world.solve_love_numbers(frequency_rad_s=3.0e-6, verbose=False)
+    world.solve_love_numbers(frequency=3.0e-6, verbose=False)
     _ = _klh(world)
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)
     a_again = _klh(world)
     for a, b in zip(a_first, a_again):
         _assert_close(a, b)
@@ -97,12 +97,12 @@ def test_interleaved_frequency_sweep_returns_same_value():
 def test_cached_matches_fresh_world():
     """A swept-then-returned solve must match a brand-new world solved once."""
     swept = _solved_world()
-    swept.solve_love_numbers(frequency_rad_s=2.0e-6, verbose=False)
-    swept.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    swept.solve_love_numbers(frequency=2.0e-6, verbose=False)
+    swept.solve_love_numbers(frequency=1.0e-5, verbose=False)
     swept_result = _klh(swept)
 
     fresh = _solved_world()
-    fresh.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    fresh.solve_love_numbers(frequency=1.0e-5, verbose=False)
     fresh_result = _klh(fresh)
 
     for a, b in zip(swept_result, fresh_result):
@@ -119,9 +119,9 @@ def test_frequency_changes_dissipation():
     A near-resonant frequency must give a larger |Im(k2)| than a near-elastic one.
     """
     world = _solved_world()
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)   # omega*tau >> 1, near-elastic
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)   # omega*tau >> 1, near-elastic
     im_elastic = abs(world.love_number_k.imag)
-    world.solve_love_numbers(frequency_rad_s=6.0e-11, verbose=False)  # omega*tau ~ 1, dissipative
+    world.solve_love_numbers(frequency=6.0e-11, verbose=False)  # omega*tau ~ 1, dissipative
     im_resonant = abs(world.love_number_k.imag)
     assert im_resonant > im_elastic
 
@@ -132,12 +132,12 @@ def test_frequency_changes_dissipation():
 def test_eos_resolve_invalidates_cache():
     """After re-solving the EOS, a love solve must still succeed and be valid."""
     world = _solved_world()
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)
     k_before = world.love_number_k
 
     # Re-solve the EOS (same inputs) — must invalidate and rebuild the cache.
     world.solve_eos(G_to_use=G, temperature=1500.0, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=1.0e-5, verbose=False)
+    world.solve_love_numbers(frequency=1.0e-5, verbose=False)
     assert world.love_solved is True
     k_after = world.love_number_k
     # Identical EOS inputs => identical Love numbers after the rebuild.

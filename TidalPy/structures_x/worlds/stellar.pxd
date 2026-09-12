@@ -21,25 +21,25 @@ cdef extern from "stellar_.hpp" namespace "tidalpy" nogil:
         # Inherited from c_WorldConfig:
         string   name
         string   world_type_str
-        double   radius_m
-        double   mass_kg
+        double   radius
+        double   mass
         double   albedo
         double   emissivity
-        double   obliquity_rad
-        double   spin_frequency_rad_s
+        double   obliquity
+        double   spin_frequency
         # StarWorld additions:
-        double   effective_temperature_k
-        double   luminosity_w
+        double   effective_temperature
+        double   luminosity
 
     cdef cppclass c_StarWorld(c_BaseWorld):
         c_StarWorld()
         c_StarWorld(const c_StarConfig& cfg) except +
         double get_effective_temperature() const
         double get_luminosity()            const
-        double calc_luminosity_from_temperature(double temperature_k) const
-        double calc_temperature_from_luminosity(double luminosity_w)  const
-        void   set_effective_temperature(double temperature_k)
-        void   set_luminosity(double luminosity_w)
+        double calc_luminosity_from_temperature(double temperature) const
+        double calc_temperature_from_luminosity(double luminosity)  const
+        void   set_effective_temperature(double temperature)
+        void   set_luminosity(double luminosity)
         void   set_luminosity_model(unique_ptr[c_LuminosityBase] model)
         cpp_bool has_luminosity_model() const
         double calc_luminosity_from_mass() except +

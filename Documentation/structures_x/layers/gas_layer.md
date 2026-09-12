@@ -24,24 +24,24 @@ from TidalPy.structures_x.layers.gas import GasLayer
 layer = GasLayer(
     name                         = "atmosphere",
     layer_index                  = 0,
-    radius_inner_m               = 0.0,
-    radius_outer_m               = 7.0e7,
-    mass_kg                      = 1.0e27,
+    radius_inner               = 0.0,
+    radius_outer               = 7.0e7,
+    mass                      = 1.0e27,
     # optional:
     material_name                = "hydrogen",
     is_tidal                     = False,
     tidal_scale                  = 1.0,
-    shear_modulus_static_pa      = 0.0,
-    bulk_modulus_static_pa       = 0.0,
-    shear_viscosity_static_pas   = nan,
-    bulk_viscosity_static_pas    = nan,
+    shear_modulus_static      = 0.0,
+    bulk_modulus_static       = 0.0,
+    shear_viscosity_static   = nan,
+    bulk_viscosity_static    = nan,
     love_number_k                = 0+0j,
     love_number_h                = 0+0j,
     love_number_l                = 0+0j,
-    mean_molecular_weight_kg_mol = 2.0e-3,   # H₂
+    mean_molecular_weight = 2.0e-3,   # H₂
     adiabatic_index              = 1.4,
-    reference_temperature_k      = 300.0,
-    reference_density_kg_m3      = 1.0,
+    reference_temperature      = 300.0,
+    reference_density      = 1.0,
 )
 ```
 
@@ -51,10 +51,10 @@ All parameters from `PhysicsLayer` are accepted plus:
 
 | Parameter | Unit | Default | Description |
 |---|---|---|---|
-| `mean_molecular_weight_kg_mol` | kg/mol | `2e-3` | Mean molar mass of the gas |
+| `mean_molecular_weight` | kg/mol | `2e-3` | Mean molar mass of the gas |
 | `adiabatic_index` | — | `1.4` | γ = c_p/c_v (ratio of specific heats) |
-| `reference_temperature_k` | K | `300.0` | Reference temperature |
-| `reference_density_kg_m3` | kg/m³ | `1.0` | Reference number density |
+| `reference_temperature` | K | `300.0` | Reference temperature |
+| `reference_density` | kg/m³ | `1.0` | Reference number density |
 
 ## Properties
 
@@ -69,7 +69,7 @@ Inherits all `BaseLayer` and `PhysicsLayer` properties, plus:
 
 ## Methods
 
-### `calc_adiabatic_lapse_rate(gravity_m_s2)`
+### `calc_adiabatic_lapse_rate(gravity)`
 
 Dry adiabatic lapse rate for an ideal gas [K/m]:
 
@@ -80,7 +80,7 @@ $M$ is the mean molar mass, and $R$ is the universal gas constant.
 
 **Returns** `float` [K/m].
 
-### `calc_scale_height(temperature_k, gravity_m_s2)`
+### `calc_scale_height(temperature, gravity)`
 
 Barometric (pressure) scale height [m]:
 
@@ -88,7 +88,7 @@ $$H = \frac{R \, T}{g \, M}$$
 
 **Returns** `float` [m].
 
-### `calc_pressure_ideal_gas(temperature_k, density_kg_m3)`
+### `calc_pressure_ideal_gas(temperature, density)`
 
 Ideal gas pressure [Pa]:
 
@@ -96,7 +96,7 @@ $$P = \frac{\rho \, R \, T}{M}$$
 
 **Returns** `float` [Pa].
 
-### `calc_sound_speed(temperature_k)`
+### `calc_sound_speed(temperature)`
 
 Adiabatic sound speed for an ideal gas [m/s]:
 

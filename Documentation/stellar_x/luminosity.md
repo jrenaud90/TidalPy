@@ -29,17 +29,17 @@ The solar anchors `Msun` and `Lsun` come from the TidalPy constants (`d_MASS_SOL
 from TidalPy.stellar_x import make_luminosity, MassToLuminosity, mass_to_luminosity
 
 model = make_luminosity("mass_to_luminosity")     # or MassToLuminosity()
-lum = model.calc_luminosity(mass_kg)              # float or ndarray (mass may be an array)
-temp = model.calc_effective_temperature(mass_kg, radius_m)
-lum_from_t = model.calc_luminosity_from_temperature(temperature_k, radius_m)
-temp_from_l = model.calc_temperature_from_luminosity(luminosity_w, radius_m)
+lum = model.calc_luminosity(mass)              # float or ndarray (mass may be an array)
+temp = model.calc_effective_temperature(mass, radius)
+lum_from_t = model.calc_luminosity_from_temperature(temperature, radius)
+temp_from_l = model.calc_temperature_from_luminosity(luminosity, radius)
 
 # Direct convenience functions (build, solve, discard):
-lum = mass_to_luminosity(mass_kg)                 # float or ndarray
+lum = mass_to_luminosity(mass)                 # float or ndarray
 ```
 
 `make_luminosity(name, config)` maps the (case-insensitive) name/alias to the C++ enum factory and
-returns the matching rich subclass. Config keys: `luminosity_w` (fixed), `power_law_coeff` /
+returns the matching rich subclass. Config keys: `luminosity` (fixed), `power_law_coeff` /
 `power_law_exponent` (power law). Each model round-trips through `save_binary` / `load_binary` and
 reports its parameters via `get_config_dict()`.
 
@@ -52,7 +52,7 @@ own mass and radius:
 from TidalPy.structures_x.worlds.stellar import StarWorld
 from TidalPy.stellar_x import MassToLuminosity
 
-star = StarWorld("sun", radius_m, mass_kg)
+star = StarWorld("sun", radius, mass)
 star.set_luminosity_model(MassToLuminosity())       # transfers ownership of the model
 lum  = star.calc_luminosity_from_mass()             # [W]
 temp = star.calc_effective_temperature_from_mass()  # [K]
@@ -75,8 +75,8 @@ c_LuminosityConfig config;
 config.power_law_exponent = 4.0;
 std::unique_ptr<c_LuminosityBase> model = c_find_luminosity("power_law", config);
 
-const double lum  = model->calc_luminosity(mass_kg);
-const double temp = model->calc_effective_temperature(mass_kg, radius_m);
+const double lum  = model->calc_luminosity(mass);
+const double temp = model->calc_effective_temperature(mass, radius);
 ```
 
 * `c_LuminosityBase : c_PhysicsBase` — abstract; pure virtual `calc_luminosity(mass)`, plus the shared

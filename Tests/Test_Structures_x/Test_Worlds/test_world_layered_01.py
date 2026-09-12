@@ -126,7 +126,7 @@ def test_internal_heating_with_radiogenics():
     world = mod.LayeredWorld("Earth", _R_SURF, _M_TOT)
     core  = solidliquid.SolidLiquidLayer("core", 0, 0.0, _R_CMB, _M_CORE)
     mantle = solidliquid.SolidLiquidLayer("mantle", 1, _R_CMB, _R_SURF, _M_MANT)
-    mantle.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=1.0e-11))
+    mantle.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production=1.0e-11))
     world.add_layer(core)
     world.add_layer(mantle)
 
@@ -144,12 +144,12 @@ def test_layered_world_binary_roundtrip():
     radio = _import_radiogenics()
 
     world = mod.LayeredWorld("Earth", _R_SURF, _M_TOT, world_type="terrestrial",
-                             albedo=0.31, obliquity_rad=0.41)
+                             albedo=0.31, obliquity=0.41)
     core  = solidliquid.SolidLiquidLayer("core", 0, 0.0, _R_CMB, _M_CORE,
                                          material_name="iron")
     mantle = solidliquid.SolidLiquidLayer("mantle", 1, _R_CMB, _R_SURF, _M_MANT,
                                           material_name="perovskite")
-    mantle.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=2.0e-11))
+    mantle.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production=2.0e-11))
     world.add_layer(core)
     world.add_layer(mantle)
     heating_before = world.calc_internal_heating(0.0)

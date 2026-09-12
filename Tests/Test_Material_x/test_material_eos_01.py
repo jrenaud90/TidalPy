@@ -32,7 +32,7 @@ _K0P  = 4.5         # [dimensionless]
 # ConstantDensityEOS
 # =====================================================================================================================
 def test_constant_density():
-    eos = _import_eos().ConstantDensityEOS(reference_density_kg_m3=_RHO0)
+    eos = _import_eos().ConstantDensityEOS(reference_density=_RHO0)
     assert eos.reference_density == pytest.approx(_RHO0)
     # Density is independent of pressure / radius.
     assert eos.calc_density(0.0) == pytest.approx(_RHO0)

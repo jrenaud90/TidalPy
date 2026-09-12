@@ -78,11 +78,11 @@ from TidalPy.partial_melt_x import (
    make_partial_melt
 )
 
-melt = HenningPartialMelt(solidus_k=1600.0, liquidus_k=2000.0, liquid_shear_pa=1.0e-5)
+melt = HenningPartialMelt(solidus=1600.0, liquidus=2000.0, liquid_shear=1.0e-5)
 
 phi = melt.calc_melt_fraction(1800.0)               # 0.5
 phi, post_visc, post_shear = melt.calc_partial_melt(
-    temperature_k=1700.0,
+    temperature=1700.0,
     premelt_viscosity=1.0e22,   # [Pa·s]
     premelt_shear=6.0e10,       # [Pa]
     liquid_viscosity=0.2,       # [Pa·s]
@@ -94,7 +94,7 @@ melt = make_partial_melt("fischer", {"solidus_k": 1500.0})
 
 **Constructors / Parameters**
 
-- `OffPartialMelt(solidus_k=1600, liquidus_k=2000, liquid_shear_pa=1e-5)`
+- `OffPartialMelt(solidus=1600, liquidus=2000, liquid_shear=1e-5)`
 - `SpohnPartialMelt(..., fs_visc_power_slope=27000, fs_visc_power_phase=1.0,
   fs_shear_power_slope=82000, fs_shear_power_phase=40.6)`
 - `HenningPartialMelt(..., crit_melt_frac=0.5, crit_melt_frac_width=0.05,
@@ -119,7 +119,7 @@ config keys fall back to the C++ defaults. Unknown names raise `ValueError`.
 ## C++ API
 
 **Config struct** `tidalpy::c_PartialMeltConfig` (defaults in parentheses):
-`solidus_k` (1600), `liquidus_k` (2000), `liquid_shear_pa` (1e-5);
+`solidus` (1600), `liquidus` (2000), `liquid_shear` (1e-5);
 Spohn: `fs_visc_power_slope` (27000), `fs_visc_power_phase` (1.0),
 `fs_shear_power_slope` (82000), `fs_shear_power_phase` (40.6);
 Henning: `crit_melt_frac` (0.5), `crit_melt_frac_width` (0.05),
@@ -127,12 +127,12 @@ Henning: `crit_melt_frac` (0.5), `crit_melt_frac_width` (0.05),
 `hn_shear_param_1` (40000), `hn_shear_param_2` (25),
 `hn_shear_falloff_slope` (700).
 
-**Input / Result** `c_PartialMeltInputs { temperature_k, premelt_viscosity,
+**Input / Result** `c_PartialMeltInputs { temperature, premelt_viscosity,
 premelt_shear, liquid_viscosity }` → `c_PartialMeltResult { melt_fraction,
 postmelt_viscosity, postmelt_shear_modulus }`.
 
 **Base class** `c_PartialMeltBase : c_PhysicsBase` (in `partial_melt_base_.hpp`):
-`calc_melt_fraction(double temperature_k) const`,
+`calc_melt_fraction(double temperature) const`,
 pure virtual `calc_partial_melt(const c_PartialMeltInputs&) const`,
 `calc_partial_melt_vectorize(temperature, premelt_visc, premelt_shear,
 liquid_viscosity, out_results)` (the primary radial sweep — one entry per slice),

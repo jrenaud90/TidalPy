@@ -40,9 +40,9 @@ config saving (`save_config`, `get_config_dict`) from `TidalPyBaseClass` via
 BaseLayer(
     name:           str,
     layer_index:    int,
-    radius_inner_m: float,
-    radius_outer_m: float,
-    mass_kg:        float,
+    radius_inner: float,
+    radius_outer: float,
+    mass:        float,
     material_name:  str   = "",
     is_tidal:       bool  = True,
     tidal_scale:    float = 1.0,
@@ -55,9 +55,9 @@ BaseLayer(
 |-----------|------|-------|-------------|
 | `name` | `str` | — | Human-readable identifier (e.g. `"mantle"`). |
 | `layer_index` | `int` | — | Zero-based index; innermost layer = 0. |
-| `radius_inner_m` | `float` | m | Inner boundary radius. |
-| `radius_outer_m` | `float` | m | Outer boundary radius. |
-| `mass_kg` | `float` | kg | Total layer mass. |
+| `radius_inner` | `float` | m | Inner boundary radius. |
+| `radius_outer` | `float` | m | Outer boundary radius. |
+| `mass` | `float` | kg | Total layer mass. |
 | `material_name` | `str` | — | Material identifier (e.g. `"perovskite"`). Optional. |
 | `is_tidal` | `bool` | — | Whether this layer dissipates tidal energy. Default `True`. |
 | `tidal_scale` | `float` | — | Dimensionless scale on tidal heating. Default `1.0`. |
@@ -114,7 +114,7 @@ layer.set_eos(make_material_eos("birch_murnaghan", {
 
 Raises `ValueError` if the model has already been attached or moved.
 
-### `update_eos_data(radius_m, density_kgm3, gravity_ms2, pressure_pa)`
+### `update_eos_data(radius, density_kgm3, gravity_ms2, pressure)`
 
 Populate the EOS profile directly from sorted radius arrays (normally done for you
 by the world EOS solve; useful for tests or manual construction).
@@ -133,20 +133,20 @@ layer.update_eos_data(r, rho, g, p)
 **Notes:**
 - In normal workflow this is called automatically by the world EOS solve
   ([`LayeredWorld.solve_eos`](../worlds/worlds.md#equation-of-state)).
-- All sequences must be the same length and `radius_m` must be sorted ascending.
+- All sequences must be the same length and `radius` must be sorted ascending.
 - Linear interpolation is used; values are clamped at the layer boundaries.
 
-### `get_density(radius_m)` → float or ndarray
+### `get_density(radius)` → float or ndarray
 
-Density at `radius_m` [kg/m³]. Returns `NaN` if EOS data not populated.
+Density at `radius` [kg/m³]. Returns `NaN` if EOS data not populated.
 
-### `get_gravity(radius_m)` → float or ndarray
+### `get_gravity(radius)` → float or ndarray
 
-Gravitational acceleration at `radius_m` [m/s²]. Returns `NaN` if not populated.
+Gravitational acceleration at `radius` [m/s²]. Returns `NaN` if not populated.
 
-### `get_pressure(radius_m)` → float or ndarray
+### `get_pressure(radius)` → float or ndarray
 
-Pressure at `radius_m` [Pa]. Returns `NaN` if not populated.
+Pressure at `radius` [Pa]. Returns `NaN` if not populated.
 
 ### Viscoelastic profile getters → float or ndarray
 
@@ -154,7 +154,7 @@ After the world EOS solve populates the layer, the radius-resolved viscoelastic 
 readable through the same getter names the world exposes: `get_shear_modulus`,
 `get_bulk_modulus`, `get_shear_viscosity`, `get_bulk_viscosity` (post-melt), their
 `get_premelt_*` counterparts (before the partial-melt step), and the shorthand bundles
-`get_static_viscoelastics(radius_m)` (the post-melt 4-tuple) and `get_state(radius_m)`
+`get_static_viscoelastics(radius)` (the post-melt 4-tuple) and `get_state(radius)`
 (all profiles as a dict). All return `NaN` before the profile is populated.
 
 **Vectorization:** every profile getter on this page accepts a float or an `np.ndarray`
@@ -201,12 +201,12 @@ cfg = layer.get_config_dict()  # → dict with all construction parameters
 
 The dict follows the world builder's layer schema: `class` names the layer class (`base`, `physics`,
 `solidliquid`, or `gas`), the scalar keys are the constructor parameters, and each attached physics model
-is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner_m` belong
+is a sub-table keyed by `model` (`eos` here; subclasses add their own). `name` and `radius_inner` belong
 to a standalone layer only; a world drops them when it nests the layer under its name
 (`LAYER_STANDALONE_CONFIG_KEYS`).
 
 ```python
-layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=4400.0))
+layer.set_eos(ConstantDensityEOS(reference_density=4400.0))
 layer.get_config_dict()["eos"]  # {'model': 'constant', 'reference_density_kg_m3': 4400.0}
 ```
 
@@ -220,9 +220,9 @@ from TidalPy.structures_x.layers import BaseLayer
 mantle = BaseLayer(
     name           = "mantle",
     layer_index    = 1,
-    radius_inner_m = 3.485e6,   # CMB radius [m]
-    radius_outer_m = 6.371e6,   # Earth surface [m]
-    mass_kg        = 4.043e24,  # mantle mass [kg]
+    radius_inner = 3.485e6,   # CMB radius [m]
+    radius_outer = 6.371e6,   # Earth surface [m]
+    mass        = 4.043e24,  # mantle mass [kg]
     material_name  = "perovskite",
 )
 
@@ -233,10 +233,10 @@ print(f"EOS populated: {mantle.eos_data_populated}")
 
 # After EOSHandler runs (or for testing):
 mantle.update_eos_data(
-    radius_m     = [3.485e6, 6.371e6],
+    radius     = [3.485e6, 6.371e6],
     density_kgm3 = [5560.0,  3300.0],
     gravity_ms2  = [10.68,    9.81],
-    pressure_pa  = [1.36e11,  0.0],
+    pressure  = [1.36e11,  0.0],
 )
 print(f"EOS populated: {mantle.eos_data_populated}")
 # EOS populated: True

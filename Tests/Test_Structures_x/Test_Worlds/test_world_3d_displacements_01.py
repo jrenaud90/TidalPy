@@ -32,9 +32,9 @@ ORBIT = dict(orbital_frequency=ORBITAL_FREQ, spin_frequency=SPIN_FREQ, eccentric
 
 @pytest.fixture(scope="module")
 def world():
-    layer = PhysicsLayer("mantle", 0, 0.0, RADIUS, MASS, shear_modulus_static_pa=6.0e10,
-                         bulk_modulus_static_pa=1.0e15)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=DENSITY))
+    layer = PhysicsLayer("mantle", 0, 0.0, RADIUS, MASS, shear_modulus_static=6.0e10,
+                         bulk_modulus_static=1.0e15)
+    layer.set_eos(ConstantDensityEOS(reference_density=DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e19}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -82,7 +82,7 @@ def test_interior_point_matches_radial_functions(world):
     radius, colatitude, longitude = 0.8 * RADIUS, 1.1, 0.4
     times = np.array([0.0, 0.13 * PERIOD, 0.61 * PERIOD])
     omega, _ = _single_mode(colatitude, longitude)
-    world.solve_love_numbers(frequency_rad_s=abs(omega), degree_l=2)
+    world.solve_love_numbers(frequency=abs(omega), degree_l=2)
     y1 = world.get_love_radial_y(radius, 0, 0)
     y3 = world.get_love_radial_y(radius, 0, 2)
     out = world.calc_3d_displacements(**ORBIT, radii=radius, colatitudes=colatitude, longitudes=longitude,
@@ -95,7 +95,7 @@ def test_interior_point_matches_radial_functions(world):
 def test_surface_displacement_follows_love_numbers(world):
     colatitude, longitude = 1.3, 2.2
     omega, _ = _single_mode(colatitude, longitude)
-    result = world.solve_love_numbers(frequency_rad_s=abs(omega), degree_l=2)
+    result = world.solve_love_numbers(frequency=abs(omega), degree_l=2)
     gravity = float(world.get_gravity(RADIUS))
     y1 = result["love_number_h"] / gravity
     y3 = result["love_number_l"] / gravity

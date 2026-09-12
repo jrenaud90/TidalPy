@@ -30,24 +30,24 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         # Inherited from c_BaseLayerConfig:
         string              name
         int                 layer_index
-        double              radius_inner_m
-        double              radius_outer_m
-        double              mass_kg
+        double              radius_inner
+        double              radius_outer
+        double              mass
         string              material_name
         cpp_bool            is_tidal
         double              tidal_scale
         c_TidalScaleMethod  tidal_scale_method
         # From c_PhysicsConfig:
-        double              shear_modulus_static_pa
-        double              bulk_modulus_static_pa
-        double              shear_viscosity_static_pas
-        double              bulk_viscosity_static_pas
+        double              shear_modulus_static
+        double              bulk_modulus_static
+        double              shear_viscosity_static
+        double              bulk_viscosity_static
         c_LoveNumbers       love_numbers
         # GasLayer additions:
-        double              mean_molecular_weight_kg_mol
+        double              mean_molecular_weight
         double              adiabatic_index
-        double              reference_temperature_k
-        double              reference_density_kg_m3
+        double              reference_temperature
+        double              reference_density
 
     cdef cppclass c_GasLayer(c_PhysicsLayer):
         c_GasLayer() except +
@@ -58,10 +58,10 @@ cdef extern from "gas_.hpp" namespace "tidalpy" nogil:
         double get_reference_temperature()  const
         double get_reference_density()      const
         # Calculations
-        double calc_adiabatic_lapse_rate(double gravity_m_s2)                      const
-        double calc_scale_height(double temperature_k, double gravity_m_s2)        const
-        double calc_pressure_ideal_gas(double temperature_k, double density_kg_m3) const
-        double calc_sound_speed(double temperature_k)                               const
+        double calc_adiabatic_lapse_rate(double gravity)                      const
+        double calc_scale_height(double temperature, double gravity)        const
+        double calc_pressure_ideal_gas(double temperature, double density) const
+        double calc_sound_speed(double temperature)                               const
 
 
 # =====================================================================================================================

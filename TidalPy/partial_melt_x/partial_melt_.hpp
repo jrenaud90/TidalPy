@@ -50,9 +50,9 @@ namespace tidalpy {
 // -------------------------------------------------------------------------------
 struct c_PartialMeltConfig {
     // Shared melt envelope.
-    double solidus_k       = 1600.0;   // [K]
-    double liquidus_k      = 2000.0;   // [K]
-    double liquid_shear_pa = 1.0e-5;   // [Pa]
+    double solidus  = 1600.0;   // [K]
+    double liquidus = 2000.0;   // [K]
+    double liquid_shear = 1.0e-5;   // [Pa]
 
     // Spohn (Fischer & Spohn 1990) parameters.
     double fs_visc_power_slope  = 27000.0;  // [K]
@@ -91,13 +91,13 @@ class c_OffPartialMelt : public c_PartialMeltBase {
 public:
     c_OffPartialMelt() : c_PartialMeltBase("off") {}
     explicit c_OffPartialMelt(const c_PartialMeltConfig& cfg)
-        : c_PartialMeltBase("off", cfg.solidus_k, cfg.liquidus_k, cfg.liquid_shear_pa) {}
+        : c_PartialMeltBase("off", cfg.solidus, cfg.liquidus, cfg.liquid_shear) {}
     ~c_OffPartialMelt() override = default;
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
-        result.melt_fraction          = this->calc_melt_fraction(in.temperature_k);
-        result.postmelt_viscosity     = in.premelt_viscosity;
+        result.melt_fraction      = this->calc_melt_fraction(in.temperature);
+        result.postmelt_viscosity = in.premelt_viscosity;
         result.postmelt_shear_modulus = in.premelt_shear;
         return result;
     }
@@ -105,13 +105,13 @@ public:
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::OffPartialMelt),
-            {this->p_solidus_k, this->p_liquidus_k, this->p_liquid_shear_pa});
+            {this->p_solidus, this->p_liquidus, this->p_liquid_shear});
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 3);
-        this->p_solidus_k       = params[0];
-        this->p_liquidus_k      = params[1];
-        this->p_liquid_shear_pa = params[2];
+        this->p_solidus  = params[0];
+        this->p_liquidus = params[1];
+        this->p_liquid_shear = params[2];
     }
 };
 
@@ -125,7 +125,7 @@ class c_SpohnPartialMelt : public c_PartialMeltBase {
 public:
     c_SpohnPartialMelt() : c_PartialMeltBase("spohn") {}
     explicit c_SpohnPartialMelt(const c_PartialMeltConfig& cfg)
-        : c_PartialMeltBase("spohn", cfg.solidus_k, cfg.liquidus_k, cfg.liquid_shear_pa),
+        : c_PartialMeltBase("spohn", cfg.solidus, cfg.liquidus, cfg.liquid_shear),
           p_fs_visc_power_slope(cfg.fs_visc_power_slope),
           p_fs_visc_power_phase(cfg.fs_visc_power_phase),
           p_fs_shear_power_slope(cfg.fs_shear_power_slope),
@@ -147,16 +147,16 @@ public:
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
-        result.melt_fraction = this->calc_melt_fraction(in.temperature_k);
+        result.melt_fraction = this->calc_melt_fraction(in.temperature);
 
         double post_visc = c_safe_pow(10.0,
-            (this->p_fs_visc_power_slope / in.temperature_k) - this->p_fs_visc_power_phase);
+            (this->p_fs_visc_power_slope / in.temperature) - this->p_fs_visc_power_phase);
         double post_shear = c_safe_pow(10.0,
-            (this->p_fs_shear_power_slope / in.temperature_k) - this->p_fs_shear_power_phase);
+            (this->p_fs_shear_power_slope / in.temperature) - this->p_fs_shear_power_phase);
 
         // Floor at the liquid limits (legacy sanity check).
         if (post_visc  <= in.liquid_viscosity)     { post_visc  = in.liquid_viscosity; }
-        if (post_shear <= this->p_liquid_shear_pa) { post_shear = this->p_liquid_shear_pa; }
+        if (post_shear <= this->p_liquid_shear) { post_shear = this->p_liquid_shear; }
 
         result.postmelt_viscosity     = post_visc;
         result.postmelt_shear_modulus = post_shear;
@@ -166,17 +166,17 @@ public:
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::SpohnPartialMelt),
-            {this->p_solidus_k, this->p_liquidus_k, this->p_liquid_shear_pa,
+            {this->p_solidus, this->p_liquidus, this->p_liquid_shear,
              this->p_fs_visc_power_slope, this->p_fs_visc_power_phase,
              this->p_fs_shear_power_slope, this->p_fs_shear_power_phase});
     }
     void read_binary(std::istream& in, bool force = false) override {
-        const std::vector<double> params  = this->read_physics_binary(in, force, 7);
-        this->p_solidus_k            = params[0];
-        this->p_liquidus_k           = params[1];
-        this->p_liquid_shear_pa      = params[2];
-        this->p_fs_visc_power_slope  = params[3];
-        this->p_fs_visc_power_phase  = params[4];
+        const std::vector<double> params = this->read_physics_binary(in, force, 7);
+        this->p_solidus             = params[0];
+        this->p_liquidus            = params[1];
+        this->p_liquid_shear        = params[2];
+        this->p_fs_visc_power_slope = params[3];
+        this->p_fs_visc_power_phase = params[4];
         this->p_fs_shear_power_slope = params[5];
         this->p_fs_shear_power_phase = params[6];
     }
@@ -199,7 +199,7 @@ class c_HenningPartialMelt : public c_PartialMeltBase {
 public:
     c_HenningPartialMelt() : c_PartialMeltBase("henning") {}
     explicit c_HenningPartialMelt(const c_PartialMeltConfig& cfg)
-        : c_PartialMeltBase("henning", cfg.solidus_k, cfg.liquidus_k, cfg.liquid_shear_pa),
+        : c_PartialMeltBase("henning", cfg.solidus, cfg.liquidus, cfg.liquid_shear),
           p_crit_melt_frac(cfg.crit_melt_frac),
           p_crit_melt_frac_width(cfg.crit_melt_frac_width),
           p_hn_visc_slope_1(cfg.hn_visc_slope_1),
@@ -230,12 +230,12 @@ public:
 
     c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& in) const override {
         c_PartialMeltResult result;
-        const double phi = this->calc_melt_fraction(in.temperature_k);
+        const double phi = this->calc_melt_fraction(in.temperature);
         result.melt_fraction = phi;
 
         const double crit       = this->p_crit_melt_frac;
         const double crit_plus  = crit + this->p_crit_melt_frac_width;
-        const double break_temp = this->p_solidus_k + crit * (this->p_liquidus_k - this->p_solidus_k);
+        const double break_temp = this->p_solidus + crit * (this->p_liquidus - this->p_solidus);
 
         double post_visc;
         double post_shear;
@@ -247,7 +247,7 @@ public:
             // Sub-critical exponential weakening.
             post_visc  = in.premelt_viscosity * c_safe_exp(-this->p_hn_visc_slope_1 * phi);
             post_shear = in.premelt_shear
-                       * c_safe_exp((this->p_hn_shear_param_1 / in.temperature_k) - this->p_hn_shear_param_2);
+                       * c_safe_exp((this->p_hn_shear_param_1 / in.temperature) - this->p_hn_shear_param_2);
         } else if (phi <= crit_plus) {
             // Transition / breakdown band: maximum sub-critical effect then a steep falloff.
             post_visc  = in.premelt_viscosity
@@ -259,12 +259,12 @@ public:
         } else {
             // Past breakdown: liquid-like.
             post_visc  = in.liquid_viscosity;
-            post_shear = this->p_liquid_shear_pa;
+            post_shear = this->p_liquid_shear;
         }
 
         // Floor at the liquid limits (legacy sanity check).
         if (post_visc  <= in.liquid_viscosity)     { post_visc  = in.liquid_viscosity; }
-        if (post_shear <= this->p_liquid_shear_pa) { post_shear = this->p_liquid_shear_pa; }
+        if (post_shear <= this->p_liquid_shear) { post_shear = this->p_liquid_shear; }
 
         result.postmelt_viscosity     = post_visc;
         result.postmelt_shear_modulus = post_shear;
@@ -274,7 +274,7 @@ public:
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
             out, static_cast<uint32_t>(BinaryClassID::HenningPartialMelt),
-            {this->p_solidus_k, this->p_liquidus_k, this->p_liquid_shear_pa,
+            {this->p_solidus, this->p_liquidus, this->p_liquid_shear,
              this->p_crit_melt_frac, this->p_crit_melt_frac_width,
              this->p_hn_visc_slope_1, this->p_hn_visc_falloff_slope,
              this->p_hn_shear_param_1, this->p_hn_shear_param_2,
@@ -282,15 +282,15 @@ public:
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 10);
-        this->p_solidus_k              = params[0];
-        this->p_liquidus_k             = params[1];
-        this->p_liquid_shear_pa        = params[2];
-        this->p_crit_melt_frac         = params[3];
-        this->p_crit_melt_frac_width   = params[4];
-        this->p_hn_visc_slope_1        = params[5];
-        this->p_hn_visc_falloff_slope  = params[6];
-        this->p_hn_shear_param_1       = params[7];
-        this->p_hn_shear_param_2       = params[8];
+        this->p_solidus              = params[0];
+        this->p_liquidus             = params[1];
+        this->p_liquid_shear         = params[2];
+        this->p_crit_melt_frac       = params[3];
+        this->p_crit_melt_frac_width = params[4];
+        this->p_hn_visc_slope_1      = params[5];
+        this->p_hn_visc_falloff_slope = params[6];
+        this->p_hn_shear_param_1 = params[7];
+        this->p_hn_shear_param_2 = params[8];
         this->p_hn_shear_falloff_slope = params[9];
     }
 

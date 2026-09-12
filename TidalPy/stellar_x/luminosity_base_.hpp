@@ -52,7 +52,7 @@ public:
     //
     // Parameters
     // ----------
-    // mass_kg : stellar mass [kg]
+    // mass : stellar mass [kg]
     //
     // Returns
     // -------
@@ -63,7 +63,7 @@ public:
     // - Main-sequence mass-luminosity scaling (model specific).
     // - All inputs and outputs are MKS.
     // -----------------------------------------------------------------------
-    virtual double calc_luminosity(double mass_kg) const = 0;
+    virtual double calc_luminosity(double mass) const = 0;
 
     // -----------------------------------------------------------------------
     // Stefan-Boltzmann luminosity [W]: L = 4 pi R^2 sigma T^4.
@@ -73,35 +73,35 @@ public:
     // -----------
     // The star radiates as an ideal gray body at the given effective temperature.
     // -----------------------------------------------------------------------
-    double calc_luminosity_from_temperature(double temperature_k, double radius_m) const noexcept {
-        if (temperature_k <= 0.0 || radius_m <= 0.0 || tidalpy_config_ptr == nullptr) {
+    double calc_luminosity_from_temperature(double temperature, double radius) const noexcept {
+        if (temperature <= 0.0 || radius <= 0.0 || tidalpy_config_ptr == nullptr) {
             return TidalPyConstants::d_NAN;
         }
-        const double area  = 4.0 * TidalPyConstants::d_PI * radius_m * radius_m;
-        return area * tidalpy_config_ptr->d_SBC * temperature_k * temperature_k * temperature_k * temperature_k;
+        const double area  = 4.0 * TidalPyConstants::d_PI * radius * radius;
+        return area * tidalpy_config_ptr->d_SBC * temperature * temperature * temperature * temperature;
     }
 
     // -----------------------------------------------------------------------
     // Effective temperature [K] from luminosity: T = (L / (4 pi R^2 sigma))^(1/4).
     // Returns NaN for a non-positive luminosity/radius or a null config pointer.
     // -----------------------------------------------------------------------
-    double calc_temperature_from_luminosity(double luminosity_w, double radius_m) const noexcept {
-        if (luminosity_w <= 0.0 || radius_m <= 0.0 || tidalpy_config_ptr == nullptr) {
+    double calc_temperature_from_luminosity(double luminosity, double radius) const noexcept {
+        if (luminosity <= 0.0 || radius <= 0.0 || tidalpy_config_ptr == nullptr) {
             return TidalPyConstants::d_NAN;
         }
-        const double area  = 4.0 * TidalPyConstants::d_PI * radius_m * radius_m;
+        const double area  = 4.0 * TidalPyConstants::d_PI * radius * radius;
         const double denom = area * tidalpy_config_ptr->d_SBC;
         if (std::abs(denom) <= TidalPyConstants::d_EPS) {
             return TidalPyConstants::d_NAN;
         }
-        return std::pow(luminosity_w / denom, 0.25);
+        return std::pow(luminosity / denom, 0.25);
     }
 
     // -----------------------------------------------------------------------
     // Effective temperature [K] derived from the stellar mass: mass -> L -> T.
     // -----------------------------------------------------------------------
-    double calc_effective_temperature(double mass_kg, double radius_m) const noexcept {
-        return this->calc_temperature_from_luminosity(this->calc_luminosity(mass_kg), radius_m);
+    double calc_effective_temperature(double mass, double radius) const noexcept {
+        return this->calc_temperature_from_luminosity(this->calc_luminosity(mass), radius);
     }
 
     // -----------------------------------------------------------------------
@@ -111,12 +111,12 @@ public:
     // (resized to the mass vector length).
     // -----------------------------------------------------------------------
     void calc_luminosity_vectorize_mass(
-            const std::vector<double>& mass_kg,
+            const std::vector<double>& mass,
             std::vector<double>& out_luminosity) const {
-        const std::size_t num_masses = mass_kg.size();
+        const std::size_t num_masses = mass.size();
         out_luminosity.resize(num_masses);
         for (std::size_t i = 0; i < num_masses; ++i) {
-            out_luminosity[i] = this->calc_luminosity(mass_kg[i]);
+            out_luminosity[i] = this->calc_luminosity(mass[i]);
         }
     }
 };

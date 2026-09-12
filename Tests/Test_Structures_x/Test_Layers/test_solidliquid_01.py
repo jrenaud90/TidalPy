@@ -57,29 +57,29 @@ _R_GAS          = 8.314462618
 def _make_layer(**kw):
     mod = _import_solidliquid()
     defaults = dict(
-        name                          = "mantle",
-        layer_index                   = 1,
-        radius_inner_m                = _R_INNER_M,
-        radius_outer_m                = _R_OUTER_M,
-        mass_kg                       = _MASS_KG,
-        material_name                 = "perovskite",
-        is_tidal                      = True,
-        tidal_scale                   = 1.0,
-        shear_modulus_static_pa       = _SHEAR_PA,
-        bulk_modulus_static_pa        = 3.57e11,
-        shear_viscosity_static_pas    = _SHEAR_VISC_PAS,
-        bulk_viscosity_static_pas     = _BULK_VISC_PAS,
-        thermal_conductivity_ref_w_mk = _K_COND,
-        thermal_expansion_ref_1_k     = _ALPHA,
-        heat_capacity_ref_j_kgk       = _CP,
-        activation_energy_j_mol       = _E_A,
-        activation_volume_m3_mol      = _V_A,
-        solidus_temperature_k         = _T_SOLIDUS_K,
-        liquidus_temperature_k        = _T_LIQUIDUS_K,
-        melt_fraction_exponent        = _MELT_EXP,
-        reference_density_kg_m3       = _RHO_REF,
-        reference_temperature_k       = _T_REF_K,
-        melt_viscosity_reduction      = _MELT_RED,
+        name                 = "mantle",
+        layer_index          = 1,
+        radius_inner         = _R_INNER_M,
+        radius_outer         = _R_OUTER_M,
+        mass                 = _MASS_KG,
+        material_name        = "perovskite",
+        is_tidal             = True,
+        tidal_scale          = 1.0,
+        shear_modulus_static = _SHEAR_PA,
+        bulk_modulus_static  = 3.57e11,
+        shear_viscosity_static = _SHEAR_VISC_PAS,
+        bulk_viscosity_static  = _BULK_VISC_PAS,
+        thermal_conductivity_ref = _K_COND,
+        thermal_expansion_ref = _ALPHA,
+        heat_capacity_ref     = _CP,
+        activation_energy     = _E_A,
+        activation_volume = _V_A,
+        solidus_temperature    = _T_SOLIDUS_K,
+        liquidus_temperature   = _T_LIQUIDUS_K,
+        melt_fraction_exponent = _MELT_EXP,
+        reference_density      = _RHO_REF,
+        reference_temperature  = _T_REF_K,
+        melt_viscosity_reduction = _MELT_RED,
     )
     defaults.update(kw)
     return mod.SolidLiquidLayer(**defaults)
@@ -217,14 +217,14 @@ def test_melt_fraction_exponent_gt1():
 # =====================================================================================================================
 def test_viscosity_at_reference_zero_pressure():
     """Viscosity equals shear reference value at reference T, P=0, below solidus."""
-    sl  = _make_layer(solidus_temperature_k=1e10)   # push solidus far so phi = 0
+    sl  = _make_layer(solidus_temperature=1e10)   # push solidus far so phi = 0
     eta = sl.calc_viscosity(_T_REF_K, 0.0)
     assert eta == pytest.approx(_SHEAR_VISC_PAS, rel=1e-9)
 
 
 def test_viscosity_increases_below_reference_temp():
     """Viscosity is higher at T < T_ref (Arrhenius — colder = more viscous)."""
-    sl   = _make_layer(solidus_temperature_k=1e10)
+    sl   = _make_layer(solidus_temperature=1e10)
     eta_cold = sl.calc_viscosity(_T_REF_K * 0.5, 0.0)
     eta_ref  = sl.calc_viscosity(_T_REF_K, 0.0)
     assert eta_cold > eta_ref
@@ -232,7 +232,7 @@ def test_viscosity_increases_below_reference_temp():
 
 def test_viscosity_decreases_above_reference_temp():
     """Viscosity is lower at T > T_ref."""
-    sl   = _make_layer(solidus_temperature_k=1e10)
+    sl   = _make_layer(solidus_temperature=1e10)
     eta_hot = sl.calc_viscosity(_T_REF_K * 2.0, 0.0)
     eta_ref = sl.calc_viscosity(_T_REF_K, 0.0)
     assert eta_hot < eta_ref
@@ -523,7 +523,7 @@ def test_attach_submodels_set_flags():
     assert sl.cooling_set     is False
     assert sl.radiogenics_set is False
     sl.set_cooling(cooling.ConvectiveCooling())
-    sl.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=1.0e-11))
+    sl.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production=1.0e-11))
     assert sl.cooling_set     is True
     assert sl.radiogenics_set is True
 
@@ -532,7 +532,7 @@ def test_attach_radiogenics_changes_heating():
     """After attaching a fixed radiogenics model, calc_radiogenic_heating is non-zero."""
     radio = _import_radiogenics()
     sl = _make_layer()
-    sl.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=2.0e-11))
+    sl.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production=2.0e-11))
     q = sl.calc_radiogenic_heating(0.0, _MASS_KG)
     assert q == pytest.approx(2.0e-11 * _MASS_KG, rel=1e-12)
 
@@ -548,7 +548,7 @@ def test_binary_roundtrip_with_all_submodels():
     sl1 = _make_layer()
     sl1.set_shear_rheology(rheo.Maxwell())
     sl1.set_cooling(cooling.ConvectiveCooling(convection_alpha=0.9, critical_rayleigh=1200.0))
-    sl1.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production_w_kg=3.0e-11))
+    sl1.set_radiogenics(radio.FixedRadiogenics(fixed_heat_production=3.0e-11))
     mu_before = sl1.calc_complex_shear_modulus(freq)
     q_before  = sl1.calc_radiogenic_heating(0.0, _MASS_KG)
 
@@ -644,7 +644,7 @@ def test_get_config_dict_class_and_thermal_model_tables():
     assert "cooling" not in cfg
     assert "radiogenics" not in cfg
     sl.set_cooling(ConvectiveCooling(convection_alpha=0.9))
-    sl.set_radiogenics(FixedRadiogenics(fixed_heat_production_w_kg=3.0e-11))
+    sl.set_radiogenics(FixedRadiogenics(fixed_heat_production=3.0e-11))
     cfg = sl.get_config_dict()
     assert cfg["cooling"]["convection_alpha"] == pytest.approx(0.9)
     assert cfg["radiogenics"]["fixed_heat_production_w_kg"] == pytest.approx(3.0e-11)

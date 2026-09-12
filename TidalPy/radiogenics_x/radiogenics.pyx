@@ -10,8 +10,8 @@ Exposes the three radiogenic-heating models:
 - ``IsotopeRadiogenics``                        — sum of individual decaying isotopes.
 - ``FixedRadiogenics``   (alias ``"constant"``) — single lumped rate with optional decay.
 
-Each model computes the total radiogenic heating [W] via ``calc_heating(time_s,
-mass_kg)``. All quantities are MKS: time and half-lives in seconds, mass in kg,
+Each model computes the total radiogenic heating [W] via ``calc_heating(time,
+mass)``. All quantities are MKS: time and half-lives in seconds, mass in kg,
 heat production rates in W/kg, heating in W.
 
 References
@@ -68,7 +68,7 @@ cdef object _double_vector_to_ndarray(vector[double]& src, tuple shape):
     return out.reshape(shape)
 
 
-cdef void _build_isotopes(object heat_production_w_kg, object half_lives_s,
+cdef void _build_isotopes(object heat_production, object half_lives,
                           object mass_fracs, object concentrations,
                           object names, vector[c_Isotope]& dst):
     """Build a std::vector[c_Isotope] from parallel Python sequences.
@@ -76,8 +76,8 @@ cdef void _build_isotopes(object heat_production_w_kg, object half_lives_s,
     The four numeric arrays must have the same length; ``names`` is an optional
     sequence of isotope labels (auto-generated as ``isotope_<i>`` when ``None``).
     """
-    cdef double[::1] a_hpr  = np.ascontiguousarray(heat_production_w_kg, dtype=np.float64).ravel()
-    cdef double[::1] a_half = np.ascontiguousarray(half_lives_s,         dtype=np.float64).ravel()
+    cdef double[::1] a_hpr  = np.ascontiguousarray(heat_production, dtype=np.float64).ravel()
+    cdef double[::1] a_half = np.ascontiguousarray(half_lives,         dtype=np.float64).ravel()
     cdef double[::1] a_frac = np.ascontiguousarray(mass_fracs,           dtype=np.float64).ravel()
     cdef double[::1] a_conc = np.ascontiguousarray(concentrations,       dtype=np.float64).ravel()
     cdef Py_ssize_t n = a_hpr.shape[0]
@@ -115,8 +115,8 @@ cdef object _isotopes_to_arrays(const vector[c_Isotope]& isotopes):
     cdef double[::1] m_conc = conc
     names = []
     for i in range(n):
-        m_hpr[i]  = isotopes[i].heat_production_w_kg
-        m_half[i] = isotopes[i].half_life_s
+        m_hpr[i]  = isotopes[i].heat_production
+        m_half[i] = isotopes[i].half_life
         m_frac[i] = isotopes[i].mass_frac
         m_conc[i] = isotopes[i].concentration
         names.append(isotopes[i].name.decode("utf-8"))
@@ -203,14 +203,14 @@ cdef class RadiogenicsBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_heating(self, double time_s, double mass_kg) -> float:
+    def calc_heating(self, double time, double mass) -> float:
         """Total radiogenic heating [W] for the given time and mass.
 
         Parameters
         ----------
-        time_s : float
+        time : float
             Elapsed time [s] (shares its zero point with the model reference time).
-        mass_kg : float
+        mass : float
             Mass of the radiogenic material [kg].
 
         Returns
@@ -224,16 +224,16 @@ cdef class RadiogenicsBase(PhysicsBase):
         - All inputs and outputs are MKS.
         """
         self._check_ptr()
-        return self._radiogenics_ptr.get().calc_heating(time_s, mass_kg)
+        return self._radiogenics_ptr.get().calc_heating(time, mass)
 
-    def calc_heating_vectorize_time(self, time_s, double mass_kg):
+    def calc_heating_vectorize_time(self, time, double mass):
         """Radiogenic heating over a time sweep at constant mass.
 
         Parameters
         ----------
-        time_s : array_like
+        time : array_like
             1-D sequence of elapsed times [s].
-        mass_kg : float
+        mass : float
             Constant radiogenic mass [kg].
 
         Returns
@@ -245,19 +245,19 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vtime
         cdef vector[double] vout
         cdef double[::1] mv
-        time_c = np.ascontiguousarray(time_s, dtype=np.float64).ravel()
+        time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
         mv = time_c; _fill_vector(mv, vtime)
-        self._radiogenics_ptr.get().calc_heating_vectorize_time(vtime, mass_kg, vout)
+        self._radiogenics_ptr.get().calc_heating_vectorize_time(vtime, mass, vout)
         return _double_vector_to_ndarray(vout, time_c.shape)
 
-    def calc_heating_vectorize_mass(self, double time_s, mass_kg):
+    def calc_heating_vectorize_mass(self, double time, mass):
         """Radiogenic heating over a mass sweep at constant time.
 
         Parameters
         ----------
-        time_s : float
+        time : float
             Constant elapsed time [s].
-        mass_kg : array_like
+        mass : array_like
             1-D sequence of radiogenic masses [kg].
 
         Returns
@@ -269,17 +269,17 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vmass
         cdef vector[double] vout
         cdef double[::1] mv
-        mass_c = np.ascontiguousarray(mass_kg, dtype=np.float64).ravel()
+        mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
         mv = mass_c; _fill_vector(mv, vmass)
-        self._radiogenics_ptr.get().calc_heating_vectorize_mass(time_s, vmass, vout)
+        self._radiogenics_ptr.get().calc_heating_vectorize_mass(time, vmass, vout)
         return _double_vector_to_ndarray(vout, mass_c.shape)
 
-    def calc_heating_vectorize_all(self, time_s, mass_kg):
+    def calc_heating_vectorize_all(self, time, mass):
         """Radiogenic heating over element-wise (time, mass) pairs.
 
         Parameters
         ----------
-        time_s, mass_kg : array_like
+        time, mass : array_like
             Equal-length 1-D sequences (MKS units).
 
         Returns
@@ -291,8 +291,8 @@ cdef class RadiogenicsBase(PhysicsBase):
         cdef vector[double] vtime, vmass
         cdef vector[double] vout
         cdef double[::1] mv
-        time_c = np.ascontiguousarray(time_s, dtype=np.float64).ravel()
-        mass_c = np.ascontiguousarray(mass_kg, dtype=np.float64).ravel()
+        time_c = np.ascontiguousarray(time, dtype=np.float64).ravel()
+        mass_c = np.ascontiguousarray(mass, dtype=np.float64).ravel()
         mv = time_c; _fill_vector(mv, vtime)
         mv = mass_c; _fill_vector(mv, vmass)
         self._radiogenics_ptr.get().calc_heating_vectorize_all(vtime, vmass, vout)
@@ -324,15 +324,15 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
 
     Parameters
     ----------
-    heat_production_w_kg : array_like
+    heat_production : array_like
         Per-isotope specific heat production rate [W/kg].
-    half_lives_s : array_like
+    half_lives : array_like
         Per-isotope half life [s].
     mass_fracs : array_like
         Per-isotope mass fraction of the isotope within its element [kg/kg].
     concentrations : array_like
         Per-isotope element concentration in the layer material [kg/kg].
-    ref_time_s : float, optional
+    ref_time : float, optional
         Reference time at which the concentrations were measured [s]. Default ``0``.
     names : sequence of str, optional
         Per-isotope labels. Auto-generated as ``isotope_<i>`` when omitted.
@@ -347,12 +347,12 @@ cdef class IsotopeRadiogenics(RadiogenicsBase):
     def __cinit__(self, *args, **kwargs):
         self._isotope_ptr = NULL
 
-    def __init__(self, heat_production_w_kg=(), half_lives_s=(),
-                 mass_fracs=(), concentrations=(), double ref_time_s=0.0, names=None):
+    def __init__(self, heat_production=(), half_lives=(),
+                 mass_fracs=(), concentrations=(), double ref_time=0.0, names=None):
         cdef c_RadiogenicsConfig config
-        _build_isotopes(heat_production_w_kg, half_lives_s, mass_fracs,
+        _build_isotopes(heat_production, half_lives, mass_fracs,
                         concentrations, names, config.isotopes)
-        config.ref_time_s = ref_time_s
+        config.ref_time = ref_time
         cdef c_IsotopeRadiogenics* raw = new c_IsotopeRadiogenics(config)
         self._radiogenics_ptr.reset(<c_RadiogenicsBase*>raw)
         self._isotope_ptr = raw
@@ -421,24 +421,24 @@ cdef class FixedRadiogenics(RadiogenicsBase):
 
     Parameters
     ----------
-    fixed_heat_production_w_kg : float
+    fixed_heat_production : float
         Lumped specific heat production rate [W/kg].
-    average_half_life_s : float, optional
+    average_half_life : float, optional
         Half life for the lumped rate's exponential decay [s]. Use ``0`` (the
         default) for no decay (a constant heating rate).
-    ref_time_s : float, optional
+    ref_time : float, optional
         Reference time at which the rate was measured [s]. Default ``0``.
     """
 
     def __cinit__(self, *args, **kwargs):
         self._fixed_ptr = NULL
 
-    def __init__(self, double fixed_heat_production_w_kg=0.0,
-                 double average_half_life_s=0.0, double ref_time_s=0.0):
+    def __init__(self, double fixed_heat_production=0.0,
+                 double average_half_life=0.0, double ref_time=0.0):
         cdef c_RadiogenicsConfig config
-        config.fixed_heat_production_w_kg = fixed_heat_production_w_kg
-        config.average_half_life_s        = average_half_life_s
-        config.ref_time_s                 = ref_time_s
+        config.fixed_heat_production = fixed_heat_production
+        config.average_half_life = average_half_life
+        config.ref_time          = ref_time
         cdef c_FixedRadiogenics* raw = new c_FixedRadiogenics(config)
         self._radiogenics_ptr.reset(<c_RadiogenicsBase*>raw)
         self._fixed_ptr = raw
@@ -491,9 +491,9 @@ def isotope_dataset(str name):
     Returns
     -------
     dict
-        Keys ``heat_production_w_kg``, ``half_lives_s``, ``mass_fracs``,
+        Keys ``heat_production``, ``half_lives``, ``mass_fracs``,
         ``concentrations`` (lists), ``isotope_names`` (list of str), and
-        ``ref_time_s`` (float). All values are MKS.
+        ``ref_time`` (float). All values are MKS.
 
     Raises
     ------
@@ -508,7 +508,7 @@ def isotope_dataset(str name):
         "mass_fracs":           list(frac),
         "concentrations":       list(conc),
         "isotope_names":        names,
-        "ref_time_s":           ds.ref_time_s,
+        "ref_time_s":           ds.ref_time,
     }
 
 
@@ -521,8 +521,8 @@ def _resolve_isotope_config(dict config):
     Handles the non-built-in cases (built-in datasets are resolved directly from
     the C++ catalog in ``make_radiogenics``):
 
-    1. Explicit MKS arrays via the keys ``heat_production_w_kg``, ``half_lives_s``,
-       ``mass_fracs``, ``concentrations`` (and optional ``ref_time_s``, ``isotope_names``).
+    1. Explicit MKS arrays via the keys ``heat_production``, ``half_lives``,
+       ``mass_fracs``, ``concentrations`` (and optional ``ref_time``, ``isotope_names``).
     2. A named global-config dataset or inline dict via the ``isotopes`` key. A
        string names a dataset under
        ``TidalPy.config['physics']['radiogenics']['known_isotope_data']``; a dict is
@@ -532,7 +532,7 @@ def _resolve_isotope_config(dict config):
     Returns
     -------
     tuple
-        ``(heat_production, half_lives_s, mass_fracs, concentrations, names, ref_time_s)``
+        ``(heat_production, half_lives, mass_fracs, concentrations, names, ref_time)``
         with all numeric lists in MKS units, or ``(None, ...)`` if no isotope data.
     """
     # Explicit MKS arrays take priority.
@@ -564,11 +564,11 @@ def _resolve_isotope_config(dict config):
 
     # Dataset-level reference time (Myr -> s).
     ref_time_myr = iso_data.get("ref_time", iso_data.get("reference_time", None))
-    ref_time_s = None if ref_time_myr is None else ref_time_myr * _SECONDS_PER_MYR
+    ref_time = None if ref_time_myr is None else ref_time_myr * _SECONDS_PER_MYR
 
     names = []
     hpr = []
-    half_lives_s = []
+    half_lives = []
     mass_fracs = []
     concentrations = []
     for name, entry in iso_data.items():
@@ -576,11 +576,11 @@ def _resolve_isotope_config(dict config):
             continue
         names.append(name)
         hpr.append(entry["hpr"])
-        half_lives_s.append(entry["half_life"] * _SECONDS_PER_MYR)
+        half_lives.append(entry["half_life"] * _SECONDS_PER_MYR)
         mass_fracs.append(entry["iso_mass_fraction"])
         concentrations.append(entry["element_concentration"])
 
-    return (hpr, half_lives_s, mass_fracs, concentrations, names, ref_time_s)
+    return (hpr, half_lives, mass_fracs, concentrations, names, ref_time)
 
 
 # =====================================================================================================================
@@ -602,11 +602,11 @@ def make_radiogenics(str model_name, dict config=None):
         (``isotopes``), ``fixed`` (``constant``).
     config : dict, optional
         Model parameters. For ``isotope``: either explicit MKS arrays
-        (``heat_production_w_kg``, ``half_lives_s``, ``mass_fracs``,
-        ``concentrations``, ``ref_time_s``) or a named/inline dataset via
+        (``heat_production``, ``half_lives``, ``mass_fracs``,
+        ``concentrations``, ``ref_time``) or a named/inline dataset via
         ``isotopes`` (dataset half lives/reference times are in Myr and converted
-        to seconds). For ``fixed``: ``fixed_heat_production_w_kg``,
-        ``average_half_life_s``, ``ref_time_s``.
+        to seconds). For ``fixed``: ``fixed_heat_production``,
+        ``average_half_life``, ``ref_time``.
 
     Returns
     -------
@@ -625,9 +625,9 @@ def make_radiogenics(str model_name, dict config=None):
     cdef c_IsotopeDataset ds
 
     # Fixed-model scalars (ignored by other models).
-    cfg.fixed_heat_production_w_kg = config.get("fixed_heat_production_w_kg", 0.0)
-    cfg.average_half_life_s        = config.get("average_half_life_s", 0.0)
-    cfg.ref_time_s                 = config.get("ref_time_s", 0.0)
+    cfg.fixed_heat_production = config.get("fixed_heat_production_w_kg", 0.0)
+    cfg.average_half_life = config.get("average_half_life_s", 0.0)
+    cfg.ref_time          = config.get("ref_time_s", 0.0)
 
     # Isotope-model data (ignored by other models). A built-in dataset name is
     # resolved straight from the C++ catalog (already MKS); everything else
@@ -641,14 +641,14 @@ def make_radiogenics(str model_name, dict config=None):
     if built_in:
         ds = c_get_isotope_dataset(isotopes.encode("utf-8"))
         cfg.isotopes   = ds.isotopes
-        cfg.ref_time_s = ds.ref_time_s
+        cfg.ref_time = ds.ref_time
     else:
-        hpr, half_lives_s, mass_fracs, concentrations, names, iso_ref = \
+        hpr, half_lives, mass_fracs, concentrations, names, iso_ref = \
             _resolve_isotope_config(config)
         if hpr is not None:
-            _build_isotopes(hpr, half_lives_s, mass_fracs, concentrations, names, cfg.isotopes)
+            _build_isotopes(hpr, half_lives, mass_fracs, concentrations, names, cfg.isotopes)
             if iso_ref is not None:
-                cfg.ref_time_s = iso_ref
+                cfg.ref_time = iso_ref
 
     # Map name/alias -> enum (raises ValueError on unknown name via except +),
     # then build the model through the canonical C++ enum factory.
@@ -700,11 +700,11 @@ def off(time, mass):
 def isotope(
         time,
         mass,
-        heat_production_w_kg=(),
-        half_lives_s=(),
+        heat_production=(),
+        half_lives=(),
         mass_fracs=(),
         concentrations=(),
-        double ref_time_s=0.0,
+        double ref_time=0.0,
         names=None):
     """Radiogenic heating for the Isotope model [W].
 
@@ -712,9 +712,9 @@ def isotope(
     constant parameters (all the same length). ``names`` is optional.
     """
     cdef c_RadiogenicsConfig cfg
-    _build_isotopes(heat_production_w_kg, half_lives_s, mass_fracs,
+    _build_isotopes(heat_production, half_lives, mass_fracs,
                     concentrations, names, cfg.isotopes)
-    cfg.ref_time_s = ref_time_s
+    cfg.ref_time = ref_time
     cdef c_IsotopeRadiogenics model = c_IsotopeRadiogenics(cfg)
     return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)
 
@@ -722,13 +722,13 @@ def isotope(
 def fixed(
         time,
         mass,
-        double fixed_heat_production_w_kg=0.0,
-        double average_half_life_s=0.0,
-        double ref_time_s=0.0):
+        double fixed_heat_production=0.0,
+        double average_half_life=0.0,
+        double ref_time=0.0):
     """Radiogenic heating for the Fixed model [W] (lumped rate, optional decay)."""
     cdef c_RadiogenicsConfig cfg
-    cfg.fixed_heat_production_w_kg = fixed_heat_production_w_kg
-    cfg.average_half_life_s        = average_half_life_s
-    cfg.ref_time_s                 = ref_time_s
+    cfg.fixed_heat_production = fixed_heat_production
+    cfg.average_half_life = average_half_life
+    cfg.ref_time          = ref_time
     cdef c_FixedRadiogenics model = c_FixedRadiogenics(cfg)
     return _solve_heating(<c_RadiogenicsBase*>&model, time, mass)

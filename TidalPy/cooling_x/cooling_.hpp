@@ -76,19 +76,19 @@ struct c_CoolingConfig {
 // Off: no cooling. Boundary layer is half the layer thickness; flux zero.
 inline c_CoolingResult cool_off(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
-    result.cooling_flux_w_m2 = 0.0;
-    result.blt_m             = 0.5 * in.thickness_m;
-    result.rayleigh_number   = 0.0;
-    result.nusselt_number    = 1.0;
+    result.cooling_flux = 0.0;
+    result.blt             = 0.5 * in.thickness;
+    result.rayleigh_number = 0.0;
+    result.nusselt_number  = 1.0;
     return result;
 }
 
 // Conduction: flux = k * delta_temp / thickness; boundary layer = thickness.
 inline c_CoolingResult cool_conduction(const c_CoolingInputs& in) noexcept {
     c_CoolingResult result;
-    result.blt_m             = in.thickness_m;
-    result.cooling_flux_w_m2 = in.thermal_conductivity_w_mk * in.delta_temp_k
-                             / cool_guard(in.thickness_m);
+    result.blt             = in.thickness;
+    result.cooling_flux = in.thermal_conductivity * in.delta_temp
+                             / cool_guard(in.thickness);
     result.rayleigh_number   = 0.0;
     result.nusselt_number    = 1.0;
     return result;
@@ -110,29 +110,29 @@ inline c_CoolingResult cool_convection(
     const double min_thickness = tidalpy_config_ptr->d_MIN_THICKNESS;
     c_CoolingResult result;
 
-    const double rate_heat_loss   = in.thermal_diffusivity_m2_s / cool_guard(in.thickness_m);
-    const double parcel_rise_rate = in.thermal_expansion_1_k * in.density_kg_m3 * in.gravity_m_s2
-                                  * in.delta_temp_k * in.thickness_m * in.thickness_m
-                                  / cool_guard(in.viscosity_pas);
+    const double rate_heat_loss   = in.thermal_diffusivity / cool_guard(in.thickness);
+    const double parcel_rise_rate = in.thermal_expansion * in.density * in.gravity
+                                  * in.delta_temp * in.thickness * in.thickness
+                                  / cool_guard(in.viscosity);
 
     double rayleigh = parcel_rise_rate / cool_guard(rate_heat_loss);
-    if (!(in.delta_temp_k > eps))          { rayleigh = 0.0; }
-    if (!(in.thickness_m  >= min_thickness)) { rayleigh = 0.0; }
+    if (!(in.delta_temp > eps))          { rayleigh = 0.0; }
+    if (!(in.thickness  >= min_thickness)) { rayleigh = 0.0; }
 
     double nusselt = cfg.convection_alpha
                    * std::pow(rayleigh / cool_guard(cfg.critical_rayleigh), cfg.convection_beta);
-    if (in.delta_temp_k <= eps)            { nusselt = 2.0; }
-    if (in.thickness_m  <= min_thickness)  { nusselt = 2.0; }
+    if (in.delta_temp <= eps)            { nusselt = 2.0; }
+    if (in.thickness  <= min_thickness)  { nusselt = 2.0; }
     if (nusselt <= 2.0)                    { nusselt = 2.0; }
 
-    double blt = in.thickness_m / cool_guard(nusselt);
-    if (in.delta_temp_k <= eps)            { blt = 1.0; }
-    if (in.thickness_m  <= min_thickness)  { blt = in.thickness_m; }
+    double blt = in.thickness / cool_guard(nusselt);
+    if (in.delta_temp <= eps)            { blt = 1.0; }
+    if (in.thickness  <= min_thickness)  { blt = in.thickness; }
 
-    result.cooling_flux_w_m2 = in.thermal_conductivity_w_mk * in.delta_temp_k / cool_guard(blt);
-    result.blt_m             = blt;
-    result.rayleigh_number   = rayleigh;
-    result.nusselt_number    = nusselt;
+    result.cooling_flux = in.thermal_conductivity * in.delta_temp / cool_guard(blt);
+    result.blt             = blt;
+    result.rayleigh_number = rayleigh;
+    result.nusselt_number  = nusselt;
     return result;
 }
 

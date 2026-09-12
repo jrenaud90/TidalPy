@@ -33,14 +33,14 @@ cdef extern from "eos_data_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_LayerEOSData:
         c_LayerEOSData()
         cpp_bool is_populated() const
-        double   get_density(double radius_m) const
-        double   get_gravity(double radius_m) const
-        double   get_pressure(double radius_m) const
+        double   get_density(double radius) const
+        double   get_gravity(double radius) const
+        double   get_pressure(double radius) const
         void populate(
-            const vector[double]& radius_m,
+            const vector[double]& radius,
             const vector[double]& density_kgm3,
             const vector[double]& gravity_ms2,
-            const vector[double]& pressure_pa)
+            const vector[double]& pressure)
 
 
 cdef extern from "base_.hpp" namespace "tidalpy" nogil:
@@ -56,9 +56,9 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
     cdef cppclass c_BaseLayerConfig:
         string             name
         int                layer_index
-        double             radius_inner_m
-        double             radius_outer_m
-        double             mass_kg
+        double             radius_inner
+        double             radius_outer
+        double             mass
         string             material_name
         cpp_bool           is_tidal
         double             tidal_scale
@@ -83,22 +83,22 @@ cdef extern from "base_.hpp" namespace "tidalpy" nogil:
         uint32_t get_layer_class_id()          const
         double   get_tidal_heating()           const
         cpp_bool get_eos_data_populated()      const
-        double   get_density(double radius_m)  const
-        double   get_gravity(double radius_m)  const
-        double   get_pressure(double radius_m) const
+        double   get_density(double radius)  const
+        double   get_gravity(double radius)  const
+        double   get_pressure(double radius) const
         void     update_eos_data(const c_LayerEOSData& data)
         void     set_eos(unique_ptr[c_MaterialEOSBase] eos)
         c_MaterialEOSBase* get_eos() const
         cpp_bool get_eos_set() const
         cpp_bool get_viscoelastic_populated() const
-        double   get_shear_modulus(double radius_m) const
-        double   get_bulk_modulus(double radius_m) const
-        double   get_shear_viscosity(double radius_m) const
-        double   get_bulk_viscosity(double radius_m) const
-        double   get_premelt_shear_modulus(double radius_m) const
-        double   get_premelt_bulk_modulus(double radius_m) const
-        double   get_premelt_shear_viscosity(double radius_m) const
-        double   get_premelt_bulk_viscosity(double radius_m) const
+        double   get_shear_modulus(double radius) const
+        double   get_bulk_modulus(double radius) const
+        double   get_shear_viscosity(double radius) const
+        double   get_bulk_viscosity(double radius) const
+        double   get_premelt_shear_modulus(double radius) const
+        double   get_premelt_bulk_modulus(double radius) const
+        double   get_premelt_shear_viscosity(double radius) const
+        double   get_premelt_bulk_viscosity(double radius) const
 
 
 # =====================================================================================================================
@@ -110,7 +110,7 @@ cdef class BaseLayer(StructureBase):
     cdef object   _world_ref                  # keep-alive ref to the owning world (views only)
     cpdef dict get_config_dict(self)
     # Scalar kernel behind the vectorized real-valued radius getters (see _apply_real in base.pyx).
-    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil
+    cdef double _eval_real(self, int kind, double radius) noexcept nogil
     # Initialize this wrapper as a non-owning view onto a world-owned C++ layer (sets the base
     # pointers + keep-alive ref; subclass `_view` factories set their own typed pointer first).
     cdef void _init_view(self, c_BaseLayer* ptr, object world)

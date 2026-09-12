@@ -33,7 +33,7 @@
 struct c_MaterialEOSInput
 {
     tidalpy::c_MaterialEOSBase* eos_model_ptr = nullptr;
-    double temperature_k = 0.0;
+    double temperature = 0.0;
 };
 
 
@@ -56,13 +56,13 @@ inline void c_preeval_material_eos(
     c_EOSOutput* output = reinterpret_cast<c_EOSOutput*>(preeval_output);
 
     // y[1] carries the local pressure [Pa] as integrated by the radial solver.
-    const double pressure_pa = radial_solutions[1];
+    const double pressure = radial_solutions[1];
 
     tidalpy::c_MaterialEOSBase* eos_model = eos_data->eos_model_ptr;
 
     // Density from the layer's material EOS model.
     output->density = eos_model->calc_density(
-        pressure_pa, eos_data->temperature_k, radius);
+        pressure, eos_data->temperature, radius);
 
     // Static moduli from the model (radius-varying for the interpolated model; NaN
     // for analytic/constant models). Only populated on the final solve pass.

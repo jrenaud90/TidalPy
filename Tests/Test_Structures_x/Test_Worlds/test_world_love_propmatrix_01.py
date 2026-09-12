@@ -48,9 +48,9 @@ def _incompressible_solid_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("incompressible_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
     layer.set_shear_rheology(Maxwell())
@@ -74,14 +74,14 @@ def _analytic_k2():
 def test_prop_matrix_succeeds():
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='propagation_matrix', verbose=False)
     assert world.love_solved is True
 
 
 def test_prop_matrix_k2_matches_analytic():
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='propagation_matrix', verbose=False)
     k2 = world.love_number_k
     analytic = _analytic_k2()
     assert not cmath.isnan(k2)
@@ -94,9 +94,9 @@ def test_prop_matrix_close_to_shooting_for_same_world():
     """For a near-incompressible sphere, the two methods should roughly agree."""
     world = _incompressible_solid_world()
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='propagation_matrix', verbose=False)
     k2_matrix = world.love_number_k
-    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='radial_solver', verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='radial_solver', verbose=False)
     k2_shoot = world.love_number_k
     assert k2_matrix.real == pytest.approx(k2_shoot.real, rel=0.10)
 
@@ -113,15 +113,15 @@ def test_prop_matrix_rejects_two_layers():
     for name, idx, ri, ro, rho in (("core", 0, 0.0, r_core, 8000.0),
                                    ("mantle", 1, r_core, _PLANET_RADIUS, 3300.0)):
         layer = PhysicsLayer(name, idx, ri, ro, 0.0,
-                             shear_modulus_static_pa=_STATIC_SHEAR,
-                             bulk_modulus_static_pa=_STATIC_BULK)
-        layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=rho))
+                             shear_modulus_static=_STATIC_SHEAR,
+                             bulk_modulus_static=_STATIC_BULK)
+        layer.set_eos(ConstantDensityEOS(reference_density=rho))
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
         layer.set_shear_rheology(Maxwell())
         layer.is_incompressible = True
         world.add_layer(layer)
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='propagation_matrix', verbose=False)
     # Must fail cleanly, not crash.
     assert world.love_success is False
     assert world.love_error_code != 0
@@ -132,15 +132,15 @@ def test_prop_matrix_rejects_compressible_layer():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("compressible_planet", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     layer.set_shear_rheology(Maxwell())
     # Leave is_incompressible at its default (False) => prop matrix must reject.
     assert layer.is_incompressible is False
     world.add_layer(layer)
     world.solve_eos(G_to_use=G, verbose=False)
-    world.solve_love_numbers(frequency_rad_s=_FREQ, love_method='propagation_matrix', verbose=False)
+    world.solve_love_numbers(frequency=_FREQ, love_method='propagation_matrix', verbose=False)
     assert world.love_success is False
     assert world.love_error_code != 0

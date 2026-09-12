@@ -103,6 +103,41 @@ def _build_model(make_func: Callable, section_cfg: dict):
 # =====================================================================================================================
 # Per-material default lookup + merge
 # =====================================================================================================================
+# TOML configuration keys keep their unit suffixes (a config file has no docstring beside it), while the
+# world and layer constructors take unit-free argument names. The builder is the boundary between the two,
+# so it translates the keys it forwards as keyword arguments. Keys absent here are spelled the same on both
+# sides (``albedo``, ``material_name``, ``adiabatic_index``, ...).
+_CONFIG_KEY_TO_ARGUMENT = {
+    "radius_m":                     "radius",
+    "mass_kg":                      "mass",
+    "obliquity_rad":                "obliquity",
+    "spin_frequency_rad_s":         "spin_frequency",
+    "effective_temperature_k":      "effective_temperature",
+    "luminosity_w":                 "luminosity",
+    "radius_inner_m":               "radius_inner",
+    "radius_outer_m":               "radius_outer",
+    "shear_modulus_static_pa":      "shear_modulus_static",
+    "bulk_modulus_static_pa":       "bulk_modulus_static",
+    "shear_viscosity_static_pas":   "shear_viscosity_static",
+    "bulk_viscosity_static_pas":    "bulk_viscosity_static",
+    "thermal_conductivity_ref_w_mk": "thermal_conductivity_ref",
+    "thermal_expansion_ref_1_k":    "thermal_expansion_ref",
+    "heat_capacity_ref_j_kgk":      "heat_capacity_ref",
+    "activation_energy_j_mol":      "activation_energy",
+    "activation_volume_m3_mol":     "activation_volume",
+    "solidus_temperature_k":        "solidus_temperature",
+    "liquidus_temperature_k":       "liquidus_temperature",
+    "reference_density_kg_m3":      "reference_density",
+    "reference_temperature_k":      "reference_temperature",
+    "mean_molecular_weight_kg_mol": "mean_molecular_weight",
+}
+
+
+def _as_constructor_kwargs(config_items) -> dict:
+    """Translate configuration keys into constructor keyword names."""
+    return {_CONFIG_KEY_TO_ARGUMENT.get(key, key): value for key, value in config_items}
+
+
 def _material_type_defaults(material_type: str | None, layer_class_name: str) -> dict:
     """Return the ``_x`` config defaults for a material ``type``, filtered to a class.
 
@@ -153,12 +188,12 @@ def construct_layer(
         layer_name: str,
         layer_cfg: dict,
         layer_index: int,
-        radius_inner_m: float,
-        radius_outer_m: float):
+        radius_inner: float,
+        radius_outer: float):
     """Construct a single layer (and its attached physics models) from config.
 
-    The layer's geometry is supplied by the caller: ``radius_inner_m`` is the
-    previous layer's outer radius (0 for the innermost) and ``radius_outer_m`` is
+    The layer's geometry is supplied by the caller: ``radius_inner`` is the
+    previous layer's outer radius (0 for the innermost) and ``radius_outer`` is
     resolved by the caller from the layer's outer-radius specifier (see
     :func:`_resolve_outer_radius`). All other parameters and physics-model tables are
     resolved through a three-tier chain:
@@ -178,9 +213,9 @@ def construct_layer(
         ``class`` and, optionally, a material ``type``.
     layer_index : int
         The resolved inner-to-outer position of the layer (0 = innermost).
-    radius_inner_m : float
+    radius_inner : float
         Inner radius [m] (the previous layer's outer radius; 0 for the innermost).
-    radius_outer_m : float
+    radius_outer : float
         Outer radius [m] (already resolved from the layer's outer-radius specifier).
 
     Returns
@@ -217,14 +252,15 @@ def construct_layer(
             merged[key] = value
 
     # Tier 3: anything still absent falls through to the constructor / factory default.
-    ctor_kwargs = {key: value for key, value in merged.items() if key in allowed_scalars}
+    ctor_kwargs = _as_constructor_kwargs(
+        (key, value) for key, value in merged.items() if key in allowed_scalars)
     # Geometry is always supplied by the caller (inner radius is derived from the
     # previous layer; outer radius is resolved from the specifier).
-    ctor_kwargs["radius_inner_m"] = radius_inner_m
-    ctor_kwargs["radius_outer_m"] = radius_outer_m
-    # mass_kg has no constructor default; the EOS solve recomputes it, so default
+    ctor_kwargs["radius_inner"] = radius_inner
+    ctor_kwargs["radius_outer"] = radius_outer
+    # The mass has no constructor default; the EOS solve recomputes it, so default
     # to 0.0 when neither the user nor the material block supplies it.
-    ctor_kwargs.setdefault("mass_kg", 0.0)
+    ctor_kwargs.setdefault("mass", 0.0)
 
     layer = layer_class(name=layer_name, layer_index=layer_index, **ctor_kwargs)
 
@@ -263,22 +299,22 @@ def _build_prem_layers(data_path: str) -> list:
     import numpy as np
     from TidalPy.structures_x.configs import prem
 
-    arrays     = prem.load_prem_arrays(data_path)
-    radius_m   = arrays["radius_m"]
-    density    = arrays["density_kg_m3"]
-    shear      = arrays["shear_modulus_pa"]
-    bulk       = arrays["bulk_modulus_pa"]
+    arrays = prem.load_prem_arrays(data_path)
+    radius = arrays["radius_m"]
+    density = arrays["density_kg_m3"]
+    shear = arrays["shear_modulus_pa"]
+    bulk  = arrays["bulk_modulus_pa"]
     shear_visc = arrays["shear_viscosity_pas"]
     bulk_visc  = arrays["bulk_viscosity_pas"]
 
-    boundaries = prem.detect_layer_boundaries(radius_m, shear)
+    boundaries = prem.detect_layer_boundaries(radius, shear)
 
     auto_layers = []
     for index, (start, end, is_solid) in enumerate(boundaries):
         stop = end + 1
-        radius_slice = radius_m[start:stop]
-        shear_slice  = shear[start:stop]
-        bulk_slice   = bulk[start:stop]
+        radius_slice = radius[start:stop]
+        shear_slice = shear[start:stop]
+        bulk_slice  = bulk[start:stop]
         eos_cfg = {
             "model":            "interpolate",
             "radius_m":         radius_slice.tolist(),
@@ -305,7 +341,7 @@ def _build_prem_layers(data_path: str) -> list:
     return auto_layers
 
 
-def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius_m: float, layer_name: str) -> dict:
+def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius: float, layer_name: str) -> dict:
     """Merge a user layer table over a PREM auto-detected layer.
 
     The user's outer radius (if given) is cross-checked against the detected radius
@@ -325,7 +361,7 @@ def _merge_prem_layer(auto_cfg: dict, user_cfg: dict, world_radius_m: float, lay
     if "radius_outer_m" in user_cfg:
         user_outer = float(user_cfg["radius_outer_m"])
     elif "radius_fraction" in user_cfg:
-        user_outer = float(user_cfg["radius_fraction"]) * world_radius_m
+        user_outer = float(user_cfg["radius_fraction"]) * world_radius
     if user_outer is not None and not math.isclose(user_outer, auto_outer, rel_tol=1.0e-3):
         raise ValueError(
             f"PREM layer '{layer_name}': provided outer radius {user_outer:.6g} m does "
@@ -386,11 +422,11 @@ def _expand_data_file(config: dict) -> dict:
             raise ValueError(
                 f"World '{config.get('name')}' uses a data_file but is missing the "
                 "required 'radius_m' key.")
-        world_radius_m = config["radius_m"]
+        world_radius = config["radius_m"]
         merged_layers = {}
         for (auto_name, auto_cfg), (user_name, user_cfg) in zip(auto_layers, user_items):
             merged_layers[auto_name] = _merge_prem_layer(
-                auto_cfg, user_cfg, world_radius_m, auto_name)
+                auto_cfg, user_cfg, world_radius, auto_name)
         config["layers"] = merged_layers
     else:
         config["layers"] = {name: cfg for name, cfg in auto_layers}
@@ -430,19 +466,19 @@ def construct_world(config: dict):
     world_type = config["type"]
 
     world_kwargs = {
-        "name":     config["name"],
-        "radius_m": config["radius_m"],
-        "mass_kg":  config["mass_kg"],
+        "name":   config["name"],
+        "radius": config["radius_m"],
+        "mass":   config["mass_kg"],
     }
     for key in ("albedo", "emissivity", "obliquity_rad", "spin_frequency_rad_s"):
         if key in config:
-            world_kwargs[key] = config[key]
+            world_kwargs[_CONFIG_KEY_TO_ARGUMENT.get(key, key)] = config[key]
 
-    world_radius_m = config["radius_m"]
+    world_radius = config["radius_m"]
     if world_type == "star":
         for key in ("effective_temperature_k", "luminosity_w"):
             if key in config:
-                world_kwargs[key] = config[key]
+                world_kwargs[_CONFIG_KEY_TO_ARGUMENT[key]] = config[key]
         world = StarWorld(**world_kwargs)
         # A star has no layers, but the analytic tide pipeline (cpl/ctl/ctl_q) is common to
         # all world types, so wire its [tides] table too (default model: fixed_q).
@@ -450,12 +486,12 @@ def construct_world(config: dict):
     elif world_type == "gasgiant":
         # Layered families carry an inner-to-outer stack of layers.
         world = GasGiantWorld(world_type=world_type, **world_kwargs)
-        _add_layers(world, config["layers"], world_radius_m)
+        _add_layers(world, config["layers"], world_radius)
         _attach_tides(world, config)
     else:
         # "terrestrial" and "layered" both map to LayeredWorld.
         world = LayeredWorld(world_type=world_type, **world_kwargs)
-        _add_layers(world, config["layers"], world_radius_m)
+        _add_layers(world, config["layers"], world_radius)
         _attach_tides(world, config)
 
     # Retain the normalized config on the world for a faithful save_to_toml.
@@ -617,14 +653,14 @@ def _attach_tides(world, config: dict) -> None:
 def _resolve_outer_radius(
         layer_name: str,
         layer_cfg: dict,
-        radius_inner_m: float,
-        world_radius_m: float) -> float:
+        radius_inner: float,
+        world_radius: float) -> float:
     """Resolve a layer's outer radius [m] from its outer-radius specifier.
 
     Exactly one of the specifiers is present (enforced by validation):
 
-    * ``radius_outer_m`` : the outer radius directly.
-    * ``radius_fraction`` : ``radius_fraction * world_radius_m``.
+    * ``radius_outer`` : the outer radius directly.
+    * ``radius_fraction`` : ``radius_fraction * world_radius``.
     * ``volume_fraction`` : the layer's shell volume is ``volume_fraction`` of the
       whole-world volume, so ``r_out = (r_in^3 + volume_fraction * R_world^3)^(1/3)``.
 
@@ -634,9 +670,9 @@ def _resolve_outer_radius(
         The layer's name (for error messages).
     layer_cfg : dict
         The layer's configuration sub-dictionary.
-    radius_inner_m : float
+    radius_inner : float
         The layer's inner radius [m] (the previous layer's outer radius).
-    world_radius_m : float
+    world_radius : float
         The world's radius [m].
 
     Returns
@@ -647,17 +683,17 @@ def _resolve_outer_radius(
     if "radius_outer_m" in layer_cfg:
         return float(layer_cfg["radius_outer_m"])
     if "radius_fraction" in layer_cfg:
-        return float(layer_cfg["radius_fraction"]) * world_radius_m
+        return float(layer_cfg["radius_fraction"]) * world_radius
     if "volume_fraction" in layer_cfg:
         volume_fraction = float(layer_cfg["volume_fraction"])
-        return (radius_inner_m ** 3 + volume_fraction * world_radius_m ** 3) ** (1.0 / 3.0)
+        return (radius_inner ** 3 + volume_fraction * world_radius ** 3) ** (1.0 / 3.0)
     # Validation guarantees one specifier is present; guard for direct callers.
     raise ValueError(
         f"Layer '{layer_name}' has no outer-radius specifier "
         f"(one of {LAYER_GEOMETRY_SPEC_KEYS} is required).")
 
 
-def _add_layers(world, layers_cfg: dict, world_radius_m: float) -> None:
+def _add_layers(world, layers_cfg: dict, world_radius: float) -> None:
     """Build and add layers to a layered world in inner-to-outer order.
 
     Layers are ordered by their explicit ``layer_index`` when given, otherwise by
@@ -672,7 +708,7 @@ def _add_layers(world, layers_cfg: dict, world_radius_m: float) -> None:
         The world to populate.
     layers_cfg : dict
         The ``layers`` table mapping layer name to layer configuration.
-    world_radius_m : float
+    world_radius : float
         The world's radius [m], used to resolve fractional outer-radius specifiers.
     """
     resolved = []
@@ -681,13 +717,13 @@ def _add_layers(world, layers_cfg: dict, world_radius_m: float) -> None:
         resolved.append((index, layer_name, layer_cfg))
     resolved.sort(key=lambda item: item[0])
 
-    radius_inner_m = 0.0
+    radius_inner = 0.0
     for index, layer_name, layer_cfg in resolved:
-        radius_outer_m = _resolve_outer_radius(layer_name, layer_cfg, radius_inner_m, world_radius_m)
+        radius_outer = _resolve_outer_radius(layer_name, layer_cfg, radius_inner, world_radius)
         layer = construct_layer(layer_name, layer_cfg, layer_index=index,
-                                radius_inner_m=radius_inner_m, radius_outer_m=radius_outer_m)
+                                radius_inner=radius_inner, radius_outer=radius_outer)
         world.add_layer(layer)
-        radius_inner_m = radius_outer_m
+        radius_inner = radius_outer
 
 
 # =====================================================================================================================

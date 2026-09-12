@@ -41,7 +41,7 @@ _T_SUN   = 5772.0       # [K]
 
 def _make_earth(**kw):
     mod = _import_base()
-    defaults = dict(name="Earth", radius_m=_R_EARTH, mass_kg=_M_EARTH,
+    defaults = dict(name="Earth", radius=_R_EARTH, mass=_M_EARTH,
                     world_type="terrestrial", albedo=0.3, emissivity=1.0)
     defaults.update(kw)
     return mod.BaseWorld(**defaults)
@@ -118,8 +118,8 @@ def test_base_world_config_dict():
 
 def test_base_world_binary_roundtrip():
     mod = _import_base()
-    w1  = _make_earth(albedo=0.31, emissivity=0.95, obliquity_rad=0.41,
-                      spin_frequency_rad_s=7.29e-5)
+    w1  = _make_earth(albedo=0.31, emissivity=0.95, obliquity=0.41,
+                      spin_frequency=7.29e-5)
     with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
         path = f.name
     try:
@@ -149,7 +149,7 @@ def test_base_world_load_file_not_found():
 # =====================================================================================================================
 def test_star_construction_and_luminosity():
     mod = _import_stellar()
-    star = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature_k=_T_SUN)
+    star = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature=_T_SUN)
     assert star.world_type == "star"
     assert star.effective_temperature == pytest.approx(_T_SUN)
     # Luminosity derived from T via Stefan-Boltzmann should be ~3.8e26 W.
@@ -160,14 +160,14 @@ def test_star_construction_and_luminosity():
 
 def test_star_temperature_luminosity_roundtrip():
     mod = _import_stellar()
-    star = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature_k=_T_SUN)
+    star = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature=_T_SUN)
     L = star.luminosity
     assert star.calc_temperature_from_luminosity(L) == pytest.approx(_T_SUN, rel=1e-6)
 
 
 def test_star_setters_keep_consistent():
     mod = _import_stellar()
-    star = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature_k=_T_SUN)
+    star = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature=_T_SUN)
     star.set_effective_temperature(6000.0)
     assert star.effective_temperature == pytest.approx(6000.0)
     expected_L = 4.0 * math.pi * _R_SUN ** 2 * _SIGMA * 6000.0 ** 4
@@ -176,7 +176,7 @@ def test_star_setters_keep_consistent():
 
 def test_star_binary_roundtrip():
     mod = _import_stellar()
-    s1  = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature_k=_T_SUN)
+    s1  = mod.StarWorld("Sun", _R_SUN, _M_SUN, effective_temperature=_T_SUN)
     L_before = s1.luminosity
     with tempfile.NamedTemporaryFile(suffix=".tpyb", delete=False) as f:
         path = f.name

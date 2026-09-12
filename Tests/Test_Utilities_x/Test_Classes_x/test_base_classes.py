@@ -62,7 +62,7 @@ def test_structure_base_schema_version():
 
 
 def test_structure_base_get_config_dict():
-    """get_config_dict returns correct radius_m and mass_kg keys."""
+    """get_config_dict returns correct radius and mass keys."""
     mod = _import_classes()
     sb = mod.StructureBase(_EARTH_RADIUS_M, _EARTH_MASS_KG)
     cfg = sb.get_config_dict()
@@ -167,7 +167,7 @@ def test_structure_base_load_binary_not_found():
 # StructureBase — TOML config round-trip
 # =====================================================================================================================
 def test_structure_base_save_config():
-    """save_config writes a valid TOML file containing radius_m and mass_kg."""
+    """save_config writes a valid TOML file containing radius and mass."""
     try:
         import tomllib
     except ImportError:

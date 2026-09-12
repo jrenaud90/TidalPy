@@ -17,16 +17,16 @@
  *     [all c_BaseLayer fields — same byte layout as BaseLayer binary payload]
  *     [all c_PhysicsLayer additions — shear modulus, bulk modulus,
  *      shear viscosity, bulk viscosity, love_numbers k/h/l re+im (10×8)]
- *     thermal_conductivity_ref_w_mk  (double, 8)
- *     thermal_expansion_ref_1_k      (double, 8)
- *     heat_capacity_ref_j_kgk        (double, 8)
- *     activation_energy_j_mol        (double, 8)
- *     activation_volume_m3_mol       (double, 8)
- *     solidus_temperature_k          (double, 8)
- *     liquidus_temperature_k         (double, 8)
+ *     thermal_conductivity_ref  (double, 8)
+ *     thermal_expansion_ref      (double, 8)
+ *     heat_capacity_ref        (double, 8)
+ *     activation_energy        (double, 8)
+ *     activation_volume       (double, 8)
+ *     solidus_temperature          (double, 8)
+ *     liquidus_temperature         (double, 8)
  *     melt_fraction_exponent         (double, 8)
- *     reference_density_kg_m3        (double, 8)
- *     reference_temperature_k        (double, 8)
+ *     reference_density        (double, 8)
+ *     reference_temperature        (double, 8)
  *     melt_viscosity_reduction       (double, 8)
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
@@ -62,17 +62,17 @@ namespace tidalpy {
 // Extends c_PhysicsConfig with thermal and melt-fraction parameters.
 // -------------------------------------------------------------------------------
 struct c_SolidLiquidConfig : public c_PhysicsConfig {
-    double thermal_conductivity_ref_w_mk = 4.0;       // [W/m/K]
-    double thermal_expansion_ref_1_k     = 3.0e-5;    // [1/K]
-    double heat_capacity_ref_j_kgk       = 1200.0;    // [J/(kg·K)]
-    double activation_energy_j_mol       = 300.0e3;   // [J/mol]
-    double activation_volume_m3_mol      = 5.0e-6;    // [m³/mol]
-    double solidus_temperature_k         = 1600.0;    // [K]
-    double liquidus_temperature_k        = 2000.0;    // [K]
-    double melt_fraction_exponent        = 1.0;       // [dimensionless]
-    double reference_density_kg_m3       = 3500.0;    // [kg/m³]
-    double reference_temperature_k       = 1600.0;    // [K] Arrhenius reference
-    double melt_viscosity_reduction      = 25.0;      // [dimensionless] exp coefficient
+    double thermal_conductivity_ref = 4.0;       // [W/m/K]
+    double thermal_expansion_ref = 3.0e-5;    // [1/K]
+    double heat_capacity_ref     = 1200.0;    // [J/(kg·K)]
+    double activation_energy     = 300.0e3;   // [J/mol]
+    double activation_volume = 5.0e-6;    // [m³/mol]
+    double solidus_temperature    = 1600.0;    // [K]
+    double liquidus_temperature   = 2000.0;    // [K]
+    double melt_fraction_exponent = 1.0;       // [dimensionless]
+    double reference_density      = 3500.0;    // [kg/m³]
+    double reference_temperature  = 1600.0;    // [K] Arrhenius reference
+    double melt_viscosity_reduction = 25.0;      // [dimensionless] exp coefficient
 };
 
 // -------------------------------------------------------------------------------
@@ -87,16 +87,16 @@ public:
 
     explicit c_SolidLiquidLayer(const c_SolidLiquidConfig& cfg)
         : c_PhysicsLayer(cfg),
-          p_thermal_conductivity_ref(cfg.thermal_conductivity_ref_w_mk),
-          p_thermal_expansion_ref(cfg.thermal_expansion_ref_1_k),
-          p_heat_capacity_ref(cfg.heat_capacity_ref_j_kgk),
-          p_activation_energy(cfg.activation_energy_j_mol),
-          p_activation_volume(cfg.activation_volume_m3_mol),
-          p_solidus_temperature(cfg.solidus_temperature_k),
-          p_liquidus_temperature(cfg.liquidus_temperature_k),
+          p_thermal_conductivity_ref(cfg.thermal_conductivity_ref),
+          p_thermal_expansion_ref(cfg.thermal_expansion_ref),
+          p_heat_capacity_ref(cfg.heat_capacity_ref),
+          p_activation_energy(cfg.activation_energy),
+          p_activation_volume(cfg.activation_volume),
+          p_solidus_temperature(cfg.solidus_temperature),
+          p_liquidus_temperature(cfg.liquidus_temperature),
           p_melt_fraction_exponent(cfg.melt_fraction_exponent),
-          p_reference_density(cfg.reference_density_kg_m3),
-          p_reference_temperature(cfg.reference_temperature_k),
+          p_reference_density(cfg.reference_density),
+          p_reference_temperature(cfg.reference_temperature),
           p_melt_viscosity_reduction(cfg.melt_viscosity_reduction)
     {}
 
@@ -152,10 +152,10 @@ public:
     // melt_fraction_exponent. The melt curve carries no pressure dependence;
     // the pressure argument is accepted for interface uniformity and unused.
     // -----------------------------------------------------------------------
-    double calc_melt_fraction(double temperature_k, double /*pressure_pa*/) const noexcept {
+    double calc_melt_fraction(double temperature, double /*pressure*/) const noexcept {
         const double dT = this->p_liquidus_temperature - this->p_solidus_temperature;
-        if (dT <= 0.0) { return temperature_k >= this->p_solidus_temperature ? 1.0 : 0.0; }
-        const double tau = (temperature_k - this->p_solidus_temperature) / dT;
+        if (dT <= 0.0) { return temperature >= this->p_solidus_temperature ? 1.0 : 0.0; }
+        const double tau = (temperature - this->p_solidus_temperature) / dT;
         const double tau_clamped = std::max(0.0, std::min(1.0, tau));
         return std::pow(tau_clamped, this->p_melt_fraction_exponent);
     }
@@ -164,7 +164,7 @@ public:
     // calc_viscosity [Pa·s]
     //
     // Arrhenius temperature and pressure dependence relative to the reference
-    // viscosity (p_viscosity_static_pas) at (p_reference_temperature, P=0):
+    // viscosity (p_viscosity_static) at (p_reference_temperature, P=0):
     //
     //   η(T,P) = η_ref * exp((E_a + P·V_a)/(R·T) − E_a/(R·T_ref))
     //
@@ -174,17 +174,17 @@ public:
     //
     // The exponent is clamped to [−100, 100] to prevent overflow/underflow.
     // -----------------------------------------------------------------------
-    double calc_viscosity(double temperature_k, double pressure_pa) const noexcept {
-        if (temperature_k <= 0.0 || tidalpy_config_ptr == nullptr) { return this->p_shear_viscosity_static_pas; }
+    double calc_viscosity(double temperature, double pressure) const noexcept {
+        if (temperature <= 0.0 || tidalpy_config_ptr == nullptr) { return this->p_shear_viscosity_static; }
         const double R = tidalpy_config_ptr->d_R;
         const double exponent =
-            (this->p_activation_energy + pressure_pa * this->p_activation_volume)
-                / (R * temperature_k)
+            (this->p_activation_energy + pressure * this->p_activation_volume)
+                / (R * temperature)
             - this->p_activation_energy
                 / (R * this->p_reference_temperature);
-        const double eta = this->p_shear_viscosity_static_pas
+        const double eta = this->p_shear_viscosity_static
                            * std::exp(std::clamp(exponent, -100.0, 100.0));
-        const double phi = calc_melt_fraction(temperature_k, pressure_pa);
+        const double phi = calc_melt_fraction(temperature, pressure);
         return eta * std::exp(std::clamp(-this->p_melt_viscosity_reduction * phi, -100.0, 0.0));
     }
 
@@ -194,21 +194,21 @@ public:
     // Melt-fraction-reduced shear modulus: G = G_static * (1 − φ).
     // Returns 0 when fully molten.
     // -----------------------------------------------------------------------
-    double calc_shear_modulus(double temperature_k, double pressure_pa) const noexcept {
-        const double phi = calc_melt_fraction(temperature_k, pressure_pa);
-        return this->p_shear_modulus_static_pa * (1.0 - phi);
+    double calc_shear_modulus(double temperature, double pressure) const noexcept {
+        const double phi = calc_melt_fraction(temperature, pressure);
+        return this->p_shear_modulus_static * (1.0 - phi);
     }
 
     // -----------------------------------------------------------------------
     // Thermal transport (const, MKS)
     // -----------------------------------------------------------------------
-    double calc_thermal_conductivity(double /*temperature_k*/) const noexcept {
+    double calc_thermal_conductivity(double /*temperature*/) const noexcept {
         return this->p_thermal_conductivity_ref;
     }
 
     // κ = k / (ρ_ref · c_p)  [m²/s]
-    double calc_thermal_diffusivity(double temperature_k) const noexcept {
-        const double k   = calc_thermal_conductivity(temperature_k);
+    double calc_thermal_diffusivity(double temperature) const noexcept {
+        const double k   = calc_thermal_conductivity(temperature);
         const double rho = (this->p_reference_density > 0.0) ? this->p_reference_density : 1.0;
         const double cp  = (this->p_heat_capacity_ref > 0.0)  ? this->p_heat_capacity_ref  : 1.0;
         return k / (rho * cp);
@@ -222,14 +222,14 @@ public:
     // Gravity is taken from the EOS profile at the layer's outer boundary
     // if available; otherwise 0.0 is returned.
     // -----------------------------------------------------------------------
-    double calc_adiabatic_temperature_gradient(double temperature_k,
-                                               double /*pressure_pa*/) const noexcept {
+    double calc_adiabatic_temperature_gradient(double temperature,
+                                               double /*pressure*/) const noexcept {
         double g = 0.0;
         if (this->p_eos_data.is_populated()) {
             g = this->p_eos_data.get_gravity(this->p_radius);
         }
-        if (g <= 0.0 || temperature_k <= 0.0) { return 0.0; }
-        return this->p_thermal_expansion_ref * temperature_k * g / this->p_heat_capacity_ref;
+        if (g <= 0.0 || temperature <= 0.0) { return 0.0; }
+        return this->p_thermal_expansion_ref * temperature * g / this->p_heat_capacity_ref;
     }
 
     // -----------------------------------------------------------------------
@@ -238,11 +238,11 @@ public:
     // q = k · (T_base − T_top) / thickness
     // Returns 0.0 when layer has zero thickness.
     // -----------------------------------------------------------------------
-    double calc_heat_flux_conductive(double temperature_base_k,
-                                     double temperature_top_k) const noexcept {
+    double calc_heat_flux_conductive(double temperature_base,
+                                     double temperature_top) const noexcept {
         if (this->p_thickness <= 0.0) { return 0.0; }
         return this->p_thermal_conductivity_ref
-               * (temperature_base_k - temperature_top_k)
+               * (temperature_base - temperature_top)
                / this->p_thickness;
     }
 
@@ -251,9 +251,9 @@ public:
     //
     // Delegates to p_radiogenics if set; otherwise returns 0.0.
     // -----------------------------------------------------------------------
-    double calc_radiogenic_heating(double time_s, double mass_kg) const noexcept {
+    double calc_radiogenic_heating(double time, double mass) const noexcept {
         if (!this->p_radiogenics) { return 0.0; }
-        return this->p_radiogenics->calc_heating(time_s, mass_kg);
+        return this->p_radiogenics->calc_heating(time, mass);
     }
 
     // -----------------------------------------------------------------------
@@ -286,7 +286,7 @@ public:
             sizeof(double)   * 2 +           // p_radius, p_mass
             sizeof(uint32_t) + name_len +    // name length + bytes
             sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner_m
+            sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
@@ -316,10 +316,10 @@ public:
         out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         // c_PhysicsLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static_pas), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static_pas),  sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static),    sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static),     sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto write_complex = [&](const std::complex<double>& c) {
             const double re = c.real(), im = c.imag();
             out.write(reinterpret_cast<const char*>(&re), sizeof(double));
@@ -393,10 +393,10 @@ public:
         this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         // c_PhysicsLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static_pas), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static_pas),  sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static),    sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static),     sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto read_complex = [&](std::complex<double>& c) {
             double re = 0.0, im = 0.0;
             in.read(reinterpret_cast<char*>(&re), sizeof(double));

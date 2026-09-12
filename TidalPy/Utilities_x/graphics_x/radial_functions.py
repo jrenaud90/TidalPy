@@ -68,7 +68,7 @@ def load_benchmark_ys(name: str) -> Dict[str, Dict[str, Tuple[np.ndarray, np.nda
     Returns
     -------
     dict
-        ``{"y1": {"HG": (values, radius_m), ...}, "y2": ..., "y3": ..., "y4": ...}``. Each series is a pair of
+        ``{"y1": {"HG": (values, radius), ...}, "y2": ..., "y3": ..., "y4": ...}``. Each series is a pair of
         arrays: the radial-function values and the radii [m] they were digitized at (NaN padding removed).
         Only y1..y4 were published.
 
@@ -252,8 +252,8 @@ def plot_ys(
         spec = BENCHMARK_YS[key]
         for y_name, series in load_benchmark_ys(key).items():
             panel = panels[int(y_name[1:]) - 1]
-            for series_name, (values, radius_m) in series.items():
-                vertical = (planet_radius - radius_m) if depth_plot else radius_m
+            for series_name, (values, radius) in series.items():
+                vertical = (planet_radius - radius) if depth_plot else radius
                 panel.scatter(values, vertical / 1000.0, label=f"{spec['label']} {series_name}", c=spec["color"],
                               marker=spec["markers"].get(series_name, "x"), s=50)
 

@@ -33,9 +33,9 @@ def _build_world(obliquity_truncation):
 
     world = LayeredWorld("w", _R, _MASS)
     layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS,
-                         shear_modulus_static_pa=5.0e10, bulk_modulus_static_pa=1.0e11)
+                         shear_modulus_static=5.0e10, bulk_modulus_static=1.0e11)
     layer.is_static = False
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e19}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e19}))
     layer.set_shear_rheology(Maxwell())

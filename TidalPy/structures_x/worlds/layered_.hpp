@@ -80,10 +80,10 @@ struct c_WorldEOSSolveConfig {
 // c_LoveSolveConfig — parameters for the whole-planet Love-number solve.
 // -------------------------------------------------------------------------------
 struct c_LoveSolveConfig {
-    double    frequency_rad_s    = 1.0e-5;            // [rad/s]; tidal forcing frequency
-    int       degree_l           = 2;                  // harmonic degree
-    int       bc_model           = 1;                  // surface boundary condition: 1 = tidal, 2 = loading, 0 = free
-    int       love_method        = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
+    double    frequency = 1.0e-5;            // [rad/s]; tidal forcing frequency
+    int       degree_l  = 2;                  // harmonic degree
+    int       bc_model  = 1;                  // surface boundary condition: 1 = tidal, 2 = loading, 0 = free
+    int       love_method = 0;                  // c_LoveMethod as int: 0 radial_solver, 1 propagation_matrix,
                                                        // 2 homogeneous, 3 cpl, 4 ctl, 5 laterally_inhomogeneous
     double    fixed_q            = TidalPyConstants::d_NAN;   // cpl quality factor (NaN: from the tide model)
     double    fixed_dt           = TidalPyConstants::d_NAN;   // ctl time lag [s] (NaN: from the tide model)
@@ -177,76 +177,76 @@ public:
     // r [m] by delegating to the layer that contains r (clamped at the surface).
     // Return NaN when no layer contains r or the EOS has not been solved.
     // -----------------------------------------------------------------------
-    double get_density(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_density(radius_m)
+    double get_density(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_density(radius)
                                    : std::numeric_limits<double>::quiet_NaN();
     }
 
-    double get_gravity(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_gravity(radius_m)
+    double get_gravity(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_gravity(radius)
                                    : std::numeric_limits<double>::quiet_NaN();
     }
 
-    double get_pressure(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_pressure(radius_m)
+    double get_pressure(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_pressure(radius)
                                    : std::numeric_limits<double>::quiet_NaN();
     }
 
     // -----------------------------------------------------------------------
     // Viscoelastic profile queries (post-melt by default; pre-melt variants too).
-    // Each finds the layer containing radius_m and delegates. NaN when no layer
+    // Each finds the layer containing radius and delegates. NaN when no layer
     // contains r, the layer is geometry-only, or the EOS has not been solved.
     // -----------------------------------------------------------------------
-    double get_shear_modulus(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_shear_modulus(radius_m) : TidalPyConstants::d_NAN;
+    double get_shear_modulus(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_shear_modulus(radius) : TidalPyConstants::d_NAN;
     }
-    double get_bulk_modulus(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_bulk_modulus(radius_m) : TidalPyConstants::d_NAN;
+    double get_bulk_modulus(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_bulk_modulus(radius) : TidalPyConstants::d_NAN;
     }
-    double get_shear_viscosity(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_shear_viscosity(radius_m) : TidalPyConstants::d_NAN;
+    double get_shear_viscosity(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_shear_viscosity(radius) : TidalPyConstants::d_NAN;
     }
-    double get_bulk_viscosity(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_bulk_viscosity(radius_m) : TidalPyConstants::d_NAN;
+    double get_bulk_viscosity(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
     }
-    double get_premelt_shear_modulus(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_premelt_shear_modulus(radius_m) : TidalPyConstants::d_NAN;
+    double get_premelt_shear_modulus(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_premelt_shear_modulus(radius) : TidalPyConstants::d_NAN;
     }
-    double get_premelt_bulk_modulus(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_premelt_bulk_modulus(radius_m) : TidalPyConstants::d_NAN;
+    double get_premelt_bulk_modulus(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_premelt_bulk_modulus(radius) : TidalPyConstants::d_NAN;
     }
-    double get_premelt_shear_viscosity(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_premelt_shear_viscosity(radius_m) : TidalPyConstants::d_NAN;
+    double get_premelt_shear_viscosity(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_premelt_shear_viscosity(radius) : TidalPyConstants::d_NAN;
     }
-    double get_premelt_bulk_viscosity(double radius_m) const noexcept {
-        const c_BaseLayer* layer = this->find_layer_for_radius(radius_m);
-        return (layer != nullptr) ? layer->get_premelt_bulk_viscosity(radius_m) : TidalPyConstants::d_NAN;
+    double get_premelt_bulk_viscosity(double radius) const noexcept {
+        const c_BaseLayer* layer = this->find_layer_for_radius(radius);
+        return (layer != nullptr) ? layer->get_premelt_bulk_viscosity(radius) : TidalPyConstants::d_NAN;
     }
 
     // -----------------------------------------------------------------------
-    // Radius-resolved complex moduli [Pa] at frequency_rad_s (the only per-ω step):
+    // Radius-resolved complex moduli [Pa] at frequency (the only per-ω step):
     // find the layer, apply its rheology to the stored post-melt static modulus +
     // viscosity. NaN+0i for a geometry-only layer or before the solve.
     // -----------------------------------------------------------------------
-    std::complex<double> calc_complex_shear_modulus(double radius_m, double frequency_rad_s) const noexcept {
-        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius_m));
+    std::complex<double> calc_complex_shear_modulus(double radius, double frequency) const noexcept {
+        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
         if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
-        return physics_layer->calc_complex_shear_modulus(radius_m, frequency_rad_s);
+        return physics_layer->calc_complex_shear_modulus(radius, frequency);
     }
-    std::complex<double> calc_complex_bulk_modulus(double radius_m, double frequency_rad_s) const noexcept {
-        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius_m));
+    std::complex<double> calc_complex_bulk_modulus(double radius, double frequency) const noexcept {
+        const auto* physics_layer = dynamic_cast<const c_PhysicsLayer*>(this->find_layer_for_radius(radius));
         if (physics_layer == nullptr) { return std::complex<double>(TidalPyConstants::d_NAN, 0.0); }
-        return physics_layer->calc_complex_bulk_modulus(radius_m, frequency_rad_s);
+        return physics_layer->calc_complex_bulk_modulus(radius, frequency);
     }
 
     // True once the EOS solve has populated the innermost layer's profile.
@@ -353,7 +353,7 @@ public:
         ode_input.update_shear  = false;
         for (std::size_t i = 0; i < n_layers; ++i) {
             this->p_eos_material_inputs[i].eos_model_ptr = this->p_layers[i]->get_eos();
-            this->p_eos_material_inputs[i].temperature_k = cfg.temperature;
+            this->p_eos_material_inputs[i].temperature = cfg.temperature;
             ode_input.eos_input_ptr = reinterpret_cast<char*>(&this->p_eos_material_inputs[i]);
             eos_function_vec.push_back(c_preeval_material_eos);
             eos_input_vec.push_back(ode_input);
@@ -419,8 +419,8 @@ public:
                     if (layer_solver_result != nullptr) {
                         std::shared_ptr<c_EOSSolution> solution_owner = solution;
                         eos_data.set_dense_eval(
-                            [solution_owner, layer_solver_result](double radius_m, double* y_out) {
-                                layer_solver_result->call(radius_m, y_out);
+                            [solution_owner, layer_solver_result](double radius, double* y_out) {
+                                layer_solver_result->call(radius, y_out);
                             });
                     }
                 }
@@ -575,13 +575,13 @@ public:
     // Build the per-call runtime config from the user-facing solve config.
     c_LoveSolveRuntimeConfig make_runtime_config(const c_LoveSolveConfig& cfg) const {
         c_LoveSolveRuntimeConfig rt;
-        rt.frequency_rad_s    = cfg.frequency_rad_s;
-        rt.bc_model           = cfg.bc_model;
-        rt.use_prop_matrix    = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
-        rt.core_model         = cfg.core_model;
-        rt.use_kamata         = cfg.use_kamata;
-        rt.starting_radius    = cfg.starting_radius;
-        rt.start_radius_tol   = cfg.start_radius_tol;
+        rt.frequency       = cfg.frequency;
+        rt.bc_model        = cfg.bc_model;
+        rt.use_prop_matrix = (c_love_method_from_int(cfg.love_method) == c_LoveMethod::PropagationMatrix);
+        rt.core_model      = cfg.core_model;
+        rt.use_kamata      = cfg.use_kamata;
+        rt.starting_radius = cfg.starting_radius;
+        rt.start_radius_tol = cfg.start_radius_tol;
         rt.integration_method = cfg.integration_method;
         rt.rtol               = cfg.rtol;
         rt.atol               = cfg.atol;
@@ -617,8 +617,8 @@ public:
         std::complex<double>* bulk_out  = solver->bulk_scratch_data();
         for (std::size_t i = 0; i < total_slices; ++i) {
             const double r = radius_si[i];
-            shear_out[i] = this->calc_complex_shear_modulus(r, cfg.frequency_rad_s);
-            bulk_out[i]  = this->calc_complex_bulk_modulus(r, cfg.frequency_rad_s);
+            shear_out[i] = this->calc_complex_shear_modulus(r, cfg.frequency);
+            bulk_out[i]  = this->calc_complex_bulk_modulus(r, cfg.frequency);
         }
 
         c_LoveSolveRuntimeConfig rt = this->make_runtime_config(cfg);
@@ -743,7 +743,7 @@ public:
                 const double weight = (i == 0 || i == n_intervals) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
                 const std::complex<double> mu = use_static
                     ? std::complex<double>(physics->get_shear_modulus(r), 0.0)
-                    : physics->calc_complex_shear_modulus(r, cfg.frequency_rad_s);
+                    : physics->calc_complex_shear_modulus(r, cfg.frequency);
                 if (!std::isfinite(mu.real()) || !std::isfinite(mu.imag())) {
                     this->p_love_analytic_error_code = -41;
                     this->p_love_analytic_message =
@@ -808,7 +808,7 @@ public:
                     + std::to_string(cfg.degree_l) + " (pass fixed_dt, set it in the tides config, or attach a tide "
                     "model that carries a fixed time lag).");
             }
-            love = c_apply_fixed_dt(love, cfg.frequency_rad_s, fixed_dt);
+            love = c_apply_fixed_dt(love, cfg.frequency, fixed_dt);
         }
 
         this->p_love_analytic = love;
@@ -939,7 +939,7 @@ public:
     // grid slices); the matrix method linearly interpolates its constructed grid. Returns NaN if not solved,
     // after an analytic solve, out of range, or below the solver's starting radius.
     std::complex<double> get_radial_solution_y(
-            double radius_m,
+            double radius,
             std::size_t ytype_idx,
             std::size_t y_idx) const noexcept {
         if (this->love_is_analytic()) return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
@@ -947,7 +947,7 @@ public:
         if (!s || !s->success || y_idx >= C_MAX_NUM_Y)
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         std::complex<double> y_at_r[C_MAX_NUM_Y];
-        if (!s->get_radial_solution(radius_m, ytype_idx, y_at_r))
+        if (!s->get_radial_solution(radius, ytype_idx, y_at_r))
             return std::complex<double>(TidalPyConstants::d_NAN, 0.0);
         return y_at_r[y_idx];
     }
@@ -1049,14 +1049,14 @@ public:
         return total;
     }
 
-    // Total internal radiogenic heating [W] at time_s. Only SolidLiquidLayers
+    // Total internal radiogenic heating [W] at time. Only SolidLiquidLayers
     // produce radiogenic heating; other layer types contribute zero.
-    double calc_internal_heating(double time_s) const noexcept {
+    double calc_internal_heating(double time) const noexcept {
         double total = 0.0;
         for (const auto& layer : this->p_layers) {
             const auto* sl = dynamic_cast<const c_SolidLiquidLayer*>(layer.get());
             if (sl != nullptr) {
-                total += sl->calc_radiogenic_heating(time_s, sl->get_mass());
+                total += sl->calc_radiogenic_heating(time, sl->get_mass());
             }
         }
         return total;
@@ -1118,19 +1118,19 @@ protected:
     // pre-melt viscosities (from the attached viscosity models, NaN if unset),
     // then the post-melt versions (the partial-melt model applied to the shear and
     // bulk pairs; post == pre if no melt model). No-op for a geometry-only
-    // BaseLayer. temperature_k is the placeholder profile temperature until the
+    // BaseLayer. temperature is the placeholder profile temperature until the
     // thermal pipeline lands.
     void populate_layer_viscoelastic(
             c_BaseLayer* layer,
             const c_EOSSolution& solution,
             std::size_t slice_start,
             std::size_t slice_count,
-            double temperature_k) const {
+            double temperature) const {
         auto* physics_layer = dynamic_cast<c_PhysicsLayer*>(layer);
         if (physics_layer == nullptr) { return; }
 
-        const double const_shear_pa = physics_layer->get_shear_modulus_static();
-        const double const_bulk_pa  = physics_layer->get_bulk_modulus_static();
+        const double const_shear = physics_layer->get_shear_modulus_static();
+        const double const_bulk  = physics_layer->get_bulk_modulus_static();
         c_ViscosityBase*   shear_viscosity_model = physics_layer->get_shear_viscosity_model();
         c_ViscosityBase*   bulk_viscosity_model  = physics_layer->get_bulk_viscosity_model();
         c_PartialMeltBase* partial_melt_model    = physics_layer->get_partial_melt_model();
@@ -1145,93 +1145,93 @@ protected:
             && solution.complex_shear_array_vec.size() == solution.radius_array_size
             && solution.shear_viscosity_array_vec.size() == solution.radius_array_size;
 
-        std::vector<double> premelt_shear_pa(slice_count);
-        std::vector<double> premelt_bulk_pa(slice_count);
-        std::vector<double> premelt_shear_visc_pas(slice_count);
-        std::vector<double> premelt_bulk_visc_pas(slice_count);
-        std::vector<double> postmelt_shear_pa(slice_count);
-        std::vector<double> postmelt_bulk_pa(slice_count);
-        std::vector<double> postmelt_shear_visc_pas(slice_count);
-        std::vector<double> postmelt_bulk_visc_pas(slice_count);
+        std::vector<double> premelt_shear(slice_count);
+        std::vector<double> premelt_bulk(slice_count);
+        std::vector<double> premelt_shear_visc(slice_count);
+        std::vector<double> premelt_bulk_visc(slice_count);
+        std::vector<double> postmelt_shear(slice_count);
+        std::vector<double> postmelt_bulk(slice_count);
+        std::vector<double> postmelt_shear_visc(slice_count);
+        std::vector<double> postmelt_bulk_visc(slice_count);
 
         for (std::size_t slice_offset = 0; slice_offset < slice_count; ++slice_offset) {
             const std::size_t global_slice = slice_start + slice_offset;
-            const double pressure_pa = solution.pressure_array_vec[global_slice];
+            const double pressure = solution.pressure_array_vec[global_slice];
 
             // Static moduli: prefer the EOS extra-output (CyRK solution), else the
             // layer constant.
-            double static_shear_pa = const_shear_pa;
-            double static_bulk_pa  = const_bulk_pa;
+            double static_shear = const_shear;
+            double static_bulk  = const_bulk;
             if (have_eos_extras) {
                 const double eos_shear = solution.complex_shear_array_vec[global_slice].real();
-                if (std::isfinite(eos_shear)) { static_shear_pa = eos_shear; }
+                if (std::isfinite(eos_shear)) { static_shear = eos_shear; }
                 const double eos_bulk = solution.complex_bulk_array_vec[global_slice].real();
-                if (std::isfinite(eos_bulk)) { static_bulk_pa = eos_bulk; }
+                if (std::isfinite(eos_bulk)) { static_bulk = eos_bulk; }
             }
-            premelt_shear_pa[slice_offset] = static_shear_pa;
-            premelt_bulk_pa[slice_offset]  = static_bulk_pa;
+            premelt_shear[slice_offset] = static_shear;
+            premelt_bulk[slice_offset]  = static_bulk;
 
             // Pre-melt viscosities: viscosity-model value, overridden by an EOS
             // extra-output (CyRK solution) when the EOS provides one.
-            double premelt_shear_visc = (shear_viscosity_model != nullptr)
-                ? shear_viscosity_model->calc_viscosity(temperature_k, pressure_pa)
+            double slice_shear_visc = (shear_viscosity_model != nullptr)
+                ? shear_viscosity_model->calc_viscosity(temperature, pressure)
                 : TidalPyConstants::d_NAN;
-            double premelt_bulk_visc = (bulk_viscosity_model != nullptr)
-                ? bulk_viscosity_model->calc_viscosity(temperature_k, pressure_pa)
+            double slice_bulk_visc = (bulk_viscosity_model != nullptr)
+                ? bulk_viscosity_model->calc_viscosity(temperature, pressure)
                 : TidalPyConstants::d_NAN;
             if (have_eos_extras) {
                 const double eos_shear_visc = solution.shear_viscosity_array_vec[global_slice];
-                if (std::isfinite(eos_shear_visc)) { premelt_shear_visc = eos_shear_visc; }
+                if (std::isfinite(eos_shear_visc)) { slice_shear_visc = eos_shear_visc; }
                 const double eos_bulk_visc = solution.bulk_viscosity_array_vec[global_slice];
-                if (std::isfinite(eos_bulk_visc)) { premelt_bulk_visc = eos_bulk_visc; }
+                if (std::isfinite(eos_bulk_visc)) { slice_bulk_visc = eos_bulk_visc; }
             }
-            premelt_shear_visc_pas[slice_offset] = premelt_shear_visc;
-            premelt_bulk_visc_pas[slice_offset]  = premelt_bulk_visc;
+            premelt_shear_visc[slice_offset] = slice_shear_visc;
+            premelt_bulk_visc[slice_offset]  = slice_bulk_visc;
 
             if (partial_melt_model != nullptr) {
                 // Apply the melt model to the shear pair, then the bulk pair. The
                 // liquid viscosity is a placeholder (the pre-melt viscosity) until a
                 // dedicated liquid-viscosity model exists.
                 c_PartialMeltInputs shear_inputs;
-                shear_inputs.temperature_k     = temperature_k;
-                shear_inputs.premelt_viscosity = premelt_shear_visc;
-                shear_inputs.premelt_shear     = static_shear_pa;
-                shear_inputs.liquid_viscosity  = premelt_shear_visc;
+                shear_inputs.temperature     = temperature;
+                shear_inputs.premelt_viscosity = slice_shear_visc;
+                shear_inputs.premelt_shear    = static_shear;
+                shear_inputs.liquid_viscosity = slice_shear_visc;
                 const c_PartialMeltResult shear_result = partial_melt_model->calc_partial_melt(shear_inputs);
-                postmelt_shear_pa[slice_offset]       = shear_result.postmelt_shear_modulus;
-                postmelt_shear_visc_pas[slice_offset] = shear_result.postmelt_viscosity;
+                postmelt_shear[slice_offset]       = shear_result.postmelt_shear_modulus;
+                postmelt_shear_visc[slice_offset] = shear_result.postmelt_viscosity;
 
                 c_PartialMeltInputs bulk_inputs;
-                bulk_inputs.temperature_k     = temperature_k;
-                bulk_inputs.premelt_viscosity = premelt_bulk_visc;
-                bulk_inputs.premelt_shear     = static_bulk_pa;
-                bulk_inputs.liquid_viscosity  = premelt_bulk_visc;
+                bulk_inputs.temperature     = temperature;
+                bulk_inputs.premelt_viscosity = slice_bulk_visc;
+                bulk_inputs.premelt_shear    = static_bulk;
+                bulk_inputs.liquid_viscosity = slice_bulk_visc;
                 const c_PartialMeltResult bulk_result = partial_melt_model->calc_partial_melt(bulk_inputs);
-                postmelt_bulk_pa[slice_offset]       = bulk_result.postmelt_shear_modulus;
-                postmelt_bulk_visc_pas[slice_offset] = bulk_result.postmelt_viscosity;
+                postmelt_bulk[slice_offset]       = bulk_result.postmelt_shear_modulus;
+                postmelt_bulk_visc[slice_offset] = bulk_result.postmelt_viscosity;
             } else {
-                postmelt_shear_pa[slice_offset]       = static_shear_pa;
-                postmelt_bulk_pa[slice_offset]        = static_bulk_pa;
-                postmelt_shear_visc_pas[slice_offset] = premelt_shear_visc;
-                postmelt_bulk_visc_pas[slice_offset]  = premelt_bulk_visc;
+                postmelt_shear[slice_offset] = static_shear;
+                postmelt_bulk[slice_offset]  = static_bulk;
+                postmelt_shear_visc[slice_offset] = slice_shear_visc;
+                postmelt_bulk_visc[slice_offset]  = slice_bulk_visc;
             }
         }
 
         layer->update_viscoelastic_data(
-            premelt_shear_pa, premelt_bulk_pa, premelt_shear_visc_pas, premelt_bulk_visc_pas,
-            postmelt_shear_pa, postmelt_bulk_pa, postmelt_shear_visc_pas, postmelt_bulk_visc_pas);
+            premelt_shear, premelt_bulk, premelt_shear_visc, premelt_bulk_visc,
+            postmelt_shear, postmelt_bulk, postmelt_shear_visc, postmelt_bulk_visc);
     }
 
     // Non-owning observer pointer to the layer whose radial span contains
-    // radius_m [m]. Radii beyond the surface clamp to the outermost layer; radii
+    // radius [m]. Radii beyond the surface clamp to the outermost layer; radii
     // below the innermost inner radius fall in the innermost layer. Returns
     // nullptr only when the world has no layers. Public (a const observer query, like
     // get_density(radius)); the 3D tidal-heating path reads the layer's solid/incompressible flags.
 public:
-    const c_BaseLayer* find_layer_for_radius(double radius_m) const noexcept {
+    const c_BaseLayer* find_layer_for_radius(double radius) const noexcept {
         if (this->p_layers.empty()) { return nullptr; }
         for (const auto& layer : this->p_layers) {
-            if (radius_m <= layer->get_radius_outer()) { return layer.get(); }
+            if (radius <= layer->get_radius_outer()) { return layer.get(); }
         }
         return this->p_layers.back().get();
     }

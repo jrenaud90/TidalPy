@@ -22,24 +22,24 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 cdef extern from "material_eos_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_MaterialEOSBase(c_PhysicsBase):
-        double calc_density(double pressure_pa, double temperature_k, double radius_m) const
-        double calc_static_shear_modulus(double radius_m) const
-        double calc_static_bulk_modulus(double radius_m) const
-        double calc_shear_viscosity(double radius_m) const
-        double calc_bulk_viscosity(double radius_m) const
+        double calc_density(double pressure, double temperature, double radius) const
+        double calc_static_shear_modulus(double radius) const
+        double calc_static_bulk_modulus(double radius) const
+        double calc_shear_viscosity(double radius) const
+        double calc_bulk_viscosity(double radius) const
 
     cdef cppclass c_MaterialEOSConfig:
-        double reference_density_kg_m3
-        double reference_bulk_modulus_pa
+        double reference_density
+        double reference_bulk_modulus
         double bulk_modulus_derivative
         double invert_rtol
         int    invert_max_iters
-        vector[double] radius_m
-        vector[double] density_kg_m3
-        vector[double] shear_modulus_pa
-        vector[double] bulk_modulus_pa
-        vector[double] shear_viscosity_pas
-        vector[double] bulk_viscosity_pas
+        vector[double] radius
+        vector[double] density
+        vector[double] shear_modulus
+        vector[double] bulk_modulus
+        vector[double] shear_viscosity
+        vector[double] bulk_viscosity
 
     cdef cppclass c_ConstantDensityEOS(c_MaterialEOSBase):
         c_ConstantDensityEOS() except +

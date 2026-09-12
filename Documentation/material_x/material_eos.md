@@ -31,10 +31,10 @@ density as a function of radius.
 
 | Class | Alias(es) | Density from | Parameters |
 |-------|-----------|--------------|------------|
-| `ConstantDensityEOS` | `constant`, `uniform` | — (incompressible) | `reference_density_kg_m3` |
-| `BirchMurnaghanEOS` | `bm`, `birch_murnaghan` | pressure | `reference_density_kg_m3`, `reference_bulk_modulus_pa`, `bulk_modulus_derivative` |
+| `ConstantDensityEOS` | `constant`, `uniform` | — (incompressible) | `reference_density` |
+| `BirchMurnaghanEOS` | `bm`, `birch_murnaghan` | pressure | `reference_density`, `reference_bulk_modulus`, `bulk_modulus_derivative` |
 | `VinetEOS` | `vinet` | pressure | same as BM |
-| `InterpolatedEOS` | `interp`, `interpolate` | radius (table) | `radius_m`, `density_kg_m3` |
+| `InterpolatedEOS` | `interp`, `interpolate` | radius (table) | `radius`, `density` |
 
 ### Birch-Murnaghan (3rd order)
 
@@ -78,15 +78,15 @@ inverted the same way as Birch-Murnaghan.
 
 ### Interpolated
 
-Linear interpolation of a sorted `(radius_m → density_kg_m3)` table, clamped at the
+Linear interpolation of a sorted `(radius → density)` table, clamped at the
 boundaries. This method is an excellent way to utilize a more complex EOS solver of your
 choice, convert those results to arrays (.csv, .npy, etc.), and then load them 
 is as inputs to the EOS interpolator.
 
 In addition to density, `InterpolatedEOS` optionally carries radius-varying
 **static shear modulus**, **static bulk modulus**, **shear viscosity**, and **bulk
-viscosity** tables (constructor arguments `shear_modulus_pa`, `bulk_modulus_pa`,
-`shear_viscosity_pas`, `bulk_viscosity_pas`, each the same length as `radius_m`).
+viscosity** tables (constructor arguments `shear_modulus`, `bulk_modulus`,
+`shear_viscosity`, `bulk_viscosity`, each the same length as `radius`).
 These are exposed via `calc_static_shear_modulus(radius)`,
 `calc_static_bulk_modulus(radius)`, `calc_shear_viscosity(radius)`, and
 `calc_bulk_viscosity(radius)` (all on `MaterialEOSBase`; the analytic models return
@@ -109,8 +109,8 @@ from TidalPy.Material_x.eos import (
     make_material_eos,
 )
 
-bm = BirchMurnaghanEOS(reference_density_kg_m3=3500.0,
-                       reference_bulk_modulus_pa=1.3e11,
+bm = BirchMurnaghanEOS(reference_density=3500.0,
+                       reference_bulk_modulus=1.3e11,
                        bulk_modulus_derivative=4.5)
 rho = bm.calc_density(5.0e10)        # density [kg/m^3] at 50 GPa
 bm.reference_bulk_modulus            # 1.3e11
@@ -121,12 +121,12 @@ eos = make_material_eos("vinet", {"reference_density_kg_m3": 3500.0,
                                   "bulk_modulus_derivative": 4.5})
 
 # Interpolated (PREM-style):
-prem = InterpolatedEOS(radius_m=[0.0, 1.0e6, 2.0e6],
-                       density_kg_m3=[5000.0, 4000.0, 3000.0])
+prem = InterpolatedEOS(radius=[0.0, 1.0e6, 2.0e6],
+                       density=[5000.0, 4000.0, 3000.0])
 prem.calc_density(0.0, 0.0, 0.5e6)   # 4500.0 (radius interpolation)
 ```
 
-`calc_density(pressure_pa, temperature_k=0.0, radius_m=0.0)` returns density.
+`calc_density(pressure, temperature=0.0, radius=0.0)` returns density.
 `get_config_dict`, `save_config`, `save_binary`, and `load_binary` are inherited
 from the base class. The free functions `birch_murnaghan_pressure(eta, K0, K0p)`
 and `vinet_pressure(eta, K0, K0p)` expose the forward pressure laws (useful for
@@ -150,12 +150,12 @@ using namespace tidalpy;
 
 // Build a config; defaults come from the struct itself (single source of truth).
 c_MaterialEOSConfig cfg;
-cfg.reference_density_kg_m3   = 3500.0;
-cfg.reference_bulk_modulus_pa = 1.3e11;
+cfg.reference_density   = 3500.0;
+cfg.reference_bulk_modulus = 1.3e11;
 cfg.bulk_modulus_derivative   = 4.5;
 
 c_BirchMurnaghanEOS bm(cfg);
-double rho = bm.calc_density(/*pressure_pa=*/5.0e10, /*temperature_k=*/0.0, /*radius_m=*/0.0);
+double rho = bm.calc_density(/*pressure=*/5.0e10, /*temperature=*/0.0, /*radius=*/0.0);
 
 // Or construct via the enum factory (returns a unique_ptr to the base):
 std::unique_ptr<c_MaterialEOSBase> eos =
@@ -171,17 +171,17 @@ the single source of default values for both C++ and Python.
 
 | Field | Used by | Default |
 |-------|---------|---------|
-| `reference_density_kg_m3` | all | `3500.0` |
-| `reference_bulk_modulus_pa` | BM, Vinet | `1.0e11` |
+| `reference_density` | all | `3500.0` |
+| `reference_bulk_modulus` | BM, Vinet | `1.0e11` |
 | `bulk_modulus_derivative` | BM, Vinet | `4.0` |
 | `invert_rtol` | BM, Vinet | `d_EOS_INVERT_RTOL` (`1e-13`) |
 | `invert_max_iters` | BM, Vinet | `d_EOS_INVERT_MAX_ITERS` (`60`) |
-| `radius_m`, `density_kg_m3` | Interpolated | empty `std::vector<double>` |
+| `radius`, `density` | Interpolated | empty `std::vector<double>` |
 
 ### Classes
 
 All derive from `c_MaterialEOSBase : public c_PhysicsBase` and override
-`double calc_density(double pressure_pa, double temperature_k, double radius_m) const`.
+`double calc_density(double pressure, double temperature, double radius) const`.
 Each has a default constructor and an `explicit c_XEOS(const c_MaterialEOSConfig&)`.
 
 | Class | Key accessors |
@@ -201,7 +201,7 @@ is inherited from `c_PhysicsBase` via the shared `write_physics_binary` /
 |----------|-------------|
 | `double eos_bm_pressure(eta, K0, K0_prime)` | 3rd-order Birch-Murnaghan pressure [Pa] at compression `η`. |
 | `double eos_vinet_pressure(eta, K0, K0_prime)` | Vinet pressure [Pa] at `η`. |
-| `double eos_invert_eta(pressure_target_pa, K0, K0_prime, pressure_fn, rtol, max_iters)` | Inverts a monotonic `P(η)` law for `η` (safeguarded Newton + bisection bracket). Reused by both analytic models; pass `eos_bm_pressure` / `eos_vinet_pressure` as `pressure_fn`. |
+| `double eos_invert_eta(pressure_target, K0, K0_prime, pressure_fn, rtol, max_iters)` | Inverts a monotonic `P(η)` law for `η` (safeguarded Newton + bisection bracket). Reused by both analytic models; pass `eos_bm_pressure` / `eos_vinet_pressure` as `pressure_fn`. |
 
 ### Factory
 

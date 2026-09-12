@@ -39,9 +39,9 @@ def _uniform_physics_world(with_viscosity=True, with_melt=False, with_rheology=F
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR,
-                         bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR,
+                         bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     if with_viscosity:
         layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
         layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _BULK_VISC}))
@@ -146,7 +146,7 @@ def test_complex_nan_on_geometry_layer():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("geom", _PLANET_RADIUS, mass)
     layer = BaseLayer("rock", 0, 0.0, _PLANET_RADIUS, mass)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     world.add_layer(layer)
     world.solve_eos(G_to_use=G, verbose=False)
     value = world.calc_complex_shear_modulus(_PLANET_RADIUS * 0.5, 1.0e-5)
@@ -161,8 +161,8 @@ def test_layer_getters_match_world():
     mass = (4.0 / 3.0) * math.pi * _PLANET_RADIUS ** 3 * _DENSITY
     world = LayeredWorld("rocky", _PLANET_RADIUS, mass)
     layer = PhysicsLayer("mantle", 0, 0.0, _PLANET_RADIUS, mass,
-                         shear_modulus_static_pa=_STATIC_SHEAR, bulk_modulus_static_pa=_STATIC_BULK)
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+                         shear_modulus_static=_STATIC_SHEAR, bulk_modulus_static=_STATIC_BULK)
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _SHEAR_VISC}))
     world.add_layer(layer)
     # The layer's C++ object was moved into the world; query through the world's layer view.

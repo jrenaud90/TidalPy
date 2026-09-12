@@ -46,7 +46,7 @@ public:
     // -----------
     // - Steady-state flow law; all inputs/outputs MKS.
     // -----------------------------------------------------------------------
-    virtual double calc_viscosity(double temperature_k, double pressure_pa) const = 0;
+    virtual double calc_viscosity(double temperature, double pressure) const = 0;
 
     // -----------------------------------------------------------------------
     // Vectorized viscosity — vary temperature and pressure element-wise. The two
@@ -55,18 +55,18 @@ public:
     // radial sweep (one entry per slice).
     // -----------------------------------------------------------------------
     void calc_viscosity_vectorize(
-            const std::vector<double>& temperature_k,
-            const std::vector<double>& pressure_pa,
+            const std::vector<double>& temperature,
+            const std::vector<double>& pressure,
             std::vector<double>& out_viscosity) const {
-        const std::size_t n = temperature_k.size();
-        if (pressure_pa.size() != n) {
+        const std::size_t n = temperature.size();
+        if (pressure.size() != n) {
             throw std::invalid_argument(
                 "TidalPy: calc_viscosity_vectorize — temperature and pressure "
                 "vectors must have the same length");
         }
         out_viscosity.resize(n);
         for (std::size_t i = 0; i < n; ++i) {
-            out_viscosity[i] = this->calc_viscosity(temperature_k[i], pressure_pa[i]);
+            out_viscosity[i] = this->calc_viscosity(temperature[i], pressure[i]);
         }
     }
 };

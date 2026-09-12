@@ -100,11 +100,11 @@ namespace detail {
 
 // Maxwell element compliance: J* = J - i / (viscosity * frequency).
 inline c_ComplexCompliance element_compliance_maxwell(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s) noexcept {
-    const double static_compliance = 1.0 / rheo_guard(modulus_pa);
-    const double denom = rheo_guard(viscosity_pas * frequency_rad_s);
+        double modulus,
+        double viscosity,
+        double frequency) noexcept {
+    const double static_compliance = 1.0 / rheo_guard(modulus);
+    const double denom = rheo_guard(viscosity * frequency);
     return c_ComplexCompliance(static_compliance, -1.0 / denom);
 }
 
@@ -112,33 +112,33 @@ inline c_ComplexCompliance element_compliance_maxwell(
 // The Voigt arm's compliance is the layer compliance divided by the modulus
 // fraction: J_voigt = (1 / modulus) / voigt_modulus_frac.
 inline c_ComplexCompliance element_compliance_voigt(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s,
+        double modulus,
+        double viscosity,
+        double frequency,
         double voigt_modulus_frac,
         double voigt_viscosity_frac) noexcept {
-    const double static_compliance = 1.0 / rheo_guard(modulus_pa);
-    const double voigt_compliance  = static_compliance / rheo_guard(voigt_modulus_frac);
-    const double voigt_viscosity   = voigt_viscosity_frac * viscosity_pas;
+    const double static_compliance = 1.0 / rheo_guard(modulus);
+    const double voigt_compliance = static_compliance / rheo_guard(voigt_modulus_frac);
+    const double voigt_viscosity  = voigt_viscosity_frac * viscosity;
 
-    const double scaled  = voigt_compliance * voigt_viscosity * frequency_rad_s;
-    const double denom   = scaled * scaled + 1.0;
-    const double real_j  = voigt_compliance / denom;
-    const double imag_j  = -(voigt_compliance * voigt_compliance) * voigt_viscosity
-                           * frequency_rad_s / denom;
+    const double scaled = voigt_compliance * voigt_viscosity * frequency;
+    const double denom  = scaled * scaled + 1.0;
+    const double real_j = voigt_compliance / denom;
+    const double imag_j = -(voigt_compliance * voigt_compliance) * voigt_viscosity
+                           * frequency / denom;
     return c_ComplexCompliance(real_j, imag_j);
 }
 
 // Andrade element compliance: Maxwell compliance plus a transient term ~ omega^{-alpha}.
 inline c_ComplexCompliance element_compliance_andrade(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s,
+        double modulus,
+        double viscosity,
+        double frequency,
         double alpha,
         double zeta) noexcept {
-    const double static_compliance = 1.0 / rheo_guard(modulus_pa);
+    const double static_compliance = 1.0 / rheo_guard(modulus);
     const double andrade_term =
-        rheo_guard(static_compliance * viscosity_pas * frequency_rad_s * zeta);
+        rheo_guard(static_compliance * viscosity * frequency * zeta);
 
     const double const_term =
         static_compliance * std::pow(andrade_term, -alpha) * std::tgamma(1.0 + alpha);
@@ -148,7 +148,7 @@ inline c_ComplexCompliance element_compliance_andrade(
         -std::sin(half_pi_alpha) * const_term
     );
 
-    return element_compliance_maxwell(modulus_pa, viscosity_pas, frequency_rad_s)
+    return element_compliance_maxwell(modulus, viscosity, frequency)
          + andrade_transient;
 }
 
@@ -165,64 +165,64 @@ inline c_ComplexCompliance element_compliance_andrade(
 
 // Elastic: mu* = modulus (real).  No dissipation, frequency-independent.
 inline c_ComplexModulus rheo_modulus_elastic(
-        double modulus_pa,
-        double /*viscosity_pas*/,
-        double /*frequency_rad_s*/) noexcept {
-    return c_ComplexModulus(modulus_pa, 0.0);
+        double modulus,
+        double /*viscosity*/,
+        double /*frequency*/) noexcept {
+    return c_ComplexModulus(modulus, 0.0);
 }
 
 // Viscous (Newton): mu* = i * viscosity * frequency (purely dissipative).
 inline c_ComplexModulus rheo_modulus_viscous(
-        double /*modulus_pa*/,
-        double viscosity_pas,
-        double frequency_rad_s) noexcept {
-    return c_ComplexModulus(0.0, viscosity_pas * frequency_rad_s);
+        double /*modulus*/,
+        double viscosity,
+        double frequency) noexcept {
+    return c_ComplexModulus(0.0, viscosity * frequency);
 }
 
 // Maxwell: mu* = 1 / J_maxwell.
 inline c_ComplexModulus rheo_modulus_maxwell(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s) noexcept {
+        double modulus,
+        double viscosity,
+        double frequency) noexcept {
     return c_ComplexModulus(1.0, 0.0)
          / detail::element_compliance_maxwell(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s);
+            modulus,
+            viscosity,
+            frequency);
 }
 
 // Voigt-Kelvin: mu* = 1 / J_voigt.
 inline c_ComplexModulus rheo_modulus_voigt(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s,
+        double modulus,
+        double viscosity,
+        double frequency,
         double voigt_modulus_frac,
         double voigt_viscosity_frac) noexcept {
     return c_ComplexModulus(1.0, 0.0)
          / detail::element_compliance_voigt(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             voigt_modulus_frac,
             voigt_viscosity_frac);
 }
 
 // Burgers: Maxwell and Voigt elements in series; mu* = 1 / (J_maxwell + J_voigt).
 inline c_ComplexModulus rheo_modulus_burgers(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s,
+        double modulus,
+        double viscosity,
+        double frequency,
         double voigt_modulus_frac,
         double voigt_viscosity_frac) noexcept {
     const c_ComplexCompliance total =
         detail::element_compliance_maxwell(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s)
+            modulus,
+            viscosity,
+            frequency)
       + detail::element_compliance_voigt(
-        modulus_pa,
-        viscosity_pas,
-        frequency_rad_s,
+        modulus,
+        viscosity,
+        frequency,
         voigt_modulus_frac,
         voigt_viscosity_frac);
     return c_ComplexModulus(1.0, 0.0) / total;
@@ -230,40 +230,40 @@ inline c_ComplexModulus rheo_modulus_burgers(
 
 // Andrade: mu* = 1 / J_andrade.
 inline c_ComplexModulus rheo_modulus_andrade(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s,
+        double modulus,
+        double viscosity,
+        double frequency,
         double alpha,
         double zeta) noexcept {
     return c_ComplexModulus(1.0, 0.0)
          / detail::element_compliance_andrade(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             alpha,
             zeta);
 }
 
 // Sundberg-Cooper: Andrade and Voigt elements in series; mu* = 1 / (J_andrade + J_voigt).
 inline c_ComplexModulus rheo_modulus_sundberg(
-        double modulus_pa,
-        double viscosity_pas,
-        double frequency_rad_s,
+        double modulus,
+        double viscosity,
+        double frequency,
         double alpha,
         double zeta,
         double voigt_modulus_frac,
         double voigt_viscosity_frac) noexcept {
     const c_ComplexCompliance total =
         detail::element_compliance_andrade(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             alpha,
             zeta)
       + detail::element_compliance_voigt(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             voigt_modulus_frac,
             voigt_viscosity_frac);
     return c_ComplexModulus(1.0, 0.0) / total;
@@ -297,13 +297,13 @@ public:
     ~c_Elastic() override = default;
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus,
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_elastic(
-            modulus_pa, 
-            viscosity_pas,
-            frequency_rad_s);
+            modulus, 
+            viscosity,
+            frequency);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -324,13 +324,13 @@ public:
     ~c_Viscous() override = default;
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus,
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_viscous(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s);
+            modulus,
+            viscosity,
+            frequency);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -351,13 +351,13 @@ public:
     ~c_Maxwell() override = default;
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus,
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_maxwell(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s);
+            modulus,
+            viscosity,
+            frequency);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -390,13 +390,13 @@ public:
     }
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus,
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_voigt(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             this->p_voigt_modulus_frac,
             this->p_voigt_viscosity_frac);
     }
@@ -438,13 +438,13 @@ public:
     }
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa, 
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus, 
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_burgers(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             this->p_voigt_modulus_frac,
             this->p_voigt_viscosity_frac);
     }
@@ -486,13 +486,13 @@ public:
     }
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus,
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_andrade(
-            modulus_pa,
-            viscosity_pas,
-            frequency_rad_s,
+            modulus,
+            viscosity,
+            frequency,
             this->p_alpha,
             this->p_zeta);
     }
@@ -540,13 +540,13 @@ public:
     }
 
     c_ComplexModulus calc_complex_modulus(
-            double modulus_pa,
-            double viscosity_pas,
-            double frequency_rad_s) const override {
+            double modulus,
+            double viscosity,
+            double frequency) const override {
         return rheo_modulus_sundberg(
-            modulus_pa, 
-            viscosity_pas,
-            frequency_rad_s,
+            modulus, 
+            viscosity,
+            frequency,
             this->p_alpha,
             this->p_zeta,
             this->p_voigt_modulus_frac,

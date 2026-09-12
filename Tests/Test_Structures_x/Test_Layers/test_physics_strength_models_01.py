@@ -23,7 +23,7 @@ def _imports():
 
 def _layer(PhysicsLayer):
     return PhysicsLayer("mantle", 0, 0.0, 6.371e6, 4.0e24,
-                        shear_modulus_static_pa=6.0e10, bulk_modulus_static_pa=1.3e11)
+                        shear_modulus_static=6.0e10, bulk_modulus_static=1.3e11)
 
 
 def test_flags_start_false():

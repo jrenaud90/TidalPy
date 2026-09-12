@@ -15,10 +15,10 @@
  *     [all c_BaseLayer fields — same byte layout as BaseLayer binary payload]
  *     [all c_PhysicsLayer additions — shear modulus, bulk modulus,
  *      shear viscosity, bulk viscosity, love_numbers k/h/l re+im (10×8)]
- *     mean_molecular_weight_kg_mol  (double, 8)
+ *     mean_molecular_weight  (double, 8)
  *     adiabatic_index               (double, 8)
- *     reference_temperature_k       (double, 8)
- *     reference_density_kg_m3       (double, 8)
+ *     reference_temperature       (double, 8)
+ *     reference_density       (double, 8)
  *     shear_rheology  presence flag (uint8_t, 1) + (if present) its binary record
  *     bulk_rheology   presence flag (uint8_t, 1) + (if present) its binary record
  *     shear_viscosity presence flag (uint8_t, 1) + (if present) its binary record
@@ -46,10 +46,10 @@ namespace tidalpy {
 // Extends c_PhysicsConfig with ideal-gas thermodynamic fields.
 // -------------------------------------------------------------------------------
 struct c_GasConfig : public c_PhysicsConfig {
-    double mean_molecular_weight_kg_mol = 2.0e-3;    // [kg/mol] hydrogen default
-    double adiabatic_index              = 1.4;       // γ = c_p/c_v [dimensionless]
-    double reference_temperature_k      = 300.0;     // [K]
-    double reference_density_kg_m3      = 1.0;       // [kg/m³]
+    double mean_molecular_weight = 2.0e-3;    // [kg/mol] hydrogen default
+    double adiabatic_index       = 1.4;       // γ = c_p/c_v [dimensionless]
+    double reference_temperature = 300.0;     // [K]
+    double reference_density     = 1.0;       // [kg/m³]
 };
 
 // -------------------------------------------------------------------------------
@@ -64,10 +64,10 @@ public:
 
     explicit c_GasLayer(const c_GasConfig& cfg)
         : c_PhysicsLayer(cfg),
-          p_mean_molecular_weight(cfg.mean_molecular_weight_kg_mol),
+          p_mean_molecular_weight(cfg.mean_molecular_weight),
           p_adiabatic_index(cfg.adiabatic_index),
-          p_reference_temperature(cfg.reference_temperature_k),
-          p_reference_density(cfg.reference_density_kg_m3)
+          p_reference_temperature(cfg.reference_temperature),
+          p_reference_density(cfg.reference_density)
     {}
 
     ~c_GasLayer() override = default;
@@ -108,11 +108,11 @@ public:
     // and R is the universal gas constant [J/(mol·K)].
     // Returns 0.0 when the config pointer is unavailable or inputs are invalid.
     // -----------------------------------------------------------------------
-    double calc_adiabatic_lapse_rate(double gravity_m_s2) const noexcept {
-        if (gravity_m_s2 <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
+    double calc_adiabatic_lapse_rate(double gravity) const noexcept {
+        if (gravity <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
         const double R = tidalpy_config_ptr->d_R;
         if (R <= 0.0 || this->p_adiabatic_index <= 1.0) { return 0.0; }
-        return gravity_m_s2 * (this->p_adiabatic_index - 1.0) * this->p_mean_molecular_weight
+        return gravity * (this->p_adiabatic_index - 1.0) * this->p_mean_molecular_weight
                / (this->p_adiabatic_index * R);
     }
 
@@ -124,14 +124,14 @@ public:
     //
     // Returns 0.0 when inputs are non-positive or config is unavailable.
     // -----------------------------------------------------------------------
-    double calc_scale_height(double temperature_k, double gravity_m_s2) const noexcept {
-        if (temperature_k <= 0.0 || gravity_m_s2 <= 0.0
+    double calc_scale_height(double temperature, double gravity) const noexcept {
+        if (temperature <= 0.0 || gravity <= 0.0
                 || this->p_mean_molecular_weight <= 0.0
                 || tidalpy_config_ptr == nullptr) {
             return 0.0;
         }
         const double R = tidalpy_config_ptr->d_R;
-        return R * temperature_k / (gravity_m_s2 * this->p_mean_molecular_weight);
+        return R * temperature / (gravity * this->p_mean_molecular_weight);
     }
 
     // -----------------------------------------------------------------------
@@ -141,15 +141,15 @@ public:
     //
     // Returns 0.0 when inputs are non-positive or config is unavailable.
     // -----------------------------------------------------------------------
-    double calc_pressure_ideal_gas(double temperature_k,
-                                   double density_kg_m3) const noexcept {
-        if (temperature_k <= 0.0 || density_kg_m3 <= 0.0
+    double calc_pressure_ideal_gas(double temperature,
+                                   double density) const noexcept {
+        if (temperature <= 0.0 || density <= 0.0
                 || this->p_mean_molecular_weight <= 0.0
                 || tidalpy_config_ptr == nullptr) {
             return 0.0;
         }
         const double R = tidalpy_config_ptr->d_R;
-        return density_kg_m3 * R * temperature_k / this->p_mean_molecular_weight;
+        return density * R * temperature / this->p_mean_molecular_weight;
     }
 
     // -----------------------------------------------------------------------
@@ -160,13 +160,13 @@ public:
     //
     // Returns 0.0 when inputs are invalid or config is unavailable.
     // -----------------------------------------------------------------------
-    double calc_sound_speed(double temperature_k) const noexcept {
-        if (temperature_k <= 0.0 || this->p_mean_molecular_weight <= 0.0
+    double calc_sound_speed(double temperature) const noexcept {
+        if (temperature <= 0.0 || this->p_mean_molecular_weight <= 0.0
                 || tidalpy_config_ptr == nullptr) {
             return 0.0;
         }
         const double R = tidalpy_config_ptr->d_R;
-        return std::sqrt(this->p_adiabatic_index * R * temperature_k
+        return std::sqrt(this->p_adiabatic_index * R * temperature
                          / this->p_mean_molecular_weight);
     }
 
@@ -180,7 +180,7 @@ public:
             sizeof(double)   * 2 +           // p_radius, p_mass
             sizeof(uint32_t) + name_len +    // name length + bytes
             sizeof(int32_t)  +               // layer_index
-            sizeof(double)   +               // radius_inner_m
+            sizeof(double)   +               // radius_inner
             sizeof(uint32_t) + mat_len +     // material_name length + bytes
             sizeof(uint8_t)  +               // is_tidal
             sizeof(double)   +               // tidal_scale
@@ -209,10 +209,10 @@ public:
         out.write(reinterpret_cast<const char*>(&scale_method_byte), sizeof(uint8_t));
 
         // c_PhysicsLayer fields
-        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static_pas), sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static_pas),  sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_shear_modulus_static),    sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_bulk_modulus_static),     sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_shear_viscosity_static), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto write_complex = [&](const std::complex<double>& c) {
             const double re = c.real(), im = c.imag();
             out.write(reinterpret_cast<const char*>(&re), sizeof(double));
@@ -278,10 +278,10 @@ public:
         this->p_tidal_scale_method = static_cast<c_TidalScaleMethod>(scale_method_byte);
 
         // c_PhysicsLayer fields
-        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static_pa),    sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static_pa),     sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static_pas), sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static_pas),  sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_shear_modulus_static),    sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_bulk_modulus_static),     sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_shear_viscosity_static), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_bulk_viscosity_static),  sizeof(double));
         auto read_complex = [&](std::complex<double>& c) {
             double re = 0.0, im = 0.0;
             in.read(reinterpret_cast<char*>(&re), sizeof(double));

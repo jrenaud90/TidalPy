@@ -64,10 +64,10 @@ def load_prem_arrays(str file_path):
     -------
     dict
         Keys (all ``numpy.ndarray`` sorted ascending in radius, MKS):
-        ``radius_m``, ``density_kg_m3``, ``vp_m_s``, ``vs_m_s``,
-        ``shear_modulus_pa`` (``rho*Vs^2``), ``bulk_modulus_pa``
-        (``rho*(Vp^2 - 4/3 Vs^2)``), and ``shear_viscosity_pas`` /
-        ``bulk_viscosity_pas`` (each ``None`` if the file has no such column).
+        ``radius``, ``density``, ``vp``, ``vs``,
+        ``shear_modulus`` (``rho*Vs^2``), ``bulk_modulus``
+        (``rho*(Vp^2 - 4/3 Vs^2)``), and ``shear_viscosity`` /
+        ``bulk_viscosity`` (each ``None`` if the file has no such column).
 
     Raises
     ------
@@ -92,50 +92,50 @@ def load_prem_arrays(str file_path):
     order = np.argsort(data[:, 0], kind="stable")
     data = data[order]
 
-    radius_m      = np.ascontiguousarray(data[:, 0] * 1.0e3)   # km -> m
-    density_kg_m3 = np.ascontiguousarray(data[:, 1])
-    vp_m_s        = np.ascontiguousarray(data[:, 2])
-    vs_m_s        = np.ascontiguousarray(data[:, 3])
+    radius      = np.ascontiguousarray(data[:, 0] * 1.0e3)   # km -> m
+    density = np.ascontiguousarray(data[:, 1])
+    vp = np.ascontiguousarray(data[:, 2])
+    vs = np.ascontiguousarray(data[:, 3])
 
     # Static moduli from density + seismic velocities.
-    shear_modulus_pa = np.ascontiguousarray(density_kg_m3 * vs_m_s * vs_m_s)
-    bulk_modulus_pa  = np.ascontiguousarray(density_kg_m3 * (vp_m_s * vp_m_s - (4.0 / 3.0) * vs_m_s * vs_m_s))
+    shear_modulus = np.ascontiguousarray(density * vs * vs)
+    bulk_modulus  = np.ascontiguousarray(density * (vp * vp - (4.0 / 3.0) * vs * vs))
 
-    shear_viscosity_pas = None
-    bulk_viscosity_pas  = None
+    shear_viscosity = None
+    bulk_viscosity  = None
     if data.shape[1] == 6:
-        shear_viscosity_pas = np.ascontiguousarray(data[:, 4])
-        bulk_viscosity_pas  = np.ascontiguousarray(data[:, 5])
+        shear_viscosity = np.ascontiguousarray(data[:, 4])
+        bulk_viscosity  = np.ascontiguousarray(data[:, 5])
 
     return {
-        "radius_m":            radius_m,
-        "density_kg_m3":       density_kg_m3,
-        "vp_m_s":              vp_m_s,
-        "vs_m_s":              vs_m_s,
-        "shear_modulus_pa":    shear_modulus_pa,
-        "bulk_modulus_pa":     bulk_modulus_pa,
-        "shear_viscosity_pas": shear_viscosity_pas,
-        "bulk_viscosity_pas":  bulk_viscosity_pas,
+        "radius_m":            radius,
+        "density_kg_m3":       density,
+        "vp_m_s":              vp,
+        "vs_m_s":              vs,
+        "shear_modulus_pa":    shear_modulus,
+        "bulk_modulus_pa":     bulk_modulus,
+        "shear_viscosity_pas": shear_viscosity,
+        "bulk_viscosity_pas":  bulk_viscosity,
     }
 
 
 cpdef list detect_layer_boundaries(
-        double[::1] radius_m,
-        double[::1] shear_modulus_pa,
-        double shear_floor_pa=_DEFAULT_SHEAR_FLOOR_PA):
+        double[::1] radius,
+        double[::1] shear_modulus,
+        double shear_floor=_DEFAULT_SHEAR_FLOOR_PA):
     """Split a radial profile into layers by shear modulus (solid vs liquid).
 
     Scans the (ascending-radius) profile from the center outward. A slice with
-    shear modulus at or below ``shear_floor_pa`` is liquid; above it is solid.
+    shear modulus at or below ``shear_floor`` is liquid; above it is solid.
     Each solid<->liquid transition begins a new layer.
 
     Parameters
     ----------
-    radius_m : memoryview of double
+    radius : memoryview of double
         Radii [m], ascending (center to surface).
-    shear_modulus_pa : memoryview of double
-        Shear modulus [Pa] at each radius (same length as ``radius_m``).
-    shear_floor_pa : float, optional
+    shear_modulus : memoryview of double
+        Shear modulus [Pa] at each radius (same length as ``radius``).
+    shear_floor : float, optional
         Shear moduli at or below this are treated as zero (liquid).
 
     Returns
@@ -153,7 +153,7 @@ cpdef list detect_layer_boundaries(
     their inner radius) are absorbed into the previous real layer, so only layers
     spanning a non-zero radius interval are returned.
     """
-    cdef Py_ssize_t n = radius_m.shape[0]
+    cdef Py_ssize_t n = radius.shape[0]
     cdef list raw = []
     cdef list merged = []
     cdef Py_ssize_t i
@@ -167,9 +167,9 @@ cpdef list detect_layer_boundaries(
 
     # First pass: maximal runs of constant solidity, recorded as Python tuples
     # (start_index, end_index, is_solid).
-    current_solid = shear_modulus_pa[0] > shear_floor_pa
+    current_solid = shear_modulus[0] > shear_floor
     for i in range(1, n):
-        slice_solid = shear_modulus_pa[i] > shear_floor_pa
+        slice_solid = shear_modulus[i] > shear_floor
         if slice_solid != current_solid:
             raw.append((start, i - 1, bool(current_solid)))
             start = i
@@ -183,7 +183,7 @@ cpdef list detect_layer_boundaries(
     for run in raw:
         idx_a = run[0]
         idx_b = run[1]
-        if last_layer is not None and radius_m[idx_b] <= radius_m[idx_a]:
+        if last_layer is not None and radius[idx_b] <= radius[idx_a]:
             last_layer[1] = run[1]
         else:
             last_layer = [run[0], run[1], run[2]]

@@ -32,14 +32,14 @@ takes them as explicit MKS arguments):
 
 | Input | Meaning |
 |-------|---------|
-| `delta_temp_k` | temperature drop across the layer [K] |
-| `thickness_m` | layer (or sub-layer) thickness [m] |
-| `gravity_m_s2` | gravitational acceleration [m/s²] |
-| `density_kg_m3` | bulk density [kg/m³] |
-| `viscosity_pas` | dynamic viscosity [Pa·s] |
-| `thermal_conductivity_w_mk` | thermal conductivity [W/m/K] |
-| `thermal_diffusivity_m2_s` | thermal diffusivity [m²/s] |
-| `thermal_expansion_1_k` | thermal expansivity [1/K] |
+| `delta_temp` | temperature drop across the layer [K] |
+| `thickness` | layer (or sub-layer) thickness [m] |
+| `gravity` | gravitational acceleration [m/s²] |
+| `density` | bulk density [kg/m³] |
+| `viscosity` | dynamic viscosity [Pa·s] |
+| `thermal_conductivity` | thermal conductivity [W/m/K] |
+| `thermal_diffusivity` | thermal diffusivity [m²/s] |
+| `thermal_expansion` | thermal expansivity [1/K] |
 
 The result is a `CoolingResult` with `cooling_flux` [W/m²],
 `boundary_layer_thickness` [m], `rayleigh`, and `nusselt`. Each field is a Python
@@ -137,9 +137,9 @@ sweep = convective(np.linspace(100.0, 2000.0, 50), 1.0e6, 9.8, 3300.0,
 ```
 
 Signatures:
-`cooling_off(delta_temp_k, thickness_m)`,
-`conductive(delta_temp_k, thickness_m, thermal_conductivity_w_mk)`,
-`convective(delta_temp_k, thickness_m, gravity_m_s2, density_kg_m3, viscosity_pas, thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k, convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)`.
+`cooling_off(delta_temp, thickness)`,
+`conductive(delta_temp, thickness, thermal_conductivity)`,
+`convective(delta_temp, thickness, gravity, density, viscosity, thermal_conductivity, thermal_diffusivity, thermal_expansion, convection_alpha=1.0, convection_beta=1/3, critical_rayleigh=1100.0)`.
 
 Each builds a *stack-allocated* C++ model, solves (picking the most specific
 vectorized routine for the input pattern), and returns a `CoolingResult`. The argument

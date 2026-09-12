@@ -142,13 +142,13 @@ cdef class LayeredWorld(BaseWorld):
     ----------
     name : str
         Human-readable world name.
-    radius_m : float
+    radius : float
         World radius [m].
-    mass_kg : float
+    mass : float
         World mass [kg].
     world_type : str, optional
         Type label. Default ``"terrestrial"``.
-    albedo, emissivity, obliquity_rad, spin_frequency_rad_s : float, optional
+    albedo, emissivity, obliquity, spin_frequency : float, optional
         See :class:`BaseWorld`.
 
     Notes
@@ -163,22 +163,22 @@ cdef class LayeredWorld(BaseWorld):
     def __init__(
             self,
             str    name,
-            double radius_m,
-            double mass_kg,
-            str    world_type           = "terrestrial",
-            double albedo               = 0.3,
-            double emissivity           = 1.0,
-            double obliquity_rad        = 0.0,
-            double spin_frequency_rad_s = 0.0):
+            double radius,
+            double mass,
+            str    world_type = "terrestrial",
+            double albedo     = 0.3,
+            double emissivity = 1.0,
+            double obliquity  = 0.0,
+            double spin_frequency = 0.0):
         cdef c_WorldConfig config
-        config.name                 = name.encode("utf-8")
-        config.world_type_str       = world_type.encode("utf-8")
-        config.radius_m             = radius_m
-        config.mass_kg              = mass_kg
-        config.albedo               = albedo
-        config.emissivity           = emissivity
-        config.obliquity_rad        = obliquity_rad
-        config.spin_frequency_rad_s = spin_frequency_rad_s
+        config.name           = name.encode("utf-8")
+        config.world_type_str = world_type.encode("utf-8")
+        config.radius     = radius
+        config.mass       = mass
+        config.albedo     = albedo
+        config.emissivity = emissivity
+        config.obliquity  = obliquity
+        config.spin_frequency = spin_frequency
         cdef c_LayeredWorld* raw = new c_LayeredWorld(config)
         self._world_ptr.reset(<c_BaseWorld*>raw)
         self._layered_ptr = raw
@@ -331,13 +331,13 @@ cdef class LayeredWorld(BaseWorld):
         """Total mass [kg] = sum of all layer masses."""
         return self._layered_ptr.calc_total_mass()
 
-    def calc_internal_heating(self, double time_s) -> float:
+    def calc_internal_heating(self, double time) -> float:
         """Total internal radiogenic heating [W] at the given time [s].
 
         Only ``SolidLiquidLayer`` layers with an attached radiogenics model
         contribute; all other layers contribute zero.
         """
-        return self._layered_ptr.calc_internal_heating(time_s)
+        return self._layered_ptr.calc_internal_heating(time)
 
     def validate_layers(self) -> bool:
         """True if every layer boundary is continuous (innermost starts at 0)."""
@@ -500,40 +500,40 @@ cdef class LayeredWorld(BaseWorld):
     # array of radii (returns an array of the same shape). NaN where the EOS is
     # unsolved, the layer is geometry-only, or no rheology is attached.
     # ------------------------------------------------------------------------------------------------------------------
-    cdef double _eval_real(self, int kind, double radius_m) noexcept nogil:
-        if   kind == _KIND_DENSITY:        return self._layered_ptr.get_density(radius_m)
-        elif kind == _KIND_GRAVITY:        return self._layered_ptr.get_gravity(radius_m)
-        elif kind == _KIND_PRESSURE:       return self._layered_ptr.get_pressure(radius_m)
-        elif kind == _KIND_SHEAR_MOD:      return self._layered_ptr.get_shear_modulus(radius_m)
-        elif kind == _KIND_BULK_MOD:       return self._layered_ptr.get_bulk_modulus(radius_m)
-        elif kind == _KIND_SHEAR_VISC:     return self._layered_ptr.get_shear_viscosity(radius_m)
-        elif kind == _KIND_BULK_VISC:      return self._layered_ptr.get_bulk_viscosity(radius_m)
-        elif kind == _KIND_PRE_SHEAR_MOD:  return self._layered_ptr.get_premelt_shear_modulus(radius_m)
-        elif kind == _KIND_PRE_BULK_MOD:   return self._layered_ptr.get_premelt_bulk_modulus(radius_m)
-        elif kind == _KIND_PRE_SHEAR_VISC: return self._layered_ptr.get_premelt_shear_viscosity(radius_m)
-        elif kind == _KIND_PRE_BULK_VISC:  return self._layered_ptr.get_premelt_bulk_viscosity(radius_m)
+    cdef double _eval_real(self, int kind, double radius) noexcept nogil:
+        if   kind == _KIND_DENSITY:        return self._layered_ptr.get_density(radius)
+        elif kind == _KIND_GRAVITY:        return self._layered_ptr.get_gravity(radius)
+        elif kind == _KIND_PRESSURE:       return self._layered_ptr.get_pressure(radius)
+        elif kind == _KIND_SHEAR_MOD:      return self._layered_ptr.get_shear_modulus(radius)
+        elif kind == _KIND_BULK_MOD:       return self._layered_ptr.get_bulk_modulus(radius)
+        elif kind == _KIND_SHEAR_VISC:     return self._layered_ptr.get_shear_viscosity(radius)
+        elif kind == _KIND_BULK_VISC:      return self._layered_ptr.get_bulk_viscosity(radius)
+        elif kind == _KIND_PRE_SHEAR_MOD:  return self._layered_ptr.get_premelt_shear_modulus(radius)
+        elif kind == _KIND_PRE_BULK_MOD:   return self._layered_ptr.get_premelt_bulk_modulus(radius)
+        elif kind == _KIND_PRE_SHEAR_VISC: return self._layered_ptr.get_premelt_shear_viscosity(radius)
+        elif kind == _KIND_PRE_BULK_VISC:  return self._layered_ptr.get_premelt_bulk_viscosity(radius)
         return 0.0
 
-    def _apply_real(self, radius_m, int kind):
+    def _apply_real(self, radius, int kind):
         # float -> float; np.ndarray -> np.ndarray (same shape, looped under nogil).
         cdef cnp.ndarray in_arr
         cdef cnp.ndarray out_arr
         cdef double[::1] flat_in
         cdef double[::1] flat_out
         cdef Py_ssize_t i, n
-        if isinstance(radius_m, np.ndarray):
-            in_arr   = np.ascontiguousarray(radius_m, dtype=np.float64)
-            out_arr  = np.empty_like(in_arr)
-            flat_in  = in_arr.reshape(-1)
+        if isinstance(radius, np.ndarray):
+            in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
+            out_arr = np.empty_like(in_arr)
+            flat_in = in_arr.reshape(-1)
             flat_out = out_arr.reshape(-1)
             n = flat_in.shape[0]
             with nogil:
                 for i in range(n):
                     flat_out[i] = self._eval_real(kind, flat_in[i])
             return out_arr
-        return self._eval_real(kind, <double>radius_m)
+        return self._eval_real(kind, <double>radius)
 
-    def _apply_complex(self, radius_m, double frequency_rad_s, cpp_bool is_shear):
+    def _apply_complex(self, radius, double frequency, cpp_bool is_shear):
         # float -> complex; np.ndarray -> complex np.ndarray (same shape).
         cdef cnp.ndarray in_arr
         cdef cnp.ndarray out_arr
@@ -541,110 +541,110 @@ cdef class LayeredWorld(BaseWorld):
         cdef double complex[::1] flat_out
         cdef cpp_complex[double] value
         cdef Py_ssize_t i, n
-        if isinstance(radius_m, np.ndarray):
-            in_arr   = np.ascontiguousarray(radius_m, dtype=np.float64)
-            out_arr  = np.empty_like(in_arr, dtype=np.complex128)
-            flat_in  = in_arr.reshape(-1)
+        if isinstance(radius, np.ndarray):
+            in_arr  = np.ascontiguousarray(radius, dtype=np.float64)
+            out_arr = np.empty_like(in_arr, dtype=np.complex128)
+            flat_in = in_arr.reshape(-1)
             flat_out = out_arr.reshape(-1)
             n = flat_in.shape[0]
             for i in range(n):
                 if is_shear:
-                    value = self._layered_ptr.calc_complex_shear_modulus(flat_in[i], frequency_rad_s)
+                    value = self._layered_ptr.calc_complex_shear_modulus(flat_in[i], frequency)
                 else:
-                    value = self._layered_ptr.calc_complex_bulk_modulus(flat_in[i], frequency_rad_s)
+                    value = self._layered_ptr.calc_complex_bulk_modulus(flat_in[i], frequency)
                 flat_out[i] = value.real() + 1j * value.imag()
             return out_arr
         if is_shear:
-            value = self._layered_ptr.calc_complex_shear_modulus(<double>radius_m, frequency_rad_s)
+            value = self._layered_ptr.calc_complex_shear_modulus(<double>radius, frequency)
         else:
-            value = self._layered_ptr.calc_complex_bulk_modulus(<double>radius_m, frequency_rad_s)
+            value = self._layered_ptr.calc_complex_bulk_modulus(<double>radius, frequency)
         return complex(value.real(), value.imag())
 
-    def get_density(self, radius_m):
-        """Density [kg/m^3] at radius_m [m] (float or np.ndarray); NaN if unsolved."""
-        return self._apply_real(radius_m, _KIND_DENSITY)
+    def get_density(self, radius):
+        """Density [kg/m^3] at radius [m] (float or np.ndarray); NaN if unsolved."""
+        return self._apply_real(radius, _KIND_DENSITY)
 
-    def get_gravity(self, radius_m):
-        """Gravitational acceleration [m/s^2] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_GRAVITY)
+    def get_gravity(self, radius):
+        """Gravitational acceleration [m/s^2] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_GRAVITY)
 
-    def get_pressure(self, radius_m):
-        """Pressure [Pa] at radius_m [m] (float or np.ndarray); NaN if unsolved."""
-        return self._apply_real(radius_m, _KIND_PRESSURE)
+    def get_pressure(self, radius):
+        """Pressure [Pa] at radius [m] (float or np.ndarray); NaN if unsolved."""
+        return self._apply_real(radius, _KIND_PRESSURE)
 
-    def get_shear_modulus(self, radius_m):
-        """Post-melt static shear modulus [Pa] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_SHEAR_MOD)
+    def get_shear_modulus(self, radius):
+        """Post-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_SHEAR_MOD)
 
-    def get_bulk_modulus(self, radius_m):
-        """Post-melt static bulk modulus [Pa] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_BULK_MOD)
+    def get_bulk_modulus(self, radius):
+        """Post-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_BULK_MOD)
 
-    def get_shear_viscosity(self, radius_m):
-        """Post-melt shear viscosity [Pa s] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_SHEAR_VISC)
+    def get_shear_viscosity(self, radius):
+        """Post-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_SHEAR_VISC)
 
-    def get_bulk_viscosity(self, radius_m):
-        """Post-melt bulk viscosity [Pa s] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_BULK_VISC)
+    def get_bulk_viscosity(self, radius):
+        """Post-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_BULK_VISC)
 
-    def get_premelt_shear_modulus(self, radius_m):
-        """Pre-melt static shear modulus [Pa] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_PRE_SHEAR_MOD)
+    def get_premelt_shear_modulus(self, radius):
+        """Pre-melt static shear modulus [Pa] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_PRE_SHEAR_MOD)
 
-    def get_premelt_bulk_modulus(self, radius_m):
-        """Pre-melt static bulk modulus [Pa] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_PRE_BULK_MOD)
+    def get_premelt_bulk_modulus(self, radius):
+        """Pre-melt static bulk modulus [Pa] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_PRE_BULK_MOD)
 
-    def get_premelt_shear_viscosity(self, radius_m):
-        """Pre-melt shear viscosity [Pa s] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_PRE_SHEAR_VISC)
+    def get_premelt_shear_viscosity(self, radius):
+        """Pre-melt shear viscosity [Pa s] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_PRE_SHEAR_VISC)
 
-    def get_premelt_bulk_viscosity(self, radius_m):
-        """Pre-melt bulk viscosity [Pa s] at radius_m [m] (float or np.ndarray)."""
-        return self._apply_real(radius_m, _KIND_PRE_BULK_VISC)
+    def get_premelt_bulk_viscosity(self, radius):
+        """Pre-melt bulk viscosity [Pa s] at radius [m] (float or np.ndarray)."""
+        return self._apply_real(radius, _KIND_PRE_BULK_VISC)
 
-    def calc_complex_shear_modulus(self, radius_m, double frequency_rad_s, cpp_bool recalc_eos=False):
-        """Complex shear modulus [Pa] at radius_m [m] (float or np.ndarray) and frequency [rad/s].
+    def calc_complex_shear_modulus(self, radius, double frequency, cpp_bool recalc_eos=False):
+        """Complex shear modulus [Pa] at radius [m] (float or np.ndarray) and frequency [rad/s].
 
         Applies the containing layer's shear rheology to the stored post-melt static
         modulus + viscosity. Solves the EOS first if it has not been solved (or if
         ``recalc_eos``). NaN+0j for a geometry-only layer or no rheology.
         """
         self._ensure_solved(recalc_eos)
-        return self._apply_complex(radius_m, frequency_rad_s, True)
+        return self._apply_complex(radius, frequency, True)
 
-    def calc_complex_bulk_modulus(self, radius_m, double frequency_rad_s, cpp_bool recalc_eos=False):
-        """Complex bulk modulus [Pa] at radius_m [m] (float or np.ndarray) and frequency [rad/s].
+    def calc_complex_bulk_modulus(self, radius, double frequency, cpp_bool recalc_eos=False):
+        """Complex bulk modulus [Pa] at radius [m] (float or np.ndarray) and frequency [rad/s].
 
         Applies the containing layer's bulk rheology to the stored post-melt static
         modulus + viscosity. Solves the EOS first if it has not been solved (or if
         ``recalc_eos``). NaN+0j for a geometry-only layer or no rheology.
         """
         self._ensure_solved(recalc_eos)
-        return self._apply_complex(radius_m, frequency_rad_s, False)
+        return self._apply_complex(radius, frequency, False)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Shorthand bundles (one call returns several profiles at once).
     # ------------------------------------------------------------------------------------------------------------------
-    def get_static_viscoelastics(self, radius_m):
-        """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius_m.
+    def get_static_viscoelastics(self, radius):
+        """``(shear_modulus, shear_viscosity, bulk_modulus, bulk_viscosity)`` (post-melt) at radius.
 
         Each element is a float (scalar radius) or np.ndarray (array of radii).
         """
-        return (self.get_shear_modulus(radius_m), self.get_shear_viscosity(radius_m),
-                self.get_bulk_modulus(radius_m),  self.get_bulk_viscosity(radius_m))
+        return (self.get_shear_modulus(radius), self.get_shear_viscosity(radius),
+                self.get_bulk_modulus(radius),  self.get_bulk_viscosity(radius))
 
-    def get_state(self, radius_m):
-        """All EOS-related profiles at radius_m as a dict (float or np.ndarray values)."""
+    def get_state(self, radius):
+        """All EOS-related profiles at radius as a dict (float or np.ndarray values)."""
         return {
-            "density":         self.get_density(radius_m),
-            "gravity":         self.get_gravity(radius_m),
-            "pressure":        self.get_pressure(radius_m),
-            "shear_modulus":   self.get_shear_modulus(radius_m),
-            "shear_viscosity": self.get_shear_viscosity(radius_m),
-            "bulk_modulus":    self.get_bulk_modulus(radius_m),
-            "bulk_viscosity":  self.get_bulk_viscosity(radius_m),
+            "density":         self.get_density(radius),
+            "gravity":         self.get_gravity(radius),
+            "pressure":        self.get_pressure(radius),
+            "shear_modulus":   self.get_shear_modulus(radius),
+            "shear_viscosity": self.get_shear_viscosity(radius),
+            "bulk_modulus":    self.get_bulk_modulus(radius),
+            "bulk_viscosity":  self.get_bulk_viscosity(radius),
         }
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -654,50 +654,50 @@ cdef class LayeredWorld(BaseWorld):
         if force_recalc or not self._layered_ptr.get_eos_solved():
             self.solve_eos()
 
-    def calc_density(self, radius_m, cpp_bool force_recalc=False):
+    def calc_density(self, radius, cpp_bool force_recalc=False):
         """Density [kg/m^3]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_density(radius_m)
+        return self.get_density(radius)
 
-    def calc_gravity(self, radius_m, cpp_bool force_recalc=False):
+    def calc_gravity(self, radius, cpp_bool force_recalc=False):
         """Gravitational acceleration [m/s^2]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_gravity(radius_m)
+        return self.get_gravity(radius)
 
-    def calc_pressure(self, radius_m, cpp_bool force_recalc=False):
+    def calc_pressure(self, radius, cpp_bool force_recalc=False):
         """Pressure [Pa]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_pressure(radius_m)
+        return self.get_pressure(radius)
 
-    def calc_shear_modulus(self, radius_m, cpp_bool force_recalc=False):
+    def calc_shear_modulus(self, radius, cpp_bool force_recalc=False):
         """Post-melt shear modulus [Pa]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_shear_modulus(radius_m)
+        return self.get_shear_modulus(radius)
 
-    def calc_bulk_modulus(self, radius_m, cpp_bool force_recalc=False):
+    def calc_bulk_modulus(self, radius, cpp_bool force_recalc=False):
         """Post-melt bulk modulus [Pa]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_bulk_modulus(radius_m)
+        return self.get_bulk_modulus(radius)
 
-    def calc_shear_viscosity(self, radius_m, cpp_bool force_recalc=False):
+    def calc_shear_viscosity(self, radius, cpp_bool force_recalc=False):
         """Post-melt shear viscosity [Pa s]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_shear_viscosity(radius_m)
+        return self.get_shear_viscosity(radius)
 
-    def calc_bulk_viscosity(self, radius_m, cpp_bool force_recalc=False):
+    def calc_bulk_viscosity(self, radius, cpp_bool force_recalc=False):
         """Post-melt bulk viscosity [Pa s]; solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_bulk_viscosity(radius_m)
+        return self.get_bulk_viscosity(radius)
 
-    def calc_static_viscoelastics(self, radius_m, cpp_bool force_recalc=False):
+    def calc_static_viscoelastics(self, radius, cpp_bool force_recalc=False):
         """``get_static_viscoelastics`` but solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_static_viscoelastics(radius_m)
+        return self.get_static_viscoelastics(radius)
 
-    def calc_state(self, radius_m, cpp_bool force_recalc=False):
+    def calc_state(self, radius, cpp_bool force_recalc=False):
         """``get_state`` but solves the EOS first if needed."""
         self._ensure_solved(force_recalc)
-        return self.get_state(radius_m)
+        return self.get_state(radius)
 
     @property
     def surface_gravity_eos(self) -> float:
@@ -746,11 +746,11 @@ cdef class LayeredWorld(BaseWorld):
     # ------------------------------------------------------------------------------------------------------------------
     def solve_love_numbers(
             self,
-            double frequency_rad_s     = 1.0e-5,
-            int degree_l               = 2,
-            str solve_for              = 'tidal',
-            int core_model             = 0,
-            cpp_bool use_kamata        = True,
+            double frequency = 1.0e-5,
+            int degree_l     = 2,
+            str solve_for    = 'tidal',
+            int core_model   = 0,
+            cpp_bool use_kamata = True,
             cpp_bool nondimensionalize = True,
             double starting_radius     = 0.0,
             double start_radius_tol    = 1.0e-4,
@@ -775,13 +775,13 @@ cdef class LayeredWorld(BaseWorld):
 
         Requires :meth:`solve_eos` to have been called first.  For each radial
         slice the layer's attached rheology model is evaluated at
-        ``frequency_rad_s`` to obtain the complex moduli; the structure ODE is
+        ``frequency`` to obtain the complex moduli; the structure ODE is
         re-integrated from those density/modulus profiles and the deformation ODEs
         are shot from the center to the surface to yield k, h, l.
 
         Parameters
         ----------
-        frequency_rad_s : float, optional
+        frequency : float, optional
             Tidal forcing frequency [rad/s]. Default 1e-5.
         degree_l : int, optional
             Harmonic degree. Default 2.
@@ -859,14 +859,14 @@ cdef class LayeredWorld(BaseWorld):
         cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
 
         cdef c_LoveSolveConfig cfg
-        cfg.frequency_rad_s   = frequency_rad_s
-        cfg.degree_l          = degree_l
-        cfg.bc_model          = _resolve_solve_for(solve_for)
-        cfg.love_method       = _resolve_love_method(love_method)
-        cfg.fixed_q           = d_NAN if fixed_q is None else <double>fixed_q
-        cfg.fixed_dt          = d_NAN if fixed_dt is None else <double>fixed_dt
-        cfg.core_model        = core_model
-        cfg.use_kamata        = <cpp_bool>use_kamata
+        cfg.frequency = frequency
+        cfg.degree_l  = degree_l
+        cfg.bc_model  = _resolve_solve_for(solve_for)
+        cfg.love_method = _resolve_love_method(love_method)
+        cfg.fixed_q    = d_NAN if fixed_q is None else <double>fixed_q
+        cfg.fixed_dt   = d_NAN if fixed_dt is None else <double>fixed_dt
+        cfg.core_model = core_model
+        cfg.use_kamata = <cpp_bool>use_kamata
         cfg.nondimensionalize = <cpp_bool>nondimensionalize
         cfg.starting_radius   = starting_radius
         cfg.start_radius_tol  = start_radius_tol
@@ -897,11 +897,11 @@ cdef class LayeredWorld(BaseWorld):
             double complex[::1] complex_shear_modulus not None,
             double complex[::1] complex_bulk_modulus not None,
             double[::1] radius_array not None,
-            double frequency_rad_s     = 1.0e-5,
-            int    degree_l            = 2,
-            str    solve_for           = 'tidal',
-            int    core_model          = 0,
-            cpp_bool use_kamata        = True,
+            double frequency  = 1.0e-5,
+            int    degree_l   = 2,
+            str    solve_for  = 'tidal',
+            int    core_model = 0,
+            cpp_bool use_kamata = True,
             cpp_bool nondimensionalize = True,
             double starting_radius     = 0.0,
             double start_radius_tol    = 1.0e-4,
@@ -932,15 +932,15 @@ cdef class LayeredWorld(BaseWorld):
         cdef ODEMethod ode_method = _resolve_integration_method(integration_method)
 
         cdef c_LoveSolveConfig cfg
-        cfg.frequency_rad_s    = frequency_rad_s
-        cfg.degree_l           = degree_l
-        cfg.bc_model           = _resolve_solve_for(solve_for)
-        cfg.love_method        = _resolve_love_method(love_method)
-        cfg.core_model         = core_model
-        cfg.use_kamata         = <cpp_bool>use_kamata
-        cfg.nondimensionalize  = <cpp_bool>nondimensionalize
-        cfg.starting_radius    = starting_radius
-        cfg.start_radius_tol   = start_radius_tol
+        cfg.frequency   = frequency
+        cfg.degree_l    = degree_l
+        cfg.bc_model    = _resolve_solve_for(solve_for)
+        cfg.love_method = _resolve_love_method(love_method)
+        cfg.core_model  = core_model
+        cfg.use_kamata  = <cpp_bool>use_kamata
+        cfg.nondimensionalize = <cpp_bool>nondimensionalize
+        cfg.starting_radius  = starting_radius
+        cfg.start_radius_tol = start_radius_tol
         cfg.integration_method = ode_method
         cfg.rtol               = rtol
         cfg.atol               = atol
@@ -1071,15 +1071,15 @@ cdef class LayeredWorld(BaseWorld):
         cdef cpp_complex[double] v = self._layered_ptr.get_love_number_l(<size_t>ytype_idx)
         return complex(v.real(), v.imag())
 
-    def get_love_radial_y(self, double radius_m, ytype_idx: int = 0, y_idx: int = 0) -> complex:
-        """Radial function y[y_idx + 1] (SI) at ``radius_m`` from the last radial-solver Love solve.
+    def get_love_radial_y(self, double radius, ytype_idx: int = 0, y_idx: int = 0) -> complex:
+        """Radial function y[y_idx + 1] (SI) at ``radius`` from the last radial-solver Love solve.
 
         The shooting method evaluates its dense per-layer interpolants at the radius; the propagation
         matrix interpolates its grid. NaN if unsolved, after an analytic (homogeneous/cpl/ctl) solve, out
         of range, or below the solver's starting radius. ``y_idx`` 0..5 selects y1..y6.
         """
         cdef cpp_complex[double] v = self._layered_ptr.get_radial_solution_y(
-            radius_m, <size_t>ytype_idx, <size_t>y_idx)
+            radius, <size_t>ytype_idx, <size_t>y_idx)
         return complex(v.real(), v.imag())
 
     def get_love_surface_y(self, ytype_idx: int, y_idx: int) -> complex:
@@ -1480,7 +1480,7 @@ cdef class LayeredWorld(BaseWorld):
 
         Each entry is the layer's own ``get_config_dict`` (``class``, scalars, attached-model
         sub-tables) minus the standalone-only keys the builder derives itself (``name``,
-        ``radius_inner_m``, the Love-number components). The result validates against the world
+        ``radius_inner``, the Love-number components). The result validates against the world
         schema and rebuilds the same structure through ``build_world``.
 
         Returns

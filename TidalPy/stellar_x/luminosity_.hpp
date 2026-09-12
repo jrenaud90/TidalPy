@@ -48,7 +48,7 @@ namespace tidalpy {
 // -------------------------------------------------------------------------------
 struct c_LuminosityConfig {
     // Fixed model - the luminosity to report regardless of mass.
-    double luminosity_w = 0.0;                  // [W]
+    double luminosity = 0.0;                  // [W]
 
     // Power-law model - L = Lsun * power_law_coeff * (M / Msun)^power_law_exponent.
     double power_law_coeff    = 1.0;            // dimensionless prefactor
@@ -64,19 +64,19 @@ struct c_LuminosityConfig {
 // =====================================================================================================================
 
 // Fixed: report the stored luminosity regardless of mass.
-inline double lum_from_fixed(double /*mass_kg*/, double luminosity_w) noexcept {
-    return luminosity_w;
+inline double lum_from_fixed(double /*mass*/, double luminosity) noexcept {
+    return luminosity;
 }
 
 // Mass-to-luminosity: the piecewise main-sequence relation (Cuntz and Wang 2018).
 // mass_ratio = M / Msun.
-inline double lum_from_mass(double mass_kg) noexcept {
+inline double lum_from_mass(double mass) noexcept {
     const double mass_solar      = TidalPyConstants::d_MASS_SOLAR;
     const double luminosity_solar = TidalPyConstants::d_LUMINOSITY_SOLAR;
-    if (mass_kg <= 0.0 || mass_solar <= 0.0) {
+    if (mass <= 0.0 || mass_solar <= 0.0) {
         return TidalPyConstants::d_NAN;
     }
-    const double mass_ratio = mass_kg / mass_solar;
+    const double mass_ratio = mass / mass_solar;
 
     if (mass_ratio < 0.2) {
         return luminosity_solar * 0.23 * std::pow(mass_ratio, 2.3);
@@ -103,13 +103,13 @@ inline double lum_from_mass(double mass_kg) noexcept {
 }
 
 // Power law: L = Lsun * coeff * (M / Msun)^exponent.
-inline double lum_from_power_law(double mass_kg, double coeff, double exponent) noexcept {
+inline double lum_from_power_law(double mass, double coeff, double exponent) noexcept {
     const double mass_solar       = TidalPyConstants::d_MASS_SOLAR;
     const double luminosity_solar = TidalPyConstants::d_LUMINOSITY_SOLAR;
-    if (mass_kg <= 0.0 || mass_solar <= 0.0) {
+    if (mass <= 0.0 || mass_solar <= 0.0) {
         return TidalPyConstants::d_NAN;
     }
-    return luminosity_solar * coeff * std::pow(mass_kg / mass_solar, exponent);
+    return luminosity_solar * coeff * std::pow(mass / mass_solar, exponent);
 }
 
 // -------------------------------------------------------------------------------
@@ -133,31 +133,31 @@ public:
     c_FixedLuminosity() : c_LuminosityBase("fixed") {}
     explicit c_FixedLuminosity(const c_LuminosityConfig& config)
         : c_LuminosityBase("fixed"),
-          p_luminosity_w(config.luminosity_w) {}
+          p_luminosity(config.luminosity) {}
     ~c_FixedLuminosity() override = default;
 
-    double get_luminosity() const noexcept { return this->p_luminosity_w; }
+    double get_luminosity() const noexcept { return this->p_luminosity; }
 
     void append_config_entries(std::vector<c_ConfigEntry>& out) const override {
         c_LuminosityBase::append_config_entries(out);
-        out.push_back(c_config_double("luminosity_w", this->p_luminosity_w));
+        out.push_back(c_config_double("luminosity_w", this->p_luminosity));
     }
 
-    double calc_luminosity(double mass_kg) const override {
-        return lum_from_fixed(mass_kg, this->p_luminosity_w);
+    double calc_luminosity(double mass) const override {
+        return lum_from_fixed(mass, this->p_luminosity);
     }
 
     void write_binary(std::ostream& out) const override {
         this->write_physics_binary(
-            out, static_cast<uint32_t>(BinaryClassID::FixedLuminosity), {this->p_luminosity_w});
+            out, static_cast<uint32_t>(BinaryClassID::FixedLuminosity), {this->p_luminosity});
     }
     void read_binary(std::istream& in, bool force = false) override {
         const std::vector<double> params = this->read_physics_binary(in, force, 1);
-        this->p_luminosity_w = params[0];
+        this->p_luminosity = params[0];
     }
 
 protected:
-    double p_luminosity_w = 0.0;
+    double p_luminosity = 0.0;
 };
 
 // -------------------------------------------------------------------------------
@@ -170,8 +170,8 @@ public:
         : c_LuminosityBase("mass_to_luminosity") {}
     ~c_MassToLuminosity() override = default;
 
-    double calc_luminosity(double mass_kg) const override {
-        return lum_from_mass(mass_kg);
+    double calc_luminosity(double mass) const override {
+        return lum_from_mass(mass);
     }
 
     void write_binary(std::ostream& out) const override {
@@ -203,8 +203,8 @@ public:
         out.push_back(c_config_double("power_law_exponent", this->p_exponent));
     }
 
-    double calc_luminosity(double mass_kg) const override {
-        return lum_from_power_law(mass_kg, this->p_coeff, this->p_exponent);
+    double calc_luminosity(double mass) const override {
+        return lum_from_power_law(mass, this->p_coeff, this->p_exponent);
     }
 
     void write_binary(std::ostream& out) const override {

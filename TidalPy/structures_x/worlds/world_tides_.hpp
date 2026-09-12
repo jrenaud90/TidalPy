@@ -98,7 +98,7 @@ inline void c_LayeredWorld::calc_tides(const c_TideSolveConfig& state) {
             love_by_l_freq.get(cached, lf_key);
             if (!cached) {
                 love_cfg.degree_l        = degree_l;
-                love_cfg.frequency_rad_s = frequency;
+                love_cfg.frequency = frequency;
                 this->solve_love_numbers(love_cfg);
                 if (!this->get_love_success()) {
                     this->p_tides_solved = false;
@@ -237,7 +237,7 @@ inline double c_RheologyTide::calc_3d_tidal_heating(
         }
 
         love_cfg.degree_l = mode.degree_l;
-        love_cfg.frequency_rad_s = frequency;
+        love_cfg.frequency = frequency;
         world.solve_love_numbers(love_cfg);
         if (!world.get_love_success()) {
             throw std::runtime_error(
@@ -398,7 +398,7 @@ inline void c_RheologyTide::calc_3d_displacements_grid(
         }
         if (mode.degree_l != last_degree_l || frequency != last_frequency) {
             love_cfg.degree_l = mode.degree_l;
-            love_cfg.frequency_rad_s = frequency;
+            love_cfg.frequency = frequency;
             world.solve_love_numbers(love_cfg);
             if (!world.get_love_success()) {
                 throw std::runtime_error(
@@ -510,7 +510,7 @@ inline void c_RheologyTide::calc_3d_tidal_heating_batch(
         // (the engine emits modes grouped by degree, so shared frequencies cluster).
         if (mode.degree_l != last_degree_l || frequency != last_frequency) {
             love_cfg.degree_l = mode.degree_l;
-            love_cfg.frequency_rad_s = frequency;
+            love_cfg.frequency = frequency;
             world.solve_love_numbers(love_cfg);
             if (!world.get_love_success()) {
                 throw std::runtime_error(
@@ -807,7 +807,7 @@ inline c_Heating3DCollapsed c_RheologyTide::calc_3d_tidal_heating_collapsed(
     c_LoveSolveConfig love_cfg = world.make_radial_love_solve_config();
     for (size_t g = 0; g < groups.size(); ++g) {
         love_cfg.degree_l = groups[g].degree_l;
-        love_cfg.frequency_rad_s = groups[g].frequency;
+        love_cfg.frequency = groups[g].frequency;
         world.solve_love_numbers(love_cfg);
         if (!world.get_love_success()) {
             throw std::runtime_error(

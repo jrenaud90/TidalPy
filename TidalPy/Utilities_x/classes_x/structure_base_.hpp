@@ -27,8 +27,8 @@ public:
     // -----------------------------------------------------------------------
     c_StructureBase() = default;
 
-    c_StructureBase(double radius_m, double mass_kg)
-        : p_radius(radius_m), p_mass(mass_kg) {}
+    c_StructureBase(double radius, double mass)
+        : p_radius(radius), p_mass(mass) {}
 
     ~c_StructureBase() override = default;
 

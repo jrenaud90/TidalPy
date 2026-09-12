@@ -45,9 +45,9 @@ def _build_world(tide_model="rheology"):
 
     world = LayeredWorld("w", _R, _MASS)
     layer = PhysicsLayer("mantle", 0, 0.0, _R, _MASS,
-                         shear_modulus_static_pa=_SHEAR, bulk_modulus_static_pa=_BULK)
+                         shear_modulus_static=_SHEAR, bulk_modulus_static=_BULK)
     layer.is_static = False   # dynamic solid (matches the legacy is_static_bylayer=(False,))
-    layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_DENSITY))
+    layer.set_eos(ConstantDensityEOS(reference_density=_DENSITY))
     layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": _VISC}))
     layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": _VISC}))
     layer.set_shear_rheology(Maxwell())

@@ -22,7 +22,7 @@ from TidalPy.Utilities_x.classes_x.classes cimport PhysicsBase, c_PhysicsBase
 cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_PartialMeltInputs:
-        double temperature_k
+        double temperature
         double premelt_viscosity
         double premelt_shear
         double liquid_viscosity
@@ -36,16 +36,16 @@ cdef extern from "partial_melt_base_.hpp" namespace "tidalpy" nogil:
         double get_solidus() const
         double get_liquidus() const
         double get_liquid_shear() const
-        double calc_melt_fraction(double temperature_k) const
+        double calc_melt_fraction(double temperature) const
         c_PartialMeltResult calc_partial_melt(const c_PartialMeltInputs& inputs) const
 
 
 cdef extern from "partial_melt_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_PartialMeltConfig:
-        double solidus_k
-        double liquidus_k
-        double liquid_shear_pa
+        double solidus
+        double liquidus
+        double liquid_shear
         double fs_visc_power_slope
         double fs_visc_power_phase
         double fs_shear_power_slope

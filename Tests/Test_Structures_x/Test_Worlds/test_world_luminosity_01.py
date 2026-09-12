@@ -59,7 +59,7 @@ def test_effective_temperature_from_mass():
 
 def test_update_luminosity_from_mass():
     """The update mutator writes the mass-derived L and T back onto the star's scalar fields."""
-    star = StarWorld("s", RADIUS_SOLAR, MASS_SOLAR, effective_temperature_k=3000.0, luminosity_w=1.0)
+    star = StarWorld("s", RADIUS_SOLAR, MASS_SOLAR, effective_temperature=3000.0, luminosity=1.0)
     star.set_luminosity_model(MassToLuminosity())
     star.update_luminosity_from_mass()
     assert math.isclose(star.luminosity, LUM_SOLAR, rel_tol=1e-12)

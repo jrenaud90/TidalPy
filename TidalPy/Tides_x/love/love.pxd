@@ -39,15 +39,15 @@ cdef extern from "love_method_.hpp" namespace "tidalpy" nogil:
     string c_love_method_name_int(int value) except +
 
     double c_calc_effective_rigidity_real(
-        double shear_modulus_pa, double density_kg_m3, double gravity_m_s2, double radius_m, int degree_l) except +
+        double shear_modulus, double density, double gravity, double radius, int degree_l) except +
     cpp_complex[double] c_calc_effective_rigidity_complex(
-        cpp_complex[double] shear_modulus_pa, double density_kg_m3, double gravity_m_s2, double radius_m,
+        cpp_complex[double] shear_modulus, double density, double gravity, double radius,
         int degree_l) except +
     c_LoveNumbers c_calc_homogeneous_love_numbers(
-        cpp_complex[double] complex_shear_modulus_pa, double density_kg_m3, double gravity_m_s2, double radius_m,
+        cpp_complex[double] complex_shear_modulus, double density, double gravity, double radius,
         int degree_l) except +
     c_LoveNumbers c_apply_fixed_q(const c_LoveNumbers& love, double fixed_q) except +
-    c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequency_rad_s, double fixed_dt_s) except +
+    c_LoveNumbers c_apply_fixed_dt(const c_LoveNumbers& love, double frequency, double fixed_dt) except +
 
 
 # =====================================================================================================================

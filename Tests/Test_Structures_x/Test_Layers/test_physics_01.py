@@ -43,21 +43,21 @@ _VISCOSITY_PAS    = 1.0e21       # [Pa·s]
 def _make_mantle(shear=_SHEAR_MOD_PA, bulk=_BULK_MOD_PA, shear_visc=_VISCOSITY_PAS, bulk_visc=_VISCOSITY_PAS):
     mod = _import_physics()
     return mod.PhysicsLayer(
-        name                       = "mantle",
-        layer_index                = 1,
-        radius_inner_m             = _MANTLE_R_INNER_M,
-        radius_outer_m             = _MANTLE_R_OUTER_M,
-        mass_kg                    = _MANTLE_MASS_KG,
-        material_name              = "perovskite",
-        is_tidal                   = True,
-        tidal_scale                = 1.0,
-        shear_modulus_static_pa    = shear,
-        bulk_modulus_static_pa     = bulk,
-        shear_viscosity_static_pas = shear_visc,
-        bulk_viscosity_static_pas  = bulk_visc,
-        love_number_k              = 0.0 + 0.0j,
-        love_number_h              = 0.0 + 0.0j,
-        love_number_l              = 0.0 + 0.0j,
+        name          = "mantle",
+        layer_index   = 1,
+        radius_inner  = _MANTLE_R_INNER_M,
+        radius_outer  = _MANTLE_R_OUTER_M,
+        mass          = _MANTLE_MASS_KG,
+        material_name = "perovskite",
+        is_tidal      = True,
+        tidal_scale   = 1.0,
+        shear_modulus_static = shear,
+        bulk_modulus_static  = bulk,
+        shear_viscosity_static = shear_visc,
+        bulk_viscosity_static = bulk_visc,
+        love_number_k = 0.0 + 0.0j,
+        love_number_h = 0.0 + 0.0j,
+        love_number_l = 0.0 + 0.0j,
     )
 
 
@@ -68,8 +68,8 @@ def test_physics_layer_construction_basic():
     """PhysicsLayer stores all config values at construction."""
     mod = _import_physics()
     pl = mod.PhysicsLayer("core", 0, 0.0, 3.485e6, 1.932e24,
-                          shear_modulus_static_pa=5e10, bulk_modulus_static_pa=2e11,
-                          shear_viscosity_static_pas=1e20, bulk_viscosity_static_pas=1e22)
+                          shear_modulus_static=5e10, bulk_modulus_static=2e11,
+                          shear_viscosity_static=1e20, bulk_viscosity_static=1e22)
     assert pl.name                   == "core"
     assert pl.layer_index            == 0
     assert pl.radius_inner           == pytest.approx(0.0)
@@ -99,7 +99,7 @@ def test_unset_static_viscosity_fails_loudly():
     """Without a static viscosity, a viscous rheology's layer-constant modulus is NaN; elastic is unaffected."""
     from TidalPy.rheology_x.rheology import Elastic, Maxwell
     mod = _import_physics()
-    pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20, shear_modulus_static_pa=_SHEAR_MOD_PA)
+    pl = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20, shear_modulus_static=_SHEAR_MOD_PA)
     pl.set_shear_rheology(Elastic())
     assert pl.calc_complex_shear_modulus(1e-5) == pytest.approx(_SHEAR_MOD_PA + 0.0j)
     pl.set_shear_rheology(Maxwell())
@@ -188,7 +188,7 @@ def test_complex_modulus_zero_modulus():
     """With zero static modulus and no rheology, complex modulus is zero."""
     mod = _import_physics()
     pl  = mod.PhysicsLayer("test", 0, 0.0, 1e6, 1e20,
-                           shear_modulus_static_pa=0.0, bulk_modulus_static_pa=0.0)
+                           shear_modulus_static=0.0, bulk_modulus_static=0.0)
     mu = pl.calc_complex_shear_modulus(1e-5)
     K  = pl.calc_complex_bulk_modulus(1e-5)
     assert mu.real == pytest.approx(0.0)

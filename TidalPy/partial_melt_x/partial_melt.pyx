@@ -65,13 +65,13 @@ cdef class PartialMeltBase(PhysicsBase):
         """Shear modulus of the fully-molten material [Pa]."""
         return self._melt_ptr.get().get_liquid_shear()
 
-    def calc_melt_fraction(self, double temperature_k) -> float:
+    def calc_melt_fraction(self, double temperature) -> float:
         """Volumetric melt fraction phi in [0, 1] from temperature [K]."""
-        return self._melt_ptr.get().calc_melt_fraction(temperature_k)
+        return self._melt_ptr.get().calc_melt_fraction(temperature)
 
     def calc_partial_melt(
             self,
-            double temperature_k,
+            double temperature,
             double premelt_viscosity,
             double premelt_shear,
             double liquid_viscosity) -> tuple:
@@ -82,7 +82,7 @@ cdef class PartialMeltBase(PhysicsBase):
         (melt_fraction, postmelt_viscosity, postmelt_shear_modulus) : tuple of float
         """
         cdef c_PartialMeltInputs inputs
-        inputs.temperature_k     = temperature_k
+        inputs.temperature     = temperature
         inputs.premelt_viscosity = premelt_viscosity
         inputs.premelt_shear     = premelt_shear
         inputs.liquid_viscosity  = liquid_viscosity
@@ -99,12 +99,12 @@ cdef class OffPartialMelt(PartialMeltBase):
     def __cinit__(self, *args, **kwargs):
         self._off_ptr = NULL
 
-    def __init__(self, double solidus_k=1600.0, double liquidus_k=2000.0,
-                 double liquid_shear_pa=1.0e-5):
+    def __init__(self, double solidus=1600.0, double liquidus=2000.0,
+                 double liquid_shear=1.0e-5):
         cdef c_PartialMeltConfig config
-        config.solidus_k       = solidus_k
-        config.liquidus_k      = liquidus_k
-        config.liquid_shear_pa = liquid_shear_pa
+        config.solidus  = solidus
+        config.liquidus = liquidus
+        config.liquid_shear = liquid_shear
         cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(
             c_PartialMeltModel.Off, config)
         self._off_ptr  = <c_OffPartialMelt*>ptr.get()
@@ -123,19 +123,19 @@ cdef class SpohnPartialMelt(PartialMeltBase):
 
     def __init__(
             self,
-            double solidus_k=1600.0,
-            double liquidus_k=2000.0,
-            double liquid_shear_pa=1.0e-5,
+            double solidus=1600.0,
+            double liquidus=2000.0,
+            double liquid_shear=1.0e-5,
             double fs_visc_power_slope=27000.0,
             double fs_visc_power_phase=1.0,
             double fs_shear_power_slope=82000.0,
             double fs_shear_power_phase=40.6):
         cdef c_PartialMeltConfig config
-        config.solidus_k            = solidus_k
-        config.liquidus_k           = liquidus_k
-        config.liquid_shear_pa      = liquid_shear_pa
-        config.fs_visc_power_slope  = fs_visc_power_slope
-        config.fs_visc_power_phase  = fs_visc_power_phase
+        config.solidus      = solidus
+        config.liquidus     = liquidus
+        config.liquid_shear = liquid_shear
+        config.fs_visc_power_slope = fs_visc_power_slope
+        config.fs_visc_power_phase = fs_visc_power_phase
         config.fs_shear_power_slope = fs_shear_power_slope
         config.fs_shear_power_phase = fs_shear_power_phase
         cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(c_PartialMeltModel.Spohn, config)
@@ -155,9 +155,9 @@ cdef class HenningPartialMelt(PartialMeltBase):
 
     def __init__(
             self,
-            double solidus_k=1600.0,
-            double liquidus_k=2000.0,
-            double liquid_shear_pa=1.0e-5,
+            double solidus=1600.0,
+            double liquidus=2000.0,
+            double liquid_shear=1.0e-5,
             double crit_melt_frac=0.5,
             double crit_melt_frac_width=0.05,
             double hn_visc_slope_1=13.5,
@@ -166,15 +166,15 @@ cdef class HenningPartialMelt(PartialMeltBase):
             double hn_shear_param_2=25.0,
             double hn_shear_falloff_slope=700.0):
         cdef c_PartialMeltConfig config
-        config.solidus_k              = solidus_k
-        config.liquidus_k             = liquidus_k
-        config.liquid_shear_pa        = liquid_shear_pa
-        config.crit_melt_frac         = crit_melt_frac
-        config.crit_melt_frac_width   = crit_melt_frac_width
-        config.hn_visc_slope_1        = hn_visc_slope_1
-        config.hn_visc_falloff_slope  = hn_visc_falloff_slope
-        config.hn_shear_param_1       = hn_shear_param_1
-        config.hn_shear_param_2       = hn_shear_param_2
+        config.solidus              = solidus
+        config.liquidus             = liquidus
+        config.liquid_shear         = liquid_shear
+        config.crit_melt_frac       = crit_melt_frac
+        config.crit_melt_frac_width = crit_melt_frac_width
+        config.hn_visc_slope_1      = hn_visc_slope_1
+        config.hn_visc_falloff_slope = hn_visc_falloff_slope
+        config.hn_shear_param_1 = hn_shear_param_1
+        config.hn_shear_param_2 = hn_shear_param_2
         config.hn_shear_falloff_slope = hn_shear_falloff_slope
         cdef unique_ptr[c_PartialMeltBase] ptr = c_find_partial_melt(c_PartialMeltModel.Henning, config)
         self._henning_ptr = <c_HenningPartialMelt*>ptr.get()
@@ -197,7 +197,7 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
         One of ``"off"``/``"none"``, ``"spohn"``/``"fischer"``, ``"henning"``
         (case-insensitive; aliases accepted).
     config : dict, optional
-        Model parameters (solidus_k, liquidus_k, liquid_shear_pa, plus the
+        Model parameters (solidus, liquidus, liquid_shear, plus the
         Spohn/Henning scalars). Absent keys fall back to the C++ defaults.
 
     Returns
@@ -215,19 +215,19 @@ def make_partial_melt(str model_name, dict config=None) -> PartialMeltBase:
     # A default-constructed config carries the C++ defaults; only override the
     # fields the caller actually supplies (single source of truth: the C++ struct).
     cdef c_PartialMeltConfig cfg
-    if "solidus_k" in config:              cfg.solidus_k              = config["solidus_k"]
-    if "liquidus_k" in config:             cfg.liquidus_k             = config["liquidus_k"]
-    if "liquid_shear_pa" in config:        cfg.liquid_shear_pa        = config["liquid_shear_pa"]
-    if "fs_visc_power_slope" in config:    cfg.fs_visc_power_slope    = config["fs_visc_power_slope"]
-    if "fs_visc_power_phase" in config:    cfg.fs_visc_power_phase    = config["fs_visc_power_phase"]
-    if "fs_shear_power_slope" in config:   cfg.fs_shear_power_slope   = config["fs_shear_power_slope"]
-    if "fs_shear_power_phase" in config:   cfg.fs_shear_power_phase   = config["fs_shear_power_phase"]
-    if "crit_melt_frac" in config:         cfg.crit_melt_frac         = config["crit_melt_frac"]
-    if "crit_melt_frac_width" in config:   cfg.crit_melt_frac_width   = config["crit_melt_frac_width"]
-    if "hn_visc_slope_1" in config:        cfg.hn_visc_slope_1        = config["hn_visc_slope_1"]
-    if "hn_visc_falloff_slope" in config:  cfg.hn_visc_falloff_slope  = config["hn_visc_falloff_slope"]
-    if "hn_shear_param_1" in config:       cfg.hn_shear_param_1       = config["hn_shear_param_1"]
-    if "hn_shear_param_2" in config:       cfg.hn_shear_param_2       = config["hn_shear_param_2"]
+    if "solidus_k" in config:              cfg.solidus              = config["solidus_k"]
+    if "liquidus_k" in config:             cfg.liquidus             = config["liquidus_k"]
+    if "liquid_shear_pa" in config:        cfg.liquid_shear         = config["liquid_shear_pa"]
+    if "fs_visc_power_slope" in config:    cfg.fs_visc_power_slope  = config["fs_visc_power_slope"]
+    if "fs_visc_power_phase" in config:    cfg.fs_visc_power_phase  = config["fs_visc_power_phase"]
+    if "fs_shear_power_slope" in config:   cfg.fs_shear_power_slope = config["fs_shear_power_slope"]
+    if "fs_shear_power_phase" in config:   cfg.fs_shear_power_phase = config["fs_shear_power_phase"]
+    if "crit_melt_frac" in config:         cfg.crit_melt_frac       = config["crit_melt_frac"]
+    if "crit_melt_frac_width" in config:   cfg.crit_melt_frac_width = config["crit_melt_frac_width"]
+    if "hn_visc_slope_1" in config:        cfg.hn_visc_slope_1      = config["hn_visc_slope_1"]
+    if "hn_visc_falloff_slope" in config:  cfg.hn_visc_falloff_slope = config["hn_visc_falloff_slope"]
+    if "hn_shear_param_1" in config:       cfg.hn_shear_param_1 = config["hn_shear_param_1"]
+    if "hn_shear_param_2" in config:       cfg.hn_shear_param_2 = config["hn_shear_param_2"]
     if "hn_shear_falloff_slope" in config: cfg.hn_shear_falloff_slope = config["hn_shear_falloff_slope"]
 
     cdef c_PartialMeltModel model = c_partial_melt_model_from_name(model_name.encode("utf-8"))

@@ -47,13 +47,13 @@ def test_world_love_solve_implicit(integration_method):
     reference_world = _fresh_world()
     reference_world.solve_eos()
     reference = reference_world.solve_love_numbers(
-        frequency_rad_s=FREQUENCY_RAD_S, integration_method="DOP853")
+        frequency=FREQUENCY_RAD_S, integration_method="DOP853")
     assert reference["success"]
 
     world = _fresh_world()
     world.solve_eos()
     result = world.solve_love_numbers(
-        frequency_rad_s=FREQUENCY_RAD_S, integration_method=integration_method)
+        frequency=FREQUENCY_RAD_S, integration_method=integration_method)
     assert result["success"]
 
     k2_reference = reference_world.love_number_k

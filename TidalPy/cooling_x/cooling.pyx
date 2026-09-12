@@ -53,25 +53,25 @@ cdef void _fill_vector(double[::1] src, vector[double]& dst) noexcept:
 
 
 cdef c_CoolingInputs _build_inputs(
-        double delta_temp_k, double thickness_m, double gravity_m_s2, double density_kg_m3,
-        double viscosity_pas, double thermal_conductivity_w_mk, double thermal_diffusivity_m2_s,
-        double thermal_expansion_1_k):
+        double delta_temp, double thickness, double gravity, double density,
+        double viscosity, double thermal_conductivity, double thermal_diffusivity,
+        double thermal_expansion):
     """Pack the eight cooling inputs into a c_CoolingInputs struct."""
     cdef c_CoolingInputs inp
-    inp.delta_temp_k              = delta_temp_k
-    inp.thickness_m               = thickness_m
-    inp.gravity_m_s2              = gravity_m_s2
-    inp.density_kg_m3             = density_kg_m3
-    inp.viscosity_pas             = viscosity_pas
-    inp.thermal_conductivity_w_mk = thermal_conductivity_w_mk
-    inp.thermal_diffusivity_m2_s  = thermal_diffusivity_m2_s
-    inp.thermal_expansion_1_k     = thermal_expansion_1_k
+    inp.delta_temp = delta_temp
+    inp.thickness = thickness
+    inp.gravity   = gravity
+    inp.density   = density
+    inp.viscosity = viscosity
+    inp.thermal_conductivity = thermal_conductivity
+    inp.thermal_diffusivity = thermal_diffusivity
+    inp.thermal_expansion   = thermal_expansion
     return inp
 
 
 cdef CoolingResult _result_to_py(c_CoolingResult res):
     """Wrap a scalar c_CoolingResult in a Python CoolingResult."""
-    return CoolingResult(res.cooling_flux_w_m2, res.blt_m, res.rayleigh_number, res.nusselt_number)
+    return CoolingResult(res.cooling_flux, res.blt, res.rayleigh_number, res.nusselt_number)
 
 
 cdef CoolingResult _results_to_py(vector[c_CoolingResult]& src, tuple shape):
@@ -87,10 +87,10 @@ cdef CoolingResult _results_to_py(vector[c_CoolingResult]& src, tuple shape):
     cdef double[::1] m_ray  = ray
     cdef double[::1] m_nu   = nu
     for i in range(n):
-        m_flux[i] = src[i].cooling_flux_w_m2
-        m_blt[i]  = src[i].blt_m
-        m_ray[i]  = src[i].rayleigh_number
-        m_nu[i]   = src[i].nusselt_number
+        m_flux[i] = src[i].cooling_flux
+        m_blt[i] = src[i].blt
+        m_ray[i] = src[i].rayleigh_number
+        m_nu[i]  = src[i].nusselt_number
     return CoolingResult(flux.reshape(shape), blt.reshape(shape), ray.reshape(shape), nu.reshape(shape))
 
 
@@ -117,13 +117,13 @@ cdef object _solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
 
     # All scalar -> scalar result.
     if not (d_arr or v_arr):
-        base.delta_temp_k  = <double>delta_temp
-        base.viscosity_pas = <double>viscosity
+        base.delta_temp  = <double>delta_temp
+        base.viscosity = <double>viscosity
         return _result_to_py(model.calc_cooling(base))
 
     # Temperature varies; viscosity constant.
     if d_arr and not v_arr:
-        base.viscosity_pas = <double>viscosity
+        base.viscosity = <double>viscosity
         temp_arr = np.ascontiguousarray(delta_temp, dtype=np.float64)
         mv = temp_arr.ravel(); _fill_vector(mv, vtemp)
         model.calc_cooling_vectorize_temperature(vtemp, base, vout)
@@ -131,7 +131,7 @@ cdef object _solve_cooling(c_CoolingBase* model, c_CoolingInputs base,
 
     # Viscosity varies; temperature constant.
     if v_arr and not d_arr:
-        base.delta_temp_k = <double>delta_temp
+        base.delta_temp = <double>delta_temp
         visc_arr = np.ascontiguousarray(viscosity, dtype=np.float64)
         mv = visc_arr.ravel(); _fill_vector(mv, vvisc)
         model.calc_cooling_vectorize_viscosity(vvisc, base, vout)
@@ -225,29 +225,29 @@ cdef class CoolingBase(PhysicsBase):
     # ------------------------------------------------------------------------------------------------------------------
     # Calculations
     # ------------------------------------------------------------------------------------------------------------------
-    def calc_cooling(self, double delta_temp_k, double thickness_m, double gravity_m_s2,
-                     double density_kg_m3, double viscosity_pas,
-                     double thermal_conductivity_w_mk, double thermal_diffusivity_m2_s,
-                     double thermal_expansion_1_k) -> CoolingResult:
+    def calc_cooling(self, double delta_temp, double thickness, double gravity,
+                     double density, double viscosity,
+                     double thermal_conductivity, double thermal_diffusivity,
+                     double thermal_expansion) -> CoolingResult:
         """Cooling result for the given layer state (all MKS).
 
         Parameters
         ----------
-        delta_temp_k : float
+        delta_temp : float
             Temperature drop across the layer [K].
-        thickness_m : float
+        thickness : float
             Layer (or sub-layer) thickness [m].
-        gravity_m_s2 : float
+        gravity : float
             Gravitational acceleration [m/s^2].
-        density_kg_m3 : float
+        density : float
             Bulk density [kg/m^3].
-        viscosity_pas : float
+        viscosity : float
             Dynamic viscosity [Pa·s].
-        thermal_conductivity_w_mk : float
+        thermal_conductivity : float
             Thermal conductivity [W/m/K].
-        thermal_diffusivity_m2_s : float
+        thermal_diffusivity : float
             Thermal diffusivity [m^2/s].
-        thermal_expansion_1_k : float
+        thermal_expansion : float
             Thermal expansivity [1/K].
 
         Returns
@@ -256,79 +256,79 @@ cdef class CoolingBase(PhysicsBase):
         """
         self._check_ptr()
         cdef c_CoolingInputs inp = _build_inputs(
-            delta_temp_k, thickness_m, gravity_m_s2, density_kg_m3, viscosity_pas,
-            thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k)
+            delta_temp, thickness, gravity, density, viscosity,
+            thermal_conductivity, thermal_diffusivity, thermal_expansion)
         return _result_to_py(self._cooling_ptr.get().calc_cooling(inp))
 
-    def calc_cooling_vectorize_temperature(self, delta_temp_k, double thickness_m,
-                                           double gravity_m_s2, double density_kg_m3,
-                                           double viscosity_pas, double thermal_conductivity_w_mk,
-                                           double thermal_diffusivity_m2_s,
-                                           double thermal_expansion_1_k) -> CoolingResult:
+    def calc_cooling_vectorize_temperature(self, delta_temp, double thickness,
+                                           double gravity, double density,
+                                           double viscosity, double thermal_conductivity,
+                                           double thermal_diffusivity,
+                                           double thermal_expansion) -> CoolingResult:
         """Cooling over a temperature-drop sweep at otherwise fixed state.
 
-        ``delta_temp_k`` is an array; the remaining inputs are scalar constants.
+        ``delta_temp`` is an array; the remaining inputs are scalar constants.
         Returns a ``CoolingResult`` of float64 ndarrays.
         """
         self._check_ptr()
         cdef c_CoolingInputs base = _build_inputs(
-            0.0, thickness_m, gravity_m_s2, density_kg_m3, viscosity_pas,
-            thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k)
+            0.0, thickness, gravity, density, viscosity,
+            thermal_conductivity, thermal_diffusivity, thermal_expansion)
         cdef vector[double] vtemp
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
-        temp_c = np.ascontiguousarray(delta_temp_k, dtype=np.float64).ravel()
+        temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
         mv = temp_c; _fill_vector(mv, vtemp)
         self._cooling_ptr.get().calc_cooling_vectorize_temperature(vtemp, base, vout)
         return _results_to_py(vout, temp_c.shape)
 
-    def calc_cooling_vectorize_viscosity(self, double delta_temp_k, double thickness_m,
-                                         double gravity_m_s2, double density_kg_m3,
-                                         viscosity_pas, double thermal_conductivity_w_mk,
-                                         double thermal_diffusivity_m2_s,
-                                         double thermal_expansion_1_k) -> CoolingResult:
+    def calc_cooling_vectorize_viscosity(self, double delta_temp, double thickness,
+                                         double gravity, double density,
+                                         viscosity, double thermal_conductivity,
+                                         double thermal_diffusivity,
+                                         double thermal_expansion) -> CoolingResult:
         """Cooling over a viscosity sweep at otherwise fixed state.
 
-        ``viscosity_pas`` is an array; the remaining inputs are scalar constants.
+        ``viscosity`` is an array; the remaining inputs are scalar constants.
         Returns a ``CoolingResult`` of float64 ndarrays.
         """
         self._check_ptr()
         cdef c_CoolingInputs base = _build_inputs(
-            delta_temp_k, thickness_m, gravity_m_s2, density_kg_m3, 0.0,
-            thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k)
+            delta_temp, thickness, gravity, density, 0.0,
+            thermal_conductivity, thermal_diffusivity, thermal_expansion)
         cdef vector[double] vvisc
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
-        visc_c = np.ascontiguousarray(viscosity_pas, dtype=np.float64).ravel()
+        visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         mv = visc_c; _fill_vector(mv, vvisc)
         self._cooling_ptr.get().calc_cooling_vectorize_viscosity(vvisc, base, vout)
         return _results_to_py(vout, visc_c.shape)
 
-    def calc_cooling_vectorize_all(self, delta_temp_k, double thickness_m, double gravity_m_s2,
-                                   double density_kg_m3, viscosity_pas,
-                                   double thermal_conductivity_w_mk, double thermal_diffusivity_m2_s,
-                                   double thermal_expansion_1_k) -> CoolingResult:
+    def calc_cooling_vectorize_all(self, delta_temp, double thickness, double gravity,
+                                   double density, viscosity,
+                                   double thermal_conductivity, double thermal_diffusivity,
+                                   double thermal_expansion) -> CoolingResult:
         """Cooling over element-wise (delta_temp, viscosity) pairs.
 
-        ``delta_temp_k`` and ``viscosity_pas`` are equal-length arrays; the
+        ``delta_temp`` and ``viscosity`` are equal-length arrays; the
         remaining inputs are scalar constants. Returns a ``CoolingResult`` of
         float64 ndarrays.
         """
         self._check_ptr()
         cdef c_CoolingInputs base = _build_inputs(
             0.0,
-            thickness_m,
-            gravity_m_s2,
-            density_kg_m3,
+            thickness,
+            gravity,
+            density,
             0.0,
-            thermal_conductivity_w_mk,
-            thermal_diffusivity_m2_s,
-            thermal_expansion_1_k)
+            thermal_conductivity,
+            thermal_diffusivity,
+            thermal_expansion)
         cdef vector[double] vtemp, vvisc
         cdef vector[c_CoolingResult] vout
         cdef double[::1] mv
-        temp_c = np.ascontiguousarray(delta_temp_k, dtype=np.float64).ravel()
-        visc_c = np.ascontiguousarray(viscosity_pas, dtype=np.float64).ravel()
+        temp_c = np.ascontiguousarray(delta_temp, dtype=np.float64).ravel()
+        visc_c = np.ascontiguousarray(viscosity, dtype=np.float64).ravel()
         mv = temp_c; _fill_vector(mv, vtemp)
         mv = visc_c; _fill_vector(mv, vvisc)
         self._cooling_ptr.get().calc_cooling_vectorize_all(vtemp, vvisc, base, vout)
@@ -488,47 +488,47 @@ def make_cooling(str model_name, dict config=None):
 #
 # Each builds a stack-allocated C++ model from its parameters, solves for the
 # cooling result, and returns a CoolingResult (the C++ model is destroyed when the
-# function returns). ``delta_temp_k`` (and, for convection, ``viscosity_pas``)
+# function returns). ``delta_temp`` (and, for convection, ``viscosity``)
 # accept Python floats or NumPy arrays (broadcast together); the remaining physical
 # inputs and model parameters are scalar constants. A CoolingResult of floats is
 # returned for all-scalar inputs, otherwise of float64 ndarrays.
 # =====================================================================================================================
 
-def cooling_off(delta_temp_k, double thickness_m):
+def cooling_off(delta_temp, double thickness):
     """Cooling result for the Off model (zero flux). See module notes."""
     cdef c_CoolingConfig cfg
     cdef c_OffCooling model = c_OffCooling(cfg)
-    cdef c_CoolingInputs base = _build_inputs(0.0, thickness_m, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp_k, 0.0)
+    cdef c_CoolingInputs base = _build_inputs(0.0, thickness, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
 
 
 def conductive(
-        delta_temp_k,
-        double thickness_m,
-        double thermal_conductivity_w_mk):
+        delta_temp,
+        double thickness,
+        double thermal_conductivity):
     """Cooling result for the Conduction model: flux = k · ΔT / thickness."""
     cdef c_CoolingConfig cfg
     cdef c_ConductiveCooling model = c_ConductiveCooling(cfg)
     cdef c_CoolingInputs base = _build_inputs(
-        0.0, thickness_m, 0.0, 0.0, 0.0, thermal_conductivity_w_mk, 0.0, 0.0)
-    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp_k, 0.0)
+        0.0, thickness, 0.0, 0.0, 0.0, thermal_conductivity, 0.0, 0.0)
+    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp, 0.0)
 
 
 def convective(
-        delta_temp_k,
-        double thickness_m,
-        double gravity_m_s2,
-        double density_kg_m3,
-        viscosity_pas,
-        double thermal_conductivity_w_mk,
-        double thermal_diffusivity_m2_s,
-        double thermal_expansion_1_k,
+        delta_temp,
+        double thickness,
+        double gravity,
+        double density,
+        viscosity,
+        double thermal_conductivity,
+        double thermal_diffusivity,
+        double thermal_expansion,
         double convection_alpha=1.0,
         double convection_beta=0.3333333333333333,
         double critical_rayleigh=1100.0):
     """Cooling result for the parameterized Convection model.
 
-    ``delta_temp_k`` and ``viscosity_pas`` may be floats or arrays (broadcast
+    ``delta_temp`` and ``viscosity`` may be floats or arrays (broadcast
     together); the remaining inputs are scalar constants. The argument order is the
     same as ``calc_cooling``.
     """
@@ -538,6 +538,6 @@ def convective(
     cfg.critical_rayleigh = critical_rayleigh
     cdef c_ConvectiveCooling model = c_ConvectiveCooling(cfg)
     cdef c_CoolingInputs base = _build_inputs(
-        0.0, thickness_m, gravity_m_s2, density_kg_m3, 0.0,
-        thermal_conductivity_w_mk, thermal_diffusivity_m2_s, thermal_expansion_1_k)
-    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp_k, viscosity_pas)
+        0.0, thickness, gravity, density, 0.0,
+        thermal_conductivity, thermal_diffusivity, thermal_expansion)
+    return _solve_cooling(<c_CoolingBase*>&model, base, delta_temp, viscosity)

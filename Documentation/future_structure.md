@@ -69,7 +69,7 @@ from TidalPy.structures_x import build_world
 world = build_world("earth_simple")
 world.solve_eos()
 
-result = world.solve_love_numbers(frequency_rad_s=1.0e-5)
+result = world.solve_love_numbers(frequency=1.0e-5)
 print(result["success"], world.love_number_k)
 ```
 

@@ -170,8 +170,8 @@ def _system_evolution():
 # =====================================================================================================================
 _bm_world = LayeredWorld("bm_planet", 6.371e6, 5.972e24)
 _bm_layer = PhysicsLayer("mantle", 0, 0.0, 6.371e6, 5.972e24,
-                         shear_modulus_static_pa=80.0e9, bulk_modulus_static_pa=200.0e9)
-_bm_layer.set_eos(BirchMurnaghanEOS(reference_density_kg_m3=4000.0))
+                         shear_modulus_static=80.0e9, bulk_modulus_static=200.0e9)
+_bm_layer.set_eos(BirchMurnaghanEOS(reference_density=4000.0))
 _bm_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e21}))
 _bm_layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e30}))
 _bm_layer.set_shear_rheology(Maxwell())
@@ -189,9 +189,9 @@ def _solve_eos_birch_murnaghan():
 # =====================================================================================================================
 _rheo_io = LayeredWorld("RheoIo", _R, 8.9319e22)
 _rheo_layer = PhysicsLayer("mantle", 0, 0.0, _R, 8.9319e22,
-                           shear_modulus_static_pa=60.0e9, bulk_modulus_static_pa=200.0e9)
+                           shear_modulus_static=60.0e9, bulk_modulus_static=200.0e9)
 _rheo_layer.is_static = False
-_rheo_layer.set_eos(ConstantDensityEOS(reference_density_kg_m3=_RHO))
+_rheo_layer.set_eos(ConstantDensityEOS(reference_density=_RHO))
 _rheo_layer.set_shear_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e15}))
 _rheo_layer.set_bulk_viscosity(make_viscosity("constant", {"reference_viscosity": 1.0e15}))
 _rheo_layer.set_shear_rheology(Maxwell())

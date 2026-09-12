@@ -43,12 +43,12 @@ def _make_mantle():
     return mod.BaseLayer(
         name           = "mantle",
         layer_index    = 1,
-        radius_inner_m = _MANTLE_R_INNER_M,
-        radius_outer_m = _MANTLE_R_OUTER_M,
-        mass_kg        = _MANTLE_MASS_KG,
-        material_name  = "perovskite",
-        is_tidal       = True,
-        tidal_scale    = 1.0,
+        radius_inner = _MANTLE_R_INNER_M,
+        radius_outer = _MANTLE_R_OUTER_M,
+        mass          = _MANTLE_MASS_KG,
+        material_name = "perovskite",
+        is_tidal    = True,
+        tidal_scale = 1.0,
     )
 
 
@@ -397,7 +397,7 @@ def test_get_config_dict_class_and_eos_table():
     bl = _make_mantle()
     assert bl.get_config_dict()["class"] == "base"
     assert "eos" not in bl.get_config_dict()
-    eos = ConstantDensityEOS(reference_density_kg_m3=4400.0)
+    eos = ConstantDensityEOS(reference_density=4400.0)
     expected_model = eos.model_name
     bl.set_eos(eos)
     eos_cfg = bl.get_config_dict()["eos"]

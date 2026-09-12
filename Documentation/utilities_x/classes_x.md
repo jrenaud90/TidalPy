@@ -25,7 +25,7 @@ and every physics model (`c_RheologyBase`, `c_CoolingBase`, ...) inherits
 from TidalPy.Utilities_x.classes_x import StructureBase, PhysicsBase
 
 # StructureBase — radius and mass in MKS
-earth = StructureBase(radius_m=6.371e6, mass_kg=5.972e24)
+earth = StructureBase(radius=6.371e6, mass=5.972e24)
 print(earth.radius)   # 6371000.0
 print(earth.mass)     # 5.972e+24
 print(earth.get_schema_version_str())  # '0.2.0'
@@ -75,7 +75,7 @@ Abstract base. Not directly instantiable — only use concrete subclasses.
 ## `StructureBase`
 
 ```python
-StructureBase(radius_m: float, mass_kg: float)
+StructureBase(radius: float, mass: float)
 ```
 
 | Property/Method | Returns | Description |

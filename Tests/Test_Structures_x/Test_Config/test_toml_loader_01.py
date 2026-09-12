@@ -232,7 +232,7 @@ def test_layer_unknown_material_type_raises():
 # =====================================================================================================================
 # Layer validation: outer-radius specifier (inner radius is derived, never supplied)
 # =====================================================================================================================
-def test_layer_rejects_radius_inner_m():
+def test_layer_rejects_radius_inner():
     # The inner radius is derived from the previous layer; the user must not supply it.
     with pytest.raises(ValueError, match="radius_inner_m"):
         tl.validate_layer_config("L", {"class": "base", "radius_inner_m": 0.0,

@@ -34,16 +34,16 @@ TidalPyBaseClass
 PhysicsLayer(
     name:                       str,
     layer_index:                int,
-    radius_inner_m:             float,
-    radius_outer_m:             float,
-    mass_kg:                    float,
+    radius_inner:             float,
+    radius_outer:             float,
+    mass:                    float,
     material_name:              str     = "",
     is_tidal:                   bool    = True,
     tidal_scale:                float   = 1.0,
-    shear_modulus_static_pa:    float   = 0.0,
-    bulk_modulus_static_pa:     float   = 0.0,
-    shear_viscosity_static_pas: float   = nan,
-    bulk_viscosity_static_pas:  float   = nan,
+    shear_modulus_static:    float   = 0.0,
+    bulk_modulus_static:     float   = 0.0,
+    shear_viscosity_static: float   = nan,
+    bulk_viscosity_static:  float   = nan,
     love_number_k:              complex = 0+0j,
     love_number_h:              complex = 0+0j,
     love_number_l:              complex = 0+0j,
@@ -56,16 +56,16 @@ PhysicsLayer(
 |-----------|------|-------|-------------|
 | `name` | `str` | — | Human-readable layer name. |
 | `layer_index` | `int` | — | Zero-based index; innermost layer = 0. |
-| `radius_inner_m` | `float` | m | Inner boundary radius. |
-| `radius_outer_m` | `float` | m | Outer boundary radius. |
-| `mass_kg` | `float` | kg | Total layer mass. |
+| `radius_inner` | `float` | m | Inner boundary radius. |
+| `radius_outer` | `float` | m | Outer boundary radius. |
+| `mass` | `float` | kg | Total layer mass. |
 | `material_name` | `str` | — | Material identifier. Optional. |
 | `is_tidal` | `bool` | — | Tidal dissipation flag. Default `True`. |
 | `tidal_scale` | `float` | — | Dimensionless tidal heating scale. Default `1.0`. |
-| `shear_modulus_static_pa` | `float` | Pa | Unrelaxed shear modulus. Default `0.0`. |
-| `bulk_modulus_static_pa` | `float` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
-| `shear_viscosity_static_pas` | `float` | Pa·s | Reference shear viscosity. Default NaN (unset). |
-| `bulk_viscosity_static_pas` | `float` | Pa·s | Reference bulk viscosity. Default NaN (unset). |
+| `shear_modulus_static` | `float` | Pa | Unrelaxed shear modulus. Default `0.0`. |
+| `bulk_modulus_static` | `float` | Pa | Unrelaxed bulk modulus. Default `0.0`. |
+| `shear_viscosity_static` | `float` | Pa·s | Reference shear viscosity. Default NaN (unset). |
+| `bulk_viscosity_static` | `float` | Pa·s | Reference bulk viscosity. Default NaN (unset). |
 | `love_number_k` | `complex` | — | Potential Love number k (placeholder). Default `0+0j`. |
 | `love_number_h` | `complex` | — | Radial displacement Love number h (placeholder). Default `0+0j`. |
 | `love_number_l` | `complex` | — | Tangential displacement Love number l (placeholder). Default `0+0j`. |
@@ -114,7 +114,7 @@ mantle.set_shear_rheology(Maxwell())
 mantle.set_bulk_rheology(make_rheology("andrade", {"alpha": 0.3}))
 ```
 
-### `calc_complex_shear_modulus(frequency_rad_s)` → complex
+### `calc_complex_shear_modulus(frequency)` → complex
 
 Complex shear modulus [Pa] at the given tidal forcing frequency, from the
 layer-constant static properties.
@@ -129,11 +129,11 @@ mu = mantle.calc_complex_shear_modulus(2.0 * math.pi / 86400.0)
 print(f"Re(μ) = {mu.real:.3e} Pa,  Im(μ) = {mu.imag:.3e} Pa")
 ```
 
-### `calc_complex_shear_modulus(radius_m, frequency_rad_s)` → complex or ndarray
+### `calc_complex_shear_modulus(radius, frequency)` → complex or ndarray
 
 Radius-resolved form: applies the shear rheology to the post-melt static modulus and
-viscosity stored at `radius_m` by the world EOS solve, exactly like the world-level
-[`LayeredWorld.calc_complex_shear_modulus`](../worlds/worlds.md). `radius_m` may be a
+viscosity stored at `radius` by the world EOS solve, exactly like the world-level
+[`LayeredWorld.calc_complex_shear_modulus`](../worlds/worlds.md). `radius` may be a
 float (returns `complex`) or an `np.ndarray` of radii (returns a same-shape complex
 array). Returns `NaN` before the world EOS solve populates the layer.
 
@@ -145,8 +145,8 @@ mu_of_r = mantle.calc_complex_shear_modulus(radii, 2.0 * math.pi / 86400.0)
 
 ### `calc_complex_bulk_modulus(...)` → complex or ndarray
 
-Complex bulk modulus [Pa]; both the layer-constant `(frequency_rad_s)` and the
-radius-resolved `(radius_m, frequency_rad_s)` forms, with the same delegation
+Complex bulk modulus [Pa]; both the layer-constant `(frequency)` and the
+radius-resolved `(radius, frequency)` forms, with the same delegation
 logic as `calc_complex_shear_modulus`.
 
 ### Inherited from BaseLayer
@@ -166,8 +166,8 @@ sub-table per attached model (`shear_rheology`, `bulk_rheology`, `shear_viscosit
 
 `save_binary` / `load_binary` serialize all `BaseLayer` fields (see
 [BaseLayer](base_layer.md)) followed by ten doubles in order:
-`shear_modulus_static_pa`, `bulk_modulus_static_pa`, `shear_viscosity_static_pas`,
-`bulk_viscosity_static_pas`, then `love_number_k` re+im, `love_number_h` re+im,
+`shear_modulus_static`, `bulk_modulus_static`, `shear_viscosity_static`,
+`bulk_viscosity_static`, then `love_number_k` re+im, `love_number_h` re+im,
 `love_number_l` re+im (6 doubles total for the Love numbers).
 
 Following the scalar payload, an optional sub-model section is written: a one-byte
@@ -194,14 +194,14 @@ from TidalPy.structures_x.layers import PhysicsLayer
 mantle = PhysicsLayer(
     name                        = "mantle",
     layer_index                 = 1,
-    radius_inner_m              = 3.485e6,
-    radius_outer_m              = 6.371e6,
-    mass_kg                     = 4.043e24,
+    radius_inner              = 3.485e6,
+    radius_outer              = 6.371e6,
+    mass                     = 4.043e24,
     material_name               = "perovskite",
-    shear_modulus_static_pa     = 1.67e11,
-    bulk_modulus_static_pa      = 3.57e11,
-    shear_viscosity_static_pas  = 1.0e21,
-    bulk_viscosity_static_pas   = 2.0e21,
+    shear_modulus_static     = 1.67e11,
+    bulk_modulus_static      = 3.57e11,
+    shear_viscosity_static  = 1.0e21,
+    bulk_viscosity_static   = 2.0e21,
 )
 
 freq = 2.0 * math.pi / (1.77 * 86400.0)   # Io's orbital frequency [rad/s]

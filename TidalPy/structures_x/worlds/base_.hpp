@@ -19,8 +19,8 @@
  *     world_type_len + type    (uint32_t + bytes)
  *     albedo                   (double, 8)
  *     emissivity               (double, 8)
- *     obliquity_rad            (double, 8)
- *     spin_frequency_rad_s     (double, 8)
+ *     obliquity            (double, 8)
+ *     spin_frequency     (double, 8)
  */
 
 #include <cmath>
@@ -50,13 +50,13 @@ namespace tidalpy {
 // -------------------------------------------------------------------------------
 struct c_WorldConfig {
     std::string name;
-    std::string world_type_str       = "world";  // "star", "gasgiant", "terrestrial", ...
-    double      radius_m             = 0.0;      // [m]
-    double      mass_kg              = 0.0;      // [kg]
-    double      albedo               = 0.3;      // [dimensionless]
-    double      emissivity           = 1.0;      // [dimensionless]
-    double      obliquity_rad        = 0.0;      // [rad]
-    double      spin_frequency_rad_s = 0.0;      // [rad/s]
+    std::string world_type_str = "world";  // "star", "gasgiant", "terrestrial", ...
+    double      radius     = 0.0;      // [m]
+    double      mass       = 0.0;      // [kg]
+    double      albedo     = 0.3;      // [dimensionless]
+    double      emissivity = 1.0;      // [dimensionless]
+    double      obliquity  = 0.0;      // [rad]
+    double      spin_frequency = 0.0;      // [rad/s]
 };
 
 // -------------------------------------------------------------------------------
@@ -70,13 +70,13 @@ public:
     c_BaseWorld() = default;
 
     explicit c_BaseWorld(const c_WorldConfig& cfg)
-        : c_StructureBase(cfg.radius_m, cfg.mass_kg),
+        : c_StructureBase(cfg.radius, cfg.mass),
           p_name(cfg.name),
           p_world_type(cfg.world_type_str),
           p_albedo(cfg.albedo),
           p_emissivity(cfg.emissivity),
-          p_obliquity_rad(cfg.obliquity_rad),
-          p_spin_frequency_rad_s(cfg.spin_frequency_rad_s)
+          p_obliquity(cfg.obliquity),
+          p_spin_frequency(cfg.spin_frequency)
     {}
 
     ~c_BaseWorld() override = default;
@@ -88,8 +88,8 @@ public:
     const std::string& get_world_type()       const noexcept { return this->p_world_type; }
     double             get_albedo()           const noexcept { return this->p_albedo; }
     double             get_emissivity()       const noexcept { return this->p_emissivity; }
-    double             get_obliquity()        const noexcept { return this->p_obliquity_rad; }
-    double             get_spin_frequency()   const noexcept { return this->p_spin_frequency_rad_s; }
+    double             get_obliquity()        const noexcept { return this->p_obliquity; }
+    double             get_spin_frequency()   const noexcept { return this->p_spin_frequency; }
 
     // -----------------------------------------------------------------------
     // Bulk geometry (const, MKS) — use the world's own stored radius/mass.
@@ -115,11 +115,11 @@ public:
     // eps is the emissivity, and sigma is the Stefan-Boltzmann constant.
     // Returns 0.0 for non-positive flux or when the config pointer is null.
     // -----------------------------------------------------------------------
-    double calc_equilibrium_temperature(double insolation_flux_w_m2) const noexcept {
-        if (insolation_flux_w_m2 <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
+    double calc_equilibrium_temperature(double insolation_flux) const noexcept {
+        if (insolation_flux <= 0.0 || tidalpy_config_ptr == nullptr) { return 0.0; }
         const double sigma = tidalpy_config_ptr->d_SBC;
         const double eps   = (this->p_emissivity > 0.0) ? this->p_emissivity : 1.0;
-        const double absorbed = (1.0 - this->p_albedo) * insolation_flux_w_m2;
+        const double absorbed = (1.0 - this->p_albedo) * insolation_flux;
         return std::pow(absorbed / (4.0 * eps * sigma), 0.25);
     }
 
@@ -127,8 +127,8 @@ public:
     // Mutators (non-const)
     // -----------------------------------------------------------------------
     void set_name(const std::string& name)      { this->p_name = name; }
-    void set_spin_frequency(double freq_rad_s) noexcept { this->p_spin_frequency_rad_s = freq_rad_s; }
-    void set_obliquity(double obliq_rad)        noexcept { this->p_obliquity_rad = obliq_rad; }
+    void set_spin_frequency(double freq) noexcept { this->p_spin_frequency = freq; }
+    void set_obliquity(double obliq)        noexcept { this->p_obliquity = obliq; }
 
     // -----------------------------------------------------------------------
     // Global (1D) tidal dissipation (common to all world types)
@@ -237,8 +237,8 @@ protected:
         write_binary_string(out, this->p_world_type);
         out.write(reinterpret_cast<const char*>(&this->p_albedo),               sizeof(double));
         out.write(reinterpret_cast<const char*>(&this->p_emissivity),           sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_obliquity_rad),        sizeof(double));
-        out.write(reinterpret_cast<const char*>(&this->p_spin_frequency_rad_s), sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_obliquity),        sizeof(double));
+        out.write(reinterpret_cast<const char*>(&this->p_spin_frequency), sizeof(double));
     }
 
     // Read only the c_BaseWorld fields (header already consumed by caller).
@@ -249,16 +249,16 @@ protected:
         this->p_world_type = read_binary_string(in);
         in.read(reinterpret_cast<char*>(&this->p_albedo),               sizeof(double));
         in.read(reinterpret_cast<char*>(&this->p_emissivity),           sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_obliquity_rad),        sizeof(double));
-        in.read(reinterpret_cast<char*>(&this->p_spin_frequency_rad_s), sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_obliquity),        sizeof(double));
+        in.read(reinterpret_cast<char*>(&this->p_spin_frequency), sizeof(double));
     }
 
     std::string p_name;
-    std::string p_world_type           = "world";
-    double      p_albedo               = 0.3;   // [dimensionless]
-    double      p_emissivity           = 1.0;   // [dimensionless]
-    double      p_obliquity_rad        = 0.0;   // [rad]
-    double      p_spin_frequency_rad_s = 0.0;   // [rad/s]
+    std::string p_world_type = "world";
+    double      p_albedo     = 0.3;   // [dimensionless]
+    double      p_emissivity = 1.0;   // [dimensionless]
+    double      p_obliquity  = 0.0;   // [rad]
+    double      p_spin_frequency = 0.0;   // [rad/s]
 
     // Global (1D) tidal dissipation state (results not serialized — recompute via calc_tides).
     c_TideConfig                         p_tide_config;
