@@ -1,75 +1,124 @@
-# Dynamics (`dynamics_x`)
+# Spin and Orbital Rates (`dynamics_x`)
 
-_Updated: 2026-09-09_
+_Updated: 2026-09-12_
 
-The `dynamics_x` module holds the spin and orbital rate equations that turn tidal dissipation into the
-instantaneous evolution of a body's rotation and orbit. It computes **rates only** (no time
-integration; the System class or manual scripts can perform integrations).
+The module holds two calculators. `Spin` answers how fast a body's rotation is changing; `OrbitSolver` answers how fast its orbit is changing. Both take the tidal-potential derivatives from a completed tidal solve and return rates in MKS units. Neither integrates in time.
 
-The tidal solve (`world.calc_tides`) produces, per the global mode collapse, the tidal heating and the
-three tidal-potential derivatives `dU/dM`, `dU/dw`, `dU/dO` (with respect to the mean anomaly, argument
-of pericenter, and longitude of the node) [J kg-1 rad-1]. These feed the dynamics rates below.
+The inputs both classes depend on are $\partial U / \partial M$, $\partial U / \partial \omega$, and $\partial U / \partial \Omega$, the derivatives of the tidal potential with respect to the mean anomaly, the argument of pericenter, and the longitude of the node, each in J kg$^{-1}$ rad$^{-1}$. They come from `world.calc_tides(...)` and are read back with `world.get_tidal_potential_derivatives()`. Everything on this page assumes that solve has already run.
 
 ## Spin
 
-`Spin` is the spin-dynamics model. A world holds one and drives it with _its own EOS-based moment of
-inertia_, so the spin-rate change uses the structure-resolved value rather than the uniform-density
-formula:
+A tidal torque changes a body's rotation rate at $\dot{\Omega}_{\text{spin}} = M_{\text{host}} \, (\partial U / \partial \Omega) / I$, where $I$ is the body's polar moment of inertia. The sign follows from the potential derivative: a body spinning faster than its orbital mean motion is despun, and one spinning slower is spun up, until the two match and the torque vanishes. That fixed point is synchronous rotation, and `calc_synchronous_spin` simply returns the orbital mean motion, since a tidally locked body rotates once per orbit.
 
 ```python
 from TidalPy.dynamics_x import Spin
 
-world.set_spin_model(
-  Spin(moment_of_inertia_factor=1.0)  # factor is the pre-EOS fallback
-)
-world.solve_eos()
-world.calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity, semi_major_axis, host_mass)
-
-moi      = world.get_moment_of_inertia()                   # [kg m2] EOS value once solved, else uniform fallback
-dspin_dt = world.calc_spin_derivative(host_mass)           # [rad s-2]
-n_sync   = world.calc_synchronous_spin(orbital_frequency)  # [rad s-1]
+model = Spin()                                        # uniform-sphere fallback
+moment = model.calc_moment_of_inertia(mass, radius_outer)          # [kg m2]
+spin_rate = model.calc_dspin_dt(host_mass, dU_dO, moment)          # [rad s-2]
+synchronous = model.calc_synchronous_spin(orbital_frequency)       # [rad s-1]
 ```
 
-* **Moment of inertia** — `world.get_moment_of_inertia()` returns the EOS-integrated moment of inertia
-  (`planet_moi_eos`) once the EOS has been solved, otherwise the model's uniform-density fallback
-  `factor * (2/5) M (R_o^5 - R_i^5)/(R_o^3 - R_i^3)`. The dimensionless `moment_of_inertia_factor`
-  (`C/(M R^2)`, `1.0` for a uniform sphere) is only used for that fallback.
-* **Tidal spin-rate change** — `world.calc_spin_derivative(host_mass) = M_host * dU/dO / I`
-  (Ferraz-Mello et al. 2008), using the world's stored `dU/dO` (from the last `calc_tides`) and its
-  moment of inertia. Requires a completed tidal solve.
-* **Synchronous spin** — a tidally locked body spins at the orbital mean motion, so the synchronous spin
-  equals the orbital frequency.
+### The moment of inertia
 
-The `Spin` model can also be used standalone (`Spin().calc_moment_of_inertia(...)`,
-`.calc_dspin_dt(...)`, `.calc_synchronous_spin(...)`), which is what the world delegates to.
+Everything about the spin rate except the moment of inertia comes from the tidal solve, and the moment of inertia is where a body's internal structure enters. `Spin` carries only a crude estimate of it:
+
+$$I = f \cdot \frac{2}{5} M \frac{R_{\text{outer}}^5 - R_{\text{inner}}^5}{R_{\text{outer}}^3 - R_{\text{inner}}^3}$$
+
+which is the uniform-density value of a solid sphere (or of a shell, when an inner radius is given) scaled by the constructor's `moment_of_inertia_factor` $f$. The factor is the ratio to the uniform-density value, so $f = 1$ means a uniform body and $f < 1$ means a centrally condensed one. In the conventional normalization $I / (M R^2)$ this is $0.4 f$: the Earth's measured 0.3307 corresponds to $f = 0.827$, not to $f = 0.33$. A degenerate shell of zero thickness returns NaN.
+
+This estimate exists as a fallback. A `LayeredWorld` that has solved its equation of state has the real structure-resolved moment of inertia, and `world.get_moment_of_inertia()` returns that instead, falling back to the model's formula only when no solve has run.
+
+```python
+world.set_spin_model(Spin())
+world.solve_eos()
+world.calc_tides(orbital_frequency, spin_frequency, eccentricity, obliquity,
+                 semi_major_axis, host_mass)
+
+world.get_moment_of_inertia()                    # [kg m2] EOS value once solved
+world.calc_spin_derivative(host_mass)            # [rad s-2] uses the stored dU/dO
+world.calc_synchronous_spin(orbital_frequency)   # [rad s-1]
+world.planet_moi_eos                             # [kg m2] the raw EOS value, NaN if unsolved
+```
+
+`set_spin_model` copies the model into the world, so the Python object stays usable afterward. `calc_spin_derivative` requires a completed tidal solve, because it reads the world's stored $\partial U / \partial \Omega$.
 
 ## OrbitSolver
 
-`OrbitSolver` computes the orbital rates from a dissipating body's tidal-potential derivatives. It is
-the low-level engine; the **System** class attaches it and pulls the orbital state and
-`dU/dM`, `dU/dw` from its worlds. Following Boué & Efroimsky (2019, CMDA) Eqs. 116-117, with
-`dR/dX = -((M_target + M_host)/M_target) dU/dX`:
+The orbital rates follow from Lagrange's planetary equations applied to the tidal part of the disturbing function. Following Boué and Efroimsky (2019), equations 116 and 117, with
+
+$$\frac{\partial R}{\partial X} = -\frac{M_{\text{target}} + M_{\text{host}}}{M_{\text{target}}} \frac{\partial U}{\partial X}$$
+
+the three rates are
+
+$$\dot{a} = \frac{2}{n a} \frac{\partial R}{\partial M}, \qquad \dot{e} = \frac{\sqrt{1 - e^2}}{n a^2 e} \left( \sqrt{1 - e^2} \frac{\partial R}{\partial M} - \frac{\partial R}{\partial \omega} \right), \qquad \dot{n} = -\frac{3}{2} \frac{n}{a} \dot{a}$$
+
+The last is Kepler's third law differentiated, so the mean motion is not an independent quantity: it follows from the semi-major axis.
 
 ```python
 from TidalPy.dynamics_x import OrbitSolver
 
-orbit = OrbitSolver()
-da_dt = orbit.calc_da_dt(n, a, e, target_mass, host_mass, dU_dM)               # [m s-1]
-de_dt = orbit.calc_de_dt(n, a, e, target_mass, host_mass, dU_dM, dU_dw)        # [s-1]
-dn_dt = orbit.calc_dn_dt(n, a, da_dt)                                          # [rad s-2]
-rates = orbit.calc_derivatives(n, a, e, target_mass, host_mass, dU_dM, dU_dw)  # dict
+solver = OrbitSolver()
+da_dt = solver.calc_da_dt(orbital_frequency, semi_major_axis, eccentricity,
+                          target_mass, host_mass, dU_dM)                     # [m s-1]
+de_dt = solver.calc_de_dt(orbital_frequency, semi_major_axis, eccentricity,
+                          target_mass, host_mass, dU_dM, dU_dw)              # [s-1]
+dn_dt = solver.calc_dn_dt(orbital_frequency, semi_major_axis, da_dt)         # [rad s-2]
+
+rates = solver.calc_derivatives(orbital_frequency, semi_major_axis, eccentricity,
+                                target_mass, host_mass, dU_dM, dU_dw)
+rates["da_dt"], rates["de_dt"], rates["dn_dt"]
 ```
 
-* `da/dt = (2 / (n a)) dR/dM`
-* `de/dt = (sqrt(1-e^2) / (n a^2 e)) ( sqrt(1-e^2) dR/dM - dR/dw )` (0 for a circular orbit)
-* `dn/dt = -(3/2)(n / a) da/dt` (Kepler's third law)
+`calc_derivatives` computes all three in one call and is the entry point the system class uses. The eccentricity rate carries a $1/e$ factor that is indeterminate at $e = 0$, so a circular or degenerate orbit returns exactly zero rather than a division by zero.
 
-For a dual-body dissipation system the two bodies' rates are additive in the disturbing-function
-derivatives; the System sums the per-body contributions.
+For a system where both bodies dissipate, the two contributions are additive in the disturbing-function derivatives: solve each body's tides with the other as the raiser and sum the rates. `System.calc_pair_evolution` does exactly that.
 
 ## Energy conservation
 
-The world spin-rate and the orbital rates together conserve energy:
-`tidal_heating = -(dE_orbit/dt + dE_spin/dt)` with `E_orbit = -G M_target M_host / (2a)` and
-`E_spin = (1/2) I spin^2`. This is validated to machine precision in
-`Tests/Test_Structures_x/Test_Worlds/test_world_spin_01.py`.
+The spin and orbital rates are not independent. Together they must account for all the energy the tidal solve says is being dissipated:
+
+$$Q_{\text{tidal}} = -\left( \dot{E}_{\text{orbit}} + \dot{E}_{\text{spin}} \right), \qquad E_{\text{orbit}} = -\frac{G M_{\text{target}} M_{\text{host}}}{2 a}, \qquad E_{\text{spin}} = \frac{1}{2} I \Omega_{\text{spin}}^2$$
+
+This is the strongest available check on the whole chain, because it ties the rate equations here back to the heating computed by an entirely separate code path. Every evolution dict returned by `System` reports `dE_orbit_dt`, `dE_spin_dt`, and the `energy_residual` between them and the tidal heating, so a failure anywhere upstream shows up as a non-zero residual. The balance is verified to machine precision in `Tests/Test_Structures_x/Test_Worlds/test_world_spin_01.py`.
+
+## Driving the rates from a system
+
+Calling the two classes by hand is useful for a single body in isolation. For anything with more than one world, `System` holds the orbital state and does the bookkeeping.
+
+```python
+rates = system.calc_world_evolution(world)   # one dissipating world, rigid host
+rates = system.calc_pair_evolution(world)    # both bodies dissipate on a shared orbit
+all_rates = system.calc_system_evolution()   # every world, in index order
+```
+
+`calc_world_evolution` returns the orbital state it used, the tidal heating, the three potential derivatives, the four rates, the moment of inertia, and the energy-balance diagnostics, all in one dict. `calc_pair_evolution` returns the combined orbital rates plus each body's full single-body contribution under the keys `world` and `host`. Entries that could not be evolved, such as the host's own row or a world with no usable orbit, come back with `evolved` set to `False` rather than raising. See [System](../structures_x/system/system.md).
+
+## C++ API
+
+```cpp
+#include "spin_.hpp"
+#include "orbit_solver_.hpp"
+
+using namespace tidalpy;
+
+c_SpinConfig spin_config;
+spin_config.moment_of_inertia_factor = 1.0;
+const c_Spin spin(spin_config);
+const double dspin_dt = spin.calc_dspin_dt(host_mass, dU_dO, moment_of_inertia);
+
+c_OrbitState state;   // orbital_frequency, semi_major_axis, eccentricity, target_mass, host_mass
+const c_OrbitSolver solver;
+const c_OrbitDerivatives rates = solver.calc_derivatives(state, dU_dM, dU_dw);
+```
+
+- `c_Spin` with `c_SpinConfig`: `calc_moment_of_inertia`, `calc_dspin_dt`, `calc_synchronous_spin`.
+- `c_OrbitSolver` with the `c_OrbitState` input struct and the `c_OrbitDerivatives` result struct: `calc_da_dt`, `calc_de_dt`, `calc_dn_dt`, `calc_derivatives`.
+
+Both classes are small, stateless value types with no heap allocation and no base class. The orbital state is passed as a struct rather than as five loose arguments, and the derivatives come back as a struct rather than through output parameters.
+
+## References
+
+- Boué, G., and Efroimsky, M. (2019). Tidal evolution of the Keplerian elements. *Celestial Mechanics and Dynamical Astronomy*, 131(7), 30. Equations 116 and 117, the rate equations implemented here.
+- Ferraz-Mello, S., Rodríguez, A., and Hussmann, H. (2008). Tidal friction in close-in satellites and exoplanets. *Celestial Mechanics and Dynamical Astronomy*, 101(1-2), 171-201. The spin-rate equation.
+- Murray, C. D., and Dermott, S. F. (1999). *Solar System Dynamics*. Lagrange's planetary equations and the disturbing function.

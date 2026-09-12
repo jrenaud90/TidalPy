@@ -1,262 +1,266 @@
-# Radiogenics (`radiogenics_x`)
+# Radiogenic Models (`radiogenics_x`)
 
-_Updated: 2026-09-09_
+_Updated: 2026-09-12_
 
-`TidalPy.radiogenics_x` provides the C++ radiogenics model hierarchy that maps a
-layer's mass and elapsed time to the **radiogenic heating** `Q` [W] produced by
-the decay of radioactive isotopes. This is the single quantity the models compute
-and expose (`calc_heating`); it feeds a layer's thermal budget.
+A radiogenics model answers one question: given a layer of mass $m$ at time $t$, how much power is being released inside it by radioactive decay? The answer is the heating $Q$ [W] returned by `calc_heating(time, mass)`. Everything else on these classes exists to build that number, to evaluate it over an array of times or masses, or to save and restore the model.
 
-Each `SolidLiquidLayer` can hold one radiogenics model.
-`SolidLiquidLayer.calc_radiogenic_heating(time, mass)` delegates to the attached
-model's `calc_heating` (returning `0` when no model is attached).
+Time is measured in seconds from an epoch the caller chooses, and each model carries the reference time `ref_time` at which its rates or concentrations were quoted. Only the difference $t - t_{\text{ref}}$ enters the physics, so a model built from present-day abundances with a reference time of 4600 Myr is evaluated at $t = 0$ to get the heating at the birth of the solar system, or at $t = t_{\text{ref}}$ to get today's.
 
 ## Inheritance
 
 ```
 c_TidalPyBaseClass
   └── c_PhysicsBase
-        └── c_RadiogenicsBase        (abstract)
-              ├── c_OffRadiogenics      alias "none"
+        └── c_RadiogenicsBase          (abstract)
+              ├── c_OffRadiogenics       alias "none"
               ├── c_IsotopeRadiogenics
-              └── c_FixedRadiogenics    alias "constant"
+              └── c_FixedRadiogenics     alias "constant"
 ```
 
-The abstract base declares `calc_heating(time, mass)` as pure virtual; every
-model returns the heating `Q` [W] directly.
+The abstract base declares `calc_heating(time, mass)` pure virtual and supplies the three vectorized wrappers, so a new model only has to implement the heating law. The Cython classes mirror the hierarchy one for one: `RadiogenicsBase`, `OffRadiogenics`, `IsotopeRadiogenics`, `FixedRadiogenics`.
 
-## Radiogenic Models
+## The three models
 
-Time and half-lives in seconds `[s]`, mass in `[kg]`, heat production rates in `[W/kg]`,
-and heating in `[W]`. Each model decays from a shared reference time so times can be expressed
-relative to any fixed epoch.
+Masses are in kilograms, times and half lives in seconds, specific heat production rates in W kg$^{-1}$, and the returned heating in watts. For a half life $t_{1/2}$ the decay constant is $\gamma = \ln(0.5) / t_{1/2}$, a negative number whose magnitude grows as the half life shortens.
 
-| Model | Heating `Q` [W] | Parameters |
-|-------|-----------------|------------|
-| `OffRadiogenics` (`none`) | `0` | — |
-| `IsotopeRadiogenics` | `m · Σᵢ hprᵢ · fracᵢ · concᵢ · exp(γᵢ(t − t_ref))` | a list of isotopes, `ref_time` |
-| `FixedRadiogenics` (`constant`) | `m · q · exp(γ(t − t_ref))` | `fixed_heat_production`, `average_half_life`, `ref_time` |
+| Model (aliases) | Heating $Q$ [W] | Parameters |
+|---|---|---|
+| `off` (`none`) | $0$ | none |
+| `isotope` (`isotopes`) | $m \sum_i q_i f_i c_i \exp[\gamma_i (t - t_{\text{ref}})]$ | a list of isotopes, `ref_time` |
+| `fixed` (`constant`) | $m\, q \exp[\gamma (t - t_{\text{ref}})]$ | `fixed_heat_production`, `average_half_life`, `ref_time` |
 
-where the decay constant for a half life `t½` is `γ = ln(0.5) / t½` (`d_LN_HALF`
-is a module-level `constexpr`). The Fixed model treats `average_half_life ≤ 0`
-as "no decay" (a constant heating rate).
+Here $q_i$ is the specific heat production of pure isotope $i$, $f_i$ its mass fraction within its parent element, and $c_i$ that element's concentration in the layer material. The product $q_i f_i c_i$ is the specific heating the isotope contributed at the reference time, per kilogram of layer, and the exponential carries it forward or backward in time.
 
-### The `c_Isotope` value type
+### Off
 
-A single radioactive isotope is described by the `c_Isotope` struct (C++) / per-isotope fields (Python).
-It is a plain value type (no base class, no virtuals) carrying:
+Returns zero for any time and mass. Use it for an iron core or an ice shell, where the concentration of heat-producing elements is low enough to ignore, and as the explicit statement that radiogenics were considered and set aside rather than forgotten.
+
+### Isotope
+
+Sums the decay of an arbitrary list of isotopes, each with its own half life. This is the model to use whenever the answer depends on time, because a mixture of isotopes does not decay like a single effective isotope: the short-lived members dominate early and vanish, leaving a slowly decaying long-lived tail. A model carrying both aluminium-26 and uranium-238 drops by orders of magnitude over the first few million years and then by only a factor of two every 4.5 billion.
+
+### Fixed
+
+Applies one lumped specific rate to the whole layer, optionally with a single effective half life. It is the right model when the isotope inventory is unknown or irrelevant, when a paper quotes a single heating rate to reproduce, or when a parameter sweep wants radiogenic heating as one dial rather than four. Setting `average_half_life` to zero (the default) or to any non-positive value means no decay at all, and the heating is then constant for all time.
+
+### Behavior at the limits
+
+A half life at or below zero is treated as infinite rather than as an error, which is what makes the constant-rate case fall out of the same formula. A half life that is finite but smaller than the module's floor is clamped to that floor, so no decay constant is ever divided by zero.
+
+Evaluating a model far before its reference time asks for an exponential that would overflow. The isotope model guards against this and returns NaN, so a bad epoch shows up as NaN heating rather than as a silently enormous number; the fixed model uses an unguarded exponential and returns infinity in the same situation.
+
+## The isotope value type
+
+One isotope is described by the `c_Isotope` struct, a plain value type with no base class and no virtual functions.
 
 | Field | Meaning |
-|-------|---------|
-| `name` | isotope label (e.g. `"U238"`) |
-| `heat_production` | specific heat production of the pure isotope [W/kg] |
-| `half_life` | half life [s] |
-| `mass_frac` | isotopic mass fraction within its element [kg/kg] |
-| `concentration` | element concentration in the layer material [kg/kg] |
+|---|---|
+| `name` | Isotope label, for example `"U238"`. |
+| `heat_production` | Specific heat production of the pure isotope [W kg$^{-1}$]. |
+| `half_life` | Half life [s]. |
+| `mass_frac` | Mass fraction of the isotope within its element [kg kg$^{-1}$]. |
+| `concentration` | Concentration of the parent element in the layer material [kg kg$^{-1}$]. |
 
-It provides `decay_constant()` [1/s] and `specific_heating(time, ref_time)`
-[W/kg]. `c_IsotopeRadiogenics` holds a `std::vector<c_Isotope>` and sums each
-isotope's specific heating before scaling by the layer mass. At the Python level,
-`IsotopeRadiogenics` accepts parallel arrays (`heat_production`,
-`half_lives`, `mass_fracs`, `concentrations`) plus optional `names`, and exposes
-them back through the `heat_production`, `half_lives`, `mass_fracs`,
-`concentrations`, and `isotope_names` properties.
+It provides `decay_constant()` [s$^{-1}$] and `specific_heating(time, ref_time)` [W kg$^{-1}$]. `c_IsotopeRadiogenics` holds a `std::vector<c_Isotope>` and sums the specific heating of each member before scaling by the layer mass.
 
-## Usage
+Python does not see the struct. `IsotopeRadiogenics` takes parallel arrays instead and reads them back through properties of the same names.
 
 ```python
-from TidalPy.radiogenics_x import IsotopeRadiogenics, FixedRadiogenics, make_radiogenics
+from TidalPy.radiogenics_x import IsotopeRadiogenics
 
-mass = 1.0e22  # kg
-time = 1.0e17  # s (relative to the reference time)
-
-# Fixed lumped rate, no decay.
-f = FixedRadiogenics(fixed_heat_production=1.0e-11)
-Q = f.calc_heating(time, mass)   # heating [W]
-
-# Explicit isotope set (all MKS).
-iso = IsotopeRadiogenics(
-    heat_production=[9.48e-5, 2.69e-5],
-    half_lives=[4.47e17, 1.40e18],
-    mass_fracs=[0.9928, 0.9998],
-    concentrations=[0.012e-6, 0.04e-6],
-    ref_time=0.0,
+model = IsotopeRadiogenics(
+    heat_production=[9.48e-5, 2.69e-5],   # [W/kg] of the pure isotope
+    half_lives=[4.47e17, 1.40e18],        # [s]
+    mass_fracs=[0.9928, 0.9998],          # [kg/kg] within the element
+    concentrations=[0.012e-6, 0.04e-6],   # [kg/kg] of the element in the material
+    ref_time=0.0,                         # [s]
     names=["U238", "Th232"])
 
-# Built-in literature dataset (no hand-entered abundances needed).
-chondritic = IsotopeRadiogenics.from_dataset("modern_day_chondritic")
-
-# Name/alias-based factory (case-insensitive).
-g = make_radiogenics("fixed", {"fixed_heat_production_w_kg": 2.0e-11})
+model.num_isotopes      # 2
+model.isotope_names     # ['U238', 'Th232']
+model.heat_production   # ndarray, and likewise half_lives, mass_fracs, concentrations
 ```
 
-`make_radiogenics(model_name, config=None)` resolves aliases case-insensitively
-and forwards the relevant keys from `config`. Unknown names raise `ValueError`.
+The four numeric arrays are parallel and must be the same length. Labels are optional and are auto-generated as `isotope_0`, `isotope_1`, and so on when omitted.
 
-### Factory
+## Built-in isotope datasets
 
-At the C++ level the factory is enum-based. `c_RadiogenicsModel` names one value
-per model, `c_radiogenics_model_from_name(name)` maps a (case-insensitive) name
-or alias to that enum (throwing `std::invalid_argument` on an unknown name), and
-`c_find_radiogenics(model, config)` returns a
-`std::unique_ptr<c_RadiogenicsBase>` to a freshly heap-allocated model. This is
-the canonical C++ factory used by all C++ consumers (layers attaching
-radiogenics, future binary reconstruction). The Python `make_radiogenics` wraps
-it: it builds the `c_RadiogenicsConfig`, calls `c_radiogenics_model_from_name`
-then `c_find_radiogenics`, and adopts the returned `unique_ptr` into the matching
-rich Python wrapper (`OffRadiogenics`, `IsotopeRadiogenics`, `FixedRadiogenics`).
+Entering abundances by hand is error prone, so the module ships a small catalog of literature-sourced isotope sets, defined in C++ and already converted to MKS. List them with `available_isotope_datasets()`, inspect one with `isotope_dataset(name)`, and build a model from one with `IsotopeRadiogenics.from_dataset(name)` or `make_radiogenics("isotope", {"isotopes": name})`.
 
-### Built-in isotope datasets
+| Dataset | Isotopes | Reference time | Applicability | Source |
+|---|---|---|---|---|
+| `modern_day_chondritic` | U238, U235, Th232, K40 | 4600 Myr | Present-day rocky and icy bodies of broadly chondritic composition. | Hussmann and Spohn (2004); Turcotte and Schubert (2001) |
+| `llri_and_slri` | U238, U235, Th232, K40, Mn53, Fe60, Al26 | 0 Myr | Early solar system thermal evolution, where the short-lived isotopes dominate the first few million years. | Castillo-Rogez et al. (2007) |
+| `bulk_silicate_earth` | U238, U235, Th232, K40 | 4600 Myr | Present-day Earth-like silicate mantles (U 20.3 ppb, Th 79.5 ppb, K 240 ppm). | McDonough and Sun (1995) concentrations; Turcotte and Schubert (2002) rates |
 
-The module ships a small catalog of literature-sourced isotope sets so a caller
-can build a realistic model without entering abundances by hand. List them with
-`available_isotope_datasets()`, inspect one (as an MKS dict) with
-`isotope_dataset(name)`, and build a model with
-`IsotopeRadiogenics.from_dataset(name)` or
-`make_radiogenics("isotope", {"isotopes": name})`.
+Watch the reference times, because they differ. The two present-day sets quote concentrations at 4600 Myr, so evaluating them at $t = 0$ gives the heating at solar system formation and evaluating at $t = $ `ref_time` gives today's. The short-lived set quotes its concentrations at formation instead, so it is evaluated at the body's age directly.
 
-| Dataset | Isotopes | Applicability | Source |
-|---------|----------|---------------|--------|
-| `modern_day_chondritic` | U238, U235, Th232, K40 | Present-day rocky/icy bodies of broadly chondritic composition | Hussmann & Spohn (2004); Turcotte & Schubert (2001) |
-| `llri_and_slri` | U238, U235, Th232, K40, Mn53, Fe60, Al26 | Early-solar-system thermal evolution (first few Myr), where short-lived isotopes dominate | Castillo-Rogez et al. (2007) |
-| `bulk_silicate_earth` | U238, U235, Th232, K40 | Present-day Earth-like silicate mantles (U = 20.3 ppb, Th = 79.5 ppb, K = 240 ppm) | McDonough & Sun (1995) concentrations; Turcotte & Schubert (2002) rates |
+`isotope_dataset(name)` returns the dataset as a dict with the keys `heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, `isotope_names`, and `ref_time_s`, all in MKS.
 
-These built-in datasets are defined in C++ (`c_get_isotope_dataset`) directly in
-MKS (half lives and reference times converted from the literature's Myr using
-`d_SECONDS_PER_MYR`); all use a reference time of 4600 Myr (concentrations quoted
-at the present epoch). They take precedence in `make_radiogenics` over any
-same-named entry in the global config.
+A name that is not one of the three built-ins is looked up in the global config under `TidalPy.config['physics']['radiogenics']['known_isotope_data']`, and an inline dict is accepted in the same place. Those two sources follow the older convention of storing half lives and reference times in mega-years, with the per-isotope keys `hpr`, `half_life`, `iso_mass_fraction`, and `element_concentration`; the Python factory converts them to seconds. The built-in catalog always wins over a same-named config entry.
 
-`make_radiogenics("isotope", {"isotopes": "<name>"})` also falls back to a dataset
-under `TidalPy.config['physics']['radiogenics']['known_isotope_data']` if the name
-is not a built-in; those config datasets (and inline dataset dicts) store half
-lives and reference times in **mega-years (Myr)** and are converted to seconds by
-the Python factory. Alternatively, supply explicit MKS arrays
-(`heat_production`, `half_lives`, `mass_fracs`, `concentrations`,
-`ref_time`, optional `isotope_names`) directly.
+## Choosing a model
+
+Use `isotope` with a built-in dataset whenever the body is rocky and the calculation spans time. It costs nothing extra over a lumped rate and gets the shape of the decay right.
+
+Use `isotope` with explicit arrays when reproducing a specific paper's inventory, or when studying a composition the built-in sets do not cover.
+
+Use `fixed` when the heating rate is itself the quantity being varied, or when a comparison calculation quotes one number for the whole layer. Leave `average_half_life` at zero for a constant source and set it only if the comparison also decays.
+
+Use `off` for cores and ice shells, and for isolating the tidal contribution to a thermal budget.
+
+## Python API
+
+```python
+from TidalPy.radiogenics_x import (
+    OffRadiogenics, IsotopeRadiogenics, FixedRadiogenics,
+    make_radiogenics, available_isotope_datasets, isotope_dataset)
+
+mass = 1.0e22   # [kg]
+time = 1.0e17   # [s] from the caller's epoch
+
+# A lumped rate with no decay.
+model = FixedRadiogenics(fixed_heat_production=1.0e-11)
+heating = model.calc_heating(time, mass)                    # [W]
+
+# A literature isotope set, evaluated at its own reference epoch (present day).
+chondritic = IsotopeRadiogenics.from_dataset("modern_day_chondritic")
+heating_today = chondritic.calc_heating(chondritic.ref_time, mass)
+
+# Name factory: case-insensitive, aliases accepted.
+model = make_radiogenics("constant", {"fixed_heat_production_w_kg": 2.0e-11})
+model = make_radiogenics("isotope", {"isotopes": "bulk_silicate_earth"})
+```
+
+`make_radiogenics(model_name, config=None)` resolves the name or alias case-insensitively and raises `ValueError` for an unrecognized one. Its config keys carry unit suffixes, matching what `get_config_dict()` emits, and are not the same spellings as the constructor arguments.
+
+| Config key | Model | Meaning |
+|---|---|---|
+| `fixed_heat_production_w_kg` | fixed | Lumped specific rate [W kg$^{-1}$]. |
+| `average_half_life_s` | fixed | Effective half life [s]; non-positive means no decay. |
+| `ref_time_s` | fixed, isotope | Reference time [s]. |
+| `isotopes` | isotope | A built-in dataset name, a config dataset name, or an inline dict. |
+| `heat_production_w_kg`, `half_lives_s`, `mass_fracs`, `concentrations`, `isotope_names` | isotope | Explicit parallel arrays, in MKS. |
+
+An unrecognized key is ignored without warning, so a misspelling yields a model built entirely from defaults rather than an error. The constructors use unit-free argument names (`fixed_heat_production`, `half_lives`, `ref_time`); the config keys keep their units because they double as TOML keys.
+
+### Attaching a model to a layer
+
+```python
+layer.set_radiogenics(IsotopeRadiogenics.from_dataset("modern_day_chondritic"))
+layer.radiogenics_set                         # True
+layer.calc_radiogenic_heating(time, mass)     # [W] for the mass supplied
+world.calc_internal_heating(time)             # [W] summed over all layers
+```
+
+`set_radiogenics` moves ownership of the C++ model into the layer, leaving the Python wrapper an empty shell, so build a fresh model if the same parameters are needed elsewhere. Only `SolidLiquidLayer` accepts one. A layer without a model reports zero heating rather than raising, and a world sums only the layers that carry one.
+
+The mass is an argument rather than something the layer looks up, because the heating scales with whichever mass the caller considers radiogenic. That is usually the layer's own mass, but it can be the mass of a single differentiated component. The world-level sum has no such freedom and uses each layer's `mass` attribute, which is whatever the layer was constructed with.
 
 ## Vectorized evaluation
 
-Each model also provides vectorized heating methods (defined once on
-`c_RadiogenicsBase`, so all models inherit them via virtual dispatch):
+Three vectorized entry points are defined once on the base class, so every model inherits them.
 
-- `calc_heating_vectorize_time(time[], mass)` — a time sweep at constant mass.
-- `calc_heating_vectorize_mass(time, mass[])` — a mass sweep at constant time.
-- `calc_heating_vectorize_all(time[], mass[])` — element-wise over two
-  equal-length arrays.
+- `calc_heating_vectorize_time(time[], mass)`: a time sweep at constant mass.
+- `calc_heating_vectorize_mass(time, mass[])`: a mass sweep at constant time.
+- `calc_heating_vectorize_all(time[], mass[])`: element-wise over two equal-length arrays.
 
-At the C++ level each fills a caller-supplied `std::vector<double>&` output;
-mismatched input lengths throw `std::invalid_argument`. The Cython wrappers
-accept array-likes and return a `float64` NumPy array.
-
-## Direct convenience functions
-
-For one-shot evaluation without explicitly constructing a model object, each
-model has a lower-case module function:
+The Cython wrappers accept any array-like and return a `float64` NumPy array. At the C++ level each fills a caller-supplied `std::vector<double>&`, and mismatched lengths throw `std::invalid_argument`.
 
 ```python
-from TidalPy.radiogenics_x import fixed, isotope
 import numpy as np
+from TidalPy.radiogenics_x import IsotopeRadiogenics
 
-# Scalar in -> float out.
-Q = fixed(time, mass, fixed_heat_production=1.0e-11)
-
-# Arrays in -> float64 ndarray out (time and mass may each be a float or an
-# ndarray; they are broadcast together).
-Q_decay = fixed(np.linspace(0.0, 1.0e18, 50), mass,
-                fixed_heat_production=1.0e-11, average_half_life=4.47e17)
-Q_iso   = isotope(np.array([0.0, 5.0e17]), mass,
-                  heat_production=[9.48e-5], half_lives=[4.47e17],
-                  mass_fracs=[0.9928], concentrations=[0.012e-6])
+ages = np.linspace(0.0, 1.45e17, 200)                      # [s] 0 to 4.6 Gyr
+model = IsotopeRadiogenics.from_dataset("llri_and_slri")
+curve = model.calc_heating_vectorize_time(ages, 1.0e22)    # [W] at each age
 ```
 
-Signatures: `off(time, mass)`,
-`isotope(time, mass, heat_production, half_lives, mass_fracs, concentrations, ref_time=0.0, names=None)`,
-`fixed(time, mass, fixed_heat_production=0.0, average_half_life=0.0, ref_time=0.0)`.
+## Convenience functions
 
-Each builds a *stack-allocated* C++ model, solves (picking the most specific
-vectorized routine for the input pattern), and returns. `time` and `mass` accept
-floats or NumPy arrays; the model parameters (isotope arrays, fixed rate) are
-always constants.
+For a single number without keeping a model around, each model has a lower-case module function that builds a stack-allocated C++ model, evaluates it, and discards it.
 
-> **Note on argument order:** both the class methods (`calc_heating(time, mass)`)
-> and the convenience functions (`func(time, mass, ...)`) take `time` first, then
-> `mass`, then any model parameters. The order is consistent across the module.
+```python
+import numpy as np
+from TidalPy.radiogenics_x import off, isotope, fixed
+
+heating = fixed(time, mass, fixed_heat_production=1.0e-11)
+
+# time and mass may each be a float or an array and are broadcast together.
+curve = fixed(np.linspace(0.0, 1.0e18, 50), mass,
+              fixed_heat_production=1.0e-11, average_half_life=4.47e17)
+```
+
+Signatures: `off(time, mass)`; `isotope(time, mass, heat_production, half_lives, mass_fracs, concentrations, ref_time=0.0, names=None)`; `fixed(time, mass, fixed_heat_production=0.0, average_half_life=0.0, ref_time=0.0)`. All-scalar input returns a float, anything else a `float64` array. The model parameters themselves are always constants.
+
+Both the class methods and the convenience functions take `time` first, then `mass`, then the model parameters, matching the argument order used across the physics modules.
 
 ## Serialization
 
-Every model supports the standard TidalPy interfaces:
+Every model supports the standard interfaces inherited from the base class.
 
-- `get_config_dict()` → dict of `model` plus any model parameters (isotope
-  arrays are returned as lists).
-- `save_config(path)` → TOML config file.
-- `save_binary(path)` / `load_binary(path, force=False)` → TidalPy binary format
-  (preserves the model name and parameters; the layer observer pointer is not
-  serialized). The Isotope model writes its variable-length isotope list (each
-  isotope's name plus its four doubles) after the shared header and model name (a
-  justified exception to the scalar-only `write_physics_binary` helper used by the
-  Off and Fixed models).
+- `get_config_dict()` returns the model name under the key `model` plus its parameters, with isotope arrays as lists. The dict is accepted by `make_radiogenics`, so a model round-trips through it.
+- `save_config(path)` writes the same content as TOML.
+- `save_binary(path)` and `load_binary(path, force=False)` use the TidalPy binary format. The layer back-pointer is not serialized, so re-attach the model after loading.
 
-## Adding a new radiogenics model
+The Off and Fixed models write their scalars through the shared `write_physics_binary` helper. The Isotope model writes its variable-length list, each isotope's name plus its four doubles, directly after the shared header and model name, which is the one place in the module that bypasses the scalar-only helper.
 
-The hierarchy is designed so a new model is a small addition. To add a
-new radiogenics model named `Foo`:
+## C++ API
+
+```cpp
+#include "radiogenics_.hpp"   // pulls in radiogenics_base_.hpp
+
+using namespace tidalpy;
+
+c_RadiogenicsConfig config;
+config.fixed_heat_production = 1.0e-11;
+config.average_half_life     = 4.47e17;
+
+const c_RadiogenicsModel model_id = c_radiogenics_model_from_name("fixed");
+std::unique_ptr<c_RadiogenicsBase> model = c_find_radiogenics(model_id, config);
+
+const double heating = model->calc_heating(time, mass);   // [W]
+```
+
+- `c_RadiogenicsBase : c_PhysicsBase`: abstract, with `calc_heating(time, mass)` pure virtual plus the three vectorized wrappers.
+- Concrete models `c_OffRadiogenics`, `c_IsotopeRadiogenics`, and `c_FixedRadiogenics`, along with the `c_Isotope` value type.
+- `enum class c_RadiogenicsModel { Off, Isotope, Fixed }`.
+- `c_radiogenics_model_from_name(name)`: name or alias to enum, throwing `std::invalid_argument` on an unknown name.
+- `c_find_radiogenics(model, config)`: heap-allocates the model as a `unique_ptr`.
+- `c_radiogenics_from_binary(stream, force)`: reconstructs from a binary record, so a model attached to a layer is restored when the layer is loaded.
+- `c_isotope_dataset_names()` and `c_get_isotope_dataset(name)`: the built-in catalog, already in MKS.
+
+Binary class ids 500 through 503 are reserved for this module.
+
+## Adding a new model
 
 **C++ (`TidalPy/radiogenics_x/radiogenics_.hpp`)**
 
-1. If `Foo` needs new parameters, add them to `c_RadiogenicsConfig` (with
-   sensible defaults). The single combined config is shared by all models.
-2. Add a `rad_heating_foo(...)` free function implementing the heating law (use
-   the `rad_guard` floor on any half-life denominator).
-3. Add the model class `c_Foo : public c_RadiogenicsBase`:
-   - constructors `c_Foo()` and `explicit c_Foo(const c_RadiogenicsConfig&)` that
-     pass a model-name string to the base and copy any params into `p_*` members;
-   - `get_*` accessors for each param;
-   - override `calc_heating(time, mass)` returning the heating [W];
-   - override `write_binary` / `read_binary` using the shared base helpers
-     (`this->write_physics_binary(out, class_id, {params...})` and
-     `this->read_physics_binary(in, force, n_params)` from `c_PhysicsBase`). If
-     the model has variable-length data, write the header + model name + payload
-     directly (see `c_IsotopeRadiogenics`).
+1. Add any new parameters to `c_RadiogenicsConfig` with sensible defaults. The single combined config is shared by all models, and each reads only the fields it needs.
+2. Add a free function implementing the heating law, guarding any half-life denominator with `rad_guard`.
+3. Add the model class deriving from `c_RadiogenicsBase`: a default constructor and one taking the config, `get_*` accessors, the `calc_heating` override, and `write_binary` / `read_binary` through the `c_PhysicsBase` helpers. Variable-length data is written directly after the header and model name, as `c_IsotopeRadiogenics` does.
+4. Add the enum value, the name and alias branch in `c_radiogenics_model_from_name`, and the cases in `c_find_radiogenics` and `c_radiogenics_from_binary`.
 
 **C++ (`TidalPy/Utilities_x/binary_x/binary_.hpp`)**
 
-4. Add a unique `BinaryClassID::Foo` value (radiogenics models occupy 50X).
+5. Add a unique `BinaryClassID` in the 50X block.
 
-**C++ factory (`radiogenics_.hpp`)**
+**Cython (`radiogenics.pxd` and `radiogenics.pyx`)**
 
-5. Add `Foo` to the `c_RadiogenicsModel` enum, map its name/aliases in
-   `c_radiogenics_model_from_name`, and add a `case` to `c_find_radiogenics`. Also
-   add a `case BinaryClassID::Foo` to `c_radiogenics_from_binary` (the
-   binary-dispatch factory) so a `Foo` attached to a `SolidLiquidLayer` can be
-   reconstructed when the layer is loaded from a binary file.
+6. Declare the C++ class and the new enum value in the `.pxd`.
+7. Add the `cdef class` wrapper with parameter properties, the adoption branch in `make_radiogenics`, and the lower-case convenience function. The config dict comes from the C++ `append_config_entries` override, not from Python.
 
-**Cython (`radiogenics.pxd` / `radiogenics.pyx`)**
+**Package, tests, and docs**
 
-6. Declare `c_Foo` (constructors + getters) in `radiogenics.pxd` and add the enum
-   value to the `c_RadiogenicsModel` cimport.
-7. Add the `cdef class Foo(RadiogenicsBase)` wrapper in `radiogenics.pyx` (with
-   param properties; the config dict comes from the C++ `append_config_entries`
-   override), the adoption branch in
-   `make_radiogenics`, and the lower-case `foo(time, mass, ...)` convenience
-   function.
+8. Export the class and the function from `__init__.py`, and the C++ names from `__init__.pxd`.
+9. Extend `Tests/Test_Radiogenics_x/test_radiogenics_01.py`: model name, heating against an independent reference, factory and aliases, vectorization, config dict, and binary round trip.
+10. Document the model here and add a changelog entry.
 
-**Package + tests + docs**
-
-8. Export `Foo` (and `foo`) from `TidalPy/radiogenics_x/__init__.py` (and the C++
-   names from `__init__.pxd`).
-9. Add `Foo` to the test lists in
-   `Tests/Test_Radiogenics_x/test_radiogenics_01.py` (model name, heating
-   cross-check against an independent reference, factory/alias, vectorization,
-   config dict, binary round-trip, isinstance).
-10. Document the model here (formula, parameters, references).
-
-No build-system change is needed — `radiogenics_x.radiogenics` is already
-registered in `cython_extensions.json`.
+No build-system change is needed; `radiogenics_x.radiogenics` is already registered in `cython_extensions.json`.
 
 ## References
 
-- Hussmann and Spohn (2004), Icarus — chondritic radiogenic isotope data.
-- Turcotte and Schubert (2001, 2002), *Geodynamics* — radiogenic heat production rates.
-- Castillo-Rogez et al. (2007), Icarus, [DOI: 10.1016/j.icarus.2007.02.018](https://doi.org/10.1016/j.icarus.2007.02.018) — long- and short-lived radiogenic isotopes.
-- McDonough and Sun (1995), Chemical Geology, [DOI: 10.1016/0009-2541(94)00140-4](https://doi.org/10.1016/0009-2541(94)00140-4) — bulk silicate Earth elemental abundances.
+- Turcotte, D. L., and Schubert, G. (2001, 2002). *Geodynamics*. Radiogenic heat production rates.
+- Hussmann, H., and Spohn, T. (2004). Thermal-orbital evolution of Io and Europa. *Icarus*, 171(2), 391-410. Chondritic isotope data.
+- Castillo-Rogez, J. C., et al. (2007). Iapetus geophysics: Rotation rate, shape, and equatorial ridge. *Icarus*, 190(1), 179-202, [doi:10.1016/j.icarus.2007.02.018](https://doi.org/10.1016/j.icarus.2007.02.018). Long- and short-lived isotope inventories.
+- McDonough, W. F., and Sun, S.-s. (1995). The composition of the Earth. *Chemical Geology*, 120(3-4), 223-253, [doi:10.1016/0009-2541(94)00140-4](https://doi.org/10.1016/0009-2541(94)00140-4). Bulk silicate Earth abundances.

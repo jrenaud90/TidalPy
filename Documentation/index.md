@@ -50,16 +50,16 @@ Demos/8 - Love Number Sensitivity <Demos/8_-_Love_Number_Sensitivity.ipynb>
 
 Overview and Porting Guide <future_structure.md>
 Structures <structures_x/index.md>
-Material and EOS <material_x/material_eos.md>
+Material and EOS <material_x/index.md>
 Rheology <rheology_x/index.md>
 Viscosity <viscosity_x/index.md>
 Partial Melting <partial_melt_x/index.md>
 Cooling <cooling_x/index.md>
-Radiogenics <radiogenics_x/radiogenics_models.md>
+Radiogenics <radiogenics_x/index.md>
 Tides <Tides_x/index.md>
 RadialSolver (Love Numbers) <RadialSolver_x/index.md>
-Dynamics <dynamics_x/dynamics.md>
-Stellar <stellar_x/luminosity.md>
+Dynamics <dynamics_x/index.md>
+Stellar <stellar_x/index.md>
 Utilities <utilities_x/index.md>
 ```
 

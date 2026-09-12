@@ -1,104 +1,55 @@
-# Utilities_x: Array Helpers (`arrays`)
+# Arrays and Interpolation (`Utilities_x.arrays`)
 
-Small, dependency-free array utilities used across the `_x` code. Currently this
-holds a fast 1-D linear interpolation routine.
+_Updated: 2026-09-12_
 
----
+One routine, used everywhere a value has to be read off a table: linear interpolation over a sorted grid. The tabulated equation of state uses it to get density at a radius, the layer profiles use it to get gravity and pressure between slices, and the radial solver's dense output uses it to evaluate the solution between integration steps.
 
-## 1-D linear interpolation
+It matters that this is one implementation rather than several. A Python result and a C++ result that come from different interpolators will disagree in the last digits, and chasing that disagreement through a solve is a waste of a day. `interp` is a thin wrapper over the same header-only C++ routine the solvers call, so the two agree exactly.
 
-`interp` performs `numpy.interp`-style linear interpolation: given sample
-coordinates `xp` (sorted ascending) and sample values `fp`, it returns the
-linearly-interpolated value(s) at query coordinate(s) `x`. Queries outside
-`[xp[0], xp[-1]]` clamp to the corresponding endpoint value.
-
-It is backed by a header-only C++ implementation (`interp_.hpp`) so other C++/Cython
-code can call it at full speed without the Python layer.
-
-### Python API
+## Python API
 
 ```python
-from TidalPy.Utilities_x.arrays import interp
 import numpy as np
+from TidalPy.Utilities_x.arrays import interp
 
-xp = np.array([0.0, 1.0, 2.0, 3.0])
-fp = np.array([0.0, 10.0, 5.0, 7.0])
+sample_x = np.array([0.0, 1.0, 2.0, 3.0])
+sample_y = np.array([0.0, 10.0, 5.0, 7.0])
 
-interp(1.5, xp, fp)              # 7.5  (scalar in -> float out)
-interp([-1.0, 0.5, 9.0], xp, fp) # array([0. , 5. , 7. ])  (clamped at both ends)
+interp(1.5, sample_x, sample_y)                # 7.5, a float for a scalar query
+interp([-1.0, 0.5, 9.0], sample_x, sample_y)   # array([0., 5., 7.]), clamped at both ends
 ```
 
-#### `interp(x, xp, fp)`
+`interp(x, xp, fp)` takes the query coordinate or coordinates, the sample coordinates sorted ascending, and the sample values. It returns a Python float for a scalar query and a `float64` array shaped like `x` otherwise, and raises `ValueError` if the sample arrays are empty or differ in length.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | float or array_like | Query coordinate(s) to interpolate at. |
-| `xp` | array_like of float | Sample coordinates, **sorted ascending**, length >= 1. |
-| `fp` | array_like of float | Sample values; same length as `xp`. |
-
-**Returns:** a Python `float` for scalar `x`; otherwise a `float64` `numpy.ndarray`
-with the shape of `x`.
-
-**Raises:** `ValueError` if `xp` is empty or `xp` and `fp` differ in length.
-
-**Behavior notes**
-
-- Matches `numpy.interp` for in-range and out-of-range (clamped) queries.
-- `xp` is assumed sorted ascending; results are undefined otherwise (no check, for speed).
-- Equivalent to `numpy.interp` but routed through the same C++ routine the solvers use,
-  so Python results and internal C++ results agree exactly.
-
----
+The behavior matches `numpy.interp`, including the clamping of out-of-range queries to the nearest endpoint value and NumPy's fallback when an interpolation slope comes out NaN. The one difference is what is not checked: the sample coordinates are assumed sorted ascending, and no check is performed, because the routine sits inside inner loops where the check would cost more than the interpolation. Unsorted input gives undefined results rather than an error.
 
 ## C++ API
 
-Include `interp_.hpp` (namespace `tidalpy`). All functions are header-only and
-`inline`. The domain `x_domain` must be sorted ascending with length >= 1.
+The implementation is in `interp_.hpp` (namespace `tidalpy`), header only and fully inline.
 
 ```cpp
 #include "interp_.hpp"
 
-std::vector<double> r   = {0.0, 1.0e6, 2.0e6};
-std::vector<double> rho = {5000.0, 4000.0, 3000.0};
+std::vector<double> radius  = {0.0, 1.0e6, 2.0e6};
+std::vector<double> density = {5000.0, 4000.0, 3000.0};
 
-double d = tidalpy::c_interp(0.5e6, r.data(), rho.data(), r.size());  // 4500.0
+const double value = tidalpy::c_interp(0.5e6, radius.data(), density.data(), radius.size());
 ```
 
 | Function | Description |
-|----------|-------------|
-| `double c_interp(desired_x, x_domain, dependent_values, len_x, guess = 0)` | Real linear interpolation at `desired_x`. Clamps out-of-range queries to the endpoint values; returns NaN only for an empty domain. |
-| `std::complex<double> c_interp_complex(desired_x, x_domain, dependent_values, len_x, guess = 0)` | As `c_interp`, but interpolates complex values (real and imaginary parts independently). |
-| `std::size_t c_binary_search_with_guess(key, array, length, guess, int& code)` | Index search underlying the interpolators. Returns `j` with `array[j] <= key < array[j+1]`; returns `length` past the right end; sets `code = -1` (returns 0) left of the array. Requires `length >= 3`. |
+|---|---|
+| `c_interp(desired_x, x_domain, dependent_values, len_x, guess = 0)` | Linear interpolation of real values. Clamps out-of-range queries to the endpoint value and returns NaN only for an empty domain. |
+| `c_interp_complex(...)` | The same for complex values, interpolating the real and imaginary parts independently. |
+| `c_binary_search_with_guess(key, array, length, guess, int& code)` | The index search underneath both. Returns the index `j` with `array[j] <= key < array[j+1]`, returns `length` past the right end, and sets `code = -1` while returning 0 left of the array. Requires a length of at least three. |
 
-**The `guess` parameter** seeds the internal binary search. For a single lookup
-pass `0` (the default). When interpolating a monotonic sequence of query points,
-passing the previous result index accelerates the search toward `O(1)` per query.
+The `guess` argument seeds the binary search. For an isolated lookup, pass zero. When interpolating a monotonic sequence of query points, passing the previous result index turns the search from logarithmic into effectively constant time, which is the difference that makes a dense-output evaluation over thousands of radial slices cheap.
 
-**Edge cases handled by `c_interp` / `c_interp_complex`:**
-
-- `len_x == 0` → NaN.
-- `len_x == 1` → the single sample value.
-- `len_x == 2` → direct interpolation over the one interval (the guess-search needs `len >= 3`).
-- A NaN interpolation slope falls back to the value from the other bracket endpoint
-  (NumPy's robustness trick).
-
----
+Short domains are handled without the search: an empty domain gives NaN, a single sample gives that sample's value, and two samples interpolate directly over the one interval, since the guess-seeded search needs at least three points.
 
 ## Where it is used
 
-- `Material_x.eos.material_eos` — `c_InterpolatedEOS::calc_density` interpolates a
-  layer's `density(radius)` table via `c_interp` (see
-  [material EOS models](../material_x/material_eos.md)).
-
-This is the `_x` (new class scheme) replacement for the legacy
-`TidalPy.utilities.arrays` interpolation helpers.
-
----
+The tabulated equation of state interpolates its density and viscoelastic tables with `c_interp`; see [Material EOS Models](../material_x/material_eos.md). The layer equation-of-state data, the radial solver's retained solution, and the equation-of-state solution object all use it to answer queries at an arbitrary radius between stored slices.
 
 ## Implementation notes
 
-- Header-only; no separate compilation unit. The search routine is adapted from
-  NumPy's `compiled_interp`, so results match `numpy.interp` (including endpoint
-  clamping and the NaN-slope fallback).
-- The Python wrapper coerces `xp`/`fp`/`x` to contiguous `float64` arrays and loops
-  over array queries in C, returning a result shaped like `x`.
+The search routine is adapted from NumPy's compiled interpolation, which is why the results match `numpy.interp` down to the endpoint clamping and the NaN-slope fallback. The Python wrapper coerces its three arguments to contiguous `float64` arrays, loops over the queries in C, and returns a result shaped like the query.

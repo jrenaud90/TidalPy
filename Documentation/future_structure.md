@@ -39,12 +39,12 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 | `TidalPy.rheology` | `TidalPy.rheology_x` | [Rheology](rheology_x/index.md) |
 | `TidalPy.tides` | `TidalPy.Tides_x` (mostly via world methods) | [Global tides](Tides_x/global_tides.md), [3D heating](Tides_x/multilayer_3d_heating.md), [Love numbers](Tides_x/love/love_numbers.md) |
 | `TidalPy.cooling` | `TidalPy.cooling_x` | [Cooling](cooling_x/index.md) |
-| `TidalPy.radiogenics` | `TidalPy.radiogenics_x` | [Radiogenics models](radiogenics_x/radiogenics_models.md) |
+| `TidalPy.radiogenics` | `TidalPy.radiogenics_x` | [Radiogenics](radiogenics_x/index.md) |
 | viscosity functions in `TidalPy.rheology` | `TidalPy.viscosity_x` | [Viscosity](viscosity_x/index.md) |
 | partial melting in `TidalPy.rheology` | `TidalPy.partial_melt_x` | [Partial melting](partial_melt_x/index.md) |
-| burnman equations of state | `TidalPy.Material_x` | [Material EOS](material_x/material_eos.md) |
-| `TidalPy.stellar` | `TidalPy.stellar_x` (world-attached luminosity) | [Luminosity](stellar_x/luminosity.md) |
-| orbit/spin evolution in `TidalPy.orbit` | `TidalPy.dynamics_x` + the `System` class | [Dynamics](dynamics_x/dynamics.md), [System](structures_x/system/system.md) |
+| burnman equations of state | `TidalPy.Material_x` | [Material and EOS](material_x/index.md) |
+| `TidalPy.stellar` | `TidalPy.stellar_x` (world-attached luminosity) | [Stellar](stellar_x/index.md) |
+| orbit/spin evolution in `TidalPy.orbit` | `TidalPy.dynamics_x` + the `System` class | [Dynamics](dynamics_x/index.md), [System](structures_x/system/system.md) |
 | `TidalPy.utilities.graphics` (`yplot`, `planet_plot`) | `TidalPy.Utilities_x.graphics_x` (`plot_ys`, `plot_interior`) | [Graphics](utilities_x/graphics_x.md) |
 | assorted helpers | `TidalPy.Utilities_x` | [Utilities](utilities_x/index.md) |
 
