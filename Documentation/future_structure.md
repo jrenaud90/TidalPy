@@ -36,12 +36,12 @@ warnings.filterwarnings("ignore", category=TidalPyDeprecationWarning)
 |----------------|-------------|---------------|
 | `TidalPy.structures` (worlds, layers, burnman builds) | `TidalPy.structures_x` | [Worlds](structures_x/worlds/worlds.md), [Layers](structures_x/layers/base_layer.md), [System](structures_x/system/system.md), [TOML schema](structures_x/config/toml_schema.md) |
 | `TidalPy.RadialSolver` | `TidalPy.RadialSolver_x` | [Love number solvers](RadialSolver_x/dense_radial_solution.md) |
-| `TidalPy.rheology` | `TidalPy.rheology_x` | [Rheology models](rheology_x/rheology_models.md) |
+| `TidalPy.rheology` | `TidalPy.rheology_x` | [Rheology](rheology_x/index.md) |
 | `TidalPy.tides` | `TidalPy.Tides_x` (mostly via world methods) | [Global tides](Tides_x/global_tides.md), [3D heating](Tides_x/multilayer_3d_heating.md), [Love numbers](Tides_x/love/love_numbers.md) |
-| `TidalPy.cooling` | `TidalPy.cooling_x` | [Cooling models](cooling_x/cooling_models.md) |
+| `TidalPy.cooling` | `TidalPy.cooling_x` | [Cooling](cooling_x/index.md) |
 | `TidalPy.radiogenics` | `TidalPy.radiogenics_x` | [Radiogenics models](radiogenics_x/radiogenics_models.md) |
-| viscosity functions in `TidalPy.rheology` | `TidalPy.viscosity_x` | [Viscosity models](viscosity_x/viscosity_models.md) |
-| partial melting in `TidalPy.rheology` | `TidalPy.partial_melt_x` | [Partial melt models](partial_melt_x/partial_melt_models.md) |
+| viscosity functions in `TidalPy.rheology` | `TidalPy.viscosity_x` | [Viscosity](viscosity_x/index.md) |
+| partial melting in `TidalPy.rheology` | `TidalPy.partial_melt_x` | [Partial melting](partial_melt_x/index.md) |
 | burnman equations of state | `TidalPy.Material_x` | [Material EOS](material_x/material_eos.md) |
 | `TidalPy.stellar` | `TidalPy.stellar_x` (world-attached luminosity) | [Luminosity](stellar_x/luminosity.md) |
 | orbit/spin evolution in `TidalPy.orbit` | `TidalPy.dynamics_x` + the `System` class | [Dynamics](dynamics_x/dynamics.md), [System](structures_x/system/system.md) |
