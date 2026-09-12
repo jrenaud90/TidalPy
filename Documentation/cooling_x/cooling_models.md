@@ -19,7 +19,7 @@ c_TidalPyBaseClass
 
 `c_CoolingBase` declares `calc_cooling(inputs)` pure virtual and supplies the vectorized loops, the configuration export, and the binary encoding.
 
-## Inputs and result
+## Inputs and Result
 
 A cooling evaluation depends on eight physical quantities. In C++ they are bundled into a `c_CoolingInputs` struct, following the style guide's rule against long argument lists; the Python `calc_cooling` takes them as explicit arguments in the same order.
 
@@ -44,7 +44,7 @@ result = model.calc_cooling(1000.0, 1.0e6, 9.8, 3300.0, 1.0e21, 4.0, 1.0e-6, 3.0
 flux, boundary_layer, rayleigh, nusselt = result
 ```
 
-## The three models
+## Current Models
 
 | Model | Cooling flux $q$ [W m$^{-2}$] | Boundary layer | Ra | Nu |
 |---|---|---|---|---|
@@ -52,7 +52,7 @@ flux, boundary_layer, rayleigh, nusselt = result
 | `ConductiveCooling` | $k \, \Delta T / d$ | thickness $d$ | 0 | 1 |
 | `ConvectiveCooling` | $k \, \Delta T / \delta$ | $\delta = d / \mathrm{Nu}$ | see below | see below |
 
-`OffCooling` holds the heat in. It is the way to run a layer adiabatically, or to isolate the effect of a heating term by removing the sink. `ConductiveCooling` transports heat by diffusion alone, which is the right description for a stagnant lid, a thin ice shell, or any layer whose Rayleigh number sits below critical. `ConvectiveCooling` is the parameterized boundary-layer model and the usual choice for a mantle.
+`OffCooling` turns off cooling (no heat transfer). `ConductiveCooling` transports heat by diffusion, applicable for a stagnant lid, a thin ice shell, or any layer whose Rayleigh number sits below critical. `ConvectiveCooling` is the parameterized boundary-layer model and the usual choice.
 
 For convection,
 
@@ -60,17 +60,19 @@ $$\mathrm{Ra} = \frac{\alpha_\mathrm{th} \rho g \, \Delta T \, d^3}{\eta \kappa}
 
 with $\alpha_\mathrm{th}$ the thermal expansivity, $\kappa$ the thermal diffusivity, and the fitted constants $a$ = `convection_alpha` (default 1.0), $b$ = `convection_beta` (default 1/3), and $\mathrm{Ra}_\mathrm{crit}$ = `critical_rayleigh` (default 1100.0).
 
-The Rayleigh number is the ratio of the buoyancy driving a hot parcel upward to the diffusion bleeding its heat away; above the critical value convection sets in. The Nusselt number is how many times more heat that convection carries than conduction alone would, and the boundary layer is thinned by exactly that factor. The exponent of 1/3 is the classical boundary-layer result, which has the useful consequence that the convective flux is independent of the layer thickness.
+The Rayleigh number is the ratio of the buoyancy driving a hot parcel upward to the diffusion bleeding its heat away; above the critical value convection sets in. The Nusselt number is how many times more heat that convection carries than conduction would, and the boundary layer is thinned by exactly that factor. The exponent of 1/3 is the classical boundary-layer result, which has the useful consequence that the convective flux is independent of the layer thickness.
 
-The Nusselt number is floored at 2, which is the stagnant-lid limit: even a barely convecting layer moves about twice the conductive flux. Degenerate inputs take a defined path rather than producing a division by zero. A non-positive temperature drop, or a thickness below the shared `minimum_layer_thickness` configuration floor, sets the Rayleigh number to zero and the Nusselt number to 2, matching the classic implementation's edge behavior.
+The Nusselt number minimum is 2, which is the stagnant-lid limit: even a barely convecting layer moves about twice the conductive flux. Degenerate inputs take a defined path rather than producing a division by zero. A non-positive temperature drop, or a thickness below the shared `minimum_layer_thickness` configuration floor, sets the Rayleigh number to zero and the Nusselt number to 2.
 
-## Building and evaluating a model
+## Example Usage
 
 ```python
 from TidalPy.cooling_x import ConvectiveCooling, make_cooling
 
-convective_cooling = ConvectiveCooling(convection_alpha=1.0, convection_beta=1.0/3.0,
-                                       critical_rayleigh=1100.0)
+convective_cooling = ConvectiveCooling(
+      convection_alpha=1.0,
+      convection_beta=1.0/3.0,
+      critical_rayleigh=1100.0)
 
 # delta_temp, thickness, gravity, density, viscosity, conductivity, diffusivity, expansion
 result = convective_cooling.calc_cooling(1000.0, 1.0e6, 9.8, 3300.0, 1.0e21, 4.0, 1.0e-6, 3.0e-5)
@@ -81,11 +83,11 @@ conductive_cooling = make_cooling("conductive")
 
 `make_cooling(model_name, config=None)` resolves a name or alias case-insensitively and reads `convection_alpha`, `convection_beta`, and `critical_rayleigh` from `config`. Unknown names raise `ValueError`. The convection parameters are read-only properties on `ConvectiveCooling`; the other two models carry none. The resolved `model_name` is `off`, `conduction`, or `convection`, and that is the name written to a configuration dict.
 
-### Factory internals
+### Factory Internals
 
-At the C++ level the factory is enum-based, matching the other physics modules. `c_CoolingModel` names one value per model, `c_cooling_model_from_name(name)` maps a case-insensitive name or alias onto it and throws `std::invalid_argument` for an unknown name, and `c_find_cooling(model, config)` returns a `std::unique_ptr<c_CoolingBase>`. The Python `make_cooling` wraps both and adopts the returned pointer into the matching wrapper.
+At the C++ level the factory is enum-based, matching TidalPy's other physics modules. `c_CoolingModel` names one value per model, `c_cooling_model_from_name(name)` maps a case-insensitive name or alias onto it and throws `std::invalid_argument` for an unknown name, and `c_find_cooling(model, config)` returns a `std::unique_ptr<c_CoolingBase>`. The Python `make_cooling` wraps both and adopts the returned pointer into the matching wrapper.
 
-## Vectorized evaluation
+### Vectorized Evaluation
 
 Two of the eight inputs change as a layer evolves thermally: the temperature drop and the viscosity. The vectorized methods, defined once on the base class so every model inherits them, sweep exactly those and hold the rest fixed.
 
@@ -108,9 +110,9 @@ flux_profile = sweep.cooling_flux   # float64 array
 
 At the C++ level each fills a caller-supplied `std::vector<c_CoolingResult>`, copying the base inputs and overriding the swept field per element. Mismatched lengths raise `ValueError` from Python. The Cython wrappers return one `CoolingResult` whose four fields are arrays.
 
-## Convenience functions
+### Convenience Functions
 
-For a one-shot evaluation with no model object left behind:
+For a one-shot evaluation that does not leave a object behind:
 
 ```python
 import numpy as np
@@ -136,7 +138,7 @@ The signatures are `cooling_off(delta_temp, thickness)`, `conductive(delta_temp,
 
 A cooling model attached to a layer is written as part of that layer's binary record and rebuilt recursively on load. See [Binary serialization](../utilities_x/binary_x.md).
 
-## Adding a new cooling model
+## Adding a New Cooling Model
 
 To add a cooling model named `Foo`:
 
