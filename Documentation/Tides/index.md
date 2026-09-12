@@ -1,25 +1,29 @@
-# TidalPy.Tides_x Documentation
+# TidalPy.tides Documentation
 
-**TidalPy's Tides Module**
+**TidalPy's classic Tides module**
 
-_Note: as of TidalPy v0.7.x this module is named "Tides_x" to not cause overlap with the current TidalPy.tides module.
-A future release of TidalPy will replace the old tides module in favor of this one which contains the new C++ / cython
-functions. We will refactor it to `TidalPy.Tides` to follow the same capitalization scheme as `TidalPy.RadialSolver`._
+[Auto Generated API](https://tidalpy.readthedocs.io/en/latest/API/generated/TidalPy.tides.html)
 
-[Auto Generated API](https://tidalpy.readthedocs.io/en/latest/API/generated/TidalPy.Tides_x.html)
+`TidalPy.tides` is the tidal machinery of the classic backend: the tidal potential and its mode decomposition, the analytic Love-number formulas, the dissipation and heating calculators, and the world-attached tide methods.
 
-TidalPy's Tides module contains all functions related to calculating the tidal potential and tidal heating. It includes
-obliquity and eccentricity functions which are critical components of the tidal potential. It also provides
-functionality to determine which tidal "modes" (forcing frequencies that carry sign) are activate and important for
-a given problem.
-
-**As of 0.7.x much of the above functionality is better accessed via the old `TidalPy.tides` module. This module is 
-still under development.**
+| Piece | What it holds |
+|---|---|
+| `tides.love1d` | Analytic homogeneous Love numbers: `complex_love`, `static_love`, `effective_rigidity`, and their `_general` degree-l forms. |
+| `tides.methods` | `TidesBase` and the two implementations, `GlobalApproxTides` (fixed Q or fixed time lag) and `LayeredTides`. |
+| `tides.dissipation`, `tides.heating` | `calc_tidal_susceptibility` and `calculate_volumetric_heating`. |
+| `tides.modes`, `tides.potential` | Mode bookkeeping and the tidal potential forms. |
+| `tides.eccentricity_funcs`, `tides.inclination_funcs` | The pre-computed eccentricity and inclination (obliquity) terms, selected by degree and truncation. |
+| `tides.multilayer` | Grid-based stress, strain, displacement, and heating from a radial solution. |
+| `tides.ctl_funcs` | Frequency laws for the constant-time-lag models. |
 
 ```{toctree}
 :maxdepth: 2
 :caption: Contents
 
-Obliquity Functions <Obliquity.md>
 Eccentricity Functions <Eccentricity.md>
+Inclination Functions <Obliquity.md>
 ```
+
+## Moving to the new backend
+
+The replacement is [`TidalPy.Tides_x`](../Tides_x/index.md), which is where new development happens. It covers the same ground with a C++ core: global dissipation models, the depth-resolved three-dimensional kernel, the Love-number container and solution methods, and its own [eccentricity](../Tides_x/eccentricity.md) and [obliquity](../Tides_x/obliquity.md) functions. The [porting guide](../future_structure.md) maps the old names onto the new ones.
