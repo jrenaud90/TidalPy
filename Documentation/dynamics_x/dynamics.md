@@ -13,19 +13,19 @@ A tidal torque changes a body's rotation rate at $\dot{\Omega}_{\text{spin}} = M
 ```python
 from TidalPy.dynamics_x import Spin
 
-model = Spin()                                        # uniform-sphere fallback
-moment = model.calc_moment_of_inertia(mass, radius_outer)          # [kg m2]
-spin_rate = model.calc_dspin_dt(host_mass, dU_dO, moment)          # [rad s-2]
-synchronous = model.calc_synchronous_spin(orbital_frequency)       # [rad s-1]
+model = Spin()                                               # factor 0.4, a uniform sphere
+moment = model.calc_moment_of_inertia(mass, radius)          # [kg m2]
+spin_rate = model.calc_dspin_dt(host_mass, dU_dO, moment)    # [rad s-2]
+synchronous = model.calc_synchronous_spin(orbital_frequency) # [rad s-1]
 ```
 
 ### The moment of inertia
 
-Everything about the spin rate except the moment of inertia comes from the tidal solve, and the moment of inertia is where a body's internal structure enters. `Spin` carries only a crude estimate of it:
+Everything about the spin rate except the moment of inertia comes from the tidal solve, and the moment of inertia is where a body's internal structure enters. `Spin` carries only a simple estimate of it:
 
-$$I = f \cdot \frac{2}{5} M \frac{R_{\text{outer}}^5 - R_{\text{inner}}^5}{R_{\text{outer}}^3 - R_{\text{inner}}^3}$$
+$$I = f M R^2$$
 
-which is the uniform-density value of a solid sphere (or of a shell, when an inner radius is given) scaled by the constructor's `moment_of_inertia_factor` $f$. The factor is the ratio to the uniform-density value, so $f = 1$ means a uniform body and $f < 1$ means a centrally condensed one. In the conventional normalization $I / (M R^2)$ this is $0.4 f$: the Earth's measured 0.3307 corresponds to $f = 0.827$, not to $f = 0.33$. A degenerate shell of zero thickness returns NaN.
+where $f$ is the constructor's `moment_of_inertia_factor`, the conventional dimensionless factor $C / (M R^2)$. A uniform sphere has $f = 0.4$, which is the default. A centrally condensed body has less, with the Earth at 0.3307, and no body with non-negative density can exceed $2/3$, the value for all of its mass in a thin surface shell. A factor that is not finite or lies outside $(0, 2/3]$ raises `ValueError`. That bound deliberately rejects 1.0, so code written against the older ratio-to-a-uniform-sphere convention fails loudly instead of producing a moment of inertia 2.5 times too large.
 
 This estimate exists as a fallback. A `LayeredWorld` that has solved its equation of state has the real structure-resolved moment of inertia, and `world.get_moment_of_inertia()` returns that instead, falling back to the model's formula only when no solve has run.
 
@@ -103,7 +103,7 @@ all_rates = system.calc_system_evolution()   # every world, in index order
 using namespace tidalpy;
 
 c_SpinConfig spin_config;
-spin_config.moment_of_inertia_factor = 1.0;
+spin_config.moment_of_inertia_factor = 0.3307;
 const c_Spin spin(spin_config);
 const double dspin_dt = spin.calc_dspin_dt(host_mass, dU_dO, moment_of_inertia);
 
@@ -112,7 +112,7 @@ const c_OrbitSolver solver;
 const c_OrbitDerivatives rates = solver.calc_derivatives(state, dU_dM, dU_dw);
 ```
 
-- `c_Spin` with `c_SpinConfig`: `calc_moment_of_inertia`, `calc_dspin_dt`, `calc_synchronous_spin`.
+- `c_Spin` with `c_SpinConfig`: `calc_moment_of_inertia`, `calc_dspin_dt`, `calc_synchronous_spin`. The config constructor throws `std::invalid_argument` for a factor outside $(0, 2/3]$.
 - `c_OrbitSolver` with the `c_OrbitState` input struct and the `c_OrbitDerivatives` result struct: `calc_da_dt`, `calc_de_dt`, `calc_dn_dt`, `calc_derivatives`.
 
 Both classes are small, stateless value types with no heap allocation and no base class. The orbital state is passed as a struct rather than as five loose arguments, and the derivatives come back as a struct rather than through output parameters.

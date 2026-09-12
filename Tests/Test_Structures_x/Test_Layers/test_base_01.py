@@ -91,6 +91,13 @@ def test_base_layer_is_tidal_false():
     assert bl.tidal_scale == pytest.approx(0.5)
 
 
+def test_base_layer_density_bulk():
+    """density_bulk is the layer mass divided by its shell volume."""
+    bl = _make_mantle()
+    volume = (4.0 / 3.0) * math.pi * (_MANTLE_R_OUTER_M ** 3 - _MANTLE_R_INNER_M ** 3)
+    assert bl.density_bulk == pytest.approx(_MANTLE_MASS_KG / volume, rel=1e-12)
+
+
 # =====================================================================================================================
 # Derived geometry properties
 # =====================================================================================================================

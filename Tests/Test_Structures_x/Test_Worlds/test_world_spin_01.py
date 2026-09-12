@@ -1,8 +1,8 @@
 """World-attached spin dynamics (``LayeredWorld`` + ``Spin`` model).
 
 The world holds a ``Spin`` model but drives it with its own EOS-based moment of inertia, so the tidal
-spin-rate change uses the structure-resolved MoI. These tests check the MoI source (EOS vs uniform
-fallback), the spin-derivative and synchronous-spin methods, and the full energy balance
+spin-rate change uses the structure-resolved MoI. These tests check the MoI source (EOS vs the
+model's factor estimate), the spin-derivative and synchronous-spin methods, and the full energy balance
 ``heating = -(dE_orbit/dt + dE_spin/dt)`` together with the orbital rate engine.
 """
 import math
@@ -61,10 +61,10 @@ def test_moment_of_inertia_uses_eos_when_solved():
 
 
 def test_moment_of_inertia_uniform_fallback_before_eos():
-    """Before an EOS solve, the model's uniform-density fallback is used."""
+    """Before an EOS solve, the model's ``factor * M R^2`` estimate is used."""
     world = _build_world()
     world.set_spin_model(Spin(moment_of_inertia_factor=0.33))
-    assert math.isclose(world.get_moment_of_inertia(), 0.33 * 0.4 * _MASS * _R ** 2, rel_tol=1e-12)
+    assert math.isclose(world.get_moment_of_inertia(), 0.33 * _MASS * _R ** 2, rel_tol=1e-12)
 
 
 def test_synchronous_spin_equals_mean_motion():

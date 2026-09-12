@@ -6,12 +6,11 @@ cdef extern from "spin_.hpp" namespace "tidalpy" nogil:
 
     cdef cppclass c_Spin:
         c_Spin()
-        c_Spin(const c_SpinConfig& config)
+        c_Spin(const c_SpinConfig& config) except +
         const c_SpinConfig& get_config()
         double calc_moment_of_inertia(
             double mass,
-            double radius_outer,
-            double radius_inner)
+            double radius)
         double calc_dspin_dt(
             double host_mass,
             double dU_dO,

@@ -29,9 +29,14 @@ cdef class Spin:
     Parameters
     ----------
     moment_of_inertia_factor : float, optional
-        Dimensionless moment-of-inertia factor ``C / (M R^2)`` relative to the uniform-density value:
-        ``1.0`` for a uniform sphere (default), smaller for a centrally condensed body (``~0.33`` for
-        the Earth). Scales the ideal moment of inertia.
+        Conventional dimensionless moment-of-inertia factor ``C / (M R^2)``: ``0.4`` for a uniform sphere
+        (default), smaller for a centrally condensed body (``0.3307`` for the Earth). Must lie within
+        ``(0, 2/3]``, where ``2/3`` is a thin hollow shell.
+
+    Raises
+    ------
+    ValueError
+        If ``moment_of_inertia_factor`` is not finite or lies outside ``(0, 2/3]``.
 
     Notes
     -----
@@ -39,27 +44,39 @@ cdef class Spin:
     kg m2, ``dU_dO`` in J kg-1 rad-1, and ``dspin/dt`` in rad s-2.
     """
 
-    def __init__(self, double moment_of_inertia_factor=1.0):
+    def __init__(self, double moment_of_inertia_factor=0.4):
         cdef c_SpinConfig config
         config.moment_of_inertia_factor = moment_of_inertia_factor
         self._spin = c_Spin(config)
 
     @property
     def moment_of_inertia_factor(self) -> float:
-        """Dimensionless moment-of-inertia factor ``C / (M R^2)``."""
+        """Conventional dimensionless moment-of-inertia factor ``C / (M R^2)`` (0.4 for a uniform sphere)."""
         return self._spin.get_config().moment_of_inertia_factor
 
     def calc_moment_of_inertia(
             self,
             double mass,
-            double radius_outer,
-            double radius_inner=0.0) -> float:
-        """Moment of inertia [kg m2] of the (uniform-density) body, scaled by the structure factor.
+            double radius) -> float:
+        """Moment of inertia [kg m2]: ``I = moment_of_inertia_factor * M R^2``.
 
-        ``I = factor * (2/5) M (R_outer^5 - R_inner^5) / (R_outer^3 - R_inner^3)`` (a solid sphere when
-        ``radius_inner = 0``). Returns NaN for a degenerate (zero-thickness) shell.
+        Parameters
+        ----------
+        mass : float
+            Body mass [kg].
+        radius : float
+            Body (outer) radius [m].
+
+        Returns
+        -------
+        float
+            Moment of inertia [kg m2].
+
+        Assumptions
+        -----------
+        The factor describes the body's radial mass distribution and is taken as given.
         """
-        return self._spin.calc_moment_of_inertia(mass, radius_outer, radius_inner)
+        return self._spin.calc_moment_of_inertia(mass, radius)
 
     def calc_dspin_dt(
             self,

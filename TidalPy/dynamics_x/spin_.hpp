@@ -12,27 +12,48 @@
  * (c_GlobalTideResult.dU_dO, from world.calc_tides); it is passed in here as a plain scalar so this
  * module does not depend on the Tides_x headers.
  *
- * References: Ferraz-Mello et al. (2008) for the spin-rate torque; the moment-of-inertia form is the
- * standard uniform-density spherical-shell result scaled by a dimensionless structure factor.
+ * References: Ferraz-Mello et al. (2008) for the spin-rate torque. The moment of inertia is
+ * I = f M R^2 with the conventional dimensionless factor f = C / (M R^2).
  *
  * All quantities MKS: masses in kg, radii in m, frequencies in rad s-1, moment of inertia in kg m2,
  * dU/dO in J kg-1 rad-1, dspin/dt in rad s-2.
  */
 
 #include <cmath>
+#include <stdexcept>
+#include <string>
 
 #include "constants_.hpp"   // TidalPyConstants::d_EPS, d_NAN
 
 namespace tidalpy {
 
+// Largest physical moment-of-inertia factor C / (M R^2): all of the mass in a thin surface shell.
+constexpr double d_SPIN_MOI_FACTOR_MAX = 2.0 / 3.0;
+
 // -------------------------------------------------------------------------------
 // c_SpinConfig - the (few) configurable properties of the spin model.
 // -------------------------------------------------------------------------------
 struct c_SpinConfig {
-    // Dimensionless moment-of-inertia factor C / (M R^2) relative to the uniform-density value: 1 for a
-    // uniform sphere, smaller for a centrally condensed body (~0.33 for the Earth). Scales the ideal MoI.
-    double moment_of_inertia_factor = 1.0;
+    // Conventional dimensionless moment-of-inertia factor f = C / (M R^2): 0.4 for a uniform sphere, smaller for
+    // a centrally condensed body (0.3307 for the Earth), and at most 2/3 (a thin hollow shell).
+    double moment_of_inertia_factor = 0.4;
 };
+
+// -------------------------------------------------------------------------------
+// c_validate_moi_factor - reject an unphysical moment-of-inertia factor.
+//
+// A factor must be finite and within (0, 2/3]. The upper bound is the thin hollow shell, the most outwardly
+// concentrated body with non-negative density. A value above it, such as 1.0 from the ratio-to-a-uniform-sphere
+// convention, is rejected rather than silently producing a moment of inertia 2.5 times too large.
+// Throws std::invalid_argument (surfaced as ValueError in Cython).
+// -------------------------------------------------------------------------------
+inline void c_validate_moi_factor(double factor) {
+    if (!std::isfinite(factor) || factor <= 0.0 || factor > d_SPIN_MOI_FACTOR_MAX) {
+        throw std::invalid_argument(
+            "TidalPy: moment_of_inertia_factor must be the conventional C / (M R^2), within (0, 2/3]; got "
+            + std::to_string(factor) + " (a uniform sphere is 0.4)");
+    }
+}
 
 // -------------------------------------------------------------------------------
 // c_Spin - spin-dynamics calculator (rates only).
@@ -40,32 +61,25 @@ struct c_SpinConfig {
 class c_Spin {
 public:
     c_Spin() noexcept = default;
-    explicit c_Spin(const c_SpinConfig& config) noexcept
-        : p_config(config) {}
+
+    // Throws std::invalid_argument if the configured moment-of-inertia factor is unphysical.
+    explicit c_Spin(const c_SpinConfig& config)
+        : p_config(config)
+    {
+        c_validate_moi_factor(config.moment_of_inertia_factor);
+    }
 
     const c_SpinConfig& get_config() const noexcept { return this->p_config; }
 
-    // Moment of inertia [kg m2] of a uniform-density spherical shell (a solid sphere when radius_inner = 0),
-    // scaled by the configured structure factor:
-    //   I = factor * (2/5) M (R_outer^5 - R_inner^5) / (R_outer^3 - R_inner^3).
-    // Returns NaN for a degenerate (zero-thickness) shell.
+    // Moment of inertia [kg m2] from the conventional structure factor: I = f M R^2.
     //
     // Assumptions
     // -----------
-    // Uniform density within the shell; the structure factor absorbs any real radial density variation.
+    // The factor f = C / (M R^2) describes the body's radial mass distribution; it is taken as given.
     double calc_moment_of_inertia(
             double mass,
-            double radius_outer,
-            double radius_inner = 0.0) const noexcept {
-        const double r_outer3 = radius_outer * radius_outer * radius_outer;
-        const double r_inner3 = radius_inner * radius_inner * radius_inner;
-        const double volume_term = r_outer3 - r_inner3;
-        if (std::abs(volume_term) <= TidalPyConstants::d_EPS) {
-            return TidalPyConstants::d_NAN;
-        }
-        const double r_outer5 = r_outer3 * radius_outer * radius_outer;
-        const double r_inner5 = r_inner3 * radius_inner * radius_inner;
-        return this->p_config.moment_of_inertia_factor * 0.4 * mass * (r_outer5 - r_inner5) / volume_term;
+            double radius) const noexcept {
+        return this->p_config.moment_of_inertia_factor * mass * radius * radius;
     }
 
     // Tidal spin-rate change [rad s-2]: dspin/dt = M_host * dU/dO / I (Ferraz-Mello et al. 2008), where

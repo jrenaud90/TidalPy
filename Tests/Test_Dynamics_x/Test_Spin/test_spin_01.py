@@ -1,7 +1,7 @@
 """Spin-dynamics calculator (``TidalPy.dynamics_x.Spin``).
 
-Checks the moment-of-inertia formula (solid sphere, shell, structure factor), the synchronous spin,
-and the tidal spin-rate change ``dspin/dt = M_host dU_dO / I``.
+Checks the moment of inertia from the conventional factor ``C / (M R^2)``, the factor validation, the synchronous
+spin, and the tidal spin-rate change ``dspin/dt = M_host dU_dO / I``.
 """
 import math
 
@@ -11,33 +11,28 @@ import pytest
 from TidalPy.dynamics_x import Spin
 
 
-def test_moment_of_inertia_solid_sphere():
-    """Solid uniform sphere: I = (2/5) M R^2."""
+def test_default_factor_is_uniform_sphere():
+    """The default factor is the uniform-sphere value, so I = (2/5) M R^2."""
     spin = Spin()
     mass, radius = 5.0e24, 6.0e6
-    assert math.isclose(spin.calc_moment_of_inertia(mass, radius),
-                        0.4 * mass * radius ** 2, rel_tol=1e-14)
+    assert spin.moment_of_inertia_factor == 0.4
+    assert math.isclose(spin.calc_moment_of_inertia(mass, radius), 0.4 * mass * radius ** 2, rel_tol=1e-14)
 
 
-def test_moment_of_inertia_shell():
-    """Uniform shell: I = (2/5) M (R_o^5 - R_i^5)/(R_o^3 - R_i^3)."""
-    spin = Spin()
-    mass, r_o, r_i = 3.0e23, 2.0e6, 1.0e6
-    expected = 0.4 * mass * (r_o ** 5 - r_i ** 5) / (r_o ** 3 - r_i ** 3)
-    assert math.isclose(spin.calc_moment_of_inertia(mass, r_o, r_i), expected, rel_tol=1e-14)
-
-
-def test_moment_of_inertia_factor_scales():
-    mass, radius, factor = 1.0e24, 1.0e6, 0.33
+@pytest.mark.parametrize("factor", [0.25, 0.3307, 0.4, 2.0 / 3.0])
+def test_moment_of_inertia_uses_conventional_factor(factor):
+    """I = factor * M R^2 for any physical factor, including the thin-shell limit 2/3."""
+    mass, radius = 1.0e24, 1.0e6
     spin = Spin(moment_of_inertia_factor=factor)
     assert spin.moment_of_inertia_factor == factor
-    assert math.isclose(spin.calc_moment_of_inertia(mass, radius),
-                        factor * 0.4 * mass * radius ** 2, rel_tol=1e-14)
+    assert math.isclose(spin.calc_moment_of_inertia(mass, radius), factor * mass * radius ** 2, rel_tol=1e-14)
 
 
-def test_degenerate_shell_is_nan():
-    spin = Spin()
-    assert np.isnan(spin.calc_moment_of_inertia(1.0e24, 1.0e6, 1.0e6))  # zero thickness
+@pytest.mark.parametrize("factor", [0.0, -0.4, 0.7, 1.0, math.nan, math.inf])
+def test_unphysical_factor_raises(factor):
+    """A factor outside (0, 2/3] is rejected; 1.0 is the old ratio-to-a-uniform-sphere convention."""
+    with pytest.raises(ValueError):
+        Spin(moment_of_inertia_factor=factor)
 
 
 def test_synchronous_spin_equals_mean_motion():
