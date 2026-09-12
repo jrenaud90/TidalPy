@@ -4,23 +4,23 @@ _Updated: 2026-09-12_
 
 A material equation-of-state model returns a mass density [kg m$^{-3}$]. The analytic models return it as a function of the local pressure [Pa]; the interpolated model returns it as a function of radius [m]. All four answer through the same call, `calc_density(pressure, temperature=0.0, radius=0.0)`, so the whole-planet solve does not need to know which kind it is holding.
 
-The models follow the same pattern as the rheology, viscosity, cooling, and radiogenics hierarchies: an abstract base deriving from `PhysicsBase`, concrete subclasses, a name-based factory, and shared serialization. The analytic models are isothermal: the temperature argument exists for interface uniformity and is not currently used.
+All of the models are built on an abstract base class deriving from `PhysicsBase`. The analytic models are isothermal: the temperature argument exists for interface uniformity and is not currently used.
 
 ## Inheritance
 
 ```
 c_TidalPyBaseClass
   └── c_PhysicsBase
-        └── c_MaterialEOSBase          (abstract)
-              ├── c_ConstantDensityEOS   aliases "constant", "uniform", "constant_density"
-              ├── c_BirchMurnaghanEOS    aliases "bm", "birch_murnaghan", "birch-murnaghan"
-              ├── c_VinetEOS             alias "vinet"
-              └── c_InterpolatedEOS      aliases "interp", "interpolate", "interpolated"
+        └── c_MaterialEOSBase  (abstract)
+              ├── c_ConstantDensityEOS  aliases "constant", "uniform", "constant_density"
+              ├── c_BirchMurnaghanEOS   aliases "bm", "birch_murnaghan", "birch-murnaghan"
+              ├── c_VinetEOS            alias "vinet"
+              └── c_InterpolatedEOS     aliases "interp", "interpolate", "interpolated"
 ```
 
 The base declares `calc_density(pressure, temperature, radius)` pure virtual and adds four optional radius-varying getters, described below. The Cython classes mirror the hierarchy: `MaterialEOSBase`, `ConstantDensityEOS`, `BirchMurnaghanEOS`, `VinetEOS`, `InterpolatedEOS`.
 
-## The four models
+## Models
 
 | Model (aliases) | Density from | Parameters |
 |---|---|---|
@@ -29,9 +29,9 @@ The base declares `calc_density(pressure, temperature, radius)` pure virtual and
 | `vinet` | pressure | same as Birch-Murnaghan |
 | `interpolated` (`interp`, `interpolate`) | radius, by table lookup | `radius`, `density`, and optional viscoelastic tables |
 
-### Constant density
+### Constant Density
 
-Returns the same density everywhere. An incompressible body is not a realistic planet, but it is the case with closed-form Love numbers, so it is what analytic checks and regression tests are written against. It is also the honest choice for a thin layer where the pressure range is too small for compression to matter.
+Returns the same density everywhere. An incompressible body is not a realistic but can be a useful diagnostic or applicable to small moons. This is also used to perform checks and tests on the analytical models.
 
 ### Birch-Murnaghan, third order
 
@@ -51,11 +51,11 @@ Vinet and Birch-Murnaghan agree closely at modest compression and diverge at hig
 
 ### Interpolated
 
-Linear interpolation of a sorted radius-to-density table, clamped at both ends. This is the route for any profile computed elsewhere: run a full mineral-physics or thermal-evolution code, export the result as arrays, and load them here. It is also how the shipped PREM profile of the Earth is used.
+Linear interpolation of a sorted radius-to-density table, clamped at both ends. This is the route for any profile computed elsewhere: run a full mineral-physics or thermal-evolution code, export the result as arrays, and load them here. For example, TidalPy uses a PREM profile of the Earth via this model.
 
-The interpolated model optionally carries four more radius-varying tables alongside density: static shear modulus, static bulk modulus, shear viscosity, and bulk viscosity. When present they are read back with `calc_static_shear_modulus(radius)`, `calc_static_bulk_modulus(radius)`, `calc_shear_viscosity(radius)`, and `calc_bulk_viscosity(radius)`. These four getters exist on the base class, and the analytic models return NaN from all of them. During a whole-planet solve an interpolated layer's tabulated values take precedence over the layer's own constants, so a tabulated layer's moduli and viscosities vary with radius the way its density does. A world TOML that names a `data_file` gets these tables populated automatically; see the [TOML schema](../structures_x/config/toml_schema.md).
+The interpolated model optionally carries four more radius-varying tables alongside density: static shear modulus, static bulk modulus, shear viscosity, and bulk viscosity. When present they are read back with `calc_static_shear_modulus(radius)`, `calc_static_bulk_modulus(radius)`, `calc_shear_viscosity(radius)`, and `calc_bulk_viscosity(radius)`. These four getters exist on the base class, and the analytic models return NaN from all of them. During a whole-planet solve an interpolated layer's tabulated values take precedence over the layer's own constants, so a tabulated layer's moduli and viscosities vary with radius the way its density does. A world TOML that names a `data_file` gets these tables populated automatically (using a PREM-like data file format); see the [TOML schema](../structures_x/config/toml_schema.md).
 
-### The pressure inversion
+### Pressure Inversion
 
 The analytic laws give pressure as a function of compression, but the solve needs the inverse. Both compressible models invert their own law with a safeguarded Newton iteration that falls back to bisection, and they share one implementation.
 
@@ -75,7 +75,7 @@ bm.invert_rtol, bm.invert_max_iters      # (1e-09, 80)
 
 Both appear in `get_config_dict()` and survive the binary round trip. Their defaults live in one place, the C++ `c_MaterialEOSConfig` member initializers, and the Python wrappers override them only when a value is supplied explicitly.
 
-## Choosing a model
+### Choosing a Model
 
 Use `constant` for an analytic check, for a regression test with a known closed-form answer, or for a layer thin enough that compression is negligible.
 
@@ -126,7 +126,7 @@ vinet_pressure(1.2, 1.3e11, 4.5)
 
 An unrecognized key is ignored without warning, so a misspelling produces a model built from defaults rather than an error.
 
-### Attaching a model to a layer
+### Attaching a Model to a `Layer`
 
 ```python
 from TidalPy.Material_x.eos import make_material_eos
@@ -199,7 +199,7 @@ All models derive from `c_MaterialEOSBase : c_PhysicsBase` and override `calc_de
 | `c_find_material_eos(model, config)` | Heap-allocates the model as a `unique_ptr`. A name-string overload is also provided. |
 | `c_material_eos_from_binary(stream, force)` | Peeks the binary class id and reconstructs the matching model, used when a layer with an attached EOS is loaded. |
 
-## Adding a new model
+## Adding a New Model
 
 **C++ (`TidalPy/Material_x/eos/material_eos_.hpp`)**
 

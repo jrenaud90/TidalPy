@@ -2,9 +2,9 @@
 
 _Updated: 2026-09-12_
 
-`TidalPy.Material_x` describes what a planet is made of, in the one sense a tidal calculation needs: how dense the material is at the pressure it finds itself under. Each model maps the local state onto a mass density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure.
+`TidalPy.Material_x` contains functionality to calculate the equation of state of various planet-relevant materials. Each model maps the local state onto a mass density [kg m$^{-3}$], and the whole-planet solve integrates those densities from the center outward to produce the body's radial structure. During this process, the gravity, pressure, and moment of inertia are also calculated.
 
-That structure is not a detail of the setup. It is the coefficient set of every later calculation. The density profile fixes the gravity and pressure profiles, which fix the moment of inertia, which is one of the few interior quantities a spacecraft can actually measure. It also fixes the coefficients of the radial functions the Love-number solver integrates, so two bodies with the same mass and radius but different internal density distributions have measurably different $k_2$. Getting the equation of state wrong does not shift a tidal answer slightly; it changes the interior the answer describes.
+The density profile fixes the gravity and pressure profiles, which fix the moment of inertia, which is one of the few interior quantities a spacecraft can actually measure. It also fixes the coefficients of the radial functions the Love-number solver integrates, so two bodies with the same mass and radius but different internal density distributions have measurably different $k_2$.
 
 | Page | Covers |
 |---|---|
@@ -16,7 +16,7 @@ That structure is not a detail of the setup. It is the coefficient set of every 
 Material EOS Models <material_eos.md>
 ```
 
-## Where the equation of state fits
+## Where EOS is Used
 
 An EOS model is attached to a layer with `BaseLayer.set_eos`. Once every layer has one, `LayeredWorld.solve_eos()` integrates the planet's radial structure from the center to the surface and populates each layer's density, gravity, pressure, mass, and moment-of-inertia profiles. That solve, its convergence loop, and its results are documented with the world class; see [Worlds](../structures_x/worlds/worlds.md).
 
@@ -26,7 +26,9 @@ A world built from a TOML file gets its EOS models from the `[layers.<name>.eos]
 
 ## Scope
 
-The analytic models are isothermal. They accept a temperature for interface uniformity and currently ignore it, so thermal expansion is not part of the density they return. Phase transitions, composition gradients within a layer, and self-consistent thermal structure are all outside the module. The interpolated model is the escape hatch: a density profile computed by any external tool, including a full mineral-physics package, can be loaded as a table and used exactly like an analytic law.
+The analytic models are isothermal. They accept a temperature for interface uniformity and currently ignore it, so thermal expansion is not part of the density they return. Phase transitions, composition gradients within a layer, and self-consistent thermal structure are not currently implemented.
+
+However, TidalPy includes an interpolated EOS model. This allows density (and viscoelastic properties) to be computed by any external tool, including a full mineral-physics package, which is then loaded as a table and used exactly like an analytic law.
 
 ## References
 
